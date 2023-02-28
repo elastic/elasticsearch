@@ -10,6 +10,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -91,7 +92,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
             roleFields.append("          - ").append(field).append('\n');
         }
 
-        return """
+        return Strings.format("""
             %s
             role1:
               cluster: [ none ]
@@ -130,7 +131,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
                   privileges: [ ALL ]
                   field_security:
                      grant: [ id, field3 ]
-            """.formatted(super.configRoles(), roleFields.toString());
+            """, super.configRoles(), roleFields);
     }
 
     @Override

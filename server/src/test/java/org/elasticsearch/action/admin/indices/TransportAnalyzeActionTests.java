@@ -32,7 +32,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
-import org.elasticsearch.indices.analysis.AnalysisModuleTests.AppendCharFilter;
+import org.elasticsearch.indices.analysis.lucene.AppendCharFilter;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;

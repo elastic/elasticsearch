@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.core.rollup.action.GetRollupJobsAction;
 import java.io.IOException;
 import java.util.Collections;
 
-public class JobWrapperSerializingTests extends AbstractSerializingTestCase<GetRollupJobsAction.JobWrapper> {
+public class JobWrapperSerializingTests extends AbstractXContentSerializingTestCase<GetRollupJobsAction.JobWrapper> {
     @Override
     protected GetRollupJobsAction.JobWrapper doParseInstance(XContentParser parser) throws IOException {
         return GetRollupJobsAction.JobWrapper.PARSER.apply(parser, null);
@@ -59,5 +59,10 @@ public class JobWrapperSerializingTests extends AbstractSerializingTestCase<GetR
             ),
             new RollupJobStatus(state, Collections.emptyMap())
         );
+    }
+
+    @Override
+    protected GetRollupJobsAction.JobWrapper mutateInstance(GetRollupJobsAction.JobWrapper instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 }

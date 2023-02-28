@@ -55,6 +55,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.action.admin.indices.create.ShrinkIndexIT.assertNoResizeSourceIndexSettings;
 import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -72,14 +73,15 @@ public class SplitIndexIT extends ESIntegTestCase {
     }
 
     public void testCreateSplitIndexToN() throws IOException {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/33857", Constants.WINDOWS);
+
         int[][] possibleShardSplits = new int[][] { { 2, 4, 8 }, { 3, 6, 12 }, { 1, 2, 4 } };
         int[] shardSplits = randomFrom(possibleShardSplits);
         splitToN(shardSplits[0], shardSplits[1], shardSplits[2]);
     }
 
     public void testSplitFromOneToN() {
-
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/34080", Constants.WINDOWS);
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/33857", Constants.WINDOWS);
 
         splitToN(1, 5, 10);
         client().admin().indices().prepareDelete("*").get();
@@ -193,6 +195,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         );
         ensureGreen();
         assertHitCount(client().prepareSearch("first_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
+        assertNoResizeSourceIndexSettings("first_split");
 
         for (int i = 0; i < numDocs; i++) { // now update
             IndexRequestBuilder builder = indexFunc.apply("first_split", i);
@@ -228,6 +231,8 @@ public class SplitIndexIT extends ESIntegTestCase {
         );
         ensureGreen();
         assertHitCount(client().prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
+        assertNoResizeSourceIndexSettings("second_split");
+
         // let it be allocated anywhere and bump replicas
         setReplicaCount(1, "second_split");
         ensureGreen();
@@ -354,6 +359,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         for (int shardId = 0; shardId < numberOfTargetShards; shardId++) {
             assertThat(aftersplitIndexMetadata.primaryTerm(shardId), equalTo(beforeSplitPrimaryTerm + 1));
         }
+        assertNoResizeSourceIndexSettings("target");
     }
 
     private static IndexMetadata indexMetadata(final Client client, final String index) {
@@ -408,6 +414,7 @@ public class SplitIndexIT extends ESIntegTestCase {
                     .get()
             );
             ensureGreen();
+            assertNoResizeSourceIndexSettings("target");
 
             final ClusterState state = client().admin().cluster().prepareState().get().getState();
             DiscoveryNode mergeNode = state.nodes().get(state.getRoutingTable().index("target").shard(0).primaryShard().currentNodeId());
@@ -550,5 +557,6 @@ public class SplitIndexIT extends ESIntegTestCase {
         }
         flushAndRefresh();
         assertSortedSegments("target", expectedIndexSort);
+        assertNoResizeSourceIndexSettings("target");
     }
 }

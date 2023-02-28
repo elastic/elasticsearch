@@ -12,8 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Assertions;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -53,6 +51,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -94,6 +93,8 @@ public class TaskManager implements ClusterStateApplier {
     private final ByteSizeValue maxHeaderSize;
     private final Map<TcpChannel, ChannelPendingTaskTracker> channelPendingTaskTrackers = ConcurrentCollections.newConcurrentMap();
     private final SetOnce<TaskCancellationService> cancellationService = new SetOnce<>();
+
+    private final List<RemovedTaskListener> removedTaskListeners = new CopyOnWriteArrayList<>();
 
     // For testing
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
@@ -154,7 +155,7 @@ public class TaskManager implements ClusterStateApplier {
         }
 
         if (task instanceof CancellableTask) {
-            registerCancellableTask(task);
+            registerCancellableTask(task, traceRequest);
         } else {
             Task previousTask = tasks.put(task.getId(), task);
             assert previousTask == null;
@@ -165,7 +166,8 @@ public class TaskManager implements ClusterStateApplier {
         return task;
     }
 
-    private void startTrace(ThreadContext threadContext, Task task) {
+    // package private for testing
+    void startTrace(ThreadContext threadContext, Task task) {
         TaskId parentTask = task.getParentTaskId();
         Map<String, Object> attributes = Map.of(
             Tracer.AttributeKeys.TASK_ID,
@@ -230,11 +232,13 @@ public class TaskManager implements ClusterStateApplier {
         }
     }
 
-    private void registerCancellableTask(Task task) {
+    private void registerCancellableTask(Task task, boolean traceRequest) {
         CancellableTask cancellableTask = (CancellableTask) task;
         CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask);
         cancellableTasks.put(task, holder);
-        startTrace(threadPool.getThreadContext(), task);
+        if (traceRequest) {
+            startTrace(threadPool.getThreadContext(), task);
+        }
         // Check if this task was banned before we start it.
         if (task.getParentTaskId().isSet()) {
             final Ban ban = bannedParents.get(task.getParentTaskId());
@@ -289,7 +293,18 @@ public class TaskManager implements ClusterStateApplier {
             }
         } finally {
             tracer.stopTrace("task-" + task.getId());
+            for (RemovedTaskListener listener : removedTaskListeners) {
+                listener.onRemoved(task);
+            }
         }
+    }
+
+    public void registerRemovedTaskListener(RemovedTaskListener removedTaskListener) {
+        removedTaskListeners.add(removedTaskListener);
+    }
+
+    public void unregisterRemovedTaskListener(RemovedTaskListener removedTaskListener) {
+        removedTaskListeners.remove(removedTaskListener);
     }
 
     /**
@@ -528,23 +543,6 @@ public class TaskManager implements ClusterStateApplier {
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         lastDiscoveryNodes = event.state().getNodes();
-    }
-
-    /**
-     * Blocks the calling thread, waiting for the task to vanish from the TaskManager.
-     */
-    public void waitForTaskCompletion(Task task, long untilInNanos) {
-        while (System.nanoTime() - untilInNanos < 0) {
-            if (getTask(task.getId()) == null) {
-                return;
-            }
-            try {
-                Thread.sleep(WAIT_FOR_COMPLETION_POLL.millis());
-            } catch (InterruptedException e) {
-                throw new ElasticsearchException("Interrupted waiting for completion of [{}]", e, task);
-            }
-        }
-        throw new ElasticsearchTimeoutException("Timed out waiting for completion of [{}]", task);
     }
 
     private static class CancellableTaskHolder {

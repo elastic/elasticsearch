@@ -18,7 +18,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -163,17 +163,17 @@ public class FieldFetcher {
         this.unmappedConcreteFields = unmappedConcreteFields;
     }
 
-    public Map<String, DocumentField> fetch(SourceLookup sourceLookup) throws IOException {
+    public Map<String, DocumentField> fetch(Source source, int doc) throws IOException {
         Map<String, DocumentField> documentFields = new HashMap<>();
         for (FieldContext context : fieldContexts.values()) {
             String field = context.fieldName;
             ValueFetcher valueFetcher = context.valueFetcher;
-            final DocumentField docField = valueFetcher.fetchDocumentField(field, sourceLookup);
+            final DocumentField docField = valueFetcher.fetchDocumentField(field, source, doc);
             if (docField != null) {
                 documentFields.put(field, docField);
             }
         }
-        collectUnmapped(documentFields, () -> sourceLookup.source(), "", 0);
+        collectUnmapped(documentFields, source::source, "", 0);
         return documentFields;
     }
 

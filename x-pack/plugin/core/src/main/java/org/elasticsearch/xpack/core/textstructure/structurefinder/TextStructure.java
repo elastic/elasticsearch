@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.textstructure.structurefinder;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -218,25 +218,25 @@ public class TextStructure implements ToXContentObject, Writeable {
         format = in.readEnum(Format.class);
         multilineStartPattern = in.readOptionalString();
         excludeLinesPattern = in.readOptionalString();
-        columnNames = in.readBoolean() ? Collections.unmodifiableList(in.readStringList()) : null;
+        columnNames = in.readBoolean() ? in.readImmutableList(StreamInput::readString) : null;
         hasHeaderRow = in.readOptionalBoolean();
         delimiter = in.readBoolean() ? (char) in.readVInt() : null;
         quote = in.readBoolean() ? (char) in.readVInt() : null;
         shouldTrimFields = in.readOptionalBoolean();
         grokPattern = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             ecsCompatibility = getNonNullEcsCompatibilityString(in.readString());
         } else {
             ecsCompatibility = getNonNullEcsCompatibilityString(null);
         }
-        jodaTimestampFormats = in.readBoolean() ? Collections.unmodifiableList(in.readStringList()) : null;
-        javaTimestampFormats = in.readBoolean() ? Collections.unmodifiableList(in.readStringList()) : null;
+        jodaTimestampFormats = in.readBoolean() ? in.readImmutableList(StreamInput::readString) : null;
+        javaTimestampFormats = in.readBoolean() ? in.readImmutableList(StreamInput::readString) : null;
         timestampField = in.readOptionalString();
         needClientTimezone = in.readBoolean();
         mappings = Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap()));
         ingestPipeline = in.readBoolean() ? Collections.unmodifiableMap(in.readMap()) : null;
         fieldStats = Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap(StreamInput::readString, FieldStats::new)));
-        explanation = Collections.unmodifiableList(in.readStringList());
+        explanation = in.readImmutableList(StreamInput::readString);
     }
 
     @Override
@@ -270,7 +270,7 @@ public class TextStructure implements ToXContentObject, Writeable {
         }
         out.writeOptionalBoolean(shouldTrimFields);
         out.writeOptionalString(grokPattern);
-        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             out.writeString(ecsCompatibility);
         }
         if (jodaTimestampFormats == null) {

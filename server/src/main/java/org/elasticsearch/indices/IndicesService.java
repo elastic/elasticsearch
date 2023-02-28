@@ -169,7 +169,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
 import static org.elasticsearch.index.IndexService.IndexCreationContext.METADATA_VERIFICATION;
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 public class IndicesService extends AbstractLifecycleComponent
@@ -619,14 +619,17 @@ public class IndicesService extends AbstractLifecycleComponent
         };
         finalListeners.add(onStoreClose);
         finalListeners.add(oldShardsStats);
-        final IndexService indexService = createIndexService(
-            CREATE_INDEX,
-            indexMetadata,
-            indicesQueryCache,
-            indicesFieldDataCache,
-            finalListeners,
-            indexingMemoryController
-        );
+        IndexService indexService;
+        try (var ignored = threadPool.getThreadContext().newStoredContext()) {
+            indexService = createIndexService(
+                CREATE_INDEX,
+                indexMetadata,
+                indicesQueryCache,
+                indicesFieldDataCache,
+                finalListeners,
+                indexingMemoryController
+            );
+        }
         boolean success = false;
         try {
             if (writeDanglingIndices && nodeWriteDanglingIndicesInfo) {
@@ -1638,7 +1641,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 InputStream inputStream = bytes.streamInput();
                 XContentParser parser = XContentFactory.xContentType(inputStream).xContent().createParser(parserConfig, inputStream)
             ) {
-                return parseInnerQueryBuilder(parser);
+                return parseTopLevelQuery(parser);
             }
         };
         String[] aliases = indexNameExpressionResolver.filteringAliases(state, index, resolvedExpressions);
@@ -1648,30 +1651,36 @@ public class IndicesService extends AbstractLifecycleComponent
 
         Metadata metadata = state.metadata();
         IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
-        if (ia.getParentDataStream() != null) {
-            List<QueryBuilder> filters = Arrays.stream(aliases).map(name -> metadata.dataStreamAliases().get(name)).map(dataStreamAlias -> {
-                try {
-                    return filterParser.apply(dataStreamAlias.getFilter().uncompressed());
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }).toList();
+        IndexAbstraction.DataStream dataStream = ia.getParentDataStream();
+        if (dataStream != null) {
+            String dataStreamName = dataStream.getName();
+            List<QueryBuilder> filters = Arrays.stream(aliases)
+                .map(name -> metadata.dataStreamAliases().get(name))
+                .filter(dataStreamAlias -> dataStreamAlias.getFilter(dataStreamName) != null)
+                .map(dataStreamAlias -> {
+                    try {
+                        return filterParser.apply(dataStreamAlias.getFilter(dataStreamName).uncompressed());
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                })
+                .toList();
             if (filters.isEmpty()) {
-                return new AliasFilter(null, aliases);
+                return AliasFilter.of(null, aliases);
             } else {
                 if (filters.size() == 1) {
-                    return new AliasFilter(filters.get(0), aliases);
+                    return AliasFilter.of(filters.get(0), aliases);
                 } else {
                     BoolQueryBuilder bool = new BoolQueryBuilder();
                     for (QueryBuilder filter : filters) {
                         bool.should(filter);
                     }
-                    return new AliasFilter(bool, aliases);
+                    return AliasFilter.of(bool, aliases);
                 }
             }
         } else {
             IndexMetadata indexMetadata = metadata.index(index);
-            return new AliasFilter(ShardSearchRequest.parseAliasFilter(filterParser, indexMetadata, aliases), aliases);
+            return AliasFilter.of(ShardSearchRequest.parseAliasFilter(filterParser, indexMetadata, aliases), aliases);
         }
     }
 

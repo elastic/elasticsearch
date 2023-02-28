@@ -10,11 +10,15 @@ package org.elasticsearch.search.lookup;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
@@ -48,13 +52,19 @@ public class LeafStoredFieldsLookupTests extends ESTestCase {
             0,
             0,
             0,
+            VectorEncoding.FLOAT32,
             VectorSimilarityFunction.EUCLIDEAN,
             false
         );
 
         fieldsLookup = new LeafStoredFieldsLookup(
             field -> field.equals("field") || field.equals("alias") ? fieldType : null,
-            (doc, visitor) -> visitor.doubleField(mockFieldInfo, 2.718)
+            () -> new StoredFields() {
+                @Override
+                public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+                    visitor.doubleField(mockFieldInfo, 2.718);
+                }
+            }
         );
     }
 

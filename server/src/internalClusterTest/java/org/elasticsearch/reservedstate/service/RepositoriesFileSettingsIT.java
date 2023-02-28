@@ -49,7 +49,6 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class RepositoriesFileSettingsIT extends ESIntegTestCase {
-
     private static AtomicLong versionCounter = new AtomicLong(1);
 
     private static String testJSON = """

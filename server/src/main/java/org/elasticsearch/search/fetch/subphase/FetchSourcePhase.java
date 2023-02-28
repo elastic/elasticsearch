@@ -9,18 +9,14 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.lookup.SourceLookup;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
 
-import java.io.IOException;
 import java.util.Map;
 
 public final class FetchSourcePhase implements FetchSubPhase {
@@ -30,8 +26,8 @@ public final class FetchSourcePhase implements FetchSubPhase {
         if (fetchSourceContext == null || fetchSourceContext.fetchSource() == false) {
             return null;
         }
-        String index = fetchContext.getIndexName();
         assert fetchSourceContext.fetchSource();
+        SourceFilter sourceFilter = fetchSourceContext.filter();
 
         return new FetchSubPhaseProcessor() {
             private int fastPath;
@@ -42,9 +38,15 @@ public final class FetchSourcePhase implements FetchSubPhase {
             }
 
             @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return StoredFieldsSpec.NEEDS_SOURCE;
+            }
+
+            @Override
             public void process(HitContext hitContext) {
+                String index = fetchContext.getIndexName();
                 if (fetchContext.getSearchExecutionContext().isSourceEnabled() == false) {
-                    if (containsFilters(fetchSourceContext)) {
+                    if (fetchSourceContext.hasFilter()) {
                         throw new IllegalArgumentException(
                             "unable to fetch fields from _source field: _source is disabled in the mappings for index [" + index + "]"
                         );
@@ -54,30 +56,23 @@ public final class FetchSourcePhase implements FetchSubPhase {
                 hitExecute(fetchSourceContext, hitContext);
             }
 
-            @SuppressWarnings("unchecked")
             private void hitExecute(FetchSourceContext fetchSourceContext, HitContext hitContext) {
                 final boolean nestedHit = hitContext.hit().getNestedIdentity() != null;
-                SourceLookup source = hitContext.sourceLookup();
+                Source source = hitContext.source();
 
                 // If this is a parent document and there are no source filters, then add the source as-is.
-                if (nestedHit == false && containsFilters(fetchSourceContext) == false) {
+                if (nestedHit == false && fetchSourceContext.hasFilter() == false) {
                     hitContext.hit().sourceRef(source.internalSourceRef());
                     fastPath++;
                     return;
                 }
 
                 // Otherwise, filter the source and add it to the hit.
-                Object value = source.filter(fetchSourceContext);
+                source = source.filter(sourceFilter);
                 if (nestedHit) {
-                    value = getNestedSource((Map<String, Object>) value, hitContext);
+                    source = extractNested(source, hitContext.hit().getNestedIdentity());
                 }
-
-                try {
-                    final int initialCapacity = nestedHit ? 1024 : Math.min(1024, source.internalSourceRef().length());
-                    hitContext.hit().sourceRef(objectToBytes(value, source.sourceContentType(), initialCapacity));
-                } catch (IOException e) {
-                    throw new ElasticsearchException("Error filtering source", e);
-                }
+                hitContext.hit().sourceRef(source.internalSourceRef());
             }
 
             @Override
@@ -87,35 +82,16 @@ public final class FetchSourcePhase implements FetchSubPhase {
         };
     }
 
-    private static boolean containsFilters(FetchSourceContext context) {
-        return context.includes().length != 0 || context.excludes().length != 0;
-    }
-
-    public static BytesReference objectToBytes(Object value, XContentType xContentType, int initialCapacity) throws IOException {
-        BytesStreamOutput streamOutput = new BytesStreamOutput(initialCapacity);
-        XContentBuilder builder = new XContentBuilder(xContentType.xContent(), streamOutput);
-        if (value != null) {
-            builder.value(value);
-        } else {
-            // This happens if the source filtering could not find the specified in the _source.
-            // Just doing `builder.value(null)` is valid, but the xcontent validation can't detect what format
-            // it is. In certain cases, for example response serialization we fail if no xcontent type can't be
-            // detected. So instead we just return an empty top level object. Also this is in inline with what was
-            // being return in this situation in 5.x and earlier.
-            builder.startObject();
-            builder.endObject();
-        }
-        return BytesReference.bytes(builder);
-    }
-
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> getNestedSource(Map<String, Object> sourceAsMap, HitContext hitContext) {
-        for (SearchHit.NestedIdentity o = hitContext.hit().getNestedIdentity(); o != null; o = o.getChild()) {
-            sourceAsMap = (Map<String, Object>) sourceAsMap.get(o.getField().string());
-            if (sourceAsMap == null) {
-                return null;
+    private static Source extractNested(Source in, SearchHit.NestedIdentity nestedIdentity) {
+        Map<String, Object> sourceMap = in.source();
+        while (nestedIdentity != null) {
+            sourceMap = (Map<String, Object>) sourceMap.get(nestedIdentity.getField().string());
+            if (sourceMap == null) {
+                return Source.empty(in.sourceContentType());
             }
+            nestedIdentity = nestedIdentity.getChild();
         }
-        return sourceAsMap;
+        return Source.fromMap(sourceMap, in.sourceContentType());
     }
 }

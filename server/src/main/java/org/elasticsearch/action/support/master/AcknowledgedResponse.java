@@ -25,13 +25,14 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 /**
  * A response that indicates that a request has been acknowledged
  */
-public class AcknowledgedResponse extends ActionResponse implements ToXContentObject {
+public class AcknowledgedResponse extends ActionResponse implements IsAcknowledgedSupplier, ToXContentObject {
 
     public static final AcknowledgedResponse TRUE = new AcknowledgedResponse(true);
 
     public static final AcknowledgedResponse FALSE = new AcknowledgedResponse(false);
 
-    private static final ParseField ACKNOWLEDGED = new ParseField("acknowledged");
+    public static final String ACKNOWLEDGED_KEY = "acknowledged";
+    private static final ParseField ACKNOWLEDGED = new ParseField(ACKNOWLEDGED_KEY);
 
     protected static <T extends AcknowledgedResponse> void declareAcknowledgedField(ConstructingObjectParser<T, Void> objectParser) {
         objectParser.declareField(
@@ -65,6 +66,7 @@ public class AcknowledgedResponse extends ActionResponse implements ToXContentOb
      * Returns whether the response is acknowledged or not
      * @return true if the response is acknowledged, false otherwise
      */
+    @Override
     public final boolean isAcknowledged() {
         return acknowledged;
     }
@@ -77,7 +79,7 @@ public class AcknowledgedResponse extends ActionResponse implements ToXContentOb
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(ACKNOWLEDGED.getPreferredName(), isAcknowledged());
+        builder.field(ACKNOWLEDGED_KEY, isAcknowledged());
         addCustomFields(builder, params);
         builder.endObject();
         return builder;

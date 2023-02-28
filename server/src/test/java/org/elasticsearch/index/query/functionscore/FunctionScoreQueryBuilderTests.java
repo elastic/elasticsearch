@@ -111,6 +111,22 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     @Override
+    protected FunctionScoreQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        if (randomBoolean()) {
+            return new FunctionScoreQueryBuilder(queryBuilder);
+        }
+        int iters = randomIntBetween(1, 3);
+        FilterFunctionBuilder[] filterFunctionBuilders = new FilterFunctionBuilder[iters];
+        for (int i = 0; i < iters; i++) {
+            filterFunctionBuilders[i] = new FilterFunctionBuilder(queryBuilder, new RandomScoreFunctionBuilder());
+        }
+        if (randomBoolean()) {
+            return new FunctionScoreQueryBuilder(filterFunctionBuilders);
+        }
+        return new FunctionScoreQueryBuilder(queryBuilder, filterFunctionBuilders);
+    }
+
+    @Override
     protected String[] shuffleProtectedFields() {
         // do not shuffle fields that may contain arbitrary content
         return SHUFFLE_PROTECTED_FIELDS;

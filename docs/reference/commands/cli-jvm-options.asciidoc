@@ -1,0 +1,13 @@
+[[cli-tool-jvm-options-{tool-name}]]
+[float]
+==== JVM options
+
+CLI tools run with 64MB of heap. For most tools, this value is fine. However, if needed
+this can be overriden by setting the CLI_JAVA_OPTS environment variable. For example,
+the following increases the heap size used by the `pass:a[{tool-name}]` tool to 1GB.
+
+[source,shell,subs=attributes+]
+--------------------------------------------------
+export CLI_JAVA_OPTS="-Xmx1g"
+bin/elasticsearch-{tool-name} ...
+--------------------------------------------------

@@ -59,7 +59,6 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -83,7 +82,7 @@ import static org.junit.Assert.assertEquals;
 public final class TestUtils {
 
     public static final ZoneId UTC = ZoneId.of("Z");
-    public static final Configuration TEST_CFG = new Configuration(UTC, null, null, x -> Collections.emptySet());
+    public static final Configuration TEST_CFG = new Configuration(UTC, null, null);
 
     private static final String MATCHER_TYPE_CONTAINS = "CONTAINS";
     private static final String MATCHER_TYPE_REGEX = "REGEX";
@@ -91,11 +90,11 @@ public final class TestUtils {
     private TestUtils() {}
 
     public static Configuration randomConfiguration() {
-        return new Configuration(randomZone(), randomAlphaOfLength(10), randomAlphaOfLength(10), x -> Collections.emptySet());
+        return new Configuration(randomZone(), randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
     public static Configuration randomConfiguration(ZoneId zoneId) {
-        return new Configuration(zoneId, randomAlphaOfLength(10), randomAlphaOfLength(10), x -> Collections.emptySet());
+        return new Configuration(zoneId, randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
     public static Literal of(Object value) {

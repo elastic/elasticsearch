@@ -219,6 +219,19 @@
                     }
                   }
                 },
+                "elasticsearch_client": {
+                  "properties": {
+                    "total_active_sockets": {
+                      "type": "integer"
+                    },
+                    "total_idle_sockets": {
+                      "type": "integer"
+                    },
+                    "total_queued_requests": {
+                      "type": "integer"
+                    }
+                  }
+                },
                 "kibana": {
                   "properties": {
                     "status": {

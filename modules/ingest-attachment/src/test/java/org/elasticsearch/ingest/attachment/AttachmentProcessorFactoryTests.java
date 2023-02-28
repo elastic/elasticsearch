@@ -41,6 +41,12 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getTargetField(), equalTo("attachment"));
         assertThat(processor.getProperties(), sameInstance(AttachmentProcessor.Factory.DEFAULT_PROPERTIES));
         assertFalse(processor.isIgnoreMissing());
+
+        assertWarnings(
+            "The default [remove_binary] value of 'false' is deprecated "
+                + "and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true'"
+                + " or 'false' to ensure no behavior change."
+        );
     }
 
     public void testConfigureIndexedChars() throws Exception {
@@ -54,6 +60,12 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getIndexedChars(), is(indexedChars));
         assertFalse(processor.isIgnoreMissing());
+
+        assertWarnings(
+            "The default [remove_binary] value of 'false' is deprecated "
+                + "and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true'"
+                + " or 'false' to ensure no behavior change."
+        );
     }
 
     public void testBuildTargetField() throws Exception {
@@ -64,6 +76,12 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("_field"));
         assertFalse(processor.isIgnoreMissing());
+
+        assertWarnings(
+            "The default [remove_binary] value of 'false' is deprecated "
+                + "and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true'"
+                + " or 'false' to ensure no behavior change."
+        );
     }
 
     public void testBuildFields() throws Exception {
@@ -82,6 +100,12 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getProperties(), equalTo(properties));
         assertFalse(processor.isIgnoreMissing());
+
+        assertWarnings(
+            "The default [remove_binary] value of 'false' is deprecated "
+                + "and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true'"
+                + " or 'false' to ensure no behavior change."
+        );
     }
 
     public void testBuildIllegalFieldOption() throws Exception {
@@ -108,6 +132,12 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[properties] property isn't a list, but of type [java.lang.String]"));
         }
+
+        assertWarnings(
+            "The default [remove_binary] value of 'false' is deprecated "
+                + "and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true'"
+                + " or 'false' to ensure no behavior change."
+        );
     }
 
     public void testIgnoreMissing() throws Exception {
@@ -123,6 +153,12 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getTargetField(), equalTo("attachment"));
         assertThat(processor.getProperties(), sameInstance(AttachmentProcessor.Factory.DEFAULT_PROPERTIES));
         assertTrue(processor.isIgnoreMissing());
+
+        assertWarnings(
+            "The default [remove_binary] value of 'false' is deprecated "
+                + "and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true'"
+                + " or 'false' to ensure no behavior change."
+        );
     }
 
     public void testRemoveBinary() throws Exception {

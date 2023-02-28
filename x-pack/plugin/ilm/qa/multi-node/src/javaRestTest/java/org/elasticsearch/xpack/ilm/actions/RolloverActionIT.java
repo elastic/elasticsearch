@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -98,15 +99,15 @@ public class RolloverActionIT extends ESRestTestCase {
         );
 
         Request updateSettingsRequest = new Request("PUT", "/" + originalIndex + "/_settings");
-        updateSettingsRequest.setJsonEntity("""
+        updateSettingsRequest.setJsonEntity(Strings.format("""
             {
               "settings": {
                 "%s": true
               }
-            }""".formatted(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE));
+            }""", LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE));
         client().performRequest(updateSettingsRequest);
         Request updateAliasRequest = new Request("POST", "/_aliases");
-        updateAliasRequest.setJsonEntity("""
+        updateAliasRequest.setJsonEntity(Strings.format("""
             {
               "actions": [
                 {
@@ -117,7 +118,7 @@ public class RolloverActionIT extends ESRestTestCase {
                   }
                 }
               ]
-            }""".formatted(originalIndex, alias));
+            }""", originalIndex, alias));
         client().performRequest(updateAliasRequest);
 
         // create policy
@@ -232,7 +233,7 @@ public class RolloverActionIT extends ESRestTestCase {
 
         // because the index is empty, it doesn't roll over
         assertBusy(() -> {
-            assertThat(getStepKeyForIndex(client(), originalIndex).getName(), is(WaitForRolloverReadyStep.NAME));
+            assertThat(getStepKeyForIndex(client(), originalIndex).name(), is(WaitForRolloverReadyStep.NAME));
             assertFalse(indexExists(secondIndex));
             assertTrue(indexExists(originalIndex));
         }, 30, TimeUnit.SECONDS);
@@ -347,7 +348,7 @@ public class RolloverActionIT extends ESRestTestCase {
         // Set up a policy with rollover
         createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 2L, null, null, null, null, null, null));
         Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
-        createIndexTemplate.setJsonEntity("""
+        createIndexTemplate.setJsonEntity(Strings.format("""
             {
               "index_patterns": ["%s-*"],
               "settings": {
@@ -356,7 +357,7 @@ public class RolloverActionIT extends ESRestTestCase {
                 "index.lifecycle.name": "%s",
                 "index.lifecycle.rollover_alias": "%s"
               }
-            }""".formatted(index, policy, alias));
+            }""", index, policy, alias));
         createIndexTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(createIndexTemplate);
 
@@ -504,7 +505,7 @@ public class RolloverActionIT extends ESRestTestCase {
             true
         );
 
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).getName(), is(WaitForRolloverReadyStep.NAME)));
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).name(), is(WaitForRolloverReadyStep.NAME)));
 
         // moving ILM to the "update-rollover-lifecycle-date" without having gone through the actual rollover step
         // the "update-rollover-lifecycle-date" step will fail as the index has no rollover information

@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.scheduler.TimeValueSchedule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -452,12 +453,11 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         final String node1 = getLocalNodeId(server_1);
 
         assertAcked(client().execute(StopILMAction.INSTANCE, new StopILMRequest()).get());
-        assertBusy(
-            () -> assertThat(
-                client().execute(GetStatusAction.INSTANCE, new GetStatusAction.Request()).get().getMode(),
-                equalTo(OperationMode.STOPPED)
-            )
-        );
+        assertBusy(() -> {
+            OperationMode mode = client().execute(GetStatusAction.INSTANCE, new GetStatusAction.Request()).get().getMode();
+            logger.info("--> waiting for STOPPED, currently: {}", mode);
+            assertThat(mode, equalTo(OperationMode.STOPPED));
+        });
 
         logger.info("Creating lifecycle [test_lifecycle]");
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
@@ -569,15 +569,15 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(getKey().getPhase());
-            out.writeString(getKey().getAction());
-            out.writeString(getKey().getName());
+            out.writeString(getKey().phase());
+            out.writeString(getKey().action());
+            out.writeString(getKey().name());
             boolean hasNextStep = getNextStepKey() != null;
             out.writeBoolean(hasNextStep);
             if (hasNextStep) {
-                out.writeString(getNextStepKey().getPhase());
-                out.writeString(getNextStepKey().getAction());
-                out.writeString(getNextStepKey().getName());
+                out.writeString(getNextStepKey().phase());
+                out.writeString(getNextStepKey().action());
+                out.writeString(getNextStepKey().name());
             }
         }
 

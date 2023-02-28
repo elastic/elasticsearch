@@ -15,7 +15,6 @@ import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.ingest.ValueSource;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -109,7 +108,7 @@ public class SetProcessorTests extends ESTestCase {
         Processor processor = createSetProcessor(randomMetadata.getFieldName(), "_value", null, true, false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(randomMetadata.getFieldName(), String.class), Matchers.equalTo("_value"));
+        assertThat(ingestDocument.getFieldValue(randomMetadata.getFieldName(), String.class), equalTo("_value"));
     }
 
     public void testSetMetadataVersion() throws Exception {
@@ -117,7 +116,7 @@ public class SetProcessorTests extends ESTestCase {
         Processor processor = createSetProcessor(Metadata.VERSION.getFieldName(), version, null, true, false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(Metadata.VERSION.getFieldName(), Long.class), Matchers.equalTo(version));
+        assertThat(ingestDocument.getFieldValue(Metadata.VERSION.getFieldName(), Long.class), equalTo(version));
     }
 
     public void testSetMetadataVersionType() throws Exception {
@@ -125,7 +124,7 @@ public class SetProcessorTests extends ESTestCase {
         Processor processor = createSetProcessor(Metadata.VERSION_TYPE.getFieldName(), versionType, null, true, false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(Metadata.VERSION_TYPE.getFieldName(), String.class), Matchers.equalTo(versionType));
+        assertThat(ingestDocument.getFieldValue(Metadata.VERSION_TYPE.getFieldName(), String.class), equalTo(versionType));
     }
 
     public void testSetMetadataIfSeqNo() throws Exception {
@@ -133,7 +132,7 @@ public class SetProcessorTests extends ESTestCase {
         Processor processor = createSetProcessor(Metadata.IF_SEQ_NO.getFieldName(), ifSeqNo, null, true, false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(Metadata.IF_SEQ_NO.getFieldName(), Long.class), Matchers.equalTo(ifSeqNo));
+        assertThat(ingestDocument.getFieldValue(Metadata.IF_SEQ_NO.getFieldName(), Long.class), equalTo(ifSeqNo));
     }
 
     public void testSetMetadataIfPrimaryTerm() throws Exception {
@@ -141,7 +140,7 @@ public class SetProcessorTests extends ESTestCase {
         Processor processor = createSetProcessor(Metadata.IF_PRIMARY_TERM.getFieldName(), ifPrimaryTerm, null, true, false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(Metadata.IF_PRIMARY_TERM.getFieldName(), Long.class), Matchers.equalTo(ifPrimaryTerm));
+        assertThat(ingestDocument.getFieldValue(Metadata.IF_PRIMARY_TERM.getFieldName(), Long.class), equalTo(ifPrimaryTerm));
     }
 
     public void testSetDynamicTemplates() throws Exception {

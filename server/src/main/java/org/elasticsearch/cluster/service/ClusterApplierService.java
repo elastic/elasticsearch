@@ -134,8 +134,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             nodeName + "/" + CLUSTER_UPDATE_THREAD_NAME,
             daemonThreadFactory(nodeName, CLUSTER_UPDATE_THREAD_NAME),
             threadPool.getThreadContext(),
-            threadPool.scheduler(),
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+            threadPool.scheduler()
         );
     }
 
@@ -537,6 +536,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             try (Releasable ignored = stopWatch.record(name)) {
                 applier.applyClusterState(clusterChangedEvent);
             }
+            // TODO assert "ClusterStateApplier must not set response headers in the ClusterApplierService"
         }
     }
 
@@ -560,6 +560,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             } catch (Exception ex) {
                 logger.warn("failed to notify ClusterStateListener", ex);
             }
+            // TODO assert "ClusterStateApplier must not set response headers in the ClusterStateListener"
         }
     }
 
@@ -653,5 +654,10 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     @Override
     public ClusterApplierRecordingService.Stats getStats() {
         return recordingService.getStats();
+    }
+
+    // Exposed only for testing
+    public int getTimeoutClusterStateListenersSize() {
+        return timeoutClusterStateListeners.size();
     }
 }

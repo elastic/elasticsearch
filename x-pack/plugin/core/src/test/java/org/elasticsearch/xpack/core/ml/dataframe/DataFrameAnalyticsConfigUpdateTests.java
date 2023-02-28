@@ -10,7 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
-public class DataFrameAnalyticsConfigUpdateTests extends AbstractSerializingTestCase<DataFrameAnalyticsConfigUpdate> {
+public class DataFrameAnalyticsConfigUpdateTests extends AbstractXContentSerializingTestCase<DataFrameAnalyticsConfigUpdate> {
 
     @Override
     protected DataFrameAnalyticsConfigUpdate doParseInstance(XContentParser parser) throws IOException {
@@ -33,6 +33,11 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractSerializingTest
     @Override
     protected DataFrameAnalyticsConfigUpdate createTestInstance() {
         return randomUpdate(randomValidId());
+    }
+
+    @Override
+    protected DataFrameAnalyticsConfigUpdate mutateInstance(DataFrameAnalyticsConfigUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -46,7 +51,7 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractSerializingTest
             builder.setDescription(randomAlphaOfLength(20));
         }
         if (randomBoolean()) {
-            builder.setModelMemoryLimit(new ByteSizeValue(randomNonNegativeLong()));
+            builder.setModelMemoryLimit(ByteSizeValue.ofBytes(randomNonNegativeLong()));
         }
         if (randomBoolean()) {
             builder.setAllowLazyStart(randomBoolean());
@@ -70,13 +75,14 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractSerializingTest
     public void testMergeWithConfig_UpdatedModelMemoryLimit() {
         String id = randomValidId();
         DataFrameAnalyticsConfig config = DataFrameAnalyticsConfigTests.createRandomBuilder(id)
-            .setModelMemoryLimit(new ByteSizeValue(1024))
+            .setModelMemoryLimit(ByteSizeValue.ofBytes(1024))
             .build();
-        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder(id).setModelMemoryLimit(new ByteSizeValue(2048))
-            .build();
+        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder(id).setModelMemoryLimit(
+            ByteSizeValue.ofBytes(2048)
+        ).build();
         assertThat(
             update.mergeWithConfig(config).build(),
-            is(equalTo(new DataFrameAnalyticsConfig.Builder(config).setModelMemoryLimit(new ByteSizeValue(2048)).build()))
+            is(equalTo(new DataFrameAnalyticsConfig.Builder(config).setModelMemoryLimit(ByteSizeValue.ofBytes(2048)).build()))
         );
     }
 
@@ -104,12 +110,12 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractSerializingTest
         String id = randomValidId();
         DataFrameAnalyticsConfig config = DataFrameAnalyticsConfigTests.createRandomBuilder(id)
             .setDescription("old description")
-            .setModelMemoryLimit(new ByteSizeValue(1024))
+            .setModelMemoryLimit(ByteSizeValue.ofBytes(1024))
             .setAllowLazyStart(false)
             .setMaxNumThreads(1)
             .build();
         DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder(id).setDescription("new description")
-            .setModelMemoryLimit(new ByteSizeValue(2048))
+            .setModelMemoryLimit(ByteSizeValue.ofBytes(2048))
             .setAllowLazyStart(true)
             .setMaxNumThreads(4)
             .build();
@@ -118,7 +124,7 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractSerializingTest
             is(
                 equalTo(
                     new DataFrameAnalyticsConfig.Builder(config).setDescription("new description")
-                        .setModelMemoryLimit(new ByteSizeValue(2048))
+                        .setModelMemoryLimit(ByteSizeValue.ofBytes(2048))
                         .setAllowLazyStart(true)
                         .setMaxNumThreads(4)
                         .build()
@@ -168,10 +174,11 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractSerializingTest
     public void testRequiresRestart_ModelMemoryLimitUpdateRequiresRestart() {
         String id = randomValidId();
         DataFrameAnalyticsConfig config = DataFrameAnalyticsConfigTests.createRandomBuilder(id)
-            .setModelMemoryLimit(new ByteSizeValue(1024))
+            .setModelMemoryLimit(ByteSizeValue.ofBytes(1024))
             .build();
-        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder(id).setModelMemoryLimit(new ByteSizeValue(2048))
-            .build();
+        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder(id).setModelMemoryLimit(
+            ByteSizeValue.ofBytes(2048)
+        ).build();
 
         assertThat(update.requiresRestart(config), is(true));
     }
@@ -206,7 +213,7 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractSerializingTest
 
     public void testGetUpdatedFields_GivenAll() {
         DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder("test_job").setDescription("new description")
-            .setModelMemoryLimit(new ByteSizeValue(1024))
+            .setModelMemoryLimit(ByteSizeValue.ofBytes(1024))
             .setAllowLazyStart(true)
             .setMaxNumThreads(8)
             .build();
@@ -235,7 +242,7 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractSerializingTest
 
     public void testGetUpdatedFields_GivenModelMemoryLimit() {
         DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder("test_job").setModelMemoryLimit(
-            new ByteSizeValue(1024)
+            ByteSizeValue.ofBytes(1024)
         ).build();
 
         assertThat(update.getUpdatedFields(), contains("model_memory_limit"));

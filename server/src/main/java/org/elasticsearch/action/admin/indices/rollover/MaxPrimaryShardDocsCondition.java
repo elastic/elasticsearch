@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -62,7 +62,7 @@ public class MaxPrimaryShardDocsCondition extends Condition<Long> {
     }
 
     @Override
-    boolean includedInVersion(Version version) {
-        return version.onOrAfter(Version.V_8_2_0);
+    boolean includedInVersion(TransportVersion version) {
+        return version.onOrAfter(TransportVersion.V_8_2_0);
     }
 }

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -22,7 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.SslConfiguration;
+import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -49,6 +50,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -82,7 +84,9 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.netty4.AcceptChannelHandler;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
+import org.elasticsearch.transport.netty4.TLSConfig;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackField;
@@ -156,7 +160,6 @@ import org.elasticsearch.xpack.core.security.authc.InternalRealmsSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
-import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmsServiceSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
@@ -241,6 +244,7 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
 import org.elasticsearch.xpack.security.authc.Realms;
+import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
@@ -260,6 +264,7 @@ import org.elasticsearch.xpack.security.authz.interceptor.DlsFlsLicenseRequestIn
 import org.elasticsearch.xpack.security.authz.interceptor.IndicesAliasesRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ResizeRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestCacheDisablingInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ShardSearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.UpdateRequestInterceptor;
@@ -334,13 +339,14 @@ import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.ExtensionComponents;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
+import org.elasticsearch.xpack.security.transport.RemoteClusterCredentialsResolver;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
-import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4HttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4ServerTransport;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -559,7 +565,7 @@ public class Security extends Plugin
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationDeciders allocationDeciders
+        AllocationService allocationService
     ) {
         try {
             return createComponents(
@@ -620,10 +626,10 @@ public class Security extends Plugin
         final RestrictedIndices restrictedIndices = new RestrictedIndices(expressionResolver);
 
         // audit trail service construction
-        final List<AuditTrail> auditTrails = XPackSettings.AUDIT_ENABLED.get(settings)
-            ? Collections.singletonList(new LoggingAuditTrail(settings, clusterService, threadPool))
-            : Collections.emptyList();
-        final AuditTrailService auditTrailService = new AuditTrailService(auditTrails, getLicenseState());
+        final AuditTrail auditTrail = XPackSettings.AUDIT_ENABLED.get(settings)
+            ? new LoggingAuditTrail(settings, clusterService, threadPool)
+            : null;
+        final AuditTrailService auditTrailService = new AuditTrailService(auditTrail, getLicenseState());
         components.add(auditTrailService);
         this.auditTrailService.set(auditTrailService);
 
@@ -718,7 +724,8 @@ public class Security extends Plugin
             settings,
             client,
             getLicenseState(),
-            systemIndices.getMainIndexManager()
+            systemIndices.getMainIndexManager(),
+            clusterService
         );
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
 
@@ -814,7 +821,7 @@ public class Security extends Plugin
             getSslService(),
             client,
             environment,
-            (runnable -> nodeStartedListenable.addListener(ActionListener.wrap(runnable))),
+            (runnable -> nodeStartedListenable.addListener(ActionListener.running(runnable))),
             threadPool
         );
 
@@ -863,7 +870,8 @@ public class Security extends Plugin
                     new ShardSearchRequestInterceptor(threadPool, getLicenseState(), clusterService),
                     new UpdateRequestInterceptor(threadPool, getLicenseState()),
                     new BulkShardRequestInterceptor(threadPool, getLicenseState()),
-                    new DlsFlsLicenseRequestInterceptor(threadPool.getThreadContext(), getLicenseState())
+                    new DlsFlsLicenseRequestInterceptor(threadPool.getThreadContext(), getLicenseState()),
+                    new SearchRequestCacheDisablingInterceptor(threadPool, getLicenseState())
                 )
             );
         }
@@ -896,7 +904,19 @@ public class Security extends Plugin
 
         ipFilter.set(new IPFilter(settings, auditTrailService, clusterService.getClusterSettings(), getLicenseState()));
         components.add(ipFilter.get());
+
+        final RemoteClusterCredentialsResolver remoteClusterCredentialsResolver = new RemoteClusterCredentialsResolver(
+            settings,
+            clusterService.getClusterSettings()
+        );
+
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
+        final RemoteAccessAuthenticationService remoteAccessAuthcService = new RemoteAccessAuthenticationService(
+            clusterService,
+            apiKeyService,
+            authcService.get()
+        );
+        components.add(remoteAccessAuthcService);
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(
                 settings,
@@ -905,7 +925,9 @@ public class Security extends Plugin
                 authzService,
                 getSslService(),
                 securityContext.get(),
-                destructiveOperations
+                destructiveOperations,
+                remoteAccessAuthcService,
+                remoteClusterCredentialsResolver
             )
         );
 
@@ -924,6 +946,7 @@ public class Security extends Plugin
         components.add(new SecurityUsageServices(realms, allRolesStore, nativeRoleMappingStore, ipFilter.get(), profileService));
 
         reservedRoleMappingAction.set(new ReservedRoleMappingAction(nativeRoleMappingStore));
+        systemIndices.getMainIndexManager().onStateRecovered(state -> reservedRoleMappingAction.get().securityIndexRecovered());
 
         cacheInvalidatorRegistry.validate();
 
@@ -1080,7 +1103,6 @@ public class Security extends Plugin
         // authentication and authorization settings
         AnonymousUser.addSettings(settingsList);
         settingsList.addAll(InternalRealmsSettings.getSettings());
-        settingsList.addAll(JwtRealmsServiceSettings.getSettings());
         ReservedRealm.addSettings(settingsList);
         AuthenticationService.addSettings(settingsList);
         AuthorizationService.addSettings(settingsList);
@@ -1095,6 +1117,7 @@ public class Security extends Plugin
         settingsList.add(ApiKeyService.PASSWORD_HASHING_ALGORITHM);
         settingsList.add(ApiKeyService.DELETE_TIMEOUT);
         settingsList.add(ApiKeyService.DELETE_INTERVAL);
+        settingsList.add(ApiKeyService.DELETE_RETENTION_PERIOD);
         settingsList.add(ApiKeyService.CACHE_HASH_ALGO_SETTING);
         settingsList.add(ApiKeyService.CACHE_MAX_KEYS_SETTING);
         settingsList.add(ApiKeyService.CACHE_TTL_SETTING);
@@ -1510,7 +1533,7 @@ public class Security extends Plugin
                 transportReference.set(
                     new SecurityNetty4ServerTransport(
                         settings,
-                        Version.CURRENT,
+                        TransportVersion.CURRENT,
                         threadPool,
                         networkService,
                         pageCacheRecycler,
@@ -1543,24 +1566,48 @@ public class Security extends Plugin
             return Collections.emptyMap();
         }
 
+        final IPFilter ipFilter = this.ipFilter.get();
+        final AcceptChannelHandler.AcceptPredicate acceptPredicate = new AcceptChannelHandler.AcceptPredicate() {
+            @Override
+            public void setBoundAddress(BoundTransportAddress boundHttpTransportAddress) {
+                ipFilter.setBoundHttpTransportAddress(boundHttpTransportAddress);
+            }
+
+            @Override
+            public boolean test(String profile, InetSocketAddress peerAddress) {
+                return ipFilter.accept(profile, peerAddress);
+            }
+        };
+
         Map<String, Supplier<HttpServerTransport>> httpTransports = new HashMap<>();
-        httpTransports.put(
-            SecurityField.NAME4,
-            () -> new SecurityNetty4HttpServerTransport(
+        httpTransports.put(SecurityField.NAME4, () -> {
+            final boolean ssl = HTTP_SSL_ENABLED.get(settings);
+            SSLService sslService = getSslService();
+            final SslConfiguration sslConfiguration;
+            if (ssl) {
+                sslConfiguration = sslService.getHttpTransportSSLConfiguration();
+                if (SSLService.isConfigurationValidForServerUsage(sslConfiguration) == false) {
+                    throw new IllegalArgumentException(
+                        "a key must be provided to run as a server. the key should be configured using the "
+                            + "[xpack.security.http.ssl.key] or [xpack.security.http.ssl.keystore.path] setting"
+                    );
+                }
+            } else {
+                sslConfiguration = null;
+            }
+            return new Netty4HttpServerTransport(
                 settings,
                 networkService,
-                pageCacheRecycler,
-                ipFilter.get(),
-                getSslService(),
                 threadPool,
                 xContentRegistry,
                 dispatcher,
                 clusterSettings,
                 getNettySharedGroupFactory(settings),
-                tracer
-            )
-        );
-
+                tracer,
+                new TLSConfig(sslConfiguration, sslService::createSSLEngine),
+                acceptPredicate
+            );
+        });
         return httpTransports;
     }
 
@@ -1574,7 +1621,7 @@ public class Security extends Plugin
             extractClientCertificate = false;
         }
         return handler -> new SecurityRestFilter(
-            settings,
+            enabled,
             threadContext,
             authcService.get(),
             secondayAuthc.get(),
@@ -1623,12 +1670,10 @@ public class Security extends Plugin
                 if (indicesAccessControl == null) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
+                assert indicesAccessControl.isGranted();
                 IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(index);
                 if (indexPermissions == null) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
-                }
-                if (indexPermissions.isGranted() == false) {
-                    throw new IllegalStateException("unexpected call to getFieldFilter for index [" + index + "] which is not granted");
                 }
                 FieldPermissions fieldPermissions = indexPermissions.getFieldPermissions();
                 if (fieldPermissions.hasFieldLevelSecurity() == false) {

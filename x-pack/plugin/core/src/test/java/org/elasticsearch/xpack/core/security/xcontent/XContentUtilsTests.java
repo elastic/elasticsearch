@@ -67,6 +67,11 @@ public class XContentUtilsTests extends ESTestCase {
         assertThat(json, equalTo("{\"authorization\":{\"service_account\":\"" + account + "\"}}"));
     }
 
+    public void testAddAuthorizationInfoWithCorruptData() throws IOException {
+        String json = generateJson(Map.of(AuthenticationField.AUTHENTICATION_KEY, "corrupt"));
+        assertThat(json, equalTo("{}"));
+    }
+
     private String generateJson(Map<String, String> headers) throws IOException {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();

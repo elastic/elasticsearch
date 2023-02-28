@@ -14,7 +14,6 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -74,7 +73,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 reverseNestedBuilder.subAggregation(maxAgg);
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
-                Nested nested = searchAndReduce(new AggTestConfig(newSearcher(indexReader, false, true), nestedBuilder, fieldType));
+                Nested nested = searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(nestedBuilder, fieldType));
                 ReverseNested reverseNested = (ReverseNested) ((InternalAggregation) nested).getProperty(REVERSE_AGG_NAME);
                 assertEquals(REVERSE_AGG_NAME, reverseNested.getName());
                 assertEquals(0, reverseNested.getDocCount());
@@ -134,7 +133,8 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 reverseNestedBuilder.subAggregation(maxAgg);
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
-                Nested nested = searchAndReduce(new AggTestConfig(newSearcher(indexReader, false, true), nestedBuilder, fieldType));
+                AggTestConfig aggTestConfig = new AggTestConfig(nestedBuilder, fieldType);
+                Nested nested = searchAndReduce(newSearcher(indexReader, false, true), aggTestConfig);
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
                 ReverseNested reverseNested = (ReverseNested) ((InternalAggregation) nested).getProperty(REVERSE_AGG_NAME);
@@ -201,8 +201,8 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                     reverseNested(REVERSE_AGG_NAME).subAggregation(aliasMaxAgg)
                 );
 
-                Nested nested = searchAndReduce(new AggTestConfig(newSearcher(indexReader, false, true), agg, fieldType));
-                Nested aliasNested = searchAndReduce(new AggTestConfig(newSearcher(indexReader, false, true), aliasAgg, fieldType));
+                Nested nested = searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(agg, fieldType));
+                Nested aliasNested = searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(aliasAgg, fieldType));
 
                 ReverseNested reverseNested = nested.getAggregations().get(REVERSE_AGG_NAME);
                 ReverseNested aliasReverseNested = aliasNested.getAggregations().get(REVERSE_AGG_NAME);
@@ -226,7 +226,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                     )
                 )
         );
-        testCase(b, new MatchAllDocsQuery(), NestedAggregatorTests.buildResellerData(numProducts, numResellers), result -> {
+        testCase(NestedAggregatorTests.buildResellerData(numProducts, numResellers), result -> {
             InternalNested nested = (InternalNested) result;
             assertThat(nested.getDocCount(), equalTo((long) numProducts * numResellers));
             LongTerms resellers = nested.getAggregations().get("resellers");
@@ -245,7 +245,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                     equalTo(LongStream.range(0, numProducts).mapToObj(Long::valueOf).collect(toList()))
                 );
             }
-        }, NestedAggregatorTests.resellersMappedFields());
+        }, new AggTestConfig(b, NestedAggregatorTests.resellersMappedFields()));
     }
 
     @Override

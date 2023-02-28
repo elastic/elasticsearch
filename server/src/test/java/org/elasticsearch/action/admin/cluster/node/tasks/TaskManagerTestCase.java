@@ -8,6 +8,7 @@
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
@@ -188,7 +189,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 settings,
                 new Netty4Transport(
                     settings,
-                    Version.CURRENT,
+                    TransportVersion.CURRENT,
                     threadPool,
                     new NetworkService(Collections.emptyList()),
                     PageCacheRecycler.NON_RECYCLING_INSTANCE,

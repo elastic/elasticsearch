@@ -13,13 +13,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -35,7 +34,7 @@ import java.util.stream.Collectors;
 /**
  * Response for {@link FieldCapabilitiesRequest} requests.
  */
-public class FieldCapabilitiesResponse extends ActionResponse implements ToXContentObject, ChunkedToXContent {
+public class FieldCapabilitiesResponse extends ActionResponse implements ChunkedToXContentObject {
     private static final ParseField INDICES_FIELD = new ParseField("indices");
     private static final ParseField FIELDS_FIELD = new ParseField("fields");
     private static final ParseField FAILED_INDICES_FIELD = new ParseField("failed_indices");
@@ -153,7 +152,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked() {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         if (indexResponses.size() > 0) {
             throw new IllegalStateException("cannot serialize non-merged response");
         }
@@ -242,6 +241,9 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
 
     @Override
     public String toString() {
+        if (indexResponses.size() > 0) {
+            return "FieldCapabilitiesResponse{unmerged}";
+        }
         return Strings.toString(this);
     }
 }

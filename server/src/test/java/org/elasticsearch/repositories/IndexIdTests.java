@@ -10,7 +10,8 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -22,36 +23,25 @@ import java.io.IOException;
 /**
  * Tests for the {@link IndexId} class.
  */
-public class IndexIdTests extends ESTestCase {
+public class IndexIdTests extends AbstractWireSerializingTestCase<IndexId> {
 
-    public void testEqualsAndHashCode() {
-        // assert equals and hashcode
-        String name = randomAlphaOfLength(8);
-        String id = UUIDs.randomBase64UUID();
-        IndexId indexId1 = new IndexId(name, id);
-        IndexId indexId2 = new IndexId(name, id);
-        assertEquals(indexId1, indexId2);
-        assertEquals(indexId1.hashCode(), indexId2.hashCode());
-        // assert equals when using index name for id
-        id = name;
-        indexId1 = new IndexId(name, id);
-        indexId2 = new IndexId(name, id);
-        assertEquals(indexId1, indexId2);
-        assertEquals(indexId1.hashCode(), indexId2.hashCode());
-        // assert not equals when name or id differ
-        indexId2 = new IndexId(randomAlphaOfLength(8), id);
-        assertNotEquals(indexId1, indexId2);
-        assertNotEquals(indexId1.hashCode(), indexId2.hashCode());
-        indexId2 = new IndexId(name, UUIDs.randomBase64UUID());
-        assertNotEquals(indexId1, indexId2);
-        assertNotEquals(indexId1.hashCode(), indexId2.hashCode());
+    @Override
+    protected Writeable.Reader<IndexId> instanceReader() {
+        return IndexId::new;
     }
 
-    public void testSerialization() throws IOException {
-        IndexId indexId = new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID());
-        BytesStreamOutput out = new BytesStreamOutput();
-        indexId.writeTo(out);
-        assertEquals(indexId, new IndexId(out.bytes().streamInput()));
+    @Override
+    protected IndexId createTestInstance() {
+        return new IndexId(randomIdentifier(), UUIDs.randomBase64UUID());
+    }
+
+    @Override
+    protected IndexId mutateInstance(IndexId instance) {
+        return switch (randomInt(1)) {
+            case 0 -> new IndexId(randomValueOtherThan(instance.getName(), ESTestCase::randomIdentifier), instance.getId());
+            case 1 -> new IndexId(instance.getName(), randomValueOtherThan(instance.getId(), UUIDs::randomBase64UUID));
+            default -> throw new RuntimeException("unreachable");
+        };
     }
 
     public void testXContent() throws IOException {

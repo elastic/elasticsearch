@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -23,9 +24,11 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -45,6 +48,7 @@ import org.elasticsearch.common.cache.RemovalNotification.RemovalReason;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -122,6 +126,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -160,6 +165,12 @@ public class ApiKeyService {
         TimeValue.timeValueHours(24L),
         Property.NodeScope
     );
+    public static final Setting<TimeValue> DELETE_RETENTION_PERIOD = Setting.positiveTimeSetting(
+        "xpack.security.authc.api_key.delete.retention_period",
+        TimeValue.timeValueDays(7),
+        Property.NodeScope,
+        Property.Dynamic
+    );
     public static final Setting<String> CACHE_HASH_ALGO_SETTING = Setting.simpleString(
         "xpack.security.authc.api_key.cache.hash_algo",
         "ssha256",
@@ -190,7 +201,7 @@ public class ApiKeyService {
     private final Hasher hasher;
     private final boolean enabled;
     private final Settings settings;
-    private final ExpiredApiKeysRemover expiredApiKeysRemover;
+    private final InactiveApiKeysRemover inactiveApiKeysRemover;
     private final TimeValue deleteInterval;
     private final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache;
     private final Hasher cacheHasher;
@@ -222,7 +233,7 @@ public class ApiKeyService {
         this.hasher = Hasher.resolve(PASSWORD_HASHING_ALGORITHM.get(settings));
         this.settings = settings;
         this.deleteInterval = DELETE_INTERVAL.get(settings);
-        this.expiredApiKeysRemover = new ExpiredApiKeysRemover(settings, client);
+        this.inactiveApiKeysRemover = new InactiveApiKeysRemover(settings, client, clusterService);
         this.threadPool = threadPool;
         this.cacheHasher = Hasher.resolve(CACHE_HASH_ALGO_SETTING.get(settings));
         final TimeValue ttl = CACHE_TTL_SETTING.get(settings);
@@ -290,8 +301,36 @@ public class ApiKeyService {
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else {
-            createApiKeyAndIndexIt(authentication, request, userRoleDescriptors, listener);
+            final TransportVersion version = getMinNodeTransportVersion();
+            if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES) && hasRemoteIndices(request.getRoleDescriptors())) {
+                // Creating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
+                listener.onFailure(
+                    new IllegalStateException(
+                        "all nodes must have version ["
+                            + Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES
+                            + "] or higher to support remote indices privileges for API keys"
+                    )
+                );
+                return;
+            }
+
+            final Set<RoleDescriptor> filteredUserRoleDescriptors = maybeRemoveRemoteIndicesPrivileges(
+                userRoleDescriptors,
+                version,
+                request.getId()
+            );
+
+            createApiKeyAndIndexIt(authentication, request, filteredUserRoleDescriptors, listener);
         }
+    }
+
+    private TransportVersion getMinNodeTransportVersion() {
+        // TODO here a node version is mixed with a transportVersion. We should look into this once Node's Version is refactored
+        return clusterService.state().nodes().getMinNodeVersion().transportVersion;
+    }
+
+    private static boolean hasRemoteIndices(Collection<RoleDescriptor> roleDescriptors) {
+        return roleDescriptors != null && roleDescriptors.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges);
     }
 
     private void createApiKeyAndIndexIt(
@@ -337,20 +376,14 @@ public class ApiKeyService {
                         SECURITY_ORIGIN,
                         BulkAction.INSTANCE,
                         bulkRequest,
-                        ActionListener.wrap(bulkResponse -> {
-                            assert bulkResponse.getItems().length == 1;
-                            final BulkItemResponse indexResponse = bulkResponse.getItems()[0];
-                            if (indexResponse.isFailed()) {
-                                listener.onFailure(indexResponse.getFailure().getCause());
-                            } else {
-                                assert request.getId().equals(indexResponse.getResponse().getId());
-                                assert indexResponse.getResponse().getResult() == DocWriteResponse.Result.CREATED;
-                                final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
-                                listenableFuture.onResponse(new CachedApiKeyHashResult(true, apiKey));
-                                apiKeyAuthCache.put(request.getId(), listenableFuture);
-                                listener.onResponse(new CreateApiKeyResponse(request.getName(), request.getId(), apiKey, expiration));
-                            }
-                        }, listener::onFailure)
+                        TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
+                            assert request.getId().equals(indexResponse.getId());
+                            assert indexResponse.getResult() == DocWriteResponse.Result.CREATED;
+                            final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
+                            listenableFuture.onResponse(new CachedApiKeyHashResult(true, apiKey));
+                            apiKeyAuthCache.put(request.getId(), listenableFuture);
+                            listener.onResponse(new CreateApiKeyResponse(request.getName(), request.getId(), apiKey, expiration));
+                        }, listener::onFailure))
                     )
                 );
             } catch (IOException e) {
@@ -379,12 +412,30 @@ public class ApiKeyService {
             return;
         }
 
-        logger.debug("Updating [{}] API keys", request.getIds().size());
+        final TransportVersion version = getMinNodeTransportVersion();
+        if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES) && hasRemoteIndices(request.getRoleDescriptors())) {
+            // Updating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
+            listener.onFailure(
+                new IllegalStateException(
+                    "all nodes must have version ["
+                        + Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES
+                        + "] or higher to support remote indices privileges for API keys"
+                )
+            );
+            return;
+        }
+
+        final String[] apiKeyIds = request.getIds().toArray(String[]::new);
+        final Set<RoleDescriptor> filteredUserRoleDescriptors = maybeRemoveRemoteIndicesPrivileges(userRoleDescriptors, version, apiKeyIds);
+
+        if (logger.isDebugEnabled()) {
+            logger.debug("Updating [{}] API keys", buildDelimitedStringWithLimit(10, apiKeyIds));
+        }
         findVersionedApiKeyDocsForSubject(
             authentication,
-            request.getIds().toArray(new String[0]),
+            apiKeyIds,
             ActionListener.wrap(
-                versionedDocs -> updateApiKeys(authentication, request, userRoleDescriptors, versionedDocs, listener),
+                versionedDocs -> updateApiKeys(authentication, request, filteredUserRoleDescriptors, versionedDocs, listener),
                 ex -> listener.onFailure(traceLog("bulk update", ex))
             )
         );
@@ -465,6 +516,90 @@ public class ApiKeyService {
     }
 
     /**
+     * This method removes remote indices privileges from the given role descriptors
+     * when we are in a mixed cluster in which some of the nodes do not support remote indices.
+     * Storing these roles would cause parsing issues on old nodes
+     * (i.e. nodes running on version before {@link Authentication#VERSION_API_KEYS_WITH_REMOTE_INDICES}).
+     */
+    static Set<RoleDescriptor> maybeRemoveRemoteIndicesPrivileges(
+        final Set<RoleDescriptor> userRoleDescriptors,
+        final TransportVersion version,
+        final String... apiKeyIds
+    ) {
+        if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES)) {
+            final Set<String> affectedRoles = new TreeSet<>();
+            final Set<RoleDescriptor> result = userRoleDescriptors.stream().map(roleDescriptor -> {
+                if (roleDescriptor.hasRemoteIndicesPrivileges()) {
+                    affectedRoles.add(roleDescriptor.getName());
+                    return new RoleDescriptor(
+                        roleDescriptor.getName(),
+                        roleDescriptor.getClusterPrivileges(),
+                        roleDescriptor.getIndicesPrivileges(),
+                        roleDescriptor.getApplicationPrivileges(),
+                        roleDescriptor.getConditionalClusterPrivileges(),
+                        roleDescriptor.getRunAs(),
+                        roleDescriptor.getMetadata(),
+                        roleDescriptor.getTransientMetadata(),
+                        null
+                    );
+                }
+                return roleDescriptor;
+            }).collect(Collectors.toSet());
+
+            if (false == affectedRoles.isEmpty()) {
+                logger.info(
+                    "removed remote indices privileges from role(s) {} for API key(s) [{}]",
+                    affectedRoles,
+                    buildDelimitedStringWithLimit(10, apiKeyIds)
+                );
+                HeaderWarning.addWarning(
+                    "Removed API key's remote indices privileges from role(s) "
+                        + affectedRoles
+                        + ". Remote indices are not supported by all nodes in the cluster. "
+                        + "Use the update API Key API to re-assign remote indices to the API key(s), after the cluster upgrade is complete."
+                );
+            }
+            return result;
+        }
+        return userRoleDescriptors;
+    }
+
+    /**
+     * Builds a comma delimited string from the given string values (e.g. value1, value2...).
+     * The number of values included can be controlled with the {@code limit}. The limit must be a positive number.
+     * Note: package-private for testing
+     */
+    static String buildDelimitedStringWithLimit(final int limit, final String... values) {
+        if (limit <= 0) {
+            throw new IllegalArgumentException("limit must be positive number");
+        }
+        if (values == null || values.length <= 0) {
+            return "";
+        }
+        final int total = values.length;
+        final int omitted = Math.max(0, total - limit);
+        final int valuesToAppend = Math.min(limit, total);
+        final int capacityForOmittedInfoText = 5; // The number of additional info strings we append when omitting.
+        final int capacity = valuesToAppend + (omitted > 0 ? capacityForOmittedInfoText : 0);
+        final StringBuilder sb = new StringBuilder(capacity);
+
+        int counter = 0;
+        while (counter < valuesToAppend) {
+            sb.append(values[counter]);
+            counter += 1;
+            if (counter < valuesToAppend) {
+                sb.append(", ");
+            }
+        }
+
+        if (omitted > 0) {
+            sb.append("... (").append(total).append(" in total, ").append(omitted).append(" omitted)");
+        }
+
+        return sb.toString();
+    }
+
+    /**
      * package-private for testing
      */
     static XContentBuilder newDocument(
@@ -524,7 +659,7 @@ public class ApiKeyService {
 
         final List<RoleDescriptor> keyRoles = request.getRoleDescriptors();
         if (keyRoles != null) {
-            logger.trace(() -> format("Building API key doc with updated role descriptors [{}]", keyRoles));
+            logger.trace(() -> format("Building API key doc with updated role descriptors [%s]", keyRoles));
             addRoleDescriptors(builder, keyRoles);
         } else {
             assert currentApiKeyDoc.roleDescriptorsBytes != null;
@@ -541,7 +676,7 @@ public class ApiKeyService {
             ) == false : "API key doc to be updated contains reserved metadata";
         final Map<String, Object> metadata = request.getMetadata();
         if (metadata != null) {
-            logger.trace(() -> format("Building API key doc with updated metadata [{}]", metadata));
+            logger.trace(() -> format("Building API key doc with updated metadata [%s]", metadata));
             builder.field("metadata_flattened", metadata);
         } else {
             builder.rawField(
@@ -961,7 +1096,18 @@ public class ApiKeyService {
         if (false == isEnabled()) {
             return null;
         }
-        final SecureString apiKeyString = Authenticator.extractCredentialFromAuthorizationHeader(threadContext, "ApiKey");
+        return getCredentialsFromHeader(threadContext.getHeader("Authorization"));
+    }
+
+    static ApiKeyCredentials getCredentialsFromHeader(final String header) {
+        return parseApiKey(Authenticator.extractCredentialFromHeaderValue(header, "ApiKey"));
+    }
+
+    public static String withApiKeyPrefix(final String encodedApiKey) {
+        return "ApiKey " + encodedApiKey;
+    }
+
+    private static ApiKeyCredentials parseApiKey(SecureString apiKeyString) {
         if (apiKeyString != null) {
             final byte[] decodedApiKeyCredBytes = Base64.getDecoder().decode(CharArrays.toUtf8Bytes(apiKeyString.getChars()));
             char[] apiKeyCredChars = null;
@@ -1063,6 +1209,7 @@ public class ApiKeyService {
         public void clearCredentials() {
             close();
         }
+
     }
 
     private static class ApiKeyLoggingDeprecationHandler implements DeprecationHandler {
@@ -1353,9 +1500,10 @@ public class ApiKeyService {
             listener.onFailure(new ElasticsearchSecurityException("No api key ids provided for invalidation"));
         } else {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+            final long invalidationTime = clock.instant().toEpochMilli();
             for (String apiKeyId : apiKeyIds) {
                 UpdateRequest request = client.prepareUpdate(SECURITY_MAIN_ALIAS, apiKeyId)
-                    .setDoc(Collections.singletonMap("api_key_invalidated", true))
+                    .setDoc(Map.of("api_key_invalidated", true, "invalidation_time", invalidationTime))
                     .request();
                 bulkRequestBuilder.add(request);
             }
@@ -1497,7 +1645,7 @@ public class ApiKeyService {
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(() -> format("unable to clear API key cache [{}]", clearApiKeyCacheRequest.cacheName()), e);
+                logger.error(() -> format("unable to clear API key cache [%s]", clearApiKeyCacheRequest.cacheName()), e);
                 listener.onFailure(new ElasticsearchException("clearing the API key cache failed; please clear the caches manually", e));
             }
         });
@@ -1543,7 +1691,7 @@ public class ApiKeyService {
 
     // pkg scoped for testing
     boolean isExpirationInProgress() {
-        return expiredApiKeysRemover.isExpirationInProgress();
+        return inactiveApiKeysRemover.isExpirationInProgress();
     }
 
     // pkg scoped for testing
@@ -1554,7 +1702,7 @@ public class ApiKeyService {
     private void maybeStartApiKeyRemover() {
         if (securityIndex.isAvailable()) {
             if (client.threadPool().relativeTimeInMillis() - lastExpirationRunMs > deleteInterval.getMillis()) {
-                expiredApiKeysRemover.submit(client.threadPool());
+                inactiveApiKeysRemover.submit(client.threadPool());
                 lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
             }
         }
@@ -1737,7 +1885,11 @@ public class ApiKeyService {
         } else {
             // TODO we should use the effective subject realm here but need to handle the failed lookup scenario, in which the realm may be
             // `null`. Since this method is used in audit logging, this requires some care.
-            return authentication.getSourceRealm().getName();
+            if (authentication.isFailedRunAs()) {
+                return authentication.getAuthenticatingSubject().getRealm().getName();
+            } else {
+                return authentication.getEffectiveSubject().getRealm().getName();
+            }
         }
     }
 
@@ -1780,7 +1932,11 @@ public class ApiKeyService {
         } else {
             // TODO we should use the effective subject realm here but need to handle the failed lookup scenario, in which the realm may be
             // `null`. Since this method is used in audit logging, this requires some care.
-            return authentication.getSourceRealm().getType();
+            if (authentication.isFailedRunAs()) {
+                return authentication.getAuthenticatingSubject().getRealm().getType();
+            } else {
+                return authentication.getEffectiveSubject().getRealm().getType();
+            }
         }
     }
 

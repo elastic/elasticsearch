@@ -17,7 +17,11 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.action.util.PageParams;
@@ -29,9 +33,11 @@ import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.core.Strings.format;
 
 public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.Response> {
 
@@ -51,7 +57,8 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
         // used internally to expand the queried id expression
         private List<String> expandedIds;
 
-        public Request(String id) {
+        public Request(String id, @Nullable TimeValue timeout) {
+            setTimeout(timeout);
             if (Strings.isNullOrEmpty(id) || id.equals("*")) {
                 this.id = Metadata.ALL;
             } else {
@@ -63,7 +70,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
-            expandedIds = Collections.unmodifiableList(in.readStringList());
+            expandedIds = in.readImmutableList(StreamInput::readString);
             pageParams = new PageParams(in);
             allowNoMatch = in.readBoolean();
         }
@@ -139,6 +146,11 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             }
             Request other = (Request) obj;
             return Objects.equals(id, other.id) && Objects.equals(pageParams, other.pageParams) && allowNoMatch == other.allowNoMatch;
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, format("get_transform_stats[%s]", this.id), parentTaskId, headers);
         }
     }
 

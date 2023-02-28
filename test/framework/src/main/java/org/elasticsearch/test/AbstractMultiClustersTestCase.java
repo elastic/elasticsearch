@@ -37,7 +37,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
@@ -123,17 +122,6 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         }
         clusterGroup = new ClusterGroup(clusters);
         configureAndConnectsToRemoteClusters();
-    }
-
-    @Override
-    public List<String> filteredWarnings() {
-        return Stream.concat(
-            super.filteredWarnings().stream(),
-            List.of(
-                "Configuring multiple [path.data] paths is deprecated. Use RAID or other system level features for utilizing "
-                    + "multiple disks. This feature will be removed in a future release."
-            ).stream()
-        ).collect(Collectors.toList());
     }
 
     @After

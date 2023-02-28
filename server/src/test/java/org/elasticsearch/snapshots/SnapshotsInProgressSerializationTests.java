@@ -26,11 +26,10 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SimpleDiffableWireSerializationTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,7 +41,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -102,7 +100,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
         if (shardState == ShardState.QUEUED) {
             return SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED;
         } else if (shardState == ShardState.SUCCESS) {
-            final ShardSnapshotResult shardSnapshotResult = new ShardSnapshotResult(new ShardGeneration(1L), new ByteSizeValue(1L), 1);
+            final ShardSnapshotResult shardSnapshotResult = new ShardSnapshotResult(new ShardGeneration(1L), ByteSizeValue.ofBytes(1L), 1);
             return SnapshotsInProgress.ShardSnapshotStatus.success(nodeId, shardSnapshotResult);
         } else {
             final String reason = shardState.failed() ? randomAlphaOfLength(10) : null;
@@ -402,7 +400,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                     new ShardId("index", "uuid", 0),
                     SnapshotsInProgress.ShardSnapshotStatus.success(
                         "nodeId",
-                        new ShardSnapshotResult(new ShardGeneration("shardgen"), new ByteSizeValue(1L), 1)
+                        new ShardSnapshotResult(new ShardGeneration("shardgen"), ByteSizeValue.ofBytes(1L), 1)
                     ),
                     new ShardId("index", "uuid", 1),
                     new SnapshotsInProgress.ShardSnapshotStatus(
@@ -418,115 +416,110 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
             )
         );
 
-        try (XContentBuilder builder = jsonBuilder()) {
-            builder.humanReadable(true);
-            builder.startObject();
-            sip.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
-            String json = Strings.toString(builder);
-            assertThat(
-                json,
-                anyOf(
-                    equalTo(XContentHelper.stripWhitespace("""
+        AbstractChunkedSerializingTestCase.assertChunkCount(sip, instance -> Math.toIntExact(instance.asStream().count() + 2));
+        final var json = Strings.toString(sip, false, true);
+        assertThat(
+            json,
+            anyOf(
+                equalTo(XContentHelper.stripWhitespace("""
+                    {
+                      "snapshots": [
                         {
-                          "snapshots": [
+                          "repository": "repo",
+                          "snapshot": "name",
+                          "uuid": "uuid",
+                          "include_global_state": true,
+                          "partial": true,
+                          "state": "SUCCESS",
+                          "indices": [ { "name": "index", "id": "uuid" } ],
+                          "start_time": "1970-01-01T00:20:34.567Z",
+                          "start_time_millis": 1234567,
+                          "repository_state_id": 0,
+                          "shards": [
                             {
-                              "repository": "repo",
-                              "snapshot": "name",
-                              "uuid": "uuid",
-                              "include_global_state": true,
-                              "partial": true,
+                              "index": {
+                                "index_name": "index",
+                                "index_uuid": "uuid"
+                              },
+                              "shard": 0,
                               "state": "SUCCESS",
-                              "indices": [ { "name": "index", "id": "uuid" } ],
-                              "start_time": "1970-01-01T00:20:34.567Z",
-                              "start_time_millis": 1234567,
-                              "repository_state_id": 0,
-                              "shards": [
-                                {
-                                  "index": {
-                                    "index_name": "index",
-                                    "index_uuid": "uuid"
-                                  },
-                                  "shard": 0,
-                                  "state": "SUCCESS",
-                                  "generation": "shardgen",
-                                  "node": "nodeId",
-                                  "result": {
-                                    "generation": "shardgen",
-                                    "size": "1b",
-                                    "size_in_bytes": 1,
-                                    "segments": 1
-                                  }
-                                },
-                                {
-                                  "index": {
-                                    "index_name": "index",
-                                    "index_uuid": "uuid"
-                                  },
-                                  "shard": 1,
-                                  "state": "FAILED",
-                                  "generation": "fail-gen",
-                                  "node": "nodeId",
-                                  "reason": "failure-reason"
-                                }
-                              ],
-                              "feature_states": [],
-                              "data_streams": []
+                              "generation": "shardgen",
+                              "node": "nodeId",
+                              "result": {
+                                "generation": "shardgen",
+                                "size": "1b",
+                                "size_in_bytes": 1,
+                                "segments": 1
+                              }
+                            },
+                            {
+                              "index": {
+                                "index_name": "index",
+                                "index_uuid": "uuid"
+                              },
+                              "shard": 1,
+                              "state": "FAILED",
+                              "generation": "fail-gen",
+                              "node": "nodeId",
+                              "reason": "failure-reason"
                             }
-                          ]
-                        }""")),
-                    // or the shards might be in the other order:
-                    equalTo(XContentHelper.stripWhitespace("""
+                          ],
+                          "feature_states": [],
+                          "data_streams": []
+                        }
+                      ]
+                    }""")),
+                // or the shards might be in the other order:
+                equalTo(XContentHelper.stripWhitespace("""
+                    {
+                      "snapshots": [
                         {
-                          "snapshots": [
+                          "repository": "repo",
+                          "snapshot": "name",
+                          "uuid": "uuid",
+                          "include_global_state": true,
+                          "partial": true,
+                          "state": "SUCCESS",
+                          "indices": [ { "name": "index", "id": "uuid" } ],
+                          "start_time": "1970-01-01T00:20:34.567Z",
+                          "start_time_millis": 1234567,
+                          "repository_state_id": 0,
+                          "shards": [
                             {
-                              "repository": "repo",
-                              "snapshot": "name",
-                              "uuid": "uuid",
-                              "include_global_state": true,
-                              "partial": true,
+                              "index": {
+                                "index_name": "index",
+                                "index_uuid": "uuid"
+                              },
+                              "shard": 1,
+                              "state": "FAILED",
+                              "generation": "fail-gen",
+                              "node": "nodeId",
+                              "reason": "failure-reason"
+                            },
+                            {
+                              "index": {
+                                "index_name": "index",
+                                "index_uuid": "uuid"
+                              },
+                              "shard": 0,
                               "state": "SUCCESS",
-                              "indices": [ { "name": "index", "id": "uuid" } ],
-                              "start_time": "1970-01-01T00:20:34.567Z",
-                              "start_time_millis": 1234567,
-                              "repository_state_id": 0,
-                              "shards": [
-                                {
-                                  "index": {
-                                    "index_name": "index",
-                                    "index_uuid": "uuid"
-                                  },
-                                  "shard": 1,
-                                  "state": "FAILED",
-                                  "generation": "fail-gen",
-                                  "node": "nodeId",
-                                  "reason": "failure-reason"
-                                },
-                                {
-                                  "index": {
-                                    "index_name": "index",
-                                    "index_uuid": "uuid"
-                                  },
-                                  "shard": 0,
-                                  "state": "SUCCESS",
-                                  "generation": "shardgen",
-                                  "node": "nodeId",
-                                  "result": {
-                                    "generation": "shardgen",
-                                    "size": "1b",
-                                    "size_in_bytes": 1,
-                                    "segments": 1
-                                  }
-                                }
-                              ],
-                              "feature_states": [],
-                              "data_streams": []
+                              "generation": "shardgen",
+                              "node": "nodeId",
+                              "result": {
+                                "generation": "shardgen",
+                                "size": "1b",
+                                "size_in_bytes": 1,
+                                "segments": 1
+                              }
                             }
-                          ]
-                        }"""))
-                )
-            );
-        }
+                          ],
+                          "feature_states": [],
+                          "data_streams": []
+                        }
+                      ]
+                    }"""))
+            )
+        );
     }
 
     public static State randomState(Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards) {

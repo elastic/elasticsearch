@@ -8,22 +8,25 @@
 
 package org.elasticsearch.health.metadata;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 
 import java.util.List;
 
@@ -45,7 +48,7 @@ public class HealthMetadataService {
     private final ClusterService clusterService;
     private final ClusterStateListener clusterStateListener;
     private final Settings settings;
-    private final ClusterStateTaskExecutor<UpsertHealthMetadataTask> executor = new UpsertHealthMetadataTask.Executor();
+    private final MasterServiceTaskQueue<UpsertHealthMetadataTask> taskQueue;
     private volatile boolean enabled;
 
     // Signifies that a node has been elected as master, but it was not able yet to publish its health metadata for
@@ -60,6 +63,11 @@ public class HealthMetadataService {
         this.settings = settings;
         this.clusterStateListener = this::updateOnClusterStateChange;
         this.enabled = ENABLED_SETTING.get(settings);
+        this.taskQueue = clusterService.createTaskQueue(
+            "health metadata service",
+            Priority.NORMAL,
+            new UpsertHealthMetadataTask.Executor()
+        );
     }
 
     public static HealthMetadataService create(ClusterService clusterService, Settings settings) {
@@ -142,18 +150,15 @@ public class HealthMetadataService {
         // We do not use the cluster state to check if this is the master node because the cluster state might not have been initialized
         if (isMaster && enabled) {
             ClusterState clusterState = clusterService.state();
-            if (clusterState.nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_4_0)) {
+            if (clusterState.nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)) {
                 var task = new UpdateHealthMetadata(setting, value);
-                var config = ClusterStateTaskConfig.build(Priority.NORMAL);
-                clusterService.submitStateUpdateTask("health-metadata-update", task, config, executor);
+                taskQueue.submitTask("health-metadata-update", task, null);
             }
         }
     }
 
     private void resetHealthMetadata(String source) {
-        var task = new InsertHealthMetadata(settings);
-        var config = ClusterStateTaskConfig.build(Priority.NORMAL);
-        clusterService.submitStateUpdateTask(source, task, config, executor);
+        taskQueue.submitTask(source, new InsertHealthMetadata(settings), null);
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -170,24 +175,24 @@ public class HealthMetadataService {
 
         @Override
         public void onFailure(@Nullable Exception e) {
-            logger.error("failure during health metadata update", e);
+            logger.log(
+                MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.WARN,
+                () -> "failure during health metadata update",
+                e
+            );
         }
 
         abstract ClusterState execute(ClusterState currentState);
 
-        static class Executor implements ClusterStateTaskExecutor<UpsertHealthMetadataTask> {
+        static class Executor extends SimpleBatchedExecutor<UpsertHealthMetadataTask, Void> {
 
             @Override
-            public ClusterState execute(BatchExecutionContext<UpsertHealthMetadataTask> batchExecutionContext) throws Exception {
-                ClusterState updatedState = batchExecutionContext.initialState();
-                for (TaskContext<UpsertHealthMetadataTask> taskContext : batchExecutionContext.taskContexts()) {
-                    try (var ignored = taskContext.captureResponseHeaders()) {
-                        updatedState = taskContext.getTask().execute(updatedState);
-                    }
-                    taskContext.success(() -> {});
-                }
-                return updatedState;
+            public Tuple<ClusterState, Void> executeTask(UpsertHealthMetadataTask task, ClusterState clusterState) {
+                return Tuple.tuple(task.execute(clusterState), null);
             }
+
+            @Override
+            public void taskSucceeded(UpsertHealthMetadataTask task, Void unused) {}
         }
     }
 

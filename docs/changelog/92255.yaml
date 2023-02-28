@@ -1,0 +1,5 @@
+pr: 92255
+summary: Avoid capturing cluster state in TBbNA
+area: Stats
+type: bug
+issues: []

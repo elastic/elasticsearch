@@ -9,6 +9,7 @@
 package org.elasticsearch.lucene.search.uhighlight;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.custom.CustomAnalyzer;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenizerFactory;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -40,6 +41,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.text.BreakIterator;
 import java.util.Locale;
+import java.util.Map;
+import java.util.TreeMap;
 
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -83,6 +86,34 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         int maxAnalyzedOffset,
         Integer queryMaxAnalyzedOffset
     ) throws Exception {
+        assertHighlightOneDoc(
+            fieldName,
+            inputs,
+            analyzer,
+            query,
+            locale,
+            breakIterator,
+            noMatchSize,
+            expectedPassages,
+            maxAnalyzedOffset,
+            queryMaxAnalyzedOffset,
+            UnifiedHighlighter.OffsetSource.ANALYSIS
+        );
+    }
+
+    private void assertHighlightOneDoc(
+        String fieldName,
+        String[] inputs,
+        Analyzer analyzer,
+        Query query,
+        Locale locale,
+        BreakIterator breakIterator,
+        int noMatchSize,
+        String[] expectedPassages,
+        int maxAnalyzedOffset,
+        Integer queryMaxAnalyzedOffset,
+        UnifiedHighlighter.OffsetSource offsetSource
+    ) throws Exception {
         try (Directory dir = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig(analyzer);
             iwc.setMergePolicy(newTieredMergePolicy(random()));
@@ -106,7 +137,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
                 CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
                     searcher,
                     analyzer,
-                    UnifiedHighlighter.OffsetSource.ANALYSIS,
+                    offsetSource,
                     new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder()),
                     locale,
                     breakIterator,
@@ -392,6 +423,74 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             new String[] { "exceeds" },
             10,
             10
+        );
+    }
+
+    public void testExceedMaxAnalyzedOffsetWithRepeatedWords() throws Exception {
+
+        TermQuery query = new TermQuery(new Term("text", "Fun"));
+        Analyzer analyzer = new WhitespaceAnalyzer();
+        assertHighlightOneDoc(
+            "text",
+            new String[] { "Testing Fun Testing Fun" },
+            analyzer,
+            query,
+            Locale.ROOT,
+            BreakIterator.getSentenceInstance(Locale.ROOT),
+            0,
+            new String[] { "Testing <b>Fun</b> Testing Fun" },
+            29,
+            10,
+            UnifiedHighlighter.OffsetSource.ANALYSIS
+        );
+        assertHighlightOneDoc(
+            "text",
+            new String[] { "Testing Fun Testing Fun" },
+            analyzer,
+            query,
+            Locale.ROOT,
+            BreakIterator.getSentenceInstance(Locale.ROOT),
+            0,
+            new String[] { "Testing <b>Fun</b> Testing Fun" },
+            29,
+            10,
+            UnifiedHighlighter.OffsetSource.POSTINGS
+        );
+    }
+
+    public void testExceedMaxAnalyzedOffsetRandomOffset() throws Exception {
+        TermQuery query = new TermQuery(new Term("text", "fun"));
+        Analyzer analyzer = new WhitespaceAnalyzer();
+        UnifiedHighlighter.OffsetSource offsetSource = randomBoolean()
+            ? UnifiedHighlighter.OffsetSource.ANALYSIS
+            : UnifiedHighlighter.OffsetSource.POSTINGS;
+        final String[] inputs = { "Fun fun fun fun fun" };
+        TreeMap<Integer, String> outputs = new TreeMap<>(
+            Map.of(
+                7,
+                "Fun <b>fun</b> fun fun fun",
+                11,
+                "Fun <b>fun</b> <b>fun</b> fun fun",
+                15,
+                "Fun <b>fun</b> <b>fun</b> <b>fun</b> fun",
+                19,
+                "Fun <b>fun</b> <b>fun</b> <b>fun</b> <b>fun</b>"
+            )
+        );
+        Integer randomOffset = between(7, 19);
+        String output = outputs.ceilingEntry(randomOffset).getValue();
+        assertHighlightOneDoc(
+            "text",
+            inputs,
+            analyzer,
+            query,
+            Locale.ROOT,
+            BreakIterator.getSentenceInstance(Locale.ROOT),
+            0,
+            new String[] { output },
+            47,
+            randomOffset,
+            offsetSource
         );
     }
 }

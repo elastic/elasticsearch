@@ -37,7 +37,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testValueFetcherIsNotSupported() {
         SparseVectorFieldMapper.Builder builder = new SparseVectorFieldMapper.Builder("field");
-        MappedFieldType fieldMapper = builder.build(MapperBuilderContext.ROOT).fieldType();
+        MappedFieldType fieldMapper = builder.build(MapperBuilderContext.root(false)).fieldType();
         UnsupportedOperationException exc = expectThrows(UnsupportedOperationException.class, () -> fieldMapper.valueFetcher(null, null));
         assertEquals(SparseVectorFieldMapper.ERROR_MESSAGE_7X, exc.getMessage());
     }

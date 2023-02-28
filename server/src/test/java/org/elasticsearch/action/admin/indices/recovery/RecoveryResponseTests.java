@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -32,37 +33,34 @@ public class RecoveryResponseTests extends ESTestCase {
         DiscoveryNode sourceNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         DiscoveryNode targetNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         final int shards = randomInt(50);
-        final RecoveryResponse recoveryResponse = new RecoveryResponse(
-            successfulShards + failedShards,
-            successfulShards,
-            failedShards,
-            IntStream.range(0, shards)
-                .boxed()
-                .collect(
-                    Collectors.toUnmodifiableMap(
-                        i -> "index-" + i,
-                        i -> List.of(
-                            new RecoveryState(
-                                ShardRouting.newUnassigned(
-                                    new ShardId("index-" + i, "index-uuid-" + i, 0),
-                                    randomBoolean(),
-                                    RecoverySource.PeerRecoverySource.INSTANCE,
-                                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
-                                ).initialize(sourceNode.getId(), null, randomNonNegativeLong()),
-                                sourceNode,
-                                targetNode
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            new RecoveryResponse(
+                successfulShards + failedShards,
+                successfulShards,
+                failedShards,
+                IntStream.range(0, shards)
+                    .boxed()
+                    .collect(
+                        Collectors.toUnmodifiableMap(
+                            i -> "index-" + i,
+                            i -> List.of(
+                                new RecoveryState(
+                                    ShardRouting.newUnassigned(
+                                        new ShardId("index-" + i, "index-uuid-" + i, 0),
+                                        false,
+                                        RecoverySource.PeerRecoverySource.INSTANCE,
+                                        new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
+                                        ShardRouting.Role.DEFAULT
+                                    ).initialize(sourceNode.getId(), null, randomNonNegativeLong()),
+                                    sourceNode,
+                                    targetNode
+                                )
                             )
                         )
-                    )
-                ),
-            List.of()
+                    ),
+                List.of()
+            ),
+            ignored -> shards + 2
         );
-        final var iterator = recoveryResponse.toXContentChunked();
-        int chunks = 0;
-        while (iterator.hasNext()) {
-            iterator.next();
-            chunks++;
-        }
-        assertEquals(shards + 2, chunks);
     }
 }

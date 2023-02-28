@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.autoscaling.capacity;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -44,9 +44,9 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
         }
 
         public AutoscalingResources(StreamInput in) throws IOException {
-            this.storage = in.readOptionalWriteable(ByteSizeValue::new);
-            this.memory = in.readOptionalWriteable(ByteSizeValue::new);
-            if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+            this.storage = in.readOptionalWriteable(ByteSizeValue::readFrom);
+            this.memory = in.readOptionalWriteable(ByteSizeValue::readFrom);
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
                 this.processors = in.readOptionalWriteable(Processors::readFrom);
             } else {
                 this.processors = null;
@@ -93,7 +93,7 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalWriteable(storage);
             out.writeOptionalWriteable(memory);
-            if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
                 out.writeOptionalWriteable(processors);
             }
         }
@@ -147,7 +147,7 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
                 return v1;
             }
 
-            return new ByteSizeValue(v1.getBytes() + v2.getBytes());
+            return ByteSizeValue.ofBytes(v1.getBytes() + v2.getBytes());
         }
 
         private static Processors max(Processors v1, Processors v2) {
@@ -315,7 +315,7 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
         }
 
         private ByteSizeValue byteSizeValue(Long memory) {
-            return memory == null ? null : new ByteSizeValue(memory);
+            return memory == null ? null : ByteSizeValue.ofBytes(memory);
         }
     }
 }

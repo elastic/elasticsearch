@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.List;
 
 public class KnnDenseVector implements DenseVector {
+
     protected final float[] docVector;
 
     public KnnDenseVector(float[] docVector) {
@@ -33,17 +34,27 @@ public class KnnDenseVector implements DenseVector {
     }
 
     @Override
+    public int dotProduct(byte[] queryVector) {
+        throw new UnsupportedOperationException("use [double dotProduct(float[] queryVector)] instead");
+    }
+
+    @Override
     public double dotProduct(float[] queryVector) {
         return VectorUtil.dotProduct(docVector, queryVector);
     }
 
     @Override
     public double dotProduct(List<Number> queryVector) {
-        double dotProduct = 0;
+        double result = 0;
         for (int i = 0; i < docVector.length; i++) {
-            dotProduct += docVector[i] * queryVector.get(i).floatValue();
+            result += docVector[i] * queryVector.get(i).floatValue();
         }
-        return dotProduct;
+        return result;
+    }
+
+    @Override
+    public int l1Norm(byte[] queryVector) {
+        throw new UnsupportedOperationException("use [double l1Norm(float[] queryVector)] instead");
     }
 
     @Override
@@ -65,6 +76,11 @@ public class KnnDenseVector implements DenseVector {
     }
 
     @Override
+    public double l2Norm(byte[] queryVector) {
+        throw new UnsupportedOperationException("use [double l2Norm(float[] queryVector)] instead");
+    }
+
+    @Override
     public double l2Norm(float[] queryVector) {
         return Math.sqrt(VectorUtil.squareDistance(docVector, queryVector));
     }
@@ -77,6 +93,11 @@ public class KnnDenseVector implements DenseVector {
             l2norm += diff * diff;
         }
         return Math.sqrt(l2norm);
+    }
+
+    @Override
+    public double cosineSimilarity(byte[] queryVector, float qvMagnitude) {
+        throw new UnsupportedOperationException("use [double cosineSimilarity(float[] queryVector, boolean normalizeQueryVector)] instead");
     }
 
     @Override

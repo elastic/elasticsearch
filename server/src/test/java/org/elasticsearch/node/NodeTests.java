@@ -55,6 +55,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -370,8 +371,8 @@ public class NodeTests extends ESTestCase {
         public MockRecoveryPlannerPlugin() {}
 
         @Override
-        public RecoveryPlannerService createRecoveryPlannerService(ShardSnapshotsService shardSnapshotsService) {
-            return mock(RecoveryPlannerService.class);
+        public Optional<RecoveryPlannerService> createRecoveryPlannerService(ShardSnapshotsService shardSnapshotsService) {
+            return Optional.of(mock(RecoveryPlannerService.class));
         }
     }
 

@@ -1,0 +1,5 @@
+pr: 92711
+summary: Add methods to H3#hexRing to prevent allocating long arrays
+area: Geo
+type: enhancement
+issues: []

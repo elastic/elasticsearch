@@ -44,6 +44,11 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
   (Optional, Boolean) Specifies whether the request should return immediately or
   wait until the job reset completes. Defaults to `true`.
 
+`delete_user_annotations`::
+  (Optional, Boolean) Specifies whether annotations that have been added by the 
+  user should be deleted along with any auto-generated annotations when the job is
+  reset. Defaults to `false`.
+
 [[ml-reset-job-example]]
 == {api-examples-title}
 

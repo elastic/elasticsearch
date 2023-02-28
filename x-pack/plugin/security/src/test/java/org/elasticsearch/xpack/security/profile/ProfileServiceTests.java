@@ -99,6 +99,7 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -1102,7 +1103,9 @@ public class ProfileServiceTests extends ESTestCase {
     }
 
     public static String getSampleProfileDocumentSource(String uid, String username, List<String> roles, long lastSynchronized) {
-        return SAMPLE_PROFILE_DOCUMENT_TEMPLATE.formatted(
+        return String.format(
+            Locale.ROOT,
+            SAMPLE_PROFILE_DOCUMENT_TEMPLATE,
             uid,
             username,
             roles.stream().map(v -> "\"" + v + "\"").collect(Collectors.toList()),

@@ -212,8 +212,9 @@ class MlMemoryAutoscalingDecider {
 
         long maxTaskMemoryBytes = maxMemoryBytes(mlContext);
 
-        // This state is invalid, but may occur due to complex bugs that have slipped through testing.
-        // We could have tasks where the required job memory is 0, which should be impossible.
+        // This should rarely happen, it could imply a bug. However, it is possible to happen
+        // if there are persistent tasks that do not have matching configs stored.
+        // Also, it could be that we have tasks where the required job memory is 0, which should be impossible.
         // This can also happen if a job that is awaiting assignment ceases to have the AWAITING_LAZY_ASSIGNMENT
         // assignment explanation, for example because some other explanation overrides it. (This second situation
         // arises because, for example, anomalyDetectionTasks contains a task that is waiting but waitingAnomalyJobs
@@ -346,8 +347,11 @@ class MlMemoryAutoscalingDecider {
                 // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
                 .mapToLong(t -> {
                     Long mem = getAnomalyMemoryRequirement(t);
+                    if (mem == null) {
+                        logger.warn("unexpected null for anomaly detection memory requirement for [{}]", MlTasks.jobId(t.getId()));
+                    }
                     assert mem != null : "unexpected null for anomaly memory requirement after recent stale check";
-                    return mem;
+                    return mem == null ? 0 : mem;
                 })
                 .max()
                 .orElse(0L),
@@ -356,8 +360,11 @@ class MlMemoryAutoscalingDecider {
                 // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
                 .mapToLong(t -> {
                     Long mem = getAnomalyMemoryRequirement(t);
+                    if (mem == null) {
+                        logger.warn("unexpected null for snapshot upgrade memory requirement for [{}]", MlTasks.jobId(t.getId()));
+                    }
                     assert mem != null : "unexpected null for anomaly memory requirement after recent stale check";
-                    return mem;
+                    return mem == null ? 0 : mem;
                 })
                 .max()
                 .orElse(0L)
@@ -369,8 +376,11 @@ class MlMemoryAutoscalingDecider {
                 // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
                 .mapToLong(t -> {
                     Long mem = this.getAnalyticsMemoryRequirement(t);
+                    if (mem == null) {
+                        logger.warn("unexpected null for analytics memory requirement for [{}]", MlTasks.dataFrameAnalyticsId(t.getId()));
+                    }
                     assert mem != null : "unexpected null for analytics memory requirement after recent stale check";
-                    return mem;
+                    return mem == null ? 0 : mem;
                 })
                 .max()
                 .orElse(0L)

@@ -46,7 +46,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
-import static java.util.Collections.emptyMap;
 import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.instanceOf;
@@ -160,7 +159,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
 
     private SearchResponse createSearchResponse() {
         // create a simulated response.
-        SearchHit hit = new SearchHit(0, "id", emptyMap(), emptyMap()).sourceRef(new BytesArray("{}"));
+        SearchHit hit = new SearchHit(0, "id").sourceRef(new BytesArray("{}"));
         SearchHits hits = new SearchHits(
             IntStream.range(0, randomIntBetween(0, 20)).mapToObj(i -> hit).toArray(SearchHit[]::new),
             new TotalHits(0, TotalHits.Relation.EQUAL_TO),

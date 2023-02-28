@@ -43,7 +43,7 @@ based on a similarity metric, the better its match.
 * <<exact-knn,Exact, brute-force kNN>> using a `script_score` query with a
 vector function
 
-* experimental:[] <<approximate-knn,Approximate kNN>> using the `knn` search
+* <<approximate-knn,Approximate kNN>> using the `knn` search
 option
 
 In most cases, you'll want to use approximate kNN. Approximate kNN offers lower
@@ -144,10 +144,14 @@ POST product-index/_search
 [[approximate-knn]]
 === Approximate kNN
 
-experimental::[]
+WARNING: Compared to other types of search, approximate kNN search has specific
+resource requirements. In particular, all vector data must fit in the node's
+page cache for it to be efficient. Please consult the
+<<tune-knn-search, approximate kNN search tuning guide>> for important notes on
+configuration and sizing.
 
 To run an approximate kNN search, use the <<search-api-knn, `knn` option>>
-to search a `dense_vector` field with indexing enabled.
+to search one or more `dense_vector` fields with indexing enabled.
 
 . Explicitly map one or more `dense_vector` fields. Approximate kNN search
 requires the following mapping options:
@@ -172,6 +176,12 @@ PUT image-index
         "index": true,
         "similarity": "l2_norm"
       },
+      "title-vector": {
+        "type": "dense_vector",
+        "dims": 5,
+        "index": true,
+        "similarity": "l2_norm"
+      },
       "title": {
         "type": "text"
       },
@@ -190,11 +200,11 @@ PUT image-index
 ----
 POST image-index/_bulk?refresh=true
 { "index": { "_id": "1" } }
-{ "image-vector": [1, 5, -20], "title": "moose family", "file-type": "jpg" }
+{ "image-vector": [1, 5, -20], "title-vector": [12, 50, -10, 0, 1], "title": "moose family", "file-type": "jpg" }
 { "index": { "_id": "2" } }
-{ "image-vector": [42, 8, -15], "title": "alpine lake", "file-type": "png" }
+{ "image-vector": [42, 8, -15], "title-vector": [25, 1, 4, -12, 2], "title": "alpine lake", "file-type": "png" }
 { "index": { "_id": "3" } }
-{ "image-vector": [15, 11, 23], "title": "full moon", "file-type": "jpg" }
+{ "image-vector": [15, 11, 23], "title-vector": [1, 5, 25, 50, 20], "title": "full moon", "file-type": "jpg" }
 ...
 ----
 //TEST[continued]
@@ -247,6 +257,76 @@ search has a higher probability of finding the true `k` top nearest neighbors.
 
 Similarly, you can decrease `num_candidates` for faster searches with
 potentially less accurate results.
+
+[discrete]
+[[approximate-knn-using-byte-vectors]]
+==== Approximate kNN using byte vectors
+
+The approximate kNN search API supports `byte` value vectors in
+addition to `float` value vectors. Use the <<search-api-knn, `knn` option>>
+to search a `dense_vector` field with <<dense-vector-params, `element_type`>> set to
+`byte` and indexing enabled.
+
+. Explicitly map one or more `dense_vector` fields with
+<<dense-vector-params, `element_type`>> set to `byte` and indexing enabled.
++
+[source,console]
+----
+PUT byte-image-index
+{
+  "mappings": {
+    "properties": {
+      "byte-image-vector": {
+        "type": "dense_vector",
+        "element_type": "byte",
+        "dims": 2,
+        "index": true,
+        "similarity": "cosine"
+      },
+      "title": {
+        "type": "text"
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+
+. Index your data ensuring all vector values
+are integers within the range [-128, 127].
++
+[source,console]
+----
+POST byte-image-index/_bulk?refresh=true
+{ "index": { "_id": "1" } }
+{ "byte-image-vector": [5, -20], "title": "moose family" }
+{ "index": { "_id": "2" } }
+{ "byte-image-vector": [8, -15], "title": "alpine lake" }
+{ "index": { "_id": "3" } }
+{ "byte-image-vector": [11, 23], "title": "full moon" }
+----
+//TEST[continued]
+
+. Run the search using the <<search-api-knn, `knn` option>>
+ensuring the `query_vector` values are integers within the
+range [-128, 127].
++
+[source,console]
+----
+POST byte-image-index/_search
+{
+  "knn": {
+    "field": "byte-image-vector",
+    "query_vector": [-5, 9],
+    "k": 10,
+    "num_candidates": 100
+  },
+  "fields": [ "title" ]
+}
+----
+// TEST[continued]
+// TEST[s/"k": 10/"k": 3/]
+// TEST[s/"num_candidates": 100/"num_candidates": 3/]
 
 [discrete]
 [[knn-search-filter-example]]
@@ -327,32 +407,141 @@ each score in the sum. In the example above, the scores will be calculated as
 score = 0.9 * match_score + 0.1 * knn_score
 ```
 
-The `knn` option can also be used with <<search-aggregations, `aggregations`>>. In general, {es} computes aggregations
-over all documents that match the search. So for approximate kNN search, aggregations are calculated on the top `k`
-nearest documents. If the search also includes a `query`, then aggregations are calculated on the combined set of `knn`
-and `query` matches.
+The `knn` option can also be used with <<search-aggregations, `aggregations`>>. 
+In general, {es} computes aggregations over all documents that match the search. 
+So for approximate kNN search, aggregations are calculated on the top `k` 
+nearest documents. If the search also includes a `query`, then aggregations are 
+calculated on the combined set of `knn` and `query` matches.
+
+[discrete]
+[[semantic-search]]
+==== Perform semantic search
+
+experimental[]
+
+kNN search enables you to perform semantic search by using a previously deployed 
+{ml-docs}/ml-nlp-search-compare.html#ml-nlp-text-embedding[text embedding model]. 
+Instead of literal matching on search terms, semantic search retrieves results
+based on the intent and the contextual meaning of a search query.
+
+Under the hood, the text embedding NLP model generates a dense vector from the 
+input query string called `model_text` you provide. Then, it is searched 
+against an index containing dense vectors created with the same text embedding 
+{ml} model. The search results are semantically similar as learned by the model.
+
+[IMPORTANT]
+=====================
+To perform semantic search:
+
+* you need an index that contains the dense vector representation of the input 
+data to search against,
+
+* you must use the same text embedding model for search that you used to create 
+the dense vectors from the input data,
+
+* the text embedding NLP model deployment must be started.
+=====================
+
+Reference the deployed text embedding model in the `query_vector_builder` object 
+and provide the search query as `model_text`:
+
+[source,js]
+----
+(...)
+{
+  "knn": {
+    "field": "dense-vector-field",
+    "k": 10,
+    "num_candidates": 100,
+    "query_vector_builder": {
+      "text_embedding": { <1>
+        "model_id": "my-text-embedding-model", <2>
+        "model_text": "The opposite of blue" <3>
+      }
+    }
+  }
+}
+(...)
+----
+// NOTCONSOLE
+
+<1> The {nlp} task to perform. It must be `text_embedding`.
+<2> The ID of the text embedding model to use to generate the dense vectors from 
+the query string. Use the same model that generated the embeddings from the 
+input text in the index you search against.
+<3> The query string from which the model generates the dense vector 
+representation.
+
+For more information on how to deploy a trained model and use it to create text 
+embeddings, refer to this 
+{ml-docs}/ml-nlp-text-emb-vector-search-example.html[end-to-end example].
+
+
+[discrete]
+==== Search multiple kNN fields
+
+In addition to 'hybrid retrieval', you can search more than one kNN vector field at a time:
+
+[source,console]
+----
+POST image-index/_search
+{
+  "query": {
+    "match": {
+      "title": {
+        "query": "mountain lake",
+        "boost": 0.9
+      }
+    }
+  },
+  "knn": [ {
+    "field": "image-vector",
+    "query_vector": [54, 10, -2],
+    "k": 5,
+    "num_candidates": 50,
+    "boost": 0.1
+  },
+  {
+    "field": "title-vector",
+    "query_vector": [1, 20, -52, 23, 10],
+    "k": 10,
+    "num_candidates": 10,
+    "boost": 0.5
+  }],
+  "size": 10
+}
+----
+// TEST[continued]
+
+This search finds the global top `k = 5` vector matches for `image-vector` and the global `k = 10` for the `title-vector`.
+These top values are then combined with the matches from the `match` query and the top-10 documents are returned.
+The multiple `knn` entries and the `query` matches are combined through a disjunction,
+as if you took a boolean 'or' between them. The top `k` vector results represent the global nearest neighbors across
+all index shards.
+
+The scoring for a doc with the above configured boosts would be:
+
+```
+score = 0.9 * match_score + 0.1 * knn_score_image-vector + 0.5 * knn_score_title-vector
+```
 
 [discrete]
 [[knn-indexing-considerations]]
 ==== Indexing considerations
 
-{es} shards are composed of segments, which are internal storage elements in the
-index. For approximate kNN search, {es} stores the dense vector values of each
+For approximate kNN search, {es} stores the dense vector values of each
 segment as an https://arxiv.org/abs/1603.09320[HNSW graph]. Indexing vectors for
 approximate kNN search can take substantial time because of how expensive it is
 to build these graphs. You may need to increase the client request timeout for
-index and bulk requests.
+index and bulk requests. The <<tune-knn-search, approximate kNN tuning guide>>
+contains important guidance around indexing performance, and how the index
+configuration can affect search performance.
 
-<<indices-forcemerge,Force merging>> the index to a single segment can improve
-kNN search latency. With only one segment, the search needs to check a single,
-all-inclusive HNSW graph. When there are multiple segments, kNN search must
-check several smaller HNSW graphs as it searches each segment after another.
-You should only force merge an index if it is no longer being written to.
-
-The HNSW algorithm has index-time parameters that trade off between the cost of
-building the graph, search speed, and accuracy. When setting up the
-`dense_vector` mapping, you can use the <<dense-vector-index-options, `index_options`>>
-argument to adjust these parameters:
+In addition to its search-time tuning parameters, the HNSW algorithm has
+index-time parameters that trade off between the cost of building the graph,
+search speed, and accuracy. When setting up the `dense_vector` mapping, you
+can use the <<dense-vector-index-options, `index_options`>> argument to adjust
+these parameters:
 
 [source,console]
 ----
@@ -379,10 +568,6 @@ PUT image-index
 [discrete]
 [[approximate-knn-limitations]]
 ==== Limitations for approximate kNN search
-
-* You can't run an approximate kNN search on a <<filter-alias,filtered alias>>.
-Running a kNN search against a filtered alias may incorrectly result in fewer
-than `k` hits.
 
 * You can't run an approximate kNN search on a `dense_vector` field within a
 <<nested,`nested`>> mapping.

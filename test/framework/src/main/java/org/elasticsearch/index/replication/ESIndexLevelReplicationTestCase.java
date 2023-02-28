@@ -572,7 +572,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 null,
                 currentClusterStateVersion.incrementAndGet(),
                 activeIds(),
-                routingTable(Function.identity())
+                primary.routingEntry().initializing()
+                    ? IndexShardRoutingTable.builder(primary.shardId()).addShard(primary.routingEntry()).build()
+                    : routingTable(Function.identity())
             );
         }
 
@@ -852,7 +854,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             executeShardBulkOnPrimary(
                 primary,
                 request,
-                listener.map(result -> new PrimaryResult(result.replicaRequest(), result.finalResponseIfSuccessful))
+                listener.map(result -> new PrimaryResult(result.replicaRequest(), result.replicationResponse))
             );
         }
 
@@ -1031,7 +1033,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             ActionListener.completeWith(listener, () -> {
                 final TransportWriteAction.WritePrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse> result =
                     executeResyncOnPrimary(primary, request);
-                return new PrimaryResult(result.replicaRequest(), result.finalResponseIfSuccessful);
+                return new PrimaryResult(result.replicaRequest(), result.replicationResponse);
             });
         }
 
@@ -1055,7 +1057,6 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             new TransportWriteAction.WritePrimaryResult<>(
                 TransportResyncReplicationAction.performOnPrimary(request),
                 new ResyncReplicationResponse(),
-                null,
                 null,
                 primary,
                 logger

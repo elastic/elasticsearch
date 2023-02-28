@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -18,6 +18,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -55,7 +58,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nowInMillis = in.readOptionalLong();
         runtimeFields = in.readMap();
-        if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             filters = in.readStringArray();
             types = in.readStringArray();
         }
@@ -93,7 +96,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         out.writeOptionalNamedWriteable(indexFilter);
         out.writeOptionalLong(nowInMillis);
         out.writeGenericMap(runtimeFields);
-        if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             out.writeStringArray(filters);
             out.writeStringArray(types);
         }
@@ -271,4 +274,13 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         return stringBuilder.toString();
     }
 
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, "", parentTaskId, headers) {
+            @Override
+            public String getDescription() {
+                return FieldCapabilitiesRequest.this.getDescription();
+            }
+        };
+    }
 }

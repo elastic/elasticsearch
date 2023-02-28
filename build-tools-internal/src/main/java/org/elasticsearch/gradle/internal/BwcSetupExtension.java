@@ -12,6 +12,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.tools.ant.taskdefs.condition.Os;
 import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
@@ -37,36 +38,46 @@ public class BwcSetupExtension {
     private static final Version BUILD_TOOL_MINIMUM_VERSION = Version.fromString("7.14.0");
     private final Project project;
     private final Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo;
-    private final Provider<InternalDistributionBwcSetupPlugin.BwcTaskThrottle> bwcTaskThrottleProvider;
 
     private Provider<File> checkoutDir;
 
     public BwcSetupExtension(
         Project project,
         Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo,
-        Provider<InternalDistributionBwcSetupPlugin.BwcTaskThrottle> bwcTaskThrottleProvider,
         Provider<File> checkoutDir
     ) {
         this.project = project;
         this.unreleasedVersionInfo = unreleasedVersionInfo;
-        this.bwcTaskThrottleProvider = bwcTaskThrottleProvider;
         this.checkoutDir = checkoutDir;
     }
 
     TaskProvider<LoggedExec> bwcTask(String name, Action<LoggedExec> configuration) {
-        return createRunBwcGradleTask(project, name, configuration);
+        return bwcTask(name, configuration, true);
     }
 
-    private TaskProvider<LoggedExec> createRunBwcGradleTask(Project project, String name, Action<LoggedExec> configAction) {
+    TaskProvider<LoggedExec> bwcTask(String name, Action<LoggedExec> configuration, boolean useUniqueUserHome) {
+        return createRunBwcGradleTask(project, name, configuration, useUniqueUserHome);
+    }
+
+    private TaskProvider<LoggedExec> createRunBwcGradleTask(
+        Project project,
+        String name,
+        Action<LoggedExec> configAction,
+        boolean useUniqueUserHome
+    ) {
         return project.getTasks().register(name, LoggedExec.class, loggedExec -> {
             loggedExec.dependsOn("checkoutBwcBranch");
-            loggedExec.usesService(bwcTaskThrottleProvider);
             loggedExec.getWorkingDir().set(checkoutDir.get());
 
             loggedExec.getEnvironment().put("JAVA_HOME", unreleasedVersionInfo.zip(checkoutDir, (version, checkoutDir) -> {
                 String minimumCompilerVersion = readFromFile(new File(checkoutDir, minimumCompilerVersionPath(version.version())));
                 return getJavaHome(Integer.parseInt(minimumCompilerVersion));
             }));
+
+            if (BuildParams.isCi() && Os.isFamily(Os.FAMILY_WINDOWS) == false) {
+                // TODO: Disabled for now until we can figure out why files are getting corrupted
+                // loggedExec.getEnvironment().put("GRADLE_RO_DEP_CACHE", System.getProperty("user.home") + "/gradle_ro_cache");
+            }
 
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
                 loggedExec.getExecutable().set("cmd");
@@ -75,7 +86,11 @@ public class BwcSetupExtension {
                 loggedExec.getExecutable().set(new File(checkoutDir.get(), "gradlew").toString());
             }
 
-            loggedExec.args("-g", project.getGradle().getGradleUserHomeDir().toString());
+            if (useUniqueUserHome) {
+                loggedExec.dependsOn("setupGradleUserHome");
+                loggedExec.args("-g", project.getGradle().getGradleUserHomeDir().getAbsolutePath() + "-" + project.getName());
+            }
+
             if (project.getGradle().getStartParameter().isOffline()) {
                 loggedExec.args("--offline");
             }
@@ -100,6 +115,9 @@ public class BwcSetupExtension {
             }
             if (project.getGradle().getStartParameter().isParallelProjectExecutionEnabled()) {
                 loggedExec.args("--parallel");
+            }
+            for (File initScript : project.getGradle().getStartParameter().getInitScripts()) {
+                loggedExec.args("-I", initScript.getAbsolutePath());
             }
             loggedExec.getIndentingConsoleOutput().set(unreleasedVersionInfo.map(v -> v.version().toString()));
             configAction.execute(loggedExec);

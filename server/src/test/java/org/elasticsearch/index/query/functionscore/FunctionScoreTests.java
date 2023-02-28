@@ -439,7 +439,7 @@ public class FunctionScoreTests extends ESTestCase {
         checkFiltersFunctionScoreExplanation(functionExplanation, "Function for field test:", 3);
         assertThat(
             functionExplanation.getDetails()[0].getDetails()[3].getDetails()[1].getDetails()[0].toString(),
-            equalTo("0.1 = exp(- " + "MAX[Math.max(Math.abs(1.0(=doc value) - 0.0(=origin))) - 0.0(=offset), 0)] * 2.3025850929940455)\n")
+            equalTo("0.1 = exp(- MAX[Math.max(Math.abs(1.0(=doc value) - 0.0(=origin))) - 0.0(=offset), 0)] * 2.3025850929940455)\n")
         );
         assertThat(functionExplanation.getDetails()[0].getDetails()[3].getDetails()[1].getDetails()[0].getDetails().length, equalTo(0));
 

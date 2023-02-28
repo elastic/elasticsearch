@@ -1,0 +1,5 @@
+pr: 91499
+summary: Extra `kibana_system` privileges for Fleet transform upgrades
+area: Authorization
+type: enhancement
+issues: []

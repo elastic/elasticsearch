@@ -25,7 +25,6 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.Candidate
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -474,14 +473,7 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
 
     @Override
     public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.prettyPrint();
-            toXContent(builder, EMPTY_PARAMS);
-            return Strings.toString(builder);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        return Strings.toString(this, true, true);
     }
 
     @Override

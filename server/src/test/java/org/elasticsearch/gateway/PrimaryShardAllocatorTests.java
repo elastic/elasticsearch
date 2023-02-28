@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -469,7 +470,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
             .build();
 
         final Snapshot snapshot = new Snapshot("test", new SnapshotId("test", UUIDs.randomBase64UUID()));
-        RoutingTable routingTable = RoutingTable.builder()
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsRestore(
                 metadata.index(shardId.getIndex()),
                 new SnapshotRecoverySource(
@@ -507,7 +508,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
                     .putInSyncAllocationIds(shardId.id(), Sets.newHashSet(activeAllocationIds))
             )
             .build();
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         switch (reason) {
             case INDEX_CREATED -> routingTableBuilder.addAsNew(metadata.index(shardId.getIndex()));
             case CLUSTER_RECOVERED -> routingTableBuilder.addAsRecovery(metadata.index(shardId.getIndex()));

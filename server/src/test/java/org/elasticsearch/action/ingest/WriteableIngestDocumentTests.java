@@ -71,7 +71,10 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
         if (randomBoolean()) {
             numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
             for (int i = 0; i < numFields; i++) {
-                Tuple<String, Object> metadata = TestIngestDocument.randomMetadata();
+                Tuple<String, Object> metadata = randomValueOtherThanMany(
+                    t -> t.v2().equals(sourceAndMetadata.get(t.v1())),
+                    TestIngestDocument::randomMetadata
+                );
                 otherSourceAndMetadata.put(metadata.v1(), metadata.v2());
             }
             changed = true;

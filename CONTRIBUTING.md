@@ -194,6 +194,9 @@ instructions are below in case you need them.
    4. Click "Browse", and navigate to the file `build-conventions/formatterConfig.xml`
    5. **IMPORTANT** - make sure "Optimize Imports" is **NOT** selected.
    6. Click "OK"
+   7. Optional: If you like to format code changes on save automatically, open
+      **Preferences > Tools > Actions on Save** and check "Reformat Code", making sure to
+      configure Java files.
 
 Alternative manual steps for IntelliJ.
 
@@ -866,6 +869,17 @@ refactorings or otherwise "tidy up" certain aspects of the code. We think the
 benefits of this kind of change are very small, and in our experience it is not
 worth investing the substantial effort needed to review them. This especially
 includes changes suggested by tools.
+
+We normally immediately reject PRs which target platforms or system
+configurations that are not in the [official support
+matrix](https://www.elastic.co/support/matrix). We choose to support particular
+platforms with care because we must work to ensure that every Elasticsearch
+release works completely on every platform, and we must spend time
+investigating test failures and performance regressions there too. We cannot
+determine whether PRs which target unsupported platforms or configurations meet
+our quality standards, nor can we guarantee that the change they introduce will
+continue to work in future releases. We do not want Elasticsearch to suddenly
+stop working on a particular platform after an upgrade.
 
 We sometimes reject contributions due to the low quality of the submission
 since low-quality submissions tend to take unreasonable effort to review

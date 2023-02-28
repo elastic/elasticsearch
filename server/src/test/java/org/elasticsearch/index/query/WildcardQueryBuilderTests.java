@@ -13,6 +13,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -38,12 +39,12 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     protected Map<String, WildcardQueryBuilder> getAlternateVersions() {
         Map<String, WildcardQueryBuilder> alternateVersions = new HashMap<>();
         WildcardQueryBuilder wildcardQuery = randomWildcardQuery();
-        String contentString = """
+        String contentString = Strings.format("""
             {
                 "wildcard" : {
                     "%s" : "%s"
                 }
-            }""".formatted(wildcardQuery.fieldName(), wildcardQuery.value());
+            }""", wildcardQuery.fieldName(), wildcardQuery.value());
         alternateVersions.put(contentString, wildcardQuery);
         return alternateVersions;
     }

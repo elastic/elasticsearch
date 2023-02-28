@@ -1,5 +1,0 @@
-pr: 90085
-summary: "Enable the health node and the disk health indicator #84811"
-area: Health
-type: feature
-issues: []

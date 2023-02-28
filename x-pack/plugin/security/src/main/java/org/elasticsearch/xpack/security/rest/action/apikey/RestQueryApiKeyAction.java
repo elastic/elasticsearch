@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -44,7 +44,7 @@ public final class RestQueryApiKeyAction extends ApiKeyBaseRestHandler {
     );
 
     static {
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseInnerQueryBuilder(p), new ParseField("query"));
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseTopLevelQuery(p), new ParseField("query"));
         PARSER.declareInt(optionalConstructorArg(), new ParseField("from"));
         PARSER.declareInt(optionalConstructorArg(), new ParseField("size"));
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> {

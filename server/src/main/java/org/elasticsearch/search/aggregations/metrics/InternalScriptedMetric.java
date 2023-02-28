@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -45,7 +45,7 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
     public InternalScriptedMetric(StreamInput in) throws IOException {
         super(in);
         reduceScript = in.readOptionalWriteable(Script::new);
-        if (in.getVersion().before(Version.V_7_8_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_7_8_0)) {
             aggregations = singletonList(in.readGenericValue());
         } else {
             aggregations = in.readList(StreamInput::readGenericValue);
@@ -55,7 +55,7 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(reduceScript);
-        if (out.getVersion().before(Version.V_7_8_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_7_8_0)) {
             if (aggregations.size() > 1) {
                 /*
                  * If aggregations has more than one entry we're trying to
@@ -162,4 +162,8 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
         return Objects.hash(super.hashCode(), reduceScript, aggregations);
     }
 
+    @Override
+    public String toString() {
+        return "InternalScriptedMetric{" + reduceScript + "}";
+    }
 }

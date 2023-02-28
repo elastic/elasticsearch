@@ -108,6 +108,14 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertParseMinimalWarnings();
     }
 
+    public void testAggregationsDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertAggregatableConsistency(mapperService.fieldType("field"));
+    }
+
     @Override
     protected Collection<? extends Plugin> getPlugins() {
         return singletonList(new MockAnalysisPlugin());
@@ -193,7 +201,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
+        assertEquals(1, fields.length);
 
         assertEquals(new BytesRef("1234"), fields[0].binaryValue());
         IndexableFieldType fieldType = fields[0].fieldType();
@@ -205,12 +213,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
         assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
         assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
-        assertEquals(DocValuesType.NONE, fieldType.docValuesType());
-
-        assertEquals(new BytesRef("1234"), fields[1].binaryValue());
-        fieldType = fields[1].fieldType();
-        assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
         assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
+        assertSame(KeywordFieldMapper.Defaults.FIELD_TYPE, fieldType);
 
         // used by TermVectorsService
         assertArrayEquals(new String[] { "1234" }, TermVectorsService.getValues(doc.rootDoc().getFields("field")));
@@ -221,7 +225,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "elk")));
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
+        assertEquals(1, fields.length);
         fields = doc.rootDoc().getFields("_ignored");
         assertEquals(0, fields.length);
 
@@ -245,7 +249,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertEquals(0, fields.length);
         doc = mapper.parse(source(b -> b.nullField("field")));
         fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
+        assertEquals(1, fields.length);
         assertEquals(new BytesRef("uri"), fields[0].binaryValue());
     }
 
@@ -253,7 +257,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("store", true)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
+        assertEquals(1, fields.length);
         assertTrue(fields[0].fieldType().stored());
     }
 
@@ -278,7 +282,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("index_options", "freqs")));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
+        assertEquals(1, fields.length);
         assertEquals(IndexOptions.DOCS_AND_FREQS, fields[0].fieldType().indexOptions());
 
         for (String indexOptions : Arrays.asList("positions", "offsets")) {
@@ -412,7 +416,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "AbC")));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
+        assertEquals(1, fields.length);
 
         assertEquals(new BytesRef("abc"), fields[0].binaryValue());
         IndexableFieldType fieldType = fields[0].fieldType();
@@ -424,11 +428,6 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
         assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
         assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
-        assertEquals(DocValuesType.NONE, fieldType.docValuesType());
-
-        assertEquals(new BytesRef("abc"), fields[1].binaryValue());
-        fieldType = fields[1].fieldType();
-        assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
         assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
     }
 
@@ -623,8 +622,31 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertThat(e.getCause().getMessage(), containsString("UTF8 encoding is longer than the max length"));
     }
 
+    /**
+     * Test that we don't error on exceeding field size if field is neither indexed nor has doc values
+     */
+    public void testKeywordFieldUtf8LongerThan32766SourceOnly() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "keyword");
+            b.field("index", false);
+            b.field("doc_values", false);
+            b.field("store", false);
+        }));
+        StringBuilder stringBuilder = new StringBuilder(32768);
+        for (int i = 0; i < 32768; i++) {
+            stringBuilder.append("a");
+        }
+        mapper.parse(source(b -> b.field("field", stringBuilder.toString())));
+    }
+
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        assertFalse("keyword doesn't support ignore_malformed", ignoreMalformed);
         return new KeywordSyntheticSourceSupport(randomBoolean(), usually() ? null : randomAlphaOfLength(2), true);
     }
 
@@ -715,7 +737,13 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         return new IngestScriptSupport() {
             @Override
             protected StringFieldScript.Factory emptyFieldScript() {
-                return (fieldName, params, searchLookup) -> ctx -> new StringFieldScript(fieldName, params, searchLookup, ctx) {
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new StringFieldScript(
+                    fieldName,
+                    params,
+                    searchLookup,
+                    OnScriptError.FAIL,
+                    ctx
+                ) {
                     @Override
                     public void execute() {}
                 };
@@ -723,7 +751,13 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
             @Override
             protected StringFieldScript.Factory nonEmptyFieldScript() {
-                return (fieldName, params, searchLookup) -> ctx -> new StringFieldScript(fieldName, params, searchLookup, ctx) {
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new StringFieldScript(
+                    fieldName,
+                    params,
+                    searchLookup,
+                    OnScriptError.FAIL,
+                    ctx
+                ) {
                     @Override
                     public void execute() {
                         emit("foo");
@@ -753,5 +787,22 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         }));
         assertThat(service.fieldType("mykeyw"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         assertNotEquals(Lucene.KEYWORD_ANALYZER, ((KeywordFieldMapper.KeywordFieldType) service.fieldType("mykeyw")).normalizer());
+    }
+
+    public void testDocValues() throws IOException {
+        MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
+        assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
+    }
+
+    public void testDocValuesLoadedFromSource() throws IOException {
+        MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "keyword").field("doc_values", false)));
+        assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
+    }
+
+    public void testDocValuesLoadedFromStoredSynthetic() throws IOException {
+        MapperService mapper = createMapperService(
+            syntheticSourceFieldMapping(b -> b.field("type", "keyword").field("doc_values", false).field("store", true))
+        );
+        assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
     }
 }

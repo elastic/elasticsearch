@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class RealmDomainTests extends AbstractSerializingTestCase<RealmDomain> {
+public class RealmDomainTests extends AbstractXContentSerializingTestCase<RealmDomain> {
 
     @Override
     protected RealmDomain doParseInstance(XContentParser parser) throws IOException {
@@ -28,6 +28,11 @@ public class RealmDomainTests extends AbstractSerializingTestCase<RealmDomain> {
     @Override
     protected RealmDomain createTestInstance() {
         return AuthenticationTestHelper.randomDomain(randomBoolean());
+    }
+
+    @Override
+    protected RealmDomain mutateInstance(RealmDomain instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
 }

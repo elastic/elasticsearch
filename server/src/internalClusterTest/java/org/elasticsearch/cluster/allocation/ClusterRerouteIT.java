@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
@@ -402,7 +401,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         assertThat(explanation.decisions().type(), equalTo(Decision.Type.YES));
     }
 
-    public void testMessageLogging() throws Exception {
+    public void testMessageLogging() {
         final Settings settings = Settings.builder()
             .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.NONE.name())
             .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE.name())
@@ -431,10 +430,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
             .execute()
             .actionGet();
 
-        Logger actionLogger = LogManager.getLogger(TransportClusterRerouteAction.class);
-
         MockLogAppender dryRunMockLog = new MockLogAppender();
-        dryRunMockLog.start();
         dryRunMockLog.addExpectation(
             new MockLogAppender.UnseenEventExpectation(
                 "no completed message logged on dry run",
@@ -443,28 +439,26 @@ public class ClusterRerouteIT extends ESIntegTestCase {
                 "allocated an empty primary*"
             )
         );
-        Loggers.addAppender(actionLogger, dryRunMockLog);
 
-        AllocationCommand dryRunAllocation = new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeName1, true);
-        ClusterRerouteResponse dryRunResponse = client().admin()
-            .cluster()
-            .prepareReroute()
-            .setExplain(randomBoolean())
-            .setDryRun(true)
-            .add(dryRunAllocation)
-            .execute()
-            .actionGet();
+        try (var ignored = dryRunMockLog.capturing(TransportClusterRerouteAction.class)) {
+            AllocationCommand dryRunAllocation = new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeName1, true);
+            ClusterRerouteResponse dryRunResponse = client().admin()
+                .cluster()
+                .prepareReroute()
+                .setExplain(randomBoolean())
+                .setDryRun(true)
+                .add(dryRunAllocation)
+                .execute()
+                .actionGet();
 
-        // during a dry run, messages exist but are not logged or exposed
-        assertThat(dryRunResponse.getExplanations().getYesDecisionMessages(), hasSize(1));
-        assertThat(dryRunResponse.getExplanations().getYesDecisionMessages().get(0), containsString("allocated an empty primary"));
+            // during a dry run, messages exist but are not logged or exposed
+            assertThat(dryRunResponse.getExplanations().getYesDecisionMessages(), hasSize(1));
+            assertThat(dryRunResponse.getExplanations().getYesDecisionMessages().get(0), containsString("allocated an empty primary"));
 
-        dryRunMockLog.assertAllExpectationsMatched();
-        dryRunMockLog.stop();
-        Loggers.removeAppender(actionLogger, dryRunMockLog);
+            dryRunMockLog.assertAllExpectationsMatched();
+        }
 
         MockLogAppender allocateMockLog = new MockLogAppender();
-        allocateMockLog.start();
         allocateMockLog.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "message for first allocate empty primary",
@@ -481,26 +475,25 @@ public class ClusterRerouteIT extends ESIntegTestCase {
                 "allocated an empty primary*" + nodeName2 + "*"
             )
         );
-        Loggers.addAppender(actionLogger, allocateMockLog);
+        try (var ignored = allocateMockLog.capturing(TransportClusterRerouteAction.class)) {
 
-        AllocationCommand yesDecisionAllocation = new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeName1, true);
-        AllocationCommand noDecisionAllocation = new AllocateEmptyPrimaryAllocationCommand("noexist", 1, nodeName2, true);
-        ClusterRerouteResponse response = client().admin()
-            .cluster()
-            .prepareReroute()
-            .setExplain(true) // so we get a NO decision back rather than an exception
-            .add(yesDecisionAllocation)
-            .add(noDecisionAllocation)
-            .execute()
-            .actionGet();
+            AllocationCommand yesDecisionAllocation = new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeName1, true);
+            AllocationCommand noDecisionAllocation = new AllocateEmptyPrimaryAllocationCommand("noexist", 1, nodeName2, true);
+            ClusterRerouteResponse response = client().admin()
+                .cluster()
+                .prepareReroute()
+                .setExplain(true) // so we get a NO decision back rather than an exception
+                .add(yesDecisionAllocation)
+                .add(noDecisionAllocation)
+                .execute()
+                .actionGet();
 
-        assertThat(response.getExplanations().getYesDecisionMessages(), hasSize(1));
-        assertThat(response.getExplanations().getYesDecisionMessages().get(0), containsString("allocated an empty primary"));
-        assertThat(response.getExplanations().getYesDecisionMessages().get(0), containsString(nodeName1));
+            assertThat(response.getExplanations().getYesDecisionMessages(), hasSize(1));
+            assertThat(response.getExplanations().getYesDecisionMessages().get(0), containsString("allocated an empty primary"));
+            assertThat(response.getExplanations().getYesDecisionMessages().get(0), containsString(nodeName1));
 
-        allocateMockLog.assertAllExpectationsMatched();
-        allocateMockLog.stop();
-        Loggers.removeAppender(actionLogger, allocateMockLog);
+            allocateMockLog.assertAllExpectationsMatched();
+        }
     }
 
     public void testClusterRerouteWithBlocks() {

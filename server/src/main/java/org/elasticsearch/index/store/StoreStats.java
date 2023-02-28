@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.store;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -27,8 +27,8 @@ public class StoreStats implements Writeable, ToXContentFragment {
      */
     public static final long UNKNOWN_RESERVED_BYTES = -1L;
 
-    public static final Version RESERVED_BYTES_VERSION = Version.V_7_9_0;
-    public static final Version TOTAL_DATA_SET_SIZE_SIZE_VERSION = Version.V_7_13_0;
+    public static final TransportVersion RESERVED_BYTES_VERSION = TransportVersion.V_7_9_0;
+    public static final TransportVersion TOTAL_DATA_SET_SIZE_SIZE_VERSION = TransportVersion.V_7_13_0;
 
     private long sizeInBytes;
     private long totalDataSetSizeInBytes;
@@ -40,12 +40,12 @@ public class StoreStats implements Writeable, ToXContentFragment {
 
     public StoreStats(StreamInput in) throws IOException {
         sizeInBytes = in.readVLong();
-        if (in.getVersion().onOrAfter(TOTAL_DATA_SET_SIZE_SIZE_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(TOTAL_DATA_SET_SIZE_SIZE_VERSION)) {
             totalDataSetSizeInBytes = in.readVLong();
         } else {
             totalDataSetSizeInBytes = sizeInBytes;
         }
-        if (in.getVersion().onOrAfter(RESERVED_BYTES_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(RESERVED_BYTES_VERSION)) {
             reservedSize = in.readZLong();
         } else {
             reservedSize = UNKNOWN_RESERVED_BYTES;
@@ -87,7 +87,7 @@ public class StoreStats implements Writeable, ToXContentFragment {
     }
 
     public ByteSizeValue size() {
-        return new ByteSizeValue(sizeInBytes);
+        return ByteSizeValue.ofBytes(sizeInBytes);
     }
 
     public ByteSizeValue getSize() {
@@ -95,7 +95,7 @@ public class StoreStats implements Writeable, ToXContentFragment {
     }
 
     public ByteSizeValue totalDataSetSize() {
-        return new ByteSizeValue(totalDataSetSizeInBytes);
+        return ByteSizeValue.ofBytes(totalDataSetSizeInBytes);
     }
 
     public ByteSizeValue getTotalDataSetSize() {
@@ -112,16 +112,16 @@ public class StoreStats implements Writeable, ToXContentFragment {
      * the reserved size is unknown.
      */
     public ByteSizeValue getReservedSize() {
-        return new ByteSizeValue(reservedSize);
+        return ByteSizeValue.ofBytes(reservedSize);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(sizeInBytes);
-        if (out.getVersion().onOrAfter(TOTAL_DATA_SET_SIZE_SIZE_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(TOTAL_DATA_SET_SIZE_SIZE_VERSION)) {
             out.writeVLong(totalDataSetSizeInBytes);
         }
-        if (out.getVersion().onOrAfter(RESERVED_BYTES_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(RESERVED_BYTES_VERSION)) {
             out.writeZLong(reservedSize);
         }
     }

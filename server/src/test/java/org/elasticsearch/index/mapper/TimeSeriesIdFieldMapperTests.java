@@ -37,6 +37,11 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     @Override
+    protected boolean isConfigurable() {
+        return false;
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         // There aren't any parameters
     }

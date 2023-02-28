@@ -1,6 +1,0 @@
-pr: 89734
-summary: Fix partial reduce bug in `ip_prefix`
-area: Aggregations
-type: bug
-issues:
- - 89686

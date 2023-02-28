@@ -8,13 +8,13 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
@@ -23,7 +23,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 
 /**
  * Represents a connection to a single remote cluster. In contrast to a local cluster a remote cluster is not joined such that the
@@ -111,38 +115,42 @@ final class RemoteClusterConnection implements Closeable {
             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                 // we stash any context here since this is an internal execution and should not leak any existing context information
                 threadContext.markAsSystemContext();
-
-                final ClusterStateRequest request = new ClusterStateRequest();
-                request.clear();
-                request.nodes(true);
-                request.local(true); // run this on the node that gets the request it's as good as any other
                 Transport.Connection connection = remoteConnectionManager.getAnyRemoteConnection();
-                transportService.sendRequest(
-                    connection,
-                    ClusterStateAction.NAME,
-                    request,
-                    TransportRequestOptions.EMPTY,
-                    new TransportResponseHandler<ClusterStateResponse>() {
 
-                        @Override
-                        public ClusterStateResponse read(StreamInput in) throws IOException {
-                            return new ClusterStateResponse(in);
-                        }
+                // Use different action to collect nodes information depending on the connection model
+                if (REMOTE_CLUSTER_PROFILE.equals(remoteConnectionManager.getConnectionProfile().getTransportProfile())) {
+                    transportService.sendRequest(
+                        connection,
+                        RemoteClusterNodesAction.NAME,
+                        RemoteClusterNodesAction.Request.INSTANCE,
+                        TransportRequestOptions.EMPTY,
+                        new ActionListenerResponseHandler<>(contextPreservingActionListener.map(response -> {
+                            final Map<String, DiscoveryNode> nodeLookup = response.getNodes()
+                                .stream()
+                                .collect(Collectors.toUnmodifiableMap(DiscoveryNode::getId, Function.identity()));
+                            return nodeLookup::get;
+                        }), RemoteClusterNodesAction.Response::new)
+                    );
+                } else {
+                    final ClusterStateRequest request = new ClusterStateRequest();
+                    request.clear();
+                    request.nodes(true);
+                    request.local(true); // run this on the node that gets the request it's as good as any other
 
-                        @Override
-                        public void handleResponse(ClusterStateResponse response) {
-                            DiscoveryNodes nodes = response.getState().nodes();
-                            contextPreservingActionListener.onResponse(nodes::get);
-                        }
-
-                        @Override
-                        public void handleException(TransportException exp) {
-                            contextPreservingActionListener.onFailure(exp);
-                        }
-                    }
-                );
+                    transportService.sendRequest(
+                        connection,
+                        ClusterStateAction.NAME,
+                        request,
+                        TransportRequestOptions.EMPTY,
+                        new ActionListenerResponseHandler<>(
+                            contextPreservingActionListener.map(response -> response.getState().nodes()::get),
+                            ClusterStateResponse::new
+                        )
+                    );
+                }
             }
         };
+
         try {
             // just in case if we are not connected for some reason we try to connect and if we fail we have to notify the listener
             // this will cause some back pressure on the search end and eventually will cause rejections but that's fine

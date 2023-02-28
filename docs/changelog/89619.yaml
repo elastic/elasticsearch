@@ -1,6 +1,0 @@
-pr: 89619
-summary: Make `SnapshotsInProgress` Diffable
-area: Snapshot/Restore
-type: enhancement
-issues:
- - 88732

@@ -72,7 +72,7 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
 
         final Request createTransformRequest = new Request("PUT", getTransformEndpoint() + transformId);
 
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -96,7 +96,7 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(REVIEWS_INDEX_NAME, transformIndex);
+            }""", REVIEWS_INDEX_NAME, transformIndex);
 
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
@@ -144,7 +144,7 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
         }
 
         final StringBuilder bulk = new StringBuilder();
-        bulk.append("""
+        bulk.append(Strings.format("""
             {"index":{"_index":"%s"}}
             {"host":"host-1","cpu": 22}
             {"index":{"_index":"%s"}}
@@ -159,14 +159,14 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
             {"host":"host-1","cpu": 28}
             {"index":{"_index":"%s"}}
             {"host":"host-1","cpu": 77}
-            """.formatted(indexName, indexName, indexName, indexName, indexName, indexName, indexName));
+            """, indexName, indexName, indexName, indexName, indexName, indexName, indexName));
 
         // missing value for cpu
-        bulk.append("""
+        bulk.append(Strings.format("""
             {"index":{"_index":"%s"}}
             {"host":"host-3"}
 
-            """.formatted(indexName));
+            """, indexName));
         final Request bulkRequest = new Request("POST", "/_bulk");
         bulkRequest.addParameter("refresh", "true");
         bulkRequest.setJsonEntity(bulk.toString());
@@ -174,7 +174,7 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
 
         final Request createTransformRequest = new Request("PUT", getTransformEndpoint() + transformId);
 
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -198,7 +198,7 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(indexName, transformIndex);
+            }""", indexName, transformIndex);
 
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
@@ -252,10 +252,118 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
         verifyDestIndexHitsCount(indexName, "special_pivot_bucket_selector-10000", 10000, 41);
     }
 
+    public void testEmptyKeyInTermsAgg() throws Exception {
+        String indexName = REVIEWS_INDEX_NAME;
+
+        {
+            final Request request = new Request("PUT", indexName + "/_doc/strange-business-id-1");
+            request.addParameter("refresh", "true");
+            request.setJsonEntity("""
+                {
+                  "user_id": "user_0",
+                  "business_id": ""
+                }""");
+            client().performRequest(request);
+        }
+        {
+            final Request request = new Request("PUT", indexName + "/_doc/strange-business-id-2");
+            request.addParameter("refresh", "true");
+            request.setJsonEntity("""
+                {
+                  "user_id": "user_0",
+                  "business_id": "business_x."
+                }""");
+            client().performRequest(request);
+        }
+        {
+            final Request request = new Request("PUT", indexName + "/_doc/strange-business-id-3");
+            request.addParameter("refresh", "true");
+            request.setJsonEntity("""
+                {
+                  "user_id": "user_0",
+                  "business_id": ".business_y"
+                }""");
+            client().performRequest(request);
+        }
+        {
+            final Request request = new Request("PUT", indexName + "/_doc/strange-business-id-4");
+            request.addParameter("refresh", "true");
+            request.setJsonEntity("""
+                {
+                  "user_id": "user_0",
+                  "business_id": "..."
+                }""");
+            client().performRequest(request);
+        }
+
+        String transformIndex = "empty-terms-agg-key";
+        String transformId = "empty-terms-agg-key";
+        final Request createTransformRequest = new Request("PUT", getTransformEndpoint() + transformId);
+        final String config = Strings.format("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "dest": {
+                "index": "%s"
+              },
+              "pivot": {
+                "group_by": {
+                  "reviewer": {
+                    "terms": {
+                      "field": "user_id"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "businesses": {
+                    "terms": {
+                      "field": "business_id"
+                    }
+                  }
+                }
+              }
+            }""", indexName, transformIndex);
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        startAndWaitForTransform(transformId, transformIndex);
+        assertTrue(indexExists(transformIndex));
+        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_0");
+        long count = (Integer) XContentMapValues.extractValue("hits.total.value", searchResult);
+        assertThat(count, is(equalTo(1L)));
+        assertThat(XContentMapValues.extractValue("hits.hits._source.reviewer", searchResult), is(equalTo(List.of("user_0"))));
+        assertThat(
+            XContentMapValues.extractValue("hits.hits._source.businesses", searchResult),
+            is(equalTo(List.of(Map.of("business_0", 278, "", 1, "business_x.", 1, ".business_y", 1, "...", 1))))
+        );
+
+        {
+            final Request request = new Request("DELETE", indexName + "/_doc/strange-business-id-1");
+            request.addParameter("refresh", "true");
+            client().performRequest(request);
+        }
+        {
+            final Request request = new Request("DELETE", indexName + "/_doc/strange-business-id-2");
+            request.addParameter("refresh", "true");
+            client().performRequest(request);
+        }
+        {
+            final Request request = new Request("DELETE", indexName + "/_doc/strange-business-id-3");
+            request.addParameter("refresh", "true");
+            client().performRequest(request);
+        }
+        {
+            final Request request = new Request("DELETE", indexName + "/_doc/strange-business-id-4");
+            request.addParameter("refresh", "true");
+            client().performRequest(request);
+        }
+    }
+
     private void verifyDestIndexHitsCount(String sourceIndex, String transformId, int maxPageSearchSize, long expectedDestIndexCount)
         throws Exception {
         String transformIndex = transformId;
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -291,7 +399,7 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
               "settings": {
                 "max_page_search_size": %s
               }
-            }""".formatted(sourceIndex, transformIndex, maxPageSearchSize);
+            }""", sourceIndex, transformIndex, maxPageSearchSize);
         Request createTransformRequest = new Request("PUT", getTransformEndpoint() + transformId);
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -159,32 +159,21 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     public SettingsConfig(final StreamInput in) throws IOException {
         this.maxPageSearchSize = in.readOptionalInt();
         this.docsPerSecond = in.readOptionalFloat();
-        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
-            this.datesAsEpochMillis = in.readOptionalInt();
-        } else {
-            this.datesAsEpochMillis = DEFAULT_DATES_AS_EPOCH_MILLIS;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
-            this.alignCheckpoints = in.readOptionalInt();
-        } else {
-            this.alignCheckpoints = DEFAULT_ALIGN_CHECKPOINTS;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_16_1)) {
-            this.usePit = in.readOptionalInt();
-        } else {
-            this.usePit = DEFAULT_USE_PIT;
-        }
-        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+        this.datesAsEpochMillis = in.readOptionalInt();
+        this.alignCheckpoints = in.readOptionalInt();
+        this.usePit = in.readOptionalInt();
+
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
             deduceMappings = in.readOptionalInt();
         } else {
             deduceMappings = DEFAULT_DEDUCE_MAPPINGS;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             numFailureRetries = in.readOptionalInt();
         } else {
             numFailureRetries = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             unattended = in.readOptionalInt();
         } else {
             unattended = DEFAULT_UNATTENDED;
@@ -286,22 +275,17 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalInt(maxPageSearchSize);
         out.writeOptionalFloat(docsPerSecond);
-        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
-            out.writeOptionalInt(datesAsEpochMillis);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
-            out.writeOptionalInt(alignCheckpoints);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_16_1)) {
-            out.writeOptionalInt(usePit);
-        }
-        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+        out.writeOptionalInt(datesAsEpochMillis);
+        out.writeOptionalInt(alignCheckpoints);
+        out.writeOptionalInt(usePit);
+
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
             out.writeOptionalInt(deduceMappings);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             out.writeOptionalInt(numFailureRetries);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             out.writeOptionalInt(unattended);
         }
     }

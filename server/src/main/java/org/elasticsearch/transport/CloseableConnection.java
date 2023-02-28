@@ -9,42 +9,49 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.AbstractRefCounted;
-import org.elasticsearch.core.CompletableContext;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Abstract Transport.Connection that provides common close logic.
  */
 public abstract class CloseableConnection extends AbstractRefCounted implements Transport.Connection {
 
-    private final CompletableContext<Void> closeContext = new CompletableContext<>();
-    private final CompletableContext<Void> removeContext = new CompletableContext<>();
+    private final ListenableFuture<Void> closeContext = new ListenableFuture<>();
+    private final ListenableFuture<Void> removeContext = new ListenableFuture<>();
+
+    private final AtomicBoolean closed = new AtomicBoolean(false);
+    private final AtomicBoolean removed = new AtomicBoolean(false);
 
     @Override
     public void addCloseListener(ActionListener<Void> listener) {
-        closeContext.addListener(ActionListener.toBiConsumer(listener));
+        closeContext.addListener(listener);
     }
 
     @Override
     public void addRemovedListener(ActionListener<Void> listener) {
-        removeContext.addListener(ActionListener.toBiConsumer(listener));
+        removeContext.addListener(listener);
     }
 
     @Override
     public boolean isClosed() {
-        return closeContext.isDone();
+        return closed.get();
     }
 
     @Override
     public void close() {
-        // This method is safe to call multiple times as the close context will provide concurrency
-        // protection and only be completed once. The attached listeners will only be notified once.
-        closeContext.complete(null);
+        if (closed.compareAndSet(false, true)) {
+            closeContext.onResponse(null);
+        }
     }
 
     @Override
     public void onRemoved() {
-        removeContext.complete(null);
+        if (removed.compareAndSet(false, true)) {
+            removeContext.onResponse(null);
+        }
     }
 
     @Override

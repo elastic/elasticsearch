@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -20,7 +20,7 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ClassificationFeatureImportanceTests extends AbstractSerializingTestCase<ClassificationFeatureImportance> {
+public class ClassificationFeatureImportanceTests extends AbstractXContentSerializingTestCase<ClassificationFeatureImportance> {
 
     @Override
     protected ClassificationFeatureImportance doParseInstance(XContentParser parser) throws IOException {
@@ -35,6 +35,11 @@ public class ClassificationFeatureImportanceTests extends AbstractSerializingTes
     @Override
     protected ClassificationFeatureImportance createTestInstance() {
         return createRandomInstance();
+    }
+
+    @Override
+    protected ClassificationFeatureImportance mutateInstance(ClassificationFeatureImportance instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @SuppressWarnings("unchecked")

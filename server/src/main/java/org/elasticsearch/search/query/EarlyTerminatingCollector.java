@@ -14,6 +14,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FilterCollector;
 import org.apache.lucene.search.FilterLeafCollector;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.ScoreMode;
 
 import java.io.IOException;
 
@@ -43,6 +44,16 @@ public class EarlyTerminatingCollector extends FilterCollector {
         super(delegate);
         this.maxCountHits = maxCountHits;
         this.forceTermination = forceTermination;
+    }
+
+    @Override
+    public ScoreMode scoreMode() {
+        // Let the query know that this collector doesn't intend to collect all hits.
+        ScoreMode scoreMode = super.scoreMode();
+        if (scoreMode.isExhaustive()) {
+            scoreMode = scoreMode.needsScores() ? ScoreMode.TOP_DOCS_WITH_SCORES : ScoreMode.TOP_DOCS;
+        }
+        return scoreMode;
     }
 
     @Override

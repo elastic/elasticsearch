@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, autoManageMasterNodes = false)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class DataTierAllocationDeciderIT extends ESIntegTestCase {
     private static final String index = "myindex";
 
@@ -63,7 +63,6 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
     @Before
     public void setUpMasterNode() {
         // Ensure that master nodes cannot hold any data
-        internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startMasterOnlyNode();
     }
 
@@ -512,7 +511,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
             nodeSettings.put(NODE_EXTERNAL_ID_SETTING.getKey(), externalId);
         }
 
-        internalCluster().startNode(nodeSettings);
+        internalCluster().startNode(nodeSettings.build());
     }
 
     public void startWarmOnlyNode() {
@@ -527,7 +526,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         if (externalId != null) {
             nodeSettings.put(NODE_EXTERNAL_ID_SETTING.getKey(), externalId);
         }
-        return internalCluster().startNode(nodeSettings);
+        return internalCluster().startNode(nodeSettings.build());
     }
 
     public void startColdOnlyNode() {
@@ -543,7 +542,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
             nodeSettings.put(NODE_EXTERNAL_ID_SETTING.getKey(), externalId);
         }
 
-        return internalCluster().startNode(nodeSettings);
+        return internalCluster().startNode(nodeSettings.build());
     }
 
     public void startFrozenOnlyNode() {

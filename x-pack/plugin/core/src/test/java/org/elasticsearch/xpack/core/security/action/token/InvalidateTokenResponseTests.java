@@ -90,7 +90,7 @@ public class InvalidateTokenResponseTests extends ESTestCase {
         InvalidateTokenResponse response = new InvalidateTokenResponse(result);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertThat(Strings.toString(builder), equalTo(XContentHelper.stripWhitespace("""
+        assertThat(Strings.toString(builder), equalTo(XContentHelper.stripWhitespace(Strings.format("""
             {
               "invalidated_tokens": %s,
               "previously_invalidated_tokens": %s,
@@ -114,6 +114,6 @@ public class InvalidateTokenResponseTests extends ESTestCase {
                 }
               ]
             }
-            """.formatted(invalidatedTokens.size(), previouslyInvalidatedTokens.size()))));
+            """, invalidatedTokens.size(), previouslyInvalidatedTokens.size()))));
     }
 }

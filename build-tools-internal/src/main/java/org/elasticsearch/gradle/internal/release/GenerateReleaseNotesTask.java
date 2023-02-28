@@ -164,8 +164,18 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         QualifiedVersion qualifiedVersion = QualifiedVersion.of(currentVersion);
         final String pattern = "v" + qualifiedVersion.major() + ".*";
         // We may be generating notes for a minor version prior to the latest minor, so we need to filter out versions that are too new.
-        return Stream.concat(gitWrapper.listVersions(pattern).filter(v -> v.isBefore(qualifiedVersion)), Stream.of(qualifiedVersion))
-            .collect(toSet());
+        Set<QualifiedVersion> versions = Stream.concat(
+            gitWrapper.listVersions(pattern).filter(v -> v.isBefore(qualifiedVersion)),
+            Stream.of(qualifiedVersion)
+        ).collect(toSet());
+
+        // If this is a new minor ensure we include the previous minor, which may not have been released
+        if (qualifiedVersion.minor() > 0 && qualifiedVersion.revision() == 0) {
+            QualifiedVersion previousMinor = new QualifiedVersion(qualifiedVersion.major(), qualifiedVersion.minor() - 1, 0, null);
+            versions.add(previousMinor);
+        }
+
+        return versions;
     }
 
     /**

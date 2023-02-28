@@ -189,4 +189,27 @@ public class RegexTests extends ESTestCase {
             assertFalse(run.run(s));
         }
     }
+
+    public void testSimpleMatcher() {
+        assertFalse(Regex.simpleMatcher((String[]) null).test("abc"));
+        assertFalse(Regex.simpleMatcher().test("abc"));
+        assertTrue(Regex.simpleMatcher("abc").test("abc"));
+        assertFalse(Regex.simpleMatcher("abc").test("abd"));
+
+        assertTrue(Regex.simpleMatcher("abc", "xyz").test("abc"));
+        assertTrue(Regex.simpleMatcher("abc", "xyz").test("xyz"));
+        assertFalse(Regex.simpleMatcher("abc", "xyz").test("abd"));
+        assertFalse(Regex.simpleMatcher("abc", "xyz").test("xyy"));
+
+        assertTrue(Regex.simpleMatcher("abc", "*").test("abc"));
+        assertTrue(Regex.simpleMatcher("abc", "*").test("abd"));
+
+        assertTrue(Regex.simpleMatcher("a*c").test("abc"));
+        assertFalse(Regex.simpleMatcher("a*c").test("abd"));
+
+        assertTrue(Regex.simpleMatcher("a*c", "x*z").test("abc"));
+        assertTrue(Regex.simpleMatcher("a*c", "x*z").test("xyz"));
+        assertFalse(Regex.simpleMatcher("a*c", "x*z").test("abd"));
+        assertFalse(Regex.simpleMatcher("a*c", "x*z").test("xyy"));
+    }
 }

@@ -155,7 +155,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             @Override
             public MappedFieldType getFieldType(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
-                return builder.build(MapperBuilderContext.ROOT).fieldType();
+                return builder.build(MapperBuilderContext.root(false)).fieldType();
             }
         };
 
@@ -217,7 +217,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             @Override
             public MappedFieldType getFieldType(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
-                return builder.build(MapperBuilderContext.ROOT).fieldType();
+                return builder.build(MapperBuilderContext.root(false)).fieldType();
             }
         };
 

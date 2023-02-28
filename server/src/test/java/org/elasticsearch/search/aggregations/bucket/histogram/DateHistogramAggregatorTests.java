@@ -34,6 +34,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.bucket.DateHistogramAggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -82,16 +83,16 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
 
     public void testBooleanFieldDeprecated() throws IOException {
         final String fieldName = "bogusBoolean";
-        testCase(
-            new DateHistogramAggregationBuilder("name").calendarInterval(DateHistogramInterval.HOUR).field(fieldName),
-            new MatchAllDocsQuery(),
-            iw -> {
-                Document d = new Document();
-                d.add(new SortedNumericDocValuesField(fieldName, 0));
-                iw.addDocument(d);
-            },
+        testCase(iw -> {
+            Document d = new Document();
+            d.add(new SortedNumericDocValuesField(fieldName, 0));
+            iw.addDocument(d);
+        },
             a -> {},
-            new BooleanFieldMapper.BooleanFieldType(fieldName)
+            new AggTestConfig(
+                new DateHistogramAggregationBuilder("name").calendarInterval(DateHistogramInterval.HOUR).field(fieldName),
+                new BooleanFieldMapper.BooleanFieldType(fieldName)
+            )
         );
         assertWarnings("Running DateHistogram aggregations on [boolean] fields is deprecated");
     }
@@ -1048,8 +1049,10 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                     List.of(new SortedNumericDocValuesField(AGGREGABLE_DATE, instant), new LongPoint(AGGREGABLE_DATE, instant))
                 );
             }
-            try (IndexReader reader = indexWriter.getReader()) {
-                AggregationContext context = createAggregationContext(new IndexSearcher(reader), new MatchAllDocsQuery(), ft);
+            try (
+                IndexReader reader = indexWriter.getReader();
+                AggregationContext context = createAggregationContext(new IndexSearcher(reader), new MatchAllDocsQuery(), ft)
+            ) {
                 Aggregator agg = createAggregator(builder, context);
                 Matcher<Aggregator> matcher = instanceOf(DateHistogramAggregator.FromDateRange.class);
                 if (usesFromRange == false) {
@@ -1175,7 +1178,8 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 }
 
                 InternalDateHistogram histogram = searchAndReduce(
-                    new AggTestConfig(indexSearcher, query, aggregationBuilder, fieldType).withMaxBuckets(maxBucket)
+                    indexSearcher,
+                    new AggTestConfig(aggregationBuilder, fieldType).withMaxBuckets(maxBucket).withQuery(query)
                 );
                 verify.accept(histogram);
             }

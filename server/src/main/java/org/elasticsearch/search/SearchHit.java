@@ -10,7 +10,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
@@ -31,7 +32,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.fetch.subphase.LookupField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -42,6 +43,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -85,8 +87,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     private BytesReference source;
 
-    private Map<String, DocumentField> documentFields;
-    private final Map<String, DocumentField> metaFields;
+    private final Map<String, DocumentField> documentFields = new HashMap<>();
+    private final Map<String, DocumentField> metaFields = new HashMap<>();
 
     private Map<String, HighlightField> highlightFields = null;
 
@@ -111,20 +113,14 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     // used only in tests
     public SearchHit(int docId) {
-        this(docId, null, null, null);
+        this(docId, null);
     }
 
-    public SearchHit(int docId, String id, Map<String, DocumentField> documentFields, Map<String, DocumentField> metaFields) {
-        this(docId, id, null, documentFields, metaFields);
+    public SearchHit(int docId, String id) {
+        this(docId, id, null);
     }
 
-    public SearchHit(
-        int nestedTopDocId,
-        String id,
-        NestedIdentity nestedIdentity,
-        Map<String, DocumentField> documentFields,
-        Map<String, DocumentField> metaFields
-    ) {
+    public SearchHit(int nestedTopDocId, String id, NestedIdentity nestedIdentity) {
         this.docId = nestedTopDocId;
         if (id != null) {
             this.id = new Text(id);
@@ -132,15 +128,13 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             this.id = null;
         }
         this.nestedIdentity = nestedIdentity;
-        this.documentFields = documentFields == null ? emptyMap() : documentFields;
-        this.metaFields = metaFields == null ? emptyMap() : metaFields;
     }
 
     public SearchHit(StreamInput in) throws IOException {
         docId = -1;
         score = in.readFloat();
         id = in.readOptionalText();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             in.readOptionalText();
         }
         nestedIdentity = in.readOptionalWriteable(NestedIdentity::new);
@@ -154,13 +148,11 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         if (in.readBoolean()) {
             explanation = readExplanation(in);
         }
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            documentFields = in.readMap(StreamInput::readString, DocumentField::new);
-            metaFields = in.readMap(StreamInput::readString, DocumentField::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_8_0)) {
+            documentFields.putAll(in.readMap(StreamInput::readString, DocumentField::new));
+            metaFields.putAll(in.readMap(StreamInput::readString, DocumentField::new));
         } else {
             Map<String, DocumentField> fields = readFields(in);
-            documentFields = new HashMap<>();
-            metaFields = new HashMap<>();
             fields.forEach(
                 (fieldName, docField) -> (MapperService.isMetadataFieldStatic(fieldName) ? metaFields : documentFields).put(
                     fieldName,
@@ -241,7 +233,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     public void writeTo(StreamOutput out) throws IOException {
         out.writeFloat(score);
         out.writeOptionalText(id);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             out.writeOptionalText(SINGLE_MAPPING_TYPE);
         }
         out.writeOptionalWriteable(nestedIdentity);
@@ -255,7 +247,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             out.writeBoolean(true);
             writeExplanation(out, explanation);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_8_0)) {
             out.writeMap(documentFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
             out.writeMap(metaFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
         } else {
@@ -409,7 +401,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             return sourceAsMap;
         }
 
-        sourceAsMap = SourceLookup.sourceAsMap(source);
+        sourceAsMap = Source.fromBytes(source).source();
         return sourceAsMap;
     }
 
@@ -437,8 +429,12 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     * */
     public void setDocumentField(String fieldName, DocumentField field) {
         if (fieldName == null || field == null) return;
-        if (documentFields.size() == 0) this.documentFields = new HashMap<>();
         this.documentFields.put(fieldName, field);
+    }
+
+    public void addDocumentFields(Map<String, DocumentField> docFields, Map<String, DocumentField> metaFields) {
+        this.documentFields.putAll(docFields);
+        this.metaFields.putAll(metaFields);
     }
 
     /**
@@ -846,7 +842,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         Map<String, DocumentField> metaFields = get(METADATA_FIELDS, values, Collections.emptyMap());
         Map<String, DocumentField> documentFields = get(DOCUMENT_FIELDS, values, Collections.emptyMap());
 
-        SearchHit searchHit = new SearchHit(-1, id, nestedIdentity, documentFields, metaFields);
+        SearchHit searchHit = new SearchHit(-1, id, nestedIdentity);
+        searchHit.addDocumentFields(documentFields, metaFields);
         String index = get(Fields._INDEX, values, null);
         String clusterAlias = null;
         if (index != null) {
@@ -1074,6 +1071,54 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
          */
         public NestedIdentity getChild() {
             return child;
+        }
+
+        /**
+         * Extracts the part of the root source that applies to this particular NestedIdentity, while
+         * preserving the enclosing path structure.
+         *
+         * For a root document that looks like this:
+         * { "children" :
+         *    [
+         *      { "grandchildren" : [ { "field" : "value1" }, { "field" : "value2" } ] },
+         *      { "grandchildren" : [ { "field" : "value3" }, { "field" : "value4" } ] }
+         *   ]
+         * }
+         *
+         * Extracting the NestedIdentity of the first child and second grandchild results in a source that looks like this:
+         * { "children" : { "grandchildren" : { "field" : "value2" } } }
+         *
+         * If the relevant child source object does not exist in the root, then we return {@link Source#empty(XContentType)}
+         */
+        @SuppressWarnings("unchecked")
+        public Source extractSource(Source root) {
+            // Isolate the nested json array object that matches with nested hit and wrap it back into the same json
+            // structure with the nested json array object being the actual content. The latter is important, so that
+            // features like source filtering and highlighting work consistent regardless of whether the field points
+            // to a json object array for consistency reasons on how we refer to fields
+            Map<String, Object> rootSourceAsMap = root.source();
+            Map<String, Object> nestedSourceAsMap = new HashMap<>();
+            Map<String, Object> current = nestedSourceAsMap;
+            for (SearchHit.NestedIdentity nested = this; nested != null; nested = nested.getChild()) {
+                String nestedPath = nested.getField().string();
+                current.put(nestedPath, new HashMap<>());
+                List<Map<?, ?>> nestedParsedSource = XContentMapValues.extractNestedSources(nestedPath, rootSourceAsMap);
+                if (nestedParsedSource == null) {
+                    return Source.empty(root.sourceContentType());
+                }
+                if (nested.getOffset() > nestedParsedSource.size() - 1) {
+                    throw new IllegalStateException("Error retrieving path " + this.field);
+                }
+                rootSourceAsMap = (Map<String, Object>) nestedParsedSource.get(nested.getOffset());
+                if (nested.getChild() == null) {
+                    current.put(nestedPath, rootSourceAsMap);
+                } else {
+                    Map<String, Object> next = new HashMap<>();
+                    current.put(nestedPath, next);
+                    current = next;
+                }
+            }
+            return Source.fromMap(nestedSourceAsMap, root.sourceContentType());
         }
 
         @Override

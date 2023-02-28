@@ -13,8 +13,11 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -30,6 +33,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -62,6 +66,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     private static final String END_USER = "end_user";
     private static final SecureString END_USER_PASSWORD = new SecureString("end-user-password".toCharArray());
     private static final String MANAGE_OWN_API_KEY_USER = "manage_own_api_key_user";
+    private static final String REMOTE_INDICES_USER = "remote_indices_user";
 
     @Before
     public void createUsers() throws IOException {
@@ -573,6 +578,108 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         );
     }
 
+    public void testRemoteIndicesSupportForApiKeys() throws IOException {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        createUser(REMOTE_INDICES_USER, END_USER_PASSWORD, List.of("remote_indices_role"));
+        createRole("remote_indices_role", Set.of("grant_api_key", "manage_own_api_key"), "remote");
+        final String remoteIndicesSection = """
+            "remote_indices": [
+                {
+                  "names": ["index-a", "*"],
+                  "privileges": ["read"],
+                  "clusters": ["remote-a", "*"]
+                }
+            ]""";
+
+        final Request createApiKeyRequest = new Request("POST", "_security/api_key");
+        final boolean includeRemoteIndices = randomBoolean();
+        createApiKeyRequest.setJsonEntity(Strings.format("""
+            {"name": "k1", "role_descriptors": {"r1": {%s}}}""", includeRemoteIndices ? remoteIndicesSection : ""));
+        Response response = sendRequestWithRemoteIndices(createApiKeyRequest, false == includeRemoteIndices);
+        String apiKeyId = ObjectPath.createFromResponse(response).evaluate("id");
+        assertThat(apiKeyId, notNullValue());
+        assertOK(response);
+
+        final Request grantApiKeyRequest = new Request("POST", "_security/api_key/grant");
+        grantApiKeyRequest.setJsonEntity(Strings.format("""
+            {
+               "grant_type":"password",
+               "username":"%s",
+               "password":"end-user-password",
+               "api_key":{
+                  "name":"k1",
+                  "role_descriptors":{
+                     "r1":{
+                        %s
+                     }
+                  }
+               }
+            }""", includeRemoteIndices ? MANAGE_OWN_API_KEY_USER : REMOTE_INDICES_USER, includeRemoteIndices ? remoteIndicesSection : ""));
+        response = sendRequestWithRemoteIndices(grantApiKeyRequest, false == includeRemoteIndices);
+
+        final String updatedRemoteIndicesSection = """
+            "remote_indices": [
+                {
+                  "names": ["index-b", "index-a"],
+                  "privileges": ["read"],
+                  "clusters": ["remote-a", "remote-b"]
+                }
+            ]""";
+        final Request updateApiKeyRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
+        updateApiKeyRequest.setJsonEntity(Strings.format("""
+            {
+              "role_descriptors": {
+                "r1": {
+                  %s
+                }
+              }
+            }""", includeRemoteIndices ? updatedRemoteIndicesSection : ""));
+        response = sendRequestWithRemoteIndices(updateApiKeyRequest, false == includeRemoteIndices);
+        assertThat(ObjectPath.createFromResponse(response).evaluate("updated"), equalTo(includeRemoteIndices));
+
+        final String bulkUpdatedRemoteIndicesSection = """
+            "remote_indices": [
+                {
+                  "names": ["index-c"],
+                  "privileges": ["read"],
+                  "clusters": ["remote-a", "remote-c"]
+                }
+            ]""";
+        final Request bulkUpdateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
+        bulkUpdateApiKeyRequest.setJsonEntity(Strings.format("""
+            {
+              "ids": ["%s"],
+              "role_descriptors": {
+                "r1": {
+                  %s
+                }
+              }
+            }""", apiKeyId, includeRemoteIndices ? bulkUpdatedRemoteIndicesSection : ""));
+        response = sendRequestWithRemoteIndices(bulkUpdateApiKeyRequest, false == includeRemoteIndices);
+        if (includeRemoteIndices) {
+            assertThat(ObjectPath.createFromResponse(response).evaluate("updated"), contains(apiKeyId));
+        } else {
+            assertThat(ObjectPath.createFromResponse(response).evaluate("noops"), contains(apiKeyId));
+        }
+
+        deleteUser(REMOTE_INDICES_USER);
+        deleteRole("remote_indices_role");
+
+    }
+
+    private Response sendRequestWithRemoteIndices(final Request request, final boolean executeAsRemoteIndicesUser) throws IOException {
+        if (executeAsRemoteIndicesUser) {
+            request.setOptions(
+                RequestOptions.DEFAULT.toBuilder()
+                    .addHeader("Authorization", headerFromRandomAuthMethod(REMOTE_INDICES_USER, END_USER_PASSWORD))
+            );
+            return client().performRequest(request);
+        } else {
+            return adminClient().performRequest(request);
+        }
+    }
+
     private void doTestAuthenticationWithApiKey(final String apiKeyName, final String apiKeyId, final String apiKeyEncoded)
         throws IOException {
         final var authenticateRequest = new Request("GET", "_security/_authenticate");
@@ -711,4 +818,20 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     private record EncodedApiKey(String id, String encoded, String name) {}
+
+    private void createRole(String name, Collection<String> clusterPrivileges, String... remoteIndicesClusterAliases) throws IOException {
+        final RoleDescriptor role = new RoleDescriptor(
+            name,
+            clusterPrivileges.toArray(String[]::new),
+            new RoleDescriptor.IndicesPrivileges[0],
+            new RoleDescriptor.ApplicationResourcePrivileges[0],
+            null,
+            null,
+            null,
+            null,
+            new RoleDescriptor.RemoteIndicesPrivileges[] {
+                RoleDescriptor.RemoteIndicesPrivileges.builder(remoteIndicesClusterAliases).indices("*").privileges("read").build() }
+        );
+        getSecurityClient().putRole(role);
+    }
 }

@@ -18,11 +18,11 @@ class WindowsServiceRemoveCommand extends ProcrunCommand {
 
     @Override
     protected String getSuccessMessage(String serviceId) {
-        return "The service '%s' has been removed".formatted(serviceId);
+        return String.format(java.util.Locale.ROOT, "The service '%s' has been removed", serviceId);
     }
 
     @Override
     protected String getFailureMessage(String serviceId) {
-        return "Failed removing '%s' service".formatted(serviceId);
+        return String.format(java.util.Locale.ROOT, "Failed removing '%s' service", serviceId);
     }
 }

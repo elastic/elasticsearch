@@ -10,6 +10,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -25,6 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -322,6 +324,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         validateActionsFollowingSearchableSnapshot(phases);
         validateAllSearchableSnapshotActionsUseSameRepository(phases);
         validateFrozenPhaseHasSearchableSnapshotAction(phases);
+        validateDownsamplingIntervals(phases);
     }
 
     static void validateActionsFollowingSearchableSnapshot(Collection<Phase> phases) {
@@ -487,6 +490,66 @@ public class TimeseriesLifecycleType implements LifecycleType {
                 );
             }
         });
+    }
+
+    /**
+     * Add validations if there are multiple downsample actions on different phases. The rules that we
+     * enforce are the following:
+     *   - The latter interval must be greater than the previous interval
+     *   - The latter interval must be a multiple of the previous interval
+     */
+    static void validateDownsamplingIntervals(Collection<Phase> phases) {
+        Map<String, Phase> phasesWithDownsamplingActions = phases.stream()
+            .filter(phase -> phase.getActions().containsKey(DownsampleAction.NAME))
+            .collect(Collectors.toMap(Phase::getName, Function.identity()));
+
+        if (phasesWithDownsamplingActions.size() < 2) {
+            // Interval validations must be executed when there are at least two downsample actions, otherwise return
+            return;
+        }
+
+        // Order phases and extract the downsample action instances per phase
+        List<Phase> orderedPhases = INSTANCE.getOrderedPhases(phasesWithDownsamplingActions);
+        var downsampleActions = orderedPhases.stream()
+            .map(phase -> Tuple.tuple(phase.getName(), (DownsampleAction) phase.getActions().get(DownsampleAction.NAME)))
+            .toList(); // Returns a list of tuples (phase name, downsample action)
+
+        var firstDownsample = downsampleActions.get(0);
+        for (int i = 1; i < downsampleActions.size(); i++) {
+            var secondDownsample = downsampleActions.get(i);
+            var firstInterval = firstDownsample.v2().fixedInterval();
+            var secondInterval = secondDownsample.v2().fixedInterval();
+            long firstMillis = firstInterval.estimateMillis();
+            long secondMillis = secondInterval.estimateMillis();
+            if (firstMillis >= secondMillis) {
+                // The later interval must be greater than the previous interval
+                throw new IllegalArgumentException(
+                    "Downsampling interval ["
+                        + secondInterval
+                        + "] for phase ["
+                        + secondDownsample.v1()
+                        + "] must be greater than the interval ["
+                        + firstInterval
+                        + "] for phase ["
+                        + firstDownsample.v1()
+                        + "]"
+                );
+            } else if (secondMillis % firstMillis != 0) {
+                // Downsampling interval must be a multiple of the source interval
+                throw new IllegalArgumentException(
+                    "Downsampling interval ["
+                        + secondInterval
+                        + "] for phase ["
+                        + secondDownsample.v1()
+                        + "] must be a multiple of the interval ["
+                        + firstInterval
+                        + "] for phase ["
+                        + firstDownsample.v1()
+                        + "]"
+                );
+            }
+            firstDownsample = secondDownsample;
+        }
     }
 
     private static boolean definesAllocationRules(AllocateAction action) {

@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.Locale;
 import java.util.function.Function;
 
 /**
@@ -23,8 +24,8 @@ public final class TimeSeriesParams {
     private TimeSeriesParams() {}
 
     public enum MetricType {
-        gauge(new String[] { "max", "min", "value_count", "sum" }),
-        counter(new String[] { "last_value" });
+        GAUGE(new String[] { "max", "min", "value_count", "sum" }),
+        COUNTER(new String[] { "last_value" });
 
         private final String[] supportedAggs;
 
@@ -34,6 +35,20 @@ public final class TimeSeriesParams {
 
         public String[] supportedAggs() {
             return supportedAggs;
+        }
+
+        @Override
+        public final String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+
+        public static MetricType fromString(String value) {
+            for (MetricType metricType : values()) {
+                if (metricType.toString().equals(value)) {
+                    return metricType;
+                }
+            }
+            throw new IllegalArgumentException("No enum constant MetricType." + value);
         }
     }
 

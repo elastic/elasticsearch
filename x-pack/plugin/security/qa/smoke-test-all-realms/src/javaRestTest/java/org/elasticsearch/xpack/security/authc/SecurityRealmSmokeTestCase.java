@@ -37,7 +37,6 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
-@SuppressWarnings("removal")
 public abstract class SecurityRealmSmokeTestCase extends ESRestTestCase {
 
     private static Path httpCAPath;

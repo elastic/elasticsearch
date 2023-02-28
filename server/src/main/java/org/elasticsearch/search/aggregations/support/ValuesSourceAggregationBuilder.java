@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.Script;
@@ -109,14 +109,13 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         }
     }
 
-    public abstract static class LeafOnly<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<AB>> extends
-        ValuesSourceAggregationBuilder<AB> {
+    public abstract static class LeafOnly<AB extends ValuesSourceAggregationBuilder<AB>> extends ValuesSourceAggregationBuilder<AB> {
 
         protected LeafOnly(String name) {
             super(name);
         }
 
-        protected LeafOnly(LeafOnly<VS, AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        protected LeafOnly(LeafOnly<AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
             super(clone, factoriesBuilder, metadata);
             if (factoriesBuilder.count() > 0) {
                 throw new AggregationInitializationException(
@@ -145,14 +144,13 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         }
     }
 
-    public abstract static class MetricsAggregationBuilder<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<AB>> extends
-        LeafOnly<VS, AB> {
+    public abstract static class MetricsAggregationBuilder<AB extends ValuesSourceAggregationBuilder<AB>> extends LeafOnly<AB> {
 
         protected MetricsAggregationBuilder(String name) {
             super(name);
         }
 
-        protected MetricsAggregationBuilder(LeafOnly<VS, AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        protected MetricsAggregationBuilder(LeafOnly<AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
             super(clone, factoriesBuilder, metadata);
         }
 
@@ -165,8 +163,8 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         public abstract Set<String> metricNames();
     }
 
-    public abstract static class SingleMetricAggregationBuilder<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<AB>>
-        extends MetricsAggregationBuilder<VS, AB> {
+    public abstract static class SingleMetricAggregationBuilder<AB extends ValuesSourceAggregationBuilder<AB>> extends
+        MetricsAggregationBuilder<AB> {
 
         private static final Set<String> METRIC_NAME = Set.of("value");
 
@@ -174,7 +172,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
             super(name);
         }
 
-        protected SingleMetricAggregationBuilder(LeafOnly<VS, AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        protected SingleMetricAggregationBuilder(LeafOnly<AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
             super(clone, factoriesBuilder, metadata);
         }
 
@@ -219,7 +217,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
      */
     protected ValuesSourceAggregationBuilder(StreamInput in) throws IOException {
         super(in);
-        if (serializeTargetValueType(in.getVersion())) {
+        if (serializeTargetValueType(in.getTransportVersion())) {
             ValueType valueType = in.readOptionalWriteable(ValueType::readFromStream);
             assert valueType == null;
         }
@@ -244,7 +242,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
-        if (serializeTargetValueType(out.getVersion())) {
+        if (serializeTargetValueType(out.getTransportVersion())) {
             // TODO: deprecate this so we don't need to carry around a useless null in the wire format
             out.writeOptionalWriteable(null);
         }
@@ -277,7 +275,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
      *
      * @param version For backwards compatibility, subclasses can change behavior based on the version
      */
-    protected boolean serializeTargetValueType(Version version) {
+    protected boolean serializeTargetValueType(TransportVersion version) {
         return false;
     }
 

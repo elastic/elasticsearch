@@ -37,6 +37,14 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
     }
 
     @Override
+    protected SpanNearQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        if (queryBuilder instanceof SpanNearQueryBuilder) {
+            return new SpanNearQueryBuilder((SpanNearQueryBuilder) queryBuilder, 1);
+        }
+        return new SpanNearQueryBuilder(new SpanTermQueryBuilder("field", "value"), 1);
+    }
+
+    @Override
     protected void doAssertLuceneQuery(SpanNearQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         assertThat(
             query,

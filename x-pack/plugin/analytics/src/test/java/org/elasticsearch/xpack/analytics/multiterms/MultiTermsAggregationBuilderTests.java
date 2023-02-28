@@ -16,7 +16,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -32,7 +32,7 @@ import static org.elasticsearch.test.InternalAggregationTestCase.randomNumericDo
 import static org.elasticsearch.xpack.analytics.multiterms.InternalMultiTermsTests.randomBucketOrder;
 import static org.hamcrest.Matchers.hasSize;
 
-public class MultiTermsAggregationBuilderTests extends AbstractSerializingTestCase<MultiTermsAggregationBuilder> {
+public class MultiTermsAggregationBuilderTests extends AbstractXContentSerializingTestCase<MultiTermsAggregationBuilder> {
     String aggregationName;
 
     @Before
@@ -100,6 +100,11 @@ public class MultiTermsAggregationBuilderTests extends AbstractSerializingTestCa
             aggregationBuilder.collectMode(randomFrom(Aggregator.SubAggCollectionMode.values()));
         }
         return aggregationBuilder;
+    }
+
+    @Override
+    protected MultiTermsAggregationBuilder mutateInstance(MultiTermsAggregationBuilder instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

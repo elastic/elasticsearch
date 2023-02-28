@@ -30,6 +30,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tracing.Tracer;
+import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -43,6 +44,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -68,8 +70,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
     static final Set<String> SAFELISTED_MEDIA_TYPES = Set.of("application/x-www-form-urlencoded", "multipart/form-data", "text/plain");
 
     static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
+    static final String ELASTIC_INTERNAL_ORIGIN_HTTP_HEADER = "X-elastic-internal-origin";
     static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
-
+    static final Set<String> RESERVED_PATHS = Set.of("/__elb_health__", "/__elb_health__/zk", "/_health", "/_health/zk");
     private static final BytesReference FAVICON_RESPONSE;
 
     static {
@@ -94,6 +97,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
     private final Tracer tracer;
+    // If true, the ServerlessScope annotations will be enforced
+    private final boolean serverlessEnabled;
 
     public RestController(
         Set<RestHeaderDefinition> headersToCopy,
@@ -101,7 +106,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
-        Tracer tracer
+        Tracer tracer,
+        boolean serverlessEnabled
     ) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
@@ -112,12 +118,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.handlerWrapper = handlerWrapper;
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
-        registerHandlerNoWrap(
-            RestRequest.Method.GET,
-            "/favicon.ico",
-            RestApiVersion.current(),
-            (request, channel, clnt) -> channel.sendResponse(new RestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE))
-        );
+        registerHandlerNoWrap(RestRequest.Method.GET, "/favicon.ico", RestApiVersion.current(), new RestFavIconHandler());
+        this.serverlessEnabled = serverlessEnabled;
     }
 
     /**
@@ -262,6 +264,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
         assert RestApiVersion.minimumSupported() == version || RestApiVersion.current() == version
             : "REST API compatibility is only supported for version " + RestApiVersion.minimumSupported().major;
 
+        if (RESERVED_PATHS.contains(path)) {
+            throw new IllegalArgumentException("path [" + path + "] is a reserved path and may not be registered");
+        }
         handlers.insertOrUpdate(
             path,
             new MethodHandlers(path).addMethod(method, version, handler),
@@ -365,6 +370,20 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
         }
         RestChannel responseChannel = channel;
+        if (serverlessEnabled) {
+            Scope scope = handler.getServerlessScope();
+            if (Scope.INTERNAL.equals(scope)) {
+                final String internalOrigin = request.header(ELASTIC_INTERNAL_ORIGIN_HTTP_HEADER);
+                boolean internalRequest = internalOrigin != null;
+                if (internalRequest == false) {
+                    handleServerlessRequestToProtectedResource(request.uri(), request.method(), responseChannel);
+                    return;
+                }
+            } else if (Scope.PUBLIC.equals(scope) == false) {
+                handleServerlessRequestToProtectedResource(request.uri(), request.method(), responseChannel);
+                return;
+            }
+        }
         try {
             if (handler.canTripCircuitBreaker()) {
                 inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
@@ -459,14 +478,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
             name = restPath;
         }
 
-        Map<String, Object> attributes = Maps.newMapWithExpectedSize(req.getHeaders().size() + 3);
+        final Map<String, Object> attributes = Maps.newMapWithExpectedSize(req.getHeaders().size() + 3);
         req.getHeaders().forEach((key, values) -> {
             final String lowerKey = key.toLowerCase(Locale.ROOT).replace('-', '_');
-            final String value = switch (lowerKey) {
-                case "authorization", "cookie", "secret", "session", "set_cookie", "token" -> "[REDACTED]";
-                default -> String.join("; ", values);
-            };
-            attributes.put("http.request.headers." + lowerKey, value);
+            attributes.put("http.request.headers." + lowerKey, values.size() == 1 ? values.get(0) : String.join("; ", values));
         });
         attributes.put("http.method", method);
         attributes.put("http.url", req.uri());
@@ -560,8 +575,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     throw new IllegalArgumentException("multiple values for single-valued header [" + name + "].");
                 } else if (name.equals(Task.TRACE_PARENT_HTTP_HEADER)) {
                     String traceparent = distinctHeaderValues.get(0);
-                    if (traceparent.length() >= 55) {
-                        threadContext.putHeader(Task.TRACE_ID, traceparent.substring(3, 35));
+                    Optional<String> traceId = RestUtils.extractTraceId(traceparent);
+                    if (traceId.isPresent()) {
+                        threadContext.putHeader(Task.TRACE_ID, traceId.get());
                         threadContext.putTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER, traceparent);
                     }
                 } else if (name.equals(Task.TRACE_STATE)) {
@@ -592,6 +608,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
         // so we can handle things like:
         // my_index/my_type/http%3A%2F%2Fwww.google.com
         return handlers.retrieveAll(rawPath, paramsSupplier);
+    }
+
+    /**
+     * Returns the holder for search usage statistics, to be used to track search usage when parsing
+     * incoming search requests from the relevant REST endpoints. This is exposed for plugins that
+     * expose search functionalities which need to contribute to the search usage statistics.
+     */
+    public SearchUsageHolder getSearchUsageHolder() {
+        return usageService.getSearchUsageHolder();
     }
 
     /**
@@ -651,11 +676,26 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * Handle a requests with no candidate handlers (return a 400 Bad Request
      * error).
      */
-    private static void handleBadRequest(String uri, RestRequest.Method method, RestChannel channel) throws IOException {
+    public static void handleBadRequest(String uri, RestRequest.Method method, RestChannel channel) throws IOException {
         try (XContentBuilder builder = channel.newErrorBuilder()) {
             builder.startObject();
             {
                 builder.field("error", "no handler found for uri [" + uri + "] and method [" + method + "]");
+            }
+            builder.endObject();
+            channel.sendResponse(new RestResponse(BAD_REQUEST, builder));
+        }
+    }
+
+    public static void handleServerlessRequestToProtectedResource(String uri, RestRequest.Method method, RestChannel channel)
+        throws IOException {
+        try (XContentBuilder builder = channel.newErrorBuilder()) {
+            builder.startObject();
+            {
+                builder.field(
+                    "error",
+                    "uri [" + uri + "] with method [" + method + "] exists but is not available when running in " + "serverless mode"
+                );
             }
             builder.endObject();
             channel.sendResponse(new RestResponse(BAD_REQUEST, builder));
@@ -766,5 +806,13 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private static CircuitBreaker inFlightRequestsBreaker(CircuitBreakerService circuitBreakerService) {
         // We always obtain a fresh breaker to reflect changes to the breaker configuration.
         return circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+    }
+
+    @ServerlessScope(Scope.PUBLIC)
+    private static final class RestFavIconHandler implements RestHandler {
+        @Override
+        public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+            channel.sendResponse(new RestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE));
+        }
     }
 }

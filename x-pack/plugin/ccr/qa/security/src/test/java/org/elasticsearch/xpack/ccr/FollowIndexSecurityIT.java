@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -218,13 +219,13 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
 
             try (RestClient leaderClient = buildLeaderClient(restAdminSettings())) {
                 final Request request = new Request("POST", "/" + forgetLeader + "/_ccr/forget_follower");
-                final String requestBody = """
+                final String requestBody = Strings.format("""
                     {
                       "follower_cluster": "follow-cluster",
                       "follower_index": "%s",
                       "follower_index_uuid": "%s",
                       "leader_remote_cluster": "leader_cluster"
-                    }""".formatted(forgetFollower, followerIndexUUID);
+                    }""", forgetFollower, followerIndexUUID);
                 request.setJsonEntity(requestBody);
                 final Response forgetFollowerResponse = leaderClient.performRequest(request);
                 assertOK(forgetFollowerResponse);
@@ -290,9 +291,9 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
                 for (var i = 0; i < numDocs; i++) {
                     var indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
                     indexRequest.addParameter("refresh", "true");
-                    indexRequest.setJsonEntity("""
+                    indexRequest.setJsonEntity(Strings.format("""
                         {"@timestamp": "%s","message":"abc"}
-                        """.formatted(dateFormat.format(new Date())));
+                        """, dateFormat.format(new Date())));
                     assertOK(leaderClient.performRequest(indexRequest));
                 }
                 verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1));

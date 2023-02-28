@@ -8,6 +8,7 @@
 package org.elasticsearch.repositories.blobstore.testkit;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -52,8 +53,10 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -93,7 +96,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
     public void testSuccess() {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
         request.blobCount(1);
-        request.maxBlobSize(new ByteSizeValue(10L));
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
 
         final RepositoryAnalyzeAction.Response response = analyseRepository(request);
         assertThat(response.status(), equalTo(RestStatus.OK));
@@ -101,7 +104,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
     public void testFailsOnReadError() {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
-        request.maxBlobSize(new ByteSizeValue(10L));
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
         request.abortWritePermitted(false);
 
         final CountDown countDown = new CountDown(between(1, request.getBlobCount()));
@@ -123,7 +126,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
     public void testFailsOnNotFoundAfterWrite() {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
-        request.maxBlobSize(new ByteSizeValue(10L));
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
         request.abortWritePermitted(false);
         request.rareActionProbability(0.0); // not found on an early read or an overwrite is ok
 
@@ -144,7 +147,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
     public void testFailsOnChecksumMismatch() {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
-        request.maxBlobSize(new ByteSizeValue(10L));
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
         request.abortWritePermitted(false);
 
         final CountDown countDown = new CountDown(between(1, request.getBlobCount()));
@@ -166,7 +169,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
     public void testFailsOnWriteException() {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
-        request.maxBlobSize(new ByteSizeValue(10L));
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
         request.abortWritePermitted(false);
 
         final CountDown countDown = new CountDown(between(1, request.getBlobCount()));
@@ -190,7 +193,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
     public void testFailsOnIncompleteListing() {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
-        request.maxBlobSize(new ByteSizeValue(10L));
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
         request.abortWritePermitted(false);
 
         blobStore.setDisruption(new Disruption() {
@@ -209,7 +212,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
     public void testFailsOnListingException() {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
-        request.maxBlobSize(new ByteSizeValue(10L));
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
         request.abortWritePermitted(false);
 
         final CountDown countDown = new CountDown(1);
@@ -229,7 +232,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
     public void testFailsOnDeleteException() {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
-        request.maxBlobSize(new ByteSizeValue(10L));
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
         request.abortWritePermitted(false);
 
         blobStore.setDisruption(new Disruption() {
@@ -244,7 +247,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
     public void testFailsOnIncompleteDelete() {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
-        request.maxBlobSize(new ByteSizeValue(10L));
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
         request.abortWritePermitted(false);
 
         blobStore.setDisruption(new Disruption() {
@@ -272,7 +275,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
     public void testFailsIfBlobCreatedOnAbort() {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
-        request.maxBlobSize(new ByteSizeValue(10L));
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
         request.rareActionProbability(0.7); // abort writes quite often
 
         final AtomicBoolean writeWasAborted = new AtomicBoolean();
@@ -289,6 +292,45 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             assertFalse(writeWasAborted.get());
         } catch (RepositoryVerificationException e) {
             assertTrue(writeWasAborted.get());
+        }
+    }
+
+    public void testFailsIfRegisterIncorrect() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+
+        blobStore.setDisruption(new Disruption() {
+            private final AtomicBoolean registerWasCorrupted = new AtomicBoolean();
+
+            @Override
+            public long onCompareAndExchange(AtomicLong register, long expected, long updated) {
+                if (registerWasCorrupted.compareAndSet(false, true)) {
+                    register.incrementAndGet();
+                }
+                return register.compareAndExchange(expected, updated);
+            }
+        });
+        expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
+    }
+
+    public void testFailsIfRegisterHoldsSpuriousValue() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+
+        final AtomicBoolean sawSpuriousValue = new AtomicBoolean();
+        final long expectedMax = Math.max(request.getConcurrency(), internalCluster().getNodeNames().length);
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public long onCompareAndExchange(AtomicLong register, long expected, long updated) {
+                if (randomBoolean() && sawSpuriousValue.compareAndSet(false, true)) {
+                    return randomFrom(expectedMax, randomLongBetween(expectedMax, Long.MAX_VALUE), randomLongBetween(Long.MIN_VALUE, -1));
+                }
+                return register.compareAndExchange(expected, updated);
+            }
+        });
+        try {
+            analyseRepository(request);
+            assertFalse(sawSpuriousValue.get());
+        } catch (RepositoryVerificationException e) {
+            assertTrue(sawSpuriousValue.get());
         }
     }
 
@@ -399,6 +441,10 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         default boolean createBlobOnAbort() {
             return false;
         }
+
+        default long onCompareAndExchange(AtomicLong register, long expected, long updated) {
+            return register.compareAndExchange(expected, updated);
+        }
     }
 
     static class DisruptableBlobContainer implements BlobContainer {
@@ -407,6 +453,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         private final Consumer<DisruptableBlobContainer> deleteContainer;
         private final Disruption disruption;
         private final Map<String, byte[]> blobs = ConcurrentCollections.newConcurrentMap();
+        private final Map<String, AtomicLong> registers = ConcurrentCollections.newConcurrentMap();
 
         DisruptableBlobContainer(BlobPath path, Consumer<DisruptableBlobContainer> deleteContainer, Disruption disruption) {
             this.path = path;
@@ -456,7 +503,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public void writeBlob(
+        public void writeMetadataBlob(
             String blobName,
             boolean failIfAlreadyExists,
             boolean atomic,
@@ -536,6 +583,12 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             final Map<String, BlobMetadata> blobMetadataByName = listBlobs();
             blobMetadataByName.keySet().removeIf(s -> s.startsWith(blobNamePrefix) == false);
             return blobMetadataByName;
+        }
+
+        @Override
+        public void compareAndExchangeRegister(String key, long expected, long updated, ActionListener<OptionalLong> listener) {
+            final var register = registers.computeIfAbsent(key, ignored -> new AtomicLong());
+            listener.onResponse(OptionalLong.of(disruption.onCompareAndExchange(register, expected, updated)));
         }
     }
 

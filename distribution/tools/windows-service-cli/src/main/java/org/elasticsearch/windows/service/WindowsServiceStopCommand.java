@@ -18,11 +18,11 @@ class WindowsServiceStopCommand extends ProcrunCommand {
 
     @Override
     protected String getSuccessMessage(String serviceId) {
-        return "The service '%s' has been stopped".formatted(serviceId);
+        return String.format(java.util.Locale.ROOT, "The service '%s' has been stopped", serviceId);
     }
 
     @Override
     protected String getFailureMessage(String serviceId) {
-        return "Failed stopping '%s' service".formatted(serviceId);
+        return String.format(java.util.Locale.ROOT, "Failed stopping '%s' service", serviceId);
     }
 }

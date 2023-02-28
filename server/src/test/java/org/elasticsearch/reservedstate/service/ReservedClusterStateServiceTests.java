@@ -15,12 +15,14 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
@@ -67,9 +69,15 @@ import static org.mockito.Mockito.when;
 
 public class ReservedClusterStateServiceTests extends ESTestCase {
 
+    @SuppressWarnings("unchecked")
+    private static <T extends ClusterStateTaskListener> MasterServiceTaskQueue<T> mockTaskQueue() {
+        return (MasterServiceTaskQueue<T>) mock(MasterServiceTaskQueue.class);
+    }
+
     public void testOperatorController() throws IOException {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.createTaskQueue(any(), any(), any())).thenReturn(mockTaskQueue());
         final ClusterName clusterName = new ClusterName("elasticsearch");
 
         ClusterState state = ClusterState.builder(clusterName).build();
@@ -153,7 +161,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
                 List.of(),
                 Collections.emptyMap(),
                 Collections.emptySet(),
-                (clusterState, errorState) -> {},
+                errorState -> {},
                 new ActionListener<>() {
                     @Override
                     public void onResponse(ActionResponse.Empty empty) {}
@@ -326,10 +334,10 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         Metadata metadata = Metadata.builder().put(operatorMetadata).build();
         ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
 
-        assertFalse(ReservedClusterStateService.isNewError(operatorMetadata, 2L));
-        assertFalse(ReservedClusterStateService.isNewError(operatorMetadata, 1L));
-        assertTrue(ReservedClusterStateService.isNewError(operatorMetadata, 3L));
-        assertTrue(ReservedClusterStateService.isNewError(null, 1L));
+        assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, 2L));
+        assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, 1L));
+        assertTrue(ReservedStateErrorTask.isNewError(operatorMetadata, 3L));
+        assertTrue(ReservedStateErrorTask.isNewError(null, 1L));
 
         var chunk = new ReservedStateChunk(Map.of("one", "two", "maker", "three"), new ReservedStateVersion(2L, Version.CURRENT));
         var orderedHandlers = List.of(exceptionThrower.name(), newStateMaker.name());
@@ -343,7 +351,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             List.of(),
             Map.of(exceptionThrower.name(), exceptionThrower, newStateMaker.name(), newStateMaker),
             orderedHandlers,
-            (clusterState, errorState) -> { assertFalse(ReservedClusterStateService.isNewError(operatorMetadata, errorState.version())); },
+            errorState -> assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, errorState.version())),
             new ActionListener<>() {
                 @Override
                 public void onResponse(ActionResponse.Empty empty) {}
@@ -484,17 +492,20 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
     public void testCheckAndReportError() {
         ClusterService clusterService = mock(ClusterService.class);
+        var state = ClusterState.builder(new ClusterName("elasticsearch")).build();
+        when(clusterService.state()).thenReturn(state);
+        when(clusterService.createTaskQueue(any(), any(), any())).thenReturn(mockTaskQueue());
+
         final var controller = spy(new ReservedClusterStateService(clusterService, List.of()));
 
-        assertNull(controller.checkAndReportError("test", List.of(), null, null));
-        verify(controller, times(0)).saveErrorState(any(), any());
+        assertNull(controller.checkAndReportError("test", List.of(), null));
+        verify(controller, times(0)).updateErrorState(any());
 
-        var state = ClusterState.builder(new ClusterName("elasticsearch")).build();
         var version = new ReservedStateVersion(2L, Version.CURRENT);
-        var error = controller.checkAndReportError("test", List.of("test error"), state, version);
+        var error = controller.checkAndReportError("test", List.of("test error"), version);
         assertThat(error, allOf(notNullValue(), instanceOf(IllegalStateException.class)));
         assertEquals("Error processing state change request for test, errors: test error", error.getMessage());
-        verify(controller, times(1)).saveErrorState(any(), any());
+        verify(controller, times(1)).updateErrorState(any());
     }
 
     public void testTrialRunExtractsNonStateActions() {

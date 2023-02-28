@@ -40,6 +40,17 @@ public class ScoreFunctionBuilderTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> new ExponentialDecayFunctionBuilder("", "", null, "", randomDouble()));
     }
 
+    public void testDecayValues() {
+        expectThrows(IllegalStateException.class, () -> new ExponentialDecayFunctionBuilder("", "", "", "", 0.0));
+        expectThrows(IllegalStateException.class, () -> new ExponentialDecayFunctionBuilder("", "", "", "", 1.0));
+        expectThrows(IllegalStateException.class, () -> new GaussDecayFunctionBuilder("", "", "", "", 0.0));
+        expectThrows(IllegalStateException.class, () -> new GaussDecayFunctionBuilder("", "", "", "", 1.0));
+        expectThrows(IllegalStateException.class, () -> new LinearDecayFunctionBuilder("", "", "", "", 1.0));
+        expectThrows(IllegalStateException.class, () -> new LinearDecayFunctionBuilder("", "", "", "", -1.0));
+        // should not throw since the score formula allows it
+        new LinearDecayFunctionBuilder("", "", "", "", 0.0);
+    }
+
     public void testRandomScoreFunctionWithSeedNoField() throws Exception {
         RandomScoreFunctionBuilder builder = new RandomScoreFunctionBuilder();
         builder.seed(42);

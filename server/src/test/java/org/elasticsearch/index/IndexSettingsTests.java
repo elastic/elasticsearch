@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.IndexSettings.NODE_DEFAULT_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_END_TIME;
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_START_TIME;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -345,6 +346,38 @@ public class IndexSettingsTests extends ESTestCase {
         );
     }
 
+    public void testNodeDefaultRefreshInterval() {
+        String defaultRefreshInterval = getRandomTimeString();
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
+        );
+        IndexSettings settings = new IndexSettings(
+            metadata,
+            Settings.builder().put(NODE_DEFAULT_REFRESH_INTERVAL_SETTING.getKey(), defaultRefreshInterval).build()
+        );
+        assertEquals(
+            TimeValue.parseTimeValue(
+                defaultRefreshInterval,
+                new TimeValue(1, TimeUnit.DAYS),
+                IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
+            ),
+            settings.getRefreshInterval()
+        );
+        String newRefreshInterval = getRandomTimeString();
+        settings.updateIndexMetadata(
+            newIndexMeta("index", Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), newRefreshInterval).build())
+        );
+        assertEquals(
+            TimeValue.parseTimeValue(
+                newRefreshInterval,
+                new TimeValue(1, TimeUnit.DAYS),
+                IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
+            ),
+            settings.getRefreshInterval()
+        );
+    }
+
     private String getRandomTimeString() {
         int refreshIntervalInt = randomFrom(-1, Math.abs(randomInt()));
         String refreshInterval = Integer.toString(refreshIntervalInt);
@@ -512,7 +545,7 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testTranslogFlushSizeThreshold() {
-        ByteSizeValue translogFlushThresholdSize = new ByteSizeValue(Math.abs(randomInt()));
+        ByteSizeValue translogFlushThresholdSize = ByteSizeValue.ofBytes(Math.abs(randomInt()));
         ByteSizeValue actualValue = ByteSizeValue.parseBytesSizeValue(
             translogFlushThresholdSize.getBytes() + "B",
             IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey()
@@ -526,7 +559,7 @@ public class IndexSettingsTests extends ESTestCase {
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         assertEquals(actualValue, settings.getFlushThresholdSize());
-        ByteSizeValue newTranslogFlushThresholdSize = new ByteSizeValue(Math.abs(randomInt()));
+        ByteSizeValue newTranslogFlushThresholdSize = ByteSizeValue.ofBytes(Math.abs(randomInt()));
         ByteSizeValue actualNewTranslogFlushThresholdSize = ByteSizeValue.parseBytesSizeValue(
             newTranslogFlushThresholdSize.getBytes() + "B",
             IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey()
@@ -543,7 +576,7 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testTranslogGenerationSizeThreshold() {
-        final ByteSizeValue size = new ByteSizeValue(Math.abs(randomInt()));
+        final ByteSizeValue size = ByteSizeValue.ofBytes(Math.abs(randomInt()));
         final String key = IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING.getKey();
         final ByteSizeValue actualValue = ByteSizeValue.parseBytesSizeValue(size.getBytes() + "B", key);
         final IndexMetadata metadata = newIndexMeta(
@@ -552,7 +585,7 @@ public class IndexSettingsTests extends ESTestCase {
         );
         final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         assertEquals(actualValue, settings.getGenerationThresholdSize());
-        final ByteSizeValue newSize = new ByteSizeValue(Math.abs(randomInt()));
+        final ByteSizeValue newSize = ByteSizeValue.ofBytes(Math.abs(randomInt()));
         final ByteSizeValue actual = ByteSizeValue.parseBytesSizeValue(newSize.getBytes() + "B", key);
         settings.updateIndexMetadata(newIndexMeta("index", Settings.builder().put(key, newSize.getBytes() + "B").build()));
         assertEquals(actual, settings.getGenerationThresholdSize());

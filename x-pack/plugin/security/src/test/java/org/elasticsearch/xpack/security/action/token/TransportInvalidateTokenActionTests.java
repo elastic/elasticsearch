@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.security.action.token;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
@@ -104,7 +104,7 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
         assertThat(ese.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
 
         request = new InvalidateTokenRequest(
-            TokenService.prependVersionAndEncodeRefreshToken(Version.CURRENT, UUIDs.randomBase64UUID()),
+            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.CURRENT, UUIDs.randomBase64UUID()),
             REFRESH_TOKEN.getValue(),
             null,
             null
@@ -147,7 +147,7 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
         assertThat(ese.status(), equalTo(RestStatus.BAD_REQUEST));
 
         request = new InvalidateTokenRequest(
-            TokenService.prependVersionAndEncodeRefreshToken(Version.CURRENT, UUIDs.randomBase64UUID()),
+            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.CURRENT, UUIDs.randomBase64UUID()),
             REFRESH_TOKEN.getValue(),
             null,
             null
@@ -161,8 +161,8 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
 
     private String generateAccessTokenString() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput(TokenService.MINIMUM_BASE64_BYTES)) {
-            out.setVersion(Version.CURRENT);
-            Version.writeVersion(Version.CURRENT, out);
+            out.setTransportVersion(TransportVersion.CURRENT);
+            TransportVersion.writeVersion(TransportVersion.CURRENT, out);
             out.writeString(UUIDs.randomBase64UUID());
             return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
         }

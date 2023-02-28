@@ -8,11 +8,12 @@
 package org.elasticsearch.xpack.ml.inference.deployment;
 
 import java.time.Instant;
-import java.util.LongSummaryStatistics;
 
 public record ModelStats(
     Instant startTime,
-    LongSummaryStatistics timingStats,
+    long inferenceCount,
+    Double averageInferenceTime,
+    Double averageInferenceTimeNoCacheHits,
     Instant lastUsed,
     int pendingCount,
     int errorCount,

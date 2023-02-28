@@ -14,6 +14,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -87,7 +88,7 @@ public class TransformUpdateIT extends TransformRestTestCase {
             getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1
         );
-        String config = """
+        String config = Strings.format("""
             {
               "dest": {
                 "index": "%s"
@@ -112,7 +113,7 @@ public class TransformUpdateIT extends TransformRestTestCase {
                 },
                 "max_page_search_size": 555
               }
-            }""".formatted(transformDest, REVIEWS_INDEX_NAME);
+            }""", transformDest, REVIEWS_INDEX_NAME);
 
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
@@ -181,7 +182,7 @@ public class TransformUpdateIT extends TransformRestTestCase {
             )
             : createRequestWithAuth("PUT", getTransformEndpoint() + transformIdCloned, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_2);
 
-        String config = """
+        String config = Strings.format("""
             {
               "dest": {
                 "index": "%s"
@@ -205,7 +206,7 @@ public class TransformUpdateIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(transformDest, REVIEWS_INDEX_NAME);
+            }""", transformDest, REVIEWS_INDEX_NAME);
 
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));

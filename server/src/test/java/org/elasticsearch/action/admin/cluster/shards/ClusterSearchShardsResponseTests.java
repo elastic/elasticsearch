@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -56,9 +55,9 @@ public class ClusterSearchShardsResponseTests extends ESTestCase {
             nodes.add(node);
             AliasFilter aliasFilter;
             if (randomBoolean()) {
-                aliasFilter = new AliasFilter(RandomQueryBuilder.createQuery(random()), "alias-" + index);
+                aliasFilter = AliasFilter.of(RandomQueryBuilder.createQuery(random()), "alias-" + index);
             } else {
-                aliasFilter = new AliasFilter(null, Strings.EMPTY_ARRAY);
+                aliasFilter = AliasFilter.EMPTY;
             }
             indicesAndFilters.put(index, aliasFilter);
         }
@@ -74,10 +73,10 @@ public class ClusterSearchShardsResponseTests extends ESTestCase {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setVersion(version);
+            out.setTransportVersion(version.transportVersion);
             clusterSearchShardsResponse.writeTo(out);
             try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry)) {
-                in.setVersion(version);
+                in.setTransportVersion(version.transportVersion);
                 ClusterSearchShardsResponse deserialized = new ClusterSearchShardsResponse(in);
                 assertArrayEquals(clusterSearchShardsResponse.getNodes(), deserialized.getNodes());
                 assertEquals(clusterSearchShardsResponse.getGroups().length, deserialized.getGroups().length);

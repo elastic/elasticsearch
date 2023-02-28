@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DatafeedTimingStatsTests extends AbstractSerializingTestCase<DatafeedTimingStats> {
+public class DatafeedTimingStatsTests extends AbstractXContentSerializingTestCase<DatafeedTimingStats> {
 
     private static final String JOB_ID = "my-job-id";
 
@@ -60,7 +60,7 @@ public class DatafeedTimingStatsTests extends AbstractSerializingTestCase<Datafe
     }
 
     @Override
-    protected DatafeedTimingStats mutateInstance(DatafeedTimingStats instance) throws IOException {
+    protected DatafeedTimingStats mutateInstance(DatafeedTimingStats instance) {
         String jobId = instance.getJobId();
         long searchCount = instance.getSearchCount();
         long bucketCount = instance.getBucketCount();

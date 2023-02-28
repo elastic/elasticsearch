@@ -92,7 +92,10 @@ public abstract class TransportTasksAction<
     private void nodeOperation(Task task, NodeTaskRequest nodeTaskRequest, ActionListener<NodeTasksResponse> listener) {
         TasksRequest request = nodeTaskRequest.tasksRequest;
         List<OperationTask> tasks = new ArrayList<>();
-        processTasks(request, tasks::add);
+        processTasks(request, tasks::add, ActionListener.wrap(noop -> nodeOperation(task, listener, request, tasks), listener::onFailure));
+    }
+
+    private void nodeOperation(Task task, ActionListener<NodeTasksResponse> listener, TasksRequest request, List<OperationTask> tasks) {
         if (tasks.isEmpty()) {
             listener.onResponse(new NodeTasksResponse(clusterService.localNode().getId(), emptyList(), emptyList()));
             return;
@@ -152,6 +155,11 @@ public abstract class TransportTasksAction<
         } else {
             return clusterState.nodes().resolveNodes(request.getNodes());
         }
+    }
+
+    protected void processTasks(TasksRequest request, Consumer<OperationTask> operation, ActionListener<Void> nodeOperation) {
+        processTasks(request, operation);
+        nodeOperation.onResponse(null);
     }
 
     @SuppressWarnings("unchecked")

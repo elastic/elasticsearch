@@ -570,7 +570,7 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public void writeBlob(
+            public void writeMetadataBlob(
                 String blobName,
                 boolean failIfAlreadyExists,
                 boolean atomic,
@@ -581,7 +581,7 @@ public class MockRepository extends FsRepository {
                 } else {
                     beforeWrite(blobName);
                 }
-                super.writeBlob(blobName, failIfAlreadyExists, atomic, writer);
+                super.writeMetadataBlob(blobName, failIfAlreadyExists, atomic, writer);
                 if (RandomizedContext.current().getRandom().nextBoolean()) {
                     // for network based repositories, the blob may have been written but we may still
                     // get an error with the client connection, so an IOException here simulates this

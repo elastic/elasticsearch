@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.translog.Translog;
@@ -59,6 +60,18 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.appendToCopy(super.nodePlugins(), TestEnginePlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        // Document page size should not be too small, else we can fail to write the cluster state for small max doc values
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(
+                PersistedClusterStateService.DOCUMENT_PAGE_SIZE.getKey(),
+                PersistedClusterStateService.DOCUMENT_PAGE_SIZE.get(Settings.EMPTY)
+            )
+            .build();
     }
 
     @Before

@@ -9,7 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -19,7 +19,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class RangeAggregationBuilderTests extends AbstractSerializingTestCase<RangeAggregationBuilder> {
+public class RangeAggregationBuilderTests extends AbstractXContentSerializingTestCase<RangeAggregationBuilder> {
     @Override
     protected RangeAggregationBuilder doParseInstance(XContentParser parser) throws IOException {
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
@@ -64,7 +64,7 @@ public class RangeAggregationBuilderTests extends AbstractSerializingTestCase<Ra
     }
 
     @Override
-    protected RangeAggregationBuilder mutateInstance(RangeAggregationBuilder builder) throws IOException {
+    protected RangeAggregationBuilder mutateInstance(RangeAggregationBuilder builder) {
         String name = builder.getName();
         boolean keyed = builder.keyed();
         String field = builder.field();

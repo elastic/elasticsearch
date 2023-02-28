@@ -49,9 +49,9 @@ public abstract class CustomDateFormatTestCase extends BaseRestSqlTestCase {
         for (int i = 0; i < customFormats.length; i++) {
             String field = "date_" + i;
             String format = DateTimeFormatter.ofPattern(customFormats[i], Locale.ROOT).format(DateUtils.nowWithMillisResolution());
-            docs[i] = """
+            docs[i] = org.elasticsearch.core.Strings.format("""
                 {"%s":"%s"}
-                """.formatted(field, format);
+                """, field, format);
             datesConditions.append(i > 0 ? " OR " : "").append(field + randomFrom(operators) + randomFrom(nowFunctions));
         }
 

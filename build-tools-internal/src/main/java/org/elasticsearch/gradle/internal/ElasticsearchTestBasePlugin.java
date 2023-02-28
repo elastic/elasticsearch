@@ -54,7 +54,8 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
         project.getTasks().withType(Test.class).configureEach(test -> {
             File testOutputDir = new File(test.getReports().getJunitXml().getOutputLocation().getAsFile().get(), "output");
 
-            ErrorReportingTestListener listener = new ErrorReportingTestListener(test.getTestLogging(), test.getLogger(), testOutputDir);
+            ErrorReportingTestListener listener = new ErrorReportingTestListener(test, testOutputDir);
+            test.getExtensions().getExtraProperties().set("dumpOutputOnFailure", true);
             test.getExtensions().add("errorReportingTestListener", listener);
             test.addTestOutputListener(listener);
             test.addTestListener(listener);
@@ -88,7 +89,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
             test.getJvmArgumentProviders().add(nonInputProperties);
             test.getExtensions().add("nonInputProperties", nonInputProperties);
 
-            test.setWorkingDir(project.file(project.getBuildDir() + "/testrun/" + test.getName()));
+            test.setWorkingDir(project.file(project.getBuildDir() + "/testrun/" + test.getName().replace("#", "_")));
             test.setMaxParallelForks(Integer.parseInt(System.getProperty("tests.jvms", BuildParams.getDefaultParallel().toString())));
 
             test.exclude("**/*$*.class");

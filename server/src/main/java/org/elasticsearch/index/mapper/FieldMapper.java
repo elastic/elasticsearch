@@ -62,7 +62,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     );
     public static final Setting<Boolean> COERCE_SETTING = Setting.boolSetting("index.mapping.coerce", false, Property.IndexScope);
 
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldMapper.class);
+    protected static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldMapper.class);
     @SuppressWarnings("rawtypes")
     static final Parameter<?>[] EMPTY_PARAMETERS = new Parameter[0];
 
@@ -70,7 +70,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected final MultiFields multiFields;
     protected final CopyTo copyTo;
     protected final boolean hasScript;
-    protected final String onScriptError;
+    protected final OnScriptError onScriptError;
 
     /**
      * @param simpleName        the leaf name of the mapper
@@ -96,12 +96,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         MultiFields multiFields,
         CopyTo copyTo,
         boolean hasScript,
-        String onScriptError
+        OnScriptError onScriptError
     ) {
         super(simpleName);
-        if (mappedFieldType.name().isEmpty()) {
-            throw new IllegalArgumentException("name cannot be empty string");
-        }
+        // could be blank but not empty on indices created < 8.6.0
+        assert mappedFieldType.name().isEmpty() == false;
         this.mappedFieldType = mappedFieldType;
         this.multiFields = multiFields;
         this.copyTo = Objects.requireNonNull(copyTo);
@@ -132,6 +131,16 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     public MultiFields multiFields() {
         return multiFields;
+    }
+
+    /**
+     * Will this field ignore malformed values for this field and accept the
+     * document ({@code true}) or will it reject documents with malformed
+     * values for this field ({@code false}). Some fields don't have a concept
+     * of "malformed" and will return {@code false} here.
+     */
+    public boolean ignoreMalformed() {
+        return false;
     }
 
     /**
@@ -238,7 +247,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         try {
             indexScriptValues(searchLookup, readerContext, doc, documentParserContext);
         } catch (Exception e) {
-            if ("continue".equals(onScriptError)) {
+            if (onScriptError == OnScriptError.CONTINUE) {
                 documentParserContext.addIgnoredField(name());
             } else {
                 throw new MapperParsingException("Error executing script on field [" + name() + "]", e);
@@ -807,6 +816,23 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             );
         }
 
+        public static Parameter<Boolean> boolParam(
+            String name,
+            boolean updateable,
+            Function<FieldMapper, Boolean> initializer,
+            Supplier<Boolean> defaultValue
+        ) {
+            return new Parameter<>(
+                name,
+                updateable,
+                defaultValue,
+                (n, c, o) -> XContentMapValues.nodeBooleanValue(o),
+                initializer,
+                XContentBuilder::field,
+                Objects::toString
+            );
+        }
+
         /**
          * Defines a parameter that takes the values {@code true} or {@code false}, and will always serialize
          * its value if configured.
@@ -929,12 +955,12 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         /**
          * Defines a parameter that takes one of a restricted set of values from an enumeration.
          *
-         * @param name          the parameter name
-         * @param updateable    whether the parameter can be changed by a mapping update
-         * @param initializer   a function that reads the parameter value from an existing mapper
-         * @param defaultValue  the default value, to be used if the parameter is undefined in a mapping
-         * @param enumClass     the enumeration class the parameter takes values from
-         * @param values        the set of values that the parameter can take
+         * @param name            the parameter name
+         * @param updateable      whether the parameter can be changed by a mapping update
+         * @param initializer     a function that reads the parameter value from an existing mapper
+         * @param defaultValue    the default value, to be used if the parameter is undefined in a mapping
+         * @param enumClass       the enumeration class the parameter takes values from
+         * @param acceptedValues  the set of values that the parameter can take
          */
         public static <T extends Enum<T>> Parameter<T> restrictedEnumParam(
             String name,
@@ -942,23 +968,28 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             Function<FieldMapper, T> initializer,
             T defaultValue,
             Class<T> enumClass,
-            Set<T> values
+            Set<T> acceptedValues
         ) {
-            assert values.size() > 0;
-            return new Parameter<T>(name, updateable, () -> defaultValue, (n, c, o) -> {
+            assert acceptedValues.size() > 0;
+            return new Parameter<>(name, updateable, () -> defaultValue, (n, c, o) -> {
                 if (o == null) {
                     return defaultValue;
                 }
-                try {
-                    @SuppressWarnings("unchecked")
-                    T enumValue = Enum.valueOf(enumClass, (String) o);
-                    return enumValue;
-                } catch (IllegalArgumentException e) {
-                    throw new MapperParsingException("Unknown value [" + o + "] for field [" + name + "] - accepted values are " + values);
+                EnumSet<T> enumSet = EnumSet.allOf(enumClass);
+                for (T t : enumSet) {
+                    // the string representation may differ from the actual name of the enum type (e.g. lowercase vs uppercase)
+                    if (t.toString().equals(o.toString())) {
+                        return t;
+                    }
                 }
+                throw new MapperParsingException(
+                    "Unknown value [" + o + "] for field [" + name + "] - accepted values are " + acceptedValues
+                );
             }, initializer, XContentBuilder::field, Objects::toString).addValidator(v -> {
-                if (v != null && values.contains(v) == false) {
-                    throw new MapperParsingException("Unknown value [" + v + "] for field [" + name + "] - accepted values are " + values);
+                if (v != null && acceptedValues.contains(v) == false) {
+                    throw new MapperParsingException(
+                        "Unknown value [" + v + "] for field [" + name + "] - accepted values are " + acceptedValues
+                    );
                 }
             });
         }
@@ -1028,6 +1059,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return Parameter.boolParam("index", false, initializer, defaultValue);
         }
 
+        public static Parameter<Boolean> indexParam(Function<FieldMapper, Boolean> initializer, Supplier<Boolean> defaultValue) {
+            return Parameter.boolParam("index", false, initializer, defaultValue);
+        }
+
         public static Parameter<Boolean> storeParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
             return Parameter.boolParam("store", false, initializer, defaultValue);
         }
@@ -1060,29 +1095,12 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          * @param dependentScriptParam the corresponding required script parameter
          * @return a new on_error_script parameter
          */
-        public static Parameter<String> onScriptErrorParam(
-            Function<FieldMapper, String> initializer,
+        public static Parameter<OnScriptError> onScriptErrorParam(
+            Function<FieldMapper, OnScriptError> initializer,
             Parameter<Script> dependentScriptParam
         ) {
-            return new Parameter<>(
-                "on_script_error",
-                true,
-                () -> "fail",
-                (n, c, o) -> XContentMapValues.nodeStringValue(o),
-                initializer,
-                XContentBuilder::field,
-                Function.identity()
-            ).addValidator(v -> {
-                switch (v) {
-                    case "fail":
-                    case "continue":
-                        return;
-                    default:
-                        throw new MapperParsingException(
-                            "Unknown value [" + v + "] for field [on_script_error] - accepted values are [fail, continue]"
-                        );
-                }
-            }).requiresParameter(dependentScriptParam);
+            return Parameter.enumParam("on_script_error", true, initializer, OnScriptError.FAIL, OnScriptError.class)
+                .requiresParameter(dependentScriptParam);
         }
     }
 
@@ -1153,7 +1171,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             validate();
         }
 
-        private void validate() {
+        protected final void validate() {
             for (Parameter<?> param : getParameters()) {
                 param.validate();
             }
@@ -1315,14 +1333,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         protected void handleUnknownParamOnLegacyIndex(String propName, Object propNode) {
             // ignore
-        }
-
-        protected static ContentPath parentPath(String name) {
-            int endPos = name.lastIndexOf(".");
-            if (endPos == -1) {
-                return new ContentPath(0);
-            }
-            return new ContentPath(name.substring(0, endPos));
         }
 
         // These parameters were previously *always* parsed by TypeParsers#parseField(), even if they

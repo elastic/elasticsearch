@@ -8,6 +8,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -59,7 +60,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
         rxSize = in.readVLong();
         txCount = in.readVLong();
         txSize = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_8_1_0) && in.readBoolean()) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0) && in.readBoolean()) {
             inboundHandlingTimeBucketFrequencies = new long[HandlingTimeTracker.BUCKET_COUNT];
             for (int i = 0; i < inboundHandlingTimeBucketFrequencies.length; i++) {
                 inboundHandlingTimeBucketFrequencies[i] = in.readVLong();
@@ -83,7 +84,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
         out.writeVLong(rxSize);
         out.writeVLong(txCount);
         out.writeVLong(txSize);
-        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
             assert (inboundHandlingTimeBucketFrequencies.length > 0) == (outboundHandlingTimeBucketFrequencies.length > 0);
             out.writeBoolean(inboundHandlingTimeBucketFrequencies.length > 0);
             for (long handlingTimeBucketFrequency : inboundHandlingTimeBucketFrequencies) {
@@ -120,7 +121,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
     }
 
     public ByteSizeValue rxSize() {
-        return new ByteSizeValue(rxSize);
+        return ByteSizeValue.ofBytes(rxSize);
     }
 
     public ByteSizeValue getRxSize() {
@@ -136,7 +137,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
     }
 
     public ByteSizeValue txSize() {
-        return new ByteSizeValue(txSize);
+        return ByteSizeValue.ofBytes(txSize);
     }
 
     public ByteSizeValue getTxSize() {
@@ -168,9 +169,9 @@ public class TransportStats implements Writeable, ToXContentFragment {
         builder.field(Fields.SERVER_OPEN, serverOpen);
         builder.field(Fields.TOTAL_OUTBOUND_CONNECTIONS, totalOutboundConnections);
         builder.field(Fields.RX_COUNT, rxCount);
-        builder.humanReadableField(Fields.RX_SIZE_IN_BYTES, Fields.RX_SIZE, new ByteSizeValue(rxSize));
+        builder.humanReadableField(Fields.RX_SIZE_IN_BYTES, Fields.RX_SIZE, ByteSizeValue.ofBytes(rxSize));
         builder.field(Fields.TX_COUNT, txCount);
-        builder.humanReadableField(Fields.TX_SIZE_IN_BYTES, Fields.TX_SIZE, new ByteSizeValue(txSize));
+        builder.humanReadableField(Fields.TX_SIZE_IN_BYTES, Fields.TX_SIZE, ByteSizeValue.ofBytes(txSize));
         if (inboundHandlingTimeBucketFrequencies.length > 0) {
             histogramToXContent(builder, inboundHandlingTimeBucketFrequencies, Fields.INBOUND_HANDLING_TIME_HISTOGRAM);
             histogramToXContent(builder, outboundHandlingTimeBucketFrequencies, Fields.OUTBOUND_HANDLING_TIME_HISTOGRAM);

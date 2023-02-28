@@ -34,8 +34,8 @@ public class ES85BloomFilterPostingsFormatTests extends BasePostingsFormatTestCa
 
     @Override
     protected Codec getCodec() {
-        return TestUtil.alwaysPostingsFormat(new ES85BloomFilterPostingsFormat(BigArrays.NON_RECYCLING_INSTANCE, field -> {
-            PostingsFormat postingsFormat = Codec.getDefault().postingsFormat();
+        return TestUtil.alwaysPostingsFormat(new ES85BloomFilterRWPostingsFormat(BigArrays.NON_RECYCLING_INSTANCE, field -> {
+            PostingsFormat postingsFormat = TestUtil.getDefaultPostingsFormat();
             if (postingsFormat instanceof PerFieldPostingsFormat) {
                 postingsFormat = TestUtil.getDefaultPostingsFormat();
             }

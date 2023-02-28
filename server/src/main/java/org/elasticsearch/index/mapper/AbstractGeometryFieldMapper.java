@@ -163,7 +163,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         MultiFields multiFields,
         CopyTo copyTo,
         Parser<T> parser,
-        String onScriptError
+        OnScriptError onScriptError
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo, true, onScriptError);
         this.ignoreMalformed = Explicit.EXPLICIT_FALSE;
@@ -206,6 +206,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         });
     }
 
+    @Override
     public boolean ignoreMalformed() {
         return ignoreMalformed.value();
     }

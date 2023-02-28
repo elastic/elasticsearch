@@ -84,10 +84,7 @@ public class RemoveCustomsCommandIT extends ESIntegTestCase {
             UserException.class,
             () -> removeCustoms(environment, false, new String[] { "index-greveyard-with-typos" })
         );
-        assertThat(
-            ex.getMessage(),
-            containsString("No custom metadata matching [index-greveyard-with-typos] were " + "found on this node")
-        );
+        assertThat(ex.getMessage(), containsString("No custom metadata matching [index-greveyard-with-typos] were found on this node"));
     }
 
     private MockTerminal executeCommand(ElasticsearchNodeCommand command, Environment environment, boolean abort, String... args)

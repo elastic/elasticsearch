@@ -41,7 +41,6 @@ public class XShapeTestUtil {
             // this poly is slow to create ... only do it 10% of the time:
             while (true) {
                 int gons = TestUtil.nextInt(random(), 4, 500);
-                // So the poly can cover at most 50% of the earth's surface:
                 try {
                     return createRegularPolygon(nextDouble() * CENTER_SCALE_FACTOR, nextDouble() * CENTER_SCALE_FACTOR, nextRadius(), gons);
                 } catch (IllegalArgumentException iae) {
@@ -61,7 +60,7 @@ public class XShapeTestUtil {
     }
 
     private static double nextRadius() {
-        return random().nextDouble() * 0.5 * Float.MAX_VALUE + 1.0;
+        return random().nextDouble() * CENTER_SCALE_FACTOR * Float.MAX_VALUE + 1.0;
     }
 
     private static XYPolygon trianglePolygon(XYRectangle box) {
@@ -129,7 +128,7 @@ public class XShapeTestUtil {
 
     private static XYPolygon validatePolygon(XYPolygon polygon) {
         if (validPolygon(polygon)) return polygon;
-        throw new IllegalStateException("Invalid polygon: " + polygon);
+        throw new IllegalArgumentException("Invalid polygon: " + polygon);
     }
 
     private static XYPolygon surpriseMePolygon() {
@@ -138,7 +137,7 @@ public class XShapeTestUtil {
             // System.out.println("\nPOLY ITER");
             double centerX = nextDouble() * CENTER_SCALE_FACTOR;
             double centerY = nextDouble() * CENTER_SCALE_FACTOR;
-            double radius = 0.1 + Float.MAX_VALUE * random().nextDouble() * CENTER_SCALE_FACTOR;
+            double radius = nextRadius();
             double radiusDelta = random().nextDouble();
 
             ArrayList<Float> xList = new ArrayList<>();

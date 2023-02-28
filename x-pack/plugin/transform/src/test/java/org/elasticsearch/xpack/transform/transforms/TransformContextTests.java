@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.junit.After;
 import org.junit.Before;
 
+import java.time.Instant;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -36,9 +38,9 @@ public class TransformContextTests extends ESTestCase {
 
     public void testFailureCount() {
         TransformContext context = new TransformContext(null, null, 0, listener);
-        assertThat(context.incrementAndGetFailureCount("some_exception"), is(equalTo(1)));
+        assertThat(context.incrementAndGetFailureCount(new RuntimeException("some_exception")), is(equalTo(1)));
         assertThat(context.getFailureCount(), is(equalTo(1)));
-        assertThat(context.incrementAndGetFailureCount("some_other_exception"), is(equalTo(2)));
+        assertThat(context.incrementAndGetFailureCount(new IllegalArgumentException("some_other_exception")), is(equalTo(2)));
         assertThat(context.getFailureCount(), is(equalTo(2)));
         context.resetReasonAndFailureCounter();
         assertThat(context.getFailureCount(), is(equalTo(0)));
@@ -87,5 +89,11 @@ public class TransformContextTests extends ESTestCase {
         assertThat(context.getStateReason(), is(nullValue()));
 
         verify(listener).failureCountChanged();
+    }
+
+    public void testFrom() {
+        Instant from = Instant.ofEpochMilli(randomLongBetween(0, 1_000_000_000_000L));
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, null, 0, from, listener);
+        assertThat(context.from(), is(equalTo(from)));
     }
 }

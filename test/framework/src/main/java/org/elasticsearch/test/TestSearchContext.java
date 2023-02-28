@@ -464,12 +464,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public int docIdsToLoadSize() {
-        return 0;
-    }
-
-    @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadSize) {
+    public SearchContext docIdsToLoad(int[] docIdsToLoad) {
         return null;
     }
 

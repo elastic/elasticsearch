@@ -9,7 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -105,7 +105,7 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
         super(in);
         dateHistogramInterval = new DateIntervalWrapper(in);
         timeZone = in.readOptionalZoneId();
-        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {
             offset = in.readLong();
         }
     }
@@ -114,7 +114,7 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
     protected void innerWriteTo(StreamOutput out) throws IOException {
         dateHistogramInterval.writeTo(out);
         out.writeOptionalZoneId(timeZone);
-        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {
             out.writeLong(offset);
         }
     }

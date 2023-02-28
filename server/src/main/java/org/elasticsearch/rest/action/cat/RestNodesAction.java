@@ -48,6 +48,8 @@ import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.script.ScriptStats;
@@ -59,6 +61,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestNodesAction extends AbstractCatAction {
 
     @Override
@@ -241,7 +244,7 @@ public class RestNodesAction extends AbstractCatAction {
         );
         table.addCell(
             "refresh.listeners",
-            "alias:rli,refreshListeners;default:false;text-align:right;" + "desc:number of pending refresh listeners"
+            "alias:rli,refreshListeners;default:false;text-align:right;desc:number of pending refresh listeners"
         );
 
         table.addCell("script.compilations", "alias:scrcc,scriptCompilations;default:false;text-align:right;desc:script compilations");
@@ -312,7 +315,7 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("mappings.total_count", "alias:mtc,mappingsTotalCount;default:false;text-align:right;desc:number of mappings");
         table.addCell(
             "mappings.total_estimated_overhead_in_bytes",
-            "alias:mteoi,mappingsTotalEstimatedOverheadInBytes;default:false;text-align:right;desc:estimated"
+            "alias:mteo,mappingsTotalEstimatedOverheadInBytes;default:false;text-align:right;desc:estimated"
                 + " overhead in bytes of mappings"
         );
 
@@ -369,7 +372,7 @@ public class RestNodesAction extends AbstractCatAction {
             if (fsInfo != null) {
                 diskTotal = fsInfo.getTotal().getTotal();
                 diskAvailable = fsInfo.getTotal().getAvailable();
-                diskUsed = new ByteSizeValue(diskTotal.getBytes() - diskAvailable.getBytes());
+                diskUsed = ByteSizeValue.ofBytes(diskTotal.getBytes() - diskAvailable.getBytes());
 
                 double diskUsedRatio = diskTotal.getBytes() == 0 ? 1.0 : (double) diskUsed.getBytes() / diskTotal.getBytes();
                 diskUsedPercent = String.format(Locale.ROOT, "%.2f", 100.0 * diskUsedRatio);
@@ -498,7 +501,7 @@ public class RestNodesAction extends AbstractCatAction {
 
             SegmentsStats segmentsStats = indicesStats == null ? null : indicesStats.getSegments();
             table.addCell(segmentsStats == null ? null : segmentsStats.getCount());
-            table.addCell(segmentsStats == null ? null : new ByteSizeValue(0));
+            table.addCell(segmentsStats == null ? null : ByteSizeValue.ZERO);
             table.addCell(segmentsStats == null ? null : segmentsStats.getIndexWriterMemory());
             table.addCell(segmentsStats == null ? null : segmentsStats.getVersionMapMemory());
             table.addCell(segmentsStats == null ? null : segmentsStats.getBitsetMemory());

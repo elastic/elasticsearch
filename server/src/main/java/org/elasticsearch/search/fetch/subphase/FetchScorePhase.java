@@ -17,6 +17,7 @@ import org.apache.lucene.search.Weight;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 
@@ -39,6 +40,11 @@ public class FetchScorePhase implements FetchSubPhase {
                     throw new IllegalStateException("Can't compute score on document as it doesn't match the query");
                 }
                 scorer = scorerSupplier.get(1L); // random-access
+            }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return StoredFieldsSpec.NO_REQUIREMENTS;
             }
 
             @Override

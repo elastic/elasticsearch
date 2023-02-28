@@ -8,16 +8,13 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 
 import java.io.IOException;
-
-import static org.hamcrest.Matchers.equalTo;
+import java.time.Instant;
 
 public class TransformTests extends AbstractSerializingTransformTestCase<TransformTaskParams> {
 
@@ -31,30 +28,19 @@ public class TransformTests extends AbstractSerializingTransformTestCase<Transfo
         return new TransformTaskParams(
             randomAlphaOfLength(10),
             randomBoolean() ? null : Version.CURRENT,
+            randomBoolean() ? Instant.ofEpochMilli(randomLongBetween(0, 1_000_000_000_000L)) : null,
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
             randomBoolean()
         );
     }
 
     @Override
-    protected Reader<TransformTaskParams> instanceReader() {
-        return TransformTaskParams::new;
+    protected TransformTaskParams mutateInstance(TransformTaskParams instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
-    public void testBackwardsSerialization() throws IOException {
-        for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
-            TransformTaskParams transformTask = createTestInstance();
-            try (BytesStreamOutput output = new BytesStreamOutput()) {
-                output.setVersion(Version.V_7_2_0);
-                transformTask.writeTo(output);
-                try (StreamInput in = output.bytes().streamInput()) {
-                    in.setVersion(Version.V_7_2_0);
-                    // Since the old version does not have the version serialized, the version NOW is 7.2.0
-                    TransformTaskParams streamedTask = new TransformTaskParams(in);
-                    assertThat(streamedTask.getVersion(), equalTo(Version.V_7_2_0));
-                    assertThat(streamedTask.getId(), equalTo(transformTask.getId()));
-                }
-            }
-        }
+    @Override
+    protected Reader<TransformTaskParams> instanceReader() {
+        return TransformTaskParams::new;
     }
 }

@@ -1,6 +1,0 @@
-pr: 89351
-summary: Fix shard splitting for `nested`
-area: Indices APIs
-type: bug
-issues:
- - 88109

@@ -92,7 +92,7 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
             new ModelSizeStats.Builder(jobId).setTimestamp(new Date()).setLogTime(new Date()).setModelBytes(10000000).build(),
             () -> false
         );
-        jobResultsPersister.commitResultWrites(jobId);
+        jobResultsPersister.commitWrites(jobId, JobResultsPersister.CommitType.RESULTS);
 
         ElasticsearchStatusException iae = expectThrows(
             ElasticsearchStatusException.class,

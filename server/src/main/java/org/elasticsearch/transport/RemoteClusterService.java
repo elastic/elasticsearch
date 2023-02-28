@@ -10,9 +10,10 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
@@ -53,7 +54,7 @@ import static org.elasticsearch.common.settings.Setting.timeSetting;
  */
 public final class RemoteClusterService extends RemoteClusterAware implements Closeable {
 
-    private final Logger logger = LogManager.getLogger(RemoteClusterService.class);
+    private static final Logger logger = LogManager.getLogger(RemoteClusterService.class);
 
     /**
      * The initial connect timeout for remote cluster connections
@@ -119,6 +120,14 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         )
     );
 
+    public static final Setting.AffixSetting<String> REMOTE_CLUSTER_AUTHORIZATION = Setting.affixKeySetting(
+        "cluster.remote.",
+        "authorization",
+        key -> Setting.simpleString(key, v -> {}, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Filtered)
+    );
+
+    public static final String REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME = "cluster:internal/remote_cluster/handshake";
+
     private final boolean enabled;
 
     public boolean isEnabled() {
@@ -132,6 +141,10 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         super(settings);
         this.enabled = DiscoveryNode.isRemoteClusterClient(settings);
         this.transportService = transportService;
+
+        if (RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.get(settings)) {
+            registerRemoteClusterHandshakeRequestHandler(transportService);
+        }
     }
 
     public DiscoveryNode getLocalNode() {
@@ -326,14 +339,14 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      */
     void initializeRemoteClusters() {
         final TimeValue timeValue = REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
-        final PlainActionFuture<Collection<Void>> future = new PlainActionFuture<>();
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
         Set<String> enabledClusters = RemoteClusterAware.getEnabledRemoteClusters(settings);
 
         if (enabledClusters.isEmpty()) {
             return;
         }
 
-        GroupedActionListener<Void> listener = new GroupedActionListener<>(future, enabledClusters.size());
+        CountDownActionListener listener = new CountDownActionListener(enabledClusters.size(), future);
         for (String clusterAlias : enabledClusters) {
             updateRemoteCluster(clusterAlias, settings, listener);
         }
@@ -442,6 +455,36 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     Collection<RemoteClusterConnection> getConnections() {
         return remoteClusters.values();
+    }
+
+    static void registerRemoteClusterHandshakeRequestHandler(TransportService transportService) {
+        transportService.registerRequestHandler(
+            REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
+            ThreadPool.Names.SAME,
+            false,
+            false,
+            TransportService.HandshakeRequest::new,
+            (request, channel, task) -> {
+                if (false == RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE.equals(channel.getProfileName())) {
+                    throw new IllegalArgumentException(
+                        Strings.format(
+                            "remote cluster handshake action requires channel profile to be [%s], but got [%s]",
+                            RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE,
+                            channel.getProfileName()
+                        )
+                    );
+                }
+                logger.trace("handling remote cluster handshake request");
+                channel.sendResponse(
+                    new TransportService.HandshakeResponse(
+                        transportService.getLocalNode().getVersion(),
+                        Build.CURRENT.hash(),
+                        transportService.getLocalNode().withTransportAddress(transportService.boundRemoteAccessAddress().publishAddress()),
+                        transportService.clusterName
+                    )
+                );
+            }
+        );
     }
 
     private static class RemoteConnectionEnabled<T> implements Setting.Validator<T> {

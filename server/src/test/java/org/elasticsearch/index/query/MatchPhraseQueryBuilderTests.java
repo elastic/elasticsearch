@@ -18,6 +18,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -77,12 +78,12 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
             randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10)
         );
-        String contentString = """
+        String contentString = Strings.format("""
             {
                 "match_phrase" : {
                     "%s" : "%s"
                 }
-            }""".formatted(matchPhraseQuery.fieldName(), matchPhraseQuery.value());
+            }""", matchPhraseQuery.fieldName(), matchPhraseQuery.value());
         alternateVersions.put(contentString, matchPhraseQuery);
         return alternateVersions;
     }

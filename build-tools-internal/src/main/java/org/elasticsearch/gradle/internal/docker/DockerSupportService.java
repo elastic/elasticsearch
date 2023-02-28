@@ -48,7 +48,10 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
     private static final Logger LOGGER = Logging.getLogger(DockerSupportService.class);
     // Defines the possible locations of the Docker CLI. These will be searched in order.
     private static final String[] DOCKER_BINARIES = { "/usr/bin/docker", "/usr/local/bin/docker" };
-    private static final String[] DOCKER_COMPOSE_BINARIES = { "/usr/local/bin/docker-compose", "/usr/bin/docker-compose" };
+    private static final String[] DOCKER_COMPOSE_BINARIES = {
+        "/usr/local/bin/docker-compose",
+        "/usr/bin/docker-compose",
+        "/usr/libexec/docker/cli-plugins/docker-compose" };
     private static final Version MINIMUM_DOCKER_VERSION = Version.fromString("17.05.0");
 
     private final ExecOperations execOperations;
@@ -67,6 +70,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
     public DockerAvailability getDockerAvailability() {
         if (this.dockerAvailability == null) {
             String dockerPath = null;
+            String dockerComposePath = null;
             Result lastResult = null;
             Version version = null;
             boolean isVersionHighEnough = false;
@@ -98,6 +102,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
                         Optional<String> composePath = getDockerComposePath();
                         if (lastResult.isSuccess() && composePath.isPresent()) {
                             isComposeAvailable = runCommand(composePath.get(), "version").isSuccess();
+                            dockerComposePath = composePath.get();
                         }
 
                         // Now let's check if buildx is available and what supported platforms exist
@@ -129,6 +134,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
                 isComposeAvailable,
                 isVersionHighEnough,
                 dockerPath,
+                dockerComposePath,
                 version,
                 lastResult,
                 supportedArchitectures
@@ -356,6 +362,9 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
 
         // The path to the Docker CLI, or null
         String path,
+
+        // The path to the Docker Compose CLI, or null
+        String dockerComposePath,
 
         // The installed Docker version, or null
         Version version,

@@ -8,14 +8,14 @@
 package org.elasticsearch.xpack.core.ml.inference.assignment;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.is;
 
-public class RoutingInfoTests extends AbstractSerializingTestCase<RoutingInfo> {
+public class RoutingInfoTests extends AbstractXContentSerializingTestCase<RoutingInfo> {
 
     @Override
     protected RoutingInfo doParseInstance(XContentParser parser) throws IOException {
@@ -30,6 +30,11 @@ public class RoutingInfoTests extends AbstractSerializingTestCase<RoutingInfo> {
     @Override
     protected RoutingInfo createTestInstance() {
         return randomInstance();
+    }
+
+    @Override
+    protected RoutingInfo mutateInstance(RoutingInfo instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public static RoutingInfo randomInstance() {

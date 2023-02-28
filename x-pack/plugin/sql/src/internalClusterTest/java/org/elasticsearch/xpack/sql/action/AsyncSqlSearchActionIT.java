@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.get.GetResponse;
@@ -304,10 +304,10 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
             if (doc.isExists()) {
                 String value = doc.getSource().get("result").toString();
                 try (ByteBufferStreamInput buf = new ByteBufferStreamInput(ByteBuffer.wrap(Base64.getDecoder().decode(value)))) {
-                    final Version version = Version.readVersion(buf);
+                    TransportVersion version = TransportVersion.readVersion(buf);
                     final InputStream compressedIn = CompressorFactory.COMPRESSOR.threadLocalInputStream(buf);
                     try (StreamInput in = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(compressedIn), registry)) {
-                        in.setVersion(version);
+                        in.setTransportVersion(version);
                         return new StoredAsyncResponse<>(SqlQueryResponse::new, in);
                     }
                 }

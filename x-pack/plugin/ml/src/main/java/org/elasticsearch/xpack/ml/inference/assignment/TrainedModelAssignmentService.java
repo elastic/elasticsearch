@@ -18,7 +18,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -60,11 +59,10 @@ public class TrainedModelAssignmentService {
     ) {
         ClusterState currentState = clusterService.state();
         ClusterStateObserver observer = new ClusterStateObserver(currentState, clusterService, null, logger, threadPool.getThreadContext());
-        Predicate<ClusterState> changePredicate = MasterNodeChangePredicate.build(currentState);
         DiscoveryNode masterNode = currentState.nodes().getMasterNode();
         if (masterNode == null) {
             logger.warn("[{}] no master known for assignment update [{}]", request.getModelId(), request.getUpdate());
-            waitForNewMasterAndRetry(observer, UpdateTrainedModelAssignmentRoutingInfoAction.INSTANCE, request, listener, changePredicate);
+            waitForNewMasterAndRetry(observer, UpdateTrainedModelAssignmentRoutingInfoAction.INSTANCE, request, listener);
             return;
         }
         client.execute(
@@ -77,13 +75,7 @@ public class TrainedModelAssignmentService {
                         request.getModelId(),
                         request.getUpdate()
                     );
-                    waitForNewMasterAndRetry(
-                        observer,
-                        UpdateTrainedModelAssignmentRoutingInfoAction.INSTANCE,
-                        request,
-                        listener,
-                        changePredicate
-                    );
+                    waitForNewMasterAndRetry(observer, UpdateTrainedModelAssignmentRoutingInfoAction.INSTANCE, request, listener);
                     return;
                 }
                 listener.onFailure(failure);
@@ -143,8 +135,7 @@ public class TrainedModelAssignmentService {
         ClusterStateObserver observer,
         ActionType<AcknowledgedResponse> action,
         ActionRequest request,
-        ActionListener<AcknowledgedResponse> listener,
-        Predicate<ClusterState> changePredicate
+        ActionListener<AcknowledgedResponse> listener
     ) {
         observer.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
@@ -163,7 +154,7 @@ public class TrainedModelAssignmentService {
                 // we wait indefinitely for a new master
                 assert false;
             }
-        }, changePredicate);
+        }, ClusterStateObserver.NON_NULL_MASTER_PREDICATE);
     }
 
     private static final Class<?>[] MASTER_CHANNEL_EXCEPTIONS = new Class<?>[] {

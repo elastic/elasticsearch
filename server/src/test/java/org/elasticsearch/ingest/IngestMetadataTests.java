@@ -13,6 +13,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -46,7 +48,7 @@ public class IngestMetadataTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         builder.prettyPrint();
         builder.startObject();
-        ingestMetadata.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        ChunkedToXContent.wrapAsToXContent(ingestMetadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         XContentBuilder shuffled = shuffleXContent(builder);
         try (XContentParser parser = createParser(shuffled)) {
@@ -119,6 +121,20 @@ public class IngestMetadataTests extends ESTestCase {
         assertThat(
             endResult.getPipelines().get("2"),
             equalTo(new PipelineConfiguration("2", new BytesArray("{\"key\" : \"value\"}"), XContentType.JSON))
+        );
+    }
+
+    public void testChunkedToXContent() {
+        final BytesReference pipelineConfig = new BytesArray("{}");
+        final int pipelines = randomInt(10);
+        final Map<String, PipelineConfiguration> pipelineConfigurations = new HashMap<>();
+        for (int i = 0; i < pipelines; i++) {
+            final String id = Integer.toString(i);
+            pipelineConfigurations.put(id, new PipelineConfiguration(id, pipelineConfig, XContentType.JSON));
+        }
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            new IngestMetadata(pipelineConfigurations),
+            response -> 2 + response.getPipelines().size()
         );
     }
 }

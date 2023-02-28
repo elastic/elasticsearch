@@ -7,7 +7,7 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -205,11 +205,11 @@ public class LicenseTests extends ESTestCase {
             final License license1 = randomLicense(type).signature(signature).version(version).build();
 
             final BytesStreamOutput out = new BytesStreamOutput();
-            out.setVersion(Version.CURRENT);
+            out.setTransportVersion(TransportVersion.CURRENT);
             license1.writeTo(out);
 
             final StreamInput in = out.bytes().streamInput();
-            in.setVersion(Version.CURRENT);
+            in.setTransportVersion(TransportVersion.CURRENT);
             final License license2 = License.readLicense(in);
             assertThat(in.read(), Matchers.equalTo(-1));
 
@@ -252,7 +252,7 @@ public class LicenseTests extends ESTestCase {
 
     public void testMalformedSignatureFromXContent() throws Exception {
 
-        String licenseString = """
+        String licenseString = Strings.format("""
             {
               "license": {
                 "uid": "4056779d-b823-4c12-a9cb-efa4a8d8c422",
@@ -264,7 +264,7 @@ public class LicenseTests extends ESTestCase {
                 "issuer": "elasticsearch",
                 "signature": "%s"
               }
-            }""".formatted(randomAlphaOfLength(10));
+            }""", randomAlphaOfLength(10));
         ElasticsearchException exception = expectThrows(
             ElasticsearchException.class,
             () -> { License.fromSource(new BytesArray(licenseString.getBytes(StandardCharsets.UTF_8)), XContentType.JSON); }

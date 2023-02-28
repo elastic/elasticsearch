@@ -15,7 +15,9 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.IndexWriteLoad;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -132,166 +134,209 @@ public class ClusterStateTests extends ESTestCase {
         IndexRoutingTable index = clusterState.getRoutingTable().getIndicesRouting().get("index");
 
         String ephemeralId = clusterState.getNodes().get("nodeId1").getEphemeralId();
-        String allocationId = index.shard(0).getAllAllocationIds().iterator().next();
+        String allocationId = index.shard(0).getPromotableAllocationIds().iterator().next();
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        clusterState.toXContent(builder, new ToXContent.MapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API)));
+        writeChunks(
+            clusterState,
+            builder,
+            new ToXContent.MapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API)),
+            34
+        );
         builder.endObject();
 
-        assertEquals(XContentHelper.stripWhitespace("""
-            {
-              "cluster_uuid": "clusterUUID",
-              "version": 0,
-              "state_uuid": "stateUUID",
-              "master_node": "nodeId1",
-              "blocks": {
-                "global": {
-                  "1": {
-                    "description": "description",
-                    "retryable": true,
-                    "disable_state_persistence": true,
-                    "levels": [
-                      "read",
-                      "write",
-                      "metadata_read",
-                      "metadata_write"
-                    ]
-                  }
-                },
-                "indices": {
-                  "index": {
-                    "2": {
-                      "description": "description2",
-                      "retryable": false,
-                      "levels": [
-                        "read",
-                        "write",
-                        "metadata_read",
-                        "metadata_write"
-                      ]
-                    }
-                  }
-                }
-              },
-              "nodes": {
-                "nodeId1": {
-                  "name": "",
-                  "ephemeral_id": "%s",
-                  "transport_address": "127.0.0.1:111",
-                  "external_id": "",
-                  "attributes": {},
-                  "roles": [
-                    "data",
-                    "data_cold",
-                    "data_content",
-                    "data_frozen",
-                    "data_hot",
-                    "data_warm",
-                    "ingest",
-                    "master",
-                    "ml",
-                    "remote_cluster_client",
-                    "transform",
-                    "voting_only"
-                  ]
-                }
-              },
-              "metadata": {
-                "cluster_uuid": "clusterUUID",
-                "cluster_uuid_committed": false,
-                "cluster_coordination": {
-                  "term": 1,
-                  "last_committed_config": [
-                    "commitedConfigurationNodeId"
-                  ],
-                  "last_accepted_config": [
-                    "acceptedConfigurationNodeId"
-                  ],
-                  "voting_config_exclusions": [
-                    {
-                      "node_id": "exlucdedNodeId",
-                      "node_name": "excludedNodeName"
-                    }
-                  ]
-                },
-                "templates": {
-                  "template": {
-                    "order": 0,
-                    "index_patterns": [
-                      "pattern1",
-                      "pattern2"
-                    ],
-                    "settings": {
+        assertEquals(
+            XContentHelper.stripWhitespace(Strings.format("""
+                {
+                  "cluster_uuid": "clusterUUID",
+                  "version": 0,
+                  "state_uuid": "stateUUID",
+                  "master_node": "nodeId1",
+                  "blocks": {
+                    "global": {
+                      "1": {
+                        "description": "description",
+                        "retryable": true,
+                        "disable_state_persistence": true,
+                        "levels": [
+                          "read",
+                          "write",
+                          "metadata_read",
+                          "metadata_write"
+                        ]
+                      }
+                    },
+                    "indices": {
                       "index": {
-                        "version": {
-                          "created": "%s"
+                        "2": {
+                          "description": "description2",
+                          "retryable": false,
+                          "levels": [
+                            "read",
+                            "write",
+                            "metadata_read",
+                            "metadata_write"
+                          ]
                         }
                       }
-                    },
-                    "mappings": {
-                      "key1": {}
-                    },
-                    "aliases": {}
-                  }
-                },
-                "indices": {
-                  "index": {
-                    "version": 1,
-                    "mapping_version": 1,
-                    "settings_version": 1,
-                    "aliases_version": 1,
-                    "routing_num_shards": 1,
-                    "state": "open",
-                    "settings": {
-                      "index": {
-                        "number_of_shards": "1",
-                        "number_of_replicas": "2",
-                        "version": {
-                          "created": "%s"
+                    }
+                  },
+                  "nodes": {
+                    "nodeId1": {
+                      "name": "",
+                      "ephemeral_id": "%s",
+                      "transport_address": "127.0.0.1:111",
+                      "external_id": "",
+                      "attributes": {},
+                      "roles": [
+                        "data",
+                        "data_cold",
+                        "data_content",
+                        "data_frozen",
+                        "data_hot",
+                        "data_warm",
+                        "index",
+                        "ingest",
+                        "master",
+                        "ml",
+                        "remote_cluster_client",
+                        "search",
+                        "transform",
+                        "voting_only"
+                      ],
+                      "version": "%s"
+                    }
+                  },
+                  "metadata": {
+                    "cluster_uuid": "clusterUUID",
+                    "cluster_uuid_committed": false,
+                    "cluster_coordination": {
+                      "term": 1,
+                      "last_committed_config": [
+                        "commitedConfigurationNodeId"
+                      ],
+                      "last_accepted_config": [
+                        "acceptedConfigurationNodeId"
+                      ],
+                      "voting_config_exclusions": [
+                        {
+                          "node_id": "exlucdedNodeId",
+                          "node_name": "excludedNodeName"
                         }
-                      }
-                    },
-                    "mappings": {
-                      "type": {
-                        "type1": {
-                          "key": "value"
-                        }
-                      }
-                    },
-                    "aliases": [
-                      "alias"
-                    ],
-                    "primary_terms": {
-                      "0": 1
-                    },
-                    "in_sync_allocations": {
-                      "0": [
-                        "allocationId"
                       ]
                     },
-                    "rollover_info": {
-                      "rolloveAlias": {
-                        "met_conditions": {},
-                        "time": 1
+                    "templates": {
+                      "template": {
+                        "order": 0,
+                        "index_patterns": [
+                          "pattern1",
+                          "pattern2"
+                        ],
+                        "settings": {
+                          "index": {
+                            "version": {
+                              "created": "%s"
+                            }
+                          }
+                        },
+                        "mappings": {
+                          "key1": {}
+                        },
+                        "aliases": {}
                       }
                     },
-                    "system": false,
-                    "timestamp_range": {
-                      "shards": []
+                    "indices": {
+                      "index": {
+                        "version": 1,
+                        "mapping_version": 1,
+                        "settings_version": 1,
+                        "aliases_version": 1,
+                        "routing_num_shards": 1,
+                        "state": "open",
+                        "settings": {
+                          "index": {
+                            "number_of_shards": "1",
+                            "number_of_replicas": "2",
+                            "version": {
+                              "created": "%s"
+                            }
+                          }
+                        },
+                        "mappings": {
+                          "type": {
+                            "type1": {
+                              "key": "value"
+                            }
+                          }
+                        },
+                        "aliases": [
+                          "alias"
+                        ],
+                        "primary_terms": {
+                          "0": 1
+                        },
+                        "in_sync_allocations": {
+                          "0": [
+                            "allocationId"
+                          ]
+                        },
+                        "rollover_info": {
+                          "rolloveAlias": {
+                            "met_conditions": {},
+                            "time": 1
+                          }
+                        },
+                        "system": false,
+                        "timestamp_range": {
+                          "shards": []
+                        },
+                        "stats": {
+                            "write_load": {
+                              "loads": [-1.0],
+                              "uptimes": [-1]
+                            },
+                            "avg_size": {
+                                "total_size_in_bytes": 120,
+                                "shard_count": 1
+                            }
+                        },
+                        "write_load_forecast" : 8.0
+                      }
+                    },
+                    "index-graveyard": {
+                      "tombstones": []
+                    },
+                    "reserved_state" : { }
+                  },
+                  "routing_table": {
+                    "indices": {
+                      "index": {
+                        "shards": {
+                          "0": [
+                            {
+                              "state": "STARTED",
+                              "primary": true,
+                              "node": "nodeId2",
+                              "relocating_node": null,
+                              "shard": 0,
+                              "index": "index",
+                              "allocation_id": {
+                                "id": "%s"
+                              },
+                              "relocation_failure_info" : {
+                                "failed_attempts" : 0
+                              }
+                            }
+                          ]
+                        }
+                      }
                     }
-                  }
-                },
-                "index-graveyard": {
-                  "tombstones": []
-                },
-                "reserved_state" : { }
-              },
-              "routing_table": {
-                "indices": {
-                  "index": {
-                    "shards": {
-                      "0": [
+                  },
+                  "routing_nodes": {
+                    "unassigned": [],
+                    "nodes": {
+                      "nodeId2": [
                         {
                           "state": "STARTED",
                           "primary": true,
@@ -301,33 +346,18 @@ public class ClusterStateTests extends ESTestCase {
                           "index": "index",
                           "allocation_id": {
                             "id": "%s"
+                          },
+                          "relocation_failure_info" : {
+                            "failed_attempts" : 0
                           }
                         }
-                      ]
+                      ],
+                      "nodeId1": []
                     }
                   }
-                }
-              },
-              "routing_nodes": {
-                "unassigned": [],
-                "nodes": {
-                  "nodeId2": [
-                    {
-                      "state": "STARTED",
-                      "primary": true,
-                      "node": "nodeId2",
-                      "relocating_node": null,
-                      "shard": 0,
-                      "index": "index",
-                      "allocation_id": {
-                        "id": "%s"
-                      }
-                    }
-                  ],
-                  "nodeId1": []
-                }
-              }
-            }""".formatted(ephemeralId, Version.CURRENT.id, Version.CURRENT.id, allocationId, allocationId)), Strings.toString(builder));
+                }""", ephemeralId, Version.CURRENT, Version.CURRENT.id, Version.CURRENT.id, allocationId, allocationId)),
+            Strings.toString(builder)
+        );
 
     }
 
@@ -344,158 +374,200 @@ public class ClusterStateTests extends ESTestCase {
         IndexRoutingTable index = clusterState.getRoutingTable().getIndicesRouting().get("index");
 
         String ephemeralId = clusterState.getNodes().get("nodeId1").getEphemeralId();
-        String allocationId = index.shard(0).getAllAllocationIds().iterator().next();
+        String allocationId = index.shard(0).getPromotableAllocationIds().iterator().next();
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        clusterState.toXContent(builder, new ToXContent.MapParams(mapParams));
+        writeChunks(clusterState, builder, new ToXContent.MapParams(mapParams), 34);
         builder.endObject();
 
-        assertEquals("""
-            {
-              "cluster_uuid" : "clusterUUID",
-              "version" : 0,
-              "state_uuid" : "stateUUID",
-              "master_node" : "nodeId1",
-              "blocks" : {
-                "global" : {
-                  "1" : {
-                    "description" : "description",
-                    "retryable" : true,
-                    "disable_state_persistence" : true,
-                    "levels" : [
-                      "read",
-                      "write",
-                      "metadata_read",
-                      "metadata_write"
-                    ]
-                  }
-                },
-                "indices" : {
-                  "index" : {
-                    "2" : {
-                      "description" : "description2",
-                      "retryable" : false,
-                      "levels" : [
-                        "read",
-                        "write",
-                        "metadata_read",
-                        "metadata_write"
-                      ]
-                    }
-                  }
-                }
-              },
-              "nodes" : {
-                "nodeId1" : {
-                  "name" : "",
-                  "ephemeral_id" : "%s",
-                  "transport_address" : "127.0.0.1:111",
-                  "external_id" : "",
-                  "attributes" : { },
-                  "roles" : [
-                    "data",
-                    "data_cold",
-                    "data_content",
-                    "data_frozen",
-                    "data_hot",
-                    "data_warm",
-                    "ingest",
-                    "master",
-                    "ml",
-                    "remote_cluster_client",
-                    "transform",
-                    "voting_only"
-                  ]
-                }
-              },
-              "metadata" : {
-                "cluster_uuid" : "clusterUUID",
-                "cluster_uuid_committed" : false,
-                "cluster_coordination" : {
-                  "term" : 1,
-                  "last_committed_config" : [
-                    "commitedConfigurationNodeId"
-                  ],
-                  "last_accepted_config" : [
-                    "acceptedConfigurationNodeId"
-                  ],
-                  "voting_config_exclusions" : [
-                    {
-                      "node_id" : "exlucdedNodeId",
-                      "node_name" : "excludedNodeName"
-                    }
-                  ]
-                },
-                "templates" : {
-                  "template" : {
-                    "order" : 0,
-                    "index_patterns" : [
-                      "pattern1",
-                      "pattern2"
-                    ],
-                    "settings" : {
-                      "index.version.created" : "%s"
+        assertEquals(
+            Strings.format("""
+                {
+                  "cluster_uuid" : "clusterUUID",
+                  "version" : 0,
+                  "state_uuid" : "stateUUID",
+                  "master_node" : "nodeId1",
+                  "blocks" : {
+                    "global" : {
+                      "1" : {
+                        "description" : "description",
+                        "retryable" : true,
+                        "disable_state_persistence" : true,
+                        "levels" : [
+                          "read",
+                          "write",
+                          "metadata_read",
+                          "metadata_write"
+                        ]
+                      }
                     },
-                    "mappings" : {
-                      "key1" : { }
-                    },
-                    "aliases" : { }
-                  }
-                },
-                "indices" : {
-                  "index" : {
-                    "version" : 1,
-                    "mapping_version" : 1,
-                    "settings_version" : 1,
-                    "aliases_version" : 1,
-                    "routing_num_shards" : 1,
-                    "state" : "open",
-                    "settings" : {
-                      "index.number_of_replicas" : "2",
-                      "index.number_of_shards" : "1",
-                      "index.version.created" : "%s"
-                    },
-                    "mappings" : {
-                      "type" : {
-                        "type1" : {
-                          "key" : "value"
+                    "indices" : {
+                      "index" : {
+                        "2" : {
+                          "description" : "description2",
+                          "retryable" : false,
+                          "levels" : [
+                            "read",
+                            "write",
+                            "metadata_read",
+                            "metadata_write"
+                          ]
                         }
                       }
-                    },
-                    "aliases" : [
-                      "alias"
-                    ],
-                    "primary_terms" : {
-                      "0" : 1
-                    },
-                    "in_sync_allocations" : {
-                      "0" : [
-                        "allocationId"
+                    }
+                  },
+                  "nodes" : {
+                    "nodeId1" : {
+                      "name" : "",
+                      "ephemeral_id" : "%s",
+                      "transport_address" : "127.0.0.1:111",
+                      "external_id" : "",
+                      "attributes" : { },
+                      "roles" : [
+                        "data",
+                        "data_cold",
+                        "data_content",
+                        "data_frozen",
+                        "data_hot",
+                        "data_warm",
+                        "index",
+                        "ingest",
+                        "master",
+                        "ml",
+                        "remote_cluster_client",
+                        "search",
+                        "transform",
+                        "voting_only"
+                      ],
+                      "version" : "%s"
+                    }
+                  },
+                  "metadata" : {
+                    "cluster_uuid" : "clusterUUID",
+                    "cluster_uuid_committed" : false,
+                    "cluster_coordination" : {
+                      "term" : 1,
+                      "last_committed_config" : [
+                        "commitedConfigurationNodeId"
+                      ],
+                      "last_accepted_config" : [
+                        "acceptedConfigurationNodeId"
+                      ],
+                      "voting_config_exclusions" : [
+                        {
+                          "node_id" : "exlucdedNodeId",
+                          "node_name" : "excludedNodeName"
+                        }
                       ]
                     },
-                    "rollover_info" : {
-                      "rolloveAlias" : {
-                        "met_conditions" : { },
-                        "time" : 1
+                    "templates" : {
+                      "template" : {
+                        "order" : 0,
+                        "index_patterns" : [
+                          "pattern1",
+                          "pattern2"
+                        ],
+                        "settings" : {
+                          "index.version.created" : "%s"
+                        },
+                        "mappings" : {
+                          "key1" : { }
+                        },
+                        "aliases" : { }
                       }
                     },
-                    "system" : false,
-                    "timestamp_range" : {
-                      "shards" : [ ]
+                    "indices" : {
+                      "index" : {
+                        "version" : 1,
+                        "mapping_version" : 1,
+                        "settings_version" : 1,
+                        "aliases_version" : 1,
+                        "routing_num_shards" : 1,
+                        "state" : "open",
+                        "settings" : {
+                          "index.number_of_replicas" : "2",
+                          "index.number_of_shards" : "1",
+                          "index.version.created" : "%s"
+                        },
+                        "mappings" : {
+                          "type" : {
+                            "type1" : {
+                              "key" : "value"
+                            }
+                          }
+                        },
+                        "aliases" : [
+                          "alias"
+                        ],
+                        "primary_terms" : {
+                          "0" : 1
+                        },
+                        "in_sync_allocations" : {
+                          "0" : [
+                            "allocationId"
+                          ]
+                        },
+                        "rollover_info" : {
+                          "rolloveAlias" : {
+                            "met_conditions" : { },
+                            "time" : 1
+                          }
+                        },
+                        "system" : false,
+                        "timestamp_range" : {
+                          "shards" : [ ]
+                        },
+                        "stats" : {
+                          "write_load" : {
+                            "loads" : [
+                              -1.0
+                            ],
+                            "uptimes" : [
+                              -1
+                            ]
+                          },
+                          "avg_size" : {
+                            "total_size_in_bytes" : 120,
+                            "shard_count" : 1
+                          }
+                        },
+                        "write_load_forecast" : 8.0
+                      }
+                    },
+                    "index-graveyard" : {
+                      "tombstones" : [ ]
+                    },
+                    "reserved_state" : { }
+                  },
+                  "routing_table" : {
+                    "indices" : {
+                      "index" : {
+                        "shards" : {
+                          "0" : [
+                            {
+                              "state" : "STARTED",
+                              "primary" : true,
+                              "node" : "nodeId2",
+                              "relocating_node" : null,
+                              "shard" : 0,
+                              "index" : "index",
+                              "allocation_id" : {
+                                "id" : "%s"
+                              },
+                              "relocation_failure_info" : {
+                                "failed_attempts" : 0
+                              }
+                            }
+                          ]
+                        }
+                      }
                     }
-                  }
-                },
-                "index-graveyard" : {
-                  "tombstones" : [ ]
-                },
-                "reserved_state" : { }
-              },
-              "routing_table" : {
-                "indices" : {
-                  "index" : {
-                    "shards" : {
-                      "0" : [
+                  },
+                  "routing_nodes" : {
+                    "unassigned" : [ ],
+                    "nodes" : {
+                      "nodeId2" : [
                         {
                           "state" : "STARTED",
                           "primary" : true,
@@ -505,33 +577,18 @@ public class ClusterStateTests extends ESTestCase {
                           "index" : "index",
                           "allocation_id" : {
                             "id" : "%s"
+                          },
+                          "relocation_failure_info" : {
+                            "failed_attempts" : 0
                           }
                         }
-                      ]
+                      ],
+                      "nodeId1" : [ ]
                     }
                   }
-                }
-              },
-              "routing_nodes" : {
-                "unassigned" : [ ],
-                "nodes" : {
-                  "nodeId2" : [
-                    {
-                      "state" : "STARTED",
-                      "primary" : true,
-                      "node" : "nodeId2",
-                      "relocating_node" : null,
-                      "shard" : 0,
-                      "index" : "index",
-                      "allocation_id" : {
-                        "id" : "%s"
-                      }
-                    }
-                  ],
-                  "nodeId1" : [ ]
-                }
-              }
-            }""".formatted(ephemeralId, Version.CURRENT.id, Version.CURRENT.id, allocationId, allocationId), Strings.toString(builder));
+                }""", ephemeralId, Version.CURRENT, Version.CURRENT.id, Version.CURRENT.id, allocationId, allocationId),
+            Strings.toString(builder)
+        );
 
     }
 
@@ -549,164 +606,206 @@ public class ClusterStateTests extends ESTestCase {
         IndexRoutingTable index = clusterState.getRoutingTable().getIndicesRouting().get("index");
 
         String ephemeralId = clusterState.getNodes().get("nodeId1").getEphemeralId();
-        String allocationId = index.shard(0).getAllAllocationIds().iterator().next();
+        String allocationId = index.shard(0).getPromotableAllocationIds().iterator().next();
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        clusterState.toXContent(builder, new ToXContent.MapParams(mapParams));
+        writeChunks(clusterState, builder, new ToXContent.MapParams(mapParams), 34);
         builder.endObject();
 
-        assertEquals("""
-            {
-              "cluster_uuid" : "clusterUUID",
-              "version" : 0,
-              "state_uuid" : "stateUUID",
-              "master_node" : "nodeId1",
-              "blocks" : {
-                "global" : {
-                  "1" : {
-                    "description" : "description",
-                    "retryable" : true,
-                    "disable_state_persistence" : true,
-                    "levels" : [
-                      "read",
-                      "write",
-                      "metadata_read",
-                      "metadata_write"
-                    ]
-                  }
-                },
-                "indices" : {
-                  "index" : {
-                    "2" : {
-                      "description" : "description2",
-                      "retryable" : false,
-                      "levels" : [
-                        "read",
-                        "write",
-                        "metadata_read",
-                        "metadata_write"
-                      ]
-                    }
-                  }
-                }
-              },
-              "nodes" : {
-                "nodeId1" : {
-                  "name" : "",
-                  "ephemeral_id" : "%s",
-                  "transport_address" : "127.0.0.1:111",
-                  "external_id" : "",
-                  "attributes" : { },
-                  "roles" : [
-                    "data",
-                    "data_cold",
-                    "data_content",
-                    "data_frozen",
-                    "data_hot",
-                    "data_warm",
-                    "ingest",
-                    "master",
-                    "ml",
-                    "remote_cluster_client",
-                    "transform",
-                    "voting_only"
-                  ]
-                }
-              },
-              "metadata" : {
-                "cluster_uuid" : "clusterUUID",
-                "cluster_uuid_committed" : false,
-                "cluster_coordination" : {
-                  "term" : 1,
-                  "last_committed_config" : [
-                    "commitedConfigurationNodeId"
-                  ],
-                  "last_accepted_config" : [
-                    "acceptedConfigurationNodeId"
-                  ],
-                  "voting_config_exclusions" : [
-                    {
-                      "node_id" : "exlucdedNodeId",
-                      "node_name" : "excludedNodeName"
-                    }
-                  ]
-                },
-                "templates" : {
-                  "template" : {
-                    "order" : 0,
-                    "index_patterns" : [
-                      "pattern1",
-                      "pattern2"
-                    ],
-                    "settings" : {
+        assertEquals(
+            Strings.format("""
+                {
+                  "cluster_uuid" : "clusterUUID",
+                  "version" : 0,
+                  "state_uuid" : "stateUUID",
+                  "master_node" : "nodeId1",
+                  "blocks" : {
+                    "global" : {
+                      "1" : {
+                        "description" : "description",
+                        "retryable" : true,
+                        "disable_state_persistence" : true,
+                        "levels" : [
+                          "read",
+                          "write",
+                          "metadata_read",
+                          "metadata_write"
+                        ]
+                      }
+                    },
+                    "indices" : {
                       "index" : {
-                        "version" : {
-                          "created" : "%s"
+                        "2" : {
+                          "description" : "description2",
+                          "retryable" : false,
+                          "levels" : [
+                            "read",
+                            "write",
+                            "metadata_read",
+                            "metadata_write"
+                          ]
                         }
                       }
-                    },
-                    "mappings" : { },
-                    "aliases" : { }
-                  }
-                },
-                "indices" : {
-                  "index" : {
-                    "version" : 1,
-                    "mapping_version" : 1,
-                    "settings_version" : 1,
-                    "aliases_version" : 1,
-                    "routing_num_shards" : 1,
-                    "state" : "open",
-                    "settings" : {
-                      "index" : {
-                        "number_of_shards" : "1",
-                        "number_of_replicas" : "2",
-                        "version" : {
-                          "created" : "%s"
+                    }
+                  },
+                  "nodes" : {
+                    "nodeId1" : {
+                      "name" : "",
+                      "ephemeral_id" : "%s",
+                      "transport_address" : "127.0.0.1:111",
+                      "external_id" : "",
+                      "attributes" : { },
+                      "roles" : [
+                        "data",
+                        "data_cold",
+                        "data_content",
+                        "data_frozen",
+                        "data_hot",
+                        "data_warm",
+                        "index",
+                        "ingest",
+                        "master",
+                        "ml",
+                        "remote_cluster_client",
+                        "search",
+                        "transform",
+                        "voting_only"
+                      ],
+                      "version" : "%s"
+                    }
+                  },
+                  "metadata" : {
+                    "cluster_uuid" : "clusterUUID",
+                    "cluster_uuid_committed" : false,
+                    "cluster_coordination" : {
+                      "term" : 1,
+                      "last_committed_config" : [
+                        "commitedConfigurationNodeId"
+                      ],
+                      "last_accepted_config" : [
+                        "acceptedConfigurationNodeId"
+                      ],
+                      "voting_config_exclusions" : [
+                        {
+                          "node_id" : "exlucdedNodeId",
+                          "node_name" : "excludedNodeName"
                         }
-                      }
-                    },
-                    "mappings" : {
-                      "type" : {
-                        "type1" : {
-                          "key" : "value"
-                        }
-                      }
-                    },
-                    "aliases" : [
-                      "alias"
-                    ],
-                    "primary_terms" : {
-                      "0" : 1
-                    },
-                    "in_sync_allocations" : {
-                      "0" : [
-                        "allocationId"
                       ]
                     },
-                    "rollover_info" : {
-                      "rolloveAlias" : {
-                        "met_conditions" : { },
-                        "time" : 1
+                    "templates" : {
+                      "template" : {
+                        "order" : 0,
+                        "index_patterns" : [
+                          "pattern1",
+                          "pattern2"
+                        ],
+                        "settings" : {
+                          "index" : {
+                            "version" : {
+                              "created" : "%s"
+                            }
+                          }
+                        },
+                        "mappings" : { },
+                        "aliases" : { }
                       }
                     },
-                    "system" : false,
-                    "timestamp_range" : {
-                      "shards" : [ ]
+                    "indices" : {
+                      "index" : {
+                        "version" : 1,
+                        "mapping_version" : 1,
+                        "settings_version" : 1,
+                        "aliases_version" : 1,
+                        "routing_num_shards" : 1,
+                        "state" : "open",
+                        "settings" : {
+                          "index" : {
+                            "number_of_shards" : "1",
+                            "number_of_replicas" : "2",
+                            "version" : {
+                              "created" : "%s"
+                            }
+                          }
+                        },
+                        "mappings" : {
+                          "type" : {
+                            "type1" : {
+                              "key" : "value"
+                            }
+                          }
+                        },
+                        "aliases" : [
+                          "alias"
+                        ],
+                        "primary_terms" : {
+                          "0" : 1
+                        },
+                        "in_sync_allocations" : {
+                          "0" : [
+                            "allocationId"
+                          ]
+                        },
+                        "rollover_info" : {
+                          "rolloveAlias" : {
+                            "met_conditions" : { },
+                            "time" : 1
+                          }
+                        },
+                        "system" : false,
+                        "timestamp_range" : {
+                          "shards" : [ ]
+                        },
+                        "stats" : {
+                          "write_load" : {
+                            "loads" : [
+                              -1.0
+                            ],
+                            "uptimes" : [
+                              -1
+                            ]
+                          },
+                          "avg_size" : {
+                            "total_size_in_bytes" : 120,
+                            "shard_count" : 1
+                          }
+                        },
+                        "write_load_forecast" : 8.0
+                      }
+                    },
+                    "index-graveyard" : {
+                      "tombstones" : [ ]
+                    },
+                    "reserved_state" : { }
+                  },
+                  "routing_table" : {
+                    "indices" : {
+                      "index" : {
+                        "shards" : {
+                          "0" : [
+                            {
+                              "state" : "STARTED",
+                              "primary" : true,
+                              "node" : "nodeId2",
+                              "relocating_node" : null,
+                              "shard" : 0,
+                              "index" : "index",
+                              "allocation_id" : {
+                                "id" : "%s"
+                              },
+                              "relocation_failure_info" : {
+                                "failed_attempts" : 0
+                              }
+                            }
+                          ]
+                        }
+                      }
                     }
-                  }
-                },
-                "index-graveyard" : {
-                  "tombstones" : [ ]
-                },
-                "reserved_state" : { }
-              },
-              "routing_table" : {
-                "indices" : {
-                  "index" : {
-                    "shards" : {
-                      "0" : [
+                  },
+                  "routing_nodes" : {
+                    "unassigned" : [ ],
+                    "nodes" : {
+                      "nodeId2" : [
                         {
                           "state" : "STARTED",
                           "primary" : true,
@@ -716,33 +815,18 @@ public class ClusterStateTests extends ESTestCase {
                           "index" : "index",
                           "allocation_id" : {
                             "id" : "%s"
+                          },
+                          "relocation_failure_info" : {
+                            "failed_attempts" : 0
                           }
                         }
-                      ]
+                      ],
+                      "nodeId1" : [ ]
                     }
                   }
-                }
-              },
-              "routing_nodes" : {
-                "unassigned" : [ ],
-                "nodes" : {
-                  "nodeId2" : [
-                    {
-                      "state" : "STARTED",
-                      "primary" : true,
-                      "node" : "nodeId2",
-                      "relocating_node" : null,
-                      "shard" : 0,
-                      "index" : "index",
-                      "allocation_id" : {
-                        "id" : "%s"
-                      }
-                    }
-                  ],
-                  "nodeId1" : [ ]
-                }
-              }
-            }""".formatted(ephemeralId, Version.CURRENT.id, Version.CURRENT.id, allocationId, allocationId), Strings.toString(builder));
+                }""", ephemeralId, Version.CURRENT, Version.CURRENT.id, Version.CURRENT.id, allocationId, allocationId),
+            Strings.toString(builder)
+        );
 
     }
 
@@ -782,10 +866,10 @@ public class ClusterStateTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        clusterState.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        writeChunks(clusterState, builder, ToXContent.EMPTY_PARAMS, 25);
         builder.endObject();
 
-        assertEquals("""
+        assertEquals(Strings.format("""
             {
               "cluster_uuid" : "clusterUUID",
               "version" : 0,
@@ -851,7 +935,7 @@ public class ClusterStateTests extends ESTestCase {
                 "unassigned" : [ ],
                 "nodes" : { }
               }
-            }""".formatted(Version.CURRENT.id), Strings.toString(builder));
+            }""", Version.CURRENT.id), Strings.toString(builder));
     }
 
     private ClusterState buildClusterState() throws IOException {
@@ -877,6 +961,8 @@ public class ClusterStateTests extends ESTestCase {
             })
             .numberOfReplicas(2)
             .putRolloverInfo(new RolloverInfo("rolloveAlias", new ArrayList<>(), 1L))
+            .stats(new IndexMetadataStats(IndexWriteLoad.builder(1).build(), 120, 1))
+            .indexWriteLoadForecast(8.0)
             .build();
 
         return ClusterState.builder(ClusterName.DEFAULT)
@@ -970,5 +1056,16 @@ public class ClusterStateTests extends ESTestCase {
             .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
             .build();
         assertEquals(DiscoveryNodes.EMPTY_NODES, notRecoveredState.nodesIfRecovered());
+    }
+
+    private static void writeChunks(ClusterState clusterState, XContentBuilder builder, ToXContent.Params params, int expectedChunks)
+        throws IOException {
+        final var iterator = clusterState.toXContentChunked(params);
+        int chunks = 0;
+        while (iterator.hasNext()) {
+            iterator.next().toXContent(builder, params);
+            chunks += 1;
+        }
+        assertEquals(expectedChunks, chunks);
     }
 }

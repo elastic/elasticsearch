@@ -1,0 +1,5 @@
+pr: 92219
+summary: Configurable retention period for invalidated or expired API keys
+area: Security
+type: enhancement
+issues: []

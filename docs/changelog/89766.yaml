@@ -1,5 +1,0 @@
-pr: 89766
-summary: Remove magic string for the empty Role
-area: Authorization
-type: bug
-issues: []

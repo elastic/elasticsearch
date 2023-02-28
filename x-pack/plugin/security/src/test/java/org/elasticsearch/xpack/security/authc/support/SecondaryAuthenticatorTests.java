@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -61,9 +62,9 @@ import org.mockito.Mockito;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -104,7 +105,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         when(realms.getActiveRealms()).thenReturn(List.of(realm));
         when(realms.getUnlicensedRealms()).thenReturn(List.of());
 
-        final AuditTrailService auditTrail = new AuditTrailService(Collections.emptyList(), null);
+        final AuditTrailService auditTrail = new AuditTrailService(null, null);
         final AuthenticationFailureHandler failureHandler = new DefaultAuthenticationFailureHandler(Map.of());
         final AnonymousUser anonymous = new AnonymousUser(settings);
 
@@ -122,6 +123,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterState clusterState = ClusterState.EMPTY_STATE;
         when(clusterService.state()).thenReturn(clusterState);
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD)));
 
         securityContext = new SecurityContext(settings, threadContext);
 
@@ -246,8 +248,8 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final SecondaryAuthentication secondaryAuthentication = future.get(0, TimeUnit.MILLISECONDS);
         assertThat(secondaryAuthentication, Matchers.notNullValue());
         assertThat(secondaryAuthentication.getAuthentication(), Matchers.notNullValue());
-        assertThat(secondaryAuthentication.getAuthentication().getUser().principal(), equalTo(user));
-        assertThat(secondaryAuthentication.getAuthentication().getAuthenticatedBy().getName(), equalTo(realm.name()));
+        assertThat(secondaryAuthentication.getAuthentication().getEffectiveSubject().getUser().principal(), equalTo(user));
+        assertThat(secondaryAuthentication.getAuthentication().getAuthenticatingSubject().getRealm().getName(), equalTo(realm.name()));
 
         listenerContext.get().restore();
         return secondaryAuthentication;
@@ -326,7 +328,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final SecondaryAuthentication secondaryAuthentication = future.actionGet(0, TimeUnit.MILLISECONDS);
         assertThat(secondaryAuthentication, Matchers.notNullValue());
         assertThat(secondaryAuthentication.getAuthentication(), Matchers.notNullValue());
-        assertThat(secondaryAuthentication.getAuthentication().getUser(), equalTo(user));
+        assertThat(secondaryAuthentication.getAuthentication().getEffectiveSubject().getUser(), equalTo(user));
         assertThat(secondaryAuthentication.getAuthentication().getAuthenticationType(), equalTo(AuthenticationType.TOKEN));
     }
 

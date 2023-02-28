@@ -12,7 +12,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,8 +39,8 @@ public final class DocValueFetcher implements ValueFetcher {
     }
 
     @Override
-    public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) throws IOException {
-        if (false == formattedDocValues.advanceExact(lookup.docId())) {
+    public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) throws IOException {
+        if (false == formattedDocValues.advanceExact(doc)) {
             return emptyList();
         }
         List<Object> result = new ArrayList<>(formattedDocValues.docValueCount());

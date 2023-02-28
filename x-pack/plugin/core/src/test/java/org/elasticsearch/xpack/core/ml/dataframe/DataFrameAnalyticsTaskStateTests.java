@@ -7,16 +7,21 @@
 package org.elasticsearch.xpack.core.ml.dataframe;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class DataFrameAnalyticsTaskStateTests extends AbstractSerializingTestCase<DataFrameAnalyticsTaskState> {
+public class DataFrameAnalyticsTaskStateTests extends AbstractXContentSerializingTestCase<DataFrameAnalyticsTaskState> {
 
     @Override
     protected DataFrameAnalyticsTaskState createTestInstance() {
         return new DataFrameAnalyticsTaskState(randomFrom(DataFrameAnalyticsState.values()), randomLong(), randomAlphaOfLength(10));
+    }
+
+    @Override
+    protected DataFrameAnalyticsTaskState mutateInstance(DataFrameAnalyticsTaskState instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

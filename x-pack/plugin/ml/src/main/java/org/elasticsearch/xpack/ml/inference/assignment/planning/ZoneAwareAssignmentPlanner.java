@@ -171,17 +171,16 @@ public class ZoneAwareAssignmentPlanner {
         final Map<String, Node> originalNodeById = allNodes.stream().collect(Collectors.toMap(Node::id, Function.identity()));
         AssignmentPlan.Builder planBuilder = AssignmentPlan.builder(allNodes, models);
         for (Model m : planModels) {
-            Optional<Map<Node, Integer>> nodeAssignments = plan.assignments(m);
-            if (nodeAssignments.isPresent()) {
-                nodeAssignments.get()
-                    .entrySet()
-                    .forEach(
-                        e -> planBuilder.assignModelToNode(
-                            originalModelById.get(m.id()),
-                            originalNodeById.get(e.getKey().id()),
-                            e.getValue()
-                        )
-                    );
+            Model originalModel = originalModelById.get(m.id());
+            Map<Node, Integer> nodeAssignments = plan.assignments(m).orElse(Map.of());
+            for (Map.Entry<Node, Integer> assignment : nodeAssignments.entrySet()) {
+                Node originalNode = originalNodeById.get(assignment.getKey().id());
+                planBuilder.assignModelToNode(originalModel, originalNode, assignment.getValue());
+                if (originalModel.currentAllocationsByNodeId().containsKey(originalNode.id())) {
+                    // As the node has all its available memory we need to manually account memory of models with
+                    // current allocations.
+                    planBuilder.accountMemory(m, originalNode);
+                }
             }
         }
         return planBuilder.build();

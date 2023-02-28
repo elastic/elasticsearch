@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -43,8 +44,9 @@ import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
 public class RecoverySettings {
     public static final Version SNAPSHOT_RECOVERIES_SUPPORTED_VERSION = Version.V_7_15_0;
+    public static final TransportVersion SNAPSHOT_RECOVERIES_SUPPORTED_TRANSPORT_VERSION = TransportVersion.V_7_15_0;
     public static final Version SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION = Version.V_7_16_0;
-    public static final Version SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_VERSION = Version.V_7_16_0;
+    public static final TransportVersion SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_TRANSPORT_VERSION = TransportVersion.V_7_16_0;
 
     private static final Logger logger = LogManager.getLogger(RecoverySettings.class);
 
@@ -54,7 +56,7 @@ public class RecoverySettings {
     // package private for tests
     static final Setting<ByteSizeValue> TOTAL_PHYSICAL_MEMORY_OVERRIDING_TEST_SETTING = Setting.byteSizeSetting(
         "recovery_settings.total_physical_memory_override",
-        settings -> new ByteSizeValue(OsProbe.getInstance().getTotalPhysicalMemorySize()).getStringRep(),
+        settings -> ByteSizeValue.ofBytes(OsProbe.getInstance().getTotalPhysicalMemorySize()).getStringRep(),
         Property.NodeScope
     );
 
@@ -151,7 +153,7 @@ public class RecoverySettings {
                         + "] for bandwidth setting ["
                         + key
                         + "], must be < ["
-                        + new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES).getStringRep()
+                        + ByteSizeValue.ofBytes(Long.MAX_VALUE).getStringRep()
                         + ']'
                 );
             }
@@ -388,6 +390,7 @@ public class RecoverySettings {
     private volatile TimeValue internalActionRetryTimeout;
     private volatile TimeValue internalActionLongTimeout;
     private volatile boolean useSnapshotsDuringRecovery;
+    private final boolean nodeBandwidthSettingsExist;
     private volatile int maxConcurrentSnapshotFileDownloads;
     private volatile int maxConcurrentSnapshotFileDownloadsPerNode;
 
@@ -419,6 +422,7 @@ public class RecoverySettings {
         this.availableDiskReadBandwidth = NODE_BANDWIDTH_RECOVERY_DISK_READ_SETTING.get(settings);
         this.availableDiskWriteBandwidth = NODE_BANDWIDTH_RECOVERY_DISK_WRITE_SETTING.get(settings);
         validateNodeBandwidthRecoverySettings(settings);
+        this.nodeBandwidthSettingsExist = hasNodeBandwidthRecoverySettings(settings);
         computeMaxBytesPerSec(settings);
         if (DiscoveryNode.canContainData(settings)) {
             clusterSettings.addSettingsUpdateConsumer(
@@ -490,6 +494,7 @@ public class RecoverySettings {
         }
 
         final long availableBytesPerSec = Math.min(readBytesPerSec, writeBytesPerSec);
+        assert nodeBandwidthSettingsExist == (availableBytesPerSec != 0L);
 
         long maxBytesPerSec;
         if (availableBytesPerSec == 0L                                      // no node recovery bandwidths
@@ -607,7 +612,7 @@ public class RecoverySettings {
         }
     }
 
-    ByteSizeValue getMaxBytesPerSec() {
+    public ByteSizeValue getMaxBytesPerSec() {
         return maxBytesPerSec;
     }
 
@@ -625,6 +630,10 @@ public class RecoverySettings {
 
     private void setMaxConcurrentOperations(int maxConcurrentOperations) {
         this.maxConcurrentOperations = maxConcurrentOperations;
+    }
+
+    public boolean nodeBandwidthSettingsExist() {
+        return nodeBandwidthSettingsExist;
     }
 
     public boolean getUseSnapshotsDuringRecovery() {
@@ -687,5 +696,14 @@ public class RecoverySettings {
                     + " are configured."
             );
         }
+    }
+
+    /**
+     * Whether the node bandwidth recovery settings are set.
+     */
+    public static boolean hasNodeBandwidthRecoverySettings(Settings settings) {
+        return NODE_BANDWIDTH_RECOVERY_SETTINGS.stream()
+            .filter(setting -> setting.get(settings) != ByteSizeValue.MINUS_ONE)
+            .count() == NODE_BANDWIDTH_RECOVERY_SETTINGS.size();
     }
 }

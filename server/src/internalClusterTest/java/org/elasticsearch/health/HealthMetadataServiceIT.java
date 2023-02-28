@@ -41,7 +41,7 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
             Map<String, String> watermarkByNode = new HashMap<>();
             Map<String, ByteSizeValue> maxHeadroomByNode = new HashMap<>();
             for (int i = 0; i < numberOfNodes; i++) {
-                ByteSizeValue randomBytes = new ByteSizeValue(randomLongBetween(6, 19));
+                ByteSizeValue randomBytes = ByteSizeValue.ofBytes(randomLongBetween(6, 19));
                 String customWatermark = percentageMode ? randomIntBetween(86, 94) + "%" : randomBytes.toString();
                 ByteSizeValue customMaxHeadroom = percentageMode ? randomBytes : ByteSizeValue.MINUS_ONE;
                 String nodeName = startNode(internalCluster, customWatermark, customMaxHeadroom.toString());
@@ -74,20 +74,20 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
     public void testWatermarkSettingUpdate() throws Exception {
         try (InternalTestCluster internalCluster = internalCluster()) {
             int numberOfNodes = 3;
-            ByteSizeValue randomBytes = new ByteSizeValue(randomLongBetween(6, 19));
+            ByteSizeValue randomBytes = ByteSizeValue.ofBytes(randomLongBetween(6, 19));
             String initialWatermark = percentageMode ? randomIntBetween(86, 94) + "%" : randomBytes.toString();
             ByteSizeValue initialMaxHeadroom = percentageMode ? randomBytes : ByteSizeValue.MINUS_ONE;
             for (int i = 0; i < numberOfNodes; i++) {
                 startNode(internalCluster, initialWatermark, initialMaxHeadroom.toString());
             }
 
-            randomBytes = new ByteSizeValue(randomLongBetween(101, 200));
+            randomBytes = ByteSizeValue.ofBytes(randomLongBetween(101, 200));
             String updatedLowWatermark = percentageMode ? randomIntBetween(40, 59) + "%" : randomBytes.toString();
             ByteSizeValue updatedLowMaxHeadroom = percentageMode ? randomBytes : ByteSizeValue.MINUS_ONE;
-            randomBytes = new ByteSizeValue(randomLongBetween(50, 100));
+            randomBytes = ByteSizeValue.ofBytes(randomLongBetween(50, 100));
             String updatedHighWatermark = percentageMode ? randomIntBetween(60, 90) + "%" : randomBytes.toString();
             ByteSizeValue updatedHighMaxHeadroom = percentageMode ? randomBytes : ByteSizeValue.MINUS_ONE;
-            randomBytes = new ByteSizeValue(randomLongBetween(5, 10));
+            randomBytes = ByteSizeValue.ofBytes(randomLongBetween(5, 10));
             String updatedFloodStageWatermark = percentageMode ? randomIntBetween(91, 95) + "%" : randomBytes.toString();
             ByteSizeValue updatedFloodStageMaxHeadroom = percentageMode ? randomBytes : ByteSizeValue.MINUS_ONE;
 

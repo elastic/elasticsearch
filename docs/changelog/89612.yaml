@@ -1,5 +1,0 @@
-pr: 89612
-summary: Return 408 when start deployment api times out
-area: Machine Learning
-type: enhancement
-issues: []

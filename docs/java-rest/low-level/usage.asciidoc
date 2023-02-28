@@ -57,7 +57,7 @@ dependencies {
 === Dependencies
 
 The low-level Java REST client internally uses the
-https://hc.apache.org/httpcomponents-asyncclient-dev/[Apache Http Async Client]
+https://hc.apache.org/httpcomponents-asyncclient-4.1.x/[Apache Http Async Client]
  to send http requests. It depends on the following artifacts, namely the async
  http client and its own transitive dependencies:
 
@@ -152,7 +152,7 @@ A `RestClient` instance can be built through the corresponding
 `RestClientBuilder` class, created via `RestClient#builder(HttpHost...)`
 static method. The only required argument is one or more hosts that the
 client will communicate with, provided as instances of
-https://hc.apache.org/httpcomponents-core-ga/httpcore/apidocs/org/apache/http/HttpHost.html[HttpHost]
+https://hc.apache.org/httpcomponents-core-4.4.x/current/httpcore/apidocs/org/apache/http/HttpHost.html[HttpHost]
  as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -203,7 +203,7 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-reques
 --------------------------------------------------
 <1> Set a callback that allows to modify the default request configuration
 (e.g. request timeouts, authentication, or anything that the
-https://hc.apache.org/httpcomponents-client-ga/httpclient/apidocs/org/apache/http/client/config/RequestConfig.Builder.html[`org.apache.http.client.config.RequestConfig.Builder`]
+https://hc.apache.org/httpcomponents-client-4.5.x/current/httpclient/apidocs/org/apache/http/client/config/RequestConfig.Builder.html[`org.apache.http.client.config.RequestConfig.Builder`]
  allows to set)
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -212,7 +212,7 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-client
 --------------------------------------------------
 <1> Set a callback that allows to modify the http client configuration
 (e.g. encrypted communication over ssl, or anything that the
-https://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org/apache/http/impl/nio/client/HttpAsyncClientBuilder.html[`org.apache.http.impl.nio.client.HttpAsyncClientBuilder`]
+https://hc.apache.org/httpcomponents-asyncclient-4.1.x/current/httpasyncclient/apidocs/org/apache/http/impl/nio/client/HttpAsyncClientBuilder.html[`org.apache.http.impl.nio.client.HttpAsyncClientBuilder`]
  allows to set)
 
 
@@ -339,9 +339,9 @@ translate to the execution of that request being cancelled, which needs to be
 specifically implemented in the API itself.
 
 The use of the `Cancellable` instance is optional and you can safely ignore this
-if you don't need it. A typical usecase for this would be using this together with 
+if you don't need it. A typical usecase for this would be using this together with
 frameworks like Rx Java or the Kotlin's `suspendCancellableCoRoutine`. Cancelling
-no longer needed requests is a good way to avoid putting unnecessary 
+no longer needed requests is a good way to avoid putting unnecessary
 load on Elasticsearch.
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -366,7 +366,7 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-response2]
 <2> The host that returned the response
 <3> The response status line, from which you can for instance retrieve the status code
 <4> The response headers, which can also be retrieved by name though `getHeader(String)`
-<5> The response body enclosed in an https://hc.apache.org/httpcomponents-core-ga/httpcore/apidocs/org/apache/http/HttpEntity.html[`org.apache.http.HttpEntity`]
+<5> The response body enclosed in an https://hc.apache.org/httpcomponents-core-4.4.x/current/httpcore/apidocs/org/apache/http/HttpEntity.html[`org.apache.http.HttpEntity`]
  object
 
 When performing a request, an exception is thrown (or received as an argument
@@ -395,13 +395,13 @@ and un-marshalling. Users are free to use the library that they prefer for that
 purpose.
 
 The underlying Apache Async Http Client ships with different
-https://hc.apache.org/httpcomponents-core-ga/httpcore/apidocs/org/apache/http/HttpEntity.html[`org.apache.http.HttpEntity`]
+https://hc.apache.org/httpcomponents-core-4.4.x/current/httpcore/apidocs/org/apache/http/HttpEntity.html[`org.apache.http.HttpEntity`]
  implementations that allow to provide the request body in different formats
 (stream, byte array, string etc.). As for reading the response body, the
 `HttpEntity#getContent` method comes handy which returns an `InputStream`
 reading from the previously buffered response body. As an alternative, it is
 possible to provide a custom
-https://hc.apache.org/httpcomponents-core-ga/httpcore-nio/apidocs/org/apache/http/nio/protocol/HttpAsyncResponseConsumer.html[`org.apache.http.nio.protocol.HttpAsyncResponseConsumer`]
+https://hc.apache.org/httpcomponents-core-4.4.x/current/httpcore-nio/apidocs/org/apache/http/nio/protocol/HttpAsyncResponseConsumer.html[`org.apache.http.nio.protocol.HttpAsyncResponseConsumer`]
  that controls how bytes are read and buffered.
 
 [[java-rest-low-usage-logging]]

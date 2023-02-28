@@ -895,9 +895,7 @@ public class TopHitsIT extends ESIntegTestCase {
         String hlType = randomFrom("plain", "fvh", "unified");
         HighlightBuilder.Field hlField = new HighlightBuilder.Field("comments.message").highlightQuery(
             matchQuery("comments.message", "comment")
-        )
-            .forceSource(randomBoolean()) // randomly from stored field or _source
-            .highlighterType(hlType);
+        ).highlighterType(hlType);
 
         SearchResponse searchResponse = client().prepareSearch("articles")
             .setQuery(nestedQuery("comments", matchQuery("comments.message", "comment").queryName("test"), ScoreMode.Avg))

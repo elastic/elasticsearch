@@ -1619,7 +1619,6 @@ public final class OptimizerRules {
             return rule(plan);
         }
 
-        @Override
         protected final LogicalPlan rule(LogicalPlan plan) {
             // eliminate redundant casts
             return plan.transformExpressionsUp(castType, this::maybePruneCast);
@@ -1766,12 +1765,10 @@ public final class OptimizerRules {
             return plan;
         }
 
-        @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
+        private void rule(LogicalPlan plan) {
             if (plan.optimized() == false) {
                 plan.setOptimized();
             }
-            return plan;
         }
     }
 
@@ -1794,7 +1791,6 @@ public final class OptimizerRules {
                 : plan.transformUp(typeToken(), this::rule);
         }
 
-        @Override
         protected abstract LogicalPlan rule(SubPlan plan);
     }
 
@@ -1817,7 +1813,6 @@ public final class OptimizerRules {
                 : plan.transformExpressionsUp(expressionTypeToken, this::rule);
         }
 
-        @Override
         protected LogicalPlan rule(LogicalPlan plan) {
             return plan;
         }

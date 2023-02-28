@@ -7,15 +7,20 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction.Response;
 
-public class UpgradeJobModelSnapshotResponseTests extends AbstractSerializingTestCase<Response> {
+public class UpgradeJobModelSnapshotResponseTests extends AbstractXContentSerializingTestCase<Response> {
 
     @Override
     protected Response createTestInstance() {
         return new Response(randomBoolean(), randomBoolean() ? null : randomAlphaOfLength(10));
+    }
+
+    @Override
+    protected Response mutateInstance(Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

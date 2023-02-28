@@ -13,6 +13,8 @@ import org.elasticsearch.core.Nullable;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -27,6 +29,14 @@ import java.util.stream.IntStream;
 import javax.net.ssl.SSLSession;
 
 public class SslDiagnostics {
+
+    public static final SslDiagnostics INSTANCE = new SslDiagnostics(Clock.systemUTC());
+
+    public SslDiagnostics(Clock clock) {
+        this.clock = clock;
+    }
+
+    private final Clock clock;
 
     public static List<String> describeValidHostnames(X509Certificate certificate) {
         try {
@@ -180,7 +190,7 @@ public class SslDiagnostics {
      * @param trustedIssuers A Map of DN to Certificate, for the issuers that were trusted in the context in which this failure occurred
      *                       (see {@link javax.net.ssl.X509TrustManager#getAcceptedIssuers()})
      */
-    public static String getTrustDiagnosticFailure(
+    public String getTrustDiagnosticFailure(
         X509Certificate[] chain,
         PeerType peerType,
         SSLSession session,
@@ -211,6 +221,8 @@ public class SslDiagnostics {
             .append(keyUsageDescription(peerCert))
             .append(" and ")
             .append(extendedKeyUsageDescription(peerCert));
+
+        addCertificateExpiryDescription(peerCert, message);
 
         addSessionDescription(session, message);
 
@@ -472,6 +484,30 @@ public class SslDiagnostics {
 
     private static Optional<String> generateExtendedKeyUsageDescription(List<String> oids) {
         return oids.stream().map(ExtendedKeyUsage::decodeOid).reduce((x, y) -> x + ", " + y).map(str -> "extendedKeyUsage [" + str + "]");
+    }
+
+    private void addCertificateExpiryDescription(X509Certificate certificate, StringBuilder message) {
+        final Instant now = Instant.now(clock);
+        final Instant notBefore = certificate.getNotBefore().toInstant();
+        final Instant notAfter = certificate.getNotAfter().toInstant();
+        final boolean tooEarly = now.isBefore(notBefore);
+        final boolean expired = now.isAfter(notAfter);
+
+        message.append("; the certificate is valid between [")
+            .append(notBefore)
+            .append("] and [")
+            .append(notAfter)
+            .append("] (current time is [")
+            .append(now)
+            .append("], ");
+        if (expired) {
+            message.append("** certificate has expired");
+        } else if (tooEarly) {
+            message.append("** certificate is not yet valid");
+        } else {
+            message.append("certificate dates are valid");
+        }
+        message.append(")");
     }
 
     private static void addSessionDescription(SSLSession session, StringBuilder message) {

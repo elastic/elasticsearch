@@ -52,8 +52,8 @@ public class UpdateRollupIndexPolicyStep extends AsyncActionStep {
         final String policyName = indexMetadata.getLifecyclePolicyName();
         final String indexName = indexMetadata.getIndex().getName();
         final LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
-        final String rollupIndexName = lifecycleState.rollupIndexName();
-        if (Strings.hasText(rollupIndexName) == false) {
+        final String downsampleIndexName = lifecycleState.downsampleIndexName();
+        if (Strings.hasText(downsampleIndexName) == false) {
             listener.onFailure(
                 new IllegalStateException(
                     "rollup index name was not generated for policy [" + policyName + "] and index [" + indexName + "]"
@@ -62,7 +62,7 @@ public class UpdateRollupIndexPolicyStep extends AsyncActionStep {
             return;
         }
         Settings settings = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, rollupPolicy).build();
-        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(rollupIndexName).masterNodeTimeout(TimeValue.MAX_VALUE)
+        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(downsampleIndexName).masterNodeTimeout(TimeValue.MAX_VALUE)
             .settings(settings);
         getClient().admin().indices().updateSettings(updateSettingsRequest, ActionListener.wrap(response -> {
             if (response.isAcknowledged()) {

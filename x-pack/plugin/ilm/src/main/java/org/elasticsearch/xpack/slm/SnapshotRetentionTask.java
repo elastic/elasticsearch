@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.slm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -25,7 +26,6 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
@@ -183,7 +183,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                     }
 
                     // Finally, delete the snapshots that need to be deleted
-                    deleteSnapshots(snapshotsToBeDeleted, slmStats, ActionListener.wrap(() -> {
+                    deleteSnapshots(snapshotsToBeDeleted, slmStats, ActionListener.running(() -> {
                         updateStateWithStats(slmStats);
                         logger.info("SLM retention snapshot cleanup task complete");
                     }));
@@ -295,9 +295,14 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                         snapshots.computeIfAbsent(info.repository(), repo -> new ArrayList<>()).add(info);
                     }
                 }
+                if (resp.isFailed()) {
+                    for (String repo : resp.getFailures().keySet()) {
+                        logger.debug(() -> "unable to retrieve snapshots for [" + repo + "] repositories: ", resp.getFailures().get(repo));
+                    }
+                }
                 listener.onResponse(snapshots);
             }, e -> {
-                logger.debug(() -> "unable to retrieve snapshots for [" + repositories + "] repositories", e);
+                logger.debug(() -> "unable to retrieve snapshots for [" + repositories + "] repositories: ", e);
                 listener.onFailure(e);
             }));
     }
@@ -328,13 +333,13 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         long startTime = nowNanoSupplier.getAsLong();
         final AtomicInteger deleted = new AtomicInteger(0);
         final AtomicInteger failed = new AtomicInteger(0);
-        final GroupedActionListener<Void> allDeletesListener = new GroupedActionListener<>(
-            ActionListener.runAfter(listener.map(v -> null), () -> {
+        final CountDownActionListener allDeletesListener = new CountDownActionListener(
+            snapshotsToDelete.size(),
+            ActionListener.runAfter(listener, () -> {
                 TimeValue totalElapsedTime = TimeValue.timeValueNanos(nowNanoSupplier.getAsLong() - startTime);
                 logger.debug("total elapsed time for deletion of [{}] snapshots: {}", deleted, totalElapsedTime);
                 slmStats.deletionTime(totalElapsedTime);
-            }),
-            snapshotsToDelete.size()
+            })
         );
         for (Map.Entry<String, List<Tuple<SnapshotId, String>>> entry : snapshotsToDelete.entrySet()) {
             String repo = entry.getKey();
@@ -354,7 +359,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         ActionListener<Void> listener
     ) {
 
-        final ActionListener<Void> allDeletesListener = new GroupedActionListener<>(listener.map(v -> null), snapshots.size());
+        final ActionListener<Void> allDeletesListener = new CountDownActionListener(snapshots.size(), listener);
         for (Tuple<SnapshotId, String> info : snapshots) {
             final SnapshotId snapshotId = info.v1();
             if (runningDeletions.add(snapshotId) == false) {

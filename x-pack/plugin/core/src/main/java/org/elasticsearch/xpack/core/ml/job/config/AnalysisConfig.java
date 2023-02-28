@@ -174,13 +174,13 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     public AnalysisConfig(StreamInput in) throws IOException {
         bucketSpan = in.readTimeValue();
         categorizationFieldName = in.readOptionalString();
-        categorizationFilters = in.readBoolean() ? Collections.unmodifiableList(in.readStringList()) : null;
+        categorizationFilters = in.readBoolean() ? in.readImmutableList(StreamInput::readString) : null;
         categorizationAnalyzerConfig = in.readOptionalWriteable(CategorizationAnalyzerConfig::new);
         perPartitionCategorizationConfig = new PerPartitionCategorizationConfig(in);
         latency = in.readOptionalTimeValue();
         summaryCountFieldName = in.readOptionalString();
-        detectors = Collections.unmodifiableList(in.readList(Detector::new));
-        influencers = Collections.unmodifiableList(in.readStringList());
+        detectors = in.readImmutableList(Detector::new);
+        influencers = in.readImmutableList(StreamInput::readString);
 
         multivariateByFields = in.readOptionalBoolean();
         modelPruneWindow = in.readOptionalTimeValue();

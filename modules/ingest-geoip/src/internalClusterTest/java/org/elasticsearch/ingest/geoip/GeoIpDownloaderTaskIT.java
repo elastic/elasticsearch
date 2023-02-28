@@ -24,8 +24,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 
 public class GeoIpDownloaderTaskIT extends AbstractGeoIpIT {
 
-    protected static final String ENDPOINT = System.getProperty("geoip_endpoint");
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(ReindexPlugin.class, IngestGeoIpPlugin.class, IngestGeoIpSettingsPlugin.class);
@@ -48,7 +46,7 @@ public class GeoIpDownloaderTaskIT extends AbstractGeoIpIT {
                 .setPersistentSettings(
                     Settings.builder()
                         .putNull(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey())
-                        .putNull(GeoIpDownloader.POLL_INTERVAL_SETTING.getKey())
+                        .putNull(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getKey())
                         .putNull("ingest.geoip.database_validity")
                 )
                 .get()

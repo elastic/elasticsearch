@@ -8,6 +8,7 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreException;
@@ -22,6 +23,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.OptionalLong;
 
 class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
 
@@ -79,8 +81,12 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlob(String blobName, boolean failIfAlreadyExists, boolean atomic, CheckedConsumer<OutputStream, IOException> writer)
-        throws IOException {
+    public void writeMetadataBlob(
+        String blobName,
+        boolean failIfAlreadyExists,
+        boolean atomic,
+        CheckedConsumer<OutputStream, IOException> writer
+    ) throws IOException {
         blobStore.writeBlob(buildKey(blobName), failIfAlreadyExists, writer);
     }
 
@@ -112,5 +118,20 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     private String buildKey(String blobName) {
         assert blobName != null;
         return path + blobName;
+    }
+
+    @Override
+    public void compareAndExchangeRegister(String key, long expected, long updated, ActionListener<OptionalLong> listener) {
+        listener.onFailure(new UnsupportedOperationException()); // TODO
+    }
+
+    @Override
+    public void compareAndSetRegister(String key, long expected, long updated, ActionListener<Boolean> listener) {
+        listener.onFailure(new UnsupportedOperationException()); // TODO
+    }
+
+    @Override
+    public void getRegister(String key, ActionListener<OptionalLong> listener) {
+        listener.onFailure(new UnsupportedOperationException()); // TODO
     }
 }

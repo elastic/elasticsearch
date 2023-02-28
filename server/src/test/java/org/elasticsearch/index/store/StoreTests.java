@@ -41,6 +41,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -83,8 +84,8 @@ import java.util.function.LongUnaryOperator;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
-import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.elasticsearch.test.TransportVersionUtils.randomCompatibleVersion;
+import static org.elasticsearch.test.TransportVersionUtils.randomVersion;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -912,16 +913,16 @@ public class StoreTests extends ESTestCase {
 
     public void testMetadataSnapshotStreaming() throws Exception {
         Store.MetadataSnapshot outMetadataSnapshot = createMetadataSnapshot();
-        org.elasticsearch.Version targetNodeVersion = randomVersion(random());
+        TransportVersion targetVersion = randomVersion(random());
 
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-        out.setVersion(targetNodeVersion);
+        out.setTransportVersion(targetVersion);
         outMetadataSnapshot.writeTo(out);
 
         ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
-        in.setVersion(targetNodeVersion);
+        in.setTransportVersion(targetVersion);
         Store.MetadataSnapshot inMetadataSnapshot = Store.MetadataSnapshot.readFrom(in);
         Map<String, StoreFileMetadata> origEntries = new HashMap<>();
         origEntries.putAll(outMetadataSnapshot.fileMetadataMap());
@@ -934,16 +935,16 @@ public class StoreTests extends ESTestCase {
 
     public void testEmptyMetadataSnapshotStreaming() throws Exception {
         var outMetadataSnapshot = randomBoolean() ? Store.MetadataSnapshot.EMPTY : new Store.MetadataSnapshot(emptyMap(), emptyMap(), 0L);
-        var targetNodeVersion = randomCompatibleVersion(random(), org.elasticsearch.Version.CURRENT);
+        var targetVersion = randomCompatibleVersion(random(), TransportVersion.CURRENT);
 
         var outBuffer = new ByteArrayOutputStream();
         var out = new OutputStreamStreamOutput(outBuffer);
-        out.setVersion(targetNodeVersion);
+        out.setTransportVersion(targetVersion);
         outMetadataSnapshot.writeTo(out);
 
         var inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         var in = new InputStreamStreamInput(inBuffer);
-        in.setVersion(targetNodeVersion);
+        in.setTransportVersion(targetVersion);
         assertThat(Store.MetadataSnapshot.readFrom(in), sameInstance(Store.MetadataSnapshot.EMPTY));
     }
 
@@ -1000,12 +1001,12 @@ public class StoreTests extends ESTestCase {
             new TransportNodesListShardStoreMetadata.StoreFilesMetadata(metadataSnapshot, peerRecoveryRetentionLeases);
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-        org.elasticsearch.Version targetNodeVersion = randomCompatibleVersion(random(), org.elasticsearch.Version.CURRENT);
-        out.setVersion(targetNodeVersion);
+        TransportVersion targetVersion = randomCompatibleVersion(random(), TransportVersion.CURRENT);
+        out.setTransportVersion(targetVersion);
         outStoreFileMetadata.writeTo(out);
         ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
-        in.setVersion(targetNodeVersion);
+        in.setTransportVersion(targetVersion);
         var inStoreFileMetadata = TransportNodesListShardStoreMetadata.StoreFilesMetadata.readFrom(in);
         Iterator<StoreFileMetadata> outFiles = outStoreFileMetadata.iterator();
         for (StoreFileMetadata inFile : inStoreFileMetadata) {
@@ -1021,13 +1022,13 @@ public class StoreTests extends ESTestCase {
             : new TransportNodesListShardStoreMetadata.StoreFilesMetadata(Store.MetadataSnapshot.EMPTY, emptyList());
         var outBuffer = new ByteArrayOutputStream();
         var out = new OutputStreamStreamOutput(outBuffer);
-        var targetNodeVersion = randomCompatibleVersion(random(), org.elasticsearch.Version.CURRENT);
-        out.setVersion(targetNodeVersion);
+        var targetVersion = randomCompatibleVersion(random(), TransportVersion.CURRENT);
+        out.setTransportVersion(targetVersion);
         outStoreFileMetadata.writeTo(out);
 
         var inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         var in = new InputStreamStreamInput(inBuffer);
-        in.setVersion(targetNodeVersion);
+        in.setTransportVersion(targetVersion);
         assertThat(
             TransportNodesListShardStoreMetadata.StoreFilesMetadata.readFrom(in),
             sameInstance(TransportNodesListShardStoreMetadata.StoreFilesMetadata.EMPTY)

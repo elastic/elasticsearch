@@ -170,6 +170,20 @@ public class FrequentItemSetCollectorTests extends ESTestCase {
         }
     }
 
+    public void testSuperSetAfterSubSet() {
+        transactionStore = new HashBasedTransactionStore(mockBigArrays());
+
+        try (TopItemIds topItemIds = transactionStore.getTopItemIds();) {
+            FrequentItemSetCollector collector = new FrequentItemSetCollector(transactionStore, topItemIds, 5, Long.MAX_VALUE);
+
+            assertEquals(Long.MAX_VALUE, addToCollector(collector, new long[] { 1L, 2L, 3L, 4L, 6L }, 3L));
+            assertEquals(Long.MAX_VALUE, addToCollector(collector, new long[] { 1L, 2L, 3L, 4L, 6L, 8L }, 3L));
+
+            assertEquals(1, collector.size());
+            assertThat(collector.getQueue().pop().getItems(), equalTo(createItemSetBitSet(new long[] { 1L, 2L, 3L, 4L, 6L, 8L })));
+        }
+    }
+
     private static ItemSetBitSet createItemSetBitSet(long[] longs) {
         ItemSetBitSet itemsAsBitVector = new ItemSetBitSet();
         for (int i = 0; i < longs.length; ++i) {

@@ -14,16 +14,17 @@ import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.HttpHeaderNames;
-import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
@@ -91,62 +92,33 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
     }
 
     public void testValidationErrorForwardsAsDecoderErrorMessage() {
-        final DefaultHttpRequest request1 = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
-        DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(4));
-        channel.writeInbound(request1);
-        channel.writeInbound(content);
+        for (Exception exception : List.of(
+            new Exception("Failure"),
+            new ElasticsearchException("Failure"),
+            new ElasticsearchSecurityException("Failure")
+        )) {
+            final DefaultHttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
+            final DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(4));
+            channel.writeInbound(request);
+            channel.writeInbound(content);
 
-        assertThat(header.get(), sameInstance(request1));
-        assertThat(channel.readInbound(), nullValue());
-        assertFalse(channel.config().isAutoRead());
+            assertThat(header.get(), sameInstance(request));
+            assertThat(channel.readInbound(), nullValue());
+            assertFalse(channel.config().isAutoRead());
 
-        Exception failure = new Exception("Failure");
-        listener.get().onFailure(failure);
-        channel.runPendingTasks();
-        assertFalse(channel.config().isAutoRead());
-        DefaultHttpRequest failed = channel.readInbound();
-        assertThat(failed, sameInstance(request1));
-        assertThat(failed.headers().get(HttpHeaderNames.CONNECTION), equalTo(HttpHeaderValues.CLOSE.toString()));
-        assertTrue(failed.decoderResult().isFailure());
-        HeaderValidationException cause = (HeaderValidationException) failed.decoderResult().cause();
-        assertThat(cause.getCause().getCause(), equalTo(failure));
-        assertTrue(cause.shouldCloseChannel());
-        assertThat(netty4HttpHeaderValidator.getState(), equalTo(Netty4HttpHeaderValidator.STATE.DROPPING_DATA_PERMANENTLY));
+            listener.get().onFailure(exception);
+            channel.runPendingTasks();
+            assertTrue(channel.config().isAutoRead());
+            DefaultHttpRequest failed = channel.readInbound();
+            assertThat(failed, sameInstance(request));
+            assertThat(failed.headers().get(HttpHeaderNames.CONNECTION), nullValue());
+            assertTrue(failed.decoderResult().isFailure());
+            Exception cause = (Exception) failed.decoderResult().cause();
+            assertThat(cause, equalTo(exception));
+            assertThat(netty4HttpHeaderValidator.getState(), equalTo(Netty4HttpHeaderValidator.STATE.DROPPING_DATA_UNTIL_NEXT_REQUEST));
 
-        reset();
-        final DefaultHttpRequest request2 = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
-        channel.writeInbound(request2);
-        channel.writeInbound(content);
-
-        ElasticsearchException elasticsearchFailure = new ElasticsearchException("Failure");
-        listener.get().onFailure(elasticsearchFailure);
-        channel.runPendingTasks();
-        assertFalse(channel.config().isAutoRead());
-        failed = channel.readInbound();
-        assertThat(failed, sameInstance(request2));
-        assertThat(failed.headers().get(HttpHeaderNames.CONNECTION), equalTo(HttpHeaderValues.CLOSE.toString()));
-        assertTrue(failed.decoderResult().isFailure());
-        cause = (HeaderValidationException) failed.decoderResult().cause();
-        assertThat(failed.decoderResult().cause().getCause(), equalTo(elasticsearchFailure));
-        assertTrue(cause.shouldCloseChannel());
-        assertThat(netty4HttpHeaderValidator.getState(), equalTo(Netty4HttpHeaderValidator.STATE.DROPPING_DATA_PERMANENTLY));
-
-        reset();
-        final DefaultHttpRequest request3 = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
-        channel.writeInbound(request3);
-        channel.writeInbound(content);
-
-        listener.get().onFailure(new HeaderValidationException(elasticsearchFailure, false));
-        channel.runPendingTasks();
-        assertTrue(channel.config().isAutoRead());
-        failed = channel.readInbound();
-        assertThat(failed, sameInstance(request3));
-        assertThat(failed.headers().get(HttpHeaderNames.CONNECTION), nullValue());
-        assertTrue(failed.decoderResult().isFailure());
-        cause = (HeaderValidationException) failed.decoderResult().cause();
-        assertThat(failed.decoderResult().cause().getCause(), equalTo(elasticsearchFailure));
-        assertFalse(cause.shouldCloseChannel());
-        assertThat(netty4HttpHeaderValidator.getState(), equalTo(Netty4HttpHeaderValidator.STATE.DROPPING_DATA_UNTIL_NEXT_REQUEST));
+            reset();
+        }
     }
 
     public void testValidationHandlesMultipleQueuedUpMessages() {
@@ -194,42 +166,6 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         assertThat(channel.readInbound(), nullValue());
     }
 
-    public void testValidationFailureWithNoRecovery() {
-        assertTrue(channel.config().isAutoRead());
-
-        final DefaultHttpRequest request1 = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
-        DefaultHttpContent content1 = new DefaultHttpContent(Unpooled.buffer(4));
-        DefaultLastHttpContent lastContent1 = new DefaultLastHttpContent(Unpooled.EMPTY_BUFFER);
-        channel.writeInbound(request1);
-        channel.writeInbound(content1);
-        channel.writeInbound(lastContent1);
-        final DefaultHttpRequest request2 = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
-        DefaultHttpContent content2 = new DefaultHttpContent(Unpooled.buffer(4));
-        DefaultLastHttpContent lastContent2 = new DefaultLastHttpContent(Unpooled.EMPTY_BUFFER);
-        channel.writeInbound(request2);
-        channel.writeInbound(content2);
-
-        assertThat(header.get(), sameInstance(request1));
-        assertThat(channel.readInbound(), nullValue());
-        assertFalse(channel.config().isAutoRead());
-
-        assertThat(content1.refCnt(), equalTo(2));
-        assertThat(content2.refCnt(), equalTo(2));
-        listener.get().onFailure(new HeaderValidationException(new ElasticsearchException("Boom"), true));
-        channel.runPendingTasks();
-        assertThat(channel.readInbound(), sameInstance(request1));
-        assertThat(content1.refCnt(), equalTo(1));
-        assertThat(content2.refCnt(), equalTo(1));
-        assertFalse(channel.config().isAutoRead());
-
-        assertThat(netty4HttpHeaderValidator.getState(), equalTo(Netty4HttpHeaderValidator.STATE.DROPPING_DATA_PERMANENTLY));
-        assertThat(channel.readInbound(), nullValue());
-
-        channel.writeInbound(lastContent2);
-        assertThat(lastContent2.refCnt(), equalTo(1));
-        assertThat(channel.readInbound(), nullValue());
-    }
-
     public void testValidationFailureCanRecover() {
         assertTrue(channel.config().isAutoRead());
 
@@ -256,7 +192,7 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
 
         assertThat(content1.refCnt(), equalTo(2));
         assertThat(content2.refCnt(), equalTo(2));
-        listener.get().onFailure(new HeaderValidationException(new ElasticsearchException("Boom"), false));
+        listener.get().onFailure(new ElasticsearchException("Boom"));
         channel.runPendingTasks();
         assertThat(channel.readInbound(), sameInstance(request1));
         assertThat(content1.refCnt(), equalTo(1));

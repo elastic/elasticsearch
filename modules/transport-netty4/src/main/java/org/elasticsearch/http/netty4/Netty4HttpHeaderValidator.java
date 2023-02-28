@@ -12,14 +12,11 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.DecoderResult;
-import io.netty.handler.codec.http.HttpHeaderNames;
-import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.util.ReferenceCountUtil;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 
 import java.util.ArrayDeque;
@@ -94,16 +91,8 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
 
             @Override
             public void onFailure(Exception e) {
-                final HeaderValidationException toForward;
-                if (e instanceof HeaderValidationException) {
-                    toForward = (HeaderValidationException) e;
-                } else if (e instanceof ElasticsearchException) {
-                    toForward = new HeaderValidationException((ElasticsearchException) e, true);
-                } else {
-                    toForward = new HeaderValidationException(new ElasticsearchException(e), true);
-                }
                 // Always use "Submit" to prevent reentrancy concerns if we are still on event loop
-                ctx.channel().eventLoop().submit(() -> validationFailure(ctx, toForward));
+                ctx.channel().eventLoop().submit(() -> validationFailure(ctx, e));
             }
         });
     }
@@ -143,9 +132,9 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         ctx.channel().config().setAutoRead(shouldRead());
     }
 
-    private void validationFailure(ChannelHandlerContext ctx, HeaderValidationException e) {
+    private void validationFailure(ChannelHandlerContext ctx, Exception e) {
         assert ctx.channel().eventLoop().inEventLoop();
-        state = e.shouldCloseChannel() ? STATE.DROPPING_DATA_PERMANENTLY : STATE.HANDLING_QUEUED_DATA;
+        state = STATE.HANDLING_QUEUED_DATA;
         HttpMessage messageToForward = (HttpMessage) pending.remove();
         boolean fullRequestConsumed;
         if (messageToForward instanceof LastHttpContent toRelease) {
@@ -153,42 +142,37 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
             toRelease.release();
             fullRequestConsumed = true;
         } else {
-            fullRequestConsumed = dropData(e.shouldCloseChannel() == false);
+            fullRequestConsumed = dropData();
         }
         messageToForward.setDecoderResult(DecoderResult.failure(e));
-        if (e.shouldCloseChannel()) {
-            messageToForward.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
-        }
         ctx.fireChannelRead(messageToForward);
 
         if (pending.isEmpty() == false && fullRequestConsumed == false) {
             // There should not be any data re-enqueued when we are dropping permanently
             assert state == STATE.HANDLING_QUEUED_DATA;
-            fullRequestConsumed = dropData(e.shouldCloseChannel() == false);
+            fullRequestConsumed = dropData();
         }
 
-        if (e.shouldCloseChannel() == false) {
-            assert state == STATE.HANDLING_QUEUED_DATA;
-            if (pending.isEmpty()) {
-                if (fullRequestConsumed) {
-                    state = STATE.WAITING_TO_START;
-                } else {
-                    state = STATE.DROPPING_DATA_UNTIL_NEXT_REQUEST;
-                }
-            } else {
+        assert state == STATE.HANDLING_QUEUED_DATA;
+        if (pending.isEmpty()) {
+            if (fullRequestConsumed) {
                 state = STATE.WAITING_TO_START;
-                requestStart(ctx);
+            } else {
+                state = STATE.DROPPING_DATA_UNTIL_NEXT_REQUEST;
             }
+        } else {
+            state = STATE.WAITING_TO_START;
+            requestStart(ctx);
         }
 
         ctx.channel().config().setAutoRead(shouldRead());
     }
 
-    private boolean dropData(boolean stopAtLast) {
+    private boolean dropData() {
         HttpObject toRelease;
         while ((toRelease = pending.poll()) != null) {
             ReferenceCountUtil.release(toRelease);
-            if (stopAtLast && toRelease instanceof LastHttpContent) {
+            if (toRelease instanceof LastHttpContent) {
                 return true;
             }
         }

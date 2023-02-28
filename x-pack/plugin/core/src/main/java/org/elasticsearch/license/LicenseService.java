@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.Setting;
@@ -117,7 +118,7 @@ public class LicenseService extends AbstractLifecycleComponent
      */
     private final AtomicReference<License> currentLicenseHolder = new AtomicReference<>();
     private final SchedulerEngine scheduler;
-    private final Clock clock;
+    private Clock clock = Clock.systemUTC(); // overridable by tests
 
     /**
      * Callbacks to notify relative to license expiry
@@ -146,13 +147,8 @@ public class LicenseService extends AbstractLifecycleComponent
     private static final String ACKNOWLEDGEMENT_HEADER = "This license update requires acknowledgement. To acknowledge the license, "
         + "please read the following messages and update the license again, this time with the \"acknowledge=true\" parameter:";
 
-    public LicenseService(
-        Settings settings,
-        ThreadPool threadPool,
-        ClusterService clusterService,
-        Clock clock,
-        XPackLicenseState licenseState
-    ) {
+    @Inject
+    public LicenseService(Settings settings, ThreadPool threadPool, ClusterService clusterService, XPackLicenseState licenseState) {
         this.settings = settings;
         this.clusterService = clusterService;
         this.startTrialTaskQueue = clusterService.createTaskQueue(
@@ -165,7 +161,7 @@ public class LicenseService extends AbstractLifecycleComponent
             Priority.NORMAL,
             new StartBasicClusterTask.Executor()
         );
-        this.clock = clock;
+
         this.scheduler = new SchedulerEngine(settings, clock);
         this.licenseState = licenseState;
         this.allowedLicenseTypes = ALLOWED_LICENSE_TYPES_SETTING.get(settings);
@@ -173,6 +169,11 @@ public class LicenseService extends AbstractLifecycleComponent
         populateExpirationCallbacks();
 
         threadPool.scheduleWithFixedDelay(licenseState::cleanupUsageTracking, TimeValue.timeValueHours(1), ThreadPool.Names.GENERIC);
+    }
+
+    // testing only
+    void setClock(Clock clock) {
+        this.clock = clock;
     }
 
     private void logExpirationWarning(long expirationMillis, boolean expired) {

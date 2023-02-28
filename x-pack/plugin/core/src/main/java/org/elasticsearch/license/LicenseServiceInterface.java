@@ -9,9 +9,10 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 
-public interface LicenseServiceInterface {
+public interface LicenseServiceInterface extends LifecycleComponent {
 
     void registerLicense(PutLicenseRequest request, ActionListener<PutLicenseResponse> listener);
 

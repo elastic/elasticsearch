@@ -1068,9 +1068,20 @@ public class Node implements Closeable {
                 }
                 b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
                 pluginComponents.forEach(p -> {
-                    @SuppressWarnings("unchecked")
-                    Class<Object> pluginClass = (Class<Object>) p.getClass();
-                    b.bind(pluginClass).toInstance(p);
+                    // TODO: mature this
+                    if (p instanceof PrivateInterface<?, ?>) {
+                        // bind private interface component to custom implementation
+                        // @SuppressWarnings("unchecked")
+                        PrivateInterface<?, ?> pi = (PrivateInterface<?, ?>) p;
+                        @SuppressWarnings("unchecked")
+                        Class<Object> clazz = (Class<Object>) pi.clazz();
+                        b.bind(clazz).toInstance(pi.instance());
+                    } else {
+                        // instance bind components
+                        @SuppressWarnings("unchecked")
+                        Class<Object> clazz = (Class<Object>) p.getClass();
+                        b.bind(clazz).toInstance(p);
+                    }
                 });
                 b.bind(PersistentTasksService.class).toInstance(persistentTasksService);
                 b.bind(PersistentTasksClusterService.class).toInstance(persistentTasksClusterService);

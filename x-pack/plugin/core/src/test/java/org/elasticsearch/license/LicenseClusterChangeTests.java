@@ -31,11 +31,13 @@ import static org.mockito.Mockito.when;
 public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
 
     private TestUtils.AssertingLicenseState licenseState;
+    private LicenseService clusterStateLicenseService;
 
     @Before
     public void setup() {
         licenseState = new TestUtils.AssertingLicenseState();
         setInitialState(null, licenseState, Settings.EMPTY);
+        clusterStateLicenseService = (LicenseService) licenseService;
         licenseService.start();
     }
 
@@ -49,7 +51,7 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
         final License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(24));
         Metadata metadata = Metadata.builder().putCustom(LicensesMetadata.TYPE, new LicensesMetadata(license, null)).build();
         ClusterState newState = ClusterState.builder(new ClusterName("a")).metadata(metadata).build();
-        licenseService.clusterChanged(new ClusterChangedEvent("simulated", newState, oldState));
+        clusterStateLicenseService.clusterChanged(new ClusterChangedEvent("simulated", newState, oldState));
         assertThat(licenseState.activeUpdates.size(), equalTo(1));
         assertTrue(licenseState.activeUpdates.get(0));
     }
@@ -59,7 +61,7 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
         Metadata metadata = Metadata.builder().putCustom(LicensesMetadata.TYPE, new LicensesMetadata(license, null)).build();
         ClusterState newState = ClusterState.builder(new ClusterName("a")).metadata(metadata).build();
         ClusterState oldState = ClusterState.builder(newState).build();
-        licenseService.clusterChanged(new ClusterChangedEvent("simulated", newState, oldState));
+        clusterStateLicenseService.clusterChanged(new ClusterChangedEvent("simulated", newState, oldState));
         assertThat(licenseState.activeUpdates.size(), equalTo(0));
     }
 
@@ -71,7 +73,7 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);
         ClusterState newState = ClusterState.builder(oldState).nodes(discoveryNodes).build();
 
-        licenseService.clusterChanged(new ClusterChangedEvent("simulated", newState, oldState));
+        clusterStateLicenseService.clusterChanged(new ClusterChangedEvent("simulated", newState, oldState));
         ArgumentCaptor<ClusterStateUpdateTask> stateUpdater = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
         verify(clusterService, times(1)).submitUnbatchedStateUpdateTask(any(), stateUpdater.capture());
         ClusterState stateWithLicense = stateUpdater.getValue().execute(newState);

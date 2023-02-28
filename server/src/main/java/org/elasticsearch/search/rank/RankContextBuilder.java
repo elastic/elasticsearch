@@ -59,7 +59,10 @@ public abstract class RankContextBuilder implements VersionedNamedWriteable, ToX
     /**
      * Allows additional validation as part of {@link SearchRequest#validate} based on subclass rank parameters.
      */
-    public abstract ActionRequestValidationException validate(ActionRequestValidationException validationException, SearchSourceBuilder source);
+    public abstract ActionRequestValidationException validate(
+        ActionRequestValidationException validationException,
+        SearchSourceBuilder source
+    );
 
     public List<QueryBuilder> queryBuilders() {
         return queryBuilders;

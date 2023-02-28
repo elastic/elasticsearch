@@ -15,10 +15,10 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
@@ -129,8 +129,8 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
      */
     private final List<License.LicenseType> allowedLicenseTypes;
 
-    private final StartTrialClusterTask.Executor startTrialExecutor = new StartTrialClusterTask.Executor();
-    private final StartBasicClusterTask.Executor startBasicExecutor = new StartBasicClusterTask.Executor();
+    private final MasterServiceTaskQueue<StartTrialClusterTask> startTrialTaskQueue;
+    private final MasterServiceTaskQueue<StartBasicClusterTask> startBasicTaskQueue;
 
     /**
      * Max number of nodes licensed by generated trial license
@@ -154,6 +154,16 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     ) {
         this.settings = settings;
         this.clusterService = clusterService;
+        this.startTrialTaskQueue = clusterService.createTaskQueue(
+            "license-service-start-trial",
+            Priority.NORMAL,
+            new StartTrialClusterTask.Executor()
+        );
+        this.startBasicTaskQueue = clusterService.createTaskQueue(
+            "license-service-start-basic",
+            Priority.NORMAL,
+            new StartBasicClusterTask.Executor()
+        );
         this.clock = clock;
         this.scheduler = new SchedulerEngine(settings, clock);
         this.licenseState = licenseState;
@@ -388,12 +398,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             "delete license",
             listener
         );
-        clusterService.submitStateUpdateTask(
-            task.getDescription(),
-            task,
-            ClusterStateTaskConfig.build(Priority.NORMAL), // TODO should pass in request.masterNodeTimeout() here
-            startBasicExecutor
-        );
+        startBasicTaskQueue.submitTask(task.getDescription(), task, null); // TODO should pass in request.masterNodeTimeout() here
     }
 
     public License getLicense() {
@@ -416,11 +421,10 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                     + "]"
             );
         }
-        clusterService.submitStateUpdateTask(
+        startTrialTaskQueue.submitTask(
             StartTrialClusterTask.TASK_SOURCE,
             new StartTrialClusterTask(logger, clusterService.getClusterName().value(), clock, request, listener),
-            ClusterStateTaskConfig.build(Priority.NORMAL), // TODO should pass in request.masterNodeTimeout() here
-            startTrialExecutor
+            null             // TODO should pass in request.masterNodeTimeout() here
         );
     }
 
@@ -433,12 +437,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             "start basic license",
             listener
         );
-        clusterService.submitStateUpdateTask(
-            task.getDescription(),
-            task,
-            ClusterStateTaskConfig.build(Priority.NORMAL), // TODO should pass in request.masterNodeTimeout() here
-            startBasicExecutor
-        );
+        startBasicTaskQueue.submitTask(task.getDescription(), task, null); // TODO should pass in request.masterNodeTimeout() here
     }
 
     /**

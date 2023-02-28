@@ -140,11 +140,12 @@ public class AuthenticationTests extends ESTestCase {
         final String apiKeyId1 = randomAlphaOfLengthBetween(10, 20);
         final RemoteAccessAuthentication remoteAccessAuthentication1 = randomValueOtherThanMany(
             ra -> User.isInternal(ra.getAuthentication().getEffectiveSubject().getUser()),
-            () -> AuthenticationTestHelper.randomRemoteAccessAuthentication()
+            AuthenticationTestHelper::randomRemoteAccessAuthentication
         );
         final Authentication authentication = AuthenticationTestHelper.builder()
             .remoteAccess(apiKeyId1, remoteAccessAuthentication1)
             .build(false);
+        final User apiKeyUser1 = authentication.getEffectiveSubject().getUser();
 
         // 1. Same remote access authentication, allow access (this is only scenario resource share is allowed)
         assertCanAccessResources(authentication, authentication);
@@ -174,7 +175,7 @@ public class AuthenticationTests extends ESTestCase {
         );
         assertCannotAccessResources(
             authentication,
-            AuthenticationTestHelper.builder().remoteAccess(apiKeyId1, remoteAccessAuthentication2).build(false)
+            AuthenticationTestHelper.builder().user(apiKeyUser1).remoteAccess(apiKeyId1, remoteAccessAuthentication2).build(false)
         );
 
         // 6. Allow access if QC authentication is a run-as equivalent
@@ -194,6 +195,7 @@ public class AuthenticationTests extends ESTestCase {
         }
         // random the role descriptor intersection because it does not matter for resource sharing check
         final Authentication authentication2 = AuthenticationTestHelper.builder()
+            .user(apiKeyUser1)
             .remoteAccess(apiKeyId1, new RemoteAccessAuthentication(qcAuthentication2, randomRoleDescriptorsIntersection()))
             .build(false);
         assertCanAccessResources(authentication, authentication2);
@@ -203,6 +205,7 @@ public class AuthenticationTests extends ESTestCase {
         assertCannotAccessResources(
             authentication,
             AuthenticationTestHelper.builder()
+                .user(apiKeyUser1)
                 .remoteAccess(
                     apiKeyId1,
                     new RemoteAccessAuthentication(
@@ -220,6 +223,7 @@ public class AuthenticationTests extends ESTestCase {
         final RealmRef realm1 = qcAuthentication1.getEffectiveSubject().getRealm();
         final Authentication authenticationWithSameQcUserDifferentRealm;
         final CheckedFunction<RealmRef, Authentication, IOException> authenticationForRealm = realmRef -> AuthenticationTestHelper.builder()
+            .user(apiKeyUser1)
             .remoteAccess(
                 apiKeyId1,
                 new RemoteAccessAuthentication(
@@ -843,6 +847,27 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(
             actual.getEffectiveSubject().getRealm().getDomain(),
             equalTo(authentication.getEffectiveSubject().getRealm().getDomain())
+        );
+    }
+
+    public void testToRemoteAccess() {
+        final User creator = randomUser();
+        final String apiKeyId = randomAlphaOfLength(42);
+        final Authentication apiKeyAuthentication = AuthenticationTestHelper.builder().apiKey(apiKeyId).user(creator).build(false);
+        final RemoteAccessAuthentication remoteAccessAuthentication = AuthenticationTestHelper.randomRemoteAccessAuthentication();
+
+        final Authentication actualAuthentication = apiKeyAuthentication.toRemoteAccess(remoteAccessAuthentication);
+
+        assertThat(actualAuthentication.isRemoteAccess(), is(true));
+        assertThat(actualAuthentication.getEffectiveSubject().getUser(), equalTo(AuthenticationTestHelper.stripRoles(creator)));
+        assertThat(actualAuthentication.getAuthenticatingSubject().getMetadata(), hasEntry(AuthenticationField.API_KEY_ID_KEY, apiKeyId));
+        assertThat(
+            actualAuthentication.getAuthenticatingSubject().getMetadata(),
+            hasEntry(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, remoteAccessAuthentication.getAuthentication())
+        );
+        assertThat(
+            actualAuthentication.getAuthenticatingSubject().getMetadata(),
+            hasEntry(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY, remoteAccessAuthentication.getRoleDescriptorsBytesList())
         );
     }
 

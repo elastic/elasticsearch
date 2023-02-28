@@ -64,6 +64,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.Queue;
 import java.util.Random;
 import java.util.Set;
@@ -450,7 +451,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             final List<DiscoveryNode> nodes = getSnapshotNodes(discoveryNodes);
 
             final String registerName = "test-register-" + UUIDs.randomBase64UUID(random);
-            try (var registerRefs = new RefCountingRunnable(finalRegisterValueVerifier(registerName, requestRefs.acquire()))) {
+            try (var registerRefs = new RefCountingRunnable(finalRegisterValueVerifier(registerName, random, requestRefs.acquire()))) {
                 final long registerOperations = Math.max(nodes.size(), request.getConcurrency());
                 for (int i = 0; i < registerOperations; i++) {
                     final RegisterAnalyzeAction.Request registerAnalyzeRequest = new RegisterAnalyzeAction.Request(
@@ -508,7 +509,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
 
                 @Override
                 public boolean hasNext() {
-                    return isRunning() && nextItem != null;
+                    return nextItem != null;
                 }
 
                 @Override
@@ -522,37 +523,41 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
         }
 
         private void runBlobAnalysis(Releasable ref, final BlobAnalyzeAction.Request request, DiscoveryNode node) {
-            logger.trace("processing [{}] on [{}]", request, node);
-            // NB although all this is on the SAME thread, the per-blob verification runs on a SNAPSHOT thread so we don't have to worry
-            // about local requests resulting in a stack overflow here
-            transportService.sendChildRequest(
-                node,
-                BlobAnalyzeAction.NAME,
-                request,
-                task,
-                TransportRequestOptions.timeout(TimeValue.timeValueMillis(timeoutTimeMillis - currentTimeMillisSupplier.getAsLong())),
-                new ActionListenerResponseHandler<>(ActionListener.releaseAfter(new ActionListener<>() {
-                    @Override
-                    public void onResponse(BlobAnalyzeAction.Response response) {
-                        logger.trace("finished [{}] on [{}]", request, node);
-                        if (request.getAbortWrite() == false) {
-                            expectedBlobs.add(request.getBlobName()); // each task cleans up its own mess on failure
-                        }
-                        if (AsyncAction.this.request.detailed) {
-                            synchronized (responses) {
-                                responses.add(response);
+            if (isRunning()) {
+                logger.trace("processing [{}] on [{}]", request, node);
+                // NB although all this is on the SAME thread, the per-blob verification runs on a SNAPSHOT thread so we don't have to worry
+                // about local requests resulting in a stack overflow here
+                transportService.sendChildRequest(
+                    node,
+                    BlobAnalyzeAction.NAME,
+                    request,
+                    task,
+                    TransportRequestOptions.timeout(TimeValue.timeValueMillis(timeoutTimeMillis - currentTimeMillisSupplier.getAsLong())),
+                    new ActionListenerResponseHandler<>(ActionListener.releaseAfter(new ActionListener<>() {
+                        @Override
+                        public void onResponse(BlobAnalyzeAction.Response response) {
+                            logger.trace("finished [{}] on [{}]", request, node);
+                            if (request.getAbortWrite() == false) {
+                                expectedBlobs.add(request.getBlobName()); // each task cleans up its own mess on failure
                             }
+                            if (AsyncAction.this.request.detailed) {
+                                synchronized (responses) {
+                                    responses.add(response);
+                                }
+                            }
+                            summary.add(response);
                         }
-                        summary.add(response);
-                    }
 
-                    @Override
-                    public void onFailure(Exception exp) {
-                        logger.debug(() -> "failed [" + request + "] on [" + node + "]", exp);
-                        fail(exp);
-                    }
-                }, ref), BlobAnalyzeAction.Response::new)
-            );
+                        @Override
+                        public void onFailure(Exception exp) {
+                            logger.debug(() -> "failed [" + request + "] on [" + node + "]", exp);
+                            fail(exp);
+                        }
+                    }, ref), BlobAnalyzeAction.Response::new)
+                );
+            } else {
+                ref.close();
+            }
         }
 
         private BlobContainer getBlobContainer() {
@@ -560,7 +565,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
         }
 
         private void runRegisterAnalysis(Releasable ref, RegisterAnalyzeAction.Request request, DiscoveryNode node) {
-            if (node.getVersion().onOrAfter(Version.V_8_8_0)) {
+            if (node.getVersion().onOrAfter(Version.V_8_8_0) && isRunning()) {
                 transportService.sendChildRequest(
                     node,
                     RegisterAnalyzeAction.NAME,
@@ -585,43 +590,62 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             }
         }
 
-        private Runnable finalRegisterValueVerifier(String registerName, Releasable ref) {
+        private Runnable finalRegisterValueVerifier(String registerName, Random random, Releasable ref) {
             return () -> {
-                final var expectedFinalRegisterValue = expectedRegisterValue.get();
-                transportService.getThreadPool()
-                    .executor(ThreadPool.Names.SNAPSHOT)
-                    .execute(ActionRunnable.supply(ActionListener.releaseAfter(new ActionListener<>() {
-                        @Override
-                        public void onResponse(Long actualFinalRegisterValue) {
-                            if (actualFinalRegisterValue != expectedFinalRegisterValue) {
-                                fail(
-                                    new RepositoryVerificationException(
-                                        request.getRepositoryName(),
-                                        Strings.format(
-                                            "register [%s] should have value [%d] but instead had value [%d]",
-                                            registerName,
-                                            expectedFinalRegisterValue,
-                                            actualFinalRegisterValue
+                if (isRunning()) {
+                    final var expectedFinalRegisterValue = expectedRegisterValue.get();
+                    transportService.getThreadPool()
+                        .executor(ThreadPool.Names.SNAPSHOT)
+                        .execute(ActionRunnable.wrap(ActionListener.releaseAfter(new ActionListener<OptionalLong>() {
+                            @Override
+                            public void onResponse(OptionalLong actualFinalRegisterValue) {
+                                if (actualFinalRegisterValue.isEmpty()
+                                    || actualFinalRegisterValue.getAsLong() != expectedFinalRegisterValue) {
+                                    fail(
+                                        new RepositoryVerificationException(
+                                            request.getRepositoryName(),
+                                            Strings.format(
+                                                "register [%s] should have value [%d] but instead had value [%s]",
+                                                registerName,
+                                                expectedFinalRegisterValue,
+                                                actualFinalRegisterValue
+                                            )
                                         )
-                                    )
-                                );
+                                    );
+                                }
                             }
-                        }
 
-                        @Override
-                        public void onFailure(Exception exp) {
-                            // Registers are not supported on all repository types, and that's ok.
-                            if (exp instanceof UnsupportedOperationException == false) {
-                                fail(exp);
+                            @Override
+                            public void onFailure(Exception exp) {
+                                // Registers are not supported on all repository types, and that's ok.
+                                if (exp instanceof UnsupportedOperationException == false) {
+                                    fail(exp);
+                                }
                             }
-                        }
-                    }, ref),
-                        () -> getBlobContainer().compareAndExchangeRegister(
-                            registerName,
-                            expectedFinalRegisterValue,
-                            expectedFinalRegisterValue
-                        )
-                    ));
+                        }, ref), listener -> {
+                            switch (random.nextInt(3)) {
+                                case 0 -> getBlobContainer().getRegister(registerName, listener);
+                                case 1 -> getBlobContainer().compareAndExchangeRegister(
+                                    registerName,
+                                    expectedFinalRegisterValue,
+                                    -1,
+                                    listener
+                                );
+                                case 2 -> getBlobContainer().compareAndSetRegister(
+                                    registerName,
+                                    expectedFinalRegisterValue,
+                                    -1,
+                                    listener.map(b -> b ? OptionalLong.of(expectedFinalRegisterValue) : OptionalLong.empty())
+                                );
+                                default -> {
+                                    assert false;
+                                    throw new IllegalStateException();
+                                }
+                            }
+                        }));
+                } else {
+                    ref.close();
+                }
             };
         }
 

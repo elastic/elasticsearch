@@ -39,7 +39,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +48,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
+import static java.util.Comparator.comparing;
+import static java.util.Comparator.nullsFirst;
+import static java.util.Comparator.reverseOrder;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
@@ -257,7 +259,7 @@ public class EsqlActionIT extends ESIntegTestCase {
         List<Group> actualGroups = results.values()
             .stream()
             .map(l -> new Group((Long) l.get(1), (Double) l.get(0)))
-            .sorted(Comparator.comparing(c -> c.data))
+            .sorted(comparing(c -> c.data))
             .toList();
         assertEquals(expectedGroups, actualGroups);
         for (int i = 0; i < 5; i++) {
@@ -288,7 +290,7 @@ public class EsqlActionIT extends ESIntegTestCase {
         List<Group> actualGroups = results.values()
             .stream()
             .map(l -> new Group((String) l.get(1), (Double) l.get(0)))
-            .sorted(Comparator.comparing(c -> c.color))
+            .sorted(comparing(c -> c.color))
             .toList();
         assertThat(actualGroups, equalTo(expectedGroups));
     }
@@ -328,7 +330,7 @@ public class EsqlActionIT extends ESIntegTestCase {
             List<Group> actualGroups = results.values()
                 .stream()
                 .map(l -> new Group((String) l.get(1), (Double) l.get(0)))
-                .sorted(Comparator.comparing(c -> c.color))
+                .sorted(comparing(c -> c.color))
                 .toList();
             assertThat(actualGroups, equalTo(expectedGroups));
         }
@@ -373,7 +375,7 @@ public class EsqlActionIT extends ESIntegTestCase {
         List<Group> actualGroups = results.values()
             .stream()
             .map(l -> new Group((Double) l.get(0), (Long) l.get(1), (Long) l.get(2), (Long) l.get(3), (Long) l.get(4), (String) l.get(5)))
-            .sorted(Comparator.comparing(c -> c.color))
+            .sorted(comparing(c -> c.color))
             .toList();
         assertThat(actualGroups, equalTo(expectedGroups));
     }
@@ -881,6 +883,78 @@ public class EsqlActionIT extends ESIntegTestCase {
     public void testShowFunctions() {
         EsqlQueryResponse results = run("show functions");
 
+    }
+
+    public void testTopNPushedToLucene() {
+        BulkRequestBuilder bulkDelete = client().prepareBulk();
+        bulkDelete.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        for (int i = 5; i < 11; i++) {
+            var yellowDocId = "yellow_" + i;
+            var yellowNullCountDocId = "yellow_null_count_" + i;
+            var yellowNullDataDocId = "yellow_null_data_" + i;
+
+            client().prepareBulk()
+                .add(new IndexRequest("test").id(yellowDocId).source("data", i, "count", i * 10, "color", "yellow"))
+                .add(new IndexRequest("test").id(yellowNullCountDocId).source("data", i, "color", "yellow"))
+                .add(new IndexRequest("test").id(yellowNullDataDocId).source("count", i * 10, "color", "yellow"))
+                .get();
+            if (randomBoolean()) {
+                client().admin().indices().prepareRefresh("test").get();
+            }
+
+            // build the cleanup request now, as well, not to miss anything ;-)
+            bulkDelete.add(new DeleteRequest("test").id(yellowDocId))
+                .add(new DeleteRequest("test").id(yellowNullCountDocId))
+                .add(new DeleteRequest("test").id(yellowNullDataDocId));
+        }
+        client().admin().indices().prepareRefresh("test").get();
+
+        EsqlQueryResponse results = run("""
+                from test
+                | where color == "yellow"
+                | sort data desc nulls first, count asc nulls first
+                | limit 10
+                | project data, count, color
+            """);
+        logger.info(results);
+        Assert.assertEquals(3, results.columns().size());
+        Assert.assertEquals(10, results.values().size());
+
+        // assert column metadata
+        assertEquals("data", results.columns().get(0).name());
+        assertEquals("long", results.columns().get(0).type());
+        assertEquals("count", results.columns().get(1).name());
+        assertEquals("long", results.columns().get(1).type());
+        assertEquals("color", results.columns().get(2).name());
+        assertEquals("keyword", results.columns().get(2).type());
+        record Group(Long data, Long count, String color) {
+            Group(Long data, Long count) {
+                this(data, count, "yellow");
+            }
+        }
+        List<Group> expectedGroups = List.of(
+            // data sorted descending nulls first; count sorted ascending nulls first
+            new Group(null, 50L),
+            new Group(null, 60L),
+            new Group(null, 70L),
+            new Group(null, 80L),
+            new Group(null, 90L),
+            new Group(null, 100L),
+            new Group(10L, null),
+            new Group(10L, 100L),
+            new Group(9L, null),
+            new Group(9L, 90L)
+        );
+        List<Group> actualGroups = results.values()
+            .stream()
+            .map(l -> new Group((Long) l.get(0), (Long) l.get(1), (String) l.get(2)))
+            .sorted(comparing(group -> group.data, nullsFirst(reverseOrder())))
+            .toList();
+        assertThat(actualGroups, equalTo(expectedGroups));
+
+        // clean-up what we created
+        bulkDelete.get();
     }
 
     /*

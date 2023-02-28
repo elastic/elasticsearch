@@ -10,10 +10,13 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.index.EsIndex;
+import org.elasticsearch.xpack.ql.querydsl.container.Sort;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.NodeUtils;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -37,23 +40,35 @@ public class EsQueryExec extends LeafExec {
     private final EsIndex index;
     private final QueryBuilder query;
     private final Expression limit;
+    private final List<FieldSort> sorts;
     private final List<Attribute> attrs;
 
-    public EsQueryExec(Source source, EsIndex index, QueryBuilder query) {
-        this(source, index, List.of(new FieldAttribute(source, DOC_ID_FIELD.getName(), DOC_ID_FIELD)), query, null);
+    public record FieldSort(FieldAttribute field, Order.OrderDirection direction, Order.NullsPosition nulls) {
+        public FieldSortBuilder fieldSortBuilder() {
+            FieldSortBuilder builder = new FieldSortBuilder(field.name());
+            builder.order(Sort.Direction.from(direction).asOrder());
+            builder.missing(Sort.Missing.from(nulls).searchOrder());
+
+            return builder;
+        }
     }
 
-    public EsQueryExec(Source source, EsIndex index, List<Attribute> attrs, QueryBuilder query, Expression limit) {
+    public EsQueryExec(Source source, EsIndex index, QueryBuilder query) {
+        this(source, index, List.of(new FieldAttribute(source, DOC_ID_FIELD.getName(), DOC_ID_FIELD)), query, null, null);
+    }
+
+    public EsQueryExec(Source source, EsIndex index, List<Attribute> attrs, QueryBuilder query, Expression limit, List<FieldSort> sorts) {
         super(source);
         this.index = index;
         this.query = query;
         this.attrs = attrs;
         this.limit = limit;
+        this.sorts = sorts;
     }
 
     @Override
     protected NodeInfo<EsQueryExec> info() {
-        return NodeInfo.create(this, EsQueryExec::new, index, attrs, query, limit);
+        return NodeInfo.create(this, EsQueryExec::new, index, attrs, query, limit, sorts);
     }
 
     public EsIndex index() {
@@ -73,13 +88,21 @@ public class EsQueryExec extends LeafExec {
         return limit;
     }
 
+    public List<FieldSort> sorts() {
+        return sorts;
+    }
+
     public EsQueryExec withLimit(Expression limit) {
-        return new EsQueryExec(source(), index, attrs, query, limit);
+        return new EsQueryExec(source(), index, attrs, query, limit, sorts);
+    }
+
+    public EsQueryExec withSorts(List<FieldSort> sorts) {
+        return new EsQueryExec(source(), index, attrs, query, limit, sorts);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, attrs, query, limit);
+        return Objects.hash(index, attrs, query, limit, sorts);
     }
 
     @Override
@@ -96,7 +119,8 @@ public class EsQueryExec extends LeafExec {
         return Objects.equals(index, other.index)
             && Objects.equals(attrs, other.attrs)
             && Objects.equals(query, other.query)
-            && Objects.equals(limit, other.limit);
+            && Objects.equals(limit, other.limit)
+            && Objects.equals(sorts, other.sorts);
     }
 
     @Override
@@ -115,6 +139,8 @@ public class EsQueryExec extends LeafExec {
             + NodeUtils.limitedToString(attrs)
             + ", limit["
             + (limit != null ? limit.toString() : "")
+            + "], sort["
+            + (sorts != null ? sorts.toString() : "")
             + "]";
     }
 }

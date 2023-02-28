@@ -12,6 +12,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.FieldSort;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
@@ -82,6 +84,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
         esSourceRules.add(new ReplaceAttributeSourceWithDocId());
 
         if (isOptimizedForEsSource) {
+            esSourceRules.add(new PushTopNToSource());
             esSourceRules.add(new PushLimitToSource());
             esSourceRules.add(new PushFiltersToSource());
         }
@@ -468,7 +471,14 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                     if (filterQuery != null) {
                         query = boolQuery().must(filterQuery).must(planQuery);
                     }
-                    queryExec = new EsQueryExec(queryExec.source(), queryExec.index(), queryExec.output(), query, queryExec.limit());
+                    queryExec = new EsQueryExec(
+                        queryExec.source(),
+                        queryExec.index(),
+                        queryExec.output(),
+                        query,
+                        queryExec.limit(),
+                        queryExec.sorts()
+                    );
                     if (nonPushable.size() > 0) { // update filter with remaining non-pushable conditions
                         plan = new FilterExec(filterExec.source(), queryExec, Predicates.combineAnd(nonPushable));
                     } else { // prune Filter entirely
@@ -501,6 +511,41 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                 plan = exchangeExec.replaceChild(queryExec.withLimit(limitExec.limit()));
             }
             return plan;
+        }
+    }
+
+    private static class PushTopNToSource extends OptimizerRule<TopNExec> {
+        @Override
+        protected PhysicalPlan rule(TopNExec topNExec) {
+            PhysicalPlan plan = topNExec;
+            PhysicalPlan child = topNExec.child();
+
+            boolean canPushDownTopN = child instanceof EsQueryExec
+                || (child instanceof ExchangeExec exchangeExec && exchangeExec.child() instanceof EsQueryExec);
+            if (canPushDownTopN && canPushDownOrders(topNExec.order())) {
+                var sorts = buildFieldSorts(topNExec.order());
+                var limit = topNExec.limit();
+
+                if (child instanceof ExchangeExec exchangeExec && exchangeExec.child()instanceof EsQueryExec queryExec) {
+                    plan = exchangeExec.replaceChild(queryExec.withSorts(sorts).withLimit(limit));
+                } else {
+                    plan = ((EsQueryExec) child).withSorts(sorts).withLimit(limit);
+                }
+            }
+            return plan;
+        }
+
+        private boolean canPushDownOrders(List<Order> orders) {
+            // allow only FieldAttributes (no expressions) for sorting
+            return false == Expressions.match(orders, s -> ((Order) s).child() instanceof FieldAttribute == false);
+        }
+
+        private List<FieldSort> buildFieldSorts(List<Order> orders) {
+            List<FieldSort> sorts = new ArrayList<>(orders.size());
+            for (Order o : orders) {
+                sorts.add(new FieldSort(((FieldAttribute) o.child()), o.direction(), o.nullsPosition()));
+            }
+            return sorts;
         }
     }
 }

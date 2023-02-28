@@ -52,7 +52,7 @@ public abstract class TransportTestExistTask extends PrecommitTask {
     abstract public WorkerExecutor getWorkerExecutor();
 
     @TaskAction
-    public void runLoggerUsageTask() {
+    public void runTask() {
         WorkQueue workQueue = getWorkerExecutor().noIsolation();
         workQueue.submit(TransportTestExistWorkAction.class, parameters -> {
             parameters.getMainSources().setFrom(mainSources);

@@ -117,6 +117,7 @@ final class RemoteClusterConnection implements Closeable {
                 threadContext.markAsSystemContext();
                 Transport.Connection connection = remoteConnectionManager.getAnyRemoteConnection();
 
+                // Use different action to collect nodes information depending on the connection model
                 if (REMOTE_CLUSTER_PROFILE.equals(remoteConnectionManager.getConnectionProfile().getTransportProfile())) {
                     transportService.sendRequest(
                         connection,

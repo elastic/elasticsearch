@@ -301,7 +301,7 @@ public class RemoteConnectionManager implements ConnectionManager {
 
     private static final class InternalRemoteConnection implements Transport.Connection {
 
-        private static Logger logger = LogManager.getLogger(InternalRemoteConnection.class);
+        private static final Logger logger = LogManager.getLogger(InternalRemoteConnection.class);
         private final Transport.Connection connection;
         private final String clusterAlias;
         private final boolean isRemoteClusterProfile;

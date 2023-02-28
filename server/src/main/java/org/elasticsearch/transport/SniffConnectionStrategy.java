@@ -307,47 +307,38 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 ThreadPool threadPool = transportService.getThreadPool();
                 ThreadContext threadContext = threadPool.getThreadContext();
 
+                final String action;
+                final TransportRequest request;
+                final AbstractSniffResponseHandler<?> sniffResponseHandler;
+                // Use different action to collect nodes information depending on the connection model
                 if (REMOTE_CLUSTER_PROFILE.equals(connectionManager.getConnectionProfile().getTransportProfile())) {
-                    TransportService.ContextRestoreResponseHandler<RemoteClusterNodesAction.Response> responseHandler =
-                        new TransportService.ContextRestoreResponseHandler<>(
-                            threadContext.newRestorableContext(false),
-                            new RemoteClusterNodesSniffResponseHandler(connection, listener, seedNodesSuppliers)
-                        );
-                    try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                        // we stash any context here since this is an internal execution and should not leak any
-                        // existing context information.
-                        threadContext.markAsSystemContext();
-                        transportService.sendRequest(
-                            connection,
-                            RemoteClusterNodesAction.NAME,
-                            RemoteClusterNodesAction.Request.INSTANCE,
-                            TransportRequestOptions.EMPTY,
-                            responseHandler
-                        );
-                    }
+                    action = RemoteClusterNodesAction.NAME;
+                    request = RemoteClusterNodesAction.Request.INSTANCE;
+                    sniffResponseHandler = new RemoteClusterNodesSniffResponseHandler(connection, listener, seedNodesSuppliers);
                 } else {
-                    ClusterStateRequest request = new ClusterStateRequest();
-                    request.clear();
-                    request.nodes(true);
-                    TransportService.ContextRestoreResponseHandler<ClusterStateResponse> responseHandler =
-                        new TransportService.ContextRestoreResponseHandler<>(
-                            threadContext.newRestorableContext(false),
-                            new ClusterStateSniffResponseHandler(connection, listener, seedNodesSuppliers)
-                        );
-                    try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                        // we stash any context here since this is an internal execution and should not leak any
-                        // existing context information.
-                        threadContext.markAsSystemContext();
-                        transportService.sendRequest(
-                            connection,
-                            ClusterStateAction.NAME,
-                            request,
-                            TransportRequestOptions.EMPTY,
-                            responseHandler
-                        );
-                    }
+                    action = ClusterStateAction.NAME;
+                    final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+                    clusterStateRequest.clear();
+                    clusterStateRequest.nodes(true);
+                    request = clusterStateRequest;
+                    sniffResponseHandler = new ClusterStateSniffResponseHandler(connection, listener, seedNodesSuppliers);
                 }
 
+                try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                    // we stash any context here since this is an internal execution and should not leak any
+                    // existing context information.
+                    threadContext.markAsSystemContext();
+                    transportService.sendRequest(
+                        connection,
+                        action,
+                        request,
+                        TransportRequestOptions.EMPTY,
+                        new TransportService.ContextRestoreResponseHandler<>(
+                            threadContext.newRestorableContext(false),
+                            sniffResponseHandler
+                        )
+                    );
+                }
             }, e -> {
                 final Transport.Connection connection = openConnectionStep.result();
                 final DiscoveryNode node = connection.getNode();

@@ -35,7 +35,7 @@ public class ListEnginesAction extends ActionType<ListEnginesAction.Response> {
     public static final String NAME = "indices:admin/engine/list";
 
     public ListEnginesAction() {
-        super(NAME, Response::new);
+        super(NAME, ListEnginesAction.Response::new);
     }
 
     // TODO Check if this should implement IndicesRequest.Replaceable
@@ -88,7 +88,7 @@ public class ListEnginesAction extends ActionType<ListEnginesAction.Response> {
 
         @Override
         public IndicesOptions indicesOptions() {
-            return IndicesOptions.STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED;
+            return IndicesOptions.strictExpandOpen();
         }
 
         @Override

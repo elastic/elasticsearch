@@ -1,0 +1,49 @@
+setup:
+  - do:
+      indices.create:
+        index: test-index1
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      indices.create:
+        index: test-index2
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      engine.put:
+        engine_id: test-engine-1
+        body:
+          indices: [ "test-index1" ]
+          analytics_collection_name: "test-analytics1"
+
+  - do:
+      engine.put:
+        engine_id: test-engine-2
+        body:
+          indices: [ "test-index2" ]
+          analytics_collection_name: "test-analytics2"
+
+  - do:
+      engine.put:
+        engine_id: another-test-engine
+        body:
+          indices: [ "test-index1", "test-index2" ]
+          analytics_collection_name: "test-another-analytics"
+
+---
+"List Engines":
+  - do:
+      engine.list: { }
+
+  - match: { _meta.total: 3 }
+  - match: { _meta.from: 0 }
+  - match: { _meta.size: 100 }
+

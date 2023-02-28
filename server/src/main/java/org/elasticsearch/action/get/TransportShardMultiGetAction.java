@@ -85,9 +85,11 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
         ShardIterator iterator = clusterService.operationRouting()
             .getShards(state, request.request().index(), request.request().shardId(), request.request().preference());
+        if (iterator == null) {
+            return null;
+        }
         // Only route to promotable shards. This is a temporary workaround for stateless until a more cohesive solution can be
         // implemented for search shards.
-        // TODO: iterator could be null.
         return new PlainShardIterator(
             iterator.shardId(),
             iterator.getShardRoutings().stream().filter(ShardRouting::isPromotableToPrimary).toList()

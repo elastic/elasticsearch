@@ -24,6 +24,9 @@ import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpVersion;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.io.IOException;
 import java.util.Set;
 import java.util.TreeSet;
@@ -34,6 +37,8 @@ import java.util.stream.Stream;
  * Emulates a <a href="https://en.wikipedia.org/wiki/Proxy_server#Web_proxy_servers">Web Proxy Server</a>
  */
 class WebProxyServer extends MockHttpProxyServer {
+
+    private static final Logger logger = LogManager.getLogger(WebProxyServer.class);
 
     private static final Set<String> BLOCKED_HEADERS = Stream.of("Host", "Proxy-Connection", "Proxy-Authenticate")
         .collect(Collectors.toCollection(() -> new TreeSet<>(String.CASE_INSENSITIVE_ORDER)));
@@ -64,6 +69,12 @@ class WebProxyServer extends MockHttpProxyServer {
                                         // Proxy the response from the upstream server
                                         inboundChannel.writeAndFlush(response.retain());
                                     }
+
+                                    @Override
+                                    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+                                        logger.error("Proxy client error", cause);
+                                        ctx.close();
+                                    }
                                 });
                         }
                     })
@@ -91,6 +102,12 @@ class WebProxyServer extends MockHttpProxyServer {
                         req.trailingHeaders()
                     )
                 );
+            }
+
+            @Override
+            public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+                logger.error("Proxy server error", cause);
+                ctx.close();
             }
         });
     }

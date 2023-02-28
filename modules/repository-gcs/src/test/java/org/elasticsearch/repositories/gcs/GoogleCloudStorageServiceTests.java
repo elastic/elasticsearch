@@ -208,6 +208,12 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
                 response.headers().setInt(HttpHeaderNames.CONTENT_LENGTH, response.content().readableBytes());
                 ctx.writeAndFlush(response);
             }
+
+            @Override
+            public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+                logger.error("Proxy server error", cause);
+                ctx.close();
+            }
         });
         try (proxyServer) {
             var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), proxyServer.getPort()));

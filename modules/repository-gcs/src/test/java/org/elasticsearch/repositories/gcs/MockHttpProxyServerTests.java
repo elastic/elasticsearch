@@ -43,6 +43,12 @@ public class MockHttpProxyServerTests extends ESTestCase {
                 response.headers().setInt(HttpHeaderNames.CONTENT_LENGTH, response.content().readableBytes());
                 ctx.writeAndFlush(response);
             }
+
+            @Override
+            public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+                logger.error("Proxy server error", cause);
+                ctx.close();
+            }
         });
         var httpClient = HttpClients.custom()
             .setRoutePlanner(new DefaultProxyRoutePlanner(new HttpHost(InetAddress.getLoopbackAddress(), proxyServer.getPort())))

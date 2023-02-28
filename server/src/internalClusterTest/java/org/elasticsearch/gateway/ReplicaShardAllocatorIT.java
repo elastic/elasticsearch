@@ -420,12 +420,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             }
             connection.sendRequest(requestId, action, request, options);
         });
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
-        );
+        setReplicaCount(1, indexName);
         internalCluster().startDataOnlyNode();
         newNodeStarted.countDown();
 
@@ -465,12 +460,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareClose(indexName));
         int numberOfReplicas = randomIntBetween(1, 2);
         internalCluster().ensureAtLeastNumDataNodes(2 + numberOfReplicas);
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas))
-        );
+        setReplicaCount(numberOfReplicas, indexName);
         ensureGreen(indexName);
         ensureActivePeerRecoveryRetentionLeasesAdvanced(indexName);
         assertAcked(

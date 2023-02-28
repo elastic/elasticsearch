@@ -177,7 +177,10 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
             final Authentication actualAuthentication = future.get();
 
             assertNotNull(actualAuthentication);
-            assertThat(actualAuthentication.getEffectiveSubject().getUser(), is(SystemUser.INSTANCE));
+            final var innerAuthentication = (Authentication) actualAuthentication.getAuthenticatingSubject()
+                .getMetadata()
+                .get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
+            assertThat(innerAuthentication.getEffectiveSubject().getUser(), is(SystemUser.INSTANCE));
             @SuppressWarnings("unchecked")
             List<RemoteAccessAuthentication.RoleDescriptorsBytes> rds = (List<
                 RemoteAccessAuthentication.RoleDescriptorsBytes>) actualAuthentication.getAuthenticatingSubject()

@@ -467,11 +467,7 @@ public class SearchScrollIT extends ESIntegTestCase {
          * Disable the max result window setting for this test because it'll reject the search's unreasonable batch size. We want
          * unreasonable batch sizes to just OOM.
          */
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("index")
-            .setSettings(Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), Integer.MAX_VALUE))
-            .get();
+        updateIndexSettings(Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), Integer.MAX_VALUE), "index");
 
         for (SearchType searchType : SearchType.values()) {
             SearchRequestBuilder builder = client().prepareSearch("index")

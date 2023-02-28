@@ -16,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 public class GrokBuiltinPatterns {
@@ -64,7 +65,7 @@ public class GrokBuiltinPatterns {
     }
 
     private static Map<String, String> loadLegacyPatterns() {
-        String[] patternNames = {
+        var patternNames = List.of(
             "aws",
             "bacula",
             "bind",
@@ -85,12 +86,13 @@ public class GrokBuiltinPatterns {
             "rails",
             "redis",
             "ruby",
-            "squid" };
-        return readPatternFromDirectory(patternNames, "/patterns/legacy/");
+            "squid"
+        );
+        return loadPatternsFromDirectory(patternNames, "/patterns/legacy/");
     }
 
     private static Map<String, String> loadEcsPatterns() {
-        String[] patternNames = {
+        var patternNames = List.of(
             "aws",
             "bacula",
             "bind",
@@ -112,11 +114,12 @@ public class GrokBuiltinPatterns {
             "redis",
             "ruby",
             "squid",
-            "zeek" };
-        return readPatternFromDirectory(patternNames, "/patterns/ecs-v1/");
+            "zeek"
+        );
+        return loadPatternsFromDirectory(patternNames, "/patterns/ecs-v1/");
     }
 
-    private static Map<String, String> readPatternFromDirectory(String[] patternNames, String directory) {
+    private static Map<String, String> loadPatternsFromDirectory(List<String> patternNames, String directory) {
         Map<String, String> builtinPatterns = new LinkedHashMap<>();
         for (String pattern : patternNames) {
             try {

@@ -13,6 +13,8 @@ import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
@@ -34,6 +36,7 @@ public class TopNOperator implements Operator {
         long[] longs;
         double[] doubles;
         BytesRef[] byteRefs;
+        int[] docs;
 
         boolean[] nullValues;
 
@@ -73,6 +76,7 @@ public class TopNOperator implements Operator {
         int nLongs;
         int nDoubles;
         int nByteRefs;
+        int nDocs;
 
         int[] idToPosition;
         ElementType[] idToType;
@@ -89,6 +93,7 @@ public class TopNOperator implements Operator {
                     case DOUBLE -> nDoubles++;
                     case BYTES_REF -> nByteRefs++;
                     case BOOLEAN -> nBooleans++;
+                    case DOC -> nDocs++;
                     case NULL -> -1;
                     case UNKNOWN -> {
                         assert false : "Must not occur here as TopN should never receive intermediate blocks";
@@ -116,6 +121,7 @@ public class TopNOperator implements Operator {
                 }
                 result.idToPosition = idToPosition;
                 result.idToType = idToType;
+                result.docs = new int[nDocs * 3];
             } else {
                 result = spare;
                 Arrays.fill(result.nullValues, false);
@@ -136,6 +142,13 @@ public class TopNOperator implements Operator {
                             result.byteRefs[idToPosition[i]] = b;
                         }
                         case BOOLEAN -> result.booleans[idToPosition[i]] = ((BooleanBlock) block).getBoolean(rowNum);
+                        case DOC -> {
+                            int p = idToPosition[i];
+                            DocVector doc = ((DocBlock) block).asVector();
+                            result.docs[p++] = doc.shards().getInt(rowNum);
+                            result.docs[p++] = doc.segments().getInt(rowNum);
+                            result.docs[p] = doc.docs().getInt(rowNum);
+                        }
                         case NULL -> {
                             assert false : "Must not occur here as we check nulls above already";
                             throw new UnsupportedOperationException("Block of nulls doesn't support comparison");
@@ -228,6 +241,7 @@ public class TopNOperator implements Operator {
             case DOUBLE -> Double.compare(b1.getDouble(position), b2.getDouble(position));
             case BOOLEAN -> Boolean.compare(b1.getBoolean(position), b2.getBoolean(position));
             case BYTES_REF -> b1.getBytesRef(position).compareTo(b2.getBytesRef(position));
+            case DOC -> throw new UnsupportedOperationException("Block of nulls doesn't support comparison");
             case NULL -> {
                 assert false : "Must not occur here as we check nulls above already";
                 throw new UnsupportedOperationException("Block of nulls doesn't support comparison");
@@ -309,6 +323,17 @@ public class TopNOperator implements Operator {
                 case BYTES_REF -> row.isNull(i)
                     ? BytesRefBlock.newBlockBuilder(1).appendNull().build()
                     : BytesRefBlock.newBlockBuilder(1).appendBytesRef(row.getBytesRef(i)).build();
+                case DOC -> {
+                    int p = row.idToPosition[i];
+                    int shard = row.docs[p++];
+                    int segment = row.docs[p++];
+                    int doc = row.docs[p];
+                    yield new DocVector(
+                        IntBlock.newConstantBlockWith(shard, 1).asVector(),
+                        IntBlock.newConstantBlockWith(segment, 1).asVector(),
+                        IntBlock.newConstantBlockWith(doc, 1).asVector()
+                    ).asBlock();
+                }
                 case NULL -> Block.constantNullBlock(1);
                 case UNKNOWN -> {
                     assert false : "Must not occur here as TopN should never receive intermediate blocks";

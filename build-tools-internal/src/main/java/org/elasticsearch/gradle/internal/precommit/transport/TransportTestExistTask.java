@@ -12,8 +12,6 @@ import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
-import org.gradle.api.logging.Logger;
-import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.SetProperty;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;
@@ -22,14 +20,12 @@ import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
-import org.gradle.process.ExecOperations;
 import org.gradle.workers.WorkAction;
 import org.gradle.workers.WorkParameters;
 import org.gradle.workers.WorkQueue;
 import org.gradle.workers.WorkerExecutor;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.InputStreamReader;
 import java.util.HashSet;
 import java.util.Set;
@@ -37,9 +33,7 @@ import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
-/**
- * Runs LoggerUsageCheck on a set of directories.
- */
+// Verifies if every transport class has a corresponding transport test class
 @CacheableTask
 public abstract class TransportTestExistTask extends PrecommitTask {
     private static final String MISSING_TRANSPORT_TESTS_FILE = "transport-tests/missing-transport-tests.txt";
@@ -109,28 +103,7 @@ public abstract class TransportTestExistTask extends PrecommitTask {
         this.testClasspath = testClasspath;
     }
 
-    public void skipMissingTransportTest(String className, String reason) {
-        skipClasses.add(classNameToPath(className));
-    }
-
-    public void skipTest(String className, String reason) {
-        skipClasses.add(classNameToPath(className));
-    }
-
-    private String classNameToPath(String className) {
-        return className.replace('.', File.separatorChar);
-    }
-
     abstract static class TransportTestExistWorkAction implements WorkAction<Parameters> {
-
-        private final Logger logger = Logging.getLogger(TransportTestExistTask.class);
-
-        private final ExecOperations execOperations;
-
-        @Inject
-        public TransportTestExistWorkAction(ExecOperations execOperations) {
-            this.execOperations = execOperations;
-        }
 
         @Override
         public void execute() {

@@ -8,6 +8,9 @@
 
 package org.elasticsearch.gradle.internal.precommit.transport;
 
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -25,6 +28,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class TransportTestsScanner {
+    private final Logger logger = Logging.getLogger(TransportTestsScanner.class);
+
     private static final String MODULE_INFO = "module-info.class";
 
     private Set<String> skipMissingClasses;
@@ -83,8 +88,14 @@ public class TransportTestsScanner {
             var name = getClassName(c);
             var nameToLook = name.contains("$") ? name.substring(0, name.indexOf('$')) : name;
             Optional<String> found = transportTests.stream().filter(tt -> tt.contains(nameToLook)).findAny();
-            if (found.isEmpty() && skipMissingClasses.contains(c) == false) {
-                missingTestClasses.add(c);
+            if (found.isEmpty()) {
+                if (skipMissingClasses.contains(c) == false) {
+                    missingTestClasses.add(c);
+                    logger.debug("Missing test for class " + c);
+                }
+                logger.debug("Class already marked as missing a test " + c);
+            } else {
+                logger.debug("A test found for class " + c + " " + found.get());
             }
         }
         return missingTestClasses;

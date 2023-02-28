@@ -20,13 +20,13 @@ import java.util.stream.Collectors;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 public class TransportTestsScannerTests {
+    String writeable = "org.elasticsearch.gradle.internal.precommit.transport.test_classes.Writeable";
+    Set<String> transportTestClassesRoots = Set.of(
+        "org.elasticsearch.gradle.internal.precommit.transport.test_classes.test_roots.TransportTestBaseClass"
+    );
+
     @Test
     public void testFindOneFile() throws IOException {
-        String writeable = "org.elasticsearch.gradle.internal.precommit.transport.test_classes.Writeable";
-        Set<String> transportTestClassesRoots = Set.of(
-            "org.elasticsearch.gradle.internal.precommit.transport.test_classes.test_roots.TransportTestBaseClass"
-        );
-
         TransportTestsScanner scanner = new TransportTestsScanner(Set.of(), writeable, transportTestClassesRoots);
         Set<File> all = Arrays.stream(System.getProperty("java.class.path").split(System.getProperty("path.separator")))
             .filter(s -> s.contains("build-tools-internal"))
@@ -44,11 +44,6 @@ public class TransportTestsScannerTests {
 
     @Test
     public void testFindTransportClassWithNonDirectImplements() throws IOException {
-        String writeable = "org.elasticsearch.gradle.internal.precommit.transport.test_classes.Writeable";
-        Set<String> transportTestClassesRoots = Set.of(
-            "org.elasticsearch.gradle.internal.precommit.transport.test_classes.test_roots.TransportTestBaseClass"
-        );
-
         TransportTestsScanner scanner = new TransportTestsScanner(Set.of(), writeable, transportTestClassesRoots);
         Set<File> all = Arrays.stream(System.getProperty("java.class.path").split(System.getProperty("path.separator")))
             .filter(s -> s.contains("build-tools-internal"))
@@ -66,11 +61,6 @@ public class TransportTestsScannerTests {
 
     @Test
     public void testFindNestedTransportClass() throws IOException {
-        String writeable = "org.elasticsearch.gradle.internal.precommit.transport.test_classes.Writeable";
-        Set<String> transportTestClassesRoots = Set.of(
-            "org.elasticsearch.gradle.internal.precommit.transport.test_classes.test_roots.TransportTestBaseClass"
-        );
-
         TransportTestsScanner scanner = new TransportTestsScanner(Set.of(), writeable, transportTestClassesRoots);
         Set<File> all = Arrays.stream(System.getProperty("java.class.path").split(System.getProperty("path.separator")))
             .filter(s -> s.contains("build-tools-internal"))
@@ -92,11 +82,6 @@ public class TransportTestsScannerTests {
 
     @Test
     public void testAbstractTransportClass() throws IOException {
-        String writeable = "org.elasticsearch.gradle.internal.precommit.transport.test_classes.Writeable";
-        Set<String> transportTestClassesRoots = Set.of(
-            "org.elasticsearch.gradle.internal.precommit.transport.test_classes.test_roots.TransportTestBaseClass"
-        );
-
         TransportTestsScanner scanner = new TransportTestsScanner(Set.of(), writeable, transportTestClassesRoots);
         Set<File> all = Arrays.stream(System.getProperty("java.class.path").split(System.getProperty("path.separator")))
             .filter(s -> s.contains("build-tools-internal"))
@@ -114,11 +99,6 @@ public class TransportTestsScannerTests {
 
     @Test
     public void testSkipMisssingClasses() throws IOException {
-        String writeable = "org.elasticsearch.gradle.internal.precommit.transport.test_classes.Writeable";
-        Set<String> transportTestClassesRoots = Set.of(
-            "org.elasticsearch.gradle.internal.precommit.transport.test_classes.test_roots.TransportTestBaseClass"
-        );
-
         Set<File> all = Arrays.stream(System.getProperty("java.class.path").split(System.getProperty("path.separator")))
             .filter(s -> s.contains("build-tools-internal"))
             .filter(s -> s.contains("test" + File.separator + "classes"))

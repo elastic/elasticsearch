@@ -147,6 +147,18 @@ class RollupShardIndexer {
             TimeValue.timeValueMillis(System.currentTimeMillis() - startTime)
         );
 
+        if (task.getNumFailed() > 0) {
+            throw new ElasticsearchException(
+                "Shard ["
+                    + indexShard.shardId()
+                    + "] failed to index all rollup documents. Sent ["
+                    + task.getNumSent()
+                    + "], failed ["
+                    + task.getNumFailed()
+                    + "]."
+            );
+        }
+
         if (task.getNumIndexed() != task.getNumSent()) {
             throw new ElasticsearchException(
                 "Shard ["

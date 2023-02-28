@@ -18,10 +18,10 @@
 package co.elastic.elasticsearch.stateless.engine;
 
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
+import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.Engine.RefreshResult;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -92,7 +92,7 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     public RefreshResult refresh(String source) throws EngineException {
-        if (source.equals(TransportShardRefreshAction.SOURCE_API)) {
+        if (source.equals(TransportShardRefreshAction.SOURCE_API) || source.equals(PostWriteRefresh.FORCED_REFRESH_AFTER_INDEX)) {
             flush(true, true);
         }
         return super.refresh(source);

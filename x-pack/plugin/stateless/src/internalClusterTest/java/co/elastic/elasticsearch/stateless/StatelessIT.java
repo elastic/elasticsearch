@@ -232,7 +232,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         }
 
         startSearchNodes(numberOfShards);
-        updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
         ensureGreen(indexName);
 
         assertObjectStoreConsistentWithSearchShards();
@@ -259,7 +259,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         assertAcked(client().admin().indices().prepareClose(indexName));
 
         startSearchNodes(numberOfShards);
-        updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
         ensureGreen(indexName);
         // TODO assertObjectStoreConsistentWithSearchShards(); doesn't work yet because closing the index incremented the primary term
     }

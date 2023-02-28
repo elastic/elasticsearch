@@ -73,7 +73,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             }
 
             final String stoppedNode = randomFrom(existingNodes);
-            updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.exclude._name", stoppedNode));
+            updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", stoppedNode), indexName);
             ensureGreen(TimeValue.timeValueSeconds(30L), indexName);
             running.set(false);
             for (Thread thread : threads) {

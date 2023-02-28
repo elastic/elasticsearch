@@ -107,7 +107,8 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
                 new SharedGroupFactory(settings),
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
-                null
+                null,
+                randomFrom(null, Netty4HttpHeaderValidator.NOOP_VALIDATOR)
             );
         }
 

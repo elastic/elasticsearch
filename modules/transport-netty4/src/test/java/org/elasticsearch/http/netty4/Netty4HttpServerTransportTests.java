@@ -177,7 +177,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 new SharedGroupFactory(settings),
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
-                null
+                null,
+                randomFrom(Netty4HttpHeaderValidator.NOOP_VALIDATOR, null)
             )
         ) {
             transport.start();
@@ -228,7 +229,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 new SharedGroupFactory(Settings.EMPTY),
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
-                null
+                null,
+                randomFrom(Netty4HttpHeaderValidator.NOOP_VALIDATOR, null)
             )
         ) {
             transport.start();
@@ -248,7 +250,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                     new SharedGroupFactory(settings),
                     Tracer.NOOP,
                     TLSConfig.noTLS(),
-                    null
+                    null,
+                    randomFrom(Netty4HttpHeaderValidator.NOOP_VALIDATOR, null)
                 )
             ) {
                 BindHttpException bindHttpException = expectThrows(BindHttpException.class, otherTransport::start);
@@ -302,7 +305,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 new SharedGroupFactory(settings),
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
-                null
+                null,
+                randomFrom(Netty4HttpHeaderValidator.NOOP_VALIDATOR, null)
             )
         ) {
             transport.start();
@@ -372,7 +376,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 new SharedGroupFactory(Settings.EMPTY),
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
-                null
+                null,
+                randomFrom(Netty4HttpHeaderValidator.NOOP_VALIDATOR, null)
             ) {
                 @Override
                 public ChannelHandler configureServerChannelHandler() {
@@ -471,7 +476,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 new SharedGroupFactory(settings),
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
-                null
+                null,
+                randomFrom(Netty4HttpHeaderValidator.NOOP_VALIDATOR, null)
             )
         ) {
             transport.start();
@@ -543,7 +549,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 new SharedGroupFactory(settings),
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
-                null
+                null,
+                randomFrom(Netty4HttpHeaderValidator.NOOP_VALIDATOR, null)
             )
         ) {
             transport.start();
@@ -615,7 +622,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 new SharedGroupFactory(settings),
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
-                null
+                null,
+                randomFrom(Netty4HttpHeaderValidator.NOOP_VALIDATOR, null)
             )
         ) {
             transport.start();

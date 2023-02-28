@@ -9,26 +9,33 @@
 package org.elasticsearch.http.netty4;
 
 import io.netty.buffer.Unpooled;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.DecoderResult;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpObject;
+import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.util.ReferenceCountUtil;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.TriConsumer;
 
 import java.util.ArrayDeque;
-import java.util.function.BiConsumer;
 
 public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
 
-    private final BiConsumer<HttpMessage, ActionListener<Void>> validator;
+    public static final TriConsumer<HttpRequest, Channel, ActionListener<Void>> NOOP_VALIDATOR = ((
+        httpRequest,
+        channel,
+        listener) -> listener.onResponse(null));
+
+    private final TriConsumer<HttpRequest, Channel, ActionListener<Void>> validator;
     private ArrayDeque<HttpObject> pending = new ArrayDeque<>(4);
     private STATE state = STATE.WAITING_TO_START;
 
-    public Netty4HttpHeaderValidator(BiConsumer<HttpMessage, ActionListener<Void>> validator) {
+    public Netty4HttpHeaderValidator(TriConsumer<HttpRequest, Channel, ActionListener<Void>> validator) {
         this.validator = validator;
     }
 
@@ -74,7 +81,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         assert pending.isEmpty() == false;
 
         HttpObject httpObject = pending.getFirst();
-        assert httpObject instanceof HttpMessage;
+        assert httpObject instanceof HttpRequest;
         // We failed in the decoding step for other reasons. Pass down the pipeline.
         if (httpObject.decoderResult().isFailure()) {
             ctx.fireChannelRead(pending.pollFirst());
@@ -82,7 +89,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         }
 
         state = STATE.QUEUEING_DATA;
-        validator.accept((HttpMessage) httpObject, new ActionListener<>() {
+        validator.apply((HttpRequest) httpObject, ctx.channel(), new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
                 // Always use "Submit" to prevent reentrancy concerns if we are still on event loop

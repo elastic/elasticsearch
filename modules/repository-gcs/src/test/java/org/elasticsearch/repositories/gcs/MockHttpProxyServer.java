@@ -51,7 +51,7 @@ class MockHttpProxyServer implements Closeable {
                 .sync();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
+            throw new AssertionError(e);
         }
         socketAddress = (InetSocketAddress) channelFuture.channel().localAddress();
         return this;

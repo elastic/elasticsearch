@@ -123,4 +123,9 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
         return COMPOSABLE_INDEX_TEMPLATES;
     }
+
+    @Override
+    protected boolean requiresMasterNode() {
+        return true;
+    }
 }

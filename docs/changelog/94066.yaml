@@ -5,6 +5,6 @@ type: deprecation
 issues: []
 deprecation:
   title: Deprecate `cluster.routing.allocation.type`
-  area: Allocation
+  area: Cluster and node setting
   details: The `cluster.routing.allocation.type` setting is deprecated and will be removed in a future version.
   impact: Discontinue use of the `cluster.routing.allocation.type` setting.

@@ -236,6 +236,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         client.admin().indices().rolloverIndex(rolloverRequest, new ActionListener<>() {
             @Override
             public void onResponse(RolloverResponse rolloverResponse) {
+                // Log only when the conditions were met and the index was rolled over.
                 if (rolloverResponse.isRolledOver()) {
                     logger.info(
                         "DLM successfully rolled over datastream [{}]. The new index is [{}]",

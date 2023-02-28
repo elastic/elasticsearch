@@ -5,9 +5,24 @@
  * 2.0.
  */
 
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
   clusterModules(project(":modules:analysis-common"))
+}
+
+tasks.named('javaRestTest') { it ->
+  var bwcVersionCandidates = BuildParams.bwcVersions.getWireCompatible().stream()
+    .filter(v -> v.before('8.8.0') && v.onOrAfter('7.17.0')).toList();
+  if (bwcVersionCandidates.size() > 0) {
+    int bwcVersionIndex = BuildParams.random.nextInt(0, bwcVersionCandidates.size())
+    Version bwcVersion = bwcVersionCandidates.get(bwcVersionIndex)
+    println "Randomly selected BWC Version {$bwcVersion}"
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.old_cluster_version", bwcVersion)
+  }
 }

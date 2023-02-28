@@ -21,6 +21,11 @@ setup:
 
   - match: { acknowledged: true }
 
+  - do:
+      catch: "missing"
+      engine.get:
+        engine_id: test-engine-to-delete
+
 ---
 "Delete Engine - Index does not exist":
   - do:

@@ -168,7 +168,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String PRINCIPAL_RUN_BY_FIELD_NAME = "user.run_by.name";
     public static final String PRINCIPAL_RUN_AS_FIELD_NAME = "user.run_as.name";
     public static final String PRINCIPAL_REALM_FIELD_NAME = "user.realm";
-    public static final String REMOTE_CLUSTER_AUTHENTICATION_FIELD_NAME = "remote_cluster.authentication";
+    public static final String REMOTE_ACCESS_AUTHENTICATION_FIELD_NAME = "remote_access.authentication";
     public static final String PRINCIPAL_DOMAIN_FIELD_NAME = "user.realm_domain";
     public static final String PRINCIPAL_RUN_BY_REALM_FIELD_NAME = "user.run_by.realm";
     public static final String PRINCIPAL_RUN_BY_DOMAIN_FIELD_NAME = "user.run_by.realm_domain";
@@ -1640,14 +1640,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     withAuthenticationFields(innerLogEntry, innerAuthentication, logger);
                     try {
                         final XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
-                        builder.startObject();
-                        builder.startObject("inner");
-                        for (var entry : innerLogEntry.getData().entrySet()) {
-                            builder.field(entry.getKey(), entry.getValue());
-                        }
-                        builder.endObject();
-                        builder.endObject();
-                        logEntry.with(REMOTE_CLUSTER_AUTHENTICATION_FIELD_NAME, Strings.toString(builder));
+                        builder.map(innerLogEntry.getData());
+                        logEntry.with(REMOTE_ACCESS_AUTHENTICATION_FIELD_NAME, Strings.toString(builder));
                     } catch (IOException e) {
                         logger.error("Failed to write remote access authentication [{}] as audit log entry", innerAuthentication);
                     }

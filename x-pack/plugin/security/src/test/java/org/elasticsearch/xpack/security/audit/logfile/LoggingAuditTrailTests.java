@@ -94,12 +94,14 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
@@ -2577,14 +2579,23 @@ public class LoggingAuditTrailTests extends ESTestCase {
     public void testRemoteAccessAuthenticationSuccessTransport() throws Exception {
         final TransportRequest request = randomBoolean() ? new MockRequest(threadContext) : new MockIndicesRequest(threadContext);
         final String requestId = randomRequestId();
-        final Authentication authentication = AuthenticationTestHelper.builder().remoteAccess().build();
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .remoteAccess(
+                randomAlphaOfLength(42),
+                new RemoteAccessAuthentication(
+                    Authentication.newRealmAuthentication(new User("bob", "bobs-role"), new RealmRef("realm-name", "realm-type", "node")),
+                    RoleDescriptorsIntersection.EMPTY
+                )
+            )
+            .build();
         final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
         final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
 
         updateLoggerSettings(
-            Settings.builder().put(this.settings).put("xpack.security.audit.logfile.events.include", "authentication_success").build()
+            Settings.builder().put(settings).put("xpack.security.audit.logfile.events.include", "authentication_success").build()
         );
         auditTrail.authenticationSuccess(requestId, authentication, "_action", request);
+
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
             .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success")
             .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action")
@@ -2597,7 +2608,13 @@ public class LoggingAuditTrailTests extends ESTestCase {
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        assertMsg(logger, checkedFields.map(), checkedArrayFields.map());
+        final String actualLogLine = getSingleLogLine(logger);
+        final MapBuilder<String, String> checkedLiteralFields = new MapBuilder<>();
+        checkedLiteralFields.put(
+            LoggingAuditTrail.REMOTE_ACCESS_AUTHENTICATION_FIELD_NAME,
+            "{\"authentication.type\":\"REALM\",\"user.name\":\"bob\",\"user.realm\":\"realm-name\"}"
+        );
+        assertMsg(actualLogLine, checkedFields.map(), checkedArrayFields.map(), checkedLiteralFields.map());
     }
 
     public void testRequestsWithoutIndices() throws Exception {
@@ -2705,17 +2722,30 @@ public class LoggingAuditTrailTests extends ESTestCase {
     }
 
     private void assertMsg(Logger logger, Map<String, String> checkFields, Map<String, String[]> checkArrayFields) {
-        final List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
-        assertThat("Exactly one logEntry expected. Found: " + output.size(), output.size(), is(1));
+        String logLine = getSingleLogLine(logger);
         if (checkFields == null) {
             // only check msg existence
             return;
         }
-        String logLine = output.get(0);
         assertMsg(logLine, checkFields, checkArrayFields);
     }
 
+    private String getSingleLogLine(Logger logger) {
+        final List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat("Exactly one logEntry expected. Found: " + output.size(), output.size(), is(1));
+        return output.get(0);
+    }
+
     private void assertMsg(String logLine, Map<String, String> checkFields, Map<String, String[]> checkArrayFields) {
+        assertMsg(logLine, checkFields, checkArrayFields, Collections.emptyMap());
+    }
+
+    private void assertMsg(
+        String logLine,
+        Map<String, String> checkFields,
+        Map<String, String[]> checkArrayFields,
+        Map<String, String> checkLiteralFields
+    ) {
         // check each string-valued field
         for (final Map.Entry<String, String> checkField : checkFields.entrySet()) {
             if (null == checkField.getValue()) {
@@ -2730,6 +2760,27 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 final Pattern logEntryFieldPattern = Pattern.compile(Pattern.quote("\"" + checkField.getKey() + "\":" + quotedValue));
                 assertThat(
                     "Field " + checkField.getKey() + " value mismatch. Expected " + quotedValue,
+                    logEntryFieldPattern.matcher(logLine).find(),
+                    is(true)
+                );
+                // remove checked field
+                logLine = logEntryFieldPattern.matcher(logLine).replaceFirst("");
+            }
+        }
+        for (final Map.Entry<String, String> checkField : checkLiteralFields.entrySet()) {
+            if (null == checkField.getValue()) {
+                // null checkField means that the field does not exist
+                assertThat(
+                    "Field: " + checkField.getKey() + " should be missing.",
+                    logLine.contains(Pattern.quote("\"" + checkField.getKey() + "\":")),
+                    is(false)
+                );
+            } else {
+                final Pattern logEntryFieldPattern = Pattern.compile(
+                    Pattern.quote("\"" + checkField.getKey() + "\":" + checkField.getValue())
+                );
+                assertThat(
+                    "Field " + checkField.getKey() + " value mismatch. Expected " + checkField.getValue(),
                     logEntryFieldPattern.matcher(logLine).find(),
                     is(true)
                 );
@@ -2947,7 +2998,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 }
             } else if (authentication.isRemoteAccess()) {
                 checkedFields.put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, AuthenticationField.REMOTE_ACCESS_REALM_TYPE);
-                checkedFields.put(LoggingAuditTrail.REMOTE_CLUSTER_AUTHENTICATION_FIELD_NAME, "wrong");
             }
         } else {
             final RealmRef authenticatedBy = authentication.getAuthenticatingSubject().getRealm();

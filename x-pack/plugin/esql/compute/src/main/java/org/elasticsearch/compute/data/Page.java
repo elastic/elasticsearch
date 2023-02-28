@@ -73,11 +73,6 @@ public final class Page implements Writeable {
         this.blocks = blocks;
     }
 
-    private static boolean assertPositionCount(Block... blocks) {
-        int count = determinePositionCount(blocks);
-        return Arrays.stream(blocks).map(Block::getPositionCount).allMatch(pc -> pc == count);
-    }
-
     private static int determinePositionCount(Block... blocks) {
         Objects.requireNonNull(blocks, "blocks is null");
         if (blocks.length == 0) {
@@ -113,25 +108,6 @@ public final class Page implements Writeable {
 
         Block[] newBlocks = Arrays.copyOf(blocks, blocks.length + 1);
         newBlocks[blocks.length] = block;
-        return new Page(false, positionCount, newBlocks);
-    }
-
-    /**
-     * Creates a new page, replacing a block at the given index with a new block.
-     *
-     * @param blockIndex the index of the block to replace
-     * @param block the replacement block
-     * @return a new Page with the block replaced
-     * @throws IllegalArgumentException if the given block does not have the same number of
-     *         positions as the blocks in this Page
-     */
-    public Page replaceBlock(int blockIndex, Block block) {
-        if (positionCount != block.getPositionCount()) {
-            throw new IllegalArgumentException("Block does not have same position count");
-        }
-
-        Block[] newBlocks = Arrays.copyOf(blocks, blocks.length);
-        newBlocks[blockIndex] = block;
         return new Page(false, positionCount, newBlocks);
     }
 

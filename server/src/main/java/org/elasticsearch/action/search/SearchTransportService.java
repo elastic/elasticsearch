@@ -585,6 +585,10 @@ public class SearchTransportService {
         }
     }
 
+    public TransportVersion getMinTransportVersion() {
+        return transportService.getMinTransportVersion();
+    }
+
     static final class ConnectionCountingHandler<Response extends TransportResponse> extends ActionListenerResponseHandler<Response> {
         private final Map<String, Long> clientConnections;
         private final String nodeId;

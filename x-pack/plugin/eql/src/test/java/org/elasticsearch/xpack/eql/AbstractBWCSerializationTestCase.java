@@ -10,6 +10,7 @@ import org.elasticsearch.KnownTransportVersions;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -23,7 +24,7 @@ public abstract class AbstractBWCSerializationTestCase<T extends Writeable & ToX
 
     private static List<TransportVersion> getAllBWCVersions(TransportVersion version) {
         return KnownTransportVersions.ALL_VERSIONS.stream()
-            .filter(v -> v.onOrAfter(EQL_GA_VERSION) && v.before(version) && version.isCompatible(v))
+            .filter(v -> v.onOrAfter(EQL_GA_VERSION) && v.before(version) && TransportVersionUtils.isCompatible(version, v))
             .collect(Collectors.toList());
     }
 

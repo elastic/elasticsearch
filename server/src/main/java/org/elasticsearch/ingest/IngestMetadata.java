@@ -62,7 +62,7 @@ public final class IngestMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.CURRENT.minimumCompatibilityVersion();
+        return TransportVersion.MINIMUM_COMPATIBLE;
     }
 
     public Map<String, PipelineConfiguration> getPipelines() {
@@ -149,7 +149,7 @@ public final class IngestMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.CURRENT.minimumCompatibilityVersion();
+            return TransportVersion.MINIMUM_COMPATIBLE;
         }
     }
 

@@ -2651,7 +2651,7 @@ public class InternalEngineTests extends EngineTestCase {
                 gcpTracker.addPeerRecoveryRetentionLease(
                     initializingReplica.currentNodeId(),
                     SequenceNumbers.NO_OPS_PERFORMED,
-                    ActionListener.wrap(countDownLatch::countDown)
+                    ActionListener.running(countDownLatch::countDown)
                 );
                 countDownLatch.await();
             }

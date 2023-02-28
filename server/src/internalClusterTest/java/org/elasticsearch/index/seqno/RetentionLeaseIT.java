@@ -308,7 +308,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
             // put a new lease
             currentRetentionLeases.put(
                 id,
-                primary.addRetentionLease(id, retainingSequenceNumber, source, ActionListener.wrap(latch::countDown))
+                primary.addRetentionLease(id, retainingSequenceNumber, source, ActionListener.running(latch::countDown))
             );
             latch.await();
             // now renew all existing leases; we expect to see these synced to the replicas

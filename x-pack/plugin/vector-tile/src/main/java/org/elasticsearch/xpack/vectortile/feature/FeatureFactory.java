@@ -283,28 +283,33 @@ public class FeatureFactory {
         }
 
         private org.locationtech.jts.geom.Geometry clipGeometry(
-            org.locationtech.jts.geom.Geometry envelope,
+            org.locationtech.jts.geom.Geometry tile,
             org.locationtech.jts.geom.Geometry geometry
         ) {
-            try {
-                final IntersectionMatrix matrix = envelope.relate(geometry);
-                if (matrix.isContains()) {
-                    // no need to clip
-                    return geometry;
-                } else if (matrix.isWithin()) {
-                    // the clipped geometry is the envelope
-                    return envelope.copy();
-                } else if (matrix.isIntersects()) {
-                    // clip it (clone envelope as coordinates are copied by reference)
-                    return envelope.copy().intersection(geometry);
-                } else {
-                    // disjoint
-                    assert envelope.copy().intersection(geometry).isEmpty();
-                    return null;
+            final Envelope tileEnvelope = tile.getEnvelopeInternal();
+            final Envelope geometryEnvelope = geometry.getEnvelopeInternal();
+            if (tileEnvelope.intersects(geometryEnvelope) == false) {
+                return null; // disjoint
+            } else if (tileEnvelope.contains(geometryEnvelope)) {
+                return geometry; // geometry within the tile
+            } else {
+                try {
+                    final IntersectionMatrix matrix = tile.relate(geometry);
+                    if (matrix.isWithin()) {
+                        // the clipped geometry is the envelope
+                        return tile.copy();
+                    } else if (matrix.isIntersects()) {
+                        // clip it (clone envelope as coordinates are copied by reference)
+                        return tile.copy().intersection(geometry);
+                    } else {
+                        // disjoint
+                        assert tile.copy().intersection(geometry).isEmpty();
+                        return null;
+                    }
+                } catch (TopologyException ex) {
+                    // we should never get here but just to be super safe because a TopologyException will kill the node
+                    throw new IllegalArgumentException(ex);
                 }
-            } catch (TopologyException ex) {
-                // we should never get here but just to be super safe because a TopologyException will kill the node
-                throw new IllegalArgumentException(ex);
             }
         }
     }

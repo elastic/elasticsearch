@@ -87,6 +87,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         // and do know which field the model expects to find its
         // input and so cannot construct a document.
         private final List<String> textInput;
+        private boolean highPriority;
 
         /**
          * Build a request from a list of documents as maps.
@@ -159,6 +160,9 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             } else {
                 textInput = null;
             }
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+                highPriority = in.readBoolean();
+            }
         }
 
         public int numberOfDocuments() {
@@ -198,6 +202,14 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             return this;
         }
 
+        public boolean isHighPriority() {
+            return highPriority;
+        }
+
+        public void setHighPriority(boolean highPriority) {
+            this.highPriority = highPriority;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -216,6 +228,9 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
                 out.writeOptionalStringCollection(textInput);
             }
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+                out.writeBoolean(highPriority);
+            }
         }
 
         @Override
@@ -228,7 +243,8 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
                 && Objects.equals(previouslyLicensed, that.previouslyLicensed)
                 && Objects.equals(inferenceTimeout, that.inferenceTimeout)
                 && Objects.equals(objectsToInfer, that.objectsToInfer)
-                && Objects.equals(textInput, that.textInput);
+                && Objects.equals(textInput, that.textInput)
+                && (highPriority == that.highPriority);
         }
 
         @Override
@@ -238,7 +254,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId, objectsToInfer, update, previouslyLicensed, inferenceTimeout, textInput);
+            return Objects.hash(modelId, objectsToInfer, update, previouslyLicensed, inferenceTimeout, textInput, highPriority);
         }
 
         public static class Builder {

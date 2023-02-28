@@ -340,6 +340,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             }
 
             final Compression.Scheme schemeToUse = getCompressionScheme(wrapped);
+            assert false == RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME.equals(action)
+                || REMOTE_CLUSTER_PROFILE.equals(channel.getProfile())
+                : "remote cluster handshake can only be sent through RCS remote cluster connection";
             outboundHandler.sendRequest(node, channel, requestId, action, request, options, getTransportVersion(), schemeToUse, false);
         }
 
@@ -760,7 +763,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                     outboundHandler.sendBytes(
                         channel,
                         new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8)),
-                        ActionListener.wrap(() -> CloseableChannel.closeChannel(channel))
+                        ActionListener.running(() -> CloseableChannel.closeChannel(channel))
                     );
                     closeChannel = false;
                 }
@@ -791,7 +794,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         assert addedOnThisCall : "Channel should only be added to accepted channel set once";
         // Mark the channel init time
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
-        channel.addCloseListener(ActionListener.wrap(() -> acceptedChannels.remove(channel)));
+        channel.addCloseListener(ActionListener.running(() -> acceptedChannels.remove(channel)));
         logger.trace(() -> format("Tcp transport channel accepted: %s", channel));
     }
 
@@ -1127,7 +1130,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                         nodeChannels.channels.forEach(ch -> {
                             // Mark the channel init time
                             ch.getChannelStats().markAccessed(relativeMillisTime);
-                            ch.addCloseListener(ActionListener.wrap(nodeChannels::close));
+                            ch.addCloseListener(ActionListener.running(nodeChannels::close));
                         });
                         keepAlive.registerNodeConnection(nodeChannels.channels, connectionProfile);
                         nodeChannels.addCloseListener(new ChannelCloseLogger(node, connectionId, relativeMillisTime));

@@ -97,7 +97,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         private final List<Map<String, Object>> docs;
         private final InferenceConfigUpdate update;
         private final TimeValue inferenceTimeout;
-        private boolean skipQueue = false;
+        private boolean highPriority = false;
         // textInput added for uses that accept a query string
         // and do know which field the model expects to find its
         // input and so cannot construct a document.
@@ -141,7 +141,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             InferenceConfigUpdate update,
             List<Map<String, Object>> docs,
             List<String> textInput,
-            boolean skipQueue,
+            boolean highPriority,
             TimeValue inferenceTimeout
         ) {
             this.modelId = ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.MODEL_ID);
@@ -149,7 +149,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             this.textInput = textInput;
             this.update = update;
             this.inferenceTimeout = inferenceTimeout;
-            this.skipQueue = skipQueue;
+            this.highPriority = highPriority;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -159,7 +159,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             update = in.readOptionalNamedWriteable(InferenceConfigUpdate.class);
             inferenceTimeout = in.readOptionalTimeValue();
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
-                skipQueue = in.readBoolean();
+                highPriority = in.readBoolean();
             }
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
                 textInput = in.readOptionalStringList();
@@ -202,12 +202,12 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             return null;
         }
 
-        public void setSkipQueue(boolean skipQueue) {
-            this.skipQueue = skipQueue;
+        public void setHighPriority(boolean highPriority) {
+            this.highPriority = highPriority;
         }
 
-        public boolean isSkipQueue() {
-            return skipQueue;
+        public boolean isHighPriority() {
+            return highPriority;
         }
 
         @Override
@@ -231,7 +231,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             out.writeOptionalNamedWriteable(update);
             out.writeOptionalTimeValue(inferenceTimeout);
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
-                out.writeBoolean(skipQueue);
+                out.writeBoolean(highPriority);
             }
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
                 out.writeOptionalStringCollection(textInput);
@@ -252,13 +252,13 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
                 && Objects.equals(docs, that.docs)
                 && Objects.equals(update, that.update)
                 && Objects.equals(inferenceTimeout, that.inferenceTimeout)
-                && Objects.equals(skipQueue, that.skipQueue)
+                && Objects.equals(highPriority, that.highPriority)
                 && Objects.equals(textInput, that.textInput);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId, update, docs, inferenceTimeout, skipQueue, textInput);
+            return Objects.hash(modelId, update, docs, inferenceTimeout, highPriority, textInput);
         }
 
         @Override

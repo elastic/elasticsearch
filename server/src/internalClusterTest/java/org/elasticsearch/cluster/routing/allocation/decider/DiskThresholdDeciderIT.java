@@ -100,7 +100,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, empty());
 
         // increase disk size of node 0 to allow just enough room for one shard, and check that it's rebalanced back
-        getTestFileStore(dataNodeName).setTotalSpace(smallestShard.size + WATERMARK_BYTES + 1L);
+        getTestFileStore(dataNodeName).setTotalSpace(smallestShard.size + WATERMARK_BYTES);
         assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, new ContainsExactlyOneOf<>(smallestShard.shardIds));
     }
 
@@ -186,7 +186,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         );
 
         // increase disk size of node 0 to allow just enough room for one shard, and check that it's rebalanced back
-        getTestFileStore(dataNodeName).setTotalSpace(smallestShard.size + WATERMARK_BYTES + 1L);
+        getTestFileStore(dataNodeName).setTotalSpace(smallestShard.size + WATERMARK_BYTES);
         assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, new ContainsExactlyOneOf<>(smallestShard.shardIds));
     }
 

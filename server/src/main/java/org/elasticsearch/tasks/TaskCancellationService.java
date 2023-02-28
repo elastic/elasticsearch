@@ -122,7 +122,7 @@ public class TaskCancellationService {
 
             // We remove bans after all child tasks are completed although in theory we can do it on a per-connection basis.
             completedListener.addListener(
-                ActionListener.wrap(
+                ActionListener.running(
                     transportService.getThreadPool()
                         .getThreadContext()
                         // If we start unbanning when the last child task completed and that child task executed with a specific user, then

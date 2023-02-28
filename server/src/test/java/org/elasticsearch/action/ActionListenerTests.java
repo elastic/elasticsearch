@@ -80,7 +80,7 @@ public class ActionListenerTests extends ESTestCase {
 
     public void testWrapRunnable() {
         var executed = new AtomicBoolean();
-        var listener = ActionListener.wrap(new Runnable() {
+        var listener = ActionListener.running(new Runnable() {
             @Override
             public void run() {
                 assertTrue(executed.compareAndSet(false, true));
@@ -102,7 +102,7 @@ public class ActionListenerTests extends ESTestCase {
 
         expectThrows(
             AssertionError.class,
-            () -> ActionListener.wrap(() -> { throw new UnsupportedOperationException(); }).onResponse(null)
+            () -> ActionListener.running(() -> { throw new UnsupportedOperationException(); }).onResponse(null)
         );
     }
 
@@ -314,7 +314,7 @@ public class ActionListenerTests extends ESTestCase {
 
     public void testNotifyOnceReleasesDelegate() {
         final var reachabilityChecker = new ReachabilityChecker();
-        final var listener = ActionListener.notifyOnce(reachabilityChecker.register(ActionListener.wrap(() -> {})));
+        final var listener = ActionListener.notifyOnce(reachabilityChecker.register(ActionListener.running(() -> {})));
         reachabilityChecker.checkReachable();
         listener.onResponse(null);
         reachabilityChecker.ensureUnreachable();
@@ -501,7 +501,7 @@ public class ActionListenerTests extends ESTestCase {
             ? ActionListener.runBefore(throwingListener, makeCheckedRunnable(description))
             : ActionListener.runAfter(throwingListener, makeRunnable(description));
 
-        final ActionListener<Void> wrappedListener = ActionListener.wrap(new AbstractRunnable() {
+        final ActionListener<Void> wrappedListener = ActionListener.running(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
                 runBeforeOrAfterListener.onFailure(e);

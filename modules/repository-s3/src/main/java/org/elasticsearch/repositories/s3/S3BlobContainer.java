@@ -27,6 +27,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -52,6 +53,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -606,5 +608,20 @@ class S3BlobContainer extends AbstractBlobContainer {
         } else {
             return Tuple.tuple(parts + 1, remaining);
         }
+    }
+
+    @Override
+    public void compareAndExchangeRegister(String key, long expected, long updated, ActionListener<OptionalLong> listener) {
+        listener.onFailure(new UnsupportedOperationException()); // TODO
+    }
+
+    @Override
+    public void compareAndSetRegister(String key, long expected, long updated, ActionListener<Boolean> listener) {
+        listener.onFailure(new UnsupportedOperationException()); // TODO
+    }
+
+    @Override
+    public void getRegister(String key, ActionListener<OptionalLong> listener) {
+        listener.onFailure(new UnsupportedOperationException()); // TODO
     }
 }

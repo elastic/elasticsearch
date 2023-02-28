@@ -40,7 +40,7 @@ public class ListenableFutureTests extends ESTestCase {
         AtomicInteger notifications = new AtomicInteger(0);
         final int numberOfListeners = scaledRandomIntBetween(1, 12);
         for (int i = 0; i < numberOfListeners; i++) {
-            future.addListener(ActionListener.wrap(notifications::incrementAndGet), EsExecutors.DIRECT_EXECUTOR_SERVICE, threadContext);
+            future.addListener(ActionListener.running(notifications::incrementAndGet), EsExecutors.DIRECT_EXECUTOR_SERVICE, threadContext);
         }
 
         future.onResponse("");
@@ -132,7 +132,7 @@ public class ListenableFutureTests extends ESTestCase {
         final ReachabilityChecker reachabilityChecker = new ReachabilityChecker();
 
         for (int i = between(1, 3); i > 0; i--) {
-            future.addListener(reachabilityChecker.register(ActionListener.wrap(() -> {})));
+            future.addListener(reachabilityChecker.register(ActionListener.running(() -> {})));
         }
         reachabilityChecker.checkReachable();
         if (randomBoolean()) {
@@ -142,7 +142,7 @@ public class ListenableFutureTests extends ESTestCase {
         }
         reachabilityChecker.ensureUnreachable();
 
-        future.addListener(reachabilityChecker.register(ActionListener.wrap(() -> {})));
+        future.addListener(reachabilityChecker.register(ActionListener.running(() -> {})));
         reachabilityChecker.ensureUnreachable();
     }
 }

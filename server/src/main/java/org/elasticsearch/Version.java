@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.NavigableMap;
-import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.TreeMap;
 
@@ -136,6 +135,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_8_6_0 = new Version(8_06_00_99, TransportVersion.V_8_6_0, org.apache.lucene.util.Version.LUCENE_9_4_2);
     public static final Version V_8_6_1 = new Version(8_06_01_99, TransportVersion.V_8_6_1, org.apache.lucene.util.Version.LUCENE_9_4_2);
     public static final Version V_8_6_2 = new Version(8_06_02_99, TransportVersion.V_8_6_2, org.apache.lucene.util.Version.LUCENE_9_4_2);
+    public static final Version V_8_6_3 = new Version(8_06_03_99, TransportVersion.V_8_6_3, org.apache.lucene.util.Version.LUCENE_9_4_2);
     public static final Version V_8_7_0 = new Version(8_07_00_99, TransportVersion.V_8_7_0, org.apache.lucene.util.Version.LUCENE_9_5_0);
 
     public static final Version V_8_8_0 = new Version(8_08_00_99, TransportVersion.V_8_8_0, org.apache.lucene.util.Version.LUCENE_9_5_0);
@@ -194,19 +194,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
     public static Version readVersion(StreamInput in) throws IOException {
         return fromId(in.readVInt());
-    }
-
-    /**
-     * Returns the highest Version that has this or a lesser TransportVersion.
-     */
-    @Deprecated
-    static Version findVersion(TransportVersion transportVersion) {
-        return VERSION_IDS.descendingMap()
-            .values()
-            .stream()
-            .filter(v -> v.transportVersion.compareTo(transportVersion) <= 0)
-            .findFirst()
-            .orElseThrow(() -> new NoSuchElementException("No valid Version found")); // only if transportVersion < 0 ?????
     }
 
     public static Version fromId(int id) {

@@ -126,6 +126,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
             SlimConfigUpdate.EMPTY_UPDATE,
             List.of(modelText)
         );
+        inferRequest.setHighPriority(true);
 
         SetOnce<SlimResults> slimResultsSupplier = new SetOnce<>();
         queryRewriteContext.registerAsyncAction((client, listener) -> {

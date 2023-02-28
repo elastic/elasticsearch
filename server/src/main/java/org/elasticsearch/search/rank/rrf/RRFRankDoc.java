@@ -16,16 +16,42 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * {@code RRFRankDoc} supports additional ranking information
+ * required for RRF.
+ */
 public class RRFRankDoc extends RankDoc {
 
+    public static final int NO_RANK = 0;
+
+    /**
+     * If this document has been ranked, this is its final
+     * rrf ranking from all the result sets.
+     */
     public int rank;
+
+    /**
+     * The position within each result set per query. The length
+     * of {@code positions} is the number of queries that are part
+     * of rrf ranking. If a document isn't part of a result set for a
+     * specific query then the position is {@link RRFRankDoc#NO_RANK}.
+     * This allows for a direct association with each query.
+     */
     public final int[] positions;
+
+    /**
+     * The score for each result set per query. The length
+     * of {@code positions} is the number of queries that are part
+     * of rrf ranking. If a document isn't part of a result set for a
+     * specific query then the score is {@code 0f}. This allows for a
+     * direct association with each query.
+     */
     public final float[] scores;
 
-    public RRFRankDoc(int doc, int shardIndex, int size) {
+    public RRFRankDoc(int doc, int shardIndex, int queryCount) {
         super(doc, 0f, shardIndex);
-        positions = new int[size];
-        scores = new float[size];
+        positions = new int[queryCount];
+        scores = new float[queryCount];
     }
 
     public RRFRankDoc(StreamInput in) throws IOException {

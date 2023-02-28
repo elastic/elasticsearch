@@ -29,6 +29,9 @@ import java.util.Map;
 
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 
+/**
+ * Executes queries and generates results on the shard for RRF.
+ */
 public class RRFRankShardContext extends RankShardContext {
 
     protected final int windowSize;
@@ -46,6 +49,8 @@ public class RRFRankShardContext extends RankShardContext {
             QuerySearchResult querySearchResult = searchContext.queryResult();
             RRFRankSearchContext rrfRankSearchContext = new RRFRankSearchContext(searchContext);
 
+            // run the combined boolean query for suggest, total hits, or aggregations
+            // otherwise mark top docs as empty
             if (searchContext.suggest() != null
                 || searchContext.trackTotalHitsUpTo() != TRACK_TOTAL_HITS_DISABLED
                 || searchContext.aggregations() != null) {
@@ -67,7 +72,9 @@ public class RRFRankShardContext extends RankShardContext {
             long serviceTimeEWMA = querySearchResult.serviceTimeEWMA();
             int nodeQueueSize = querySearchResult.nodeQueueSize();
 
+            // run each of the rrf queries
             for (Query query : queries) {
+                // if a search timeout occurs, exit with partial results
                 if (searchTimedOut) {
                     break;
                 }
@@ -81,6 +88,8 @@ public class RRFRankShardContext extends RankShardContext {
             }
 
             sort(rrfRankResults, querySearchResult);
+
+            // record values relevant to all queries
             querySearchResult.searchTimedOut(searchTimedOut);
             querySearchResult.serviceTimeEWMA(serviceTimeEWMA);
             querySearchResult.nodeQueueSize(nodeQueueSize);
@@ -92,6 +101,11 @@ public class RRFRankShardContext extends RankShardContext {
     }
 
     protected void sort(List<TopDocs> rrfRankResults, QuerySearchResult querySearchResult) {
+        // combine the disjointed sets of TopDocs into a single set or RRFRankDocs
+        // each RRFRankDoc will have both the position and score for each query where
+        // it was within the result set for that query
+        // if a doc isn't part of a result set its position will be NO_RANK [0] and
+        // its score is [0f]
         int queries = rrfRankResults.size();
         Map<Integer, RRFRankDoc> docsToRankResults = new HashMap<>();
         int index = 0;
@@ -105,8 +119,16 @@ public class RRFRankShardContext extends RankShardContext {
                         value = new RRFRankDoc(scoreDoc.doc, scoreDoc.shardIndex, queries);
                     }
 
+                    // calculate the current rrf score for this document
+                    // later used to sort and covert to a rank
                     value.score += 1.0f / (rankConstant + frank);
+
+                    // record the position for each query
+                    // for explain and debugging
                     value.positions[findex] = frank;
+
+                    // record the score for each query
+                    // used to later re-rank on the coordinator
                     value.scores[findex] = scoreDoc.score;
 
                     return value;
@@ -116,19 +138,21 @@ public class RRFRankShardContext extends RankShardContext {
             ++index;
         }
 
-        RRFRankDoc[] allRankResults = docsToRankResults.values().toArray(RRFRankDoc[]::new);
-        Arrays.sort(allRankResults, (RRFRankDoc rrf1, RRFRankDoc rrf2) -> {
+        // sort the results based on rrf score, tiebreaker based on smaller doc id
+        RRFRankDoc[] sortedResults = docsToRankResults.values().toArray(RRFRankDoc[]::new);
+        Arrays.sort(sortedResults, (RRFRankDoc rrf1, RRFRankDoc rrf2) -> {
             if (rrf1.score != rrf2.score) {
                 return rrf1.score < rrf2.score ? 1 : -1;
             }
             return rrf1.doc < rrf2.doc ? 1 : -1;
         });
-        RRFRankDoc[] topRankResults = new RRFRankDoc[Math.min(windowSize + from, allRankResults.length)];
-        for (int rank = 0; rank < topRankResults.length; ++rank) {
-            topRankResults[rank] = allRankResults[rank];
-            topRankResults[rank].rank = rank + 1;
-            topRankResults[rank].score = Float.NaN;
+        // trim the results to window size
+        RRFRankDoc[] topResults = new RRFRankDoc[Math.min(windowSize + from, sortedResults.length)];
+        for (int rank = 0; rank < topResults.length; ++rank) {
+            topResults[rank] = sortedResults[rank];
+            topResults[rank].rank = rank + 1;
+            topResults[rank].score = Float.NaN;
         }
-        querySearchResult.setRankShardResult(new RRFRankShardResult(rrfRankResults.size(), topRankResults));
+        querySearchResult.setRankShardResult(new RRFRankShardResult(rrfRankResults.size(), topResults));
     }
 }

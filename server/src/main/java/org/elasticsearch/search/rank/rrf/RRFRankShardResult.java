@@ -16,9 +16,19 @@ import org.elasticsearch.search.rank.RankShardResult;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * The RRF results for a single shard.
+ */
 public class RRFRankShardResult implements RankShardResult {
 
+    /**
+     * The number of queries used for RRF.
+     */
     public final int queryCount;
+
+    /**
+     * The result set of RRF docs for the shard.
+     */
     public final RRFRankDoc[] rrfRankDocs;
 
     public RRFRankShardResult(int queryCount, RRFRankDoc[] rrfRankDocs) {

@@ -9,6 +9,7 @@
 package org.elasticsearch.search.rank;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
@@ -55,7 +56,10 @@ public abstract class RankContextBuilder implements VersionedNamedWriteable, ToX
         out.writeVInt(from);
     }
 
-    public abstract ActionRequestValidationException validate(ActionRequestValidationException exception, SearchSourceBuilder source);
+    /**
+     * Allows additional validation as part of {@link SearchRequest#validate} based on subclass rank parameters.
+     */
+    public abstract ActionRequestValidationException validate(ActionRequestValidationException validationException, SearchSourceBuilder source);
 
     public List<QueryBuilder> queryBuilders() {
         return queryBuilders;

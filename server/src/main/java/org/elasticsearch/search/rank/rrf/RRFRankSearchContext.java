@@ -18,6 +18,19 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.io.IOException;
 
+/**
+ * Manages the appropriate values when executing multiple queries
+ * on behalf of RRF.
+ *
+ * If the rrf query is not set, this will behave like a default search
+ * context for aggregations, suggesters, and hit tracking with the
+ * important exception that size is set to [0]. This allows that query
+ * to be run without scoring.
+ *
+ * The rrf query needs to be set for each query executed for ranking by
+ * the {@link RRFRankSearchContext} while the results are consumed
+ * immediately after each query.
+ */
 public class RRFRankSearchContext extends FilteredSearchContext {
 
     private Query rrfRankQuery;

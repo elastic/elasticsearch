@@ -172,7 +172,7 @@ public final class SearchPhaseController {
      * @param from the offset into the search results top docs
      * @param size the number of hits to return from the merged top docs
      */
-    public static SortedTopDocs sortDocs(
+    static SortedTopDocs sortDocs(
         boolean ignoreFrom,
         final Collection<TopDocs> topDocs,
         int from,
@@ -292,7 +292,7 @@ public final class SearchPhaseController {
         }
     }
 
-    public static void setShardIndex(TopDocs topDocs, int shardIndex) {
+    static void setShardIndex(TopDocs topDocs, int shardIndex) {
         assert topDocs.scoreDocs.length == 0 || topDocs.scoreDocs[0].shardIndex == -1 : "shardIndex is already set";
         for (ScoreDoc doc : topDocs.scoreDocs) {
             doc.shardIndex = shardIndex;

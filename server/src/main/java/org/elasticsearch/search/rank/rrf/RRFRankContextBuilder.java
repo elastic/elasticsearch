@@ -33,6 +33,9 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * The builder to support RRF. Adds user-defined parameters for window size and rank constant.
+ */
 public class RRFRankContextBuilder extends RankContextBuilder {
 
     public static final String NAME = "rrf";
@@ -86,6 +89,9 @@ public class RRFRankContextBuilder extends RankContextBuilder {
         out.writeVInt(rankConstant);
     }
 
+    /**
+     * Additional validation for RRF based on window size and rank constant.
+     */
     @Override
     public ActionRequestValidationException validate(ActionRequestValidationException validationException, SearchSourceBuilder source) {
         if (source.size() >= windowSize) {
@@ -140,6 +146,10 @@ public class RRFRankContextBuilder extends RankContextBuilder {
         return rrfRankContextBuilder;
     }
 
+    /**
+     * RRF builds a simple boolean disjunction for all queries when
+     * building aggregations and suggesters.
+     */
     @Override
     public QueryBuilder searchQuery() {
         BoolQueryBuilder searchQuery = new BoolQueryBuilder();

@@ -23,6 +23,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.search.rank.rrf.RRFRankDoc.NO_RANK;
+
+/**
+ * Ranks and decorates search hits for RRF results on the coordinator.
+ */
 public class RRFRankContext extends RankContext {
 
     private final int windowSize;
@@ -36,6 +41,9 @@ public class RRFRankContext extends RankContext {
 
     @Override
     public SortedTopDocs rank(List<QuerySearchResult> querySearchResults, TopDocsStats topDocsStats) {
+        // for each shard we check to see if it timed out to skip
+        // if it didn't time out then we need to split the results into
+        // a priority queue per query, so we can do global ranking
         int queryCount = -1;
         List<PriorityQueue<RRFRankDoc>> queues = new ArrayList<>();
         for (QuerySearchResult querySearchResult : querySearchResults) {
@@ -50,6 +58,7 @@ public class RRFRankContext extends RankContext {
             RRFRankShardResult rrfRankShardResult = (RRFRankShardResult) querySearchResult.getRankShardResult();
 
             if (queryCount == -1) {
+                // we know we are on the first shard, so we create priority queues for each query
                 queryCount = rrfRankShardResult.queryCount;
 
                 for (int qi = 0; qi < queryCount; ++qi) {
@@ -72,21 +81,31 @@ public class RRFRankContext extends RankContext {
             }
             assert queryCount == rrfRankShardResult.queryCount;
 
+            // for each query we add the appropriate docs based on their
+            // score for that query if they are part of the result set,
+            // skip otherwise
             for (RRFRankDoc rrfRankDoc : rrfRankShardResult.rrfRankDocs) {
                 assert rrfRankDoc.shardIndex == -1;
                 rrfRankDoc.shardIndex = querySearchResult.getShardIndex();
                 for (int qi = 0; qi < queryCount; ++qi) {
-                    if (rrfRankDoc.positions[qi] > 0) {
+                    if (rrfRankDoc.positions[qi] != NO_RANK) {
                         queues.get(qi).add(rrfRankDoc);
                     }
                 }
             }
         }
 
+        // return early if we have no valid results
         if (queues.isEmpty()) {
             return SortedTopDocs.EMPTY;
         }
 
+        // rank the global doc sets using RRF from the previously
+        // built priority queues
+        // the score is calculated on-the-fly where we update the
+        // score if we already saw it as part of a previous query's
+        // doc set, otherwise we make a new doc and calculate the
+        // initial score
         Map<String, RRFRankDoc> results = new HashMap<>();
         final int fqc = queryCount;
         for (int qi = 0; qi < queryCount; ++qi) {
@@ -109,6 +128,7 @@ public class RRFRankContext extends RankContext {
             }
         }
 
+        // sort the results based on rrf score, tiebreaker based on smaller shard then smaller doc id
         RRFRankDoc[] sortedResults = results.values().toArray(RRFRankDoc[]::new);
         Arrays.sort(sortedResults, (RRFRankDoc rrf1, RRFRankDoc rrf2) -> {
             if (rrf1.score != rrf2.score) {
@@ -124,9 +144,13 @@ public class RRFRankContext extends RankContext {
             topResults[rank] = sortedResults[rank];
             topResults[rank].rank = rank + 1 + from;
         }
+        // update fetch hits for the fetch phase, so we gather any additional
+        // information required just like a standard query
         assert topDocsStats.fetchHits == 0;
         topDocsStats.fetchHits = topResults.length;
 
+        // return the top results where sort, collapse fields,
+        // and completion suggesters are not allowed
         return new SortedTopDocs(topResults, false, null, null, null, 0);
     }
 

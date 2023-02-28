@@ -70,6 +70,16 @@ public class RemoteAccessAuthenticationService {
         final Authenticator.Context authcContext = authenticationService.newContext(action, request, false);
         final ThreadContext threadContext = authcContext.getThreadContext();
 
+        final RemoteAccessHeaders remoteAccessHeaders;
+        try {
+            remoteAccessHeaders = RemoteAccessHeaders.readFromContext(threadContext);
+            authcContext.addAuthenticationToken(remoteAccessHeaders.clusterCredentials());
+            apiKeyService.ensureEnabled();
+        } catch (Exception ex) {
+            withRequestProcessingFailure(authcContext, ex, listener);
+            return;
+        }
+
         if (getMinNodeVersion().before(VERSION_REMOTE_ACCESS_AUTHENTICATION)) {
             withRequestProcessingFailure(
                 authcContext,
@@ -80,15 +90,6 @@ public class RemoteAccessAuthenticationService {
                 ),
                 listener
             );
-            return;
-        }
-
-        final RemoteAccessHeaders remoteAccessHeaders;
-        try {
-            apiKeyService.ensureEnabled();
-            remoteAccessHeaders = RemoteAccessHeaders.readFromContext(threadContext);
-        } catch (Exception ex) {
-            withRequestProcessingFailure(authcContext, ex, listener);
             return;
         }
 
@@ -103,20 +104,25 @@ public class RemoteAccessAuthenticationService {
             )
         ) {
             final Supplier<ThreadContext.StoredContext> storedContextSupplier = threadContext.newRestorableContext(false);
-            authcContext.addAuthenticationToken(remoteAccessHeaders.clusterCredentials());
             authenticationService.authenticate(
                 authcContext,
                 new ContextPreservingActionListener<>(storedContextSupplier, ActionListener.wrap(authentication -> {
                     assert authentication.isApiKey() : "initial authentication for remote access must be by API key";
                     assert false == authentication.isRunAs() : "initial authentication for remote access cannot be run-as";
-                    final RemoteAccessAuthentication remoteAccessAuthentication = remoteAccessHeaders.remoteAccessAuthentication();
-                    validate(remoteAccessAuthentication);
-                    writeAuthToContext(
-                        authcContext,
-                        authentication.toRemoteAccess(maybeRewriteForSystemUser(remoteAccessAuthentication)),
-                        listener
-                    );
-                }, ex -> withRequestProcessingFailure(authcContext, ex, listener)))
+                    // try-catch so any failure here is wrapped by withRequestProcessingFailure, whereas `authenticate` failures are not
+                    // we should _not_ wrap `authenticate` failures since this produces duplicates audit events
+                    try {
+                        final RemoteAccessAuthentication remoteAccessAuthentication = remoteAccessHeaders.remoteAccessAuthentication();
+                        validate(remoteAccessAuthentication);
+                        writeAuthToContext(
+                            authcContext,
+                            authentication.toRemoteAccess(maybeRewriteForSystemUser(remoteAccessAuthentication)),
+                            listener
+                        );
+                    } catch (Exception ex) {
+                        withRequestProcessingFailure(authcContext, ex, listener);
+                    }
+                }, listener::onFailure))
             );
         }
     }

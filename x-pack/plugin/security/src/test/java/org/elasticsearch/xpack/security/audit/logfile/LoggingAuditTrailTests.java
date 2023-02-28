@@ -2611,7 +2611,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String actualLogLine = getSingleLogLine(logger);
         final MapBuilder<String, String> checkedLiteralFields = new MapBuilder<>();
         checkedLiteralFields.put(
-            LoggingAuditTrail.REMOTE_ACCESS_AUTHENTICATION_FIELD_NAME,
+            LoggingAuditTrail.REMOTE_ACCESS_FIELD_NAME,
             "{\"authentication.type\":\"REALM\",\"user.name\":\"bob\",\"user.realm\":\"realm-name\"}"
         );
         assertMsg(actualLogLine, checkedFields.map(), checkedArrayFields.map(), checkedLiteralFields.map());

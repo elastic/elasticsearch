@@ -33,12 +33,10 @@ public class GetEngineAction extends ActionType<GetEngineAction.Response> {
         super(NAME, GetEngineAction.Response::new);
     }
 
-    public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
+    public static class Request extends ActionRequest implements IndicesRequest {
 
-        public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpen();
-
-        private String[] names;
-        private final IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
+        private final String[] names;
+        private final IndicesOptions indicesOptions = Engine.INDICES_OPTIONS;
 
         private final String engineId;
 
@@ -85,12 +83,6 @@ public class GetEngineAction extends ActionType<GetEngineAction.Response> {
         @Override
         public int hashCode() {
             return Objects.hash(engineId);
-        }
-
-        @Override
-        public IndicesRequest indices(String... indices) {
-            this.names = indices;
-            return this;
         }
 
         @Override

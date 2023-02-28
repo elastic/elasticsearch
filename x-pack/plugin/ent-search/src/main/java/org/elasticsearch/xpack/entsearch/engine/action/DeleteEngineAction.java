@@ -31,12 +31,10 @@ public class DeleteEngineAction extends ActionType<AcknowledgedResponse> {
         super(NAME, AcknowledgedResponse::readFrom);
     }
 
-    public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
+    public static class Request extends ActionRequest implements IndicesRequest {
 
-        public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpen();
-
-        private String[] names;
-        private final IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
+        private final String[] names;
+        private final IndicesOptions indicesOptions = Engine.INDICES_OPTIONS;
 
         private final String engineId;
 
@@ -75,12 +73,6 @@ public class DeleteEngineAction extends ActionType<AcknowledgedResponse> {
         @Override
         public String[] indices() {
             return names;
-        }
-
-        @Override
-        public IndicesRequest indices(String... indices) {
-            this.names = indices;
-            return this;
         }
 
         @Override

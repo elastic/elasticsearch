@@ -69,6 +69,102 @@ emp_no:integer | last_name:keyword | gender:keyword | f_l:boolean
 10010 | Piveteau  | null | null
 ;
 
+substring
+from test | where emp_no <= 10010 | eval f_l = substring(last_name, 3) | project emp_no, last_name, f_l;
+
+emp_no:integer | last_name:keyword | f_l:keyword
+10001 | Facello   | cello
+10002 | Simmel    | mmel
+10003 | Bamford   | mford
+10004 | Koblick   | blick
+10005 | Maliniak  | liniak
+10006 | Preusig   | eusig
+10007 | Zielinski | elinski
+10008 | Kalloufi  | lloufi
+10009 | Peac      | ac
+10010 | Piveteau  | veteau
+;
+
+substring with length
+from test | where emp_no <= 10010 | eval f_l = substring(last_name, 3, 1) | project emp_no, last_name, f_l;
+
+emp_no:integer | last_name:keyword | f_l:keyword
+10001 | Facello   | c
+10002 | Simmel    | m
+10003 | Bamford   | m
+10004 | Koblick   | b
+10005 | Maliniak  | l
+10006 | Preusig   | e
+10007 | Zielinski | e
+10008 | Kalloufi  | l
+10009 | Peac      | a
+10010 | Piveteau  | v
+;
+
+substring negative start
+from test | where emp_no <= 10010 | eval f_l = substring(last_name, -3) | project emp_no, last_name, f_l;
+
+emp_no:integer | last_name:keyword | f_l:keyword
+10001 | Facello   | llo
+10002 | Simmel    | mel
+10003 | Bamford   | ord
+10004 | Koblick   | ick
+10005 | Maliniak  | iak
+10006 | Preusig   | sig
+10007 | Zielinski | ski
+10008 | Kalloufi  | ufi
+10009 | Peac      | eac
+10010 | Piveteau  | eau
+;
+
+substring nested negative start
+from test | where emp_no <= 10010 | eval f_l = substring(substring(last_name, -3),-1) | project emp_no, last_name, f_l;
+
+emp_no:integer | last_name:keyword | f_l:keyword
+10001 | Facello   | o
+10002 | Simmel    | l
+10003 | Bamford   | d
+10004 | Koblick   | k
+10005 | Maliniak  | k
+10006 | Preusig   | g
+10007 | Zielinski | i
+10008 | Kalloufi  | i
+10009 | Peac      | c
+10010 | Piveteau  | u
+;
+
+substring length
+from test | where emp_no <= 10010 | eval f_l = length(substring(last_name, 3)) | project emp_no, last_name, f_l;
+
+emp_no:integer | last_name:keyword | f_l:integer
+10001 | Facello   | 5
+10002 | Simmel    | 4
+10003 | Bamford   | 5
+10004 | Koblick   | 5
+10005 | Maliniak  | 6
+10006 | Preusig   | 5
+10007 | Zielinski | 7
+10008 | Kalloufi  | 6
+10009 | Peac      | 2
+10010 | Piveteau  | 6
+;
+
+substring pair
+from test | where emp_no <= 10010 | eval x = substring(last_name, 1, 1), y = 1, z = substring("abcdef", y, y) | project emp_no, last_name, x, z;
+
+emp_no:integer | last_name:keyword | x:keyword | z:keyword
+10001 | Facello   | F | a
+10002 | Simmel    | S | a
+10003 | Bamford   | B | a
+10004 | Koblick   | K | a
+10005 | Maliniak  | M | a
+10006 | Preusig   | P | a
+10007 | Zielinski | Z | a
+10008 | Kalloufi  | K | a
+10009 | Peac      | P | a
+10010 | Piveteau  | P | a
+;
+
 concat
 from test | sort emp_no | limit 10 | eval name = concat(first_name, " ", last_name) | project emp_no, name;
 
@@ -100,4 +196,3 @@ emp_no:integer | name:keyword
 10009          | F - Sumant Peac, SumantPeac
 10010          | null
 ;
-

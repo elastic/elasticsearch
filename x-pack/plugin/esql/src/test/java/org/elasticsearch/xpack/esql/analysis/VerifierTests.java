@@ -109,6 +109,23 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testSubstringFunctionInvalidInputs() {
+        assertEquals(
+            "1:22: first argument of [substring(a, 1)] must be [string], found value [a] type [integer]",
+            error("row a = 1 | eval x = substring(a, 1)")
+        );
+
+        assertEquals(
+            "1:24: second argument of [substring(a, \"1\")] must be [integer], found value [\"1\"] type [keyword]",
+            error("row a = \"1\" | eval x = substring(a, \"1\")")
+        );
+
+        assertEquals(
+            "1:24: third argument of [substring(a, 1, \"1\")] must be [integer], found value [\"1\"] type [keyword]",
+            error("row a = \"1\" | eval x = substring(a, 1, \"1\")")
+        );
+    }
+
     public void testAggsExpressionsInStatsAggs() {
         assertEquals(
             "1:44: expected an aggregate function or group but got [salary] of type [FieldAttribute]",

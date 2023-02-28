@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class StringFunctionsTests extends ESTestCase {
     public void testConcat() {
         assertEquals(new BytesRef("cats and"), processConcat(new BytesRef("cats"), new BytesRef(" and")));
@@ -82,5 +84,40 @@ public class StringFunctionsTests extends ESTestCase {
         );
         assertTrue(e.foldable());
         assertEquals(true, e.fold());
+    }
+
+    public void testSubstring() {
+        assertEquals("a tiger", Substring.process(new BytesRef("a tiger"), 0, null));
+        assertEquals("tiger", Substring.process(new BytesRef("a tiger"), 3, null));
+        assertEquals("ger", Substring.process(new BytesRef("a tiger"), -3, null));
+
+        assertEquals("tiger", Substring.process(new BytesRef("a tiger"), 3, 1000));
+        assertEquals("ger", Substring.process(new BytesRef("a tiger"), -3, 1000));
+
+        assertEquals("a tiger", Substring.process(new BytesRef("a tiger"), -300, null));
+        assertEquals("a", Substring.process(new BytesRef("a tiger"), -300, 1));
+
+        assertEquals("a t", Substring.process(new BytesRef("a tiger"), 1, 3));
+
+        // test with a supplementary character
+        final String s = "a\ud83c\udf09tiger";
+        assert s.length() == 8 && s.codePointCount(0, s.length()) == 7;
+        assertEquals("tiger", Substring.process(new BytesRef(s), 3, 1000));
+        assertEquals("\ud83c\udf09tiger", Substring.process(new BytesRef(s), -6, 1000));
+
+        assertNull(Substring.process(new BytesRef("a tiger"), null, null));
+        assertNull(Substring.process(null, 1, 1));
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> Substring.process(new BytesRef("a tiger"), 1, -1));
+        assertThat(ex.getMessage(), containsString("Length parameter cannot be negative, found [-1]"));
+
+        Expression e = new Substring(
+            Source.EMPTY,
+            new Literal(Source.EMPTY, new BytesRef("ab"), DataTypes.KEYWORD),
+            new Literal(Source.EMPTY, 1, DataTypes.INTEGER),
+            new Literal(Source.EMPTY, 1, DataTypes.INTEGER)
+        );
+        assertTrue(e.foldable());
+        assertEquals("a", e.fold());
     }
 }

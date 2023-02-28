@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -67,6 +68,8 @@ final class EvalMapper {
         new RoundFunction(),
         new LengthFunction(),
         new DateFormatFunction(),
+        new StartsWithFunction(),
+        new SubstringFunction(),
         new Mapper<>(DateTrunc.class),
         new StartsWithFunction(),
         new Mapper<>(Concat.class)
@@ -349,6 +352,30 @@ final class EvalMapper {
             ExpressionEvaluator input = toEvaluator(sw.str(), layout);
             ExpressionEvaluator pattern = toEvaluator(sw.prefix(), layout);
             return new StartsWithEvaluator(input, pattern);
+        }
+    }
+
+    public static class SubstringFunction extends ExpressionMapper<Substring> {
+        @Override
+        public ExpressionEvaluator map(Substring sub, Layout layout) {
+            record SubstringEvaluator(ExpressionEvaluator str, ExpressionEvaluator start, ExpressionEvaluator length)
+                implements
+                    ExpressionEvaluator {
+                @Override
+                public Object computeRow(Page page, int pos) {
+                    final String s = (String) Substring.process(
+                        (BytesRef) str.computeRow(page, pos),
+                        (Integer) start.computeRow(page, pos),
+                        length == null ? null : (Integer) length.computeRow(page, pos)
+                    );
+                    return new BytesRef(new StringBuilder(s));
+                }
+            }
+
+            ExpressionEvaluator input = toEvaluator(sub.str(), layout);
+            ExpressionEvaluator start = toEvaluator(sub.start(), layout);
+            ExpressionEvaluator length = sub.length() == null ? null : toEvaluator(sub.length(), layout);
+            return new SubstringEvaluator(input, start, length);
         }
     }
 

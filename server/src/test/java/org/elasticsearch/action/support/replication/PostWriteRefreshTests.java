@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -52,7 +53,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool);
+        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, TransportVersion.CURRENT, threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();
         transportService.registerRequestHandler(

@@ -352,16 +352,16 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     }
 
     private ConnectionManager.ConnectionValidator getConnectionValidator(DiscoveryNode node) {
-        return (connection, profile, listener) -> transportService.connectionValidator(node)
-            .validate(
-                RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
-                    connection,
-                    clusterAlias,
-                    connectionManager.getConnectionProfile().getTransportProfile()
-                ),
-                profile,
-                listener
-            );
+        return (connection, profile, listener) -> {
+            assert profile.getTransportProfile().equals(connectionManager.getConnectionProfile().getTransportProfile())
+                : "transport profile must be consistent between the connection manager and the actual profile";
+            transportService.connectionValidator(node)
+                .validate(
+                    RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(connection, clusterAlias, profile.getTransportProfile()),
+                    profile,
+                    listener
+                );
+        };
     }
 
     private class RemoteClusterNodesSniffResponseHandler extends AbstractSniffResponseHandler<RemoteClusterNodesAction.Response> {

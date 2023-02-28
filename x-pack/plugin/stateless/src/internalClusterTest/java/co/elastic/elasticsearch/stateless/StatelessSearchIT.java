@@ -32,11 +32,14 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.blobcache.BlobCachePlugin;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -66,6 +69,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -173,7 +177,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         ensureGreen(indexName);
 
         startSearchNodes(numShards * numReplicas);
-        updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
         ensureGreen(indexName);
     }
 
@@ -219,7 +223,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         }
 
         startSearchNodes(numShards * numReplicas);
-        updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas));
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas), indexName);
         ensureGreen(indexName);
 
         indexDocs(indexName, randomIntBetween(1, 100));
@@ -245,7 +249,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         );
         ensureGreen(indexName);
         startSearchNodes(numShards * numReplicas);
-        updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas));
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas), indexName);
         ensureGreen(indexName);
 
         var bulkRequest = client().prepareBulk();
@@ -276,7 +280,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         );
         ensureGreen(indexName);
         startSearchNodes(numReplicas);
-        updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas));
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas), indexName);
         ensureGreen(indexName);
 
         final AtomicInteger searchNotifications = new AtomicInteger(0);
@@ -322,7 +326,6 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
                 .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
-                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build()
         );
         ensureGreen(indexName);
@@ -333,19 +336,31 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         }
         // Refresh via the bulk request or a follow-up Refresh API call
         boolean bulkRefreshes = randomBoolean();
+        AtomicBoolean bulkFinished = new AtomicBoolean(false);
+        boolean forcedRefresh = false;
+        Releasable releasable = null;
         if (bulkRefreshes) {
-            bulkRequest.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL));
+            WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WAIT_UNTIL, IMMEDIATE);
+            bulkRequest.setRefreshPolicy(refreshPolicy);
+            forcedRefresh = refreshPolicy == IMMEDIATE;
+            // TODO: Currently only an indexing operation triggers a flush. There is not workaround to ensure
+            // intermittent flushes. Since refreshes requires flushes in stateless, WAIT_UNTIL will hang until
+            // there is an out-of-band flush. This workaround should be removed in
+            // https://elasticco.atlassian.net/browse/ES-5672
+            if (refreshPolicy == WAIT_UNTIL) {
+                releasable = intervalFlush(indexName, bulkFinished);
+            }
         }
         var bulkResponse = bulkRequest.get();
+        bulkFinished.set(true);
+        Releasables.close(releasable);
         assertNoFailures(bulkResponse);
         if (bulkRefreshes == false) {
             assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
         } else {
-            // Currently anything other than NONE would result in the forced_refresh set to true.
-            // TODO: refine this once https://elasticco.atlassian.net/browse/ES-5312 is done.
             for (BulkItemResponse response : bulkResponse.getItems()) {
                 if (response.getResponse() != null) {
-                    assertTrue(response.getResponse().forcedRefresh());
+                    assertThat(response.getResponse().forcedRefresh(), equalTo(forcedRefresh));
                 }
             }
         }
@@ -578,7 +593,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         refresh(indexName);
 
         startSearchNodes(1);
-        updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
         ensureGreen(indexName);
 
         SearchResponse searchResponse = client().prepareSearch(indexName)
@@ -670,10 +685,22 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
         }
         boolean bulkRefreshes = randomBoolean();
+        AtomicBoolean bulkFinished = new AtomicBoolean(false);
+        Releasable releasable = null;
         if (bulkRefreshes) {
-            bulkRequest.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL));
+            WriteRequest.RefreshPolicy refreshPolicy = randomFrom(IMMEDIATE, WAIT_UNTIL);
+            bulkRequest.setRefreshPolicy(refreshPolicy);
+            // TODO: Currently only an indexing operation triggers a flush. There is not workaround to ensure
+            // intermittent flushes. Since refreshes requires flushes in stateless, WAIT_UNTIL will hang until
+            // there is an out-of-band flush. This workaround should be removed in
+            // https://elasticco.atlassian.net/browse/ES-5672
+            if (refreshPolicy == WAIT_UNTIL) {
+                releasable = intervalFlush(indexName, bulkFinished);
+            }
         }
         assertNoFailures(bulkRequest.get());
+        bulkFinished.set(true);
+        Releasables.close(releasable);
         if (bulkRefreshes == false) {
             assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
         }

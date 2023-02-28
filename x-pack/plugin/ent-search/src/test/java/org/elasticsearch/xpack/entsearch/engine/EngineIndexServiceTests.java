@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -111,11 +110,11 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
         }
 
         {
-            Tuple<Engine[], Integer> searchResponse = awaitListEngine("*:*", 0, 10);
-            final Engine[] engines = searchResponse.v1();
+            EngineIndexService.SearchEnginesResult searchResponse = awaitListEngine("*:*", 0, 10);
+            final Engine[] engines = searchResponse.engines();
             assertNotNull(engines);
             assertThat(engines.length, equalTo(10));
-            assertThat(searchResponse.v2(), equalTo(10));
+            assertThat(searchResponse.totalResults(), equalTo(10));
 
             for (int i = 0; i < NUM_INDICES; i++) {
                 Engine engine = engines[i];
@@ -125,11 +124,11 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
         }
 
         {
-            Tuple<Engine[], Integer> searchResponse = awaitListEngine("*:*", 5, 10);
-            final Engine[] engines = searchResponse.v1();
+            EngineIndexService.SearchEnginesResult searchResponse = awaitListEngine("*:*", 5, 10);
+            final Engine[] engines = searchResponse.engines();
             assertNotNull(engines);
             assertThat(engines.length, equalTo(5));
-            assertThat(searchResponse.v2(), equalTo(10));
+            assertThat(searchResponse.totalResults(), equalTo(10));
 
             for (int i = 0; i < 5; i++) {
                 int index = i + 5;
@@ -158,11 +157,11 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
                 "index_4",
                 "*_4" }) {
 
-                Tuple<Engine[], Integer> searchResponse = awaitListEngine(queryString, 0, 10);
-                final Engine[] engines = searchResponse.v1();
+                EngineIndexService.SearchEnginesResult searchResponse = awaitListEngine(queryString, 0, 10);
+                final Engine[] engines = searchResponse.engines();
                 assertNotNull(engines);
                 assertThat(engines.length, equalTo(1));
-                assertThat(searchResponse.v2(), equalTo(1));
+                assertThat(searchResponse.totalResults(), equalTo(1));
                 assertThat(engines[0].name(), equalTo("my_engine_4"));
                 assertThat(engines[0].indices(), equalTo(new String[] { "index_4" }));
             }
@@ -185,11 +184,11 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
         expectThrows(ResourceNotFoundException.class, () -> awaitGetEngine("my_engine_4"));
 
         {
-            Tuple<Engine[], Integer> searchResponse = awaitListEngine("*:*", 0, 10);
-            final Engine[] engines = searchResponse.v1();
+            EngineIndexService.SearchEnginesResult searchResponse = awaitListEngine("*:*", 0, 10);
+            final Engine[] engines = searchResponse.engines();
             assertNotNull(engines);
             assertThat(engines.length, equalTo(4));
-            assertThat(searchResponse.v2(), equalTo(4));
+            assertThat(searchResponse.totalResults(), equalTo(4));
 
             for (int i = 0; i < 4; i++) {
                 Engine engine = engines[i];
@@ -274,14 +273,14 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
         return resp.get();
     }
 
-    private Tuple<Engine[], Integer> awaitListEngine(String queryString, int from, int size) throws Exception {
+    private EngineIndexService.SearchEnginesResult awaitListEngine(String queryString, int from, int size) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<Tuple<Engine[], Integer>> resp = new AtomicReference<>(null);
+        final AtomicReference<EngineIndexService.SearchEnginesResult> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
         engineService.listEngines(queryString, from, size, new ActionListener<>() {
             @Override
-            public void onResponse(Tuple<Engine[], Integer> engineResultTuple) {
-                resp.set(engineResultTuple);
+            public void onResponse(EngineIndexService.SearchEnginesResult searchEnginesResult) {
+                resp.set(searchEnginesResult);
                 latch.countDown();
             }
 

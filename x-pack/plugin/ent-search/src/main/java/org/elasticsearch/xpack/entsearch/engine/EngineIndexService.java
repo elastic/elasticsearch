@@ -45,7 +45,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Streams;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.indices.ExecutorNames;
@@ -290,15 +289,6 @@ public class EngineIndexService {
         }
     }
 
-    private static Engine hitToEngine(SearchHit searchHit) {
-        final Map<String, DocumentField> documentFields = searchHit.getDocumentFields();
-        return new Engine(
-            documentFields.get(NAME_FIELD.getPreferredName()).getValue(),
-            documentFields.get(INDICES_FIELD.getPreferredName()).getValues().toArray(String[]::new),
-            documentFields.get(ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName()).getValue()
-        );
-    }
-
     private void updateEngine(Engine engine, ActionListener<IndexResponse> listener) {
         try (ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())) {
             try (XContentBuilder source = XContentFactory.jsonBuilder(buffer)) {
@@ -320,6 +310,20 @@ public class EngineIndexService {
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    private static SearchEnginesResult mapSearchResponse(SearchResponse response) {
+        Engine[] engines = Arrays.stream(response.getHits().getHits()).map(EngineIndexService::hitToEngine).toArray(Engine[]::new);
+        return new SearchEnginesResult(engines, (int) response.getHits().getTotalHits().value);
+    }
+
+    private static Engine hitToEngine(SearchHit searchHit) {
+        final Map<String, DocumentField> documentFields = searchHit.getDocumentFields();
+        return new Engine(
+            documentFields.get(NAME_FIELD.getPreferredName()).getValue(),
+            documentFields.get(INDICES_FIELD.getPreferredName()).getValues().toArray(String[]::new),
+            documentFields.get(ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName()).getValue()
+        );
     }
 
     /**
@@ -359,7 +363,7 @@ public class EngineIndexService {
      * @param listener The action listener to invoke on response/failure.
      *  It will receive a tuple containing the Engine results and an Integer with the total number of engines found
      */
-    public void listEngines(String queryString, int from, int size, ActionListener<Tuple<Engine[], Integer>> listener) {
+    public void listEngines(String queryString, int from, int size, ActionListener<SearchEnginesResult> listener) {
         try {
             final SearchSourceBuilder source = new SearchSourceBuilder().from(from)
                 .size(size)
@@ -374,11 +378,6 @@ public class EngineIndexService {
         } catch (Exception e) {
             listener.onFailure(e);
         }
-    }
-
-    private static Tuple<Engine[], Integer> mapSearchResponse(SearchResponse response) {
-        Engine[] engines = Arrays.stream(response.getHits().getHits()).map(EngineIndexService::hitToEngine).toArray(Engine[]::new);
-        return new Tuple<>(engines, (int) response.getHits().getTotalHits().value);
     }
 
     private Engine parseEngineBinaryFromSource(BytesReference source) {
@@ -430,4 +429,6 @@ public class EngineIndexService {
             engine.writeTo(out);
         }
     }
+
+    public record SearchEnginesResult(Engine[] engines, int totalResults) {}
 }

@@ -11,11 +11,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.PageParams;
-import org.elasticsearch.xpack.entsearch.engine.Engine;
 import org.elasticsearch.xpack.entsearch.engine.EngineIndexService;
 
 public class TransportListEnginesAction extends HandledTransportAction<ListEnginesAction.Request, ListEnginesAction.Response> {
@@ -32,10 +30,6 @@ public class TransportListEnginesAction extends HandledTransportAction<ListEngin
         this.engineIndexService = engineIndexService;
     }
 
-    private static ListEnginesAction.Response mapEnginesSearchResponse(Tuple<Engine[], Integer> searchResult, PageParams pageParams) {
-        return new ListEnginesAction.Response(searchResult.v1(), pageParams, searchResult.v2());
-    }
-
     @Override
     protected void doExecute(Task task, ListEnginesAction.Request request, ActionListener<ListEnginesAction.Response> listener) {
         final PageParams pageParams = request.pageParams();
@@ -47,4 +41,10 @@ public class TransportListEnginesAction extends HandledTransportAction<ListEngin
         );
     }
 
+    private static ListEnginesAction.Response mapEnginesSearchResponse(
+        EngineIndexService.SearchEnginesResult searchResult,
+        PageParams pageParams
+    ) {
+        return new ListEnginesAction.Response(searchResult.engines(), pageParams, searchResult.totalResults());
+    }
 }

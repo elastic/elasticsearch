@@ -89,7 +89,12 @@ public class SearchAsyncActionTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean searchPhaseDidRun = new AtomicBoolean(false);
 
-        SearchTransportService transportService = new SearchTransportService(null, null, null);
+        SearchTransportService transportService = new SearchTransportService(null, null, null) {
+            @Override
+            public TransportVersion getMinTransportVersion() {
+                return TransportVersion.CURRENT;
+            }
+        };
         Map<String, Transport.Connection> lookup = new HashMap<>();
         Map<ShardId, Boolean> seenShard = new ConcurrentHashMap<>();
         lookup.put(primaryNode.getId(), new MockConnection(primaryNode));
@@ -198,7 +203,12 @@ public class SearchAsyncActionTests extends ESTestCase {
             primaryNode,
             replicaNode
         );
-        SearchTransportService transportService = new SearchTransportService(null, null, null);
+        SearchTransportService transportService = new SearchTransportService(null, null, null) {
+            @Override
+            public TransportVersion getMinTransportVersion() {
+                return TransportVersion.CURRENT;
+            }
+        };
         Map<String, Transport.Connection> lookup = new HashMap<>();
         Map<ShardId, Boolean> seenShard = new ConcurrentHashMap<>();
         lookup.put(primaryNode.getId(), new MockConnection(primaryNode));
@@ -644,7 +654,12 @@ public class SearchAsyncActionTests extends ESTestCase {
         AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<>(
             "test",
             logger,
-            new SearchTransportService(null, null, null),
+            new SearchTransportService(null, null, null) {
+                @Override
+                public TransportVersion getMinTransportVersion() {
+                    return TransportVersion.CURRENT;
+                }
+            },
             (cluster, node) -> {
                 assert cluster == null : "cluster was not null: " + cluster;
                 return lookup.get(node);

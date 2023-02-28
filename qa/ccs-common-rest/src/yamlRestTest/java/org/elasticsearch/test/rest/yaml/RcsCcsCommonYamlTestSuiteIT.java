@@ -58,6 +58,11 @@ import static org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT.rewrite;
 @TimeoutSuite(millis = 15 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
+    @Override
+    protected boolean preserveSystemResources() {
+        return true;
+    }
+
     private static final Logger logger = LogManager.getLogger(RcsCcsCommonYamlTestSuiteIT.class);
     private static RestClient searchClient;
     private static RestClient adminSearchClient;

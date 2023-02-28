@@ -76,6 +76,11 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
     }
 
     @Override
+    protected boolean preserveSystemResources() {
+        return true;
+    }
+
+    @Override
     protected boolean preserveIndicesUponCompletion() {
         return true;
     }

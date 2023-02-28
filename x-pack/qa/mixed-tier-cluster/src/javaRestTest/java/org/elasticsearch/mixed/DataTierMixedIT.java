@@ -13,6 +13,13 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 
 public class DataTierMixedIT extends ESRestTestCase {
 
+    @Override
+    protected boolean preserveSystemResources() {
+        // bug in the ML reset API before v8.7
+        // alternate approach: enable ML for older bwc versions
+        return true;
+    }
+
     public void testMixedTierCompatibility() throws Exception {
         createIndex(
             "test-index",

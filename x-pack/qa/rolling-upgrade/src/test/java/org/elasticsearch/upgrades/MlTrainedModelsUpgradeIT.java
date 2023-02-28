@@ -14,6 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
+import org.junit.After;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -40,6 +41,18 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
     static final List<Integer> DISCRETE_NUMERICAL_FIELD_VALUES = List.of(10, 20);
     static final List<String> KEYWORD_FIELD_VALUES = List.of("cat", "dog");
     static final String INDEX_NAME = "created_index";
+
+    // TODO[wrb]: move up to ES Rest Test Case?
+    @After
+    public void deleteAllPipelines() throws Exception {
+        Request putRequest = new Request("DELETE", "_ingest/pipeline/*");
+        client().performRequest(putRequest);
+    }
+
+    @Override
+    protected boolean preserveSystemResources() {
+        return true;
+    }
 
     @BeforeClass
     public static void maybeSkip() {

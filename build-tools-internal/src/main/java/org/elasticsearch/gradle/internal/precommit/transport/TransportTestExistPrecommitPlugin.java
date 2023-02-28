@@ -24,9 +24,11 @@ import java.util.Map;
 public class TransportTestExistPrecommitPlugin extends PrecommitPlugin {
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
-        TaskProvider<TransportTestExistTask> transportTestExistTask = project.getTasks()
-            .register("transportTestExistCheck", TransportTestExistTask.class);
+
         try {
+            TaskProvider<TransportTestExistTask> transportTestExistTask = project.getTasks()
+                .register("transportTestExistCheck", TransportTestExistTask.class);
+
             FileCollection mainSourceSet = GradleUtils.getJavaSourceSets(project)
                 .getByName(SourceSet.MAIN_SOURCE_SET_NAME)
                 .getOutput()
@@ -66,13 +68,16 @@ public class TransportTestExistPrecommitPlugin extends PrecommitPlugin {
             // transportTestExistTask.configure(t -> t.shouldRunAfter(sourceSet.getClassesTaskName()))
             // );
             // });
+            return transportTestExistTask;
+
         } catch (Exception e) {
             // System.out.println(project +" failing");
             // not all projects have main source set.
             // :docs, docker etc
             // TODO how to handle this
+            e.printStackTrace();
+            throw new RuntimeException(e);
         }
-        return transportTestExistTask;
 
     }
 }

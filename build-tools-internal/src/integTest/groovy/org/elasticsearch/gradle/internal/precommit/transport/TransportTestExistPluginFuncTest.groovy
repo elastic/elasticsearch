@@ -29,6 +29,11 @@ class TransportTestExistPluginFuncTest extends AbstractGradleInternalPluginFuncT
     def setup() {
         configurationCacheCompatible = false
 
+
+    }
+
+    def "can scan transport classes"() {
+        given:
         buildFile << """
             apply plugin: 'java'
 
@@ -38,14 +43,11 @@ class TransportTestExistPluginFuncTest extends AbstractGradleInternalPluginFuncT
 
             """
         repository.configureBuild(buildFile)
-    }
 
-    def "can scan transport classes"() {
-        given:
         file("src/main/java/org/acme/NonWriteable.java") << """
             package org.acme;
 
-            public class NonWriteable{
+            public class NonWriteable {
 
             }
         """

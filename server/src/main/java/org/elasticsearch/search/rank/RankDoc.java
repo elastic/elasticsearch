@@ -9,15 +9,15 @@
 package org.elasticsearch.search.rank;
 
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public abstract class RankDoc extends ScoreDoc implements ToXContent, NamedWriteable {
+public abstract class RankDoc extends ScoreDoc implements ToXContent, VersionedNamedWriteable {
 
     public RankDoc(int doc, float score, int shardIndex) {
         super(doc, score, shardIndex);

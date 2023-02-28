@@ -8,8 +8,8 @@
 
 package org.elasticsearch.search.rank;
 
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 
-public interface RankShardResult extends NamedWriteable {
+public interface RankShardResult extends VersionedNamedWriteable {
 
 }

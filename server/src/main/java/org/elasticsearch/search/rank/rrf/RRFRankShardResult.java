@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.rank.rrf;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.rank.RankShardResult;
@@ -33,6 +34,11 @@ public class RRFRankShardResult implements RankShardResult {
     @Override
     public String getWriteableName() {
         return RRFRankContextBuilder.NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_8_8_0;
     }
 
     @Override

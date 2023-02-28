@@ -2,7 +2,7 @@ setup:
   - skip:
       features: close_to
       version: ' - 8.7.99'
-      reason: 'rerank added in 8.8'
+      reason: 'rank added in 8.8'
 
 ---
 "Simple rank with bm25 search and kNN search":

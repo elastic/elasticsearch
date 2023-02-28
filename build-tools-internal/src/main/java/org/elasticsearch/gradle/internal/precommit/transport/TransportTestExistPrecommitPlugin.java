@@ -28,38 +28,39 @@ public class TransportTestExistPrecommitPlugin extends PrecommitPlugin {
         try {
             TaskProvider<TransportTestExistTask> transportTestExistTask = project.getTasks()
                 .register("transportTestExistCheck", TransportTestExistTask.class);
+            project.getPlugins().withType(JavaPlugin.class, javaPlugin -> {
+                FileCollection mainSourceSet = GradleUtils.getJavaSourceSets(project)
+                    .getByName(SourceSet.MAIN_SOURCE_SET_NAME)
+                    .getOutput()
+                    .getClassesDirs();
+                FileCollection testSourceSet = GradleUtils.getJavaSourceSets(project)
+                    .getByName(SourceSet.TEST_SOURCE_SET_NAME)
+                    .getOutput()
+                    .getClassesDirs();
 
-            FileCollection mainSourceSet = GradleUtils.getJavaSourceSets(project)
-                .getByName(SourceSet.MAIN_SOURCE_SET_NAME)
-                .getOutput()
-                .getClassesDirs();
-            FileCollection testSourceSet = GradleUtils.getJavaSourceSets(project)
-                .getByName(SourceSet.TEST_SOURCE_SET_NAME)
-                .getOutput()
-                .getClassesDirs();
-
-            Configuration serverDependencyConfig = project.getConfigurations().create("serverDependencyConfig");
-            DependencyHandler dependencyHandler = project.getDependencies();
-            serverDependencyConfig.defaultDependencies(
-                deps -> deps.add(dependencyHandler.create(dependencyHandler.project(Map.of("path", ":server"))))
-            );
-
-            Configuration testFrameworkConfig = project.getConfigurations().create("testFrameworkConfig");
-            testFrameworkConfig.defaultDependencies(
-                deps -> deps.add(dependencyHandler.create(dependencyHandler.project(Map.of("path", ":test:framework"))))
-            );
-
-            transportTestExistTask.configure(t -> {
-                t.setMainSources(mainSourceSet);
-                t.setTestSources(testSourceSet);
-                FileCollection compileClassPath = serverDependencyConfig.plus(
-                    project.getConfigurations().getByName(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME)
+                Configuration serverDependencyConfig = project.getConfigurations().create("serverDependencyConfig");
+                DependencyHandler dependencyHandler = project.getDependencies();
+                serverDependencyConfig.defaultDependencies(
+                    deps -> deps.add(dependencyHandler.create(dependencyHandler.project(Map.of("path", ":server"))))
                 );
-                t.setCompileClasspath(compileClassPath);
-                FileCollection byName = testFrameworkConfig.plus(
-                    project.getConfigurations().getByName(JavaPlugin.TEST_COMPILE_CLASSPATH_CONFIGURATION_NAME)
+
+                Configuration testFrameworkConfig = project.getConfigurations().create("testFrameworkConfig");
+                testFrameworkConfig.defaultDependencies(
+                    deps -> deps.add(dependencyHandler.create(dependencyHandler.project(Map.of("path", ":test:framework"))))
                 );
-                t.setTestClasspath(byName);
+
+                transportTestExistTask.configure(t -> {
+                    t.setMainSources(mainSourceSet);
+                    t.setTestSources(testSourceSet);
+                    FileCollection compileClassPath = serverDependencyConfig.plus(
+                        project.getConfigurations().getByName(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME)
+                    );
+                    t.setCompileClasspath(compileClassPath);
+                    FileCollection byName = testFrameworkConfig.plus(
+                        project.getConfigurations().getByName(JavaPlugin.TEST_COMPILE_CLASSPATH_CONFIGURATION_NAME)
+                    );
+                    t.setTestClasspath(byName);
+                });
             });
             // somehow this does not help for rest-api-spec project
             // project.getPluginManager().withPlugin("java", p -> {

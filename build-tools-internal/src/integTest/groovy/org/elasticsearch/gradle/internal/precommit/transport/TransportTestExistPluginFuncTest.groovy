@@ -28,68 +28,96 @@ class TransportTestExistPluginFuncTest extends AbstractGradleInternalPluginFuncT
 
     def setup() {
         configurationCacheCompatible = false
-    }
+        subProject(":test:framework") << "apply plugin: 'elasticsearch.java'"
+        subProject(":server") << "apply plugin: 'elasticsearch.java'"
 
-    def "can scan transport classes"() {
-        given:
+
         buildFile << """
             apply plugin: 'java'
-
+            apply plugin: 'elasticsearch.build'
             repositories {
                 mavenCentral()
             }
-
             """
-//        repository.configureBuild(buildFile)
-        dir("src/main/java")
-        dir("src/test/java")
+
+        createClass("org.elasticsearch.common.io.stream.Writeable")
+        createClass("org.elasticsearch.test.AbstractWireTestCase")
+        createClass("org.elasticsearch.test.AbstractQueryTestCase")
+        createClass("org.elasticsearch.search.aggregations.BaseAggregationTestCase")
+        createClass("org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase")
+        createClass("org.elasticsearch.test.AbstractQueryVectorBuilderTestCase")
+    }
+
+    def "can scan non transport classes"() {
+        given:
         file("src/main/java/org/acme/NonWriteable.java") << """
             package org.acme;
-
             public class NonWriteable {
-
             }
         """
 
         when:
-        def result2 = gradleRunner(":transportTestExistCheck").build()
+        def result = gradleRunner(":transportTestExistCheck").build()
 
         then:
-        result2.task(":transportTestExistCheck").outcome == TaskOutcome.SUCCESS
+        result.task(":transportTestExistCheck").outcome == TaskOutcome.SUCCESS
     }
-//        file("src/main/java/org/acme/A.java") << """
-//            package org.acme;
+
+    def "can scan transport classes"() {
+        given:
+        file("src/main/java/org/acme/A.java") << """
+            package org.acme;
+
+            import org.elasticsearch.common.io.stream.Writeable;
+
+            public class A extends Writeable {
+            }
+        """
+
+        file("src/test/java/org/acme/ATests.java") << """
+            package org.acme;
+            import org.elasticsearch.test.AbstractWireTestCase;
+            import java.io.IOException;
+
+            public class ATests extends AbstractWireTestCase {
+            }
+        """
+
+        when:
+        def result = gradleRunner(":transportTestExistCheck").build()
+
+        then:
+        result.task(":transportTestExistCheck").outcome == TaskOutcome.SUCCESS
+    }
+
+    def "can fail when transport classes missing a test"() {
+        given:
+        file("src/main/java/org/acme/MissingTest.java") << """
+            package org.acme;
+
+            import org.elasticsearch.common.io.stream.Writeable;
+
+            public class MissingTest extends Writeable {
+            }
+        """
+
+        when:
+        def result = gradleRunner(":transportTestExistCheck").buildAndFail()
+
+        then:
+        result.task(":transportTestExistCheck").outcome == TaskOutcome.FAILED
+        result.getOutput().contains("There are 1 missing tests for classes")
+        result.getOutput().contains("org.acme.MissingTest")
+    }
+
+    private File createClass(String classWithPackage) {
+        def filePath = classWithPackage.replace('.','/')
+        def packageName = classWithPackage.substring(0,classWithPackage.lastIndexOf('.'))
+        def className = classWithPackage.substring(classWithPackage.lastIndexOf('.')+1)
+        file("src/main/java/" + filePath + ".java") << """
+            package %s;
+            public abstract class %s { }
+        """.formatted(packageName, className)
+    }
 //
-//            import org.elasticsearch.common.io.stream.Writeable;
-//            import org.elasticsearch.common.io.stream.StreamInput;
-//            import org.elasticsearch.common.io.stream.StreamOutput;
-//
-//            public class A extends Writeable {
-//             public A(StreamInput input){}
-//             public void writeTo(StreamOutput output){}
-//            }
-//        """
-//
-//        file("src/test/java/org/acme/ATests.java") << """
-//            package org.acme;
-//            import org.elasticsearch.test.AbstractWireTestCase;
-//            import java.io.IOException;
-//
-//            public class ATests extends AbstractWireTestCase<A> {
-//                @Override
-//                protected A createTestInstance() {
-//                    return null;
-//                }
-//
-//                @Override
-//                protected A mutateInstance(A instance) throws IOException {
-//                    return null;
-//                }
-//
-//                @Override
-//                protected A copyInstance(A instance, TransportVersion version) throws IOException {
-//                    return null;
-//                }
-//            }
-//        """
 }

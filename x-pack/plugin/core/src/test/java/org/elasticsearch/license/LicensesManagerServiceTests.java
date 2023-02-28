@@ -7,7 +7,6 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -55,8 +54,8 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testStoreAndGetLicenses() throws Exception {
-        @SuppressWarnings("unchecked")
-        LicenseService<PostStartBasicResponse> licenseService = getInstanceFromNode(LicenseService.class);
+        @SuppressWarnings("rawtypes")
+        LicenseService licenseService = getInstanceFromNode(LicenseService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         License goldLicense = TestUtils.generateSignedLicense("gold", TimeValue.timeValueHours(1));
         TestUtils.registerAndAckSignedLicenses(licenseService, goldLicense, LicensesStatus.VALID);
@@ -73,8 +72,8 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
     // TODO: Add test/feature blocking the registration of basic license
 
     public void testEffectiveLicenses() throws Exception {
-        // TODO: fix this
-        final ClusterStateLicenseService licenseService = getInstanceFromNode(ClusterStateLicenseService.class);
+        @SuppressWarnings("rawtypes")
+        final LicenseService licenseService = getInstanceFromNode(LicenseService.class);
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         License goldLicense = TestUtils.generateSignedLicense("gold", TimeValue.timeValueSeconds(5));
         // put gold license
@@ -90,7 +89,8 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testInvalidLicenseStorage() throws Exception {
-        LicenseService<? extends ActionResponse> licenseService = getInstanceFromNode(ClusterStateLicenseService.class);
+        @SuppressWarnings("rawtypes")
+        LicenseService licenseService = getInstanceFromNode(LicenseService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         License signedLicense = TestUtils.generateSignedLicense(TimeValue.timeValueMinutes(2));
 
@@ -109,8 +109,8 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testRemoveLicenses() throws Exception {
-        @SuppressWarnings("unchecked")
-        LicenseService<PostStartBasicResponse> licenseService = getInstanceFromNode(LicenseService.class);
+        @SuppressWarnings("rawtypes")
+        LicenseService licenseService = getInstanceFromNode(LicenseService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
 
         // generate signed licenses
@@ -125,7 +125,8 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
         assertTrue(License.LicenseType.isBasic(licensesMetadata.getLicense().type()));
     }
 
-    private void removeAndAckSignedLicenses(final LicenseService<PostStartBasicResponse> licenseService) {
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    private void removeAndAckSignedLicenses(final LicenseService licenseService) {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean success = new AtomicBoolean(false);
         licenseService.removeLicense(new ActionListener<PostStartBasicResponse>() {

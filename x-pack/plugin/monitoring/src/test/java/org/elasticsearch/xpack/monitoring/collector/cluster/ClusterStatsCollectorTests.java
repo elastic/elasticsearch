@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.monitoring.collector.cluster;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsIndices;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsNodes;
@@ -26,9 +25,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
-import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.ReadOnlyLicenseService;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -64,12 +62,12 @@ import static org.mockito.Mockito.when;
 
 public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
 
-    private LicenseService<? extends ActionResponse> licenseService;
+    ReadOnlyLicenseService licenseService;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        licenseService = mock(ClusterStateLicenseService.class);
+        licenseService = mock(ReadOnlyLicenseService.class);
     }
 
     public void testShouldCollectReturnsFalseIfNotMaster() {

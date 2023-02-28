@@ -8,6 +8,7 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
@@ -21,9 +22,15 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public interface LicenseService<
-
-    RemoveResponse extends ActionResponse // remove license response
-> extends ReadOnlyLicenseService, LifecycleComponent {
+    RemoveResponse extends ActionResponse,
+    TrialRequest extends ActionRequest,
+    TrialResponse extends ActionResponse,
+    BasicRequest extends ActionRequest,
+    BasicResponse extends ActionResponse>
+    extends
+        ReadOnlyLicenseService,
+        SelfGeneratedLicenseService<TrialRequest, TrialResponse, BasicRequest, BasicResponse>,
+        LifecycleComponent {
 
     Setting<License.LicenseType> SELF_GENERATED_LICENSE_TYPE = new Setting<>(
         "xpack.license.self_generated.type",
@@ -79,7 +86,6 @@ public interface LicenseService<
         }
     }
 
-    // TODO: split this into a read an write interface
     void registerLicense(PutLicenseRequest request, ActionListener<PutLicenseResponse> listener);
 
     void removeLicense(ActionListener<RemoveResponse> listener);

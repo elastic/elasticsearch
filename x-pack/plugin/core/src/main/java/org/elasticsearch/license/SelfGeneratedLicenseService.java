@@ -11,9 +11,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 
-public interface BasicLicenseService<Request extends ActionRequest, Response extends ActionResponse> {
+public interface SelfGeneratedLicenseService<
+    TrialRequest extends ActionRequest,
+    TrialResponse extends ActionResponse,
+    BasicRequest extends ActionRequest,
+    BasicResponse extends ActionResponse> {
 
-    void startBasicLicense(Request request, ActionListener<Response> listener);
+    void startTrialLicense(TrialRequest request, ActionListener<TrialResponse> listener);
 
-    // TODO: add read basic license
+    void startBasicLicense(BasicRequest request, ActionListener<BasicResponse> listener);
+
 }

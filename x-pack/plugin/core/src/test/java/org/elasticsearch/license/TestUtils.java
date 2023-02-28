@@ -9,7 +9,6 @@ package org.elasticsearch.license;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -375,8 +374,9 @@ public class TestUtils {
         return resourceFile;
     }
 
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public static void registerAndAckSignedLicenses(
-        final LicenseService<? extends ActionResponse> licenseService,
+        final LicenseService licenseService,
         License license,
         final LicensesStatus expectedStatus
     ) {

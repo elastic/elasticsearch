@@ -55,10 +55,12 @@ import java.util.stream.Collectors;
  */
 public class ClusterStateLicenseService extends AbstractLifecycleComponent
     implements
-        LicenseService<PostStartBasicResponse>,
-        ReadOnlyLicenseService,
-        TrialLicenseService<PostStartTrialRequest, PostStartTrialResponse>,
-        BasicLicenseService<PostStartBasicRequest, PostStartBasicResponse>,
+        LicenseService<
+            PostStartBasicResponse,
+            PostStartTrialRequest,
+            PostStartTrialResponse,
+            PostStartBasicRequest,
+            PostStartBasicResponse>,
         ClusterStateListener,
         SchedulerEngine.Listener {
     private static final Logger logger = LogManager.getLogger(ClusterStateLicenseService.class);

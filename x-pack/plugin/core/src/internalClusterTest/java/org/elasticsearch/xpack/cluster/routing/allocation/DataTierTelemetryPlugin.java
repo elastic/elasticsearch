@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -15,7 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.ReadOnlyLicenseService;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
@@ -63,7 +62,7 @@ public class DataTierTelemetryPlugin extends LocalStateCompositeXPackPlugin {
         public DataTiersTransportXPackInfoAction(
             TransportService transportService,
             ActionFilters actionFilters,
-            LicenseService<? extends ActionResponse> licenseService,
+            ReadOnlyLicenseService licenseService,
             NodeClient client
         ) {
             super(transportService, actionFilters, licenseService, client);

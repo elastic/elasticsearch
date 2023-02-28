@@ -41,14 +41,16 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.license.BasicLicenseService;
 import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.Licensing;
+import org.elasticsearch.license.PostStartBasicRequest;
 import org.elasticsearch.license.PostStartBasicResponse;
+import org.elasticsearch.license.PostStartTrialRequest;
+import org.elasticsearch.license.PostStartTrialResponse;
 import org.elasticsearch.license.ReadOnlyLicenseService;
-import org.elasticsearch.license.TrialLicenseService;
+import org.elasticsearch.license.SelfGeneratedLicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.PrivateInterface;
 import org.elasticsearch.plugins.ClusterPlugin;
@@ -319,22 +321,26 @@ public class XPackPlugin extends XPackClientPlugin
 
         final SSLService sslService = createSSLService(environment, resourceWatcherService);
 
-        LicenseService<PostStartBasicResponse> licenseService = new ClusterStateLicenseService(
-            settings,
-            threadPool,
-            clusterService,
-            getClock(),
-            getLicenseState()
-        );
-        setReadOnlyLicenseService((ReadOnlyLicenseService) licenseService);
+        LicenseService<
+            PostStartBasicResponse,
+            PostStartTrialRequest,
+            PostStartTrialResponse,
+            PostStartBasicRequest,
+            PostStartBasicResponse> licenseService = new ClusterStateLicenseService(
+                settings,
+                threadPool,
+                clusterService,
+                getClock(),
+                getLicenseState()
+            );
+        setReadOnlyLicenseService(licenseService);
 
         setEpochMillisSupplier(threadPool::absoluteTimeInMillis);
 
         // It is useful to override these as they are what guice is injecting into actions
         components.add(sslService);
-        components.add(new PrivateInterface<>(TrialLicenseService.class, () -> licenseService));
+        components.add(new PrivateInterface<>(SelfGeneratedLicenseService.class, () -> licenseService));
         components.add(new PrivateInterface<>(ReadOnlyLicenseService.class, () -> licenseService));
-        components.add(new PrivateInterface<>(BasicLicenseService.class, () -> licenseService));
         components.add(new PrivateInterface<>(LicenseService.class, () -> licenseService));
         components.add(getLicenseState());
 

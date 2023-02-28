@@ -7,6 +7,8 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -21,13 +23,13 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportPostStartTrialAction extends TransportMasterNodeAction<PostStartTrialRequest, PostStartTrialResponse> {
 
-    private final TrialLicenseService<PostStartTrialRequest, PostStartTrialResponse> licenseService;
+    private final SelfGeneratedLicenseService<PostStartTrialRequest, PostStartTrialResponse, ActionRequest, ActionResponse> licenseService;
 
     @Inject
     public TransportPostStartTrialAction(
         TransportService transportService,
         ClusterService clusterService,
-        TrialLicenseService<PostStartTrialRequest, PostStartTrialResponse> licenseService,
+        SelfGeneratedLicenseService<PostStartTrialRequest, PostStartTrialResponse, ActionRequest, ActionResponse> licenseService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver

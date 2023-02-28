@@ -22,6 +22,7 @@ import static org.mockito.Mockito.verify;
 
 public class LicensesAcknowledgementTests extends AbstractClusterStateLicenseServiceTestCase {
 
+    @SuppressWarnings("unchecked")
     public void testAcknowledgment() throws Exception {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         setInitialState(TestUtils.generateSignedLicense("gold", timeValueHours(2)), licenseState, Settings.EMPTY);

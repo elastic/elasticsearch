@@ -19,6 +19,7 @@ import static org.mockito.Mockito.verify;
 
 public class LicenseFIPSTests extends AbstractClusterStateLicenseServiceTestCase {
 
+    @SuppressWarnings("unchecked")
     public void testFIPSCheckWithAllowedLicense() throws Exception {
         License newLicense = TestUtils.generateSignedLicense(randomFrom("trial", "platinum"), TimeValue.timeValueHours(24L));
         PutLicenseRequest request = new PutLicenseRequest();
@@ -43,6 +44,7 @@ public class LicenseFIPSTests extends AbstractClusterStateLicenseServiceTestCase
         verify(clusterService).submitUnbatchedStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
     }
 
+    @SuppressWarnings("unchecked")
     public void testFIPSCheckWithoutAllowedLicense() throws Exception {
         License newLicense = TestUtils.generateSignedLicense(randomFrom("gold", "standard"), TimeValue.timeValueHours(24L));
         PutLicenseRequest request = new PutLicenseRequest();

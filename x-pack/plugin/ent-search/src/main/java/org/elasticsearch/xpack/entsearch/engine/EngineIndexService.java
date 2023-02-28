@@ -232,12 +232,7 @@ public class EngineIndexService {
 
             @Override
             public void onFailure(Exception e) {
-                // Convert index not found failure from the alias API into an illegal argument
-                Exception failException = e;
-                if (e instanceof IndexNotFoundException) {
-                    failException = new IllegalArgumentException(e.getMessage(), e);
-                }
-                listener.onFailure(failException);
+                listener.onFailure(e);
             }
         });
     }

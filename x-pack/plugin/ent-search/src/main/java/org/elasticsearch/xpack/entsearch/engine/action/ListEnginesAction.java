@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.entsearch.engine.Engine;
 import org.elasticsearch.xpack.entsearch.engine.EngineIndexService;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 
 public class ListEnginesAction extends ActionType<ListEnginesAction.Response> {
@@ -159,16 +160,16 @@ public class ListEnginesAction extends ActionType<ListEnginesAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response that = (Response) o;
-            return Objects.equals(engines, that.engines)
+            return Arrays.equals(engines, that.engines)
                 && Objects.equals(pageParams, that.pageParams)
                 && Objects.equals(totalResults, that.totalResults);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(engines, pageParams, totalResults);
+            int result = Objects.hash(pageParams, totalResults);
+            result = 31 * result + Arrays.hashCode(engines);
+            return result;
         }
-
     }
-
 }

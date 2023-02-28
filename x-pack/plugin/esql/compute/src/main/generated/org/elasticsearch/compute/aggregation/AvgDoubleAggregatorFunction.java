@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 
@@ -84,7 +85,7 @@ public final class AvgDoubleAggregatorFunction implements AggregatorFunction {
   public Block evaluateIntermediate() {
     AggregatorStateVector.Builder<AggregatorStateVector<AvgDoubleAggregator.AvgState>, AvgDoubleAggregator.AvgState> builder =
         AggregatorStateVector.builderOfAggregatorState(AvgDoubleAggregator.AvgState.class, state.getEstimatedSize());
-    builder.add(state);
+    builder.add(state, IntVector.range(0, 1));
     return builder.build().asBlock();
   }
 

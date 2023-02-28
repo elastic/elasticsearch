@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -58,6 +59,11 @@ final class DoubleBlockHash extends BlockHash {
 
         // TODO claim the array and wrap?
         return new DoubleBlock[] { new DoubleArrayVector(keys, keys.length).asBlock() };
+    }
+
+    @Override
+    public IntVector nonEmpty() {
+        return IntVector.range(0, Math.toIntExact(longHash.size()));
     }
 
     @Override

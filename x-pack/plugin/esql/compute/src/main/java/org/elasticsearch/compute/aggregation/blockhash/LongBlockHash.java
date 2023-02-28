@@ -9,6 +9,7 @@ package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -56,6 +57,11 @@ final class LongBlockHash extends BlockHash {
 
         // TODO call something like takeKeyOwnership to claim the keys array directly
         return new LongBlock[] { new LongArrayVector(keys, keys.length).asBlock() };
+    }
+
+    @Override
+    public IntVector nonEmpty() {
+        return IntVector.range(0, Math.toIntExact(longHash.size()));
     }
 
     @Override

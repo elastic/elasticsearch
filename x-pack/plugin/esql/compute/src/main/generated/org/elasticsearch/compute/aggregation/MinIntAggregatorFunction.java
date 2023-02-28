@@ -82,7 +82,7 @@ public final class MinIntAggregatorFunction implements AggregatorFunction {
   public Block evaluateIntermediate() {
     AggregatorStateVector.Builder<AggregatorStateVector<IntState>, IntState> builder =
         AggregatorStateVector.builderOfAggregatorState(IntState.class, state.getEstimatedSize());
-    builder.add(state);
+    builder.add(state, IntVector.range(0, 1));
     return builder.build().asBlock();
   }
 

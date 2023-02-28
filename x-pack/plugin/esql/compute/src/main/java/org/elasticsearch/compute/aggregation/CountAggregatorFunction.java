@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 
@@ -59,7 +60,7 @@ public class CountAggregatorFunction implements AggregatorFunction {
             LongState.class,
             state.getEstimatedSize()
         );
-        builder.add(state);
+        builder.add(state, IntVector.range(0, 1));
         return builder.build().asBlock();
     }
 

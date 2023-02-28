@@ -119,16 +119,16 @@ public final class SumIntGroupingAggregatorFunction implements GroupingAggregato
   }
 
   @Override
-  public Block evaluateIntermediate() {
+  public Block evaluateIntermediate(IntVector selected) {
     AggregatorStateVector.Builder<AggregatorStateVector<LongArrayState>, LongArrayState> builder =
         AggregatorStateVector.builderOfAggregatorState(LongArrayState.class, state.getEstimatedSize());
-    builder.add(state);
+    builder.add(state, selected);
     return builder.build().asBlock();
   }
 
   @Override
-  public Block evaluateFinal() {
-    return state.toValuesBlock();
+  public Block evaluateFinal(IntVector selected) {
+    return state.toValuesBlock(selected);
   }
 
   @Override

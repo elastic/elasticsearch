@@ -119,16 +119,16 @@ public final class AvgIntGroupingAggregatorFunction implements GroupingAggregato
   }
 
   @Override
-  public Block evaluateIntermediate() {
+  public Block evaluateIntermediate(IntVector selected) {
     AggregatorStateVector.Builder<AggregatorStateVector<AvgLongAggregator.GroupingAvgState>, AvgLongAggregator.GroupingAvgState> builder =
         AggregatorStateVector.builderOfAggregatorState(AvgLongAggregator.GroupingAvgState.class, state.getEstimatedSize());
-    builder.add(state);
+    builder.add(state, selected);
     return builder.build().asBlock();
   }
 
   @Override
-  public Block evaluateFinal() {
-    return AvgIntAggregator.evaluateFinal(state);
+  public Block evaluateFinal(IntVector selected) {
+    return AvgIntAggregator.evaluateFinal(state, selected);
   }
 
   @Override

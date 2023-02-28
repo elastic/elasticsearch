@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -102,6 +103,11 @@ final class BytesRefLongBlockHash extends BlockHash {
         } else {
             return new Block[] { keys1.build().asBlock(), keys2.build().asBlock() };
         }
+    }
+
+    @Override
+    public IntVector nonEmpty() {
+        return IntVector.range(0, Math.toIntExact(finalHash.size()));
     }
 
     @Override

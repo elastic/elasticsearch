@@ -33,6 +33,7 @@ import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR_BUILDE
 import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_FUNCTION;
+import static org.elasticsearch.compute.gen.Types.INT_VECTOR;
 import static org.elasticsearch.compute.gen.Types.LONG_BLOCK;
 import static org.elasticsearch.compute.gen.Types.LONG_VECTOR;
 import static org.elasticsearch.compute.gen.Types.PAGE;
@@ -338,6 +339,7 @@ public class GroupingAggregatorImplementer {
     private MethodSpec evaluateIntermediate() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("evaluateIntermediate");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).returns(BLOCK);
+        builder.addParameter(INT_VECTOR, "selected");
         ParameterizedTypeName stateBlockBuilderType = ParameterizedTypeName.get(
             AGGREGATOR_STATE_VECTOR_BUILDER,
             stateBlockType(),
@@ -349,7 +351,7 @@ public class GroupingAggregatorImplementer {
             AGGREGATOR_STATE_VECTOR,
             stateType
         );
-        builder.addStatement("builder.add(state)");
+        builder.addStatement("builder.add(state, selected)");
         builder.addStatement("return builder.build().asBlock()");
         return builder.build();
     }
@@ -357,10 +359,11 @@ public class GroupingAggregatorImplementer {
     private MethodSpec evaluateFinal() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("evaluateFinal");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).returns(BLOCK);
+        builder.addParameter(INT_VECTOR, "selected");
         if (evaluateFinal == null) {
-            builder.addStatement("return state.toValuesBlock()");
+            builder.addStatement("return state.toValuesBlock(selected)");
         } else {
-            builder.addStatement("return $T.evaluateFinal(state)", declarationType);
+            builder.addStatement("return $T.evaluateFinal(state, selected)", declarationType);
         }
         return builder.build();
     }

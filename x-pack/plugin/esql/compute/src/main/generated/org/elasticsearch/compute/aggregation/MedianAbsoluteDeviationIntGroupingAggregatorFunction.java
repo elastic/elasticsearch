@@ -121,16 +121,16 @@ public final class MedianAbsoluteDeviationIntGroupingAggregatorFunction implemen
   }
 
   @Override
-  public Block evaluateIntermediate() {
+  public Block evaluateIntermediate(IntVector selected) {
     AggregatorStateVector.Builder<AggregatorStateVector<QuantileStates.GroupingState>, QuantileStates.GroupingState> builder =
         AggregatorStateVector.builderOfAggregatorState(QuantileStates.GroupingState.class, state.getEstimatedSize());
-    builder.add(state);
+    builder.add(state, selected);
     return builder.build().asBlock();
   }
 
   @Override
-  public Block evaluateFinal() {
-    return MedianAbsoluteDeviationIntAggregator.evaluateFinal(state);
+  public Block evaluateFinal(IntVector selected) {
+    return MedianAbsoluteDeviationIntAggregator.evaluateFinal(state, selected);
   }
 
   @Override

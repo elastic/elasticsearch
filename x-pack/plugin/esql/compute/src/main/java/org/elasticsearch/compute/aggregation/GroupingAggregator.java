@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -88,11 +89,16 @@ public class GroupingAggregator implements Releasable {
         aggregatorFunction.addIntermediateRowInput(groupId, input.aggregatorFunction, position);
     }
 
-    public Block evaluate() {
+    /**
+     * Build the results for this aggregation.
+     * @param selected the groupIds that have been selected to be included in
+     *                 the results. Always ascending.
+     */
+    public Block evaluate(IntVector selected) {
         if (mode.isOutputPartial()) {
-            return aggregatorFunction.evaluateIntermediate();
+            return aggregatorFunction.evaluateIntermediate(selected);
         } else {
-            return aggregatorFunction.evaluateFinal();
+            return aggregatorFunction.evaluateFinal(selected);
         }
     }
 

@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -119,16 +120,16 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
   }
 
   @Override
-  public Block evaluateIntermediate() {
+  public Block evaluateIntermediate(IntVector selected) {
     AggregatorStateVector.Builder<AggregatorStateVector<DoubleArrayState>, DoubleArrayState> builder =
         AggregatorStateVector.builderOfAggregatorState(DoubleArrayState.class, state.getEstimatedSize());
-    builder.add(state);
+    builder.add(state, selected);
     return builder.build().asBlock();
   }
 
   @Override
-  public Block evaluateFinal() {
-    return state.toValuesBlock();
+  public Block evaluateFinal(IntVector selected) {
+    return state.toValuesBlock(selected);
   }
 
   @Override

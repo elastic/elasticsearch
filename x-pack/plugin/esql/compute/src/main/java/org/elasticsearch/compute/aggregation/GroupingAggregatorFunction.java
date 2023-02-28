@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -44,9 +45,19 @@ public interface GroupingAggregatorFunction extends Releasable {
      */
     void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position);
 
-    Block evaluateIntermediate();
+    /**
+     * Build the intermediate results for this aggregation.
+     * @param selected the groupIds that have been selected to be included in
+     *                 the results. Always ascending.
+     */
+    Block evaluateIntermediate(IntVector selected);
 
-    Block evaluateFinal();
+    /**
+     * Build the final results for this aggregation.
+     * @param selected the groupIds that have been selected to be included in
+     *                 the results. Always ascending.
+     */
+    Block evaluateFinal(IntVector selected);
 
     record Factory(AggregationName name, AggregationType type, BiFunction<BigArrays, Integer, GroupingAggregatorFunction> create)
         implements

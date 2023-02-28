@@ -9,6 +9,7 @@ package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -18,9 +19,10 @@ import org.elasticsearch.compute.data.Page;
  * that it sees and {@code 1} to the second.
  */
 final class BooleanBlockHash extends BlockHash {
-    // TODO this isn't really a "hash" so maybe we should rename base class
-    private final int[] buckets = { -1, -1 };
     private final int channel;
+
+    private boolean seenFalse;
+    private boolean seenTrue;
 
     BooleanBlockHash(int channel) {
         this.channel = channel;
@@ -50,35 +52,36 @@ final class BooleanBlockHash extends BlockHash {
     }
 
     private long ord(boolean b) {
-        int pos = b ? 1 : 0;
-        int ord = buckets[pos];
-        if (ord == -1) {
-            int otherPos = pos ^ 1; // 1 -> 0 and 0 -> 1 without branching
-            ord = buckets[otherPos] + 1;
-            buckets[pos] = ord;
+        if (b) {
+            seenTrue = true;
+            return 1;
         }
-        return ord;
+        seenFalse = true;
+        return 0;
     }
 
     @Override
     public BooleanBlock[] getKeys() {
         BooleanVector.Builder builder = BooleanVector.newVectorBuilder(2);
-        if (buckets[0] < buckets[1]) {
-            if (buckets[0] >= 0) {
-                builder.appendBoolean(false);
-            }
-            if (buckets[1] >= 0) {
-                builder.appendBoolean(true);
-            }
-        } else {
-            if (buckets[1] >= 0) {
-                builder.appendBoolean(true);
-            }
-            if (buckets[0] >= 0) {
-                builder.appendBoolean(false);
-            }
+        if (seenFalse) {
+            builder.appendBoolean(false);
+        }
+        if (seenTrue) {
+            builder.appendBoolean(true);
         }
         return new BooleanBlock[] { builder.build().asBlock() };
+    }
+
+    @Override
+    public IntVector nonEmpty() {
+        IntVector.Builder builder = IntVector.newVectorBuilder(2);
+        if (seenFalse) {
+            builder.appendInt(0);
+        }
+        if (seenTrue) {
+            builder.appendInt(1);
+        }
+        return builder.build();
     }
 
     @Override
@@ -88,10 +91,6 @@ final class BooleanBlockHash extends BlockHash {
 
     @Override
     public String toString() {
-        return "BooleanBlockHash{channel="
-            + channel
-            + (buckets[1] == -1 ? "" : ", true=" + buckets[1])
-            + (buckets[0] == -1 ? "" : ", false=" + buckets[0])
-            + '}';
+        return "BooleanBlockHash{channel=" + channel + ", seenFalse=" + seenFalse + ", seenTrue=" + seenTrue + '}';
     }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -72,6 +73,11 @@ final class LongLongBlockHash extends BlockHash {
             keys2.appendLong(hash.getKey2(i));
         }
         return new Block[] { keys1.build().asBlock(), keys2.build().asBlock() };
+    }
+
+    @Override
+    public IntVector nonEmpty() {
+        return IntVector.range(0, Math.toIntExact(hash.size()));
     }
 
     @Override

@@ -119,16 +119,16 @@ public final class MaxIntGroupingAggregatorFunction implements GroupingAggregato
   }
 
   @Override
-  public Block evaluateIntermediate() {
+  public Block evaluateIntermediate(IntVector selected) {
     AggregatorStateVector.Builder<AggregatorStateVector<IntArrayState>, IntArrayState> builder =
         AggregatorStateVector.builderOfAggregatorState(IntArrayState.class, state.getEstimatedSize());
-    builder.add(state);
+    builder.add(state, selected);
     return builder.build().asBlock();
   }
 
   @Override
-  public Block evaluateFinal() {
-    return state.toValuesBlock();
+  public Block evaluateFinal(IntVector selected) {
+    return state.toValuesBlock(selected);
   }
 
   @Override

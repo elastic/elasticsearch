@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 
@@ -82,7 +83,7 @@ public final class MaxDoubleAggregatorFunction implements AggregatorFunction {
   public Block evaluateIntermediate() {
     AggregatorStateVector.Builder<AggregatorStateVector<DoubleState>, DoubleState> builder =
         AggregatorStateVector.builderOfAggregatorState(DoubleState.class, state.getEstimatedSize());
-    builder.add(state);
+    builder.add(state, IntVector.range(0, 1));
     return builder.build().asBlock();
   }
 

@@ -12,6 +12,7 @@ import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -115,16 +116,16 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     }
 
     @Override
-    public Block evaluateIntermediate() {
+    public Block evaluateIntermediate(IntVector selected) {
         AggregatorStateVector.Builder<AggregatorStateVector<LongArrayState>, LongArrayState> builder = AggregatorStateVector
             .builderOfAggregatorState(LongArrayState.class, state.getEstimatedSize());
-        builder.add(state);
+        builder.add(state, selected);
         return builder.build().asBlock();
     }
 
     @Override
-    public Block evaluateFinal() {
-        return state.toValuesBlock();
+    public Block evaluateFinal(IntVector selected) {
+        return state.toValuesBlock(selected);
     }
 
     @Override

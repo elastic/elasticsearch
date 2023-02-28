@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.ann.Experimental;
+import org.elasticsearch.compute.data.IntVector;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -60,7 +61,9 @@ final class $Type$State implements AggregatorState<$Type$State> {
         }
 
         @Override
-        public int serialize($Type$State state, byte[] ba, int offset) {
+        public int serialize($Type$State state, byte[] ba, int offset, IntVector selected) {
+            assert selected.getPositionCount() == 1;
+            assert selected.getInt(0) == 0;
             handle.set(ba, offset, state.value);
             return $BYTES$; // number of bytes written
         }

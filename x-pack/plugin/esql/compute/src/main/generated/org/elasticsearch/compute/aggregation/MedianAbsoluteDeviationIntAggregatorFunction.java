@@ -83,7 +83,7 @@ public final class MedianAbsoluteDeviationIntAggregatorFunction implements Aggre
   public Block evaluateIntermediate() {
     AggregatorStateVector.Builder<AggregatorStateVector<QuantileStates.SingleState>, QuantileStates.SingleState> builder =
         AggregatorStateVector.builderOfAggregatorState(QuantileStates.SingleState.class, state.getEstimatedSize());
-    builder.add(state);
+    builder.add(state, IntVector.range(0, 1));
     return builder.build().asBlock();
   }
 

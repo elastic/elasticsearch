@@ -73,6 +73,15 @@ public sealed interface IntVector extends Vector permits ConstantIntVector,Filte
         return new IntVectorBuilder(estimatedSize);
     }
 
+    /** Create a vector for a range of ints. */
+    static IntVector range(int startInclusive, int endExclusive) {
+        int[] values = new int[endExclusive - startInclusive];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = startInclusive + i;
+        }
+        return new IntArrayVector(values, values.length, true);
+    }
+
     sealed interface Builder extends Vector.Builder permits IntVectorBuilder {
         /**
          * Appends a int to the current entry.

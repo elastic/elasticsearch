@@ -84,7 +84,7 @@ public final class AvgIntAggregatorFunction implements AggregatorFunction {
   public Block evaluateIntermediate() {
     AggregatorStateVector.Builder<AggregatorStateVector<AvgLongAggregator.AvgState>, AvgLongAggregator.AvgState> builder =
         AggregatorStateVector.builderOfAggregatorState(AvgLongAggregator.AvgState.class, state.getEstimatedSize());
-    builder.add(state);
+    builder.add(state, IntVector.range(0, 1));
     return builder.build().asBlock();
   }
 

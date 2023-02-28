@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefArrayVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -77,6 +78,11 @@ final class PackedValuesBlockHash extends BlockHash {
             keyBlocks[i] = keys[i].getKeys(positions, bytes, scratch);
         }
         return keyBlocks;
+    }
+
+    @Override
+    public IntVector nonEmpty() {
+        return IntVector.range(0, Math.toIntExact(bytesRefHash.size()));
     }
 
     @Override

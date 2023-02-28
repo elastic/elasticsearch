@@ -13,6 +13,7 @@ import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.core.Releasables;
 
 import java.lang.invoke.MethodHandles;
@@ -57,15 +58,15 @@ class AvgLongAggregator {
         current.add(state.values.get(statePosition), currentGroupId, state.counts.get(statePosition));
     }
 
-    public static Block evaluateFinal(GroupingAvgState state) {
-        int positions = state.largestGroupId + 1;
-        DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positions);
-        for (int i = 0; i < positions; i++) {
-            final long count = state.counts.get(i);
+    public static Block evaluateFinal(GroupingAvgState state, IntVector selected) {
+        DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
+        for (int i = 0; i < selected.getPositionCount(); i++) {
+            int group = selected.getInt(i);
+            final long count = state.counts.get(group);
             if (count > 0) {
-                builder.appendDouble((double) state.values.get(i) / count);
+                builder.appendDouble((double) state.values.get(group) / count);
             } else {
-                assert state.values.get(i) == 0;
+                assert state.values.get(group) == 0;
                 builder.appendNull();
             }
         }
@@ -105,9 +106,6 @@ class AvgLongAggregator {
 
     // @SerializedSize(value = Long.BYTES + Long.BYTES)
     static class AvgStateSerializer implements AggregatorStateSerializer<AvgLongAggregator.AvgState> {
-
-        // record Shape (long value, long count) {}
-
         static final int BYTES_SIZE = Long.BYTES + Long.BYTES;
 
         @Override
@@ -118,7 +116,9 @@ class AvgLongAggregator {
         private static final VarHandle longHandle = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
 
         @Override
-        public int serialize(AvgLongAggregator.AvgState value, byte[] ba, int offset) {
+        public int serialize(AvgLongAggregator.AvgState value, byte[] ba, int offset, IntVector selected) {
+            assert selected.getPositionCount() == 1;
+            assert selected.getInt(0) == 0;
             longHandle.set(ba, offset, value.value);
             longHandle.set(ba, offset + 8, value.count);
             return BYTES_SIZE; // number of bytes written
@@ -211,16 +211,16 @@ class AvgLongAggregator {
         private static final VarHandle longHandle = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
 
         @Override
-        public int serialize(GroupingAvgState state, byte[] ba, int offset) {
-            int positions = state.largestGroupId + 1;
-            longHandle.set(ba, offset, positions);
+        public int serialize(GroupingAvgState state, byte[] ba, int offset, IntVector selected) {
+            longHandle.set(ba, offset, selected.getPositionCount());
             offset += 8;
-            for (int i = 0; i < positions; i++) {
-                longHandle.set(ba, offset, state.values.get(i));
-                longHandle.set(ba, offset + 8, state.counts.get(i));
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int group = selected.getInt(i);
+                longHandle.set(ba, offset, state.values.get(group));
+                longHandle.set(ba, offset + 8, state.counts.get(group));
                 offset += BYTES_SIZE;
             }
-            return 8 + (BYTES_SIZE * positions); // number of bytes written
+            return 8 + (BYTES_SIZE * selected.getPositionCount()); // number of bytes written
         }
 
         // sets the state in value

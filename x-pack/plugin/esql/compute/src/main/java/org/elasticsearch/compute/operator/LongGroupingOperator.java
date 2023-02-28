@@ -21,7 +21,7 @@ import org.elasticsearch.core.Releasables;
  * based on a long field.
  */
 @Experimental
-public class LongGroupingOperator implements Operator {
+public class LongGroupingOperator implements Operator {  // TODO replace me with HashAggregatorOperator
 
     private final int channel;
 

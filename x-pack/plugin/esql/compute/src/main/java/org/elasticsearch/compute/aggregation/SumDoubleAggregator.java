@@ -13,6 +13,7 @@ import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 
@@ -54,11 +55,10 @@ class SumDoubleAggregator {
         current.add(state.values.get(statePosition), state.deltas.get(statePosition), currentGroupId);
     }
 
-    public static Block evaluateFinal(GroupingSumState state) {
-        int positions = state.largestGroupId + 1;
-        DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positions);
-        for (int i = 0; i < positions; i++) {
-            builder.appendDouble(state.values.get(i));
+    public static Block evaluateFinal(GroupingSumState state, IntVector selected) {
+        DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
+        for (int i = 0; i < selected.getPositionCount(); i++) {
+            builder.appendDouble(state.values.get(selected.getInt(i)));
         }
         return builder.build();
     }
@@ -103,7 +103,9 @@ class SumDoubleAggregator {
         private static final VarHandle doubleHandle = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.BIG_ENDIAN);
 
         @Override
-        public int serialize(SumState value, byte[] ba, int offset) {
+        public int serialize(SumState value, byte[] ba, int offset, IntVector selected) {
+            assert selected.getPositionCount() == 1;
+            assert selected.getInt(0) == 0;
             doubleHandle.set(ba, offset, value.value());
             doubleHandle.set(ba, offset + 8, value.delta());
             return BYTES_SIZE; // number of bytes written
@@ -215,16 +217,16 @@ class SumDoubleAggregator {
         private static final VarHandle longHandle = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
 
         @Override
-        public int serialize(GroupingSumState state, byte[] ba, int offset) {
-            int positions = state.largestGroupId + 1;
-            longHandle.set(ba, offset, positions);
-            offset += 8;
-            for (int i = 0; i < positions; i++) {
-                doubleHandle.set(ba, offset, state.values.get(i));
-                doubleHandle.set(ba, offset + 8, state.deltas.get(i));
+        public int serialize(GroupingSumState state, byte[] ba, int offset, IntVector selected) {
+            longHandle.set(ba, offset, selected.getPositionCount());
+            offset += Long.BYTES;
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int group = selected.getInt(i);
+                doubleHandle.set(ba, offset, state.values.get(group));
+                doubleHandle.set(ba, offset + 8, state.deltas.get(group));
                 offset += BYTES_SIZE;
             }
-            return 8 + (BYTES_SIZE * positions); // number of bytes written
+            return 8 + (BYTES_SIZE * selected.getPositionCount()); // number of bytes written
         }
 
         // sets the state in value

@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 
 import java.lang.invoke.MethodHandles;
@@ -111,7 +112,9 @@ final class QuantileStates {
         }
 
         @Override
-        public int serialize(SingleState state, byte[] ba, int offset) {
+        public int serialize(SingleState state, byte[] ba, int offset, IntVector selected) {
+            assert selected.getPositionCount() == 1;
+            assert selected.getInt(0) == 0;
             return serializeDigest(state.digest, ba, offset);
         }
 
@@ -162,11 +165,10 @@ final class QuantileStates {
             return digests.get(position);
         }
 
-        Block evaluateMedianAbsoluteDeviation() {
-            final int positions = Math.toIntExact(largestGroupId + 1);
-            final DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positions);
-            for (int i = 0; i < positions; i++) {
-                final TDigestState digest = digests.get(i);
+        Block evaluateMedianAbsoluteDeviation(IntVector selected) {
+            final DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                final TDigestState digest = digests.get(selected.getInt(i));
                 if (digest != null && digest.size() > 0) {
                     builder.appendDouble(digest.computeMedianAbsoluteDeviation());
                 } else {
@@ -176,11 +178,10 @@ final class QuantileStates {
             return builder.build();
         }
 
-        Block evaluateMedian() {
-            final int positions = Math.toIntExact(largestGroupId + 1);
-            final DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positions);
-            for (int i = 0; i < positions; i++) {
-                final TDigestState digest = digests.get(i);
+        Block evaluateMedian(IntVector selected) {
+            final DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                final TDigestState digest = digests.get(selected.getInt(i));
                 if (digest != null && digest.size() > 0) {
                     builder.appendDouble(digest.quantile(0.5));
                 } else {
@@ -219,13 +220,13 @@ final class QuantileStates {
         }
 
         @Override
-        public int serialize(GroupingState state, byte[] ba, int offset) {
+        public int serialize(GroupingState state, byte[] ba, int offset, IntVector selected) {
             final int origOffset = offset;
             final ObjectArray<TDigestState> digests = state.digests;
-            longHandle.set(ba, offset, state.largestGroupId);
-            offset += 8;
-            for (long i = 0; i <= state.largestGroupId; i++) {
-                offset += serializeDigest(digests.get(i), ba, offset);
+            longHandle.set(ba, offset, selected.getPositionCount() - 1);
+            offset += Long.BYTES;
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                offset += serializeDigest(digests.get(selected.getInt(i)), ba, offset);
             }
             return origOffset - offset;
         }

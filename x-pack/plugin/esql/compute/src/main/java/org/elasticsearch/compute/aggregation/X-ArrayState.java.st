@@ -95,19 +95,19 @@ $endif$
         return nonNulls == null || nonNulls.get(index);
     }
 
-    Block toValuesBlock() {
-        int positions = largestIndex + 1;
+    Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected) {
         if (nonNulls == null) {
-            $Type$Vector.Builder builder = $Type$Vector.newVectorBuilder(positions);
-            for (int i = 0; i < positions; i++) {
-                builder.append$Type$(values.get(i));
+            $Type$Vector.Builder builder = $Type$Vector.newVectorBuilder(selected.getPositionCount());
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                builder.append$Type$(values.get(selected.getInt(i)));
             }
             return builder.build().asBlock();
         }
-        $Type$Block.Builder builder = $Type$Block.newBlockBuilder(positions);
-        for (int i = 0; i < positions; i++) {
-            if (hasValue(i)) {
-                builder.append$Type$(values.get(i));
+        $Type$Block.Builder builder = $Type$Block.newBlockBuilder(selected.getPositionCount());
+        for (int i = 0; i < selected.getPositionCount(); i++) {
+            int group = selected.getInt(i);
+            if (hasValue(group)) {
+                builder.append$Type$(values.get(group));
             } else {
                 builder.appendNull();
             }
@@ -187,15 +187,14 @@ $endif$
         }
 
         @Override
-        public int serialize($Type$ArrayState state, byte[] ba, int offset) {
-            int positions = state.largestIndex + 1;
-            lengthHandle.set(ba, offset, positions);
+        public int serialize($Type$ArrayState state, byte[] ba, int offset, org.elasticsearch.compute.data.IntVector selected) {
+            lengthHandle.set(ba, offset, selected.getPositionCount());
             offset += Long.BYTES;
-            for (int i = 0; i < positions; i++) {
-                valueHandle.set(ba, offset, state.values.get(i));
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                valueHandle.set(ba, offset, state.values.get(selected.getInt(i)));
                 offset += $BYTES$;
             }
-            final int valuesBytes = Long.BYTES + ($BYTES$ * positions);
+            final int valuesBytes = Long.BYTES + ($BYTES$ * selected.getPositionCount());
             return valuesBytes + LongArrayState.serializeBitArray(state.nonNulls, ba, offset);
         }
 

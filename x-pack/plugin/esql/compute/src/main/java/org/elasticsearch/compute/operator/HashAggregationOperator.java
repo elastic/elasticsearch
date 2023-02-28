@@ -14,6 +14,7 @@ import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
@@ -106,11 +107,12 @@ public class HashAggregationOperator implements Operator {
         state = FINISHING;  // << allows to produce output step by step
 
         Block[] keys = blockHash.getKeys();
+        IntVector selected = blockHash.nonEmpty();
         Block[] blocks = new Block[keys.length + aggregators.size()];
         System.arraycopy(keys, 0, blocks, 0, keys.length);
         for (int i = 0; i < aggregators.size(); i++) {
             var aggregator = aggregators.get(i);
-            blocks[i + keys.length] = aggregator.evaluate();
+            blocks[i + keys.length] = aggregator.evaluate(selected);
         }
 
         Page page = new Page(blocks);

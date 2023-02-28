@@ -75,7 +75,7 @@ public class AggregatorStateVector<T extends AggregatorState<T>> extends Abstrac
 
         Class<?> type();
 
-        Builder<B, V> add(V value);
+        Builder<B, V> add(V value, IntVector selected);
 
         B build();
     }
@@ -109,8 +109,8 @@ public class AggregatorStateVector<T extends AggregatorState<T>> extends Abstrac
         }
 
         @Override
-        public Builder<AggregatorStateVector<T>, T> add(T value) {
-            int bytesWritten = value.serializer().serialize(value, ba, offset);
+        public Builder<AggregatorStateVector<T>, T> add(T value, IntVector selected) {
+            int bytesWritten = value.serializer().serialize(value, ba, offset, selected);
             offset += bytesWritten;
             positionCount++;
             if (size == -1) {

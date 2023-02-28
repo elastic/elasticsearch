@@ -59,6 +59,11 @@ final class IntBlockHash extends BlockHash {
     }
 
     @Override
+    public IntVector nonEmpty() {
+        return IntVector.range(0, Math.toIntExact(longHash.size()));
+    }
+
+    @Override
     public void close() {
         longHash.close();
     }

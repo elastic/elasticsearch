@@ -83,7 +83,7 @@ public final class SumIntAggregatorFunction implements AggregatorFunction {
   public Block evaluateIntermediate() {
     AggregatorStateVector.Builder<AggregatorStateVector<LongState>, LongState> builder =
         AggregatorStateVector.builderOfAggregatorState(LongState.class, state.getEstimatedSize());
-    builder.add(state);
+    builder.add(state, IntVector.range(0, 1));
     return builder.build().asBlock();
   }
 

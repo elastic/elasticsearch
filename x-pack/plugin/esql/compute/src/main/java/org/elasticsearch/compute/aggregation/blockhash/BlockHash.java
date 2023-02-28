@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
@@ -39,6 +40,15 @@ PackedValuesBlockHash,BytesRefLongBlockHash,LongLongBlockHash {
      * Returns a {@link Block} that contains all the keys that are inserted by {@link #add}.
      */
     public abstract Block[] getKeys();
+
+    /**
+     * The grouping ids that are not empty. We use this because some block hashes reserve
+     * space for grouping ids and then don't end up using them. For example,
+     * {@link BooleanBlockHash} does this by always assigning {@code false} to {@code 0}
+     * and {@code true} to {@code 1}. It's only <strong>after</strong> collection when we
+     * know if there actually were any {@code true} or {@code false} values received.
+     */
+    public abstract IntVector nonEmpty();
 
     /**
      * Creates a specialized hash table that maps one or more {@link Block}s to ids.

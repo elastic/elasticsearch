@@ -224,8 +224,6 @@ public class OrdinalsGroupingOperator implements Operator {
             }
             int position = -1;
             final BytesRefBuilder lastTerm = new BytesRefBuilder();
-            // Use NON_RECYCLING_INSTANCE as we don't have a lifecycle for pages/block yet
-            // keys = new BytesRefArray(1, BigArrays.NON_RECYCLING_INSTANCE);
             var blockBuilder = BytesRefBlock.newBlockBuilder(1);
             while (pq.size() > 0) {
                 final AggregatedResultIterator top = pq.top();
@@ -246,8 +244,9 @@ public class OrdinalsGroupingOperator implements Operator {
             final Block[] blocks = new Block[aggregators.size() + 1];
             blocks[0] = blockBuilder.build();
             blockBuilder = null;
+            IntVector selected = IntVector.range(0, blocks[0].getPositionCount());
             for (int i = 0; i < aggregators.size(); i++) {
-                blocks[i + 1] = aggregators.get(i).evaluate();
+                blocks[i + 1] = aggregators.get(i).evaluate(selected);
             }
             return new Page(blocks);
         } finally {

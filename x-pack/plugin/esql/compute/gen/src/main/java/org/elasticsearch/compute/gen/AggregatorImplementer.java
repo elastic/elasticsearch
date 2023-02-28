@@ -324,7 +324,7 @@ public class AggregatorImplementer {
             AGGREGATOR_STATE_VECTOR,
             stateType
         );
-        builder.addStatement("builder.add(state)");
+        builder.addStatement("builder.add(state, $T.range(0, 1))", INT_VECTOR);
         builder.addStatement("return builder.build().asBlock()");
         return builder.build();
     }

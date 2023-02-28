@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.IntVector;
 
 @Aggregator
 @GroupingAggregator
@@ -49,7 +50,7 @@ class MedianDoubleAggregator {
         current.add(currentGroupId, state.get(statePosition));
     }
 
-    public static Block evaluateFinal(QuantileStates.GroupingState state) {
-        return state.evaluateMedian();
+    public static Block evaluateFinal(QuantileStates.GroupingState state, IntVector selected) {
+        return state.evaluateMedian(selected);
     }
 }

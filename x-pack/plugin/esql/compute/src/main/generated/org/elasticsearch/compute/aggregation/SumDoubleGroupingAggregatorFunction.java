@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -120,16 +121,16 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
   }
 
   @Override
-  public Block evaluateIntermediate() {
+  public Block evaluateIntermediate(IntVector selected) {
     AggregatorStateVector.Builder<AggregatorStateVector<SumDoubleAggregator.GroupingSumState>, SumDoubleAggregator.GroupingSumState> builder =
         AggregatorStateVector.builderOfAggregatorState(SumDoubleAggregator.GroupingSumState.class, state.getEstimatedSize());
-    builder.add(state);
+    builder.add(state, selected);
     return builder.build().asBlock();
   }
 
   @Override
-  public Block evaluateFinal() {
-    return SumDoubleAggregator.evaluateFinal(state);
+  public Block evaluateFinal(IntVector selected) {
+    return SumDoubleAggregator.evaluateFinal(state, selected);
   }
 
   @Override

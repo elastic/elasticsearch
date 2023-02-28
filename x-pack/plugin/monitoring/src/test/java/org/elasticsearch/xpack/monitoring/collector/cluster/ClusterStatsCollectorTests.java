@@ -26,8 +26,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
-import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicenseServiceInterface;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.xpack.core.XPackField;
@@ -69,7 +69,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        licenseService = mock(LicenseService.class);
+        licenseService = mock(ClusterStateLicenseService.class);
     }
 
     public void testShouldCollectReturnsFalseIfNotMaster() {

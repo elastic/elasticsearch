@@ -32,7 +32,7 @@ import static java.util.Collections.singletonMap;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
+public abstract class AbstractClusterStateLicenseServiceTestCase extends ESTestCase {
 
     protected LicenseServiceInterface<PostStartBasicResponse> licenseService;
     protected ClusterService clusterService;
@@ -63,7 +63,7 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
     protected void setInitialState(License license, XPackLicenseState licenseState, Settings settings, String selfGeneratedType) {
         licenseType = selfGeneratedType;
         settings = Settings.builder().put(settings).put(LicenseServiceInterface.SELF_GENERATED_LICENSE_TYPE.getKey(), licenseType).build();
-        licenseService = new LicenseService(settings, threadPool, clusterService, clock, licenseState);
+        licenseService = new ClusterStateLicenseService(settings, threadPool, clusterService, clock, licenseState);
         ClusterState state = mock(ClusterState.class);
         final ClusterBlocks noBlock = ClusterBlocks.builder().build();
         when(state.blocks()).thenReturn(noBlock);

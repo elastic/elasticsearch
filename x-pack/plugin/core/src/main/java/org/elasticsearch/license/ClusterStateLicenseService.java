@@ -53,14 +53,14 @@ import java.util.stream.Collectors;
  * It also listens on all nodes for cluster state updates, and updates {@link XPackLicenseState} when
  * the license changes are detected in the cluster state.
  */
-public class LicenseService extends AbstractLifecycleComponent
+public class ClusterStateLicenseService extends AbstractLifecycleComponent
     implements
         LicenseServiceInterface<PostStartBasicResponse>,
         TrialLicenseService<PostStartTrialRequest, PostStartTrialResponse>,
         BasicLicenseService<PostStartBasicRequest, PostStartBasicResponse>,
         ClusterStateListener,
         SchedulerEngine.Listener {
-    private static final Logger logger = LogManager.getLogger(LicenseService.class);
+    private static final Logger logger = LogManager.getLogger(ClusterStateLicenseService.class);
 
     private final Settings settings;
 
@@ -99,7 +99,7 @@ public class LicenseService extends AbstractLifecycleComponent
     private static final String ACKNOWLEDGEMENT_HEADER = "This license update requires acknowledgement. To acknowledge the license, "
         + "please read the following messages and update the license again, this time with the \"acknowledge=true\" parameter:";
 
-    public LicenseService(
+    public ClusterStateLicenseService(
         Settings settings,
         ThreadPool threadPool,
         ClusterService clusterService,
@@ -471,7 +471,11 @@ public class LicenseService extends AbstractLifecycleComponent
                 ? "expires today"
                 : (diff > 0
                     ? String.format(Locale.ROOT, "will expire in [%d] days", days)
-                    : String.format(Locale.ROOT, "expired on [%s]", LicenseService.DATE_FORMATTER.formatMillis(licenseExpiryDate)));
+                    : String.format(
+                        Locale.ROOT,
+                        "expired on [%s]",
+                        ClusterStateLicenseService.DATE_FORMATTER.formatMillis(licenseExpiryDate)
+                    ));
             return "Your license "
                 + expiryMessage
                 + ". "

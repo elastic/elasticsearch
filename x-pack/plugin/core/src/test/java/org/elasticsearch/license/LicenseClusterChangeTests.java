@@ -28,16 +28,16 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
+public class LicenseClusterChangeTests extends AbstractClusterStateLicenseServiceTestCase {
 
     private TestUtils.AssertingLicenseState licenseState;
-    private LicenseService clusterStateLicenseService;
+    private ClusterStateLicenseService clusterStateLicenseService;
 
     @Before
     public void setup() {
         licenseState = new TestUtils.AssertingLicenseState();
         setInitialState(null, licenseState, Settings.EMPTY);
-        clusterStateLicenseService = (LicenseService) licenseService;
+        clusterStateLicenseService = (ClusterStateLicenseService) licenseService;
         licenseService.start();
     }
 

@@ -73,23 +73,24 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
     // TODO: Add test/feature blocking the registration of basic license
 
     public void testEffectiveLicenses() throws Exception {
-        final LicenseService licenseService = getInstanceFromNode(LicenseService.class);
+        // TODO: fix this
+        final ClusterStateLicenseService licenseService = getInstanceFromNode(ClusterStateLicenseService.class);
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         License goldLicense = TestUtils.generateSignedLicense("gold", TimeValue.timeValueSeconds(5));
         // put gold license
         TestUtils.registerAndAckSignedLicenses(licenseService, goldLicense, LicensesStatus.VALID);
         LicensesMetadata licensesMetadata = clusterService.state().metadata().custom(LicensesMetadata.TYPE);
-        assertThat(LicenseService.getLicense(licensesMetadata), equalTo(goldLicense));
+        assertThat(ClusterStateLicenseService.getLicense(licensesMetadata), equalTo(goldLicense));
 
         License platinumLicense = TestUtils.generateSignedLicense("platinum", TimeValue.timeValueSeconds(3));
         // put platinum license
         TestUtils.registerAndAckSignedLicenses(licenseService, platinumLicense, LicensesStatus.VALID);
         licensesMetadata = clusterService.state().metadata().custom(LicensesMetadata.TYPE);
-        assertThat(LicenseService.getLicense(licensesMetadata), equalTo(platinumLicense));
+        assertThat(ClusterStateLicenseService.getLicense(licensesMetadata), equalTo(platinumLicense));
     }
 
     public void testInvalidLicenseStorage() throws Exception {
-        LicenseServiceInterface<? extends ActionResponse> licenseService = getInstanceFromNode(LicenseService.class);
+        LicenseServiceInterface<? extends ActionResponse> licenseService = getInstanceFromNode(ClusterStateLicenseService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         License signedLicense = TestUtils.generateSignedLicense(TimeValue.timeValueMinutes(2));
 

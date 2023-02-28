@@ -30,7 +30,7 @@ public class LicenseScheduleTests extends ESTestCase {
     @Before
     public void setup() throws Exception {
         license = TestUtils.generateSignedLicense(TimeValue.timeValueDays(12));
-        final LicenseService service = new LicenseService(
+        final ClusterStateLicenseService service = new ClusterStateLicenseService(
             Settings.EMPTY,
             mock(ThreadPool.class),
             mock(ClusterService.class),

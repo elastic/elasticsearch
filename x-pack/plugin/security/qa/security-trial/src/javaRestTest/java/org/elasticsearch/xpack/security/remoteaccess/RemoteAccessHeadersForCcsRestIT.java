@@ -942,7 +942,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
         );
         for (CapturedActionWithHeaders actual : actualActionsWithHeaders) {
             switch (actual.action) {
-                // the cluster state action is run by the system user, so we expect a remote access authentication header with an internal
+                // this action is run by the system user, so we expect a remote access authentication header with an internal
                 // user authentication and empty role descriptors intersection
                 case RemoteClusterNodesAction.NAME -> {
                     assertContainsRemoteAccessHeaders(actual.headers());

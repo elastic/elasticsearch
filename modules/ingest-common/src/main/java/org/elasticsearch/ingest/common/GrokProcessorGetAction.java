@@ -22,6 +22,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -156,6 +158,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
         }
     }
 
+    @ServerlessScope(Scope.PUBLIC)
     public static class RestAction extends BaseRestHandler {
 
         @Override

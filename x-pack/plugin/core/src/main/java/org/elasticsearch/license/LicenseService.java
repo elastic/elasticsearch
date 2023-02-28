@@ -20,7 +20,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public interface LicenseServiceInterface<
+public interface LicenseService<
 
     RemoveResponse extends ActionResponse // remove license response
 > extends LifecycleComponent {
@@ -39,7 +39,7 @@ public interface LicenseServiceInterface<
         "xpack.license.upload.types",
         ALLOWABLE_UPLOAD_TYPES.stream().map(License.LicenseType::getTypeName).toList(),
         License.LicenseType::parse,
-        LicenseServiceInterface::validateUploadTypesSetting,
+        LicenseService::validateUploadTypesSetting,
         Setting.Property.NodeScope
     );
     // pkg private for tests

@@ -42,7 +42,7 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.ClusterStateLicenseService;
-import org.elasticsearch.license.LicenseServiceInterface;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.PostStartBasicResponse;
@@ -160,7 +160,7 @@ public class XPackPlugin extends XPackClientPlugin
     // These should not be directly accessed as they cannot be overridden in tests. Please use the getters so they can be overridden.
     private static final SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
     private static final SetOnce<SSLService> sslService = new SetOnce<>();
-    private static final SetOnce<LicenseServiceInterface<? extends ActionResponse>> licenseService = new SetOnce<>();
+    private static final SetOnce<LicenseService<? extends ActionResponse>> licenseService = new SetOnce<>();
     private static final SetOnce<LongSupplier> epochMillisSupplier = new SetOnce<>();
 
     public XPackPlugin(final Settings settings) {
@@ -183,7 +183,7 @@ public class XPackPlugin extends XPackClientPlugin
         return getSharedSslService();
     }
 
-    protected LicenseServiceInterface<? extends ActionResponse> getLicenseService() {
+    protected LicenseService<? extends ActionResponse> getLicenseService() {
         return getSharedLicenseService();
     }
 
@@ -199,7 +199,7 @@ public class XPackPlugin extends XPackClientPlugin
         XPackPlugin.sslService.set(sslService);
     }
 
-    protected void setLicenseService(LicenseServiceInterface<? extends ActionResponse> licenseService) {
+    protected void setLicenseService(LicenseService<? extends ActionResponse> licenseService) {
         XPackPlugin.licenseService.set(licenseService);
     }
 
@@ -219,7 +219,7 @@ public class XPackPlugin extends XPackClientPlugin
         return ssl;
     }
 
-    public static LicenseServiceInterface<? extends ActionResponse> getSharedLicenseService() {
+    public static LicenseService<? extends ActionResponse> getSharedLicenseService() {
         return licenseService.get();
     }
 
@@ -317,7 +317,7 @@ public class XPackPlugin extends XPackClientPlugin
 
         final SSLService sslService = createSSLService(environment, resourceWatcherService);
 
-        LicenseServiceInterface<PostStartBasicResponse> licenseService = new ClusterStateLicenseService(
+        LicenseService<PostStartBasicResponse> licenseService = new ClusterStateLicenseService(
             settings,
             threadPool,
             clusterService,
@@ -331,7 +331,7 @@ public class XPackPlugin extends XPackClientPlugin
         // It is useful to override these as they are what guice is injecting into actions
         components.add(sslService);
         components.add(new PrivateInterface<>(TrialLicenseService.class, () -> licenseService));
-        components.add(new PrivateInterface<>(LicenseServiceInterface.class, () -> licenseService));
+        components.add(new PrivateInterface<>(LicenseService.class, () -> licenseService));
         components.add(getLicenseState());
 
         return components;

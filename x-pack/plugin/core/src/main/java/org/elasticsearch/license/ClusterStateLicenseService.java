@@ -55,7 +55,7 @@ import java.util.stream.Collectors;
  */
 public class ClusterStateLicenseService extends AbstractLifecycleComponent
     implements
-        LicenseServiceInterface<PostStartBasicResponse>,
+        LicenseService<PostStartBasicResponse>,
         TrialLicenseService<PostStartTrialRequest, PostStartTrialResponse>,
         BasicLicenseService<PostStartBasicRequest, PostStartBasicResponse>,
         ClusterStateListener,
@@ -85,7 +85,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
 
     /**
      * Which license types are permitted to be uploaded to the cluster
-     * @see LicenseServiceInterface#ALLOWED_LICENSE_TYPES_SETTING
+     * @see LicenseService#ALLOWED_LICENSE_TYPES_SETTING
      */
     private final List<License.LicenseType> allowedLicenseTypes;
 

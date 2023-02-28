@@ -34,7 +34,7 @@ import static org.mockito.Mockito.when;
 
 public abstract class AbstractClusterStateLicenseServiceTestCase extends ESTestCase {
 
-    protected LicenseServiceInterface<PostStartBasicResponse> licenseService;
+    protected LicenseService<PostStartBasicResponse> licenseService;
     protected ClusterService clusterService;
     protected ClockMock clock;
     protected DiscoveryNodes discoveryNodes;
@@ -62,7 +62,7 @@ public abstract class AbstractClusterStateLicenseServiceTestCase extends ESTestC
 
     protected void setInitialState(License license, XPackLicenseState licenseState, Settings settings, String selfGeneratedType) {
         licenseType = selfGeneratedType;
-        settings = Settings.builder().put(settings).put(LicenseServiceInterface.SELF_GENERATED_LICENSE_TYPE.getKey(), licenseType).build();
+        settings = Settings.builder().put(settings).put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), licenseType).build();
         licenseService = new ClusterStateLicenseService(settings, threadPool, clusterService, clock, licenseState);
         ClusterState state = mock(ClusterState.class);
         final ClusterBlocks noBlock = ClusterBlocks.builder().build();

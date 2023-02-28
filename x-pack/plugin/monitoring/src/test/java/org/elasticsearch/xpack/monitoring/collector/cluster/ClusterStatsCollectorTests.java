@@ -28,7 +28,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
-import org.elasticsearch.license.LicenseServiceInterface;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -64,7 +64,7 @@ import static org.mockito.Mockito.when;
 
 public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
 
-    private LicenseServiceInterface<? extends ActionResponse> licenseService;
+    private LicenseService<? extends ActionResponse> licenseService;
 
     @Override
     public void setUp() throws Exception {

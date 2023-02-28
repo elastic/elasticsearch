@@ -376,7 +376,7 @@ public class TestUtils {
     }
 
     public static void registerAndAckSignedLicenses(
-        final LicenseServiceInterface<? extends ActionResponse> licenseService,
+        final LicenseService<? extends ActionResponse> licenseService,
         License license,
         final LicensesStatus expectedStatus
     ) {

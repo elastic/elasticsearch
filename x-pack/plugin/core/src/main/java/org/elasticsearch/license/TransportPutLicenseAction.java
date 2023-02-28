@@ -24,13 +24,13 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportPutLicenseAction extends TransportMasterNodeAction<PutLicenseRequest, PutLicenseResponse> {
 
-    private final LicenseServiceInterface<ActionResponse> licenseService;
+    private final LicenseService<ActionResponse> licenseService;
 
     @Inject
     public TransportPutLicenseAction(
         TransportService transportService,
         ClusterService clusterService,
-        LicenseServiceInterface<ActionResponse> licenseService,
+        LicenseService<ActionResponse> licenseService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver

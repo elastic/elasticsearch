@@ -56,7 +56,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
 
     public void testStoreAndGetLicenses() throws Exception {
         @SuppressWarnings("unchecked")
-        LicenseServiceInterface<PostStartBasicResponse> licenseService = getInstanceFromNode(LicenseServiceInterface.class);
+        LicenseService<PostStartBasicResponse> licenseService = getInstanceFromNode(LicenseService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         License goldLicense = TestUtils.generateSignedLicense("gold", TimeValue.timeValueHours(1));
         TestUtils.registerAndAckSignedLicenses(licenseService, goldLicense, LicensesStatus.VALID);
@@ -90,7 +90,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testInvalidLicenseStorage() throws Exception {
-        LicenseServiceInterface<? extends ActionResponse> licenseService = getInstanceFromNode(ClusterStateLicenseService.class);
+        LicenseService<? extends ActionResponse> licenseService = getInstanceFromNode(ClusterStateLicenseService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         License signedLicense = TestUtils.generateSignedLicense(TimeValue.timeValueMinutes(2));
 
@@ -110,7 +110,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
 
     public void testRemoveLicenses() throws Exception {
         @SuppressWarnings("unchecked")
-        LicenseServiceInterface<PostStartBasicResponse> licenseService = getInstanceFromNode(LicenseServiceInterface.class);
+        LicenseService<PostStartBasicResponse> licenseService = getInstanceFromNode(LicenseService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
 
         // generate signed licenses
@@ -125,7 +125,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
         assertTrue(License.LicenseType.isBasic(licensesMetadata.getLicense().type()));
     }
 
-    private void removeAndAckSignedLicenses(final LicenseServiceInterface<PostStartBasicResponse> licenseService) {
+    private void removeAndAckSignedLicenses(final LicenseService<PostStartBasicResponse> licenseService) {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean success = new AtomicBoolean(false);
         licenseService.removeLicense(new ActionListener<PostStartBasicResponse>() {

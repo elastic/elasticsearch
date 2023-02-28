@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.LicenseServiceInterface;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
@@ -63,7 +63,7 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
         public SecurityTransportXPackInfoAction(
             TransportService transportService,
             ActionFilters actionFilters,
-            LicenseServiceInterface<? extends ActionResponse> licenseService,
+            LicenseService<? extends ActionResponse> licenseService,
             NodeClient client
         ) {
             super(transportService, actionFilters, licenseService, client);
@@ -91,7 +91,7 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
             }
 
             @Override
-            protected LicenseServiceInterface<? extends ActionResponse> getLicenseService() {
+            protected LicenseService<? extends ActionResponse> getLicenseService() {
                 return thisVar.getLicenseService();
             }
 

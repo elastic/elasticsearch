@@ -83,9 +83,9 @@ public class LicenseClusterChangeTests extends AbstractClusterStateLicenseServic
         assertEquals(licenseType, licenseMetadata.getLicense().type());
         long expiration;
         if (licenseType.equals("basic")) {
-            expiration = LicenseServiceInterface.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
+            expiration = LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
         } else {
-            expiration = LicenseServiceInterface.NON_BASIC_SELF_GENERATED_LICENSE_DURATION.millis() + clock.millis();
+            expiration = LicenseService.NON_BASIC_SELF_GENERATED_LICENSE_DURATION.millis() + clock.millis();
         }
         assertEquals(expiration, licenseMetadata.getLicense().expiryDate());
     }

@@ -194,9 +194,9 @@ public class ShardLimitValidator {
 
     /**
      * This method decides whether there is enough room in the cluster to add the given number of shards with the given number of replicas
-     * without exceeding the "cluster.max_shards_per_node.frozen" setting if the shards are going on frozen nodes or the
-     * "cluster.max_shards_per_node" setting if the shards are going on normal nodes. This check does not guarantee that the number of
-     * shards can be added, just that there is theoretically room to add them without exceeding the shards per node configuration.
+     * without exceeding the "cluster.max_shards_per_node" setting if the shards are going on normal nodes. This check does not guarantee
+     * that the number of shards can be added, just that there is theoretically room to add them without exceeding the shards per node
+     * configuration.
      * @param numberOfNewShards The number of primary shards that we want to be able to add to the cluster
      * @param replicas          The number of replicas of the primary shards that we want to be able to add to the cluster
      * @param state             The cluster state, used to get cluster settings and to get the number of open shards already in the cluster

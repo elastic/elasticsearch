@@ -1,0 +1,47 @@
+setup:
+  - do:
+      indices.create:
+        index: test-index1
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      indices.create:
+        index: test-index2
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+---
+"Create Engine":
+  - do:
+      engine.post:
+        engine_id: test-new-engine
+        body:
+          indices: [ "test-index1", "test-index2" ]
+
+  - match: { result: "created" }
+
+---
+"Create Engine - Engine already exists":
+  - do:
+      catch: conflict
+      engine.post:
+        engine_id: test-new-engine
+        body:
+          indices: [ "test-index1", "test-index2" ]
+
+---
+"Create Engine - Index does not exist":
+  - do:
+      catch: bad_request
+      engine.put:
+        engine_id: test-nonexistent-engine
+        body:
+          indices: [ "test-index1", "index-does-not-exist" ]
+

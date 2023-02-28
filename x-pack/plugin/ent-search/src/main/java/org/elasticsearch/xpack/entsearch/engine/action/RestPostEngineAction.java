@@ -14,32 +14,30 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.entsearch.EnterpriseSearch;
 
-import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestPutEngineAction extends BaseRestHandler {
+public class RestPostEngineAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "engine_put_action";
+        return "engine_post_action";
     }
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, "/" + EnterpriseSearch.ENGINE_API_ENDPOINT + "/{engine_id}"));
+        return List.of(new Route(POST, "/" + EnterpriseSearch.ENGINE_API_ENDPOINT + "/{engine_id}"));
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         PutEngineAction.Request request = new PutEngineAction.Request(
             restRequest.param("engine_id"),
             restRequest.content(),
             restRequest.getXContentType()
         );
-
-        return channel -> client.execute(PutEngineAction.INSTANCE, request, new RestToXContentListener<>(channel) {
+        return channel -> client.execute(PostEngineAction.INSTANCE, request, new RestToXContentListener<>(channel) {
             @Override
             protected RestStatus getStatus(PutEngineAction.Response response) {
                 return response.status();

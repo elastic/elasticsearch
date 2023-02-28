@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.entsearch.engine;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
@@ -215,6 +216,32 @@ public class EngineIndexService {
         });
     }
 
+    /**
+     * Creates the {@link Engine} in the underlying index. Fails with a conflict if the
+     * {@link Engine} already exists.
+     *
+     * @param engine The engine object.
+     * @param listener The action listener to invoke on response/failure.
+     */
+    public void postEngine(Engine engine, ActionListener<IndexResponse> listener) {
+        createAlias(engine, new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                createEngine(engine, listener);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // Convert index not found failure from the alias API into an illegal argument
+                Exception failException = e;
+                if (e instanceof IndexNotFoundException) {
+                    failException = new IllegalArgumentException(e.getMessage(), e);
+                }
+                listener.onFailure(failException);
+            }
+        });
+    }
+
     private void createOrUpdateAlias(Engine engine, ActionListener<AcknowledgedResponse> listener) {
 
         final Metadata metadata = clusterService.state().metadata();
@@ -229,6 +256,22 @@ public class EngineIndexService {
             Set<String> targetAliases = Set.of(engine.indices());
 
             requestBuilder = updateAliasIndices(currentAliases, targetAliases, engineAliasName);
+
+        } else {
+            requestBuilder = clientWithOrigin.admin().indices().prepareAliases().addAlias(engine.indices(), engineAliasName);
+        }
+
+        requestBuilder.execute(listener);
+    }
+
+    private void createAlias(Engine engine, ActionListener<AcknowledgedResponse> listener) {
+
+        final Metadata metadata = clusterService.state().metadata();
+        final String engineAliasName = getEngineAliasName(engine);
+
+        IndicesAliasesRequestBuilder requestBuilder = null;
+        if (metadata.hasAlias(engineAliasName)) {
+            throw new ElasticsearchException("Alias " + engineAliasName + " already exists");
 
         } else {
             requestBuilder = clientWithOrigin.admin().indices().prepareAliases().addAlias(engine.indices(), engineAliasName);
@@ -281,6 +324,20 @@ public class EngineIndexService {
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    private void createEngine(Engine engine, ActionListener<IndexResponse> listener) {
+        getEngine(engine.name(), new ActionListener<>() {
+            @Override
+            public void onResponse(Engine engine) {
+                throw new IllegalStateException("Engine already exists");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                updateEngine(engine, listener);
+            }
+        });
     }
 
     /**

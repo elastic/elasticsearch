@@ -384,6 +384,7 @@ public class Constants {
         "indices:admin/delete",
         "indices:admin/engine/delete",
         "indices:admin/engine/get",
+        "indices:admin/engine/post",
         "indices:admin/engine/put",
         "indices:admin/flush",
         "indices:admin/flush[s]",

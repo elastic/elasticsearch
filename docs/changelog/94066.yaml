@@ -6,6 +6,5 @@ issues: []
 deprecation:
   title: Deprecate `cluster.routing.allocation.type`
   area: Allocation
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  details: The `cluster.routing.allocation.type` setting is deprecated and will be removed in a future version.
+  impact: Discontinue use of the `cluster.routing.allocation.type` setting.

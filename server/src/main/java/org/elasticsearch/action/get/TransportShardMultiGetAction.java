@@ -85,17 +85,20 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
 
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
-        ShardIterator shards = clusterService.operationRouting()
+        ShardIterator iterator = clusterService.operationRouting()
             .getShards(state, request.request().index(), request.request().shardId(), request.request().preference());
+        if (iterator == null) {
+            return null;
+        }
         // If it is stateless, only route promotable shards. This is a temporary workaround until a more cohesive solution can be
         // implemented for search shards.
         if (DiscoveryNode.isStateless(clusterService.getSettings())) {
             return new PlainShardIterator(
-                shards.shardId(),
-                shards.getShardRoutings().stream().filter(ShardRouting::isPromotableToPrimary).collect(Collectors.toList())
+                iterator.shardId(),
+                iterator.getShardRoutings().stream().filter(ShardRouting::isPromotableToPrimary).collect(Collectors.toList())
             );
         } else {
-            return shards;
+            return iterator;
         }
     }
 

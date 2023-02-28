@@ -15,6 +15,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -254,6 +255,12 @@ public class EngineIndexService {
         return aliasesRequestBuilder;
     }
 
+    private IndicesAliasesRequestBuilder removeAllAliasIndices(String engineAliasName) {
+        IndicesAliasesRequestBuilder aliasesRequestBuilder = clientWithOrigin.admin().indices().prepareAliases();
+        aliasesRequestBuilder.addAliasAction(IndicesAliasesRequest.AliasActions.remove().alias(engineAliasName));
+        return aliasesRequestBuilder;
+    }
+
     private void updateEngine(Engine engine, ActionListener<IndexResponse> listener) {
         try (ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())) {
             try (XContentBuilder source = XContentFactory.jsonBuilder(buffer)) {
@@ -285,14 +292,23 @@ public class EngineIndexService {
      *
      */
     public void deleteEngine(String engineName, ActionListener<DeleteResponse> listener) {
+
         try {
             // TODO Delete alias when Engine is deleted
             final DeleteRequest deleteRequest = new DeleteRequest(ENGINE_ALIAS_NAME).id(engineName)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            clientWithOrigin.delete(deleteRequest, listener);
+
+            clientWithOrigin.delete(deleteRequest, listener.delegateFailure((delegate, deleteResponse) -> {
+                if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                    delegate.onFailure(new ResourceNotFoundException(engineName));
+                    return;
+                }
+                delegate.onResponse(deleteResponse);
+            }));
         } catch (Exception e) {
             listener.onFailure(e);
         }
+
     }
 
     /**

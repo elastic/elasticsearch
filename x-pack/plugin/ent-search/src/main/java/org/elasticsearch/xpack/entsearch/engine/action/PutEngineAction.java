@@ -32,26 +32,13 @@ public class PutEngineAction extends ActionType<PutEngineAction.Response> {
 
     public static final PutEngineAction INSTANCE = new PutEngineAction();
     public static final String NAME = "indices:admin/engine/put";
+    public static final IndicesOptions INDICES_OPTIONS = Engine.INDICES_OPTIONS;
 
     public PutEngineAction() {
         super(NAME, PutEngineAction.Response::new);
     }
 
     public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
-
-        // indices options that require every specified index to exist, do not expand wildcards,
-        // don't allow that no indices are resolved from wildcard expressions and resolve the
-        // expressions only against indices
-        private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(
-            false,
-            false,
-            false,
-            false,
-            true,
-            false,
-            true,
-            false
-        );
 
         private final Engine engine;
 

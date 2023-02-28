@@ -9,14 +9,12 @@ package org.elasticsearch.xpack.entsearch.engine.action;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.entsearch.engine.Engine;
 
 import java.io.IOException;
@@ -24,13 +22,13 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class GetEngineAction extends ActionType<GetEngineAction.Response> {
+public class DeleteEngineAction extends ActionType<AcknowledgedResponse> {
 
-    public static final GetEngineAction INSTANCE = new GetEngineAction();
-    public static final String NAME = "indices:admin/engine/get";
+    public static final DeleteEngineAction INSTANCE = new DeleteEngineAction();
+    public static final String NAME = "indices:admin/engine/delete";
 
-    private GetEngineAction() {
-        super(NAME, GetEngineAction.Response::new);
+    private DeleteEngineAction() {
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends ActionRequest implements IndicesRequest {
@@ -73,19 +71,6 @@ public class GetEngineAction extends ActionType<GetEngineAction.Response> {
         }
 
         @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Request request = (Request) o;
-            return Objects.equals(engineId, request.engineId);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(engineId);
-        }
-
-        @Override
         public String[] indices() {
             return names;
         }
@@ -94,47 +79,19 @@ public class GetEngineAction extends ActionType<GetEngineAction.Response> {
         public IndicesOptions indicesOptions() {
             return indicesOptions;
         }
-    }
-
-    public static class Response extends ActionResponse implements ToXContentObject {
-
-        private final Engine engine;
-
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            this.engine = new Engine(in);
-        }
-
-        public Response(Engine engine) {
-            this.engine = engine;
-        }
-
-        public Response(String engineId, String[] indices, String analyticsCollectionName, long updatedAtMillis) {
-            this.engine = new Engine(engineId, indices, analyticsCollectionName);
-            this.engine.setUpdatedAtMillis(updatedAtMillis);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            engine.writeTo(out);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return engine.toXContent(builder, params);
-        }
 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return Objects.equals(engine, response.engine);
+            Request that = (Request) o;
+            return Objects.equals(engineId, that.engineId);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(engine);
+            return Objects.hash(engineId);
         }
     }
+
 }

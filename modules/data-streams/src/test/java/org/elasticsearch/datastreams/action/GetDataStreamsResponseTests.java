@@ -50,11 +50,13 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
         var ilmPolicyName = instance.getIlmPolicy();
         var timeSeries = instance.getTimeSeries();
         switch (randomIntBetween(0, 4)) {
-            case 0 -> dataStream = DataStreamTestHelper.randomInstance();
+            case 0 -> dataStream = randomValueOtherThan(dataStream, DataStreamTestHelper::randomInstance);
             case 1 -> status = randomValueOtherThan(status, () -> randomFrom(ClusterHealthStatus.values()));
             case 2 -> indexTemplate = randomBoolean() && indexTemplate != null ? null : randomAlphaOfLengthBetween(2, 10);
             case 3 -> ilmPolicyName = randomBoolean() && ilmPolicyName != null ? null : randomAlphaOfLengthBetween(2, 10);
-            case 4 -> timeSeries = randomBoolean() && timeSeries != null ? null : new Response.TimeSeries(generateRandomTimeSeries());
+            case 4 -> timeSeries = randomBoolean() && timeSeries != null
+                ? null
+                : randomValueOtherThan(timeSeries, () -> new Response.TimeSeries(generateRandomTimeSeries()));
         }
         return new Response.DataStreamInfo(dataStream, status, indexTemplate, ilmPolicyName, timeSeries);
     }

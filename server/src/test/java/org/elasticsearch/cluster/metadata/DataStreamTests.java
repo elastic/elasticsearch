@@ -73,7 +73,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         var lifecycle = instance.getLifecycle();
         switch (between(0, 9)) {
             case 0 -> name = randomAlphaOfLength(10);
-            case 1 -> indices = DataStreamTestHelper.randomIndexInstances();
+            case 1 -> indices = randomValueOtherThan(List.of(), DataStreamTestHelper::randomIndexInstances);
             case 2 -> generation = instance.getGeneration() + randomIntBetween(1, 10);
             case 3 -> metadata = randomBoolean() && metadata != null ? null : Map.of("key", randomAlphaOfLength(10));
             case 4 -> {

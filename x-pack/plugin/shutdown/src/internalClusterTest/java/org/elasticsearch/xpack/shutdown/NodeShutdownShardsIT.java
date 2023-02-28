@@ -281,7 +281,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         );
 
         var fakeNodeName = UUIDs.randomBase64UUID();
-        updateIndexSettings("myindex", Settings.builder().put("index.routing.allocation.require._name", fakeNodeName));
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", fakeNodeName), "myindex");
 
         final String nodeAId = getNodeId(nodeA);
         final String nodeB = "node_t1"; // TODO: fix this to so it's actually overrideable
@@ -384,7 +384,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
         // RESTART did not reroute, neither should it when we no longer contract replicas, but we provoke it here in the test to ensure
         // that auto-expansion has run.
-        updateIndexSettings("myindex", Settings.builder().put("index.routing.allocation.exclude.name", "non-existent"));
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude.name", "non-existent"), "myindex");
 
         assertBusy(() -> {
             assertThat(

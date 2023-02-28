@@ -20,5 +20,3 @@ dependencies {
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
-
-

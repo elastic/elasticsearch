@@ -55,4 +55,3 @@ dependencies {
   compileOnly(project(':modules:lang-painless:spi'))
   clusterModules(project(':modules:lang-painless'))
 }
-

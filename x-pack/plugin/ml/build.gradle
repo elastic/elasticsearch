@@ -113,4 +113,3 @@ tasks.named("dependencyLicenses").configure {
 }
 
 addQaCheckDependencies(project)
-

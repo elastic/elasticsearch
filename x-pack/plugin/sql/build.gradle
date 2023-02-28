@@ -140,4 +140,3 @@ if (BuildParams.inFipsJvm){
   // Test clusters run with security disabled
   tasks.named("internalClusterTest").configure{enabled = false }
 }
-

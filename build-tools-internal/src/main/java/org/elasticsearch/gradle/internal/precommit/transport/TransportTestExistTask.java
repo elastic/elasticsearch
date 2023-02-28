@@ -105,6 +105,10 @@ public abstract class TransportTestExistTask extends PrecommitTask {
 
     abstract static class TransportTestExistWorkAction implements WorkAction<Parameters> {
 
+        @Inject
+        public TransportTestExistWorkAction() {
+        }
+
         @Override
         public void execute() {
             Set<String> classesToSkip = loadClassesToSkip();

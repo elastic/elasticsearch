@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentParser;
@@ -56,7 +56,7 @@ public class SlimConfigTests extends InferenceConfigItemTestCase<SlimConfig> {
     }
 
     @Override
-    protected SlimConfig mutateInstanceForVersion(SlimConfig instance, Version version) {
+    protected SlimConfig mutateInstanceForVersion(SlimConfig instance, TransportVersion version) {
         return instance;
     }
 

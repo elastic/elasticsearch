@@ -39,6 +39,10 @@ public record RoleDescriptorsIntersection(Collection<Set<RoleDescriptor>> roleDe
         out.writeCollection(roleDescriptorsList, StreamOutput::writeCollection);
     }
 
+    public boolean isEmpty() {
+        return roleDescriptorsList().isEmpty();
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray();

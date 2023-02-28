@@ -16,7 +16,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.FilteredTermsEnum;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -97,6 +97,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+            FIELD_TYPE.setDocValuesType(DocValuesType.SORTED_SET);
             FIELD_TYPE.freeze();
         }
 
@@ -312,6 +313,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             fieldtype.setOmitNorms(this.hasNorms.getValue() == false);
             fieldtype.setIndexOptions(TextParams.toIndexOptions(this.indexed.getValue(), this.indexOptions.getValue()));
             fieldtype.setStored(this.stored.getValue());
+            fieldtype.setDocValuesType(this.hasDocValues.getValue() ? DocValuesType.SORTED_SET : DocValuesType.NONE);
             if (fieldtype.equals(Defaults.FIELD_TYPE)) {
                 // deduplicate in the common default case to save some memory
                 fieldtype = Defaults.FIELD_TYPE;
@@ -526,9 +528,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
-            throws IOException {
-            IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
+        public TermsEnum getTerms(IndexReader reader, String prefix, boolean caseInsensitive, String searchAfter) throws IOException {
 
             Terms terms = null;
             if (isIndexed()) {
@@ -540,7 +540,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 // Field does not exist on this shard.
                 return null;
             }
-            Automaton a = caseInsensitive ? AutomatonQueries.caseInsensitivePrefix(string) : Automata.makeString(string);
+            Automaton a = caseInsensitive ? AutomatonQueries.caseInsensitivePrefix(prefix) : Automata.makeString(prefix);
             a = Operations.concatenate(a, Automata.makeAnyString());
             a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
 
@@ -556,26 +556,6 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return result;
             }
             return terms.intersect(automaton, searchBytes);
-        }
-
-        // Initialises with a seek to a given term but excludes that term
-        // from any results. The problem it addresses is that termsEnum.seekCeil()
-        // would work but either leaves us positioned on the seek term (if it exists) or the
-        // term after (if the seek term doesn't exist). That complicates any subsequent
-        // iteration logic so this class simplifies the pagination use case.
-        static final class SearchAfterTermsEnum extends FilteredTermsEnum {
-            private final BytesRef afterRef;
-
-            SearchAfterTermsEnum(TermsEnum tenum, BytesRef termText) {
-                super(tenum);
-                afterRef = termText;
-                setInitialSeekTerm(termText);
-            }
-
-            @Override
-            protected AcceptStatus accept(BytesRef term) {
-                return term.equals(afterRef) ? AcceptStatus.NO : AcceptStatus.YES;
-            }
         }
 
         /**
@@ -895,6 +875,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         /**
          * @return true if field has been marked as a dimension field
          */
+        @Override
         public boolean isDimension() {
             return isDimension;
         }
@@ -1024,17 +1005,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException(msg);
             }
 
-            if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
+            if (fieldType.indexOptions() != IndexOptions.NONE || fieldType().hasDocValues() || fieldType.stored()) {
                 Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
                 context.doc().add(field);
 
                 if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
                     context.addToFieldNames(fieldType().name());
                 }
-            }
-
-            if (fieldType().hasDocValues()) {
-                context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
             }
         }
     }

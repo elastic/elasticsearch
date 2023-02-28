@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.settings.Settings;
@@ -44,7 +44,7 @@ import static org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCa
 public abstract class InferenceConfigItemTestCase<T extends VersionedNamedWriteable & ToXContent> extends AbstractBWCSerializationTestCase<
     T> {
 
-    static InferenceConfig mutateForVersion(NlpConfig inferenceConfig, Version version) {
+    static InferenceConfig mutateForVersion(NlpConfig inferenceConfig, TransportVersion version) {
         if (inferenceConfig instanceof TextClassificationConfig textClassificationConfig) {
             return TextClassificationConfigTests.mutateForVersion(textClassificationConfig, version);
         } else if (inferenceConfig instanceof FillMaskConfig fillMaskConfig) {
@@ -81,10 +81,10 @@ public abstract class InferenceConfigItemTestCase<T extends VersionedNamedWritea
     }
 
     @Override
-    protected List<Version> bwcVersions() {
+    protected List<TransportVersion> bwcVersions() {
         T obj = createTestInstance();
-        return getAllBWCVersions(Version.CURRENT).stream()
-            .filter(v -> v.transportVersion.onOrAfter(obj.getMinimalSupportedVersion()))
+        return getAllBWCVersions(TransportVersion.CURRENT).stream()
+            .filter(v -> v.onOrAfter(obj.getMinimalSupportedVersion()))
             .collect(Collectors.toList());
     }
 }

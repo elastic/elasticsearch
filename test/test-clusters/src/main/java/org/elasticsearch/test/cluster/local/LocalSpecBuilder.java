@@ -75,6 +75,11 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
     T keystore(String key, Resource file);
 
     /**
+     * Add a secure setting computed by the given supplier.
+     */
+    T keystore(String key, Supplier<String> supplier);
+
+    /**
      * Sets the security setting keystore password.
      */
     T keystorePassword(String password);

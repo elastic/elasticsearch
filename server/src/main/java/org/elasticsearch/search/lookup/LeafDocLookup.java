@@ -109,12 +109,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         if (factory == null) {
             factory = getFactoryForField(fieldName);
         }
-
-        try {
-            factory.setNextDocId(docId);
-        } catch (IOException ioe) {
-            throw ExceptionsHelper.convertToElastic(ioe);
-        }
+        advanceToDoc(factory);
 
         return factory.toScriptField();
     }
@@ -169,14 +164,22 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         if (factory == null) {
             factory = getFactoryForDoc(key.toString());
         }
-
-        try {
-            factory.setNextDocId(docId);
-        } catch (IOException ioe) {
-            throw ExceptionsHelper.convertToElastic(ioe);
-        }
+        advanceToDoc(factory);
 
         return factory.toScriptDocValues();
+    }
+
+    // ensures the factory is advanced to the current doc
+    private void advanceToDoc(DocValuesScriptFieldFactory factory) {
+        // advancing to the current doc could trigger low level paging, network loading, etc, so do so outside scripting privileges
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            try {
+                factory.setNextDocId(docId);
+            } catch (IOException ioe) {
+                throw ExceptionsHelper.convertToElastic(ioe);
+            }
+            return null;
+        });
     }
 
     @Override

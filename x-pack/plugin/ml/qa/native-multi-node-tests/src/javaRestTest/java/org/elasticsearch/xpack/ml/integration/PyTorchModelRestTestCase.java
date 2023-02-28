@@ -272,67 +272,6 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
         return client().performRequest(request);
     }
 
-    protected Response semanticSearch(String index, String modelText, String modelId, String denseVectorFieldName) throws IOException {
-        Request request = new Request("GET", index + "/_semantic_search?error_trace=true");
-
-        request.setJsonEntity(Strings.format("""
-            {
-              "model_id": "%s",
-              "model_text": "%s",
-              "knn": {
-                  "field": "%s",
-                  "k": 5,
-                  "num_candidates": 10
-              }
-            }""", modelId, modelText, denseVectorFieldName));
-        return client().performRequest(request);
-    }
-
-    protected Response semanticSearchWithTermsFilter(
-        String index,
-        String queryText,
-        String filter,
-        String modelId,
-        String denseVectorFieldName
-    ) throws IOException {
-        Request request = new Request("GET", index + "/_semantic_search?error_trace=true");
-
-        String termsFilter = Strings.format("""
-            {"term": {"filter_field": "%s"}}
-            """, filter);
-
-        request.setJsonEntity(Strings.format("""
-            {
-              "model_id": "%s",
-              "model_text": "%s",
-              "knn": {
-                  "field": "%s",
-                  "k": 5,
-                  "num_candidates": 10,
-                  "filter": %s
-              }
-            }""", modelId, queryText, denseVectorFieldName, termsFilter));
-        return client().performRequest(request);
-    }
-
-    protected Response semanticSearchWithQuery(String index, String queryText, String query, String modelId, String denseVectorFieldName)
-        throws IOException {
-        Request request = new Request("GET", index + "/_semantic_search?error_trace=true");
-
-        request.setJsonEntity(Strings.format("""
-            {
-              "model_id": "%s",
-              "model_text": "%s",
-              "knn": {
-                  "field": "%s",
-                  "k": 5,
-                  "num_candidates": 10
-              },
-              "query": %s
-            }""", modelId, queryText, denseVectorFieldName, query));
-        return client().performRequest(request);
-    }
-
     protected Response deleteModel(String modelId, boolean force) throws IOException {
         Request request = new Request("DELETE", "/_ml/trained_models/" + modelId + "?force=" + force);
         return client().performRequest(request);

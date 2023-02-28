@@ -99,7 +99,7 @@ public final class RefCountingListener implements Releasable {
             assert false : maxExceptions;
             throw new IllegalArgumentException("maxExceptions must be positive");
         }
-        this.delegate = Objects.requireNonNull(delegate);
+        this.delegate = ActionListener.assertOnce(Objects.requireNonNull(delegate));
         this.exceptionPermits = new Semaphore(maxExceptions);
     }
 

@@ -32,6 +32,7 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     private final Set<String> modules = new HashSet<>();
     private final Set<String> plugins = new HashSet<>();
     private final Set<FeatureFlag> features = new HashSet<>();
+    private final List<SettingsProvider> keystoreProviders = new ArrayList<>();
     private final Map<String, String> keystoreSettings = new HashMap<>();
     private final Map<String, Resource> keystoreFiles = new HashMap<>();
     private final Map<String, Resource> extraConfigFiles = new HashMap<>();
@@ -149,6 +150,16 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
 
     public Map<String, Resource> getKeystoreFiles() {
         return inherit(() -> parent.getKeystoreFiles(), keystoreFiles);
+    }
+
+    @Override
+    public T keystore(String key, Supplier<String> supplier) {
+        this.keystoreProviders.add(s -> Map.of(key, supplier.get()));
+        return cast(this);
+    }
+
+    public List<SettingsProvider> getKeystoreProviders() {
+        return inherit(() -> parent.getKeystoreProviders(), keystoreProviders);
     }
 
     @Override

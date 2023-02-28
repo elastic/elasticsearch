@@ -11,6 +11,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -43,6 +44,7 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
 
     @Nullable
     private final DesiredBalanceShardsAllocator desiredBalanceShardsAllocator;
+    private final ClusterInfoService clusterInfoService;
     private final WriteLoadForecaster writeLoadForecaster;
 
     @Inject
@@ -53,6 +55,7 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ShardsAllocator shardsAllocator,
+        ClusterInfoService clusterInfoService,
         WriteLoadForecaster writeLoadForecaster
     ) {
         super(
@@ -67,6 +70,7 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
             ThreadPool.Names.MANAGEMENT
         );
         this.desiredBalanceShardsAllocator = shardsAllocator instanceof DesiredBalanceShardsAllocator allocator ? allocator : null;
+        this.clusterInfoService = clusterInfoService;
         this.writeLoadForecaster = writeLoadForecaster;
     }
 
@@ -90,7 +94,7 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
         listener.onResponse(
             new DesiredBalanceResponse(
                 desiredBalanceShardsAllocator.getStats(),
-                ClusterBalanceStats.createFrom(state, writeLoadForecaster),
+                ClusterBalanceStats.createFrom(state, clusterInfoService.getClusterInfo(), writeLoadForecaster),
                 createRoutingTable(state, latestDesiredBalance)
             )
         );

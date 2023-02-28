@@ -28,7 +28,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
@@ -40,6 +39,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
@@ -94,6 +94,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     private static final Logger logger = LogManager.getLogger(IngestService.class);
 
+    private final MasterServiceTaskQueue<PipelineClusterStateUpdateTask> taskQueue;
     private final ClusterService clusterService;
     private final ScriptService scriptService;
     private final Map<String, Processor.Factory> processorFactories;
@@ -177,6 +178,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         );
 
         this.threadPool = threadPool;
+        this.taskQueue = clusterService.createTaskQueue("ingest-pipelines", Priority.NORMAL, PIPELINE_TASK_EXECUTOR);
     }
 
     private static Map<String, Processor.Factory> processorFactories(List<IngestPlugin> ingestPlugins, Processor.Parameters parameters) {
@@ -320,11 +322,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * Deletes the pipeline specified by id in the request.
      */
     public void delete(DeletePipelineRequest request, ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask(
+        taskQueue.submitTask(
             "delete-pipeline-" + request.getId(),
             new DeletePipelineClusterStateUpdateTask(listener, request),
-            ClusterStateTaskConfig.build(Priority.NORMAL, request.masterNodeTimeout()),
-            PIPELINE_TASK_EXECUTOR
+            request.masterNodeTimeout()
         );
     }
 
@@ -471,11 +472,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         nodeInfoListener.accept(ActionListener.wrap(nodeInfos -> {
             validatePipelineRequest(request, nodeInfos);
 
-            clusterService.submitStateUpdateTask(
+            taskQueue.submitTask(
                 "put-pipeline-" + request.getId(),
                 new PutPipelineClusterStateUpdateTask(listener, request),
-                ClusterStateTaskConfig.build(Priority.NORMAL, request.masterNodeTimeout()),
-                PIPELINE_TASK_EXECUTOR
+                request.masterNodeTimeout()
             );
         }, listener::onFailure));
     }
@@ -536,8 +536,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     /**
-     * Recursive method to obtain all of the non-failure processors for given compoundProcessor. Since conditionals are implemented as
-     * wrappers to the actual processor, always prefer the actual processor's metric over the conditional processor's metric.
+     * Recursive method to obtain all the non-failure processors for given compoundProcessor.
+     * <p>
+     * 'if' and 'ignore_failure'/'on_failure' are implemented as wrappers around the actual processor (via {@link ConditionalProcessor}
+     * and {@link OnFailureProcessor}, respectively), so we unwrap these processors internally in order to expose the underlying
+     * 'actual' processor via the metrics. This corresponds best to the customer intent -- e.g. they used a 'set' processor that has an
+     * 'on_failure', so we report metrics for the set processor, not an on_failure processor.
+     *
      * @param compoundProcessor The compound processor to start walking the non-failure processors
      * @param processorMetrics The list of {@link Processor} {@link IngestMetric} tuples.
      * @return the processorMetrics for all non-failure processor that belong to the original compoundProcessor
@@ -550,13 +555,26 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         for (Tuple<Processor, IngestMetric> processorWithMetric : compoundProcessor.getProcessorsWithMetrics()) {
             Processor processor = processorWithMetric.v1();
             IngestMetric metric = processorWithMetric.v2();
+
+            // unwrap 'if' and 'ignore_failure/on_failure' wrapping, so that we expose the underlying actual processor
+            boolean unwrapped;
+            do {
+                unwrapped = false;
+                if (processor instanceof ConditionalProcessor conditional) {
+                    processor = conditional.getInnerProcessor();
+                    metric = conditional.getMetric(); // prefer the conditional's metric, it only covers when the conditional was true
+                    unwrapped = true;
+                }
+                if (processor instanceof OnFailureProcessor onFailure) {
+                    processor = onFailure.getInnerProcessor();
+                    metric = onFailure.getInnerMetric(); // the wrapped processor records the failure count
+                    unwrapped = true;
+                }
+            } while (unwrapped);
+
             if (processor instanceof CompoundProcessor cp) {
                 getProcessorMetrics(cp, processorMetrics);
             } else {
-                // Prefer the conditional's metric since it only includes metrics when the conditional evaluated to true.
-                if (processor instanceof ConditionalProcessor cp) {
-                    metric = (cp.getMetric());
-                }
                 processorMetrics.add(new Tuple<>(processor, metric));
             }
         }

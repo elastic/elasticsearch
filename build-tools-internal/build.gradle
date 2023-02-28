@@ -232,7 +232,7 @@ configurations {
 
 dependencies {
   constraints {
-      integTestImplementation('org.ow2.asm:asm:9.3')
+      integTestImplementation('org.ow2.asm:asm:9.4')
       implementation "org.yaml:snakeyaml:${versions.snakeyaml}"
   }
   components.all(JacksonAlignmentRule)

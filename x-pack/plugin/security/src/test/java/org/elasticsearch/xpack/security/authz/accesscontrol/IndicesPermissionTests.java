@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.authz.accesscontrol;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
@@ -238,7 +239,7 @@ public class IndicesPermissionTests extends ESTestCase {
         assertEquals(readIndicesPrivileges, indicesPrivileges.build());
 
         out = new BytesStreamOutput();
-        out.setVersion(Version.CURRENT);
+        out.setTransportVersion(TransportVersion.CURRENT);
         indicesPrivileges = RoleDescriptor.IndicesPrivileges.builder();
         indicesPrivileges.grantedFields(allowed);
         indicesPrivileges.deniedFields(denied);
@@ -248,7 +249,7 @@ public class IndicesPermissionTests extends ESTestCase {
         indicesPrivileges.build().writeTo(out);
         out.close();
         in = out.bytes().streamInput();
-        in.setVersion(Version.CURRENT);
+        in.setTransportVersion(TransportVersion.CURRENT);
         RoleDescriptor.IndicesPrivileges readIndicesPrivileges2 = new RoleDescriptor.IndicesPrivileges(in);
         assertEquals(readIndicesPrivileges, readIndicesPrivileges2);
     }

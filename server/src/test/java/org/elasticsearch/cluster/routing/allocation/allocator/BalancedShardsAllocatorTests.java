@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -55,10 +56,11 @@ import java.util.stream.StreamSupport;
 import static java.util.stream.Collectors.mapping;
 import static java.util.stream.Collectors.summingDouble;
 import static java.util.stream.Collectors.summingLong;
+import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.Balancer.getIndexDiskUsageInBytes;
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.is;
@@ -99,7 +101,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         assertNotNull(allocateDecision.getTargetNode().getId(), assignedShards.get(0).currentNodeId());
     }
 
-    public void testBalanceByWriteLoad() {
+    public void testBalanceByForecastWriteLoad() {
 
         var allocationService = new MockAllocationService(
             yesAllocationDeciders(),
@@ -126,7 +128,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
         assertThat(
             getShardsPerNode(clusterState).values(),
-            contains(
+            containsInAnyOrder(
                 Set.of("heavy-index"),
                 Set.of("light-index-1", "light-index-2", "light-index-3", "zero-write-load-index", "no-write-load-index")
             )
@@ -143,7 +145,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         );
     }
 
-    public void testBalanceByDiskUsage() {
+    public void testBalanceByForecastDiskUsage() {
 
         var allocationService = createAllocationService(
             Settings.builder()
@@ -166,7 +168,94 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
         assertThat(
             getShardsPerNode(clusterState).values(),
-            contains(
+            containsInAnyOrder(
+                Set.of("heavy-index"),
+                Set.of("light-index-1", "light-index-2", "light-index-3", "zero-disk-usage-index", "no-disk-usage-index")
+            )
+        );
+
+        assertThat(
+            getPerNode(
+                clusterState,
+                summingLong(it -> clusterState.metadata().index(it.index()).getForecastedShardSizeInBytes().orElse(0L))
+            ).values(),
+            everyItem(lessThanOrEqualTo(ByteSizeValue.ofGb(8).getBytes()))
+        );
+    }
+
+    public void testBalanceByActualDiskUsage() {
+
+        var allocationService = createAllocationService(
+            Settings.builder()
+                // enable disk based balancing
+                .put(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), "1e-9")
+                .build(),
+            createClusterInfoService(
+                Map.ofEntries(
+                    Map.entry("heavy-index", ByteSizeValue.ofGb(8).getBytes()),
+                    Map.entry("light-index-1", ByteSizeValue.ofGb(1).getBytes()),
+                    Map.entry("light-index-2", ByteSizeValue.ofGb(2).getBytes()),
+                    Map.entry("light-index-3", ByteSizeValue.ofGb(3).getBytes()),
+                    Map.entry("zero-disk-usage-index", 0L)
+                    // no-disk-usage-index is intentionally not present in cluster info
+                )
+            )
+        );
+
+        var clusterState = applyStartedShardsUntilNoChange(
+            stateWithStartedIndices(
+                IndexMetadata.builder("heavy-index"),
+                IndexMetadata.builder("light-index-1"),
+                IndexMetadata.builder("light-index-2"),
+                IndexMetadata.builder("light-index-3"),
+                IndexMetadata.builder("zero-disk-usage-index"),
+                IndexMetadata.builder("no-disk-usage-index")
+            ),
+            allocationService
+        );
+
+        assertThat(
+            getShardsPerNode(clusterState).values(),
+            containsInAnyOrder(
+                Set.of("heavy-index"),
+                Set.of("light-index-1", "light-index-2", "light-index-3", "zero-disk-usage-index", "no-disk-usage-index")
+            )
+        );
+
+        assertThat(
+            getPerNode(
+                clusterState,
+                summingLong(it -> clusterState.metadata().index(it.index()).getForecastedShardSizeInBytes().orElse(0L))
+            ).values(),
+            everyItem(lessThanOrEqualTo(ByteSizeValue.ofGb(8).getBytes()))
+        );
+    }
+
+    public void testBalanceByActualAndForecastDiskUsage() {
+
+        var allocationService = createAllocationService(
+            Settings.builder()
+                // enable disk based balancing
+                .put(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), "1e-9")
+                .build(),
+            createClusterInfoService(Map.of("heavy-index", ByteSizeValue.ofGb(8).getBytes()))
+        );
+
+        var clusterState = applyStartedShardsUntilNoChange(
+            stateWithStartedIndices(
+                IndexMetadata.builder("heavy-index"),// size is set in cluster info
+                IndexMetadata.builder("light-index-1").shardSizeInBytesForecast(ByteSizeValue.ofGb(1).getBytes()),
+                IndexMetadata.builder("light-index-2").shardSizeInBytesForecast(ByteSizeValue.ofGb(2).getBytes()),
+                IndexMetadata.builder("light-index-3").shardSizeInBytesForecast(ByteSizeValue.ofGb(3).getBytes()),
+                IndexMetadata.builder("zero-disk-usage-index").shardSizeInBytesForecast(0L),
+                IndexMetadata.builder("no-disk-usage-index")
+            ),
+            allocationService
+        );
+
+        assertThat(
+            getShardsPerNode(clusterState).values(),
+            containsInAnyOrder(
                 Set.of("heavy-index"),
                 Set.of("light-index-1", "light-index-2", "light-index-3", "zero-disk-usage-index", "no-disk-usage-index")
             )
@@ -357,6 +446,24 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
             System.nanoTime()
+        );
+    }
+
+    private static ClusterInfoService createClusterInfoService(Map<String, Long> indexSizes) {
+        return () -> new ClusterInfo(
+            Map.of(),
+            Map.of(),
+            indexSizes.entrySet()
+                .stream()
+                .collect(
+                    toMap(
+                        entry -> ClusterInfo.shardIdentifierFromRouting(new ShardId(entry.getKey(), "_na_", 0), true),
+                        Map.Entry::getValue
+                    )
+                ),
+            Map.of(),
+            Map.of(),
+            Map.of()
         );
     }
 

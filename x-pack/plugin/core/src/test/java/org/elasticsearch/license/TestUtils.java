@@ -412,7 +412,7 @@ public class TestUtils {
         }
 
         @Override
-        protected void update(License.OperationMode mode, boolean active, String expiryWarning) {
+        public void update(License.OperationMode mode, boolean active, String expiryWarning) {
             modeUpdates.add(mode);
             activeUpdates.add(active);
             expiryWarnings.add(expiryWarning);

@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
+import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -50,8 +51,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
         this.diskMetadata = Disk.readFrom(in);
         this.shardLimitsMetadata = in.getTransportVersion().onOrAfter(ShardLimits.VERSION_SUPPORTING_SHARD_LIMIT_FIELDS)
             ? ShardLimits.readFrom(in)
-            : ShardLimits.UNKNOWN;
-
+            : null;
     }
 
     @Override
@@ -120,16 +120,37 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
     }
 
     /**
-     * Contains the thresholds needed to determine the health of a cluster from the amount of room available to create new shards. These
-     * values are determined by the elected master.
+     * Contains the thresholds needed to determine the health of a cluster when it comes to the amount of room available to create new
+     * shards. These values are determined by the elected master.
      */
     public record ShardLimits(int maxShardsPerNode, int maxShardsPerNodeFrozen) implements ToXContentFragment, Writeable {
 
-        public static final ShardLimits UNKNOWN = new ShardLimits(-1, -1);
         private static final String TYPE = "shard_limits";
         private static final ParseField MAX_SHARDS_PER_NODE = new ParseField("max_shards_per_node");
         private static final ParseField MAX_SHARDS_PER_NODE_FROZEN = new ParseField("max_shards_per_node_frozen");
         static final TransportVersion VERSION_SUPPORTING_SHARD_LIMIT_FIELDS = TransportVersion.V_8_8_0;
+
+        public ShardLimits {
+            if (maxShardsPerNode < 1) {
+                throw new IllegalArgumentException(
+                    "Setting "
+                        + ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey()
+                        + " must have a value greater than 1 but it was ["
+                        + maxShardsPerNode
+                        + "]"
+                );
+            }
+
+            if (maxShardsPerNodeFrozen < 1) {
+                throw new IllegalArgumentException(
+                    "Setting "
+                        + ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey()
+                        + " must have a value greater than 1 but it was ["
+                        + maxShardsPerNodeFrozen
+                        + "]"
+                );
+            }
+        }
 
         static ShardLimits readFrom(StreamInput in) throws IOException {
             return new ShardLimits(in.readInt(), in.readInt());

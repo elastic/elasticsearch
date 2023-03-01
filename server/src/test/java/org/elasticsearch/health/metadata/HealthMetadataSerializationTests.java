@@ -62,7 +62,7 @@ public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializ
     }
 
     private static HealthMetadata.ShardLimits randomShardLimitsMetadata() {
-        return new HealthMetadata.ShardLimits(randomInt(), randomInt());
+        return new HealthMetadata.ShardLimits(randomIntBetween(1, 10000), randomIntBetween(1, 10000));
     }
 
     private static HealthMetadata.Disk randomDiskMetadata() {
@@ -113,8 +113,8 @@ public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializ
         var maxShardPerNode = base.maxShardsPerNode();
         var maxShardPerNodeFrozen = base.maxShardsPerNodeFrozen();
         switch (randomInt(1)) {
-            case 0 -> maxShardPerNode = randomInt();
-            case 1 -> maxShardPerNodeFrozen = randomInt();
+            case 0 -> maxShardPerNode = randomIntBetween(1, 10000);
+            case 1 -> maxShardPerNodeFrozen = randomIntBetween(1, 10000);
 
         }
         return new HealthMetadata.ShardLimits(maxShardPerNode, maxShardPerNodeFrozen);

@@ -58,7 +58,6 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
                 watermarkByNode.put(nodeName, customWatermark);
                 maxHeadroomByNode.put(nodeName, customMaxHeadroom);
                 shardLimitsPerNode.put(nodeName, customShardLimits);
-
             }
             ensureStableCluster(numberOfNodes);
 

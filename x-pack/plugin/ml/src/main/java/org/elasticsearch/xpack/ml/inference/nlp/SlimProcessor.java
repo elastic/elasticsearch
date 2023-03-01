@@ -43,14 +43,11 @@ public class SlimProcessor extends NlpTask.Processor {
     }
 
     static InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult, String resultsField) {
-        // Convert the verbose results to the sparse format.
-        // Anything with a score > 0.0 is retained.
-        List<SlimResults.WeightedToken> weightedTokens = new ArrayList<>();
-        double[] weights = pyTorchResult.getInferenceResult()[0][0];
-        for (int i = 0; i < weights.length; i++) {
-            if (weights[i] > 0.0) {
-                weightedTokens.add(new SlimResults.WeightedToken(i, (float) weights[i]));
-            }
+        List<SlimResults.WeightedToken> weightedTokens;
+        if (pyTorchResult.getInferenceResult()[0].length == 1) {
+            weightedTokens = sparseVectorToTokenWeights(pyTorchResult.getInferenceResult()[0][0]);
+        } else {
+            weightedTokens = multipleSparseVectorsToTokenWeights(pyTorchResult.getInferenceResult()[0]);
         }
 
         return new SlimResults(
@@ -58,5 +55,29 @@ public class SlimProcessor extends NlpTask.Processor {
             weightedTokens,
             tokenization.anyTruncated()
         );
+    }
+
+    static List<SlimResults.WeightedToken> multipleSparseVectorsToTokenWeights(double[][] vector) {
+        // reduce to a single 1d array choosing the max value
+        // in each column and placing that in the first row
+        for (int i = 1; i < vector.length; i++) {
+            for (int tokenId = 0; tokenId < vector[i].length; tokenId++) {
+                if (vector[i][tokenId] > vector[0][tokenId]) {
+                    vector[0][tokenId] = vector[i][tokenId];
+                }
+            }
+        }
+        return sparseVectorToTokenWeights(vector[0]);
+    }
+
+    static List<SlimResults.WeightedToken> sparseVectorToTokenWeights(double[] vector) {
+        // Anything with a score > 0.0 is retained.
+        List<SlimResults.WeightedToken> weightedTokens = new ArrayList<>();
+        for (int i = 0; i < vector.length; i++) {
+            if (vector[i] > 0.0) {
+                weightedTokens.add(new SlimResults.WeightedToken(i, (float) vector[i]));
+            }
+        }
+        return weightedTokens;
     }
 }

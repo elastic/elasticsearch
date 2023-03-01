@@ -569,7 +569,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         );
 
         // delete these settings
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().putNull("archived.*")).get();
+        updateClusterSettings(Settings.builder().putNull("archived.*"));
 
         state = client().admin().cluster().prepareState().get().getState();
         assertNull(state.metadata().persistentSettings().get("archived.this.is.unknown"));

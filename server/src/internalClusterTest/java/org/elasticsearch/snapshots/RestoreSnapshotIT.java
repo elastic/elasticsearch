@@ -649,11 +649,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         cluster().wipeIndices("test-idx");
 
         logger.info("--> restore index");
-        client.admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "100b").build())
-            .get();
+        updateClusterSettings(Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "100b"));
         ActionFuture<RestoreSnapshotResponse> restoreSnapshotResponse = client.admin()
             .cluster()
             .prepareRestoreSnapshot("test-repo", "test-snap")
@@ -671,11 +667,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         }, 30, TimeUnit.SECONDS);
 
         // run at full speed again
-        client.admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().putNull(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()).build())
-            .get();
+        updateClusterSettings(Settings.builder().putNull(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()));
 
         // check that restore now completes quickly (i.e. within 20 seconds)
         assertThat(restoreSnapshotResponse.get(20L, TimeUnit.SECONDS).getRestoreInfo().totalShards(), greaterThan(0));

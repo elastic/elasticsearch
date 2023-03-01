@@ -10,7 +10,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.grok.Grok;
+import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -131,7 +131,7 @@ public class TextStructure implements ToXContentObject, Writeable {
     }
 
     private static String getNonNullEcsCompatibilityString(String ecsCompatibility) {
-        return (ecsCompatibility == null || ecsCompatibility.isEmpty()) ? Grok.ECS_COMPATIBILITY_MODES[0] : ecsCompatibility;
+        return (ecsCompatibility == null || ecsCompatibility.isEmpty()) ? GrokBuiltinPatterns.ECS_COMPATIBILITY_MODES[0] : ecsCompatibility;
     }
 
     private final int numLinesAnalyzed;
@@ -755,11 +755,11 @@ public class TextStructure implements ToXContentObject, Writeable {
                     }
                     if (ecsCompatibility != null
                         && ecsCompatibility.isEmpty() == false
-                        && Grok.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
+                        && GrokBuiltinPatterns.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
                         throw new IllegalArgumentException(
                             ECS_COMPATIBILITY.getPreferredName()
                                 + "] must be one of ["
-                                + String.join(", ", Grok.ECS_COMPATIBILITY_MODES)
+                                + String.join(", ", GrokBuiltinPatterns.ECS_COMPATIBILITY_MODES)
                                 + "] if specified"
                         );
                     }

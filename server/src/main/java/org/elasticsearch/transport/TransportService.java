@@ -582,7 +582,7 @@ public class TransportService extends AbstractLifecycleComponent
     }
 
     public TransportVersion getMinTransportVersion() {
-        return transportVersions.values().stream().min(Comparator.naturalOrder()).orElse(TransportVersion.CURRENT);
+        return transportVersions.values().stream().min(Comparator.naturalOrder()).orElse(transport.getVersion());
     }
 
     public RecyclerBytesStreamOutput newNetworkBytesStream() {
@@ -1264,7 +1264,7 @@ public class TransportService extends AbstractLifecycleComponent
             throw new IllegalStateException(
                 "node with transport version ["
                     + connectingVersion
-                    + "] may not join a cluster comprising only nodes with transport version ["
+                    + "] may not join a cluster using transport version ["
                     + minClusterVersion
                     + "] or greater"
             );

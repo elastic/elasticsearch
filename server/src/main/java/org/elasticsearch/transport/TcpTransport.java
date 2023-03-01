@@ -217,6 +217,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         );
     }
 
+    @Override
     public TransportVersion getVersion() {
         return version;
     }

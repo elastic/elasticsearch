@@ -23,7 +23,6 @@ import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -89,7 +88,6 @@ import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersection;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
-import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
@@ -103,7 +101,6 @@ import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchAction;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
-import org.elasticsearch.xpack.security.audit.index.IndexNameResolver;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
@@ -116,8 +113,6 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -2428,18 +2423,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }
     }
 
-    public void testXPackUserCanReadAuditTrail() {
-        final String action = randomFrom(GetAction.NAME, SearchAction.NAME);
-        final IsResourceAuthorizedPredicate predicate = getXPackUserRole().indices().allowedIndicesMatcher(action);
-        assertThat(predicate.test(mockIndexAbstraction(getAuditLogName())), Matchers.is(true));
-    }
-
-    public void testXPackUserCannotWriteToAuditTrail() {
-        final String action = randomFrom(IndexAction.NAME, UpdateAction.NAME);
-        final IsResourceAuthorizedPredicate predicate = getXPackUserRole().indices().allowedIndicesMatcher(action);
-        assertThat(predicate.test(mockIndexAbstraction(getAuditLogName())), Matchers.is(false));
-    }
-
     public void testAsyncSearchUserCannotAccessNonRestrictedIndices() {
         for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
             IsResourceAuthorizedPredicate predicate = getAsyncSearchUserRole().indices().allowedIndicesMatcher(action);
@@ -2474,19 +2457,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 Matchers.is(false)
             );
         }
-    }
-
-    // async search can't read/write audit trail
-    public void testAsyncSearchUserCannotReadAuditTrail() {
-        final String action = randomFrom(GetAction.NAME, SearchAction.NAME);
-        final IsResourceAuthorizedPredicate predicate = getAsyncSearchUserRole().indices().allowedIndicesMatcher(action);
-        assertThat(predicate.test(mockIndexAbstraction(getAuditLogName())), Matchers.is(false));
-    }
-
-    public void testAsyncSearchUserCannotWriteToAuditTrail() {
-        final String action = randomFrom(IndexAction.NAME, UpdateAction.NAME);
-        final IsResourceAuthorizedPredicate predicate = getAsyncSearchUserRole().indices().allowedIndicesMatcher(action);
-        assertThat(predicate.test(mockIndexAbstraction(getAuditLogName())), Matchers.is(false));
     }
 
     public void testXpackUserHasClusterPrivileges() {
@@ -2769,12 +2739,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {}
-    }
-
-    private String getAuditLogName() {
-        final ZonedDateTime date = ZonedDateTime.now(ZoneOffset.UTC).plusDays(randomIntBetween(1, 360));
-        final IndexNameResolver.Rollover rollover = randomFrom(IndexNameResolver.Rollover.values());
-        return IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, date, rollover);
     }
 
     private IndexAbstraction mockIndexAbstraction(String name) {

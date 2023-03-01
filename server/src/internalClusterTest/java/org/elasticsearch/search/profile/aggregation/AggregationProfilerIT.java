@@ -706,12 +706,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     }
 
     public void testDateHistogramFilterByFilterDisabled() throws InterruptedException, IOException {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put(SearchService.ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER.getKey(), false))
-        );
+        updateClusterSettings(Settings.builder().put(SearchService.ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER.getKey(), false));
         try {
             assertAcked(
                 client().admin()
@@ -783,12 +778,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                 );
             }
         } finally {
-            assertAcked(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setPersistentSettings(Settings.builder().putNull(SearchService.ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER.getKey()))
-            );
+            updateClusterSettings(Settings.builder().putNull(SearchService.ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER.getKey()));
         }
     }
 }

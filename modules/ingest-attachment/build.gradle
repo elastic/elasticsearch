@@ -24,10 +24,21 @@ def versions = [
   'mime4j': '0.8.9'
 ]
 
+// exclude commons-logging from test dependencies to avoid jar-hell, we use jcl-over-slf4j here
+configurations.testRuntimeClasspath { exclude module: 'commons-logging' }
+
 dependencies {
-  // logging
+  // take over logging for all dependencies
   api "org.slf4j:slf4j-api:2.0.6"
-  api "commons-logging:commons-logging:1.2"
+  api "org.slf4j:jcl-over-slf4j:2.0.6"
+
+  // route slf4j over log4j
+  // TODO blocked on https://github.com/elastic/elasticsearch/issues/93714
+  // api "org.apache.logging.log4j:log4j-slf4j2-impl:2.19.0"
+
+  // nop all slf4j logging
+  // workaround for https://github.com/elastic/elasticsearch/issues/93714
+  api "org.slf4j:slf4j-nop:2.0.6"
 
   // mandatory for tika
   api "org.apache.tika:tika-core:${versions.tika}"
@@ -86,6 +97,10 @@ restResources {
 tasks.named("dependencyLicenses").configure {
   mapping from: /apache-mime4j-.*/, to: 'apache-mime4j'
   mapping from: /tika-langdetect-.*/, to: 'tika-langdetect'
+}
+
+esplugin.bundleSpec.from('config/ingest-attachment') {
+  into 'config'
 }
 
 tasks.named("forbiddenPatterns").configure {

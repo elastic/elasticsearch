@@ -65,17 +65,10 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
         barrier.await();
 
         logger.info("--> force index [{}] to relocate to [{}]", index, secondDataNode);
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(restoredIndex)
-                .setSettings(
-                    Settings.builder()
-                        .put(
-                            IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(),
-                            secondDataNode
-                        )
-                )
+        updateIndexSettings(
+            Settings.builder()
+                .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), secondDataNode),
+            restoredIndex
         );
         assertBusy(() -> {
             final List<RecoveryState> recoveryStates = getRelocations(restoredIndex);

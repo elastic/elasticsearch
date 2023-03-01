@@ -41,6 +41,7 @@ import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
@@ -114,7 +115,6 @@ import java.util.stream.Stream;
 import static org.elasticsearch.core.Strings.format;
 
 public class InternalEngine extends Engine {
-
     /**
      * When we last pruned expired tombstones from versionMap.deletes:
      */
@@ -163,6 +163,7 @@ public class InternalEngine extends Engine {
     private final NumericDocValuesField softDeletesField = Lucene.newSoftDeletesField();
     private final SoftDeletesPolicy softDeletesPolicy;
     private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
+    private final FlushListeners flushListener;
 
     private final CompletionStatsCache completionStatsCache;
 
@@ -283,6 +284,7 @@ public class InternalEngine extends Engine {
             }
             completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
             this.externalReaderManager.addListener(completionStatsCache);
+            this.flushListener = new FlushListeners(logger, engineConfig.getThreadPool().getThreadContext());
             success = true;
         } finally {
             if (success == false) {
@@ -1984,6 +1986,7 @@ public class InternalEngine extends Engine {
                         lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
                     )) {
                     ensureCanFlush();
+                    Translog.Location commitLocation = getTranslogLastWriteLocation();
                     try {
                         translog.rollGeneration();
                         logger.trace("starting commit for flush; commitTranslog=true");
@@ -1999,7 +2002,7 @@ public class InternalEngine extends Engine {
                         throw new FlushFailedEngineException(shardId, e);
                     }
                     refreshLastCommittedSegmentInfos();
-
+                    flushListener.afterFlush(lastCommittedSegmentInfos.getGeneration(), commitLocation);
                 }
             } catch (FlushFailedEngineException ex) {
                 maybeFailEngine("flush", ex);
@@ -2354,7 +2357,7 @@ public class InternalEngine extends Engine {
                     internalReaderManager.removeListener(versionMap);
                 }
                 try {
-                    IOUtils.close(externalReaderManager, internalReaderManager);
+                    IOUtils.close(flushListener, externalReaderManager, internalReaderManager);
                 } catch (Exception e) {
                     logger.warn("Failed to close ReaderManager", e);
                 }
@@ -3059,4 +3062,8 @@ public class InternalEngine extends Engine {
         return ShardLongFieldRange.UNKNOWN;
     }
 
+    @Override
+    public void addFlushListener(Translog.Location location, ActionListener<Long> listener) {
+        this.flushListener.addOrNotify(location, listener);
+    }
 }

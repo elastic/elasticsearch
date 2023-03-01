@@ -2613,14 +2613,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
                     hasItem(remoteAuthentication.getAuthenticationType())
                 );
                 yield Strings.format(
-                    "{\"authentication.type\":\"%s\",\"user.name\":\"%s\",\"user.realm\":\"%s\"}",
+                    """
+                        {"authentication.type":"%s","user.name":"%s","user.realm":"%s"}""",
                     remoteAuthentication.getAuthenticationType(),
                     remoteAuthentication.getEffectiveSubject().getUser().principal(),
                     remoteAuthentication.getEffectiveSubject().getRealm().getName()
                 );
             }
             case API_KEY -> Strings.format(
-                "{\"apikey.id\":\"%s\",\"apikey.name\":\"%s\",\"authentication.type\":\"API_KEY\",\"user.name\":\"%s\",\"user.realm\":\"%s\"}",
+                """
+                    {"apikey.id":"%s","apikey.name":"%s","authentication.type":"API_KEY","user.name":"%s","user.realm":"%s"}""",
                 remoteAuthentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY),
                 remoteAuthentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_NAME_KEY),
                 remoteAuthentication.getEffectiveSubject().getUser().principal(),

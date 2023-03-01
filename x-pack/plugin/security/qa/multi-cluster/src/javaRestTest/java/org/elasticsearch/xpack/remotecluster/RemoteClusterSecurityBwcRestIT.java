@@ -115,6 +115,7 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
                   ]
                 }""");
             assertOK(adminClient().performRequest(putRoleRequest));
+            // We need to define the same role on QC and FC in order for CCS to work.
             final var putRoleRequestFulfilling = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
             putRoleRequestFulfilling.setJsonEntity("""
                 {
@@ -135,10 +136,9 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
                 }""");
             assertOK(adminClient().performRequest(putUserRequest));
 
-            // Create API key (with REMOTE_SEARCH_USER as owner) which can be used for remote cluster search
+            // Create API key (with REMOTE_SEARCH_USER as owner) which can be used for remote cluster search.
             final var createApiKeyRequest = new Request("PUT", "/_security/api_key");
-            // Note: index2 is added to remote_indices for the API key,
-            // but it should be ignored when intersected since owner user does not have access to it.
+            // Note: remote_indices should be ignored when sending a request to FC which is on an unsupported version
             createApiKeyRequest.setJsonEntity(randomBoolean() ? """
                 {
                   "name": "qc_api_key_with_remote_access",

@@ -25,7 +25,7 @@ public interface LicenseService extends LifecycleComponent {
     // should prefer getXPackLicenseState
     License getLicense();
 
-    XPackLicenseState getXPackLicenseState();
+    XPackLicenseState getXPackLicenseState(); // TODO: don't allow injection of XPackLicenseState and inject this interface instead
 
     Setting<License.LicenseType> SELF_GENERATED_LICENSE_TYPE = new Setting<>(
         "xpack.license.self_generated.type",
@@ -81,7 +81,7 @@ public interface LicenseService extends LifecycleComponent {
         }
     }
 
-    interface MutableLicense extends LicenseService {
+    interface MutableLicense extends LicenseService, LifecycleComponent {
 
         void updateXPackLicenseState(License license);
 

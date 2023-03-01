@@ -1124,13 +1124,26 @@ public class Node implements Closeable {
             // reroute, which needs to call into the allocation service. We close the loop here:
             clusterModule.setExistingShardsAllocators(injector.getInstance(GatewayAllocator.class));
 
-            List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream()
+            // TODO: fix this mess
+            List<LifecycleComponent> initialLifecycleComponents = pluginComponents.stream()
                 .filter(p -> p instanceof LifecycleComponent)
                 .map(p -> (LifecycleComponent) p)
                 .toList();
-            resourcesToClose.addAll(pluginLifecycleComponents);
+
+            // THIS IS bad and I should feel bad
+            List<LifecycleComponent> additionlaPluginLifecycleComponents = pluginComponents.stream()
+                .filter(p -> p instanceof PrivateInterface)
+                .map(p -> ((PrivateInterface) p).provider().get())
+                .filter(p -> p instanceof LifecycleComponent)
+                .map(p -> (LifecycleComponent) p)
+                .toList();
+
+            ArrayList<LifecycleComponent> lifecycleComponents = new ArrayList<>(initialLifecycleComponents);
+            lifecycleComponents.addAll(additionlaPluginLifecycleComponents);
+
+            resourcesToClose.addAll(lifecycleComponents);
             resourcesToClose.add(injector.getInstance(PeerRecoverySourceService.class));
-            this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
+            this.pluginLifecycleComponents = Collections.unmodifiableList(lifecycleComponents);
 
             // Due to Java's type erasure with generics, the injector can't give us exactly what we need, and we have
             // to resort to some evil casting.

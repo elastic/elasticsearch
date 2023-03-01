@@ -79,6 +79,8 @@ public class AnalyticsCollection implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field("name", this.getName());
+        builder.field("datastream_name", this.getEventDataStream());
         builder.endObject();
 
         return builder;

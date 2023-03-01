@@ -10,37 +10,29 @@ package org.elasticsearch.xpack.entsearch.analytics.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.entsearch.analytics.AnalyticsCollection;
 import org.elasticsearch.xpack.entsearch.analytics.AnalyticsCollectionService;
 
-public class TransportPostAnalyticsCollectionAction extends
-    HandledTransportAction<PostAnalyticsCollectionAction.Request, PostAnalyticsCollectionAction.Response> {
+public class TransportDeleteAnalyticsCollectionAction extends HandledTransportAction<DeleteAnalyticsCollectionAction.Request, AcknowledgedResponse> {
 
     private final AnalyticsCollectionService analyticsCollectionService;
 
     @Inject
-    public TransportPostAnalyticsCollectionAction(
+    public TransportDeleteAnalyticsCollectionAction(
         TransportService transportService,
         ActionFilters actionFilters,
         AnalyticsCollectionService analyticsCollectionService
     ) {
-        super(PostAnalyticsCollectionAction.NAME, transportService, actionFilters, PostAnalyticsCollectionAction.Request::new);
+        super(DeleteAnalyticsCollectionAction.NAME, transportService, actionFilters, DeleteAnalyticsCollectionAction.Request::new);
         this.analyticsCollectionService = analyticsCollectionService;
     }
 
     @Override
-    protected void doExecute(
-        Task task,
-        PostAnalyticsCollectionAction.Request request,
-        ActionListener<PostAnalyticsCollectionAction.Response> listener
-    ) {
-        AnalyticsCollection analyticsCollection = request.getAnalyticsCollection();
-        analyticsCollectionService.createAnalyticsCollection(analyticsCollection, listener.map(
-            r -> new PostAnalyticsCollectionAction.Response(r)
-        ));
+    protected void doExecute(Task task, DeleteAnalyticsCollectionAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+        final String collectionId = request.getCollectionId();
+        analyticsCollectionService.deleteAnalyticsCollection(collectionId, listener.map(v -> AcknowledgedResponse.TRUE));
     }
-
 }

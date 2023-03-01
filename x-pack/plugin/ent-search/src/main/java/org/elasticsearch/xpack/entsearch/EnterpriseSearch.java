@@ -41,12 +41,15 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.entsearch.analytics.AnalyticsCollectionService;
 import org.elasticsearch.xpack.entsearch.analytics.AnalyticsTemplateRegistry;
+import org.elasticsearch.xpack.entsearch.analytics.action.DeleteAnalyticsCollectionAction;
 import org.elasticsearch.xpack.entsearch.analytics.action.GetAnalyticsCollectionAction;
-import org.elasticsearch.xpack.entsearch.analytics.action.PostAnalyticsCollectionAction;
+import org.elasticsearch.xpack.entsearch.analytics.action.PutAnalyticsCollectionAction;
+import org.elasticsearch.xpack.entsearch.analytics.action.RestDeleteAnalyticsCollectionAction;
 import org.elasticsearch.xpack.entsearch.analytics.action.RestGetAnalyticsCollectionAction;
-import org.elasticsearch.xpack.entsearch.analytics.action.RestPostAnalyticsCollectionAction;
+import org.elasticsearch.xpack.entsearch.analytics.action.RestPutAnalyticsCollectionAction;
+import org.elasticsearch.xpack.entsearch.analytics.action.TransportDeleteAnalyticsCollectionAction;
 import org.elasticsearch.xpack.entsearch.analytics.action.TransportGetAnalyticsCollectionAction;
-import org.elasticsearch.xpack.entsearch.analytics.action.TransportPostAnalyticsCollectionAction;
+import org.elasticsearch.xpack.entsearch.analytics.action.TransportPutAnalyticsCollectionAction;
 import org.elasticsearch.xpack.entsearch.engine.EngineIndexService;
 import org.elasticsearch.xpack.entsearch.engine.action.DeleteEngineAction;
 import org.elasticsearch.xpack.entsearch.engine.action.GetEngineAction;
@@ -88,8 +91,9 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             return Collections.emptyList();
         }
         return List.of(
-            new ActionHandler<>(PostAnalyticsCollectionAction.INSTANCE, TransportPostAnalyticsCollectionAction.class),
+            new ActionHandler<>(PutAnalyticsCollectionAction.INSTANCE, TransportPutAnalyticsCollectionAction.class),
             new ActionHandler<>(GetAnalyticsCollectionAction.INSTANCE, TransportGetAnalyticsCollectionAction.class),
+            new ActionHandler<>(DeleteAnalyticsCollectionAction.INSTANCE, TransportDeleteAnalyticsCollectionAction.class),
             new ActionPlugin.ActionHandler<>(GetEngineAction.INSTANCE, TransportGetEngineAction.class),
             new ActionHandler<>(PutEngineAction.INSTANCE, TransportPutEngineAction.class),
             new ActionHandler<>(DeleteEngineAction.INSTANCE, TransportDeleteEngineAction.class)
@@ -114,8 +118,9 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             new RestGetEngineAction(),
             new RestPutEngineAction(),
             new RestDeleteEngineAction(),
-            new RestPostAnalyticsCollectionAction(),
-            new RestGetAnalyticsCollectionAction()
+            new RestPutAnalyticsCollectionAction(),
+            new RestGetAnalyticsCollectionAction(),
+            new RestDeleteAnalyticsCollectionAction()
         );
     }
 

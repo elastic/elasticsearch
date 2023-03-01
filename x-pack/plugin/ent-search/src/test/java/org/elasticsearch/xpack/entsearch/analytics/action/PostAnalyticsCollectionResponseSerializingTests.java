@@ -7,27 +7,26 @@
 
 package org.elasticsearch.xpack.entsearch.analytics.action;
 
-import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.entsearch.analytics.AnalyticsTestUtils;
 
 import java.io.IOException;
 
-public class PostAnalyticsCollectionResponseSerializingTests extends AbstractWireSerializingTestCase<PostAnalyticsCollectionAction.Response> {
+public class PostAnalyticsCollectionResponseSerializingTests extends AbstractWireSerializingTestCase<PutAnalyticsCollectionAction.Response> {
 
     @Override
-    protected Writeable.Reader<PostAnalyticsCollectionAction.Response> instanceReader() {
-        return PostAnalyticsCollectionAction.Response::new;
+    protected Writeable.Reader<PutAnalyticsCollectionAction.Response> instanceReader() {
+        return PutAnalyticsCollectionAction.Response::new;
     }
 
     @Override
-    protected PostAnalyticsCollectionAction.Response createTestInstance() {
-        return new PostAnalyticsCollectionAction.Response(AnalyticsTestUtils.randomAnalyticsCollection());
+    protected PutAnalyticsCollectionAction.Response createTestInstance() {
+        return new PutAnalyticsCollectionAction.Response(AnalyticsTestUtils.randomAnalyticsCollection());
     }
 
     @Override
-    protected PostAnalyticsCollectionAction.Response mutateInstance(PostAnalyticsCollectionAction.Response instance) throws IOException {
+    protected PutAnalyticsCollectionAction.Response mutateInstance(PutAnalyticsCollectionAction.Response instance) throws IOException {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 }

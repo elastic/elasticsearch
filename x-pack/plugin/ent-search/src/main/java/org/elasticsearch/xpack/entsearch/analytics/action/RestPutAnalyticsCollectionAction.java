@@ -18,9 +18,9 @@ import org.elasticsearch.xpack.entsearch.EnterpriseSearch;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
-public class RestPostAnalyticsCollectionAction extends BaseRestHandler {
+public class RestPutAnalyticsCollectionAction extends BaseRestHandler {
 
     @Override
     public String getName() {
@@ -29,19 +29,19 @@ public class RestPostAnalyticsCollectionAction extends BaseRestHandler {
 
     @Override
     public List<RestHandler.Route> routes() {
-        return List.of(new RestHandler.Route(POST, "/" + EnterpriseSearch.BEHAVIORAL_ANALYTICS_API_ENDPOINT + "/{collection_id}"));
+        return List.of(new RestHandler.Route(PUT, "/" + EnterpriseSearch.BEHAVIORAL_ANALYTICS_API_ENDPOINT + "/{collection_id}"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        PostAnalyticsCollectionAction.Request request = new PostAnalyticsCollectionAction.Request(
+        PutAnalyticsCollectionAction.Request request = new PutAnalyticsCollectionAction.Request(
             restRequest.param("collection_id"),
             restRequest.content(),
             restRequest.getXContentType()
         );
-        return channel -> client.execute(PostAnalyticsCollectionAction.INSTANCE, request, new RestToXContentListener<>(channel) {
+        return channel -> client.execute(PutAnalyticsCollectionAction.INSTANCE, request, new RestToXContentListener<>(channel) {
             @Override
-            protected RestStatus getStatus(PostAnalyticsCollectionAction.Response response) {
+            protected RestStatus getStatus(PutAnalyticsCollectionAction.Response response) {
                 return response.status();
             }
         });

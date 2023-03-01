@@ -26,12 +26,12 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class PostAnalyticsCollectionAction extends ActionType<PostAnalyticsCollectionAction.Response> {
+public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollectionAction.Response> {
 
-    public static final PostAnalyticsCollectionAction INSTANCE = new PostAnalyticsCollectionAction();
-    public static final String NAME = "cluster:behavioral_analytics";
+    public static final PutAnalyticsCollectionAction INSTANCE = new PutAnalyticsCollectionAction();
+    public static final String NAME = "cluster:admin/analytics/put";
 
-    public PostAnalyticsCollectionAction() { super(NAME, PostAnalyticsCollectionAction.Response::new); }
+    public PutAnalyticsCollectionAction() { super(NAME, PutAnalyticsCollectionAction.Response::new); }
     public static class Request extends ActionRequest {
         private final AnalyticsCollection analyticsCollection;
 
@@ -73,7 +73,7 @@ public class PostAnalyticsCollectionAction extends ActionType<PostAnalyticsColle
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            PostAnalyticsCollectionAction.Request that = (PostAnalyticsCollectionAction.Request) o;
+            PutAnalyticsCollectionAction.Request that = (PutAnalyticsCollectionAction.Request) o;
             return analyticsCollection.getName() == that.analyticsCollection.getName();
         }
 
@@ -102,11 +102,7 @@ public class PostAnalyticsCollectionAction extends ActionType<PostAnalyticsColle
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("name", this.analyticsCollection.getName());
-            builder.field("datastream_name", this.analyticsCollection.getEventDataStream());
-            builder.endObject();
-            return builder;
+            return this.analyticsCollection.toXContent(builder, params);
         }
 
         @Override

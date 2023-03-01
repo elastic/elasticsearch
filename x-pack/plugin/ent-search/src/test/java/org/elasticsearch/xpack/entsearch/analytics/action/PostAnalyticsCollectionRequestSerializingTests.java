@@ -13,21 +13,21 @@ import org.elasticsearch.xpack.entsearch.analytics.AnalyticsTestUtils;
 
 import java.io.IOException;
 
-public class PostAnalyticsCollectionRequestSerializingTests extends AbstractWireSerializingTestCase<PostAnalyticsCollectionAction.Request> {
+public class PostAnalyticsCollectionRequestSerializingTests extends AbstractWireSerializingTestCase<PutAnalyticsCollectionAction.Request> {
 
 
     @Override
-    protected Writeable.Reader<PostAnalyticsCollectionAction.Request> instanceReader() {
-        return PostAnalyticsCollectionAction.Request::new;
+    protected Writeable.Reader<PutAnalyticsCollectionAction.Request> instanceReader() {
+        return PutAnalyticsCollectionAction.Request::new;
     }
 
     @Override
-    protected PostAnalyticsCollectionAction.Request createTestInstance() {
-        return new PostAnalyticsCollectionAction.Request(AnalyticsTestUtils.randomAnalyticsCollection());
+    protected PutAnalyticsCollectionAction.Request createTestInstance() {
+        return new PutAnalyticsCollectionAction.Request(AnalyticsTestUtils.randomAnalyticsCollection());
     }
 
     @Override
-    protected PostAnalyticsCollectionAction.Request mutateInstance(PostAnalyticsCollectionAction.Request instance) throws IOException {
+    protected PutAnalyticsCollectionAction.Request mutateInstance(PutAnalyticsCollectionAction.Request instance) throws IOException {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 }

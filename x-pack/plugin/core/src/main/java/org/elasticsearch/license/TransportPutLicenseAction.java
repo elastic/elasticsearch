@@ -8,8 +8,6 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -25,15 +23,13 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportPutLicenseAction extends TransportMasterNodeAction<PutLicenseRequest, PutLicenseResponse> {
 
-    @SuppressWarnings("rawtypes")
-    private final LicenseService licenseService;
+    private final LicenseService.MutableLicense licenseService;
 
     @Inject
-    @SuppressWarnings("rawtypes")
     public TransportPutLicenseAction(
         TransportService transportService,
         ClusterService clusterService,
-        LicenseService licenseService,
+        LicenseService.MutableLicense licenseService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
@@ -58,7 +54,6 @@ public class TransportPutLicenseAction extends TransportMasterNodeAction<PutLice
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     protected void masterOperation(
         Task task,
         final PutLicenseRequest request,

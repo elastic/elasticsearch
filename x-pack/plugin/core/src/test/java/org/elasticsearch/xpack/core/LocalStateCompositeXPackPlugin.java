@@ -58,7 +58,7 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.license.ReadOnlyLicenseService;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -138,7 +138,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
 
     private XPackLicenseState licenseState;
     private SSLService sslService;
-    private ReadOnlyLicenseService licenseService;
+    private LicenseService licenseService;
     private LongSupplier epochMillisSupplier;
     protected List<Plugin> plugins = new ArrayList<>();
 
@@ -158,12 +158,12 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
-    protected ReadOnlyLicenseService getLicenseService() {
+    protected LicenseService getLicenseService() {
         return licenseService;
     }
 
     @Override
-    protected void setReadOnlyLicenseService(ReadOnlyLicenseService licenseService) {
+    protected void setLicenseService(LicenseService licenseService) {
         this.licenseService = licenseService;
     }
 

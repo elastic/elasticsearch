@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.license.License;
-import org.elasticsearch.license.ReadOnlyLicenseService;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
@@ -44,7 +44,7 @@ public class TransportXPackInfoActionTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testDoExecute() throws Exception {
 
-        ReadOnlyLicenseService licenseService = mock(ReadOnlyLicenseService.class);
+        LicenseService licenseService = mock(LicenseService.class);
 
         NodeClient client = mock(NodeClient.class);
         Map<XPackInfoFeatureAction, FeatureSet> featureSets = new HashMap<>();

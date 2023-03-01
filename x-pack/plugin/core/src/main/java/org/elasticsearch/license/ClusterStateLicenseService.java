@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -55,12 +56,7 @@ import java.util.stream.Collectors;
  */
 public class ClusterStateLicenseService extends AbstractLifecycleComponent
     implements
-        LicenseService<
-            PostStartBasicResponse,
-            PostStartTrialRequest,
-            PostStartTrialResponse,
-            PostStartBasicRequest,
-            PostStartBasicResponse>,
+        LicenseService.MutableLicense,
         ClusterStateListener,
         SchedulerEngine.Listener {
     private static final Logger logger = LogManager.getLogger(ClusterStateLicenseService.class);
@@ -69,11 +65,10 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
 
     private final ClusterService clusterService;
 
-    //TODO: add XPackLicenseState to the contract
     /**
      * The xpack feature state to update when license changes are made.
      */
-    private final XPackLicenseState licenseState;
+    private final XPackLicenseState xPacklicenseState;
 
     /**
      * Currently active license
@@ -108,7 +103,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         ThreadPool threadPool,
         ClusterService clusterService,
         Clock clock,
-        XPackLicenseState licenseState
+        XPackLicenseState xPacklicenseState
     ) {
         this.settings = settings;
         this.clusterService = clusterService;
@@ -125,12 +120,12 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
 
         this.clock = clock;
         this.scheduler = new SchedulerEngine(settings, clock);
-        this.licenseState = licenseState;
+        this.xPacklicenseState = xPacklicenseState;
         this.allowedLicenseTypes = ALLOWED_LICENSE_TYPES_SETTING.get(settings);
         this.scheduler.register(this);
         populateExpirationCallbacks();
 
-        threadPool.scheduleWithFixedDelay(licenseState::cleanupUsageTracking, TimeValue.timeValueHours(1), ThreadPool.Names.GENERIC);
+        threadPool.scheduleWithFixedDelay(xPacklicenseState::cleanupUsageTracking, TimeValue.timeValueHours(1), ThreadPool.Names.GENERIC);
     }
 
     private void logExpirationWarning(long expirationMillis, boolean expired) {
@@ -293,7 +288,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         if (licensesMetadata != null) {
             final License license = licensesMetadata.getLicense();
             if (event.getJobName().equals(LICENSE_JOB)) {
-                updateLicenseState(license);
+                updateXPackLicenseState(license);
             } else if (event.getJobName().startsWith(ExpirationCallback.EXPIRATION_JOB_PREFIX)) {
                 expirationCallbacks.stream()
                     .filter(expirationCallback -> expirationCallback.getId().equals(event.getJobName()))
@@ -306,7 +301,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
      * Remove license from the cluster state metadata
      */
     @Override
-    public void removeLicense(ActionListener<PostStartBasicResponse> listener) {
+    public void removeLicense(ActionListener<? extends AcknowledgedResponse> listener) {
         final PostStartBasicRequest startBasicRequest = new PostStartBasicRequest().acknowledge(true);
         @SuppressWarnings("unchecked")
         final StartBasicClusterTask task = new StartBasicClusterTask(
@@ -315,7 +310,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
             clock,
             startBasicRequest,
             "delete license",
-            listener
+            (ActionListener<PostStartBasicResponse>) listener
         );
         startBasicTaskQueue.submitTask(task.getDescription(), task, null); // TODO should pass in request.masterNodeTimeout() here
     }
@@ -324,6 +319,11 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
     public License getLicense() {
         final License license = getLicense(clusterService.state().metadata());
         return license == LicensesMetadata.LICENSE_TOMBSTONE ? null : license;
+    }
+
+    @Override
+    public XPackLicenseState getXPackLicenseState() {
+        return xPacklicenseState;
     }
 
     private LicensesMetadata getLicensesMetadata() {
@@ -488,11 +488,12 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         return null;
     }
 
-    protected void updateLicenseState(final License license) {
+    @Override
+    public void updateXPackLicenseState(License license) {
         long time = clock.millis();
         if (license == LicensesMetadata.LICENSE_TOMBSTONE) {
             // implies license has been explicitly deleted
-            licenseState.update(License.OperationMode.MISSING, false, getExpiryWarning(LicenseUtils.getExpiryDate(license), time));
+            xPacklicenseState.update(License.OperationMode.MISSING, false, getExpiryWarning(LicenseUtils.getExpiryDate(license), time));
             return;
         }
         maybeExpireLicense(license);
@@ -508,7 +509,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
             } else {
                 active = time >= license.issueDate() && time < LicenseUtils.getExpiryDate(license);
             }
-            licenseState.update(license.operationMode(), active, getExpiryWarning(LicenseUtils.getExpiryDate(license), time));
+            xPacklicenseState.update(license.operationMode(), active, getExpiryWarning(LicenseUtils.getExpiryDate(license), time));
 
             if (active) {
                 logger.debug("license [{}] - valid", license.uid());
@@ -550,7 +551,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
                 }
                 logger.info("license [{}] mode [{}] - valid", license.uid(), license.operationMode().name().toLowerCase(Locale.ROOT));
             }
-            updateLicenseState(license);
+            updateXPackLicenseState(license);
         }
     }
 

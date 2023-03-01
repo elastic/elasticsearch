@@ -7,8 +7,6 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,15 +21,14 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportPostStartBasicAction extends TransportMasterNodeAction<PostStartBasicRequest, PostStartBasicResponse> {
 
-    @SuppressWarnings("rawtypes")
-    private final SelfGeneratedLicenseService licenseService;
+    private final LicenseService.MutableLicense licenseService;
 
     @Inject
-    @SuppressWarnings("rawtypes")
+
     public TransportPostStartBasicAction(
         TransportService transportService,
         ClusterService clusterService,
-        SelfGeneratedLicenseService licenseService,
+        LicenseService.MutableLicense licenseService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
@@ -51,7 +48,6 @@ public class TransportPostStartBasicAction extends TransportMasterNodeAction<Pos
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     protected void masterOperation(
         Task task,
         PostStartBasicRequest request,

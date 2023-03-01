@@ -37,7 +37,7 @@ public class LicenseClusterChangeTests extends AbstractClusterStateLicenseServic
     public void setup() {
         licenseState = new TestUtils.AssertingLicenseState();
         setInitialState(null, licenseState, Settings.EMPTY);
-        clusterStateLicenseService = (ClusterStateLicenseService) licenseService;
+        clusterStateLicenseService = licenseService;
         licenseService.start();
     }
 

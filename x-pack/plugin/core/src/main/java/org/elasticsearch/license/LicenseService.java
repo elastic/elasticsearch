@@ -8,8 +8,7 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
@@ -21,16 +20,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public interface LicenseService<
-    RemoveResponse extends ActionResponse,
-    TrialRequest extends ActionRequest,
-    TrialResponse extends ActionResponse,
-    BasicRequest extends ActionRequest,
-    BasicResponse extends ActionResponse>
-    extends
-        ReadOnlyLicenseService,
-        SelfGeneratedLicenseService<TrialRequest, TrialResponse, BasicRequest, BasicResponse>,
-        LifecycleComponent {
+public interface LicenseService extends LifecycleComponent {
+
+    // should prefer getXPackLicenseState
+    License getLicense();
+
+    XPackLicenseState getXPackLicenseState();
 
     Setting<License.LicenseType> SELF_GENERATED_LICENSE_TYPE = new Setting<>(
         "xpack.license.self_generated.type",
@@ -86,13 +81,22 @@ public interface LicenseService<
         }
     }
 
-    void registerLicense(PutLicenseRequest request, ActionListener<PutLicenseResponse> listener);
+    interface MutableLicense extends LicenseService {
 
-    void removeLicense(ActionListener<RemoveResponse> listener);
+        void updateXPackLicenseState(License license);
 
-    /**
-     * @return true if the license was found to be expired, false otherwise. If license is null - return false.
-     */
-    boolean maybeExpireLicense(License license);
+        void registerLicense(PutLicenseRequest request, ActionListener<PutLicenseResponse> listener);
 
+        void removeLicense(ActionListener<? extends AcknowledgedResponse> listener);
+
+        /**
+         * @return true if the license was found to be expired, false otherwise. If license is null - return false.
+         */
+        boolean maybeExpireLicense(License license);
+
+        void startBasicLicense(PostStartBasicRequest request, ActionListener<PostStartBasicResponse> listener);
+
+        void startTrialLicense(PostStartTrialRequest request, ActionListener<PostStartTrialResponse> listener);
+
+    }
 }

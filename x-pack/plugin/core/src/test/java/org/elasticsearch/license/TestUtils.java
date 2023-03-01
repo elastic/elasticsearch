@@ -374,9 +374,8 @@ public class TestUtils {
         return resourceFile;
     }
 
-    @SuppressWarnings({ "rawtypes", "unchecked" })
     public static void registerAndAckSignedLicenses(
-        final LicenseService licenseService,
+        final LicenseService.MutableLicense licenseService,
         License license,
         final LicensesStatus expectedStatus
     ) {

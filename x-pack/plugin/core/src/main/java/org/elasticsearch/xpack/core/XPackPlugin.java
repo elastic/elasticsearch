@@ -45,12 +45,6 @@ import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.Licensing;
-import org.elasticsearch.license.PostStartBasicRequest;
-import org.elasticsearch.license.PostStartBasicResponse;
-import org.elasticsearch.license.PostStartTrialRequest;
-import org.elasticsearch.license.PostStartTrialResponse;
-import org.elasticsearch.license.ReadOnlyLicenseService;
-import org.elasticsearch.license.SelfGeneratedLicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.PrivateInterface;
 import org.elasticsearch.plugins.ClusterPlugin;
@@ -164,7 +158,7 @@ public class XPackPlugin extends XPackClientPlugin
     // These should not be directly accessed as they cannot be overridden in tests. Please use the getters so they can be overridden.
     private static final SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
     private static final SetOnce<SSLService> sslService = new SetOnce<>();
-    private static final SetOnce<ReadOnlyLicenseService> readOnlyLicenseService = new SetOnce<>();
+    private static final SetOnce<LicenseService> licenseService = new SetOnce<>();
     private static final SetOnce<LongSupplier> epochMillisSupplier = new SetOnce<>();
 
     public XPackPlugin(final Settings settings) {
@@ -187,8 +181,8 @@ public class XPackPlugin extends XPackClientPlugin
         return getSharedSslService();
     }
 
-    protected ReadOnlyLicenseService getLicenseService() {
-        return getReadOnlyLicenseService();
+    protected LicenseService getLicenseService() {
+        return getSharedLicenseService();
     }
 
     protected XPackLicenseState getLicenseState() {
@@ -203,8 +197,8 @@ public class XPackPlugin extends XPackClientPlugin
         XPackPlugin.sslService.set(sslService);
     }
 
-    protected void setReadOnlyLicenseService(ReadOnlyLicenseService licenseService) {
-        XPackPlugin.readOnlyLicenseService.set(licenseService);
+    protected void setLicenseService(LicenseService licenseService) {
+        XPackPlugin.licenseService.set(licenseService);
     }
 
     protected void setLicenseState(XPackLicenseState licenseState) {
@@ -223,8 +217,8 @@ public class XPackPlugin extends XPackClientPlugin
         return ssl;
     }
 
-    public static ReadOnlyLicenseService getReadOnlyLicenseService() {
-        return readOnlyLicenseService.get();
+    public static LicenseService getSharedLicenseService() {
+        return licenseService.get();
     }
 
     public static XPackLicenseState getSharedLicenseState() {
@@ -321,26 +315,14 @@ public class XPackPlugin extends XPackClientPlugin
 
         final SSLService sslService = createSSLService(environment, resourceWatcherService);
 
-        LicenseService<
-            PostStartBasicResponse,
-            PostStartTrialRequest,
-            PostStartTrialResponse,
-            PostStartBasicRequest,
-            PostStartBasicResponse> licenseService = new ClusterStateLicenseService(
-                settings,
-                threadPool,
-                clusterService,
-                getClock(),
-                getLicenseState()
-            );
-        setReadOnlyLicenseService(licenseService);
+        LicenseService licenseService = new ClusterStateLicenseService(settings, threadPool, clusterService, getClock(), getLicenseState());
+        setLicenseService(licenseService);
 
         setEpochMillisSupplier(threadPool::absoluteTimeInMillis);
 
         // It is useful to override these as they are what guice is injecting into actions
         components.add(sslService);
-        components.add(new PrivateInterface<>(SelfGeneratedLicenseService.class, () -> licenseService));
-        components.add(new PrivateInterface<>(ReadOnlyLicenseService.class, () -> licenseService));
+        components.add(new PrivateInterface<>(LicenseService.MutableLicense.class, () -> licenseService));
         components.add(new PrivateInterface<>(LicenseService.class, () -> licenseService));
         components.add(getLicenseState());
 

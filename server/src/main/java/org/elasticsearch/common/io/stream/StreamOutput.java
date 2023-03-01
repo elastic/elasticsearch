@@ -58,6 +58,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.IntFunction;
 
 import static java.util.Map.entry;
@@ -74,8 +75,6 @@ import static java.util.Map.entry;
  * on {@link StreamInput}.
  */
 public abstract class StreamOutput extends OutputStream {
-
-    private static final int MAX_NESTED_EXCEPTION_LEVEL = 100;
 
     private TransportVersion version = TransportVersion.CURRENT;
 
@@ -983,149 +982,132 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     public void writeException(Throwable throwable) throws IOException {
-        writeException(throwable, throwable);
+        ElasticsearchException.writeException(throwable, this);
     }
 
-    private static final ThreadLocal<Integer> CURRENT_NESTED_LEVEL = ThreadLocal.withInitial(() -> 0);
+    void writeException(Throwable throwable, Consumer<Throwable> nestedExceptionLimitCallback) throws IOException {
+        ElasticsearchException.writeException(throwable, this, nestedExceptionLimitCallback);
+    }
 
-    private void writeException(Throwable rootException, Throwable throwable) throws IOException {
+    public record ExceptionSerialization(boolean writeCause, @Nullable Throwable cause, @Nullable ElasticsearchException esException) {}
+
+    /**
+     * Writes the details of {@code throwable} to this stream. Returns an {@link ExceptionSerialization} object indicating
+     * what needs to be serialized next.
+     */
+    public ExceptionSerialization writeExceptionDetails(@Nullable Throwable throwable) throws IOException {
         if (throwable == null) {
             writeBoolean(false);
-            return;
+            return new ExceptionSerialization(false, null, null);
         }
 
-        int nestedLevel = CURRENT_NESTED_LEVEL.get();
-        if (nestedLevel > MAX_NESTED_EXCEPTION_LEVEL) {
-            // need to reset the nesting level to write this exception out without hitting the recursive check,
-            // then reset the counter again
-            CURRENT_NESTED_LEVEL.set(0);
-            try {
-                assert failOnTooManyNestedExceptions(rootException);
-                writeException(new IllegalStateException("too many nested exceptions"));
-                return;
-            } finally {
-                CURRENT_NESTED_LEVEL.set(nestedLevel);
-            }
-        }
-
-        CURRENT_NESTED_LEVEL.set(nestedLevel + 1);
-        try {
-            writeBoolean(true);
-            boolean writeCause = true;
-            boolean writeMessage = true;
-            if (throwable instanceof CorruptIndexException) {
-                writeVInt(1);
-                writeOptionalString(((CorruptIndexException) throwable).getOriginalMessage());
-                writeOptionalString(((CorruptIndexException) throwable).getResourceDescription());
-                writeMessage = false;
-            } else if (throwable instanceof IndexFormatTooNewException) {
-                writeVInt(2);
-                writeOptionalString(((IndexFormatTooNewException) throwable).getResourceDescription());
-                writeInt(((IndexFormatTooNewException) throwable).getVersion());
-                writeInt(((IndexFormatTooNewException) throwable).getMinVersion());
-                writeInt(((IndexFormatTooNewException) throwable).getMaxVersion());
-                writeMessage = false;
-                writeCause = false;
-            } else if (throwable instanceof IndexFormatTooOldException t) {
-                writeVInt(3);
-                writeOptionalString(t.getResourceDescription());
-                if (t.getVersion() == null) {
-                    writeBoolean(false);
-                    writeOptionalString(t.getReason());
-                } else {
-                    writeBoolean(true);
-                    writeInt(t.getVersion());
-                    writeInt(t.getMinVersion());
-                    writeInt(t.getMaxVersion());
-                }
-                writeMessage = false;
-                writeCause = false;
-            } else if (throwable instanceof NullPointerException) {
-                writeVInt(4);
-                writeCause = false;
-            } else if (throwable instanceof NumberFormatException) {
-                writeVInt(5);
-                writeCause = false;
-            } else if (throwable instanceof IllegalArgumentException) {
-                writeVInt(6);
-            } else if (throwable instanceof AlreadyClosedException) {
-                writeVInt(7);
-            } else if (throwable instanceof EOFException) {
-                writeVInt(8);
-                writeCause = false;
-            } else if (throwable instanceof SecurityException) {
-                writeVInt(9);
-            } else if (throwable instanceof StringIndexOutOfBoundsException) {
-                writeVInt(10);
-                writeCause = false;
-            } else if (throwable instanceof ArrayIndexOutOfBoundsException) {
-                writeVInt(11);
-                writeCause = false;
-            } else if (throwable instanceof FileNotFoundException) {
-                writeVInt(12);
-                writeCause = false;
-            } else if (throwable instanceof FileSystemException) {
-                writeVInt(13);
-                if (throwable instanceof NoSuchFileException) {
-                    writeVInt(0);
-                } else if (throwable instanceof NotDirectoryException) {
-                    writeVInt(1);
-                } else if (throwable instanceof DirectoryNotEmptyException) {
-                    writeVInt(2);
-                } else if (throwable instanceof AtomicMoveNotSupportedException) {
-                    writeVInt(3);
-                } else if (throwable instanceof FileAlreadyExistsException) {
-                    writeVInt(4);
-                } else if (throwable instanceof AccessDeniedException) {
-                    writeVInt(5);
-                } else if (throwable instanceof FileSystemLoopException) {
-                    writeVInt(6);
-                } else {
-                    writeVInt(7);
-                }
-                writeOptionalString(((FileSystemException) throwable).getFile());
-                writeOptionalString(((FileSystemException) throwable).getOtherFile());
-                writeOptionalString(((FileSystemException) throwable).getReason());
-                writeCause = false;
-            } else if (throwable instanceof IllegalStateException) {
-                writeVInt(14);
-            } else if (throwable instanceof LockObtainFailedException) {
-                writeVInt(15);
-            } else if (throwable instanceof InterruptedException) {
-                writeVInt(16);
-                writeCause = false;
-            } else if (throwable instanceof IOException) {
-                writeVInt(17);
-            } else if (throwable instanceof EsRejectedExecutionException) {
-                writeVInt(18);
-                writeBoolean(((EsRejectedExecutionException) throwable).isExecutorShutdown());
-                writeCause = false;
+        writeBoolean(true);
+        boolean writeCause = true;
+        boolean writeMessage = true;
+        ElasticsearchException esException = null;
+        if (throwable instanceof CorruptIndexException cie) {
+            writeVInt(1);
+            writeOptionalString(cie.getOriginalMessage());
+            writeOptionalString(cie.getResourceDescription());
+            writeMessage = false;
+        } else if (throwable instanceof IndexFormatTooNewException iftne) {
+            writeVInt(2);
+            writeOptionalString(iftne.getResourceDescription());
+            writeInt(iftne.getVersion());
+            writeInt(iftne.getMinVersion());
+            writeInt(iftne.getMaxVersion());
+            writeMessage = false;
+            writeCause = false;
+        } else if (throwable instanceof IndexFormatTooOldException t) {
+            writeVInt(3);
+            writeOptionalString(t.getResourceDescription());
+            if (t.getVersion() == null) {
+                writeBoolean(false);
+                writeOptionalString(t.getReason());
             } else {
-                final ElasticsearchException ex;
-                if (throwable instanceof ElasticsearchException && ElasticsearchException.isRegistered(throwable.getClass(), version)) {
-                    ex = (ElasticsearchException) throwable;
-                } else {
-                    ex = new NotSerializableExceptionWrapper(throwable);
-                }
+                writeBoolean(true);
+                writeInt(t.getVersion());
+                writeInt(t.getMinVersion());
+                writeInt(t.getMaxVersion());
+            }
+            writeMessage = false;
+            writeCause = false;
+        } else if (throwable instanceof NullPointerException) {
+            writeVInt(4);
+            writeCause = false;
+        } else if (throwable instanceof NumberFormatException) {
+            writeVInt(5);
+            writeCause = false;
+        } else if (throwable instanceof IllegalArgumentException) {
+            writeVInt(6);
+        } else if (throwable instanceof AlreadyClosedException) {
+            writeVInt(7);
+        } else if (throwable instanceof EOFException) {
+            writeVInt(8);
+            writeCause = false;
+        } else if (throwable instanceof SecurityException) {
+            writeVInt(9);
+        } else if (throwable instanceof StringIndexOutOfBoundsException) {
+            writeVInt(10);
+            writeCause = false;
+        } else if (throwable instanceof ArrayIndexOutOfBoundsException) {
+            writeVInt(11);
+            writeCause = false;
+        } else if (throwable instanceof FileNotFoundException) {
+            writeVInt(12);
+            writeCause = false;
+        } else if (throwable instanceof FileSystemException fse) {
+            writeVInt(13);
+            if (throwable instanceof NoSuchFileException) {
                 writeVInt(0);
-                writeVInt(ElasticsearchException.getId(ex.getClass()));
-                ex.writeTo(this);
-                return;
+            } else if (throwable instanceof NotDirectoryException) {
+                writeVInt(1);
+            } else if (throwable instanceof DirectoryNotEmptyException) {
+                writeVInt(2);
+            } else if (throwable instanceof AtomicMoveNotSupportedException) {
+                writeVInt(3);
+            } else if (throwable instanceof FileAlreadyExistsException) {
+                writeVInt(4);
+            } else if (throwable instanceof AccessDeniedException) {
+                writeVInt(5);
+            } else if (throwable instanceof FileSystemLoopException) {
+                writeVInt(6);
+            } else {
+                writeVInt(7);
             }
-            if (writeMessage) {
-                writeOptionalString(throwable.getMessage());
+            writeOptionalString(fse.getFile());
+            writeOptionalString(fse.getOtherFile());
+            writeOptionalString(fse.getReason());
+            writeCause = false;
+        } else if (throwable instanceof IllegalStateException) {
+            writeVInt(14);
+        } else if (throwable instanceof LockObtainFailedException) {
+            writeVInt(15);
+        } else if (throwable instanceof InterruptedException) {
+            writeVInt(16);
+            writeCause = false;
+        } else if (throwable instanceof IOException) {
+            writeVInt(17);
+        } else if (throwable instanceof EsRejectedExecutionException eree) {
+            writeVInt(18);
+            writeBoolean(eree.isExecutorShutdown());
+            writeCause = false;
+        } else {
+            final ElasticsearchException ex;
+            if (throwable instanceof ElasticsearchException && ElasticsearchException.isRegistered(throwable.getClass(), version)) {
+                ex = (ElasticsearchException) throwable;
+            } else {
+                ex = new NotSerializableExceptionWrapper(throwable);
             }
-            if (writeCause) {
-                writeException(rootException, throwable.getCause());
-            }
-            ElasticsearchException.writeStackTraces(throwable, this, (o, t) -> o.writeException(rootException, t));
-        } finally {
-            CURRENT_NESTED_LEVEL.set(CURRENT_NESTED_LEVEL.get() - 1);
+            writeVInt(0);
+            writeVInt(ElasticsearchException.getId(ex.getClass()));
+            throwable = ex;
+            esException = ex;
         }
-    }
-
-    boolean failOnTooManyNestedExceptions(Throwable throwable) {
-        throw new AssertionError("too many nested exceptions", throwable);
+        if (writeMessage) {
+            writeOptionalString(throwable.getMessage());
+        }
+        return new ExceptionSerialization(writeCause, throwable.getCause(), esException);
     }
 
     /**

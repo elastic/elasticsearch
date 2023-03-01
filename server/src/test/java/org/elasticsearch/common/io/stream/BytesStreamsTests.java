@@ -957,14 +957,8 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat(error.getMessage(), containsString("too many nested exceptions"));
         assertThat(error.getCause(), equalTo(rootEx));
 
-        BytesStreamOutput prodOut = new BytesStreamOutput() {
-            @Override
-            boolean failOnTooManyNestedExceptions(Throwable throwable) {
-                assertThat(throwable, sameInstance(rootEx));
-                return true;
-            }
-        };
-        prodOut.writeException(rootEx);
+        BytesStreamOutput prodOut = new BytesStreamOutput();
+        prodOut.writeException(rootEx, t -> assertThat(t, sameInstance(rootEx)));
         StreamInput in = prodOut.bytes().streamInput();
         Exception newEx = in.readException();
         assertThat(newEx, instanceOf(IOException.class));
@@ -983,13 +977,8 @@ public class BytesStreamsTests extends ESTestCase {
         AssertionError error = expectThrows(AssertionError.class, () -> testOut.writeException(ex1));
         assertThat(error.getMessage(), containsString("too many nested exceptions"));
 
-        BytesStreamOutput prodOut = new BytesStreamOutput() {
-            @Override
-            boolean failOnTooManyNestedExceptions(Throwable throwable) {
-                return true;
-            }
-        };
-        prodOut.writeException(ex1);
+        BytesStreamOutput prodOut = new BytesStreamOutput();
+        prodOut.writeException(ex1, t -> {});
         StreamInput in = prodOut.bytes().streamInput();
         Exception newEx = in.readException();
         assertThat(newEx, instanceOf(ElasticsearchException.class));

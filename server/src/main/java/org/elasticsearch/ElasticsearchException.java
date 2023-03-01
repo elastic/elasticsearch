@@ -39,6 +39,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -718,6 +719,61 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         }, throwable.getStackTrace());
         out.writeArray(exceptionWriter, throwable.getSuppressed());
         return throwable;
+    }
+
+    private static final int MAX_NESTED_EXCEPTION_LEVEL = 100;
+
+    private static void defaultNestedLimitCallback(Throwable t) {
+        if (Assertions.ENABLED) {
+            throw new AssertionError("too many nested exceptions", t);
+        }
+    }
+
+    public static void writeException(Throwable throwable, StreamOutput output) throws IOException {
+        writeException(throwable, output, ElasticsearchException::defaultNestedLimitCallback);
+    }
+
+    public static void writeException(Throwable throwable, StreamOutput output, Consumer<Throwable> nestedExceptionLimitCallback)
+        throws IOException {
+        writeException(throwable, throwable, output, 0, nestedExceptionLimitCallback);
+    }
+
+    private static void writeException(
+        Throwable rootException,
+        Throwable throwable,
+        StreamOutput output,
+        int nestedLevel,
+        Consumer<Throwable> nestedExceptionLimitCallback
+    ) throws IOException {
+        if (nestedLevel > MAX_NESTED_EXCEPTION_LEVEL) {
+            nestedExceptionLimitCallback.accept(rootException);
+            writeException(new IllegalStateException("too many nested exceptions"), output);
+            return;
+        }
+
+        var exDetails = output.writeExceptionDetails(throwable);
+        if (throwable == null) {
+            return;
+        }
+        if (exDetails.writeCause()) {
+            writeException(rootException, exDetails.cause(), output, nestedLevel + 1, nestedExceptionLimitCallback);
+        }
+
+        if (exDetails.esException() != null) {
+            writeStackTraces(
+                exDetails.esException(),
+                output,
+                (o, t) -> writeException(rootException, t, output, nestedLevel + 1, nestedExceptionLimitCallback)
+            );
+            output.writeMapOfLists(exDetails.esException().headers, StreamOutput::writeString, StreamOutput::writeString);
+            output.writeMapOfLists(exDetails.esException().metadata, StreamOutput::writeString, StreamOutput::writeString);
+        } else {
+            writeStackTraces(
+                throwable,
+                output,
+                (o, t) -> writeException(rootException, t, output, nestedLevel + 1, nestedExceptionLimitCallback)
+            );
+        }
     }
 
     /**

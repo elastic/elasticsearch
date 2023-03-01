@@ -967,14 +967,8 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         assertThat(error.getMessage(), containsString("too many nested exceptions"));
         assertThat(error.getCause(), equalTo(rootEx));
 
-        RecyclerBytesStreamOutput prodOut = new RecyclerBytesStreamOutput(recycler) {
-            @Override
-            boolean failOnTooManyNestedExceptions(Throwable throwable) {
-                assertThat(throwable, sameInstance(rootEx));
-                return true;
-            }
-        };
-        prodOut.writeException(rootEx);
+        RecyclerBytesStreamOutput prodOut = new RecyclerBytesStreamOutput(recycler);
+        prodOut.writeException(rootEx, t -> assertThat(t, sameInstance(rootEx)));
         StreamInput in = prodOut.bytes().streamInput();
         Exception newEx = in.readException();
         assertThat(newEx, instanceOf(IOException.class));

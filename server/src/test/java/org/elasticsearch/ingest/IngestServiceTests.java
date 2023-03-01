@@ -1885,7 +1885,7 @@ public class IngestServiceTests extends ESTestCase {
         verifyNoInteractions(mockedRequest, mockedMetadata);
     }
 
-    public void testHasAPipeline() {
+    public void testHasPipeline() {
         var indexRequest = new IndexRequest("idx").setPipeline(NOOP_PIPELINE_NAME).setFinalPipeline(NOOP_PIPELINE_NAME);
         assertFalse(hasPipeline(indexRequest));
 

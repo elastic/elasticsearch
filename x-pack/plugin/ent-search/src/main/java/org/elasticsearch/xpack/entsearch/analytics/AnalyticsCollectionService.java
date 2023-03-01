@@ -43,7 +43,7 @@ public class AnalyticsCollectionService implements ClusterStateListener {
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
-    private Map<String, AnalyticsCollection> analyticsCollections = Collections.emptyMap();
+    private volatile Map<String, AnalyticsCollection> analyticsCollections = Collections.emptyMap();
 
     public AnalyticsCollectionService(
         Client client,
@@ -62,12 +62,14 @@ public class AnalyticsCollectionService implements ClusterStateListener {
      * @param listener The action listener to invoke on response/failure.
      */
     public void getAnalyticsCollection(String collectionName, ActionListener<AnalyticsCollection> listener) {
-        if (analyticsCollections.containsKey(collectionName) == false) {
+        Map<String, AnalyticsCollection> collections = analyticsCollections;
+
+        if (collections.containsKey(collectionName) == false) {
             listener.onFailure(new ResourceNotFoundException(collectionName));
             return;
         }
 
-        listener.onResponse(analyticsCollections.get(collectionName));
+        listener.onResponse(collections.get(collectionName));
     }
 
     /**
@@ -113,14 +115,26 @@ public class AnalyticsCollectionService implements ClusterStateListener {
         clientWithOrigin.execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamRequest, listener);
     }
 
+    /**
+     * We refresh the local cache of the collections when cluster is updated.
+     *
+     * @param event {@link ClusterChangedEvent} event.
+     */
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        if (event.metadataChanged() == false) {
+            // Skipping the update if cluster metadata did not change.
+            return;
+        }
+
+        // Listing data streams that are matching the analytics collection pattern.
         List<String> dataStreams = indexNameExpressionResolver.dataStreamNames(
             event.state(),
             IndicesOptions.lenientExpandOpen(),
             AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INDEX_PATTERN
         );
 
+        // Init an AnalyticsCollection instance from each matching data stream.
         analyticsCollections = dataStreams.stream()
             .map(AnalyticsCollection::fromDataStreamName)
             .collect(Collectors.toMap(AnalyticsCollection::getName, Function.identity()));

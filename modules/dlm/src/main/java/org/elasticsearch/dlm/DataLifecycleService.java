@@ -14,6 +14,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
@@ -236,11 +237,14 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         client.admin().indices().rolloverIndex(rolloverRequest, new ActionListener<>() {
             @Override
             public void onResponse(RolloverResponse rolloverResponse) {
-                logger.info(
-                    "DLM successfully rolled over datastream [{}]. The new index is [{}]",
-                    rolloverTarget,
-                    rolloverResponse.getNewIndex()
-                );
+                // Log only when the conditions were met and the index was rolled over.
+                if (rolloverResponse.isRolledOver()) {
+                    logger.info(
+                        "DLM successfully rolled over datastream [{}]. The new index is [{}]",
+                        rolloverTarget,
+                        rolloverResponse.getNewIndex()
+                    );
+                }
                 listener.onResponse(null);
             }
 
@@ -304,13 +308,16 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
 
     private RolloverRequest getDefaultRolloverRequest(String dataStream) {
         RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null).masterNodeTimeout(TimeValue.MAX_VALUE);
-
-        // TODO get rollover from cluster setting once we have it
-        rolloverRequest.addMaxIndexAgeCondition(TimeValue.timeValueDays(7));
-        rolloverRequest.addMaxPrimaryShardSizeCondition(ByteSizeValue.ofGb(50));
-        rolloverRequest.addMaxPrimaryShardDocsCondition(200_000_000);
-        // don't rollover an empty index
-        rolloverRequest.addMinIndexDocsCondition(1);
+        rolloverRequest.setConditions(
+            RolloverConditions.newBuilder()
+                // TODO get rollover from cluster setting once we have it
+                .addMaxIndexAgeCondition(TimeValue.timeValueDays(7))
+                .addMaxPrimaryShardSizeCondition(ByteSizeValue.ofGb(50))
+                .addMaxPrimaryShardDocsCondition(200_000_000L)
+                // don't rollover an empty index
+                .addMinIndexDocsCondition(1L)
+                .build()
+        );
         return rolloverRequest;
     }
 

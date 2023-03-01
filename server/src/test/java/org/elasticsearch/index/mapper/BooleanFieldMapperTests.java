@@ -203,13 +203,18 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected List<ExampleMalformedValue> exampleMalformedValues() {
+        return List.of(exampleMalformedValue("a").errorMatches("Failed to parse value [a] as only [true] or [false] are allowed."));
+    }
+
+    @Override
     protected boolean supportsIgnoreMalformed() {
-        return false;
+        return true;
     }
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        assertFalse("boolean doesn't support ignore_malformed", ignoreMalformed);
+        assumeFalse("boolean doesn't support ignore_malformed with synthetic source", ignoreMalformed);
         return new SyntheticSourceSupport() {
             Boolean nullValue = usually() ? null : randomBoolean();
 
@@ -247,8 +252,11 @@ public class BooleanFieldMapperTests extends MapperTestCase {
                     new SyntheticSourceInvalidExample(
                         equalTo("field [field] of type [boolean] doesn't support synthetic source because it doesn't have doc values"),
                         b -> b.field("type", "boolean").field("doc_values", false)
+                    ),
+                    new SyntheticSourceInvalidExample(
+                        equalTo("field [field] of type [boolean] doesn't support synthetic source because it ignores malformed values"),
+                        b -> b.field("type", "boolean").field("ignore_malformed", true)
                     )
-                // If boolean had ignore_malformed we'd fail to index here
                 );
             }
         };

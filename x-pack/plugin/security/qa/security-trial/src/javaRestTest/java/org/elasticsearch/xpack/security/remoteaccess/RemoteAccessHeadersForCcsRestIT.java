@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -46,35 +47,39 @@ import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
+import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.RemoteAccessHeaders;
-import org.elasticsearch.xpack.security.authz.RBACEngine;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.UUIDs.randomBase64UUID;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestTestCase {
     @BeforeClass
@@ -97,6 +102,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
         final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
         putRoleRequest.setJsonEntity("""
             {
+              "cluster": ["manage_api_key"],
               "indices": [
                 {
                   "names": ["index-a"],
@@ -150,8 +156,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
             final boolean minimizeRoundtrips = randomBoolean();
             final Request searchRequest = new Request(
                 "GET",
-                String.format(
-                    Locale.ROOT,
+                Strings.format(
                     "/%s%s:index-a/_search?ccs_minimize_roundtrips=%s",
                     alsoSearchLocally ? "index-a," : "",
                     CLUSTER_A,
@@ -173,11 +178,12 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
                 useProxyMode,
                 minimizeRoundtrips,
                 encodedCredential,
+                this::assertRemoteAccessAuthenticationMatchesNativeUser,
                 new RoleDescriptorsIntersection(
                     List.of(
                         Set.of(
                             new RoleDescriptor(
-                                RBACEngine.REMOTE_USER_ROLE_NAME,
+                                Role.REMOTE_USER_ROLE_NAME,
                                 null,
                                 new RoleDescriptor.IndicesPrivileges[] {
                                     RoleDescriptor.IndicesPrivileges.builder()
@@ -230,13 +236,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
             final boolean minimizeRoundtrips = randomBoolean();
             final Request searchRequest = new Request(
                 "GET",
-                String.format(
-                    Locale.ROOT,
-                    "/%s:index-a,%s:index-*/_search?ccs_minimize_roundtrips=%s",
-                    CLUSTER_A,
-                    CLUSTER_B,
-                    minimizeRoundtrips
-                )
+                Strings.format("/%s:index-a,%s:index-*/_search?ccs_minimize_roundtrips=%s", CLUSTER_A, CLUSTER_B, minimizeRoundtrips)
             );
             searchRequest.setOptions(
                 searchRequest.getOptions()
@@ -253,11 +253,12 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
                 useProxyModeA,
                 minimizeRoundtrips,
                 clusterCredentialA,
+                this::assertRemoteAccessAuthenticationMatchesNativeUser,
                 new RoleDescriptorsIntersection(
                     List.of(
                         Set.of(
                             new RoleDescriptor(
-                                RBACEngine.REMOTE_USER_ROLE_NAME,
+                                Role.REMOTE_USER_ROLE_NAME,
                                 null,
                                 new RoleDescriptor.IndicesPrivileges[] {
                                     RoleDescriptor.IndicesPrivileges.builder()
@@ -280,11 +281,12 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
                 useProxyModeB,
                 minimizeRoundtrips,
                 clusterCredentialB,
+                this::assertRemoteAccessAuthenticationMatchesNativeUser,
                 new RoleDescriptorsIntersection(
                     List.of(
                         Set.of(
                             new RoleDescriptor(
-                                RBACEngine.REMOTE_USER_ROLE_NAME,
+                                Role.REMOTE_USER_ROLE_NAME,
                                 null,
                                 new RoleDescriptor.IndicesPrivileges[] {
                                     RoleDescriptor.IndicesPrivileges.builder()
@@ -309,6 +311,538 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
         }
     }
 
+    public void testApiKeyRemoteAccessHeadersSentMultipleRemotes() throws Exception {
+        final Tuple<String, String> apiKeyTuple = createOrGrantApiKey("""
+            {
+              "name": "my-api-key",
+              "role_descriptors": {
+                "role-a": {
+                  "index": [
+                    {
+                      "names": ["index-a*"],
+                      "privileges": ["all"]
+                    }
+                  ],
+                  "remote_indices": [
+                    {
+                      "names": ["index-a*"],
+                      "privileges": ["all"],
+                      "clusters": ["my_remote_cluster*"]
+                    }
+                  ]
+                },
+                "role-b": {
+                  "index": [
+                    {
+                      "names": ["index-b*"],
+                      "privileges": ["all"]
+                    }
+                  ],
+                  "remote_indices": [
+                    {
+                      "names": ["index-b*"],
+                      "privileges": ["all"],
+                      "clusters": ["my_remote_cluster_b"]
+                    }
+                  ]
+                }
+              }
+            }
+            """);
+
+        final String apiKeyEncoded = apiKeyTuple.v2();
+
+        final Map<String, BlockingQueue<CapturedActionWithHeaders>> capturedHeadersByCluster = Map.of(
+            CLUSTER_A,
+            ConcurrentCollections.newBlockingQueue(),
+            CLUSTER_B,
+            ConcurrentCollections.newBlockingQueue()
+        );
+        try (
+            MockTransportService remoteTransportA = startTransport("remoteNodeA", threadPool, capturedHeadersByCluster.get(CLUSTER_A));
+            MockTransportService remoteTransportB = startTransport("remoteNodeB", threadPool, capturedHeadersByCluster.get(CLUSTER_B))
+        ) {
+            final String clusterCredentialA = randomBase64UUID(random());
+            final boolean useProxyModeA = randomBoolean();
+            setupClusterSettings(
+                CLUSTER_A,
+                clusterCredentialA,
+                remoteTransportA.getOriginalTransport().profileBoundAddresses().get("_remote_cluster").publishAddress(),
+                useProxyModeA
+            );
+
+            final String clusterCredentialB = randomBase64UUID(random());
+            final boolean useProxyModeB = randomBoolean();
+            setupClusterSettings(
+                CLUSTER_B,
+                clusterCredentialB,
+                remoteTransportB.getOriginalTransport().profileBoundAddresses().get("_remote_cluster").publishAddress(),
+                useProxyModeB
+            );
+
+            final boolean minimizeRoundtrips = randomBoolean();
+            final Request searchRequest = new Request(
+                "GET",
+                Strings.format("/%s:index-a,%s:index-*/_search?ccs_minimize_roundtrips=%s", CLUSTER_A, CLUSTER_B, minimizeRoundtrips)
+            );
+            searchRequest.setOptions(searchRequest.getOptions().toBuilder().addHeader("Authorization", "ApiKey " + apiKeyEncoded));
+
+            final Response response = client().performRequest(searchRequest);
+            assertOK(response);
+            assertThat(ObjectPath.createFromResponse(response).evaluate("hits.total.value"), equalTo(0));
+
+            expectActionsAndHeadersForCluster(
+                List.copyOf(capturedHeadersByCluster.get(CLUSTER_A)),
+                useProxyModeA,
+                minimizeRoundtrips,
+                clusterCredentialA,
+                this::assertRemoteAccessAuthenticationMatchesApiKey,
+                new RoleDescriptorsIntersection(
+                    List.of(
+                        // Base API key role
+                        Set.of(
+                            new RoleDescriptor(
+                                Role.REMOTE_USER_ROLE_NAME,
+                                null,
+                                new RoleDescriptor.IndicesPrivileges[] {
+                                    RoleDescriptor.IndicesPrivileges.builder().indices("index-a*").privileges("all").build() },
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
+                            )
+                        ),
+                        // Limited by API key role
+                        Set.of(
+                            new RoleDescriptor(
+                                Role.REMOTE_USER_ROLE_NAME,
+                                null,
+                                new RoleDescriptor.IndicesPrivileges[] {
+                                    RoleDescriptor.IndicesPrivileges.builder()
+                                        .indices("index-a")
+                                        .privileges("read", "read_cross_cluster")
+                                        .build() },
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
+                            )
+                        )
+                    )
+                )
+            );
+            expectActionsAndHeadersForCluster(
+                List.copyOf(capturedHeadersByCluster.get(CLUSTER_B)),
+                useProxyModeB,
+                minimizeRoundtrips,
+                clusterCredentialB,
+                this::assertRemoteAccessAuthenticationMatchesApiKey,
+                new RoleDescriptorsIntersection(
+                    List.of(
+                        Set.of(
+                            new RoleDescriptor(
+                                Role.REMOTE_USER_ROLE_NAME,
+                                null,
+                                new RoleDescriptor.IndicesPrivileges[] {
+                                    RoleDescriptor.IndicesPrivileges.builder().indices("index-a*").privileges("all").build(),
+                                    RoleDescriptor.IndicesPrivileges.builder().indices("index-b*").privileges("all").build() },
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
+                            )
+                        ),
+                        Set.of(
+                            new RoleDescriptor(
+                                Role.REMOTE_USER_ROLE_NAME,
+                                null,
+                                new RoleDescriptor.IndicesPrivileges[] {
+                                    RoleDescriptor.IndicesPrivileges.builder()
+                                        .indices("index-a")
+                                        .privileges("read", "read_cross_cluster")
+                                        .build(),
+                                    RoleDescriptor.IndicesPrivileges.builder()
+                                        .indices("index-b")
+                                        .privileges("read", "read_cross_cluster")
+                                        .build() },
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
+                            )
+                        )
+                    )
+                )
+            );
+        }
+    }
+
+    public void testApiKeyRemoteAccessHeadersSentSingleRemote() throws Exception {
+        final boolean createApiKeyWithRoleDescriptors = randomBoolean();
+        final Tuple<String, String> apiKeyTuple; // id, encoded
+        if (createApiKeyWithRoleDescriptors) {
+            apiKeyTuple = createOrGrantApiKey("""
+                {
+                  "name": "my-api-key",
+                  "role_descriptors": {
+                    "role-a": {
+                      "index": [
+                        {
+                          "names": ["index-a*"],
+                          "privileges": ["all"]
+                        }
+                      ],
+                      "remote_indices": [
+                        {
+                          "names": ["index-a*"],
+                          "privileges": ["all"],
+                          "clusters": ["my_remote_cluster*"]
+                        }
+                      ]
+                    },
+                    "role-b": {
+                      "index": [
+                        {
+                          "names": ["index-b*"],
+                          "privileges": ["all"]
+                        }
+                      ],
+                      "remote_indices": [
+                        {
+                          "names": ["index-b*"],
+                          "privileges": ["all"],
+                          "clusters": ["my_remote_cluster_b"]
+                        }
+                      ]
+                    }
+                  }
+                }
+                """);
+        } else {
+            apiKeyTuple = createOrGrantApiKey("""
+                {
+                  "name": "my-api-key"
+                }
+                """);
+        }
+
+        final String apiKeyId = apiKeyTuple.v1();
+        final String apiKeyEncoded = apiKeyTuple.v2();
+
+        {
+            final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection;
+            if (createApiKeyWithRoleDescriptors) {
+                expectedRoleDescriptorsIntersection = new RoleDescriptorsIntersection(
+                    List.of(
+                        // Base API key role
+                        Set.of(
+                            new RoleDescriptor(
+                                Role.REMOTE_USER_ROLE_NAME,
+                                null,
+                                new RoleDescriptor.IndicesPrivileges[] {
+                                    RoleDescriptor.IndicesPrivileges.builder().indices("index-a*").privileges("all").build() },
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
+                            )
+                        ),
+                        // Limited by API key role
+                        Set.of(
+                            new RoleDescriptor(
+                                Role.REMOTE_USER_ROLE_NAME,
+                                null,
+                                new RoleDescriptor.IndicesPrivileges[] {
+                                    RoleDescriptor.IndicesPrivileges.builder()
+                                        .indices("index-a")
+                                        .privileges("read", "read_cross_cluster")
+                                        .build() },
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
+                            )
+                        )
+                    )
+                );
+            } else {
+                expectedRoleDescriptorsIntersection = new RoleDescriptorsIntersection(
+                    List.of(
+                        Set.of(
+                            new RoleDescriptor(
+                                Role.REMOTE_USER_ROLE_NAME,
+                                null,
+                                new RoleDescriptor.IndicesPrivileges[] {
+                                    RoleDescriptor.IndicesPrivileges.builder()
+                                        .indices("index-a")
+                                        .privileges("read", "read_cross_cluster")
+                                        .build() },
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
+                            )
+                        )
+                    )
+                );
+            }
+            testCcsWithApiKeyRemoteAccessAuthenticationAgainstSingleCluster(
+                CLUSTER_A + "_1",
+                apiKeyEncoded,
+                expectedRoleDescriptorsIntersection
+            );
+        }
+
+        // updating API key to test opposite
+        // -> if we created API key with role descriptors, then we test authentication after removing them and vice versa
+        boolean updateApiKeyWithRoleDescriptors = createApiKeyWithRoleDescriptors == false;
+        if (updateApiKeyWithRoleDescriptors) {
+            updateOrBulkUpdateApiKey(apiKeyId, """
+                 {
+                    "role-a": {
+                      "index": [
+                        {
+                          "names": ["index-a*"],
+                          "privileges": ["all"]
+                        }
+                      ],
+                      "remote_indices": [
+                        {
+                          "names": ["index-a*"],
+                          "privileges": ["all"],
+                          "clusters": ["my_remote_cluster*"]
+                        }
+                      ]
+                    },
+                    "role-b": {
+                      "index": [
+                        {
+                          "names": ["index-b*"],
+                          "privileges": ["all"]
+                        }
+                      ],
+                      "remote_indices": [
+                        {
+                          "names": ["index-b*"],
+                          "privileges": ["all"],
+                          "clusters": ["my_remote_cluster_b"]
+                        }
+                      ]
+                    }
+                 }
+                """);
+        } else {
+            updateOrBulkUpdateApiKey(apiKeyId, """
+                 { }
+                """);
+        }
+
+        {
+            final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection;
+            if (updateApiKeyWithRoleDescriptors) {
+                expectedRoleDescriptorsIntersection = new RoleDescriptorsIntersection(
+                    List.of(
+                        // Base API key role
+                        Set.of(
+                            new RoleDescriptor(
+                                Role.REMOTE_USER_ROLE_NAME,
+                                null,
+                                new RoleDescriptor.IndicesPrivileges[] {
+                                    RoleDescriptor.IndicesPrivileges.builder().indices("index-a*").privileges("all").build() },
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
+                            )
+                        ),
+                        // Limited by API key role
+                        Set.of(
+                            new RoleDescriptor(
+                                Role.REMOTE_USER_ROLE_NAME,
+                                null,
+                                new RoleDescriptor.IndicesPrivileges[] {
+                                    RoleDescriptor.IndicesPrivileges.builder()
+                                        .indices("index-a")
+                                        .privileges("read", "read_cross_cluster")
+                                        .build() },
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
+                            )
+                        )
+                    )
+                );
+            } else {
+                expectedRoleDescriptorsIntersection = new RoleDescriptorsIntersection(
+                    List.of(
+                        Set.of(
+                            new RoleDescriptor(
+                                Role.REMOTE_USER_ROLE_NAME,
+                                null,
+                                new RoleDescriptor.IndicesPrivileges[] {
+                                    RoleDescriptor.IndicesPrivileges.builder()
+                                        .indices("index-a")
+                                        .privileges("read", "read_cross_cluster")
+                                        .build() },
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
+                            )
+                        )
+                    )
+                );
+            }
+            testCcsWithApiKeyRemoteAccessAuthenticationAgainstSingleCluster(
+                CLUSTER_A + "_2",
+                apiKeyEncoded,
+                expectedRoleDescriptorsIntersection
+            );
+        }
+    }
+
+    private void testCcsWithApiKeyRemoteAccessAuthenticationAgainstSingleCluster(
+        String cluster,
+        String apiKeyEncoded,
+        RoleDescriptorsIntersection expectedRoleDescriptorsIntersection
+    ) throws IOException {
+        final BlockingQueue<CapturedActionWithHeaders> capturedHeaders = ConcurrentCollections.newBlockingQueue();
+        try (MockTransportService remoteTransport = startTransport("remoteNode-" + cluster, threadPool, capturedHeaders)) {
+            final String clusterCredential = randomBase64UUID(random());
+            final TransportAddress remoteAddress = remoteTransport.getOriginalTransport()
+                .profileBoundAddresses()
+                .get("_remote_cluster")
+                .publishAddress();
+            final boolean useProxyMode = randomBoolean();
+            setupClusterSettings(cluster, clusterCredential, remoteAddress, useProxyMode);
+            final boolean alsoSearchLocally = randomBoolean();
+            final boolean minimizeRoundtrips = randomBoolean();
+            final Request searchRequest = new Request(
+                "GET",
+                Strings.format(
+                    "/%s%s:index-a/_search?ccs_minimize_roundtrips=%s",
+                    alsoSearchLocally ? "index-a," : "",
+                    cluster,
+                    minimizeRoundtrips
+                )
+            );
+            searchRequest.setOptions(searchRequest.getOptions().toBuilder().addHeader("Authorization", "ApiKey " + apiKeyEncoded));
+
+            final Response response = client().performRequest(searchRequest);
+            assertOK(response);
+            assertThat(ObjectPath.createFromResponse(response).evaluate("hits.total.value"), equalTo(alsoSearchLocally ? 1 : 0));
+
+            expectActionsAndHeadersForCluster(
+                List.copyOf(capturedHeaders),
+                useProxyMode,
+                minimizeRoundtrips,
+                clusterCredential,
+                this::assertRemoteAccessAuthenticationMatchesApiKey,
+                expectedRoleDescriptorsIntersection
+            );
+        }
+    }
+
+    private Tuple<String, String> createOrGrantApiKey(String body) throws IOException {
+        final Request createApiKeyRequest;
+        final boolean grantApiKey = randomBoolean();
+        if (grantApiKey) {
+            createApiKeyRequest = new Request("POST", "/_security/api_key/grant");
+            createApiKeyRequest.setJsonEntity(Strings.format("""
+                    {
+                        "grant_type" : "password",
+                        "username"   : "%s",
+                        "password"   : "%s",
+                        "api_key"    :  %s
+                    }
+                """, REMOTE_SEARCH_USER, PASSWORD, body));
+        } else {
+            createApiKeyRequest = new Request("POST", "_security/api_key");
+            createApiKeyRequest.setJsonEntity(body);
+            createApiKeyRequest.setOptions(
+                createApiKeyRequest.getOptions()
+                    .toBuilder()
+                    .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(REMOTE_SEARCH_USER, PASSWORD))
+            );
+        }
+
+        final Response createApiKeyResponse;
+        if (grantApiKey) {
+            createApiKeyResponse = adminClient().performRequest(createApiKeyRequest);
+        } else {
+            createApiKeyResponse = client().performRequest(createApiKeyRequest);
+        }
+        assertOK(createApiKeyResponse);
+
+        final ObjectPath path = ObjectPath.createFromResponse(createApiKeyResponse);
+        final String apiKeyEncoded = path.evaluate("encoded");
+        final String apiKeyId = path.evaluate("id");
+        assertThat(apiKeyEncoded, notNullValue());
+        assertThat(apiKeyId, notNullValue());
+
+        return Tuple.tuple(apiKeyId, apiKeyEncoded);
+    }
+
+    private void updateOrBulkUpdateApiKey(String id, String roleDescriptors) throws IOException {
+        final Request updateApiKeyRequest;
+        final boolean bulkUpdate = randomBoolean();
+        if (bulkUpdate) {
+            updateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
+            updateApiKeyRequest.setJsonEntity(Strings.format("""
+                {
+                    "ids": [ "%s" ],
+                    "role_descriptors": %s
+                }
+                """, id, roleDescriptors));
+        } else {
+            updateApiKeyRequest = new Request("PUT", "_security/api_key/" + id);
+            updateApiKeyRequest.setJsonEntity(Strings.format("""
+                {
+                    "role_descriptors": %s
+                }
+                """, roleDescriptors));
+        }
+
+        updateApiKeyRequest.setOptions(
+            updateApiKeyRequest.getOptions()
+                .toBuilder()
+                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(REMOTE_SEARCH_USER, PASSWORD))
+        );
+
+        final Response updateApiKeyResponse = client().performRequest(updateApiKeyRequest);
+        assertOK(updateApiKeyResponse);
+
+        if (bulkUpdate) {
+            List<String> updated = ObjectPath.createFromResponse(updateApiKeyResponse).evaluate("updated");
+            assertThat(updated.size(), equalTo(1));
+            assertThat(updated.get(0), equalTo(id));
+        } else {
+            boolean updated = ObjectPath.createFromResponse(updateApiKeyResponse).evaluate("updated");
+            assertThat(updated, equalTo(true));
+        }
+    }
+
     private void setupClusterSettings(
         final String clusterAlias,
         final String clusterCredential,
@@ -325,11 +859,76 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
         }
     }
 
+    private void assertRemoteAccessAuthenticationMatchesNativeUser(
+        final RemoteAccessAuthentication actualRemoteAccessAuthentication,
+        final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection
+    ) {
+        try {
+            final RemoteAccessAuthentication expectedRemoteAccessAuthentication = new RemoteAccessAuthentication(
+                Authentication.newRealmAuthentication(
+                    new User(REMOTE_SEARCH_USER, REMOTE_SEARCH_ROLE),
+                    new Authentication.RealmRef(
+                        "default_native",
+                        "native",
+                        // Since we are running on a multi-node cluster the actual node name may be different between runs
+                        // so just copy the one from the actual result
+                        actualRemoteAccessAuthentication.getAuthentication().getEffectiveSubject().getRealm().getNodeName()
+                    )
+                ),
+                expectedRoleDescriptorsIntersection
+            );
+            assertThat(actualRemoteAccessAuthentication, equalTo(expectedRemoteAccessAuthentication));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private void assertRemoteAccessAuthenticationMatchesApiKey(
+        final RemoteAccessAuthentication actualRemoteAccessAuthentication,
+        final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection
+    ) {
+        try {
+            assertThat(
+                actualRemoteAccessAuthentication.getAuthentication().getEffectiveSubject().getRealm(),
+                equalTo(
+                    new Authentication.RealmRef(
+                        AuthenticationField.API_KEY_REALM_NAME,
+                        AuthenticationField.API_KEY_REALM_TYPE,
+                        // Since we are running on a multi-node cluster the actual node name may be different between runs
+                        // so just copy the one from the actual result
+                        actualRemoteAccessAuthentication.getAuthentication().getEffectiveSubject().getRealm().getNodeName()
+                    )
+                )
+            );
+            assertThat(
+                actualRemoteAccessAuthentication.getAuthentication().getEffectiveSubject().getUser().principal(),
+                equalTo(REMOTE_SEARCH_USER)
+            );
+            assertThat(
+                actualRemoteAccessAuthentication.getRoleDescriptorsBytesList(),
+                equalTo(toRoleDescriptorsBytesList(expectedRoleDescriptorsIntersection))
+            );
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static List<RemoteAccessAuthentication.RoleDescriptorsBytes> toRoleDescriptorsBytesList(
+        final RoleDescriptorsIntersection roleDescriptorsIntersection
+    ) throws IOException {
+        final List<RemoteAccessAuthentication.RoleDescriptorsBytes> roleDescriptorsBytesList = new ArrayList<>();
+        for (Set<RoleDescriptor> roleDescriptors : roleDescriptorsIntersection.roleDescriptorsList()) {
+            roleDescriptorsBytesList.add(RemoteAccessAuthentication.RoleDescriptorsBytes.fromRoleDescriptors(roleDescriptors));
+        }
+        return roleDescriptorsBytesList;
+    }
+
     private void expectActionsAndHeadersForCluster(
         final List<CapturedActionWithHeaders> actualActionsWithHeaders,
         boolean useProxyMode,
         boolean minimizeRoundtrips,
         final String encodedCredential,
+        final BiConsumer<RemoteAccessAuthentication, RoleDescriptorsIntersection> remoteAccessAuthenticationChecker,
         final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection
     ) throws IOException {
         final Set<String> expectedActions = new HashSet<>();
@@ -373,20 +972,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
                     final var actualRemoteAccessAuthentication = RemoteAccessAuthentication.decode(
                         actual.headers().get(RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY)
                     );
-                    final var expectedRemoteAccessAuthentication = new RemoteAccessAuthentication(
-                        Authentication.newRealmAuthentication(
-                            new User(REMOTE_SEARCH_USER, REMOTE_SEARCH_ROLE),
-                            new Authentication.RealmRef(
-                                "default_native",
-                                "native",
-                                // Since we are running on a multi-node cluster the actual node name may be different between runs
-                                // so just copy the one from the actual result
-                                actualRemoteAccessAuthentication.getAuthentication().getEffectiveSubject().getRealm().getNodeName()
-                            )
-                        ),
-                        expectedRoleDescriptorsIntersection
-                    );
-                    assertThat(actualRemoteAccessAuthentication, equalTo(expectedRemoteAccessAuthentication));
+                    remoteAccessAuthenticationChecker.accept(actualRemoteAccessAuthentication, expectedRoleDescriptorsIntersection);
                 }
                 default -> fail("Unexpected action [" + actual.action + "]");
             }

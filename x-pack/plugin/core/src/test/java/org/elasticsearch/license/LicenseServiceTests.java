@@ -17,15 +17,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.licensor.LicenseSigner;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -178,8 +175,6 @@ public class LicenseServiceTests extends ESTestCase {
             mock(ThreadPool.class),
             clusterService,
             clock,
-            TestEnvironment.newEnvironment(settings),
-            mock(ResourceWatcherService.class),
             mock(XPackLicenseState.class)
         );
 
@@ -264,19 +259,9 @@ public class LicenseServiceTests extends ESTestCase {
 
         final ClusterService clusterService = mockDefaultClusterService();
         final Clock clock = randomBoolean() ? Clock.systemUTC() : Clock.systemDefaultZone();
-        final Environment env = TestEnvironment.newEnvironment(settings);
-        final ResourceWatcherService resourceWatcherService = mock(ResourceWatcherService.class);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final ThreadPool threadPool = mock(ThreadPool.class);
-        final LicenseService service = new LicenseService(
-            settings,
-            threadPool,
-            clusterService,
-            clock,
-            env,
-            resourceWatcherService,
-            licenseState
-        );
+        final LicenseService service = new LicenseService(settings, threadPool, clusterService, clock, licenseState);
 
         final PutLicenseRequest request = new PutLicenseRequest();
         request.license(toSpec(license), XContentType.JSON);

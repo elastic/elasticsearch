@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
@@ -867,6 +869,82 @@ public class AuthenticationTests extends ESTestCase {
             ),
             equalTo(realmRefWithDomain)
         );
+    }
+
+    public void testMaybeRewriteMetadataForApiKeyRoleDescriptorsWithRemoteAccess() {
+        final String apiKeyId = randomAlphaOfLengthBetween(1, 10);
+        final String apiKeyName = randomAlphaOfLengthBetween(1, 10);
+        final Map<String, Object> metadata = Map.ofEntries(
+            Map.entry(AuthenticationField.API_KEY_ID_KEY, apiKeyId),
+            Map.entry(AuthenticationField.API_KEY_NAME_KEY, apiKeyName),
+            Map.entry(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("""
+                {"base_role":{"cluster":["all"],
+                "remote_indices":{"names":["logs-*"],"privileges":["read"],"clusters":["my_cluster*","other_cluster"]}}
+                }""")),
+            Map.entry(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("""
+                {"limited_by_role":{"cluster":["*"],
+                "remote_indices":{"names":["logs-*-*"],"privileges":["write"],"clusters":["my_cluster*"]}}
+                }"""))
+        );
+
+        final Authentication original = AuthenticationTestHelper.builder()
+            .apiKey()
+            .metadata(metadata)
+            .transportVersion(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES)
+            .build();
+
+        // pick a version before that of the authentication instance to force a rewrite
+        final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            Authentication.VERSION_API_KEY_ROLES_AS_BYTES,
+            original.getEffectiveSubject().getTransportVersion()
+        );
+
+        final Map<String, Object> rewrittenMetadata = original.maybeRewriteForOlderVersion(olderVersion)
+            .getEffectiveSubject()
+            .getMetadata();
+        assertThat(rewrittenMetadata.keySet(), equalTo(original.getAuthenticatingSubject().getMetadata().keySet()));
+        assertThat(
+            ((BytesReference) rewrittenMetadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)).toBytesRef(),
+            equalTo(new BytesArray("""
+                {"base_role":{"cluster":["all"]}}""").toBytesRef())
+        );
+        assertThat(
+            ((BytesReference) rewrittenMetadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)).toBytesRef(),
+            equalTo(new BytesArray("""
+                {"limited_by_role":{"cluster":["*"]}}""").toBytesRef())
+        );
+    }
+
+    public void testMaybeRemoveRemoteIndicesFromRoleDescriptors() {
+        final boolean includeClusterPrivileges = randomBoolean();
+        final BytesReference roleWithoutRemoteIndices = new BytesArray(Strings.format("""
+            {"user_role":{%s}}""", includeClusterPrivileges ? """
+            "cluster":["all"]""" : ""));
+
+        // role without remote indices should stay the same
+        assertThat(
+            roleWithoutRemoteIndices.toBytesRef(),
+            equalTo(Authentication.maybeRemoveRemoteIndicesFromRoleDescriptors(roleWithoutRemoteIndices).toBytesRef())
+        );
+
+        // role with remote indices should be filtered
+        assertThat(
+            roleWithoutRemoteIndices.toBytesRef(),
+            equalTo(Authentication.maybeRemoveRemoteIndicesFromRoleDescriptors(new BytesArray(Strings.format("""
+                {"user_role":{%s
+                "remote_indices":{"names":["logs-*"],"privileges":["read"],"clusters":["my_cluster*","other_cluster"]}}
+                }""", includeClusterPrivileges ? """
+                "cluster":["all"],""" : ""))).toBytesRef())
+        );
+
+        // check null value
+        assertThat(null, equalTo(Authentication.maybeRemoveRemoteIndicesFromRoleDescriptors(null)));
+
+        // and an empty map
+        final BytesReference empty = randomBoolean() ? new BytesArray("""
+            {}""") : new BytesArray("");
+        assertThat(empty.toBytesRef(), equalTo(Authentication.maybeRemoveRemoteIndicesFromRoleDescriptors(empty).toBytesRef()));
     }
 
     private void runWithAuthenticationToXContent(Authentication authentication, Consumer<Map<String, Object>> consumer) throws IOException {

@@ -99,6 +99,7 @@ import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyCredentials;
@@ -2027,6 +2028,96 @@ public class ApiKeyServiceTests extends ESTestCase {
             () -> ApiKeyService.getApiKeyMetadata(authentication)
         );
         assertThat(e.getMessage(), containsString("authentication realm must be [_es_api_key]"));
+    }
+
+    public void testMaybeRemoveRemoteIndicesPrivilegesWithUnsupportedVersion() {
+        final String apiKeyId = randomAlphaOfLengthBetween(5, 8);
+        final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(
+            randomList(1, 3, () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean()))
+        );
+
+        // Selecting random unsupported version.
+        final TransportVersion minNodeVersion = randomFrom(
+            Version.getDeclaredVersions(Version.class)
+                .stream()
+                .filter(v -> v.transportVersion.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES))
+                .map(v -> v.transportVersion)
+                .toList()
+        );
+
+        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemoteIndicesPrivileges(userRoleDescriptors, minNodeVersion, apiKeyId);
+        assertThat(result.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges), equalTo(false));
+        assertThat(result.size(), equalTo(userRoleDescriptors.size()));
+
+        // Roles for which warning headers are added.
+        final String[] userRoleNamesWithRemoteIndicesPrivileges = userRoleDescriptors.stream()
+            .filter(RoleDescriptor::hasRemoteIndicesPrivileges)
+            .map(RoleDescriptor::getName)
+            .toArray(String[]::new);
+
+        if (userRoleNamesWithRemoteIndicesPrivileges.length > 0) {
+            assertWarnings(
+                "Removed API key's remote indices privileges from role(s) ["
+                    + Arrays.stream(userRoleNamesWithRemoteIndicesPrivileges).collect(Collectors.toSet())
+                    + "]. Remote indices are not supported by all nodes in the cluster. "
+                    + "Use the update API Key API to re-assign remote indices to the API key(s), after the cluster upgrade is complete."
+            );
+        }
+    }
+
+    public void testMaybeRemoveRemoteIndicesPrivilegesWithSupportedVersion() {
+        final String apiKeyId = randomAlphaOfLengthBetween(5, 8);
+        final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(randomList(1, 3, () -> randomRoleDescriptorWithRemoteIndexPrivileges()));
+
+        // Selecting random supported version.
+        final TransportVersion minNodeVersion = randomFrom(
+            Version.getDeclaredVersions(Version.class)
+                .stream()
+                .filter(v -> v.transportVersion.onOrAfter(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES))
+                .map(v -> v.transportVersion)
+                .toList()
+        );
+
+        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemoteIndicesPrivileges(userRoleDescriptors, minNodeVersion, apiKeyId);
+
+        // User roles should be unchanged.
+        assertThat(result, equalTo(userRoleDescriptors));
+    }
+
+    public void testBuildDelimitedStringWithLimit() {
+        int limit = 2;
+        assertThat(ApiKeyService.buildDelimitedStringWithLimit(limit), equalTo(""));
+        assertThat(ApiKeyService.buildDelimitedStringWithLimit(limit, new String[] {}), equalTo(""));
+        assertThat(ApiKeyService.buildDelimitedStringWithLimit(limit, "id-1"), equalTo("id-1"));
+        assertThat(ApiKeyService.buildDelimitedStringWithLimit(limit, "id-1", "id-2"), equalTo("id-1, id-2"));
+        assertThat(
+            ApiKeyService.buildDelimitedStringWithLimit(limit, "id-1", "id-2", "id-3"),
+            equalTo("id-1, id-2... (3 in total, 1 omitted)")
+        );
+        assertThat(
+            ApiKeyService.buildDelimitedStringWithLimit(limit, "id-1", "id-2", "id-3", "id-4"),
+            equalTo("id-1, id-2... (4 in total, 2 omitted)")
+        );
+
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ApiKeyService.buildDelimitedStringWithLimit(randomIntBetween(-5, 0), "not-relevant-for-this-test")
+        );
+        assertThat(e.getMessage(), equalTo("limit must be positive number"));
+    }
+
+    private static RoleDescriptor randomRoleDescriptorWithRemoteIndexPrivileges() {
+        return new RoleDescriptor(
+            randomAlphaOfLengthBetween(3, 90),
+            randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
+            RoleDescriptorTests.randomIndicesPrivileges(0, 3),
+            RoleDescriptorTests.randomApplicationPrivileges(),
+            RoleDescriptorTests.randomClusterPrivileges(),
+            generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
+            RoleDescriptorTests.randomRoleDescriptorMetadata(randomBoolean()),
+            Map.of(),
+            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 3)
+        );
     }
 
     public static class Utils {

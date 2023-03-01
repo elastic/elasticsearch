@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -47,6 +48,7 @@ import org.elasticsearch.common.cache.RemovalNotification.RemovalReason;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -67,7 +69,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -121,6 +122,7 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -299,8 +301,36 @@ public class ApiKeyService {
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else {
-            createApiKeyAndIndexIt(authentication, request, userRoleDescriptors, listener);
+            final TransportVersion version = getMinNodeTransportVersion();
+            if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES) && hasRemoteIndices(request.getRoleDescriptors())) {
+                // Creating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
+                listener.onFailure(
+                    new IllegalStateException(
+                        "all nodes must have version ["
+                            + Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES
+                            + "] or higher to support remote indices privileges for API keys"
+                    )
+                );
+                return;
+            }
+
+            final Set<RoleDescriptor> filteredUserRoleDescriptors = maybeRemoveRemoteIndicesPrivileges(
+                userRoleDescriptors,
+                version,
+                request.getId()
+            );
+
+            createApiKeyAndIndexIt(authentication, request, filteredUserRoleDescriptors, listener);
         }
+    }
+
+    private TransportVersion getMinNodeTransportVersion() {
+        // TODO here a node version is mixed with a transportVersion. We should look into this once Node's Version is refactored
+        return clusterService.state().nodes().getMinNodeVersion().transportVersion;
+    }
+
+    private static boolean hasRemoteIndices(Collection<RoleDescriptor> roleDescriptors) {
+        return roleDescriptors != null && roleDescriptors.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges);
     }
 
     private void createApiKeyAndIndexIt(
@@ -309,12 +339,6 @@ public class ApiKeyService {
         Set<RoleDescriptor> userRoleDescriptors,
         ActionListener<CreateApiKeyResponse> listener
     ) {
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()
-            && (userRoleDescriptors.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges)
-                || request.getRoleDescriptors().stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges))) {
-            throw new IllegalArgumentException("remote indices not supported for API keys");
-        }
-
         final Instant created = clock.instant();
         final Instant expiration = getApiKeyExpiration(created, request);
         final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
@@ -388,19 +412,30 @@ public class ApiKeyService {
             return;
         }
 
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()
-            && (userRoleDescriptors.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges)
-                || (request.getRoleDescriptors() != null
-                    && request.getRoleDescriptors().stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges)))) {
-            throw new IllegalArgumentException("remote indices not supported for API keys");
+        final TransportVersion version = getMinNodeTransportVersion();
+        if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES) && hasRemoteIndices(request.getRoleDescriptors())) {
+            // Updating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
+            listener.onFailure(
+                new IllegalStateException(
+                    "all nodes must have version ["
+                        + Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES
+                        + "] or higher to support remote indices privileges for API keys"
+                )
+            );
+            return;
         }
 
-        logger.debug("Updating [{}] API keys", request.getIds().size());
+        final String[] apiKeyIds = request.getIds().toArray(String[]::new);
+        final Set<RoleDescriptor> filteredUserRoleDescriptors = maybeRemoveRemoteIndicesPrivileges(userRoleDescriptors, version, apiKeyIds);
+
+        if (logger.isDebugEnabled()) {
+            logger.debug("Updating [{}] API keys", buildDelimitedStringWithLimit(10, apiKeyIds));
+        }
         findVersionedApiKeyDocsForSubject(
             authentication,
-            request.getIds().toArray(new String[0]),
+            apiKeyIds,
             ActionListener.wrap(
-                versionedDocs -> updateApiKeys(authentication, request, userRoleDescriptors, versionedDocs, listener),
+                versionedDocs -> updateApiKeys(authentication, request, filteredUserRoleDescriptors, versionedDocs, listener),
                 ex -> listener.onFailure(traceLog("bulk update", ex))
             )
         );
@@ -478,6 +513,91 @@ public class ApiKeyService {
         if (Strings.isNullOrEmpty(apiKeyDoc.name)) {
             throw new IllegalArgumentException("cannot update legacy API key [" + apiKeyId + "] without name");
         }
+    }
+
+    /**
+     * This method removes remote indices privileges from the given role descriptors
+     * when we are in a mixed cluster in which some of the nodes do not support remote indices.
+     * Storing these roles would cause parsing issues on old nodes
+     * (i.e. nodes running on version before {@link Authentication#VERSION_API_KEYS_WITH_REMOTE_INDICES}).
+     */
+    static Set<RoleDescriptor> maybeRemoveRemoteIndicesPrivileges(
+        final Set<RoleDescriptor> userRoleDescriptors,
+        final TransportVersion version,
+        final String... apiKeyIds
+    ) {
+        if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES)) {
+            final Set<String> affectedRoles = new LinkedHashSet<>();
+            final Set<RoleDescriptor> result = userRoleDescriptors.stream().map(roleDescriptor -> {
+                if (roleDescriptor.hasRemoteIndicesPrivileges()) {
+                    affectedRoles.add(roleDescriptor.getName());
+                    return new RoleDescriptor(
+                        roleDescriptor.getName(),
+                        roleDescriptor.getClusterPrivileges(),
+                        roleDescriptor.getIndicesPrivileges(),
+                        roleDescriptor.getApplicationPrivileges(),
+                        roleDescriptor.getConditionalClusterPrivileges(),
+                        roleDescriptor.getRunAs(),
+                        roleDescriptor.getMetadata(),
+                        roleDescriptor.getTransientMetadata(),
+                        null
+                    );
+                }
+                return roleDescriptor;
+            }).collect(Collectors.toSet());
+
+            if (false == affectedRoles.isEmpty()) {
+                logger.info(
+                    "removed remote indices privileges from role(s) [{}] for API key(s) [{}]",
+                    affectedRoles,
+                    buildDelimitedStringWithLimit(10, apiKeyIds)
+                );
+
+                HeaderWarning.addWarning(
+                    "Removed API key's remote indices privileges from role(s) ["
+                        + affectedRoles
+                        + "]. Remote indices are not supported by all nodes in the cluster. "
+                        + "Use the update API Key API to re-assign remote indices to the API key(s), after the cluster upgrade is complete."
+                );
+            }
+            return result;
+        }
+        return userRoleDescriptors;
+    }
+
+    /**
+     * Builds a comma delimited string from the given string values (e.g. value1, value2...).
+     * The number of values included can be controlled with the {@code limit}. The limit must be a positive number.
+     * Note: package-private for testing
+     */
+    static String buildDelimitedStringWithLimit(final int limit, final String... values) {
+        if (limit <= 0) {
+            throw new IllegalArgumentException("limit must be positive number");
+        }
+        if (values == null || values.length <= 0) {
+            return "";
+        }
+        final int total = values.length;
+        final int omitted = Math.max(0, total - limit);
+        final int valuesToAppend = Math.min(limit, total);
+        final int capacityForOmittedInfoText = 5; // The number of additional info strings we append when omitting.
+        final int capacity = valuesToAppend + (omitted > 0 ? capacityForOmittedInfoText : 0);
+        final StringBuilder sb = new StringBuilder(capacity);
+
+        int counter = 0;
+        while (counter < valuesToAppend) {
+            sb.append(values[counter]);
+            counter += 1;
+            if (counter < valuesToAppend) {
+                sb.append(", ");
+            }
+        }
+
+        if (omitted > 0) {
+            sb.append("... (").append(total).append(" in total, ").append(omitted).append(" omitted)");
+        }
+
+        return sb.toString();
     }
 
     /**

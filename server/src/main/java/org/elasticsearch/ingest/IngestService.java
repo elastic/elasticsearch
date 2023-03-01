@@ -1195,7 +1195,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return Optional.of(new Pipelines(IndexSettings.DEFAULT_PIPELINE.get(settings), IndexSettings.FINAL_PIPELINE.get(settings)));
     }
 
-    private static Optional<Pipelines> resolvePipelinesFromIndexTemplates(IndexRequest indexRequest, Metadata metadatadata) {
+    private static Optional<Pipelines> resolvePipelinesFromIndexTemplates(IndexRequest indexRequest, Metadata metadata) {
         if (indexRequest.index() == null) {
             return Optional.empty();
         }
@@ -1203,15 +1203,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         // the index does not exist yet (and this is a valid request), so match index
         // templates to look for pipelines in either a matching V2 template (which takes
         // precedence), or if a V2 template does not match, any V1 templates
-        String v2Template = MetadataIndexTemplateService.findV2Template(metadatadata, indexRequest.index(), false);
+        String v2Template = MetadataIndexTemplateService.findV2Template(metadata, indexRequest.index(), false);
         if (v2Template != null) {
-            final Settings settings = MetadataIndexTemplateService.resolveSettings(metadatadata, v2Template);
+            final Settings settings = MetadataIndexTemplateService.resolveSettings(metadata, v2Template);
             return Optional.of(new Pipelines(IndexSettings.DEFAULT_PIPELINE.get(settings), IndexSettings.FINAL_PIPELINE.get(settings)));
         }
 
         String defaultPipeline = null;
         String finalPipeline = null;
-        List<IndexTemplateMetadata> templates = MetadataIndexTemplateService.findV1Templates(metadatadata, indexRequest.index(), null);
+        List<IndexTemplateMetadata> templates = MetadataIndexTemplateService.findV1Templates(metadata, indexRequest.index(), null);
         // order of templates are the highest order first
         for (final IndexTemplateMetadata template : templates) {
             final Settings settings = template.settings();

@@ -67,6 +67,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
             ctx.fireChannelRead(httpObject);
         } else if (state == STATE.DROPPING_DATA_PERMANENTLY || state == STATE.DROPPING_DATA_UNTIL_NEXT_REQUEST) {
             assert pending.isEmpty();
+            ReferenceCountUtil.release(httpObject); // consume
             if (state == STATE.DROPPING_DATA_UNTIL_NEXT_REQUEST && httpObject instanceof LastHttpContent) {
                 state = STATE.WAITING_TO_START;
             }
@@ -186,8 +187,10 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         state = STATE.DROPPING_DATA_PERMANENTLY;
-        for (HttpObject msg : pending) {
-            ReferenceCountUtil.release(msg);
+        while (true) {
+            if (dropData() == false) {
+                break;
+            }
         }
         super.channelInactive(ctx);
     }

@@ -145,8 +145,10 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         HttpMessage messageToForward = (HttpMessage) pending.remove();
         boolean fullRequestConsumed;
         if (messageToForward instanceof LastHttpContent toRelease) {
+            // drop the original content
+            toRelease.release(2); // 1 for enqueuing, 1 for consuming
+            // replace with empty content
             messageToForward = (HttpMessage) toRelease.replace(Unpooled.EMPTY_BUFFER);
-            toRelease.release();
             fullRequestConsumed = true;
         } else {
             fullRequestConsumed = dropData();
@@ -156,7 +158,6 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
 
         assert fullRequestConsumed || pending.isEmpty();
 
-        assert state == STATE.HANDLING_QUEUED_DATA;
         if (pending.isEmpty()) {
             if (fullRequestConsumed) {
                 state = STATE.WAITING_TO_START;
@@ -174,7 +175,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
     private boolean dropData() {
         HttpObject toRelease;
         while ((toRelease = pending.poll()) != null) {
-            ReferenceCountUtil.release(toRelease);
+            ReferenceCountUtil.release(toRelease, 2); // 1 for enqueuing, 1 for consuming
             if (toRelease instanceof LastHttpContent) {
                 return true;
             }

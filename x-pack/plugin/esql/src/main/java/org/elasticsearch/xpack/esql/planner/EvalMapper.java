@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
@@ -72,7 +73,8 @@ final class EvalMapper {
         new SubstringFunction(),
         new Mapper<>(DateTrunc.class),
         new StartsWithFunction(),
-        new Mapper<>(Concat.class)
+        new Mapper<>(Concat.class),
+        new Mapper<>(Case.class)
     );
 
     private EvalMapper() {}

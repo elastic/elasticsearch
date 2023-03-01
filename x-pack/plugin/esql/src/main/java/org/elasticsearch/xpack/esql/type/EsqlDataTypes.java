@@ -80,6 +80,9 @@ public final class EsqlDataTypes {
         if (value == null) {
             return NULL;
         }
+        if (value instanceof Boolean) {
+            return BOOLEAN;
+        }
         if (value instanceof Integer) {
             return INTEGER;
         }

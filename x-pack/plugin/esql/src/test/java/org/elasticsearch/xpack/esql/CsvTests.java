@@ -187,7 +187,7 @@ public class CsvTests extends ESTestCase {
          * Comment the assertion above and enable the next two lines to see the results returned by ES without any assertions being done.
          * This is useful when creating a new test or trying to figure out what are the actual results.
          */
-        // CsvTestUtils.logMetaData(actual, LOGGER);
+        // CsvTestUtils.logMetaData(actual.columnNames(), actual.columnTypes(), LOGGER);
         // CsvTestUtils.logData(actual.values(), LOGGER);
     }
 

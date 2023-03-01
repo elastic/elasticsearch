@@ -15,14 +15,17 @@ import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.WrappingProcessor;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.hamcrest.Matchers.equalTo;
+import java.util.Map;
 
-public class DataStreamRouterProcessorTests extends ESTestCase {
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
+
+public class RerouteProcessorTests extends ESTestCase {
 
     public void testDefaults() throws Exception {
         IngestDocument ingestDocument = createIngestDocument("logs-generic-default");
 
-        DataStreamRouterProcessor processor = new DataStreamRouterProcessor(null, null, null, null);
+        RerouteProcessor processor = new RerouteProcessor(null, null, null, null, null);
         processor.execute(ingestDocument);
         assertDataSetFields(ingestDocument, "logs", "generic", "default");
     }
@@ -30,8 +33,8 @@ public class DataStreamRouterProcessorTests extends ESTestCase {
     public void testSkipFirstProcessor() throws Exception {
         IngestDocument ingestDocument = createIngestDocument("logs-generic-default");
 
-        DataStreamRouterProcessor skippedProcessor = new DataStreamRouterProcessor(null, null, "skip", null);
-        DataStreamRouterProcessor executedProcessor = new DataStreamRouterProcessor(null, null, "executed", null);
+        RerouteProcessor skippedProcessor = new RerouteProcessor(null, null, "skip", null, null);
+        RerouteProcessor executedProcessor = new RerouteProcessor(null, null, "executed", null, null);
         CompoundProcessor processor = new CompoundProcessor(new SkipProcessor(skippedProcessor), executedProcessor);
         processor.execute(ingestDocument);
         assertDataSetFields(ingestDocument, "logs", "executed", "default");
@@ -40,8 +43,8 @@ public class DataStreamRouterProcessorTests extends ESTestCase {
     public void testSkipLastProcessor() throws Exception {
         IngestDocument ingestDocument = createIngestDocument("logs-generic-default");
 
-        DataStreamRouterProcessor executedProcessor = new DataStreamRouterProcessor(null, null, "executed", null);
-        DataStreamRouterProcessor skippedProcessor = new DataStreamRouterProcessor(null, null, "skip", null);
+        RerouteProcessor executedProcessor = new RerouteProcessor(null, null, "executed", null, null);
+        RerouteProcessor skippedProcessor = new RerouteProcessor(null, null, "skip", null, null);
         CompoundProcessor processor = new CompoundProcessor(executedProcessor, skippedProcessor);
         processor.execute(ingestDocument);
         assertDataSetFields(ingestDocument, "logs", "executed", "default");
@@ -52,7 +55,7 @@ public class DataStreamRouterProcessorTests extends ESTestCase {
         ingestDocument.setFieldValue("data_stream.dataset", "foo");
         ingestDocument.setFieldValue("data_stream.namespace", "bar");
 
-        DataStreamRouterProcessor processor = new DataStreamRouterProcessor(null, null, null, null);
+        RerouteProcessor processor = new RerouteProcessor(null, null, null, null, null);
         processor.execute(ingestDocument);
         assertDataSetFields(ingestDocument, "logs", "foo", "bar");
     }
@@ -62,9 +65,18 @@ public class DataStreamRouterProcessorTests extends ESTestCase {
         ingestDocument.setFieldValue("data_stream.dataset", "foo-bar");
         ingestDocument.setFieldValue("data_stream.namespace", "baz#qux");
 
-        DataStreamRouterProcessor processor = new DataStreamRouterProcessor(null, null, null, null);
+        RerouteProcessor processor = new RerouteProcessor(null, null, null, null, null);
         processor.execute(ingestDocument);
         assertDataSetFields(ingestDocument, "logs", "foo_bar", "baz_qux");
+    }
+
+    public void testDestination() throws Exception {
+        IngestDocument ingestDocument = createIngestDocument("logs-generic-default");
+
+        RerouteProcessor processor = new RerouteProcessor(null, null, null, null, "foo");
+        processor.execute(ingestDocument);
+        assertFalse(ingestDocument.hasField("data_stream"));
+        assertThat(ingestDocument.getFieldValue("_index", String.class), equalTo("foo"));
     }
 
     private void assertDataSetFields(IngestDocument ingestDocument, String type, String dataset, String namespace) {

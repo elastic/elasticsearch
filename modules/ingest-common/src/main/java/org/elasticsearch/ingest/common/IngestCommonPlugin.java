@@ -89,7 +89,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
             entry(FingerprintProcessor.TYPE, new FingerprintProcessor.Factory()),
             entry(RegisteredDomainProcessor.TYPE, new RegisteredDomainProcessor.Factory()),
             entry(RedactProcessor.TYPE, new RedactProcessor.Factory(matcherWatchdog)),
-            entry(DataStreamRouterProcessor.TYPE, new DataStreamRouterProcessor.Factory())
+            entry(RerouteProcessor.TYPE, new RerouteProcessor.Factory())
         );
     }
 

@@ -30,12 +30,12 @@ teardown:
           {
             "processors": [
               {
-                "data_stream_router" : {
+                "reroute" : {
                   "dataset" : "first"
                 }
               },
               {
-                "data_stream_router" : {
+                "reroute" : {
                   "dataset" : "second"
                 }
               }
@@ -68,7 +68,7 @@ teardown:
           {
             "processors": [
               {
-                "data_stream_router" : {
+                "reroute" : {
                   "tag": "nginx",
                   "if" : "ctx?.log?.file?.path?.contains('nginx')",
                   "dataset": "nginx"
@@ -94,14 +94,14 @@ teardown:
           {
             "processors": [
               {
-                "data_stream_router": {
+                "reroute": {
                   "tag": "nginx.access",
                   "if": "ctx?.log?.file?.path?.contains('access')",
                   "dataset": "nginx.access"
                 }
               },
               {
-                "data_stream_router": {
+                "reroute": {
                   "tag": "nginx.error",
                   "if": "ctx?.log?.file?.path?.contains('error')",
                   "dataset": "nginx.error"

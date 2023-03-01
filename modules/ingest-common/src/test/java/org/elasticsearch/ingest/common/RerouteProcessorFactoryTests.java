@@ -15,12 +15,13 @@ import org.hamcrest.Matchers;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.nullValue;
 
-public class DataStreamRouterProcessorFactoryTests extends ESTestCase {
+public class RerouteProcessorFactoryTests extends ESTestCase {
 
     public void testSuccess() throws Exception {
-        DataStreamRouterProcessor processor = create(null, null);
+        RerouteProcessor processor = create(null, null);
         assertThat(processor.getDataStreamDataset(), nullValue());
         assertThat(processor.getDataStreamNamespace(), nullValue());
     }
@@ -35,7 +36,23 @@ public class DataStreamRouterProcessorFactoryTests extends ESTestCase {
         assertThat(e.getMessage(), Matchers.equalTo("[namespace] contains illegal characters"));
     }
 
-    private static DataStreamRouterProcessor create(String dataset, String namespace) throws Exception {
+    public void testDestinationSuccess() throws Exception {
+        RerouteProcessor processor = create(Map.of("destination", "foo"));
+        assertThat(processor.getDataStreamDataset(), nullValue());
+        assertThat(processor.getDataStreamNamespace(), nullValue());
+        assertThat(processor.getDestination(), equalTo("foo"));
+    }
+
+    public void testDestinationAndDataset() {
+        ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> create(Map.of("destination", "foo", "dataset", "bar"))
+        );
+        assertThat(e.getMessage(), Matchers.equalTo("[destination] can only be set if dataset and namespace are not set"));
+    }
+
+
+    private static RerouteProcessor create(String dataset, String namespace) throws Exception {
         Map<String, Object> config = new HashMap<>();
         if (dataset != null) {
             config.put("dataset", dataset);
@@ -43,6 +60,10 @@ public class DataStreamRouterProcessorFactoryTests extends ESTestCase {
         if (namespace != null) {
             config.put("namespace", namespace);
         }
-        return new DataStreamRouterProcessor.Factory().create(null, null, null, config);
+        return create(config);
+    }
+
+    private static RerouteProcessor create(Map<String, Object> config) throws Exception {
+        return new RerouteProcessor.Factory().create(null, null, null, new HashMap<>(config));
     }
 }

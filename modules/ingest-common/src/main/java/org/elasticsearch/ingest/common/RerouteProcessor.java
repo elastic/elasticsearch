@@ -19,8 +19,8 @@ import java.util.Objects;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 
-public final class DataStreamRouterProcessor extends AbstractProcessor {
-    public static final String TYPE = "data_stream_router";
+public final class RerouteProcessor extends AbstractProcessor {
+    public static final String TYPE = "reroute";
 
     private static final String DATA_STREAM_PREFIX = "data_stream.";
     private static final String DATA_STREAM_TYPE = DATA_STREAM_PREFIX + "type";
@@ -32,11 +32,13 @@ public final class DataStreamRouterProcessor extends AbstractProcessor {
     private static final char REPLACEMENT_CHAR = '_';
     private final String dataset;
     private final String namespace;
+    private final String destination;
 
-    DataStreamRouterProcessor(String tag, String description, String dataset, String namespace) {
+    RerouteProcessor(String tag, String description, String dataset, String namespace, String destination) {
         super(tag, description);
         this.dataset = dataset;
         this.namespace = namespace;
+        this.destination = destination;
     }
 
     private static String sanitizeDataStreamField(String s, char[] disallowedInDataset) {
@@ -53,6 +55,10 @@ public final class DataStreamRouterProcessor extends AbstractProcessor {
 
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+        if (destination != null) {
+            ingestDocument.reroute(destination);
+            return ingestDocument;
+        }
         final String indexName = ingestDocument.getFieldValue(IngestDocument.Metadata.INDEX.getFieldName(), String.class);
         final String type;
         final String datasetFallback;
@@ -74,7 +80,7 @@ public final class DataStreamRouterProcessor extends AbstractProcessor {
         ingestDocument.setFieldValue(DATA_STREAM_TYPE, type);
         ingestDocument.setFieldValue(DATA_STREAM_DATASET, dataset);
         ingestDocument.setFieldValue(DATA_STREAM_NAMESPACE, namespace);
-        ingestDocument.redirect(type + "-" + dataset + "-" + namespace);
+        ingestDocument.reroute(type + "-" + dataset + "-" + namespace);
         return ingestDocument;
     }
 
@@ -134,10 +140,14 @@ public final class DataStreamRouterProcessor extends AbstractProcessor {
         return namespace;
     }
 
+    public String getDestination() {
+        return destination;
+    }
+
     public static final class Factory implements Processor.Factory {
 
         @Override
-        public DataStreamRouterProcessor create(
+        public RerouteProcessor create(
             Map<String, Processor.Factory> processorFactories,
             String tag,
             String description,
@@ -151,7 +161,12 @@ public final class DataStreamRouterProcessor extends AbstractProcessor {
             if (Objects.equals(sanitizeDataStreamField(namespace, DISALLOWED_IN_NAMESPACE), namespace) == false) {
                 throw newConfigurationException(TYPE, tag, "namespace", "contains illegal characters");
             }
-            return new DataStreamRouterProcessor(tag, description, dataset, namespace);
+            String destination = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "destination");
+            if (destination != null && (dataset != null || namespace != null)) {
+                throw newConfigurationException(TYPE, tag, "destination", "can only be set if dataset and namespace are not set");
+            }
+
+            return new RerouteProcessor(tag, description, dataset, namespace, destination);
         }
     }
 }

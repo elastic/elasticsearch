@@ -9,20 +9,28 @@ package org.elasticsearch.xpack.searchablesnapshots.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats;
+import org.elasticsearch.xpack.searchablesnapshots.rest.RestSearchableSnapshotsStatsAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.object.HasToString.hasToString;
+import static org.mockito.Mockito.mock;
 
 public class SearchableSnapshotsStatsResponseTests extends ESTestCase {
 
@@ -37,6 +45,37 @@ public class SearchableSnapshotsStatsResponseTests extends ESTestCase {
             );
             assertEqualInstances(testInstance, deserializedInstance);
         }
+    }
+
+    public void testLevelValidation() throws IOException {
+        RestSearchableSnapshotsStatsAction action = new RestSearchableSnapshotsStatsAction();
+        final HashMap<String, String> params = new HashMap<>();
+        params.put("level", "cluster");
+
+        // cluster is valid
+        RestRequest request =
+            new FakeRestRequest.Builder(xContentRegistry()).withPath("/_searchable_snapshots/stats").withParams(params).build();
+        action.prepareRequest(request, mock(NodeClient.class));
+
+        // indices is valid
+        params.put("level", "indices");
+        request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_searchable_snapshots/stats").withParams(params).build();
+        action.prepareRequest(request, mock(NodeClient.class));
+
+        // shards is valid
+        params.put("level", "shards");
+        request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_searchable_snapshots/stats").withParams(params).build();
+        action.prepareRequest(request, mock(NodeClient.class));
+
+        params.put("level", "invalid");
+        final RestRequest invalidLevelRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats").withParams(params).build();
+
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> action.prepareRequest(invalidLevelRequest, mock(NodeClient.class))
+        );
+
+        assertThat(e, hasToString(containsString("level parameter must be one of [cluster] or [indices] or [shards] but was [invalid]")));
     }
 
     private void assertEqualInstances(SearchableSnapshotsStatsResponse expected, SearchableSnapshotsStatsResponse actual) {

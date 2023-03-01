@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.rest;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.StatsLevel;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -15,7 +15,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsRequest;
-import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsResponse;
 
 import java.util.Collections;
 import java.util.List;
@@ -38,21 +37,19 @@ public class RestSearchableSnapshotsStatsAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) {
         String[] indices = Strings.splitStringByCommaToArray(restRequest.param("index"));
-        return channel -> {
-            ActionListener<SearchableSnapshotsStatsResponse> listener = new RestToXContentListener<>(channel);
-            final String level = channel.request().param("level", "indices");
-            try {
-                ActionResponse.validateClusterResponseLevel(level);
-            } catch (IllegalArgumentException e) {
-                listener.onFailure(e);
-                return;
-            }
-            client.execute(
-                SearchableSnapshotsStatsAction.INSTANCE,
-                new SearchableSnapshotsStatsRequest(indices),
-                listener
-            );
-        };
+        SearchableSnapshotsStatsRequest statsRequest = new SearchableSnapshotsStatsRequest(indices);
+        statsRequest.level(restRequest.param("level", StatsLevel.INDICES.getName()));
+
+        ActionRequestValidationException validationException = statsRequest.validate();
+        if (validationException != null) {
+            throw validationException;
+        }
+
+        return channel -> client.execute(
+            SearchableSnapshotsStatsAction.INSTANCE,
+            statsRequest,
+            new RestToXContentListener<>(channel)
+        );
     }
 
     private static final Set<String> RESPONSE_PARAMS = Collections.singleton("level");

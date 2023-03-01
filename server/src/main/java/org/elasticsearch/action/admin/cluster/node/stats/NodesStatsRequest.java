@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.StatsLevel;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,6 +22,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -32,6 +35,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
     private CommonStatsFlags indices = new CommonStatsFlags();
     private final Set<String> requestedMetrics = new HashSet<>();
+    private String level = StatsLevel.NODE.getName();
 
     public NodesStatsRequest() {
         super((String[]) null);
@@ -103,6 +107,11 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         return this;
     }
 
+    public NodesStatsRequest level(String level) {
+        this.level = level;
+        return this;
+    }
+
     /**
      * Get the names of requested metrics, excluding indices, which are
      * handled separately.
@@ -171,6 +180,11 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         out.writeStringArray(requestedMetrics.toArray(String[]::new));
     }
 
+    @Override
+    public ActionRequestValidationException validate() {
+        return StatsLevel.nodeLevelsValidation(level);
+    }
+
     /**
      * An enumeration of the "core" sections of metrics that may be requested
      * from the nodes stats endpoint. Eventually this list will be pluggable.
@@ -189,7 +203,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         INGEST("ingest"),
         ADAPTIVE_SELECTION("adaptive_selection"),
         SCRIPT_CACHE("script_cache"),
-        INDEXING_PRESSURE("indexing_pressure"),;
+        INDEXING_PRESSURE("indexing_pressure");
 
         private String metricName;
 

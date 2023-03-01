@@ -8,10 +8,9 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.StatsLevel;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -89,6 +88,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
 
         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(nodesIds);
         nodesStatsRequest.timeout(request.param("timeout"));
+        nodesStatsRequest.level(request.param("level", StatsLevel.NODE.getName()));
 
         if (metrics.size() == 1 && metrics.contains("_all")) {
             if (request.hasParam("index_metric")) {
@@ -183,19 +183,14 @@ public class RestNodesStatsAction extends BaseRestHandler {
             nodesStatsRequest.indices().includeUnloadedSegments(request.paramAsBoolean("include_unloaded_segments", false));
         }
 
-        return channel -> {
-            ActionListener<NodesStatsResponse> listener = new RestChunkedToXContentListener<>(channel);
-            final String level = channel.request().param("level", "node");
-            try {
-                ActionResponse.validateNodeResponseLevel(level);
-            } catch (IllegalArgumentException e) {
-                listener.onFailure(e);
-                return;
-            }
-            new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
-                .cluster()
-                .nodesStats(nodesStatsRequest, listener);
-        };
+        ActionRequestValidationException validationException = nodesStatsRequest.validate();
+        if (validationException != null) {
+            throw validationException;
+        }
+
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
+            .cluster()
+            .nodesStats(nodesStatsRequest, new RestChunkedToXContentListener<>(channel));
     }
 
     private final Set<String> RESPONSE_PARAMS = Collections.singleton("level");

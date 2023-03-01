@@ -43,24 +43,4 @@ public abstract class ActionResponse extends TransportResponse {
             return builder;
         }
     }
-
-    public static void validateClusterResponseLevel(final String level) {
-        final boolean isLevelValid = "cluster".equalsIgnoreCase(level)
-            || "indices".equalsIgnoreCase(level)
-            || "shards".equalsIgnoreCase(level);
-        if (isLevelValid == false) {
-            throw new IllegalArgumentException(
-                "level parameter must be one of [cluster] or [indices] or [shards] but was [" + level + "]");
-        }
-    }
-
-    public static void validateNodeResponseLevel(final String level) {
-        final boolean isLevelValid = "indices".equalsIgnoreCase(level)
-            || "node".equalsIgnoreCase(level)
-            || "shards".equalsIgnoreCase(level);
-        if (isLevelValid == false) {
-            throw new IllegalArgumentException(
-                "level parameter must be one of [indices] or [node] or [shards] but was [" + level + "]");
-        }
-    }
 }

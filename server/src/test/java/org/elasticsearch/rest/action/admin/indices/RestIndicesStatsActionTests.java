@@ -70,4 +70,32 @@ public class RestIndicesStatsActionTests extends ESTestCase {
         assertThat(e, hasToString(containsString("request [/_stats] contains _all and individual metrics [_all," + metric + "]")));
     }
 
+    public void testLevelValidation() throws IOException {
+        final HashMap<String, String> params = new HashMap<>();
+        params.put("level", "cluster");
+
+        // cluster is valid
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats").withParams(params).build();
+        action.prepareRequest(request, mock(NodeClient.class));
+
+        // indices is valid
+        params.put("level", "indices");
+        request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats").withParams(params).build();
+        action.prepareRequest(request, mock(NodeClient.class));
+
+        // shards is valid
+        params.put("level", "shards");
+        request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats").withParams(params).build();
+        action.prepareRequest(request, mock(NodeClient.class));
+
+        params.put("level", "invalid");
+        final RestRequest invalidLevelRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats").withParams(params).build();
+
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> action.prepareRequest(invalidLevelRequest, mock(NodeClient.class))
+        );
+
+        assertThat(e, hasToString(containsString("level parameter must be one of [cluster] or [indices] or [shards] but was [invalid]")));
+    }
 }

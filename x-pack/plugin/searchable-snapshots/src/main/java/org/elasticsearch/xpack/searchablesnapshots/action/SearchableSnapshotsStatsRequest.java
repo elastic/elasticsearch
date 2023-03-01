@@ -6,13 +6,18 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.action;
 
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.StatsLevel;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class SearchableSnapshotsStatsRequest extends BroadcastRequest<SearchableSnapshotsStatsRequest> {
+
+    private String level = StatsLevel.INDICES.getName();
 
     SearchableSnapshotsStatsRequest(StreamInput in) throws IOException {
         super(in);
@@ -24,5 +29,14 @@ public class SearchableSnapshotsStatsRequest extends BroadcastRequest<Searchable
 
     public SearchableSnapshotsStatsRequest(String[] indices, IndicesOptions indicesOptions) {
         super(indices, indicesOptions);
+    }
+
+    public void level(String level) {
+        this.level = Objects.requireNonNull(level, "level must not be null");
+    }
+
+    @Override
+    public ActionRequestValidationException validate() {
+        return StatsLevel.clusterLevelsValidation(level);
     }
 }

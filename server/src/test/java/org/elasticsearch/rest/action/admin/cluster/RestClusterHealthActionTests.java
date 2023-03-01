@@ -10,6 +10,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.TimeValue;
@@ -17,10 +18,14 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.object.HasToString.hasToString;
+import static org.mockito.Mockito.mock;
 
 public class RestClusterHealthActionTests extends ESTestCase {
 
@@ -66,6 +71,36 @@ public class RestClusterHealthActionTests extends ESTestCase {
         assertThat(clusterHealthRequest.waitForNodes(), equalTo(waitForNodes));
         assertThat(clusterHealthRequest.waitForEvents(), equalTo(waitForEvents));
 
+    }
+
+    public void testLevelValidation() throws IOException {
+        RestClusterHealthAction action = new RestClusterHealthAction();
+        final HashMap<String, String> params = new HashMap<>();
+        params.put("level", "cluster");
+
+        // cluster is valid
+        RestRequest request = buildRestRequest(params);
+        action.prepareRequest(request, mock(NodeClient.class));
+
+        // indices is valid
+        params.put("level", "indices");
+        request = buildRestRequest(params);
+        action.prepareRequest(request, mock(NodeClient.class));
+
+        // shards is valid
+        params.put("level", "shards");
+        request = buildRestRequest(params);
+        action.prepareRequest(request, mock(NodeClient.class));
+
+        params.put("level", "invalid");
+        final RestRequest invalidLevelRequest = buildRestRequest(params);
+
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> action.prepareRequest(invalidLevelRequest, mock(NodeClient.class))
+        );
+
+        assertThat(e, hasToString(containsString("level parameter must be one of [cluster] or [indices] or [shards] but was [invalid]")));
     }
 
     private FakeRestRequest buildRestRequest(Map<String, String> params) {

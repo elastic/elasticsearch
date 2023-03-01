@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.StatsLevel;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
@@ -38,7 +39,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
      * Only used by the high-level REST Client. Controls the details level of the health information returned.
      * The default value is 'cluster'.
      */
-    private Level level = Level.CLUSTER;
+    private String level = StatsLevel.CLUSTER.getName();
 
     public ClusterHealthRequest() {}
 
@@ -236,7 +237,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
      * Set the level of detail for the health information to be returned.
      * Only used by the high-level REST Client.
      */
-    public void level(Level level) {
+    public void level(String level) {
         this.level = Objects.requireNonNull(level, "level must not be null");
     }
 
@@ -244,18 +245,12 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
      * Get the level of detail for the health information to be returned.
      * Only used by the high-level REST Client.
      */
-    public Level level() {
+    public String level() {
         return level;
     }
 
     @Override
     public ActionRequestValidationException validate() {
-        return null;
-    }
-
-    public enum Level {
-        CLUSTER,
-        INDICES,
-        SHARDS
+        return StatsLevel.clusterLevelsValidation(level);
     }
 }

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.action;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -79,7 +78,6 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
     @Override
     protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
         final String level = params.param("level", "indices");
-        ActionResponse.validateClusterResponseLevel(level);
 
         builder.startArray("total");
         for (CacheIndexInputStats cis : getTotal()) {

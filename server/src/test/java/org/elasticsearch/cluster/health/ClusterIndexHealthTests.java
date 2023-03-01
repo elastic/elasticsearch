@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster.health;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.StatsLevel;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -29,7 +30,7 @@ import java.util.regex.Pattern;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase<ClusterIndexHealth> {
-    private final ClusterHealthRequest.Level level = randomFrom(ClusterHealthRequest.Level.SHARDS, ClusterHealthRequest.Level.INDICES);
+    private final StatsLevel level = randomFrom(StatsLevel.SHARDS, StatsLevel.INDICES);
 
     public void testClusterIndexHealth() {
         RoutingTableGenerator routingTableGenerator = new RoutingTableGenerator();
@@ -73,9 +74,9 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
         return randomIndexHealth(randomAlphaOfLengthBetween(1, 10), level);
     }
 
-    public static ClusterIndexHealth randomIndexHealth(String indexName, ClusterHealthRequest.Level level) {
+    public static ClusterIndexHealth randomIndexHealth(String indexName, StatsLevel level) {
         Map<Integer, ClusterShardHealth> shards = new HashMap<>();
-        if (level == ClusterHealthRequest.Level.SHARDS) {
+        if (level == StatsLevel.SHARDS) {
             for (int i = 0; i < randomInt(5); i++) {
                 shards.put(i, ClusterShardHealthTests.randomShardHealth(i));
             }
@@ -106,7 +107,7 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
 
     @Override
     protected ToXContent.Params getToXContentParams() {
-        return new ToXContent.MapParams(Collections.singletonMap("level", level.name().toLowerCase(Locale.ROOT)));
+        return new ToXContent.MapParams(Collections.singletonMap("level", level.getName().toLowerCase(Locale.ROOT)));
     }
 
     @Override

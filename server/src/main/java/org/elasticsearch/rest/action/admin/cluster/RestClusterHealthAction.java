@@ -8,10 +8,9 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.StatsLevel;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -51,17 +50,11 @@ public class RestClusterHealthAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final ClusterHealthRequest clusterHealthRequest = fromRequest(request);
-        return channel -> {
-            ActionListener<ClusterHealthResponse> listener = new RestStatusToXContentListener<>(channel);
-            final String level = channel.request().param("level", "cluster");
-            try {
-                ActionResponse.validateClusterResponseLevel(level);
-            } catch (IllegalArgumentException e) {
-                listener.onFailure(e);
-                return;
-            }
-            client.admin().cluster().health(clusterHealthRequest, listener);
-        };
+        ActionRequestValidationException validationException = clusterHealthRequest.validate();
+        if (validationException != null) {
+            throw validationException;
+        }
+        return channel -> client.admin().cluster().health(clusterHealthRequest, new RestStatusToXContentListener<>(channel));
     }
 
     public static ClusterHealthRequest fromRequest(final RestRequest request) {
@@ -94,6 +87,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
         if (request.param("wait_for_events") != null) {
             clusterHealthRequest.waitForEvents(Priority.valueOf(request.param("wait_for_events").toUpperCase(Locale.ROOT)));
         }
+        clusterHealthRequest.level(request.param("level", StatsLevel.CLUSTER.getName()));
         return clusterHealthRequest;
     }
 

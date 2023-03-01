@@ -2,6 +2,5 @@ entsearch:
   cluster:
     - manage
   indices:
-    - names: '*'
-      privileges:
-        - manage
+    - names: [ "*" ]
+      privileges: [ "manage" ]

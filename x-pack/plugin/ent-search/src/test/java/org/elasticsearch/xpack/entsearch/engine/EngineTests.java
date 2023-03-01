@@ -56,7 +56,9 @@ public class EngineTests extends ESTestCase {
     public void testToXContent() throws IOException {
         String content = XContentHelper.stripWhitespace("""
             {
-              "indices": ["my_index"]
+              "indices": ["my_index"],
+              "analytics_collection_name": "my_engine_analytics",
+              "updated_at_millis": 0
             }""");
         Engine engine = Engine.fromXContentBytes("my_engine", new BytesArray(content), XContentType.JSON);
         boolean humanReadable = true;
@@ -71,7 +73,8 @@ public class EngineTests extends ESTestCase {
     public void testMerge() {
         String content = """
             {
-              "indices": ["my_index", "my_index_2"]
+              "indices": ["my_index", "my_index_2"],
+              "updated_at_millis": 0
             }""";
 
         String update = """

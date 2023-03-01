@@ -58,7 +58,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.groupingBy;
@@ -88,7 +87,6 @@ class RollupShardIndexer {
     private final List<FieldValueFetcher> fieldValueFetchers;
     private final RollupShardTask task;
     private volatile boolean abort = false;
-    private final Function<Long, Long> millisecondsSupplier;
 
     RollupShardIndexer(
         RollupShardTask task,
@@ -118,7 +116,6 @@ class RollupShardIndexer {
             this.timestampField = (DateFieldMapper.DateFieldType) searchExecutionContext.getFieldType(config.getTimestampField());
             this.timestampFormat = timestampField.docValueFormat(null, null);
             this.rounding = config.createRounding();
-            this.millisecondsSupplier = timestamp -> timestampField.resolution().roundDownToMillis(timestamp);
 
             List<FieldValueFetcher> fetchers = new ArrayList<>(metricFields.length + labelFields.length);
             fetchers.addAll(FieldValueFetcher.create(searchExecutionContext, metricFields));
@@ -264,7 +261,7 @@ class RollupShardIndexer {
                     final BytesRef tsid = aggCtx.getTsid();
                     assert tsid != null : "Document without [" + TimeSeriesIdFieldMapper.NAME + "] field was found.";
                     final int tsidOrd = aggCtx.getTsidOrd();
-                    final long timestamp = millisecondsSupplier.apply(aggCtx.getTimestamp());
+                    final long timestamp = timestampField.resolution().roundDownToMillis(aggCtx.getTimestamp());
 
                     boolean tsidChanged = tsidOrd != rollupBucketBuilder.tsidOrd();
                     if (tsidChanged || timestamp < lastHistoTimestamp) {

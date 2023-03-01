@@ -72,6 +72,7 @@ public class RemoteAccessAuthenticationService {
 
         final RemoteAccessHeaders remoteAccessHeaders;
         try {
+            // parse and add as authentication token as early as possible so that failure events in audit log include API key ID
             remoteAccessHeaders = RemoteAccessHeaders.readFromContext(threadContext);
             authcContext.addAuthenticationToken(remoteAccessHeaders.clusterCredentials());
             apiKeyService.ensureEnabled();

@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.security.audit.logfile;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.layout.PatternLayout;
@@ -2576,17 +2578,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertMsg(logger, checkedFields.map(), checkedArrayFields.map());
     }
 
+    @Repeat(iterations = 100)
     public void testRemoteAccessAuthenticationSuccessTransport() throws Exception {
         final TransportRequest request = randomBoolean() ? new MockRequest(threadContext) : new MockIndicesRequest(threadContext);
         final String requestId = randomRequestId();
+        final Authentication remoteAuthentication = Authentication.newRealmAuthentication(
+            AuthenticationTestHelper.randomUser(),
+            AuthenticationTestHelper.randomRealmRef(false)
+        );
         final Authentication authentication = AuthenticationTestHelper.builder()
-            .remoteAccess(
-                randomAlphaOfLength(42),
-                new RemoteAccessAuthentication(
-                    Authentication.newRealmAuthentication(new User("bob", "bobs-role"), new RealmRef("realm-name", "realm-type", "node")),
-                    RoleDescriptorsIntersection.EMPTY
-                )
-            )
+            .remoteAccess(randomAlphaOfLength(42), new RemoteAccessAuthentication(remoteAuthentication, RoleDescriptorsIntersection.EMPTY))
             .build();
         final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
         final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
@@ -2608,11 +2609,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        final String actualLogLine = getSingleLogLine(logger);
+        final String actualLogLine = singleLogLine(logger);
+
         final MapBuilder<String, String> checkedLiteralFields = new MapBuilder<>();
         checkedLiteralFields.put(
             LoggingAuditTrail.REMOTE_ACCESS_FIELD_NAME,
-            "{\"authentication.type\":\"REALM\",\"user.name\":\"bob\",\"user.realm\":\"realm-name\"}"
+            Strings.format(
+                "{\"authentication.type\":\"REALM\",\"user.name\":\"%s\",\"user.realm\":\"%s\"}",
+                remoteAuthentication.getEffectiveSubject().getUser().principal(),
+                remoteAuthentication.getEffectiveSubject().getRealm().getName()
+            )
         );
         assertMsg(actualLogLine, checkedFields.map(), checkedArrayFields.map(), checkedLiteralFields.map());
     }
@@ -2722,7 +2728,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
     }
 
     private void assertMsg(Logger logger, Map<String, String> checkFields, Map<String, String[]> checkArrayFields) {
-        String logLine = getSingleLogLine(logger);
+        String logLine = singleLogLine(logger);
         if (checkFields == null) {
             // only check msg existence
             return;
@@ -2730,7 +2736,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertMsg(logLine, checkFields, checkArrayFields);
     }
 
-    private String getSingleLogLine(Logger logger) {
+    private static String singleLogLine(Logger logger) {
         final List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat("Exactly one logEntry expected. Found: " + output.size(), output.size(), is(1));
         return output.get(0);

@@ -17,9 +17,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.junit.Before;
 import org.mockito.Mockito;
 
+import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService.VERSION_REMOTE_ACCESS_AUTHENTICATION;
@@ -44,10 +46,14 @@ public class RemoteAccessAuthenticationServiceTests extends ESTestCase {
         this.clusterService = mock(ClusterService.class);
     }
 
-    public void testAuthenticateThrowsOnUnsupportedMinVersions() {
+    public void testAuthenticateThrowsOnUnsupportedMinVersions() throws IOException {
         clusterService = mockClusterServiceWithMinNodeVersion(VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_8_0));
         final var authcContext = mock(Authenticator.Context.class, Mockito.RETURNS_DEEP_STUBS);
         final var threadContext = new ThreadContext(Settings.EMPTY);
+        new RemoteAccessHeaders(
+            RemoteAccessHeadersTests.randomEncodedApiKeyHeader(),
+            AuthenticationTestHelper.randomRemoteAccessAuthentication()
+        ).writeToContext(threadContext);
         when(authcContext.getThreadContext()).thenReturn(threadContext);
         when(authcContext.getRequest().exceptionProcessingRequest(any(), any())).thenAnswer(
             i -> new ElasticsearchSecurityException("potato", (Exception) i.getArguments()[0])

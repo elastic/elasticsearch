@@ -115,7 +115,7 @@ public class MergePolicyConfigTests extends ESTestCase {
         indexSettings.updateIndexMetadata(
             newIndexMeta(
                 "index",
-                Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_TYPE_SETTING.getKey(), "log_byte_size").build()
+                Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_TYPE_SETTING.getKey(), "time_based").build()
             )
         );
         assertThat(indexSettings.getMergePolicy(randomBoolean()), Matchers.instanceOf(LogByteSizeMergePolicy.class));

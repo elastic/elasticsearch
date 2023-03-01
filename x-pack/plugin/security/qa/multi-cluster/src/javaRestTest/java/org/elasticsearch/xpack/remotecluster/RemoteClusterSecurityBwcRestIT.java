@@ -67,7 +67,7 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
     // Use a RuleChain to ensure that fulfilling cluster is started before query cluster
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
-    public void testRemoteAccessForCrossClusterSearch() throws Exception {
+    public void testBwcWithLegacyCrossClusterSearch() throws Exception {
         final boolean useProxyMode = randomBoolean();
         // Update remote cluster settings on QC.
         setupQueryClusterRemoteClusters(useProxyMode);

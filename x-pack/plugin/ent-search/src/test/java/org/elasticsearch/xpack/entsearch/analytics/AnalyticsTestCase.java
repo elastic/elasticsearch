@@ -8,10 +8,9 @@
 package org.elasticsearch.xpack.entsearch.analytics;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -27,6 +26,7 @@ import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.junit.Before;
 
@@ -44,12 +44,9 @@ public abstract class AnalyticsTestCase extends ESSingleNodeTestCase {
         if (isTemplateRegistrySetup(clusterService().state())) {
             latch.countDown();
         } else {
-            clusterService().addListener(new ClusterStateListener() {
-                @Override
-                public void clusterChanged(ClusterChangedEvent event) {
-                    if (isTemplateRegistrySetup(event.state())) {
-                        latch.countDown();
-                    }
+            clusterService().addListener((event) -> {
+                if (isTemplateRegistrySetup(event.state())) {
+                    latch.countDown();
                 }
             });
         }
@@ -81,7 +78,14 @@ public abstract class AnalyticsTestCase extends ESSingleNodeTestCase {
     }
 
     private boolean isTemplateRegistrySetup(ClusterState state) {
-        return state.metadata().templatesV2().containsKey(AnalyticsTemplateRegistry.EVENT_DATA_STREAM_TEMPLATE_NAME);
+        Metadata metadata = state.metadata();
+        boolean hasTemplate = metadata.templatesV2().containsKey(AnalyticsTemplateRegistry.EVENT_DATA_STREAM_TEMPLATE_NAME);
+
+        boolean hasILMPolicy = metadata.custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY)
+            .getPolicies()
+            .containsKey(AnalyticsTemplateRegistry.EVENT_DATA_STREAM_ILM_POLICY_NAME);
+
+        return hasTemplate && hasILMPolicy;
     }
 
     /**

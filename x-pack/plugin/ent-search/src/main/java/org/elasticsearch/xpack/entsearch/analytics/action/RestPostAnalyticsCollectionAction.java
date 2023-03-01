@@ -29,7 +29,7 @@ public class RestPostAnalyticsCollectionAction extends BaseRestHandler {
 
     @Override
     public List<RestHandler.Route> routes() {
-        return List.of(new RestHandler.Route(POST, "/" + EnterpriseSearch.BEHAVORIAL_ANALYTICS_API_ENDPOINT + "/{collection_id}"));
+        return List.of(new RestHandler.Route(POST, "/" + EnterpriseSearch.BEHAVIORAL_ANALYTICS_API_ENDPOINT + "/{collection_id}"));
     }
 
     @Override

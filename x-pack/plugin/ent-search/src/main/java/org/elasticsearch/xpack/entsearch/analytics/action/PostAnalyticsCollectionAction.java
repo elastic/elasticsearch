@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,10 +24,12 @@ import org.elasticsearch.xpack.entsearch.analytics.AnalyticsCollection;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 public class PostAnalyticsCollectionAction extends ActionType<PostAnalyticsCollectionAction.Response> {
 
     public static final PostAnalyticsCollectionAction INSTANCE = new PostAnalyticsCollectionAction();
-    public static final String NAME = "admin/behavorial_analytics/put";
+    public static final String NAME = "cluster:behavioral_analytics";
 
     public PostAnalyticsCollectionAction() { super(NAME, PostAnalyticsCollectionAction.Response::new); }
     public static class Request extends ActionRequest {
@@ -39,13 +40,17 @@ public class PostAnalyticsCollectionAction extends ActionType<PostAnalyticsColle
             this.analyticsCollection = new AnalyticsCollection(in);
         }
 
+        @Override
+        public ActionRequestValidationException validate() {
+            return null;
+        }
+
         public Request(String resourceName, BytesReference content, XContentType contentType) {
             this.analyticsCollection = AnalyticsCollection.fromXContentBytes(resourceName, content, contentType);
         }
 
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
+        public Request(AnalyticsCollection analyticsCollection) {
+            this.analyticsCollection = analyticsCollection;
         }
 
         @Override
@@ -92,7 +97,8 @@ public class PostAnalyticsCollectionAction extends ActionType<PostAnalyticsColle
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("result", this.analyticsCollection.getName());
+            builder.field("name", this.analyticsCollection.getName());
+            builder.field("datastream_name", this.analyticsCollection.getEventDataStream());
             builder.endObject();
             return builder;
         }

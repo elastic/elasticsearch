@@ -306,11 +306,8 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
 
         assertThat(clusterStateResponse.getState().metadata().persistentSettings().get("search.allow_expensive_queries"), nullValue());
 
-        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(
-            Settings.builder().put("search.allow_expensive_queries", "false")
-        );
         // This should succeed, nothing was reserved
-        client().admin().cluster().updateSettings(req).get();
+        updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", "false"));
     }
 
     public void testErrorSaved() throws Exception {

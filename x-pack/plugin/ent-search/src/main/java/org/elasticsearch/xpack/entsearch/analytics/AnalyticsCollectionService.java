@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.entsearch.analytics;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -31,14 +29,21 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
+/**
+ * A service that allows the manipulation of persistent {@link AnalyticsCollection} model.
+ *
+ * Until we have more specific need the {@link AnalyticsCollection} is just another representation
+ * of a {@link org.elasticsearch.cluster.metadata.IndexAbstraction.DataStream}.
+ *
+ * As a consequence, this service is mostly a facade for the data stream API.
+ */
 public class AnalyticsCollectionService implements ClusterStateListener {
 
-    private static final Logger logger = LogManager.getLogger(AnalyticsCollectionService.class);
     private final Client clientWithOrigin;
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
-    private Map<String, AnalyticsCollection> analyticsCollections = Collections.emptyMap();
+    private volatile Map<String, AnalyticsCollection> analyticsCollections = Collections.emptyMap();
 
     public AnalyticsCollectionService(
         Client client,
@@ -57,12 +62,14 @@ public class AnalyticsCollectionService implements ClusterStateListener {
      * @param listener The action listener to invoke on response/failure.
      */
     public void getAnalyticsCollection(String collectionName, ActionListener<AnalyticsCollection> listener) {
-        if (analyticsCollections.containsKey(collectionName) == false) {
+        Map<String, AnalyticsCollection> collections = analyticsCollections;
+
+        if (collections.containsKey(collectionName) == false) {
             listener.onFailure(new ResourceNotFoundException(collectionName));
             return;
         }
 
-        listener.onResponse(analyticsCollections.get(collectionName));
+        listener.onResponse(collections.get(collectionName));
     }
 
     /**
@@ -96,26 +103,40 @@ public class AnalyticsCollectionService implements ClusterStateListener {
      * @param listener The action listener to invoke on response/failure.
      */
     public void deleteAnalyticsCollection(String collectionName, ActionListener<AcknowledgedResponse> listener) {
-        if (analyticsCollections.containsKey(collectionName) == false) {
+        Map<String, AnalyticsCollection> collections = analyticsCollections;
+
+        if (collections.containsKey(collectionName) == false) {
             listener.onFailure(new ResourceNotFoundException(collectionName));
             return;
         }
 
         DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(
-            analyticsCollections.get(collectionName).getEventDataStream()
+            collections.get(collectionName).getEventDataStream()
         );
 
         clientWithOrigin.execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamRequest, listener);
     }
 
+    /**
+     * We refresh the local cache of the collections when cluster is updated.
+     *
+     * @param event {@link ClusterChangedEvent} event.
+     */
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        if (event.metadataChanged() == false) {
+            // Skipping the update if cluster metadata did not change.
+            return;
+        }
+
+        // Listing data streams that are matching the analytics collection pattern.
         List<String> dataStreams = indexNameExpressionResolver.dataStreamNames(
             event.state(),
             IndicesOptions.lenientExpandOpen(),
             AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INDEX_PATTERN
         );
 
+        // Init an AnalyticsCollection instance from each matching data stream.
         analyticsCollections = dataStreams.stream()
             .map(AnalyticsCollection::fromDataStreamName)
             .collect(Collectors.toMap(AnalyticsCollection::getName, Function.identity()));

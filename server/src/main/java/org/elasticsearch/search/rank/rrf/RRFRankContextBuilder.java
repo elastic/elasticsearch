@@ -40,7 +40,7 @@ public class RRFRankContextBuilder extends RankContextBuilder {
 
     public static final String NAME = "rrf";
 
-    public static final int RANK_CONSTANT_DEFAULT = 20;
+    public static final int RANK_CONSTANT_DEFAULT = 60;
     public static final int WINDOW_SIZE_DEFAULT = 10;
 
     public static final ParseField RANK_CONSTANT_FIELD = new ParseField("rank_constant");

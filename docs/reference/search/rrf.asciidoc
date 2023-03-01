@@ -1,0 +1,6 @@
+[[rrf]]
+=== Reciprocal rank fusion
+
+Reciprocal Rank Fusion (RRF) is a simple method to combine document result sets
+from multiple queries where the queries' document scores may be unrelated.
+

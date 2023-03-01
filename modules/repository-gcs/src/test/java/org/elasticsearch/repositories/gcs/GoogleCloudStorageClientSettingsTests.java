@@ -19,6 +19,7 @@ import io.netty.handler.codec.http.HttpVersion;
 import com.google.api.services.storage.StorageScopes;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -198,7 +199,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
 
             @Override
             public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-                logger.error("Proxy server error", cause);
+                ExceptionsHelper.maybeDieOnAnotherThread(cause);
                 ctx.writeAndFlush(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR));
                 ctx.close();
             }

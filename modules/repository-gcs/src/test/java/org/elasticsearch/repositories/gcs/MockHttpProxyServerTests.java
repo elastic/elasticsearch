@@ -21,6 +21,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.DefaultProxyRoutePlanner;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;
@@ -46,7 +47,7 @@ public class MockHttpProxyServerTests extends ESTestCase {
 
             @Override
             public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-                logger.error("Proxy server error", cause);
+                ExceptionsHelper.maybeDieOnAnotherThread(cause);
                 ctx.writeAndFlush(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR));
                 ctx.close();
             }
@@ -59,6 +60,7 @@ public class MockHttpProxyServerTests extends ESTestCase {
             httpClient;
             var httpResponse = SocketAccess.doPrivilegedIOException(() -> httpClient.execute(new HttpGet("http://googleapis.com/")))
         ) {
+            assertEquals(200, httpResponse.getStatusLine().getStatusCode());
             assertEquals(httpBody.length(), httpResponse.getEntity().getContentLength());
             assertEquals(httpBody, EntityUtils.toString(httpResponse.getEntity()));
         }

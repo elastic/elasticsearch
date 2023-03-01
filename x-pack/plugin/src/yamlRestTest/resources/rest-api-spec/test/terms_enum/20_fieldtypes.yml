@@ -1,0 +1,116 @@
+---
+setup:
+  - skip:
+      version: " - 7.15.0"
+      reason:  original indices are propagated correctly in 7.15.1
+      features: headers
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "test_admin_role"
+        body:  >
+          {
+            "indices": [
+              { "names": ["*"], "privileges": ["all"] }
+            ]
+          }
+
+  - do:
+      security.put_user:
+        username: "test_admin"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "test_admin_role" ],
+            "full_name" : "user with full privileges to multiple indices"
+          }
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              number_of_shards:   1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              foo_kw:
+                type : keyword
+              foo_ck:
+                type: constant_keyword
+              foo_version:
+                type: version
+              foo_flattened:
+                type : flattened
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body: { foo_kw: "foo_kw", foo_ck: "foo_ck", foo_version: "foo_version", foo_flattened.f1: "foo_flattened.f1" }
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body: { foo_flattened.f2: "1234" }
+
+  - do: #superuser
+      headers: { Authorization: "Basic dGVzdF9hZG1pbjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # admin
+      indices.refresh: {}
+
+  - do: #superuser
+      cluster.health:
+        index: test
+        wait_for_status: green
+
+---
+"Test terms enumeration keyword field":
+
+  - do:
+      terms_enum:
+        index:  test
+        body:  {"field": "foo_kw", "string":"fo"}
+  - length: {terms: 1}
+  - match: { terms: [ "foo_kw"] }
+
+---
+"Test terms enumeration constant keyword field":
+
+  - do:
+      terms_enum:
+        index:  test
+        body:  {"field": "foo_ck", "string":"fo"}
+  - length: {terms: 1}
+  - match: { terms: [ "foo_ck"] }
+
+---
+"Test terms enumeration version field":
+
+  - do:
+      terms_enum:
+        index:  test
+        body:  {"field": "foo_version", "string":"fo"}
+  - length: {terms: 1}
+  - match: { terms: [ "foo_version"] }
+
+---
+"Test terms enumeration flattened field":
+
+  - do:
+      terms_enum:
+        index: test
+        body: { "field": "foo_flattened.f1", "string": "fo" }
+  - length: { terms: 1 }
+  - match: { terms: [ "foo_flattened.f1" ] }
+
+  - do:
+      terms_enum:
+        index: test
+        body: { "field": "foo_flattened.f2", "string": "1" }
+  - length: { terms: 1 }
+  - match: { terms: [ "1234" ] }

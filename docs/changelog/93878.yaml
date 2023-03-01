@@ -1,0 +1,5 @@
+pr: 93878
+summary: Disable ingest-attachment logging
+area: Ingest Node
+type: bug
+issues: []

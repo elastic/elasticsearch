@@ -13,6 +13,7 @@ import com.azure.storage.blob.models.BlobStorageException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.util.Throwables;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
@@ -28,6 +29,7 @@ import java.io.OutputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.OptionalLong;
 
 public class AzureBlobContainer extends AbstractBlobContainer {
 
@@ -156,17 +158,17 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public long compareAndExchangeRegister(String key, long expected, long updated) {
-        throw new UnsupportedOperationException(); // TODO
+    public void compareAndExchangeRegister(String key, long expected, long updated, ActionListener<OptionalLong> listener) {
+        listener.onFailure(new UnsupportedOperationException()); // TODO
     }
 
     @Override
-    public boolean compareAndSetRegister(String key, long expected, long updated) {
-        throw new UnsupportedOperationException(); // TODO
+    public void compareAndSetRegister(String key, long expected, long updated, ActionListener<Boolean> listener) {
+        listener.onFailure(new UnsupportedOperationException()); // TODO
     }
 
     @Override
-    public long getRegister(String key) throws IOException {
-        throw new UnsupportedOperationException(); // TODO
+    public void getRegister(String key, ActionListener<OptionalLong> listener) {
+        listener.onFailure(new UnsupportedOperationException()); // TODO
     }
 }

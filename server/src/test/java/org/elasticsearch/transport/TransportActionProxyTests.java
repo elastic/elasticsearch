@@ -9,6 +9,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -39,11 +40,13 @@ public class TransportActionProxyTests extends ESTestCase {
     // we use always a non-alpha or beta version here otherwise minimumCompatibilityVersion will be different for the two used versions
     private static final Version CURRENT_VERSION = Version.fromString(String.valueOf(Version.CURRENT.major) + ".0.0");
     protected static final Version version0 = CURRENT_VERSION.minimumCompatibilityVersion();
+    protected static final TransportVersion transportVersion0 = TransportVersion.MINIMUM_COMPATIBLE;
 
     protected DiscoveryNode nodeA;
     protected MockTransportService serviceA;
 
     protected static final Version version1 = Version.fromId(CURRENT_VERSION.id + 1);
+    protected static final TransportVersion transportVersion1 = TransportVersion.fromId(TransportVersion.CURRENT.id + 1);
     protected DiscoveryNode nodeB;
     protected MockTransportService serviceB;
 
@@ -55,11 +58,11 @@ public class TransportActionProxyTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool(getClass().getName());
-        serviceA = buildService(version0); // this one supports dynamic tracer updates
+        serviceA = buildService(version0, transportVersion0); // this one supports dynamic tracer updates
         nodeA = serviceA.getLocalDiscoNode();
-        serviceB = buildService(version1); // this one doesn't support dynamic tracer updates
+        serviceB = buildService(version1, transportVersion1); // this one doesn't support dynamic tracer updates
         nodeB = serviceB.getLocalDiscoNode();
-        serviceC = buildService(version1); // this one doesn't support dynamic tracer updates
+        serviceC = buildService(version1, transportVersion1); // this one doesn't support dynamic tracer updates
         nodeC = serviceC.getLocalDiscoNode();
     }
 
@@ -69,8 +72,8 @@ public class TransportActionProxyTests extends ESTestCase {
         IOUtils.close(serviceA, serviceB, serviceC, () -> { terminate(threadPool); });
     }
 
-    private MockTransportService buildService(final Version version) {
-        MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, version, threadPool, null);
+    private MockTransportService buildService(Version version, TransportVersion transportVersion) {
+        MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, version, transportVersion, threadPool, null);
         service.start();
         service.acceptIncomingRequests();
         return service;

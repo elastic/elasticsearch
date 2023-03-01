@@ -510,12 +510,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         // set the index level setting to false, and see that the reverse works
 
         client().admin().indices().prepareClearCache().setRequestCache(true).get(); // clean the cache
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("idx")
-                .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), false))
-        );
+        updateIndexSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), false), "idx");
 
         assertThat(
             client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get().getHits().getTotalHits().value,

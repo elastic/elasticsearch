@@ -42,6 +42,10 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
 
     @Override
     protected RolloverConditions createTestInstance() {
+        return randomRolloverConditions();
+    }
+
+    public static RolloverConditions randomRolloverConditions() {
         ByteSizeValue maxSize = randomBoolean() ? randomByteSizeValue() : null;
         ByteSizeValue maxPrimaryShardSize = randomBoolean() ? randomByteSizeValue() : null;
         Long maxDocs = randomBoolean() ? randomNonNegativeLong() : null;
@@ -67,7 +71,7 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
             .build();
     }
 
-    private ByteSizeValue randomByteSizeValue() {
+    private static ByteSizeValue randomByteSizeValue() {
         ByteSizeUnit unit = randomFrom(ByteSizeUnit.values());
         return new ByteSizeValue(randomNonNegativeLong() / unit.toBytes(1), unit);
     }

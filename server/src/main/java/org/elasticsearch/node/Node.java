@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
-import org.elasticsearch.action.admin.indices.rollover.DefaultRolloverConditionsSetting;
 import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
 import org.elasticsearch.action.ingest.ReservedPipelineAction;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
@@ -48,7 +47,6 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -1008,9 +1006,6 @@ public class Node implements Closeable {
             LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, nodeService, threadPool, client);
             HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
             HealthApiStats healthApiStats = new HealthApiStats();
-            DefaultRolloverConditionsSetting defaultRolloverConditionsSetting = DataLifecycle.isEnabled()
-                ? DefaultRolloverConditionsSetting.create(settings, clusterService.getClusterSettings())
-                : null;
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
@@ -1103,9 +1098,6 @@ public class Node implements Closeable {
                 b.bind(Tracer.class).toInstance(tracer);
                 b.bind(FileSettingsService.class).toInstance(fileSettingsService);
                 b.bind(WriteLoadForecaster.class).toInstance(writeLoadForecaster);
-                if (DataLifecycle.isEnabled()) {
-                    b.bind(DefaultRolloverConditionsSetting.class).toInstance(defaultRolloverConditionsSetting);
-                }
             });
 
             if (ReadinessService.enabled(environment)) {

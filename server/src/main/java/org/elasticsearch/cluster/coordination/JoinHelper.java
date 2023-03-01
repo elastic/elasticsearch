@@ -92,7 +92,7 @@ public class JoinHelper {
         this.joinTaskQueue = masterService.createTaskQueue(
             "node-join",
             Priority.URGENT,
-            new NodeJoinExecutor(allocationService, rerouteService)
+            new NodeJoinExecutor(allocationService, rerouteService, transportService)
         );
         this.clusterApplier = clusterApplier;
         this.transportService = transportService;

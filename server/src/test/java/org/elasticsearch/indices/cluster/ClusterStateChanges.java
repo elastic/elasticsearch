@@ -127,6 +127,7 @@ import static org.mockito.Mockito.when;
 public class ClusterStateChanges {
     private static final Settings SETTINGS = Settings.builder().put(PATH_HOME_SETTING.getKey(), "dummy").build();
 
+    private final TransportService transportService;
     private final AllocationService allocationService;
     private final ClusterService clusterService;
     private final ShardStateAction.ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor;
@@ -230,7 +231,7 @@ public class ClusterStateChanges {
         }
 
         // services
-        TransportService transportService = new TransportService(
+        transportService = new TransportService(
             SETTINGS,
             transport,
             threadPool,
@@ -403,7 +404,7 @@ public class ClusterStateChanges {
 
     public ClusterState addNode(ClusterState clusterState, DiscoveryNode discoveryNode) {
         return runTasks(
-            new NodeJoinExecutor(allocationService, (s, p, r) -> {}),
+            new NodeJoinExecutor(allocationService, (s, p, r) -> {}, transportService),
             clusterState,
             List.of(
                 JoinTask.singleNode(
@@ -418,7 +419,7 @@ public class ClusterStateChanges {
 
     public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes) {
         return runTasks(
-            new NodeJoinExecutor(allocationService, (s, p, r) -> {}),
+            new NodeJoinExecutor(allocationService, (s, p, r) -> {}, transportService),
             clusterState,
             List.of(
                 JoinTask.completingElection(

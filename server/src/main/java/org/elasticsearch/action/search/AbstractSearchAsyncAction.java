@@ -708,11 +708,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (allowPartialResults == false && failures.length > 0) {
             raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures));
         } else {
-            final TransportVersion minNodeVersion = searchTransportService.getMinTransportVersion();
+            final TransportVersion minTransportVersion = searchTransportService.getMinTransportVersion();
             final String scrollId = request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
             final String searchContextId;
             if (buildPointInTimeFromSearchResults()) {
-                searchContextId = SearchContextId.encode(queryResults.asList(), aliasFilter, minNodeVersion);
+                searchContextId = SearchContextId.encode(queryResults.asList(), aliasFilter, minTransportVersion);
             } else {
                 if (request.source() != null && request.source().pointInTimeBuilder() != null) {
                     searchContextId = request.source().pointInTimeBuilder().getEncodedId();

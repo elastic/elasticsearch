@@ -585,6 +585,15 @@ public class TransportService extends AbstractLifecycleComponent
         return transportVersions.values().stream().min(Comparator.naturalOrder()).orElse(transport.getVersion());
     }
 
+    public TransportVersion getMinTransportVersion(Predicate<DiscoveryNode> filter) {
+        return transportVersions.entrySet()
+            .stream()
+            .filter(e -> filter.test(e.getKey()))
+            .map(Map.Entry::getValue)
+            .min(Comparator.naturalOrder())
+            .orElse(transport.getVersion());
+    }
+
     public RecyclerBytesStreamOutput newNetworkBytesStream() {
         return transport.newNetworkBytesStream();
     }

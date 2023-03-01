@@ -9,6 +9,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -24,6 +25,7 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -42,10 +44,12 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
 
     private final AllocationService allocationService;
     private final RerouteService rerouteService;
+    private final TransportService transportService;
 
-    public NodeJoinExecutor(AllocationService allocationService, RerouteService rerouteService) {
+    public NodeJoinExecutor(AllocationService allocationService, RerouteService rerouteService, TransportService transportService) {
         this.allocationService = allocationService;
         this.rerouteService = rerouteService;
+        this.transportService = transportService;
     }
 
     @Override
@@ -118,6 +122,10 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     try {
                         if (enforceVersionBarrier) {
                             ensureVersionBarrier(node.getVersion(), minClusterNodeVersion);
+                            ensureTransportVersionBarrier(
+                                transportService.getConnection(node).getTransportVersion(),
+                                transportService.getMinTransportVersion(n -> n.equals(node) == false)
+                            );
                         }
                         ensureNodesCompatibility(node.getVersion(), minClusterNodeVersion, maxClusterNodeVersion);
                         // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
@@ -328,6 +336,25 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     + "The cluster contains nodes with version ["
                     + minClusterNodeVersion
                     + "], which is incompatible."
+            );
+        }
+    }
+
+    /**
+     * ensures that the joining node's transport version is equal or higher to the minClusterTransportVersion. This is needed
+     * to ensure that the minimum transport version of the cluster doesn't go backwards.
+     **/
+    private static void ensureTransportVersionBarrier(
+        TransportVersion joiningTransportVersion,
+        TransportVersion minClusterTransportVersion
+    ) {
+        if (joiningTransportVersion.before(minClusterTransportVersion)) {
+            throw new IllegalStateException(
+                "node with transport version ["
+                    + joiningTransportVersion
+                    + "] may not join a cluster using transport version ["
+                    + minClusterTransportVersion
+                    + "] or greater"
             );
         }
     }

@@ -1515,7 +1515,7 @@ public class ClassificationHousePricingIT extends MlNativeDataFrameAnalyticsInte
 
     @Before
     public void setupLogging() {
-        updateIndexSettings(
+        updateClusterSettings(
             Settings.builder()
                 .put("logger.org.elasticsearch.xpack.ml.process", "DEBUG")
                 .put("logger.org.elasticsearch.xpack.ml.dataframe", "DEBUG")

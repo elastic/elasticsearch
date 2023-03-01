@@ -10,14 +10,17 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.geo.GeoEncodingUtils;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -167,6 +170,59 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             b.field("time_series_metric", "position").field("doc_values", false);
         })));
         assertThat(e.getCause().getMessage(), containsString("Field [time_series_metric] requires that [doc_values] is true"));
+    }
+
+    public void testMetricAndMultiValues() throws Exception {
+        DocumentMapper nonMetricMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        DocumentMapper metricMapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_metric", "position");
+        }));
+        // Multi-valued test data with various supported formats
+        Point pointA = new Point(1, 2);
+        Point pointB = new Point(3, 4);
+        Object[][] data = new Object[][] {
+            new Object[] { WellKnownText.toWKT(pointA), WellKnownText.toWKT(pointB) },
+            new Object[] { new Double[] { pointA.getX(), pointA.getY() }, new Double[] { pointB.getX(), pointB.getY() } },
+            new Object[] { pointA.getY() + "," + pointA.getX(), pointB.getY() + "," + pointB.getX() },
+            new Object[] { GeoJson.toMap(pointA), GeoJson.toMap(pointB) } };
+        IndexableField expectedPointA = new LatLonPoint("field", pointA.getY(), pointA.getX());
+        IndexableField expectedPointB = new LatLonPoint("field", pointB.getY(), pointB.getX());
+
+        // Verify that metric and non-metric mappers behave the same on single valued fields
+        for (Object[] values : data) {
+            for (DocumentMapper mapper : new DocumentMapper[] { nonMetricMapper, metricMapper }) {
+                ParsedDocument doc = mapper.parse(source(b -> b.field("field", values[0])));
+                assertThat(doc.rootDoc().getField("field"), notNullValue());
+                IndexableField field = doc.rootDoc().getField("field");
+                assertThat(field, instanceOf(LatLonPoint.class));
+                assertThat(field.toString(), equalTo(expectedPointA.toString()));
+            }
+        }
+
+        // Verify that multi-valued fields behave differently for metric and non-metric mappers
+        for (Object[] values : data) {
+            // Non-metric mapper works with multi-valued data
+            {
+                ParsedDocument doc = nonMetricMapper.parse(source(b -> b.field("field", values)));
+                assertThat(doc.rootDoc().getField("field"), notNullValue());
+                Object[] fields = doc.rootDoc()
+                    .getFields()
+                    .stream()
+                    .filter(f -> f.name().equals("field") && f.fieldType().docValuesType() == DocValuesType.NONE)
+                    .toArray();
+                assertThat(fields.length, equalTo(2));
+                assertThat(fields[0], instanceOf(LatLonPoint.class));
+                assertThat(fields[0].toString(), equalTo(expectedPointA.toString()));
+                assertThat(fields[1], instanceOf(LatLonPoint.class));
+                assertThat(fields[1].toString(), equalTo(expectedPointB.toString()));
+            }
+            // Metric mapper rejects multi-valued data
+            {
+                Exception e = expectThrows(MapperParsingException.class, () -> metricMapper.parse(source(b -> b.field("field", values))));
+                assertThat(e.getCause().getMessage(), containsString("field type for [field] does not accept more than single value"));
+            }
+        }
     }
 
     public void testGeoHashValue() throws Exception {

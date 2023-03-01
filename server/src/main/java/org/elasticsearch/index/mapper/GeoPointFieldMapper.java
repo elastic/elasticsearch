@@ -233,7 +233,6 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     private final Builder builder;
     private final FieldValues<GeoPoint> scriptValues;
     private final Version indexCreatedVersion;
-    /** The metric type (gauge, counter, summary) if  field is a time series metric */
     private final TimeSeriesParams.MetricType metricType;
     private final IndexMode indexMode;
     private final boolean indexed;

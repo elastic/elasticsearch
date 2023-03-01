@@ -22,11 +22,6 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
 
-    @Override
-    protected boolean preserveSystemResources() {
-        return true;
-    }
-
     @SuppressWarnings("unchecked")
     public void testSystemIndicesUpgrades() throws Exception {
         final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct "

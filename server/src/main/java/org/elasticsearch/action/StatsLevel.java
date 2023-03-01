@@ -41,9 +41,9 @@ public enum StatsLevel {
     }
 
     public static ActionRequestValidationException nodeLevelsValidation(final String level) {
-        final boolean isLevelValid = "node".equalsIgnoreCase(level)
-            || "indices".equalsIgnoreCase(level)
-            || "shards".equalsIgnoreCase(level);
+        final boolean isLevelValid = NODE.getName().equalsIgnoreCase(level)
+            || INDICES.getName().equalsIgnoreCase(level)
+            || SHARDS.getName().equalsIgnoreCase(level);
 
         ActionRequestValidationException validationException = null;
         if (isLevelValid == false) {

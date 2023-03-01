@@ -20,8 +20,7 @@ public enum ElementType {
     /**
      * Blocks containing only null values.
      */
-    NULL(estimatedSize -> { throw new UnsupportedOperationException("can't build null blocks"); }),
-    // TODO we might want to be able to copy null vectors - so maybe we don't need this element type?
+    NULL(estimatedSize -> new ConstantNullBlock.Builder()),
 
     BYTES_REF(BytesRefBlock::newBlockBuilder),
 

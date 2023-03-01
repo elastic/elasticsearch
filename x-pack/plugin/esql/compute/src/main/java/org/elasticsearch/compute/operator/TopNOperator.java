@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -165,10 +166,6 @@ public class TopNOperator implements Operator {
         }
     }
 
-    private final PriorityQueue<Row> inputQueue;
-
-    private Iterator<Page> output;
-
     public record SortOrder(int channel, boolean asc, boolean nullsFirst) {}
 
     public record TopNOperatorFactory(int topCount, List<SortOrder> sortOrders) implements OperatorFactory {
@@ -183,6 +180,12 @@ public class TopNOperator implements Operator {
             return "TopNOperator(count = " + topCount + ", sortOrders = " + sortOrders + ")";
         }
     }
+
+    private final PriorityQueue<Row> inputQueue;
+
+    private RowFactory rowFactory;  // TODO build in ctor
+
+    private Iterator<Page> output;
 
     public TopNOperator(int topCount, List<SortOrder> sortOrders) {
         if (sortOrders.size() == 1) {
@@ -261,10 +264,12 @@ public class TopNOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
-        RowFactory factory = new RowFactory(page);
+        if (rowFactory == null) {
+            rowFactory = new RowFactory(page);
+        }
         Row removed = null;
         for (int i = 0; i < page.getPositionCount(); i++) {
-            Row x = factory.row(page, i, removed);
+            Row x = rowFactory.row(page, i, removed);
             removed = inputQueue.insertWithOverflow(x);
         }
     }
@@ -272,77 +277,65 @@ public class TopNOperator implements Operator {
     @Override
     public void finish() {
         if (output == null) {
-            output = toPages(inputQueue);
+            output = toPages();
         }
     }
 
-    protected Iterator<Page> toPages(PriorityQueue<Row> rows) {
-        if (rows.size() == 0) {
+    private Iterator<Page> toPages() {
+        if (inputQueue.size() == 0) {
             return Collections.emptyIterator();
         }
-        List<Row> list = new ArrayList<>(rows.size());
+        List<Row> list = new ArrayList<>(inputQueue.size());
         while (inputQueue.size() > 0) {
             list.add(inputQueue.pop());
         }
         Collections.reverse(list);
 
-        // This returns one page per row because ValuesSourceReaderOperator.addInput() does not
-        // allow non-non-decreasing "docs" IntVector
-        // TODO review this when ValuesSourceReaderOperator can handle this case
-        final Iterator<Row> listIterator = list.iterator();
-        return new Iterator<>() {
-            @Override
-            public boolean hasNext() {
-                return listIterator.hasNext();
+        List<Page> result = new ArrayList<>();
+        Block.Builder[] builders = null;
+        int p = 0;
+        int size = 0;
+        for (int i = 0; i < list.size(); i++) {
+            if (builders == null) {
+                size = Math.min(LuceneSourceOperator.PAGE_SIZE, list.size() - i);
+                builders = new Block.Builder[rowFactory.size];
+                for (int b = 0; b < builders.length; b++) {
+                    builders[b] = rowFactory.idToType[b].newBlockBuilder(size);
+                }
+                p = 0;
             }
 
-            @Override
-            public Page next() {
-                return toPage(listIterator.next());
+            Row row = list.get(i);
+            for (int b = 0; b < builders.length; b++) {
+                if (row.isNull(b)) {
+                    builders[b].appendNull();
+                    continue;
+                }
+                switch (rowFactory.idToType[b]) {
+                    case BOOLEAN -> ((BooleanBlock.Builder) builders[b]).appendBoolean(row.getBoolean(b));
+                    case INT -> ((IntBlock.Builder) builders[b]).appendInt(row.getInt(b));
+                    case LONG -> ((LongBlock.Builder) builders[b]).appendLong(row.getLong(b));
+                    case DOUBLE -> ((DoubleBlock.Builder) builders[b]).appendDouble(row.getDouble(b));
+                    case BYTES_REF -> ((BytesRefBlock.Builder) builders[b]).appendBytesRef(row.getBytesRef(b));
+                    case DOC -> {
+                        int dp = row.idToPosition[b];
+                        int shard = row.docs[dp++];
+                        int segment = row.docs[dp++];
+                        int doc = row.docs[dp];
+                        ((DocBlock.Builder) builders[b]).appendShard(shard).appendSegment(segment).appendDoc(doc);
+                    }
+                    default -> throw new IllegalStateException("unsupported type [" + rowFactory.idToType[b] + "]");
+                }
             }
-        };
-    }
 
-    private static Page toPage(Row row) {
-        Block[] blocks = new Block[row.idToType.length];
-        for (int i = 0; i < row.idToType.length; i++) {
-            ElementType type = row.idToType[i];
-            blocks[i] = switch (type) {
-                case BOOLEAN -> row.isNull(i)
-                    ? BooleanBlock.newBlockBuilder(1).appendNull().build()
-                    : BooleanBlock.newBlockBuilder(1).appendBoolean(row.getBoolean(i)).build();
-                case INT -> row.isNull(i)
-                    ? IntBlock.newBlockBuilder(1).appendNull().build()
-                    : IntBlock.newBlockBuilder(1).appendInt(row.getInt(i)).build();
-                case LONG -> row.isNull(i)
-                    ? LongBlock.newBlockBuilder(1).appendNull().build()
-                    : LongBlock.newBlockBuilder(1).appendLong(row.getLong(i)).build();
-                case DOUBLE -> row.isNull(i)
-                    ? DoubleBlock.newBlockBuilder(1).appendNull().build()
-                    : DoubleBlock.newBlockBuilder(1).appendDouble(row.getDouble(i)).build();
-                case BYTES_REF -> row.isNull(i)
-                    ? BytesRefBlock.newBlockBuilder(1).appendNull().build()
-                    : BytesRefBlock.newBlockBuilder(1).appendBytesRef(row.getBytesRef(i)).build();
-                case DOC -> {
-                    int p = row.idToPosition[i];
-                    int shard = row.docs[p++];
-                    int segment = row.docs[p++];
-                    int doc = row.docs[p];
-                    yield new DocVector(
-                        IntBlock.newConstantBlockWith(shard, 1).asVector(),
-                        IntBlock.newConstantBlockWith(segment, 1).asVector(),
-                        IntBlock.newConstantBlockWith(doc, 1).asVector(),
-                        true
-                    ).asBlock();
-                }
-                case NULL -> Block.constantNullBlock(1);
-                case UNKNOWN -> {
-                    assert false : "Must not occur here as TopN should never receive intermediate blocks";
-                    throw new UnsupportedOperationException("Block doesn't support retrieving elements");
-                }
-            };
+            p++;
+            if (p == size) {
+                result.add(new Page(Arrays.stream(builders).map(Block.Builder::build).toArray(Block[]::new)));
+                builders = null;
+            }
         }
-        return new Page(blocks);
+        assert builders == null;
+        return result.iterator();
     }
 
     @Override

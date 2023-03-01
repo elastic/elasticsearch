@@ -100,4 +100,39 @@ public final class ConstantNullBlock extends AbstractBlock {
     public String toString() {
         return "ConstantNullBlock[positions=" + getPositionCount() + "]";
     }
+
+    static class Builder implements Block.Builder {
+        private int positionCount;
+
+        @Override
+        public Builder appendNull() {
+            positionCount++;
+            return this;
+        }
+
+        @Override
+        public Builder beginPositionEntry() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Builder endPositionEntry() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Builder copyFrom(Block block, int beginInclusive, int endExclusive) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                if (false == block.isNull(i)) {
+                    throw new UnsupportedOperationException("can't append non-null values to a null block");
+                }
+            }
+            return this;
+        }
+
+        @Override
+        public Block build() {
+            return new ConstantNullBlock(positionCount);
+        }
+    }
 }

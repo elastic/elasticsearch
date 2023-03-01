@@ -13,6 +13,8 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -21,13 +23,19 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
+import static org.elasticsearch.compute.data.BlockTestUtils.append;
+import static org.elasticsearch.compute.data.BlockTestUtils.randomValue;
+import static org.elasticsearch.compute.data.BlockTestUtils.readInto;
 import static org.elasticsearch.core.Tuple.tuple;
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -67,10 +75,15 @@ public class TopNOperatorTests extends OperatorTestCase {
             .limit(4)
             .toArray();
 
-        assertThat(results, hasSize(4));
-        results.stream().forEach(page -> assertThat(page.getPositionCount(), equalTo(1)));
+        assertThat(results, hasSize(1));
+        results.stream().forEach(page -> assertThat(page.getPositionCount(), equalTo(4)));
         results.stream().forEach(page -> assertThat(page.getBlockCount(), equalTo(1)));
-        assertThat(results.stream().mapToLong(page -> ((LongBlock) page.getBlock(0)).getLong(0)).toArray(), equalTo(topN));
+        assertThat(
+            results.stream()
+                .flatMapToLong(page -> IntStream.range(0, page.getPositionCount()).mapToLong(i -> page.<LongBlock>getBlock(0).getLong(i)))
+                .toArray(),
+            equalTo(topN)
+        );
     }
 
     @Override
@@ -232,6 +245,51 @@ public class TopNOperatorTests extends OperatorTestCase {
             topNTwoColumns(values, 5, List.of(new TopNOperator.SortOrder(0, true, false), new TopNOperator.SortOrder(1, true, true))),
             equalTo(List.of(tuple(1L, null), tuple(1L, 1L), tuple(1L, 2L), tuple(null, null), tuple(null, 1L)))
         );
+    }
+
+    public void testCollectAllValues() {
+        int size = 10;
+        int topCount = 3;
+        List<Block> blocks = new ArrayList<>();
+        List<List<? extends Object>> expectedTop = new ArrayList<>();
+
+        IntBlock keys = new IntArrayVector(IntStream.range(0, size).toArray(), size).asBlock();
+        List<Integer> topKeys = new ArrayList<>(IntStream.range(size - topCount, size).boxed().toList());
+        Collections.reverse(topKeys);
+        expectedTop.add(topKeys);
+        blocks.add(keys);
+
+        for (ElementType e : ElementType.values()) {
+            if (e == ElementType.UNKNOWN) {
+                continue;
+            }
+            List<Object> eTop = new ArrayList<>();
+            Block.Builder builder = e.newBlockBuilder(size);
+            for (int i = 0; i < size; i++) {
+                Object value = randomValue(e);
+                append(builder, value);
+                if (i >= size - topCount) {
+                    eTop.add(value);
+                }
+            }
+            Collections.reverse(eTop);
+            blocks.add(builder.build());
+            expectedTop.add(eTop);
+        }
+
+        List<List<Object>> actualTop = new ArrayList<>();
+        try (
+            Driver driver = new Driver(
+                new CannedSourceOperator(List.of(new Page(blocks.toArray(Block[]::new))).iterator()),
+                List.of(new TopNOperator(topCount, List.of(new TopNOperator.SortOrder(0, false, false)))),
+                new PageConsumerOperator(page -> readInto(actualTop, page)),
+                () -> {}
+            )
+        ) {
+            driver.run();
+        }
+
+        assertMap(actualTop, matchesList(expectedTop));
     }
 
     private List<Tuple<Long, Long>> topNTwoColumns(

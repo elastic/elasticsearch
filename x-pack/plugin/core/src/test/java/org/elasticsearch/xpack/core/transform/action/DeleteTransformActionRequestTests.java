@@ -32,17 +32,17 @@ public class DeleteTransformActionRequestTests extends AbstractWireSerializingTe
     protected Request mutateInstance(Request instance) {
         String id = instance.getId();
         boolean force = instance.isForce();
-        boolean deleteDestinationIndex = instance.isDeleteDestinationIndex();
+        boolean deleteDestIndex = instance.isDeleteDestIndex();
         TimeValue timeout = instance.timeout();
 
         switch (between(0, 3)) {
             case 0 -> id += randomAlphaOfLengthBetween(1, 5);
             case 1 -> force ^= true;
-            case 2 -> deleteDestinationIndex ^= true;
+            case 2 -> deleteDestIndex ^= true;
             case 3 -> timeout = new TimeValue(timeout.duration() + randomLongBetween(1, 5), timeout.timeUnit());
             default -> throw new AssertionError("Illegal randomization branch");
         }
 
-        return new Request(id, force, deleteDestinationIndex, timeout);
+        return new Request(id, force, deleteDestIndex, timeout);
     }
 }

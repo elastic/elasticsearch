@@ -83,9 +83,9 @@ public class RestDeleteTransformActionTests extends ESTestCase {
         verify(client).execute(eq(DeleteTransformAction.INSTANCE), eq(expectedActionRequest), any());
     }
 
-    public void testDeleteDestinationIndex() throws Exception {
+    public void testDeleteDestIndex() throws Exception {
         FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(
-            Map.of("id", "my-id", "delete_destination_index", "true")
+            Map.of("id", "my-id", "delete_dest_index", "true")
         ).build();
         handler.handleRequest(request, channel, client);
 

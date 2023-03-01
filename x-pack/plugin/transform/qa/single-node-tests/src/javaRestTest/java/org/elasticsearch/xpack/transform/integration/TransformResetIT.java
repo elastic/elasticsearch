@@ -69,7 +69,6 @@ public class TransformResetIT extends TransformRestTestCase {
         indicesCreated = true;
     }
 
-    @SuppressWarnings("unchecked")
     public void testReset() throws Exception {
         String transformId = "transform-1";
         String transformDest = transformId + "_idx";
@@ -80,31 +79,7 @@ public class TransformResetIT extends TransformRestTestCase {
             getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1
         );
-        String config = Strings.format("""
-            {
-              "dest": {
-                "index": "%s"
-              },
-              "source": {
-                "index": "%s"
-              },
-              "pivot": {
-                "group_by": {
-                  "reviewer": {
-                    "terms": {
-                      "field": "user_id"
-                    }
-                  }
-                },
-                "aggregations": {
-                  "avg_rating": {
-                    "avg": {
-                      "field": "stars"
-                    }
-                  }
-                }
-              }
-            }""", transformDest, REVIEWS_INDEX_NAME);
+        String config = createConfig(transformDest);
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
@@ -130,7 +105,6 @@ public class TransformResetIT extends TransformRestTestCase {
         resetTransform(transformId, false);
     }
 
-    @SuppressWarnings("unchecked")
     public void testResetDeletesDestinationIndex() throws Exception {
         String transformId = "transform-2";
         String transformDest = transformId + "_idx";
@@ -141,7 +115,24 @@ public class TransformResetIT extends TransformRestTestCase {
             getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1
         );
-        String config = Strings.format("""
+        String config = createConfig(transformDest);
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        assertFalse(indexExists(transformDest));
+
+        startTransform(transformId);
+        waitForTransformCheckpoint(transformId, 1);
+        stopTransform(transformId, false);
+        assertTrue(indexExists(transformDest));
+
+        resetTransform(transformId, false);
+        assertFalse(indexExists(transformDest));
+    }
+
+    private static String createConfig(String transformDestIndex) {
+        return Strings.format("""
             {
               "dest": {
                 "index": "%s"
@@ -165,19 +156,6 @@ public class TransformResetIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""", transformDest, REVIEWS_INDEX_NAME);
-        createTransformRequest.setJsonEntity(config);
-        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
-        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-
-        assertFalse(indexExists(transformDest));
-
-        startTransform(transformId);
-        waitForTransformCheckpoint(transformId, 1);
-        stopTransform(transformId, false);
-        assertTrue(indexExists(transformDest));
-
-        resetTransform(transformId, false);
-        assertFalse(indexExists(transformDest));
+            }""", transformDestIndex, REVIEWS_INDEX_NAME);
     }
 }

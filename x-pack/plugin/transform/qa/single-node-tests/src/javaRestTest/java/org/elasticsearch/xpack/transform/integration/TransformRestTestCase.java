@@ -587,11 +587,11 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         deleteTransform(transformId, false);
     }
 
-    protected static void deleteTransform(String transformId, boolean deleteDestinationIndex) throws IOException {
+    protected static void deleteTransform(String transformId, boolean deleteDestIndex) throws IOException {
         Request request = new Request("DELETE", getTransformEndpoint() + transformId);
         request.addParameter("ignore", "404"); // Ignore 404s because they imply someone was racing us to delete this
-        if (deleteDestinationIndex) {
-            request.addParameter(TransformField.DELETE_DESTINATION_INDEX.getPreferredName(), String.valueOf(deleteDestinationIndex));
+        if (deleteDestIndex) {
+            request.addParameter(TransformField.DELETE_DEST_INDEX.getPreferredName(), Boolean.TRUE.toString());
         }
         adminClient().performRequest(request);
     }

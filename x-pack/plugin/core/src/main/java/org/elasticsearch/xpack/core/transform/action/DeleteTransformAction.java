@@ -32,13 +32,13 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
     public static class Request extends AcknowledgedRequest<Request> {
         private final String id;
         private final boolean force;
-        private final boolean deleteDestinationIndex;
+        private final boolean deleteDestIndex;
 
-        public Request(String id, boolean force, boolean deleteDestinationIndex, TimeValue timeout) {
+        public Request(String id, boolean force, boolean deleteDestIndex, TimeValue timeout) {
             super(timeout);
             this.id = ExceptionsHelper.requireNonNull(id, TransformField.ID.getPreferredName());
             this.force = force;
-            this.deleteDestinationIndex = deleteDestinationIndex;
+            this.deleteDestIndex = deleteDestIndex;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -46,9 +46,9 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
             id = in.readString();
             force = in.readBoolean();
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-                deleteDestinationIndex = in.readBoolean();
+                deleteDestIndex = in.readBoolean();
             } else {
-                deleteDestinationIndex = false;
+                deleteDestIndex = false;
             }
         }
 
@@ -60,8 +60,8 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
             return force;
         }
 
-        public boolean isDeleteDestinationIndex() {
-            return deleteDestinationIndex;
+        public boolean isDeleteDestIndex() {
+            return deleteDestIndex;
         }
 
         @Override
@@ -70,7 +70,7 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
             out.writeString(id);
             out.writeBoolean(force);
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-                out.writeBoolean(deleteDestinationIndex);
+                out.writeBoolean(deleteDestIndex);
             }
         }
 
@@ -82,7 +82,7 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
         @Override
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
-            return Objects.hash(timeout(), id, force, deleteDestinationIndex);
+            return Objects.hash(timeout(), id, force, deleteDestIndex);
         }
 
         @Override
@@ -98,7 +98,7 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
             // the base class does not implement equals, therefore we need to check timeout ourselves
             return Objects.equals(id, other.id)
                 && force == other.force
-                && deleteDestinationIndex == other.deleteDestinationIndex
+                && deleteDestIndex == other.deleteDestIndex
                 && timeout().equals(other.timeout());
         }
     }

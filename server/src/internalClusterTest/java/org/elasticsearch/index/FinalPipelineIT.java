@@ -100,6 +100,26 @@ public class FinalPipelineIT extends ESIntegTestCase {
         );
     }
 
+    public void testFinalPipelineCantRerouteDestination() {
+        final Settings settings = Settings.builder().put(IndexSettings.FINAL_PIPELINE.getKey(), "final_pipeline").build();
+        createIndex("index", settings);
+
+        final BytesReference finalPipelineBody = new BytesArray("""
+            {"processors": [{"reroute": {}}]}""");
+        client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
+
+        final IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> client().prepareIndex("index").setId("1").setSource(Map.of("field", "value")).get()
+        );
+        assertThat(
+            e,
+            hasToString(
+                endsWith("final pipeline [final_pipeline] can't change the target index (from [index] to [target]) for document [1]")
+            )
+        );
+    }
+
     public void testFinalPipelineOfOldDestinationIsNotInvoked() {
         Settings settings = Settings.builder()
             .put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline")

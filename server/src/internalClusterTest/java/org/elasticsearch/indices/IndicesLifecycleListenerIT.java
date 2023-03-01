@@ -154,12 +154,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
                     }
                 });
         }
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("index1")
-                .setSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", node1))
-        );
+        updateIndexSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", node1), "index1");
         ensureGreen("index1");
     }
 
@@ -229,9 +224,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         assertShardStatesMatch(stateChangeListenerNode2, 3, CREATED, RECOVERING, POST_RECOVERY, STARTED);
 
         // increase replicas from 0 to 1
-        assertAcked(
-            client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 1))
-        );
+        setReplicaCount(1, "test");
         ensureGreen();
 
         // 3 replicas are allocated to the first node

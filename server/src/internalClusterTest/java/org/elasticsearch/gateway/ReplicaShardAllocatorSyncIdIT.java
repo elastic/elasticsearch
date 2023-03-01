@@ -334,13 +334,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
             }
             connection.sendRequest(requestId, action, request, options);
         });
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings()
-                .setIndices(indexName)
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build())
-        );
+        setReplicaCount(1, indexName);
         ensureGreen(indexName);
         transportService.clearAllRules();
     }

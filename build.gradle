@@ -353,6 +353,7 @@ tasks.register("buildReleaseArtifacts").configure {
     it.path.startsWith(':distribution:docker') == false
       && it.path.startsWith(':ml-cpp') == false
       && it.path.startsWith(':distribution:bwc') == false
+      && it.path.startsWith(':test:fixture') == false
   }
     .collect { GradleUtils.findByName(it.tasks, 'assemble') }
     .findAll { it != null }

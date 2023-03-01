@@ -55,12 +55,7 @@ public final class TimeSeriesParams {
 
         /** an array of metrics representing simple numerical values, like GAUGE and COUNTER */
         public static MetricType[] scalar() {
-            Object[] objs = Arrays.stream(MetricType.values()).filter(m -> m.scalar).toArray();
-            MetricType[] scalar = new MetricType[objs.length];
-            for (int i = 0; i < scalar.length; i++) {
-                scalar[i] = (MetricType) objs[i];
-            }
-            return scalar;
+            return Arrays.stream(MetricType.values()).filter(m -> m.scalar).toArray(MetricType[]::new);
         }
 
         @Override

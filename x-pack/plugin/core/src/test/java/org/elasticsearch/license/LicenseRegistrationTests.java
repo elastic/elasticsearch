@@ -21,7 +21,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class LicenseRegistrationTests extends AbstractClusterStateLicenseServiceTestCase {
+public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
 
     public void testSelfGeneratedTrialLicense() throws Exception {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();

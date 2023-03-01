@@ -324,7 +324,7 @@ public class XPackPlugin extends XPackClientPlugin
         components.add(sslService);
         components.add(new PrivateInterface<>(LicenseService.MutableLicense.class, () -> licenseService));
         components.add(new PrivateInterface<>(LicenseService.class, () -> licenseService));
-        components.add(getLicenseState());
+        components.add(getLicenseState()); // TODO: remove this as something injectable in favor of the license service
 
         return components;
     }

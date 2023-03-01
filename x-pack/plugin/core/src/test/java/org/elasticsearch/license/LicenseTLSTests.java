@@ -25,7 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-public class LicenseTLSTests extends AbstractClusterStateLicenseServiceTestCase {
+public class LicenseTLSTests extends AbstractLicenseServiceTestCase {
 
     private InetAddress inetAddress;
 

@@ -54,8 +54,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testStoreAndGetLicenses() throws Exception {
-        @SuppressWarnings("rawtypes")
-        ClusterStateLicenseService licenseService = getInstanceFromNode(ClusterStateLicenseService.class);
+        LicenseService.MutableLicense licenseService = getInstanceFromNode(LicenseService.MutableLicense.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         License goldLicense = TestUtils.generateSignedLicense("gold", TimeValue.timeValueHours(1));
         TestUtils.registerAndAckSignedLicenses(licenseService, goldLicense, LicensesStatus.VALID);
@@ -72,8 +71,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
     // TODO: Add test/feature blocking the registration of basic license
 
     public void testEffectiveLicenses() throws Exception {
-        @SuppressWarnings("rawtypes")
-        final ClusterStateLicenseService licenseService = getInstanceFromNode(ClusterStateLicenseService.class);
+        final LicenseService.MutableLicense licenseService = getInstanceFromNode(LicenseService.MutableLicense.class);
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         License goldLicense = TestUtils.generateSignedLicense("gold", TimeValue.timeValueSeconds(5));
         // put gold license
@@ -89,8 +87,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testInvalidLicenseStorage() throws Exception {
-        @SuppressWarnings("rawtypes")
-        ClusterStateLicenseService licenseService = getInstanceFromNode(ClusterStateLicenseService.class);
+        LicenseService.MutableLicense licenseService = getInstanceFromNode(LicenseService.MutableLicense.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         License signedLicense = TestUtils.generateSignedLicense(TimeValue.timeValueMinutes(2));
 
@@ -109,8 +106,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testRemoveLicenses() throws Exception {
-        @SuppressWarnings("rawtypes")
-        ClusterStateLicenseService licenseService = getInstanceFromNode(ClusterStateLicenseService.class);
+        LicenseService.MutableLicense licenseService = getInstanceFromNode(LicenseService.MutableLicense.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
 
         // generate signed licenses
@@ -126,7 +122,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    private void removeAndAckSignedLicenses(final ClusterStateLicenseService licenseService) {
+    private void removeAndAckSignedLicenses(final LicenseService.MutableLicense licenseService) {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean success = new AtomicBoolean(false);
         licenseService.removeLicense(new ActionListener<PostStartBasicResponse>() {

@@ -196,7 +196,7 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         listener.get().onFailure(new ElasticsearchException("Boom"));
         channel.runPendingTasks();
         assertThat(channel.readInbound(), sameInstance(request1));
-        assertThat(content1.refCnt(), equalTo(1));
+        assertThat(content1.refCnt(), equalTo(0)); // content is dropped
 
         assertThat(header.get(), sameInstance(request2));
 

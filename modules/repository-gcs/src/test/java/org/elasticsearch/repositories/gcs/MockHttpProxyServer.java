@@ -68,6 +68,6 @@ class MockHttpProxyServer implements Closeable {
     @Override
     public void close() throws IOException {
         channelFuture.channel().close().awaitUninterruptibly();
-        group.shutdownGracefully();
+        group.shutdownGracefully().awaitUninterruptibly();
     }
 }

@@ -238,7 +238,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
          * has been forwarded by a non-ingest coordinating node to an ingest node. In this case, the coordinating node will have
          * already resolved the pipeline for this request. It is important that we are able to distinguish this situation as we
          * can not double-resolve the pipeline because we will not be able to distinguish the case of the pipeline having been
-         * set from a request pipeline parameter  versus having been set by the resolution. We need to be able to distinguish
+         * set from a request pipeline parameter versus having been set by the resolution. We need to be able to distinguish
          * these cases as we need to reject the request if the pipeline was set by a required pipeline and there is a request
          * pipeline parameter too.
          */
@@ -1248,7 +1248,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 // we can break if we have already collected a default and final pipeline
                 break;
             }
-
         }
 
         return Optional.of(new Pipelines(defaultPipeline, finalPipeline));

@@ -18,7 +18,7 @@ import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.time.format.DateTimeParseException;
+import java.time.DateTimeException;
 import java.util.Map;
 
 /**
@@ -44,7 +44,8 @@ final class DynamicFieldsBuilder {
      * delegates to the appropriate strategy which depends on the current dynamic mode.
      * The strategy defines if fields are going to be mapped as ordinary or runtime fields.
      */
-    void createDynamicFieldFromValue(final DocumentParserContext context, XContentParser.Token token, String name) throws IOException {
+    void createDynamicFieldFromValue(final DocumentParserContext context, String name) throws IOException {
+        XContentParser.Token token = context.parser().currentToken();
         if (token == XContentParser.Token.VALUE_STRING) {
             String text = context.parser().text();
 
@@ -84,8 +85,8 @@ final class DynamicFieldsBuilder {
                 // `epoch_millis` or `YYYY`
                 for (DateFormatter dateTimeFormatter : context.root().dynamicDateTimeFormatters()) {
                     try {
-                        dateTimeFormatter.parse(text);
-                    } catch (ElasticsearchParseException | DateTimeParseException | IllegalArgumentException e) {
+                        dateTimeFormatter.parseMillis(text);
+                    } catch (DateTimeException | ElasticsearchParseException | IllegalArgumentException e) {
                         // failure to parse this, continue
                         continue;
                     }

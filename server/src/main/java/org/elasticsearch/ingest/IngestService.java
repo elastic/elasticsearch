@@ -1191,19 +1191,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             return Optional.empty();
         }
 
-        String defaultPipeline = null;
-        String finalPipeline = null;
-        final Settings indexSettings = indexMetadata.getSettings();
-        if (IndexSettings.DEFAULT_PIPELINE.exists(indexSettings)) {
-            // find the default pipeline if one is defined from an existing index setting
-            defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexSettings);
-        }
-        if (IndexSettings.FINAL_PIPELINE.exists(indexSettings)) {
-            // find the final pipeline if one is defined from an existing index setting
-            finalPipeline = IndexSettings.FINAL_PIPELINE.get(indexSettings);
-        }
-
-        return Optional.of(new Pipelines(defaultPipeline, finalPipeline));
+        final Settings settings = indexMetadata.getSettings();
+        return Optional.of(new Pipelines(IndexSettings.DEFAULT_PIPELINE.get(settings), IndexSettings.FINAL_PIPELINE.get(settings)));
     }
 
     private static Optional<Pipelines> resolvePipelinesFromIndexTemplates(IndexRequest indexRequest, Metadata clusterMetadata) {
@@ -1216,18 +1205,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         // precedence), or if a V2 template does not match, any V1 templates
         String v2Template = MetadataIndexTemplateService.findV2Template(clusterMetadata, indexRequest.index(), false);
         if (v2Template != null) {
-            String defaultPipeline = null;
-            String finalPipeline = null;
-
-            Settings settings = MetadataIndexTemplateService.resolveSettings(clusterMetadata, v2Template);
-            if (IndexSettings.DEFAULT_PIPELINE.exists(settings)) {
-                defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(settings);
-            }
-            if (IndexSettings.FINAL_PIPELINE.exists(settings)) {
-                finalPipeline = IndexSettings.FINAL_PIPELINE.get(settings);
-            }
-
-            return Optional.of(new Pipelines(defaultPipeline, finalPipeline));
+            final Settings settings = MetadataIndexTemplateService.resolveSettings(clusterMetadata, v2Template);
+            return Optional.of(new Pipelines(IndexSettings.DEFAULT_PIPELINE.get(settings), IndexSettings.FINAL_PIPELINE.get(settings)));
         }
 
         String defaultPipeline = null;
@@ -1236,6 +1215,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         // order of templates are the highest order first
         for (final IndexTemplateMetadata template : templates) {
             final Settings settings = template.settings();
+
+            // note: the exists/get trickiness here is because we explicitly *don't* want the default value
+            // of the settings -- a non-null value would terminate the search too soon
             if (defaultPipeline == null && IndexSettings.DEFAULT_PIPELINE.exists(settings)) {
                 defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(settings);
                 // we can not break in case a lower-order template has a final pipeline that we need to collect
@@ -1250,6 +1232,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
         }
 
+        // having exhausted the search, if nothing was found, then use the default noop pipeline names
+        defaultPipeline = Objects.requireNonNullElse(defaultPipeline, NOOP_PIPELINE_NAME);
+        finalPipeline = Objects.requireNonNullElse(finalPipeline, NOOP_PIPELINE_NAME);
+
         return Optional.of(new Pipelines(defaultPipeline, finalPipeline));
     }
 
@@ -1263,8 +1249,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         private static final Pipelines NO_PIPELINES_DEFINED = new Pipelines(NOOP_PIPELINE_NAME, NOOP_PIPELINE_NAME);
 
         public Pipelines {
-            defaultPipeline = Objects.requireNonNullElse(defaultPipeline, NOOP_PIPELINE_NAME);
-            finalPipeline = Objects.requireNonNullElse(finalPipeline, NOOP_PIPELINE_NAME);
+            Objects.requireNonNull(defaultPipeline);
+            Objects.requireNonNull(finalPipeline);
         }
     }
 }

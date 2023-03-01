@@ -1069,10 +1069,10 @@ public class Node implements Closeable {
                 b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
                 pluginComponents.forEach(p -> {
                     // TODO: mature this
-                    if (p instanceof PrivateInterface<?, ?>) {
+                    if (p instanceof PluginComponentInterface<?, ?>) {
                         // bind private interface component to custom implementation
                         // @SuppressWarnings("unchecked")
-                        PrivateInterface<?, ?> pi = (PrivateInterface<?, ?>) p;
+                        PluginComponentInterface<?, ?> pi = (PluginComponentInterface<?, ?>) p;
                         @SuppressWarnings("unchecked")
                         Class<Object> clazz = (Class<Object>) pi.clazz();
                         b.bind(clazz).toProvider(pi.provider());
@@ -1132,8 +1132,8 @@ public class Node implements Closeable {
 
             // THIS IS bad and I should feel bad
             List<LifecycleComponent> additionlaPluginLifecycleComponents = pluginComponents.stream()
-                .filter(p -> p instanceof PrivateInterface)
-                .map(p -> ((PrivateInterface) p).provider().get())
+                .filter(p -> p instanceof PluginComponentInterface)
+                .map(p -> ((PluginComponentInterface) p).provider().get())
                 .filter(p -> p instanceof LifecycleComponent)
                 .map(p -> (LifecycleComponent) p)
                 .toList();

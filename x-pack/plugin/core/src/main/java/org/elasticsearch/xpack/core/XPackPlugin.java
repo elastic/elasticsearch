@@ -41,12 +41,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseServiceFactory;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.node.PrivateInterface;
+import org.elasticsearch.node.PluginComponentInterface;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -315,16 +315,22 @@ public class XPackPlugin extends XPackClientPlugin
 
         final SSLService sslService = createSSLService(environment, resourceWatcherService);
 
-        LicenseService licenseService = new ClusterStateLicenseService(settings, threadPool, clusterService, getClock(), getLicenseState());
+        LicenseService licenseService;
+        try {
+            licenseService = LicenseServiceFactory.create(settings, threadPool, clusterService, getClock(), getLicenseState());
+            // licenseService = new ClusterStateLicenseService(settings, threadPool, clusterService, getClock(), getLicenseState());
+        } catch (Exception e) {
+            throw new IllegalStateException("Can not determine implementation for LicenseService", e);
+        }
         setLicenseService(licenseService);
 
         setEpochMillisSupplier(threadPool::absoluteTimeInMillis);
 
         // It is useful to override these as they are what guice is injecting into actions
         components.add(sslService);
-        components.add(new PrivateInterface<>(LicenseService.MutableLicense.class, () -> licenseService));
-        components.add(new PrivateInterface<>(LicenseService.class, () -> licenseService));
-        components.add(getLicenseState()); // TODO: remove this as something injectable in favor of the license service
+        components.add(new PluginComponentInterface<>(LicenseService.MutableLicense.class, () -> licenseService)); // TODO: remove this
+        components.add(new PluginComponentInterface<>(LicenseService.class, () -> licenseService));
+        components.add(getLicenseState());
 
         return components;
     }

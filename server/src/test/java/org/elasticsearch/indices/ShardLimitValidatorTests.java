@@ -80,6 +80,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
         assertFalse(ShardLimitValidator.canAddShardsToCluster(counts.getFailingIndexShards(), counts.getFailingIndexReplicas(), state));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94215")
     public void testUnderShardLimit() {
         int nodesInCluster = randomIntBetween(2, 90);
         // Calculate the counts for a cluster 1 node smaller than we have to ensure we have headroom

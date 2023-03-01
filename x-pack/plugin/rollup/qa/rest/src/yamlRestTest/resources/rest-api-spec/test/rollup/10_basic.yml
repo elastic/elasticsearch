@@ -652,8 +652,8 @@ setup:
 ---
 "Downsample date_nanos timestamp field using custom format":
   - skip:
-      version: " - 8.7.0"
-      reason: "Bug fixed in 8.7.1"
+      version: " - 8.6.99"
+      reason: "Bug fixed in 8.7.0"
 
   - do:
       indices.create:
@@ -755,8 +755,8 @@ setup:
 ---
 "Downsample date timestamp field using strict_date_optional_time_nanos format":
   - skip:
-      version: " - 8.7.0"
-      reason: "Bug fixed in 8.7.1"
+      version: " - 8.6.99"
+      reason: "Bug fixed in 8.7.0"
 
   - do:
       indices.create:

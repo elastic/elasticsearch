@@ -78,8 +78,11 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
     }
 
     // Composable index templates configuration.
+    public static final String EVENT_DATA_STREAM_INDEX_PREFIX = "behavioral_analytics-events-";
 
+    public static final String EVENT_DATA_STREAM_INDEX_PATTERN = EVENT_DATA_STREAM_INDEX_PREFIX + "*";
     public static final String EVENT_DATA_STREAM_TEMPLATE_NAME = "behavioral_analytics-events-default";
+
     private static final String EVENT_DATA_STREAM_TEMPLATE_FILENAME = "behavioral_analytics-events-template";
 
     private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATES = parseComposableTemplates(
@@ -87,7 +90,8 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
             EVENT_DATA_STREAM_TEMPLATE_NAME,
             ROOT_RESOURCE_PATH + EVENT_DATA_STREAM_TEMPLATE_FILENAME + ".json",
             REGISTRY_VERSION,
-            TEMPLATE_VERSION_VARIABLE
+            TEMPLATE_VERSION_VARIABLE,
+            Map.of("event_data_stream.index_pattern", EVENT_DATA_STREAM_INDEX_PATTERN)
         )
     );
 
@@ -118,5 +122,16 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
         return COMPOSABLE_INDEX_TEMPLATES;
+    }
+
+    @Override
+    protected boolean requiresMasterNode() {
+        // We are using the composable index template and component APIs,
+        // these APIs aren't supported in 7.7 and earlier and in mixed cluster
+        // environments this can cause a lot of ActionNotFoundTransportException
+        // errors in the logs during rolling upgrades. If these templates
+        // are only installed via elected master node then the APIs are always
+        // there and the ActionNotFoundTransportException errors are then prevented.
+        return true;
     }
 }

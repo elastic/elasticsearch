@@ -13,8 +13,16 @@ archivesBaseName = 'x-pack-ent-search'
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
+  compileOnly project(':modules:data-streams')
+  compileOnly project(path: xpackModule('ilm'))
+
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(project(':modules:data-streams'))
+  testImplementation(project(path: xpackModule('ilm')))
+
   javaRestTestImplementation(project(path: xpackModule('core')))
+  javaRestTestImplementation(project(path: xpackModule('ilm')))
+  javaRestTestImplementation(project(':modules:data-streams'))
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 

@@ -388,11 +388,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         long start = System.nanoTime();
         ActionFuture<GetGlobalCheckpointsAction.Response> future = client().execute(GetGlobalCheckpointsAction.INSTANCE, request);
         Thread.sleep(randomIntBetween(10, 100));
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "node", ""))
-            .get();
+        updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "node", ""), indexName);
         client().prepareIndex(indexName).setId(Integer.toString(0)).setSource("{}", XContentType.JSON).get();
 
         GetGlobalCheckpointsAction.Response response = future.actionGet();
@@ -403,14 +399,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
     }
 
     public void testWaitOnPrimaryShardThrottled() throws Exception {
-
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), 0).build()
-            )
-            .get();
+        updateClusterSettings(Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), 0));
 
         String indexName = "throttled";
         client().admin()
@@ -432,13 +421,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         );
         Thread.sleep(randomIntBetween(10, 100));
 
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder().putNull(CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey()).build()
-            )
-            .get();
+        updateClusterSettings(Settings.builder().putNull(CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey()));
         client().prepareIndex(indexName).setId(Integer.toString(0)).setSource("{}", XContentType.JSON).get();
 
         var response = future.actionGet();

@@ -131,7 +131,11 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         return toXContent(builder, params, null);
     }
 
-    public XContentBuilder toXContent(XContentBuilder builder, Params ignored, RolloverConditions rolloverConditions) throws IOException {
+    /**
+     * Converts the data lifecycle to XContent and injects the RolloverConditions if they exist.
+     */
+    public XContentBuilder toXContent(XContentBuilder builder, Params ignored, @Nullable RolloverConditions rolloverConditions)
+        throws IOException {
         builder.startObject();
         if (dataRetention != null) {
             builder.field(DATA_RETENTION_FIELD.getPreferredName(), dataRetention.getStringRep());

@@ -55,8 +55,8 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ClusterPlugin;
@@ -547,6 +547,10 @@ public class Security extends Plugin
         return XPackPlugin.getSharedSslService();
     }
 
+    protected LicenseService getLicenseService() {
+        return XPackPlugin.getSharedLicenseService();
+    }
+
     protected XPackLicenseState getLicenseState() {
         return XPackPlugin.getSharedLicenseState();
     }
@@ -611,7 +615,7 @@ public class Security extends Plugin
             Arrays.asList(
                 new TokenSSLBootstrapCheck(),
                 new PkiRealmBootstrapCheck(getSslService()),
-                new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata),
+                new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata, getLicenseService()),
                 new TransportTLSBootstrapCheck()
             )
         );
@@ -1707,8 +1711,7 @@ public class Security extends Plugin
         @Override
         public void accept(DiscoveryNode node, ClusterState state) {
             if (inFipsMode) {
-                // TODO: address this !
-                License license = ClusterStateLicenseService.getLicense(state.metadata());
+                License license = XPackPlugin.getSharedLicenseService().getLicense(state.metadata());
                 if (license != null && XPackLicenseState.isFipsAllowedForOperationMode(license.operationMode()) == false) {
                     throw new IllegalStateException(
                         "FIPS mode cannot be used with a ["

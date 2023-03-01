@@ -9,6 +9,7 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
@@ -20,10 +21,14 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+//Private interface not intended to be implemented by 3rd parties
 public interface LicenseService extends LifecycleComponent {
 
     // should prefer getXPackLicenseState
     License getLicense();
+
+    // Read the license from a provided Metadata. Implementations not backed by {@link ClusterState} should ignore this parameter.
+    License getLicense(Metadata metaData);
 
     XPackLicenseState getXPackLicenseState(); // TODO: don't allow injection of XPackLicenseState and inject this interface instead
 

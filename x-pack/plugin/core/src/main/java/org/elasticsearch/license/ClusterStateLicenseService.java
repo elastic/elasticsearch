@@ -529,7 +529,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
      * relative to the current license's expiry
      */
     private void onUpdate(final LicensesMetadata currentLicensesMetadata) {
-        final License license = getLicense(currentLicensesMetadata);
+        final License license = getLicenseFromMetaData(currentLicensesMetadata);
         // license can be null if the trial license is yet to be auto-generated
         // in this case, it is a no-op
         if (license != null) {
@@ -578,12 +578,14 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         };
     }
 
-    public static License getLicense(final Metadata metadata) {
+    @Override
+    public License getLicense(final Metadata metadata) {
         final LicensesMetadata licensesMetadata = metadata.custom(LicensesMetadata.TYPE);
-        return getLicense(licensesMetadata);
+        return getLicenseFromMetaData(licensesMetadata);
     }
 
-    static License getLicense(@Nullable final LicensesMetadata metadata) {
+    // visible for tests
+    protected License getLicenseFromMetaData(@Nullable final LicensesMetadata metadata) {
         if (metadata != null) {
             License license = metadata.getLicense();
             if (license == LicensesMetadata.LICENSE_TOMBSTONE) {
@@ -596,5 +598,4 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         }
         return null;
     }
-
 }

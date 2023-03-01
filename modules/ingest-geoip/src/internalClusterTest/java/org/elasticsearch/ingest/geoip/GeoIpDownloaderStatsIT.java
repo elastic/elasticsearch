@@ -8,7 +8,6 @@
 
 package org.elasticsearch.ingest.geoip;
 
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -58,12 +57,7 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
 
     @After
     public void disableDownloader() {
-        ClusterUpdateSettingsResponse settingsResponse = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), (String) null))
-            .get();
-        assertTrue(settingsResponse.isAcknowledged());
+        updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), (String) null));
     }
 
     public void testStats() throws Exception {
@@ -82,12 +76,7 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
         assertThat(jsonMapView.get("stats.total_download_time"), equalTo(0));
         assertEquals(0, jsonMapView.<Map<String, Object>>get("nodes").size());
         putPipeline();
-        ClusterUpdateSettingsResponse settingsResponse = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true))
-            .get();
-        assertTrue(settingsResponse.isAcknowledged());
+        updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
 
         assertBusy(() -> {
             GeoIpDownloaderStatsAction.Response res = client().execute(GeoIpDownloaderStatsAction.INSTANCE, req).actionGet();

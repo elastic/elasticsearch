@@ -1207,17 +1207,18 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     private static Optional<Pipelines> resolvePipelinesFromIndexTemplates(IndexRequest indexRequest, Metadata clusterMetadata) {
-        String defaultPipeline = null;
-        String finalPipeline = null;
-
         if (indexRequest.index() == null) {
             return Optional.empty();
         }
+
         // the index does not exist yet (and this is a valid request), so match index
         // templates to look for pipelines in either a matching V2 template (which takes
         // precedence), or if a V2 template does not match, any V1 templates
         String v2Template = MetadataIndexTemplateService.findV2Template(clusterMetadata, indexRequest.index(), false);
         if (v2Template != null) {
+            String defaultPipeline = null;
+            String finalPipeline = null;
+
             Settings settings = MetadataIndexTemplateService.resolveSettings(clusterMetadata, v2Template);
             if (IndexSettings.DEFAULT_PIPELINE.exists(settings)) {
                 defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(settings);
@@ -1229,6 +1230,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             return Optional.of(new Pipelines(defaultPipeline, finalPipeline));
         }
 
+        String defaultPipeline = null;
+        String finalPipeline = null;
         List<IndexTemplateMetadata> templates = MetadataIndexTemplateService.findV1Templates(clusterMetadata, indexRequest.index(), null);
         // order of templates are the highest order first
         for (final IndexTemplateMetadata template : templates) {

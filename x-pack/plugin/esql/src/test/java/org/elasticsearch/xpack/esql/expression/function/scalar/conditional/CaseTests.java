@@ -23,7 +23,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 
 public class CaseTests extends ESTestCase {
     public void testEvalCase() {
-        testCase(caseExpr -> caseExpr.toEvaluator(child -> (page, pos) -> child.fold()).computeRow(null, 0));
+        testCase(caseExpr -> caseExpr.toEvaluator(child -> () -> (page, pos) -> child.fold()).get().computeRow(null, 0));
     }
 
     public void testFoldCase() {
@@ -74,14 +74,14 @@ public class CaseTests extends ESTestCase {
         assertEquals(1, caseExpr.toEvaluator(child -> {
             Object value = child.fold();
             if (value.equals(2)) {
-                return (page, pos) -> {
+                return () -> (page, pos) -> {
                     fail("Unexpected evaluation of 4th argument");
                     return null;
                 };
             } else {
-                return (page, pos) -> value;
+                return () -> (page, pos) -> value;
             }
-        }).computeRow(null, 0));
+        }).get().computeRow(null, 0));
     }
 
     private static Case caseExpr(Object... args) {

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
@@ -79,8 +80,12 @@ public class Concat extends ScalarFunction implements Mappable {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator toEvaluator(Function<Expression, EvalOperator.ExpressionEvaluator> toEvaluator) {
-        return new Evaluator(children().stream().map(toEvaluator).toArray(EvalOperator.ExpressionEvaluator[]::new));
+    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
+        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
+    ) {
+        return () -> new Evaluator(
+            children().stream().map(toEvaluator).map(Supplier::get).toArray(EvalOperator.ExpressionEvaluator[]::new)
+        );
     }
 
     private class Evaluator implements EvalOperator.ExpressionEvaluator {

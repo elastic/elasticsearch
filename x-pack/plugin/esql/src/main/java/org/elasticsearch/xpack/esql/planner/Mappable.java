@@ -11,10 +11,11 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.expression.Expression;
 
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Expressions that have a mapping to an {@link EvalOperator.ExpressionEvaluator}.
  */
 public interface Mappable {
-    EvalOperator.ExpressionEvaluator toEvaluator(Function<Expression, EvalOperator.ExpressionEvaluator> toEvaluator);
+    Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator);
 }

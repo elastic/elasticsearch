@@ -24,6 +24,7 @@ import java.time.Period;
 import java.time.ZoneId;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -145,8 +146,10 @@ public class DateTrunc extends BinaryDateTimeFunction implements Mappable {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator toEvaluator(Function<Expression, EvalOperator.ExpressionEvaluator> toEvaluator) {
-        EvalOperator.ExpressionEvaluator fieldEvaluator = toEvaluator.apply(timestampField());
+    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
+        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
+    ) {
+        Supplier<EvalOperator.ExpressionEvaluator> fieldEvaluator = toEvaluator.apply(timestampField());
         Expression interval = interval();
         if (interval.foldable() == false) {
             throw new IllegalArgumentException("Function [" + sourceText() + "] has invalid interval [" + interval().sourceText() + "].");
@@ -156,7 +159,7 @@ public class DateTrunc extends BinaryDateTimeFunction implements Mappable {
             if (foldedInterval == null) {
                 throw new IllegalArgumentException("Interval cannot not be null");
             }
-            return new ConstantDateTruncEvaluator(fieldEvaluator, DateTrunc.createRounding(foldedInterval, zoneId()));
+            return () -> new ConstantDateTruncEvaluator(fieldEvaluator.get(), DateTrunc.createRounding(foldedInterval, zoneId()));
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException(
                 "Function [" + sourceText() + "] has invalid interval [" + interval().sourceText() + "]. " + e.getMessage()

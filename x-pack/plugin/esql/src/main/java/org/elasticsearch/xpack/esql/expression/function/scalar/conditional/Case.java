@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
@@ -122,8 +123,10 @@ public class Case extends ScalarFunction implements Mappable {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator toEvaluator(Function<Expression, EvalOperator.ExpressionEvaluator> toEvaluator) {
-        return new CaseEvaluator(children().stream().map(toEvaluator).toList());
+    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
+        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
+    ) {
+        return () -> new CaseEvaluator(children().stream().map(toEvaluator).map(Supplier::get).toList());
     }
 
     private record CaseEvaluator(List<EvalOperator.ExpressionEvaluator> children) implements EvalOperator.ExpressionEvaluator {

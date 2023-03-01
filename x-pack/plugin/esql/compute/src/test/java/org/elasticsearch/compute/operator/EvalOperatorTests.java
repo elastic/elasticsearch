@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Tuple;
 
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
@@ -37,7 +38,7 @@ public class EvalOperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(BigArrays bigArrays) {
-        EvalOperator.ExpressionEvaluator expEval = new Addition(0, 1);
+        Supplier<EvalOperator.ExpressionEvaluator> expEval = () -> new Addition(0, 1);
         return new EvalOperator.EvalOperatorFactory(expEval, ElementType.LONG);
     }
 

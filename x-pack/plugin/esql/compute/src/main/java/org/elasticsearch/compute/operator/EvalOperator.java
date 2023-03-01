@@ -18,19 +18,21 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 
+import java.util.function.Supplier;
+
 @Experimental
 public class EvalOperator implements Operator {
 
-    public record EvalOperatorFactory(ExpressionEvaluator evaluator, ElementType elementType) implements OperatorFactory {
+    public record EvalOperatorFactory(Supplier<ExpressionEvaluator> evaluator, ElementType elementType) implements OperatorFactory {
 
         @Override
         public Operator get() {
-            return new EvalOperator(evaluator, elementType);
+            return new EvalOperator(evaluator.get(), elementType);
         }
 
         @Override
         public String describe() {
-            return "EvalOperator[elementType=" + elementType + ", evaluator=" + evaluator + "]";
+            return "EvalOperator[elementType=" + elementType + ", evaluator=" + evaluator.get() + "]";
         }
     }
 

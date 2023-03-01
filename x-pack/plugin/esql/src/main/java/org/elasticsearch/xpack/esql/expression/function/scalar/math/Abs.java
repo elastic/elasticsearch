@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 public class Abs extends UnaryScalarFunction implements Mappable {
     public Abs(Source source, Expression field) {
@@ -54,16 +55,18 @@ public class Abs extends UnaryScalarFunction implements Mappable {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator toEvaluator(Function<Expression, EvalOperator.ExpressionEvaluator> toEvaluator) {
-        EvalOperator.ExpressionEvaluator field = toEvaluator.apply(field());
+    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
+        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
+    ) {
+        Supplier<EvalOperator.ExpressionEvaluator> field = toEvaluator.apply(field());
         if (dataType() == DataTypes.DOUBLE) {
-            return new DoubleEvaluator(field);
+            return () -> new DoubleEvaluator(field.get());
         }
         if (dataType() == DataTypes.LONG) {
-            return new LongEvaluator(field);
+            return () -> new LongEvaluator(field.get());
         }
         if (dataType() == DataTypes.INTEGER) {
-            return new IntEvaluator(field);
+            return () -> new IntEvaluator(field.get());
         }
         throw new UnsupportedOperationException("unsupported data type [" + dataType() + "]");
     }

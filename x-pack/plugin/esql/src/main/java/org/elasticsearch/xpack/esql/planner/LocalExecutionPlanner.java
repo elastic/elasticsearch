@@ -291,20 +291,20 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(eval.child(), context);
 
         for (NamedExpression namedExpression : eval.fields()) {
-            ExpressionEvaluator evaluator;
+            Supplier<ExpressionEvaluator> evaluatorSupplier;
             if (namedExpression instanceof Alias alias) {
-                evaluator = EvalMapper.toEvaluator(alias.child(), source.layout);
+                evaluatorSupplier = EvalMapper.toEvaluator(alias.child(), source.layout);
             } else {
                 throw new UnsupportedOperationException();
             }
             Layout.Builder layout = source.layout.builder();
             layout.appendChannel(namedExpression.toAttribute().id());
-            source = source.with(new EvalOperatorFactory(evaluator, toElementType(namedExpression.dataType())), layout.build());
+            source = source.with(new EvalOperatorFactory(evaluatorSupplier, toElementType(namedExpression.dataType())), layout.build());
         }
         return source;
     }
 
-    private ExpressionEvaluator toEvaluator(Expression exp, Layout layout) {
+    private Supplier<ExpressionEvaluator> toEvaluator(Expression exp, Layout layout) {
         return EvalMapper.toEvaluator(exp, layout);
     }
 

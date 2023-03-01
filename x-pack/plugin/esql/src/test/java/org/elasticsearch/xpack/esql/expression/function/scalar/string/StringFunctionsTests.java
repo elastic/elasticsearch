@@ -49,7 +49,7 @@ public class StringFunctionsTests extends ESTestCase {
 
     private BytesRef processConcat(Object... inputs) {
         Concat concat = concatWithLiterals(inputs);
-        EvalOperator.ExpressionEvaluator eval = concat.toEvaluator(e -> (page, position) -> ((Literal) e).value());
+        EvalOperator.ExpressionEvaluator eval = concat.toEvaluator(e -> () -> (page, position) -> ((Literal) e).value()).get();
         return (BytesRef) eval.computeRow(null, 0);
     }
 

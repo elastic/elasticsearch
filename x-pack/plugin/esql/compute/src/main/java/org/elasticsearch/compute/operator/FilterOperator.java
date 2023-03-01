@@ -11,6 +11,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.Arrays;
+import java.util.function.Supplier;
 
 public class FilterOperator implements Operator {
 
@@ -19,11 +20,11 @@ public class FilterOperator implements Operator {
     private Page lastInput;
     boolean finished = false;
 
-    public record FilterOperatorFactory(EvalOperator.ExpressionEvaluator evaluator) implements OperatorFactory {
+    public record FilterOperatorFactory(Supplier<EvalOperator.ExpressionEvaluator> evaluatorSupplier) implements OperatorFactory {
 
         @Override
         public Operator get() {
-            return new FilterOperator(evaluator);
+            return new FilterOperator(evaluatorSupplier.get());
         }
 
         @Override

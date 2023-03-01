@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.ql.util.ReflectionUtils;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 
@@ -55,7 +56,7 @@ final class EvalMapper {
             this.typeToken = typeToken;
         }
 
-        protected abstract ExpressionEvaluator map(E expression, Layout layout);
+        protected abstract Supplier<ExpressionEvaluator> map(E expression, Layout layout);
     }
 
     private static final List<ExpressionMapper<?>> MAPPERS = Arrays.asList(
@@ -72,7 +73,6 @@ final class EvalMapper {
         new StartsWithFunction(),
         new SubstringFunction(),
         new Mapper<>(DateTrunc.class),
-        new StartsWithFunction(),
         new Mapper<>(Concat.class),
         new Mapper<>(Case.class)
     );
@@ -80,7 +80,7 @@ final class EvalMapper {
     private EvalMapper() {}
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    static ExpressionEvaluator toEvaluator(Expression exp, Layout layout) {
+    static Supplier<ExpressionEvaluator> toEvaluator(Expression exp, Layout layout) {
         for (ExpressionMapper em : MAPPERS) {
             if (em.typeToken.isInstance(exp)) {
                 return em.map(exp, layout);
@@ -92,9 +92,9 @@ final class EvalMapper {
     static class Arithmetics extends ExpressionMapper<ArithmeticOperation> {
 
         @Override
-        protected ExpressionEvaluator map(ArithmeticOperation ao, Layout layout) {
-            ExpressionEvaluator leftEval = toEvaluator(ao.left(), layout);
-            ExpressionEvaluator rightEval = toEvaluator(ao.right(), layout);
+        protected Supplier<ExpressionEvaluator> map(ArithmeticOperation ao, Layout layout) {
+            Supplier<ExpressionEvaluator> leftEval = toEvaluator(ao.left(), layout);
+            Supplier<ExpressionEvaluator> rightEval = toEvaluator(ao.right(), layout);
             record ArithmeticExpressionEvaluator(ArithmeticOperation ao, ExpressionEvaluator leftEval, ExpressionEvaluator rightEval)
                 implements
                     ExpressionEvaluator {
@@ -103,7 +103,7 @@ final class EvalMapper {
                     return ao.function().apply(leftEval.computeRow(page, pos), rightEval.computeRow(page, pos));
                 }
             }
-            return new ArithmeticExpressionEvaluator(ao, leftEval, rightEval);
+            return () -> new ArithmeticExpressionEvaluator(ao, leftEval.get(), rightEval.get());
         }
 
     }
@@ -111,9 +111,9 @@ final class EvalMapper {
     static class Comparisons extends ExpressionMapper<BinaryComparison> {
 
         @Override
-        protected ExpressionEvaluator map(BinaryComparison bc, Layout layout) {
-            ExpressionEvaluator leftEval = toEvaluator(bc.left(), layout);
-            ExpressionEvaluator rightEval = toEvaluator(bc.right(), layout);
+        protected Supplier<ExpressionEvaluator> map(BinaryComparison bc, Layout layout) {
+            Supplier<ExpressionEvaluator> leftEval = toEvaluator(bc.left(), layout);
+            Supplier<ExpressionEvaluator> rightEval = toEvaluator(bc.right(), layout);
             record ComparisonsExpressionEvaluator(BinaryComparison bc, ExpressionEvaluator leftEval, ExpressionEvaluator rightEval)
                 implements
                     ExpressionEvaluator {
@@ -122,16 +122,16 @@ final class EvalMapper {
                     return bc.function().apply(leftEval.computeRow(page, pos), rightEval.computeRow(page, pos));
                 }
             }
-            return new ComparisonsExpressionEvaluator(bc, leftEval, rightEval);
+            return () -> new ComparisonsExpressionEvaluator(bc, leftEval.get(), rightEval.get());
         }
     }
 
     static class BooleanLogic extends ExpressionMapper<BinaryLogic> {
 
         @Override
-        protected ExpressionEvaluator map(BinaryLogic bc, Layout layout) {
-            ExpressionEvaluator leftEval = toEvaluator(bc.left(), layout);
-            ExpressionEvaluator rightEval = toEvaluator(bc.right(), layout);
+        protected Supplier<ExpressionEvaluator> map(BinaryLogic bc, Layout layout) {
+            Supplier<ExpressionEvaluator> leftEval = toEvaluator(bc.left(), layout);
+            Supplier<ExpressionEvaluator> rightEval = toEvaluator(bc.right(), layout);
             record BooleanLogicExpressionEvaluator(BinaryLogic bl, ExpressionEvaluator leftEval, ExpressionEvaluator rightEval)
                 implements
                     ExpressionEvaluator {
@@ -140,28 +140,28 @@ final class EvalMapper {
                     return bl.function().apply((Boolean) leftEval.computeRow(page, pos), (Boolean) rightEval.computeRow(page, pos));
                 }
             }
-            return new BooleanLogicExpressionEvaluator(bc, leftEval, rightEval);
+            return () -> new BooleanLogicExpressionEvaluator(bc, leftEval.get(), rightEval.get());
         }
     }
 
     static class Nots extends ExpressionMapper<Not> {
 
         @Override
-        protected ExpressionEvaluator map(Not not, Layout layout) {
-            ExpressionEvaluator expEval = toEvaluator(not.field(), layout);
+        protected Supplier<ExpressionEvaluator> map(Not not, Layout layout) {
+            Supplier<ExpressionEvaluator> expEval = toEvaluator(not.field(), layout);
             record NotsExpressionEvaluator(ExpressionEvaluator expEval) implements ExpressionEvaluator {
                 @Override
                 public Object computeRow(Page page, int pos) {
                     return NotProcessor.apply(expEval.computeRow(page, pos));
                 }
             }
-            return new NotsExpressionEvaluator(expEval);
+            return () -> new NotsExpressionEvaluator(expEval.get());
         }
     }
 
     static class Attributes extends ExpressionMapper<Attribute> {
         @Override
-        protected ExpressionEvaluator map(Attribute attr, Layout layout) {
+        protected Supplier<ExpressionEvaluator> map(Attribute attr, Layout layout) {
             // TODO these aren't efficient so we should do our best to remove them, but, for now, they are what we have
             int channel = layout.getChannel(attr.id());
             if (attr.dataType() == DataTypes.DOUBLE) {
@@ -175,7 +175,7 @@ final class EvalMapper {
                         return block.getDouble(pos);
                     }
                 }
-                return new Doubles(channel);
+                return () -> new Doubles(channel);
             }
             if (attr.dataType() == DataTypes.LONG || attr.dataType() == DataTypes.DATETIME) {
                 record Longs(int channel) implements ExpressionEvaluator {
@@ -188,7 +188,7 @@ final class EvalMapper {
                         return block.getLong(pos);
                     }
                 }
-                return new Longs(channel);
+                return () -> new Longs(channel);
             }
             if (attr.dataType() == DataTypes.INTEGER) {
                 record Ints(int channel) implements ExpressionEvaluator {
@@ -201,7 +201,7 @@ final class EvalMapper {
                         return block.getInt(pos);
                     }
                 }
-                return new Ints(channel);
+                return () -> new Ints(channel);
             }
             if (attr.dataType() == DataTypes.KEYWORD) {
                 record Keywords(int channel) implements ExpressionEvaluator {
@@ -214,7 +214,7 @@ final class EvalMapper {
                         return block.getBytesRef(pos, new BytesRef());
                     }
                 }
-                return new Keywords(channel);
+                return () -> new Keywords(channel);
             }
             if (attr.dataType() == DataTypes.BOOLEAN) {
                 record Booleans(int channel) implements ExpressionEvaluator {
@@ -227,7 +227,7 @@ final class EvalMapper {
                         return block.getBoolean(pos);
                     }
                 }
-                return new Booleans(channel);
+                return () -> new Booleans(channel);
             }
             throw new UnsupportedOperationException("unsupported field type [" + attr.dataType() + "]");
         }
@@ -236,7 +236,7 @@ final class EvalMapper {
     static class Literals extends ExpressionMapper<Literal> {
 
         @Override
-        protected ExpressionEvaluator map(Literal lit, Layout layout) {
+        protected Supplier<ExpressionEvaluator> map(Literal lit, Layout layout) {
             record LiteralsExpressionEvaluator(Literal lit) implements ExpressionEvaluator {
                 @Override
                 public Object computeRow(Page page, int pos) {
@@ -245,7 +245,7 @@ final class EvalMapper {
             }
 
             assert checkDataType(lit) : "unsupported data value [" + lit.value() + "] for data type [" + lit.dataType() + "]";
-            return new LiteralsExpressionEvaluator(lit);
+            return () -> new LiteralsExpressionEvaluator(lit);
         }
 
         private boolean checkDataType(Literal lit) {
@@ -268,10 +268,12 @@ final class EvalMapper {
     static class RoundFunction extends ExpressionMapper<Round> {
 
         @Override
-        protected ExpressionEvaluator map(Round round, Layout layout) {
-            ExpressionEvaluator fieldEvaluator = toEvaluator(round.field(), layout);
+        protected Supplier<ExpressionEvaluator> map(Round round, Layout layout) {
+            Supplier<ExpressionEvaluator> fieldEvaluator = toEvaluator(round.field(), layout);
             // round.decimals() == null means that decimals were not provided (it's an optional parameter of the Round function)
-            ExpressionEvaluator decimalsEvaluator = round.decimals() != null ? toEvaluator(round.decimals(), layout) : null;
+            Supplier<ExpressionEvaluator> decimalsEvaluatorSupplier = round.decimals() != null
+                ? toEvaluator(round.decimals(), layout)
+                : null;
             if (round.field().dataType().isRational()) {
                 record DecimalRoundExpressionEvaluator(ExpressionEvaluator fieldEvaluator, ExpressionEvaluator decimalsEvaluator)
                     implements
@@ -284,7 +286,10 @@ final class EvalMapper {
                         return Round.process(fieldEvaluator.computeRow(page, pos), decimals);
                     }
                 }
-                return new DecimalRoundExpressionEvaluator(fieldEvaluator, decimalsEvaluator);
+                return () -> new DecimalRoundExpressionEvaluator(
+                    fieldEvaluator.get(),
+                    decimalsEvaluatorSupplier == null ? null : decimalsEvaluatorSupplier.get()
+                );
             } else {
                 return fieldEvaluator;
             }
@@ -294,20 +299,20 @@ final class EvalMapper {
     static class LengthFunction extends ExpressionMapper<Length> {
 
         @Override
-        protected ExpressionEvaluator map(Length length, Layout layout) {
+        protected Supplier<ExpressionEvaluator> map(Length length, Layout layout) {
             record LengthFunctionExpressionEvaluator(ExpressionEvaluator exp) implements ExpressionEvaluator {
                 @Override
                 public Object computeRow(Page page, int pos) {
                     return Length.process(((BytesRef) exp.computeRow(page, pos)));
                 }
             }
-            return new LengthFunctionExpressionEvaluator(toEvaluator(length.field(), layout));
+            return () -> new LengthFunctionExpressionEvaluator(toEvaluator(length.field(), layout).get());
         }
     }
 
     public static class DateFormatFunction extends ExpressionMapper<DateFormat> {
         @Override
-        public ExpressionEvaluator map(DateFormat df, Layout layout) {
+        public Supplier<ExpressionEvaluator> map(DateFormat df, Layout layout) {
             record DateFormatEvaluator(ExpressionEvaluator exp, ExpressionEvaluator formatEvaluator) implements ExpressionEvaluator {
                 @Override
                 public Object computeRow(Page page, int pos) {
@@ -322,18 +327,18 @@ final class EvalMapper {
                 }
             }
 
-            ExpressionEvaluator fieldEvaluator = toEvaluator(df.field(), layout);
+            Supplier<ExpressionEvaluator> fieldEvaluator = toEvaluator(df.field(), layout);
             Expression format = df.format();
             if (format == null) {
-                return new ConstantDateFormatEvaluator(fieldEvaluator, UTC_DATE_TIME_FORMATTER);
+                return () -> new ConstantDateFormatEvaluator(fieldEvaluator.get(), UTC_DATE_TIME_FORMATTER);
             }
             if (format.dataType() != DataTypes.KEYWORD) {
                 throw new IllegalArgumentException("unsupported data type for format [" + format.dataType() + "]");
             }
             if (format.foldable()) {
-                return new ConstantDateFormatEvaluator(fieldEvaluator, toFormatter(format.fold()));
+                return () -> new ConstantDateFormatEvaluator(fieldEvaluator.get(), toFormatter(format.fold()));
             }
-            return new DateFormatEvaluator(fieldEvaluator, toEvaluator(format, layout));
+            return () -> new DateFormatEvaluator(fieldEvaluator.get(), toEvaluator(format, layout).get());
         }
 
         private static DateFormatter toFormatter(Object format) {
@@ -343,7 +348,7 @@ final class EvalMapper {
 
     public static class StartsWithFunction extends ExpressionMapper<StartsWith> {
         @Override
-        public ExpressionEvaluator map(StartsWith sw, Layout layout) {
+        public Supplier<ExpressionEvaluator> map(StartsWith sw, Layout layout) {
             record StartsWithEvaluator(ExpressionEvaluator str, ExpressionEvaluator prefix) implements ExpressionEvaluator {
                 @Override
                 public Object computeRow(Page page, int pos) {
@@ -351,15 +356,15 @@ final class EvalMapper {
                 }
             }
 
-            ExpressionEvaluator input = toEvaluator(sw.str(), layout);
-            ExpressionEvaluator pattern = toEvaluator(sw.prefix(), layout);
-            return new StartsWithEvaluator(input, pattern);
+            Supplier<ExpressionEvaluator> input = toEvaluator(sw.str(), layout);
+            Supplier<ExpressionEvaluator> pattern = toEvaluator(sw.prefix(), layout);
+            return () -> new StartsWithEvaluator(input.get(), pattern.get());
         }
     }
 
     public static class SubstringFunction extends ExpressionMapper<Substring> {
         @Override
-        public ExpressionEvaluator map(Substring sub, Layout layout) {
+        public Supplier<ExpressionEvaluator> map(Substring sub, Layout layout) {
             record SubstringEvaluator(ExpressionEvaluator str, ExpressionEvaluator start, ExpressionEvaluator length)
                 implements
                     ExpressionEvaluator {
@@ -374,10 +379,12 @@ final class EvalMapper {
                 }
             }
 
-            ExpressionEvaluator input = toEvaluator(sub.str(), layout);
-            ExpressionEvaluator start = toEvaluator(sub.start(), layout);
-            ExpressionEvaluator length = sub.length() == null ? null : toEvaluator(sub.length(), layout);
-            return new SubstringEvaluator(input, start, length);
+            return () -> {
+                ExpressionEvaluator input = toEvaluator(sub.str(), layout).get();
+                ExpressionEvaluator start = toEvaluator(sub.start(), layout).get();
+                ExpressionEvaluator length = sub.length() == null ? null : toEvaluator(sub.length(), layout).get();
+                return new SubstringEvaluator(input, start, length);
+            };
         }
     }
 
@@ -387,7 +394,7 @@ final class EvalMapper {
         }
 
         @Override
-        public ExpressionEvaluator map(E abs, Layout layout) {
+        public Supplier<ExpressionEvaluator> map(E abs, Layout layout) {
             return abs.toEvaluator(e -> toEvaluator(e, layout));
         }
     }

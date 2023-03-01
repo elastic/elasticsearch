@@ -1614,37 +1614,30 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         static void withAuthenticationFields(StringMapMessage logEntry, Authentication authentication, Logger logger) {
             logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
             logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
-            if (authentication.isApiKey() || authentication.isRemoteAccess()) {
-                logEntry.with(
-                    API_KEY_ID_FIELD_NAME,
-                    (String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
-                );
-                String apiKeyName = (String) authentication.getAuthenticatingSubject()
-                    .getMetadata()
-                    .get(AuthenticationField.API_KEY_NAME_KEY);
-                if (apiKeyName != null) {
-                    logEntry.with(API_KEY_NAME_FIELD_NAME, apiKeyName);
-                }
-                // TODO
+            if (authentication.isApiKey()) {
+                withApiKeyId(logEntry, authentication);
+                withApiKeyName(logEntry, authentication);
                 final String creatorRealmName = ApiKeyService.getCreatorRealmName(authentication);
                 if (creatorRealmName != null) {
                     // can be null for API keys created before version 7.7
                     logEntry.with(PRINCIPAL_REALM_FIELD_NAME, creatorRealmName);
                     // No domain information is needed here since API key itself does not work across realms
                 }
-                if (authentication.isRemoteAccess()) {
-                    final Authentication innerAuthentication = (Authentication) authentication.getAuthenticatingSubject()
-                        .getMetadata()
-                        .get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
-                    final StringMapMessage innerLogEntry = logEntry.newInstance(Collections.emptyMap());
-                    withAuthenticationFields(innerLogEntry, innerAuthentication, logger);
-                    try {
-                        final XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
-                        builder.map(innerLogEntry.getData());
-                        logEntry.with(REMOTE_ACCESS_FIELD_NAME, Strings.toString(builder));
-                    } catch (IOException e) {
-                        logger.error("Failed to write remote access authentication [{}] as audit log entry", innerAuthentication);
-                    }
+            } else if (authentication.isRemoteAccess()) {
+                withApiKeyId(logEntry, authentication);
+                withApiKeyName(logEntry, authentication);
+                logEntry.with(PRINCIPAL_REALM_FIELD_NAME, authentication.getEffectiveSubject().getRealm().getName());
+                final Authentication remoteAuthentication = (Authentication) authentication.getAuthenticatingSubject()
+                    .getMetadata()
+                    .get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
+                final StringMapMessage logEntryForRemoteAuthcFields = logEntry.newInstance(Collections.emptyMap());
+                withAuthenticationFields(logEntryForRemoteAuthcFields, remoteAuthentication, logger);
+                try {
+                    final XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+                    builder.map(logEntryForRemoteAuthcFields.getData());
+                    logEntry.with(REMOTE_ACCESS_FIELD_NAME, Strings.toString(builder));
+                } catch (IOException e) {
+                    logger.error("Failed to write remote authentication [{}] as audit log entry", remoteAuthentication);
                 }
             } else {
                 final Authentication.RealmRef authenticatedBy = authentication.getAuthenticatingSubject().getRealm();
@@ -1733,6 +1726,22 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             }
             stringBuilder.append("]");
             return stringBuilder.toString();
+        }
+
+        private static void withApiKeyName(StringMapMessage logEntry, Authentication authentication) {
+            assert authentication.isApiKey() || authentication.isRemoteAccess();
+            String apiKeyName = (String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
+            if (apiKeyName != null) {
+                logEntry.with(API_KEY_NAME_FIELD_NAME, apiKeyName);
+            }
+        }
+
+        private static void withApiKeyId(StringMapMessage logEntry, Authentication authentication) {
+            assert authentication.isApiKey() || authentication.isRemoteAccess();
+            logEntry.with(
+                API_KEY_ID_FIELD_NAME,
+                (String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
+            );
         }
     }
 

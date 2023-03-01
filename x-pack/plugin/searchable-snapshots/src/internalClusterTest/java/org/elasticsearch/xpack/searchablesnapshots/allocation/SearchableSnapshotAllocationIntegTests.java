@@ -99,16 +99,8 @@ public class SearchableSnapshotAllocationIntegTests extends BaseSearchableSnapsh
 
     private void setAllocation(EnableAllocationDecider.Allocation allocation) {
         logger.info("--> setting allocation to [{}]", allocation);
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), allocation.name())
-                        .build()
-                )
-                .get()
+        updateClusterSettings(
+            Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), allocation.name())
         );
     }
 }

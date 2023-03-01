@@ -125,14 +125,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
     }
 
     private void setClusterInfoTimeout(String timeValue) {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), timeValue).build()
-                )
-        );
+        updateClusterSettings(Settings.builder().put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), timeValue));
     }
 
     public void testClusterInfoServiceCollectsInformation() {

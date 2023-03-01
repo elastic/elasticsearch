@@ -195,27 +195,13 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
 
         // add a node: 3 out of the 6 shards will be relocated to it
         // disable allocation before starting a new node, as we need to register the listener first
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
-                )
-        );
+        updateClusterSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"));
         String node2 = internalCluster().startNode();
         IndexShardStateChangeListener stateChangeListenerNode2 = new IndexShardStateChangeListener();
         // add a listener that keeps track of the shard state changes
         internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, node2).setNewDelegate(stateChangeListenerNode2);
         // re-enable allocation
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all")
-                )
-        );
+        updateClusterSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all"));
         ensureGreen();
 
         // the 3 relocated shards get closed on the first node

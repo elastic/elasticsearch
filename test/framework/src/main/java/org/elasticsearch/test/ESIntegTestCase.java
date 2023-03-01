@@ -1658,14 +1658,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     /** Sets or unsets the cluster read_only mode **/
     public static void setClusterReadOnly(boolean value) {
-        Settings settings = value
-            ? Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), value).build()
-            : Settings.builder().putNull(Metadata.SETTING_READ_ONLY_SETTING.getKey()).build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get());
+        updateClusterSettings(
+            value
+                ? Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), value)
+                : Settings.builder().putNull(Metadata.SETTING_READ_ONLY_SETTING.getKey())
+        );
     }
 
     /** Sets cluster persistent settings **/
-    public void updateClusterSettings(Settings.Builder persistentSettings) {
+    public static void updateClusterSettings(Settings.Builder persistentSettings) {
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(persistentSettings).get());
     }
 

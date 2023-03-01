@@ -210,4 +210,8 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.watcher.trigger;
     exports org.elasticsearch.xpack.core.watcher.watch;
     exports org.elasticsearch.xpack.core.watcher;
+
+    // this is only here to pass the validation which forces a bogus default constructor
+    // TODO: remove this as it really isn't provided but may require tweaking the validation
+    provides org.elasticsearch.license.LicenseService with org.elasticsearch.license.ClusterStateLicenseService;
 }

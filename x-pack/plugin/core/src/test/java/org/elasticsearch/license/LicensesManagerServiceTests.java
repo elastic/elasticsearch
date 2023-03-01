@@ -45,8 +45,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
 
     @Override
     protected boolean resetNodeAfterTest() {
-        return false; // WTF ? - why was this set in the first place, and why does it blow up if I create the License instance via
-                      // reflection ?
+        return true;
     }
 
     @Before

@@ -159,7 +159,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
         void start() {
             try {
                 for (Tuple<ShardId, String> shard : shards) {
-                    new InternalAsyncFetch(logger, "shard_stores", shard.v1(), shard.v2(), this.nodes.getSize()).fetchData(
+                    new InternalAsyncFetch(logger, "shard_stores", shard.v1(), shard.v2(), routingNodes.size()).fetchData(
                         nodes,
                         Collections.emptySet()
                     );
@@ -187,8 +187,8 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
 
             private final Releasable ref = refs.acquire();
 
-            InternalAsyncFetch(Logger logger, String type, ShardId shardId, String customDataPath, int nodeNumber) {
-                super(logger, type, shardId, customDataPath, nodeNumber);
+            InternalAsyncFetch(Logger logger, String type, ShardId shardId, String customDataPath, int expectedSize) {
+                super(logger, type, shardId, customDataPath, expectedSize);
             }
 
             @Override

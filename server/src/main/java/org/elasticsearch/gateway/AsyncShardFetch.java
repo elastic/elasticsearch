@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -60,13 +61,13 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     private volatile int fetchingCount;
 
     @SuppressWarnings("unchecked")
-    protected AsyncShardFetch(Logger logger, String type, ShardId shardId, String customDataPath, int nodeNumber) {
+    protected AsyncShardFetch(Logger logger, String type, ShardId shardId, String customDataPath, int expectedSize) {
         this.logger = logger;
         this.type = type;
         this.shardId = Objects.requireNonNull(shardId);
         this.customDataPath = Objects.requireNonNull(customDataPath);
         this.fetchingCount = 0;
-        this.cache = new HashMap<>(nodeNumber);
+        this.cache = Maps.newHashMapWithExpectedSize(expectedSize);
     }
 
     @Override

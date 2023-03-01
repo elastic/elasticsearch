@@ -9,13 +9,12 @@ package org.elasticsearch.repositories.gcs;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
-import io.netty.channel.EventLoopGroup;
+import io.netty.channel.ChannelOption;
 import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
-import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.DefaultHttpHeaders;
@@ -26,38 +25,34 @@ import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 
-import java.io.IOException;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Emulates a <a href="https://en.wikipedia.org/wiki/Proxy_server#Web_proxy_servers">Web Proxy Server</a>
+ * Emulates a <a href="https://en.wikipedia.org/wiki/Proxy_server#Web_proxy_servers">Web Proxy Server</a>.
+ * @see <a href="https://github.com/netty/netty/tree/4.1/example/src/main/java/io/netty/example/proxy">Netty Proxy Example</a>
  */
 class WebProxyServer extends MockHttpProxyServer {
 
     private static final Set<String> BLOCKED_HEADERS = Stream.of("Host", "Proxy-Connection", "Proxy-Authenticate")
         .collect(Collectors.toCollection(() -> new TreeSet<>(String.CASE_INSENSITIVE_ORDER)));
 
-    private final EventLoopGroup group = new NioEventLoopGroup(1);
-
     WebProxyServer(String upstreamHost, int upstreamPort) {
         String upstreamHostPort = "http://" + upstreamHost + ":" + upstreamPort;
         handler(() -> new SimpleChannelInboundHandler<FullHttpRequest>() {
 
             private Channel outboundChannel;
-            private Channel inboundChannel;
 
             @Override
             public void channelActive(ChannelHandlerContext ctx) throws Exception {
-                inboundChannel = ctx.channel();
-                outboundChannel = new Bootstrap().group(group)
-                    .channel(NioSocketChannel.class)
+                Channel inboundChannel = ctx.channel();
+                outboundChannel = new Bootstrap().group(inboundChannel.eventLoop())
+                    .channel(inboundChannel.getClass())
+                    .option(ChannelOption.AUTO_READ, false) // Have to manually read data if we reuse the event loop
                     .handler(new ChannelInitializer<SocketChannel>() {
                         @Override
                         protected void initChannel(SocketChannel ch) throws Exception {
@@ -66,9 +61,14 @@ class WebProxyServer extends MockHttpProxyServer {
                                 .addLast(new HttpObjectAggregator(Integer.MAX_VALUE))
                                 .addLast(new SimpleChannelInboundHandler<FullHttpResponse>() {
                                     @Override
+                                    public void channelActive(ChannelHandlerContext ctx) throws Exception {
+                                        ctx.read();
+                                    }
+
+                                    @Override
                                     protected void channelRead0(ChannelHandlerContext ctx, FullHttpResponse response) throws Exception {
                                         // Proxy the response from the upstream server
-                                        inboundChannel.writeAndFlush(response.retain());
+                                        inboundChannel.writeAndFlush(response.retain()).addListener(channelFutureListener(ctx));
                                     }
 
                                     @Override
@@ -83,7 +83,13 @@ class WebProxyServer extends MockHttpProxyServer {
                         }
                     })
                     .connect(upstreamHost, upstreamPort)
-                    .sync()
+                    .addListener(future -> {
+                        if (future.isSuccess()) {
+                            inboundChannel.read();
+                        } else {
+                            inboundChannel.close();
+                        }
+                    })
                     .channel();
             }
 
@@ -105,7 +111,7 @@ class WebProxyServer extends MockHttpProxyServer {
                         upstreamHeaders,
                         req.trailingHeaders()
                     )
-                );
+                ).addListener(channelFutureListener(ctx));
             }
 
             @Override
@@ -114,12 +120,17 @@ class WebProxyServer extends MockHttpProxyServer {
                 ctx.writeAndFlush(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR));
                 ctx.close();
             }
+
         });
     }
 
-    @Override
-    public void close() throws IOException {
-        group.shutdownGracefully();
-        super.close();
+    private static ChannelFutureListener channelFutureListener(ChannelHandlerContext ctx) {
+        return future -> {
+            if (future.isSuccess()) {
+                ctx.channel().read();
+            } else {
+                future.channel().close();
+            }
+        };
     }
 }

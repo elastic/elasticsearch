@@ -31,7 +31,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class PutEngineAction extends ActionType<PutEngineAction.Response> {
 
     public static final PutEngineAction INSTANCE = new PutEngineAction();
-    public static final String NAME = "indices:admin/engine/put";
+    public static final String NAME = "cluster:admin/engine/put";
     public static final IndicesOptions INDICES_OPTIONS = Engine.INDICES_OPTIONS;
 
     public PutEngineAction() {

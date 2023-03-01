@@ -27,7 +27,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class GetEngineAction extends ActionType<GetEngineAction.Response> {
 
     public static final GetEngineAction INSTANCE = new GetEngineAction();
-    public static final String NAME = "indices:admin/engine/get";
+    public static final String NAME = "cluster:admin/engine/get";
 
     private GetEngineAction() {
         super(NAME, GetEngineAction.Response::new);

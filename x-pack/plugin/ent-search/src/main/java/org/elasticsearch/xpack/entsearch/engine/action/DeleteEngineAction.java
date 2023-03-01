@@ -25,7 +25,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class DeleteEngineAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteEngineAction INSTANCE = new DeleteEngineAction();
-    public static final String NAME = "indices:admin/engine/delete";
+    public static final String NAME = "cluster:admin/engine/delete";
 
     private DeleteEngineAction() {
         super(NAME, AcknowledgedResponse::readFrom);

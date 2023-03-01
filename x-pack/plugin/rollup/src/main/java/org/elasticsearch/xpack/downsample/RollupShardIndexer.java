@@ -30,9 +30,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
-import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -72,6 +71,7 @@ import static org.elasticsearch.core.Strings.format;
  * by _tsid in ascending order and @timestamp in descending order.
  */
 class RollupShardIndexer {
+
     private static final Logger logger = LogManager.getLogger(RollupShardIndexer.class);
     public static final int ROLLUP_BULK_ACTIONS = 10000;
     public static final ByteSizeValue ROLLUP_BULK_SIZE = new ByteSizeValue(1, ByteSizeUnit.MB);
@@ -81,7 +81,7 @@ class RollupShardIndexer {
     private final String rollupIndex;
     private final Engine.Searcher searcher;
     private final SearchExecutionContext searchExecutionContext;
-    private final MappedFieldType timestampField;
+    private final DateFieldMapper.DateFieldType timestampField;
     private final DocValueFormat timestampFormat;
     private final Rounding.Prepared rounding;
     private final List<FieldValueFetcher> fieldValueFetchers;
@@ -113,7 +113,7 @@ class RollupShardIndexer {
                 null,
                 Collections.emptyMap()
             );
-            this.timestampField = searchExecutionContext.getFieldType(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+            this.timestampField = (DateFieldMapper.DateFieldType) searchExecutionContext.getFieldType(config.getTimestampField());
             this.timestampFormat = timestampField.docValueFormat(null, null);
             this.rounding = config.createRounding();
 
@@ -261,7 +261,7 @@ class RollupShardIndexer {
                     final BytesRef tsid = aggCtx.getTsid();
                     assert tsid != null : "Document without [" + TimeSeriesIdFieldMapper.NAME + "] field was found.";
                     final int tsidOrd = aggCtx.getTsidOrd();
-                    final long timestamp = aggCtx.getTimestamp();
+                    final long timestamp = timestampField.resolution().roundDownToMillis(aggCtx.getTimestamp());
 
                     boolean tsidChanged = tsidOrd != rollupBucketBuilder.tsidOrd();
                     if (tsidChanged || timestamp < lastHistoTimestamp) {

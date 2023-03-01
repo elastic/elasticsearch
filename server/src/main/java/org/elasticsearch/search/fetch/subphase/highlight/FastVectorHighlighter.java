@@ -68,7 +68,6 @@ public class FastVectorHighlighter implements Highlighter {
         SearchHighlightContext.Field field = fieldContext.field;
         FetchSubPhase.HitContext hitContext = fieldContext.hitContext;
         MappedFieldType fieldType = fieldContext.fieldType;
-        boolean forceSource = fieldContext.forceSource;
         boolean fixBrokenAnalysis = fieldContext.context.containsBrokenAnalysis(fieldContext.fieldName);
 
         if (canHighlight(fieldType) == false) {
@@ -100,7 +99,6 @@ public class FastVectorHighlighter implements Highlighter {
                 field,
                 fieldType,
                 fieldContext.context,
-                forceSource,
                 fixBrokenAnalysis
             );
 
@@ -220,13 +218,12 @@ public class FastVectorHighlighter implements Highlighter {
         SearchHighlightContext.Field field,
         MappedFieldType fieldType,
         FetchContext fetchContext,
-        boolean forceSource,
         boolean fixBrokenAnalysis
     ) {
         BoundaryScanner boundaryScanner = getBoundaryScanner(field);
         FieldOptions options = field.fieldOptions();
         Function<Source, BaseFragmentsBuilder> supplier;
-        if (forceSource == false && fieldType.isStored()) {
+        if (fieldType.isStored()) {
             if (options.numberOfFragments() != 0 && options.scoreOrdered()) {
                 supplier = ignored -> new ScoreOrderFragmentsBuilder(options.preTags(), options.postTags(), boundaryScanner);
             } else {

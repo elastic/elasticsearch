@@ -821,10 +821,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * updates the settings for an index
      */
-    public void updateIndexSettings(String index, Settings.Builder settingsBuilder) {
+    public static void updateIndexSettings(Settings.Builder settingsBuilder, String... index) {
         UpdateSettingsRequestBuilder settingsRequest = client().admin().indices().prepareUpdateSettings(index);
         settingsRequest.setSettings(settingsBuilder);
         assertAcked(settingsRequest.execute().actionGet());
+    }
+
+    public static void setReplicaCount(int replicas, String index) {
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas), index);
     }
 
     private Settings.Builder getExcludeSettings(int num, Settings.Builder builder) {
@@ -886,7 +890,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         Settings build = builder.build();
         if (build.isEmpty() == false) {
             logger.debug("allowNodes: updating [{}]'s setting to [{}]", index, build.toDelimitedString(';'));
-            client().admin().indices().prepareUpdateSettings(index).setSettings(build).execute().actionGet();
+            updateIndexSettings(builder, index);
         }
     }
 
@@ -1449,22 +1453,20 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Syntactic sugar for enabling allocation for <code>indices</code>
      */
     protected final void enableAllocation(String... indices) {
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(indices)
-            .setSettings(Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all"))
-            .get();
+        updateIndexSettings(
+            Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all"),
+            indices
+        );
     }
 
     /**
      * Syntactic sugar for disabling allocation for <code>indices</code>
      */
     protected final void disableAllocation(String... indices) {
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(indices)
-            .setSettings(Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"))
-            .get();
+        updateIndexSettings(
+            Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"),
+            indices
+        );
     }
 
     /**
@@ -1641,16 +1643,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     /** Disables an index block for the specified index */
     public static void disableIndexBlock(String index, String block) {
-        Settings settings = Settings.builder().put(block, false).build();
-        client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
+        updateIndexSettings(Settings.builder().put(block, false), index);
     }
 
     /** Enables an index block for the specified index */
     public static void enableIndexBlock(String index, String block) {
         if (IndexMetadata.APIBlock.fromSetting(block) == IndexMetadata.APIBlock.READ_ONLY_ALLOW_DELETE || randomBoolean()) {
             // the read-only-allow-delete block isn't supported by the add block API so we must use the update settings API here.
-            Settings settings = Settings.builder().put(block, true).build();
-            client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
+            updateIndexSettings(Settings.builder().put(block, true), index);
         } else {
             client().admin().indices().prepareAddBlock(IndexMetadata.APIBlock.fromSetting(block), index).get();
         }
@@ -2269,21 +2269,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     *  After the cluster is stopped, there are a few netty threads that can linger, so we wait for them to finish otherwise these
-     *  lingering threads can intermittently trigger the thread leak detector.
+     *  After the cluster is stopped, there are a few netty threads that can linger, so we make sure we don't leak any tasks on them.
      */
-    static void awaitGlobalNettyThreadsFinish() {
-        try {
-            GlobalEventExecutor.INSTANCE.awaitInactivity(5, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } catch (IllegalStateException e) {
-            if (e.getMessage().equals("thread was not started") == false) {
-                throw e;
-            }
-            // ignore since the thread was never started
-        }
-
+    static void awaitGlobalNettyThreadsFinish() throws Exception {
+        // Don't use GlobalEventExecutor#awaitInactivity. It will waste up to 1s for every call and we expect no tasks queued for it
+        // except for the odd scheduled shutdown task.
+        assertBusy(() -> assertEquals(0, GlobalEventExecutor.INSTANCE.pendingTasks()));
         try {
             ThreadDeathWatcher.awaitInactivity(5, TimeUnit.SECONDS);
         } catch (InterruptedException e) {

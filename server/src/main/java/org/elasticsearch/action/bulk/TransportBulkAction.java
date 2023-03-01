@@ -30,8 +30,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -46,10 +44,8 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
@@ -193,32 +189,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     }
 
     @Override
-    protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> outerListener) {
-        // As a work-around to support `?refresh`, explicitly replace the refresh policy with a call to the Refresh API,
-        // and always set forced_refresh to true.
-        // TODO: Replace with a less hacky approach.
-        ActionListener<BulkResponse> listener = outerListener;
-        if (DiscoveryNode.isStateless(clusterService.getSettings()) && bulkRequest.getRefreshPolicy() != WriteRequest.RefreshPolicy.NONE) {
-            listener = outerListener.delegateFailure((l, r) -> {
-                final Set<String> indices = new HashSet<>();
-                for (BulkItemResponse response : r.getItems()) {
-                    if (response.isFailed() == false) {
-                        indices.add(response.getIndex());
-                    }
-                    DocWriteResponse docWriteResponse = response.getResponse();
-                    if (docWriteResponse != null) {
-                        docWriteResponse.setForcedRefresh(true);
-                    }
-                }
-                client.admin()
-                    .indices()
-                    .prepareRefresh()
-                    .setIndices(indices.toArray(Strings.EMPTY_ARRAY))
-                    .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN)
-                    .execute(l.map(ignored -> r));
-            });
-            bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
-        }
+    protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
         /*
          * This is called on the Transport tread so we can check the indexing
          * memory pressure *quickly* but we don't want to keep the transport

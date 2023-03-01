@@ -8,11 +8,19 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditionsTests;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class DataLifecycleSerializationTests extends AbstractXContentSerializingTestCase<DataLifecycle> {
 
@@ -41,5 +49,19 @@ public class DataLifecycleSerializationTests extends AbstractXContentSerializing
     @Override
     protected DataLifecycle doParseInstance(XContentParser parser) throws IOException {
         return DataLifecycle.fromXContent(parser);
+    }
+
+    public void testXContentSerializationWithRollover() throws IOException {
+        DataLifecycle dataLifecycle = createTestInstance();
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.humanReadable(true);
+            RolloverConditions rolloverConditions = RolloverConditionsTests.randomRolloverConditions();
+            dataLifecycle.toXContent(builder, ToXContent.EMPTY_PARAMS, rolloverConditions);
+            String serialized = Strings.toString(builder);
+            assertThat(serialized, containsString("rollover"));
+            for (String label : rolloverConditions.getConditions().keySet()) {
+                assertThat(serialized, containsString(label));
+            }
+        }
     }
 }

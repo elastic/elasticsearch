@@ -7,7 +7,6 @@
 
 package org.elasticsearch.license;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
@@ -21,8 +20,6 @@ import java.util.Set;
 
 public class LicenseServiceFactory {
 
-    public static SetOnce<LicenseService> instance = new SetOnce<>();
-
     public static synchronized LicenseService create(
         Settings settings,
         ThreadPool threadPool,
@@ -30,9 +27,6 @@ public class LicenseServiceFactory {
         Clock clock,
         XPackLicenseState xPacklicenseState
     ) throws ClassNotFoundException, NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
-        if (instance.get() != null) {
-            return instance.get();
-        }
 
         SPIClassIterator<LicenseService> classIterator = SPIClassIterator.get(LicenseService.class, LicenseService.class.getClassLoader());
         Set<Class<? extends LicenseService>> clazzSet = new HashSet<>(2);
@@ -40,7 +34,7 @@ public class LicenseServiceFactory {
             clazzSet.add(classIterator.next());
         }
         // We only support at max 2 implementations, one of which is required to be ClusterStateLicenseService.
-        // We will always require the implementation that is not ClusterStateLicenseService if there is more then 1 implementation
+        // We will always require the implementation that is not ClusterStateLicenseService if there is more than 1 implementation
         if (clazzSet.size() <= 0) {
             throw new IllegalStateException("Could not find any SPI definitions for LicenseService");
         }
@@ -61,14 +55,6 @@ public class LicenseServiceFactory {
         Constructor constructor = Class.forName(canonicalName)
             .getConstructor(Settings.class, ThreadPool.class, ClusterService.class, Clock.class, XPackLicenseState.class);
 
-        LicenseService licenseService = (LicenseService) constructor.newInstance(
-            settings,
-            threadPool,
-            clusterService,
-            clock,
-            xPacklicenseState
-        );
-        instance.set(licenseService);
-        return licenseService;
+        return (LicenseService) constructor.newInstance(settings, threadPool, clusterService, clock, xPacklicenseState);
     }
 }

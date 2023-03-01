@@ -41,8 +41,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseServiceFactory;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
@@ -317,8 +317,8 @@ public class XPackPlugin extends XPackClientPlugin
 
         LicenseService licenseService;
         try {
-            // licenseService = LicenseServiceFactory.create(settings, threadPool, clusterService, getClock(), getLicenseState());
-            licenseService = new ClusterStateLicenseService(settings, threadPool, clusterService, getClock(), getLicenseState());
+            licenseService = LicenseServiceFactory.create(settings, threadPool, clusterService, getClock(), getLicenseState());
+            // licenseService = new ClusterStateLicenseService(settings, threadPool, clusterService, getClock(), getLicenseState());
         } catch (Exception e) {
             throw new IllegalStateException("Can not determine implementation for LicenseService", e);
         }

@@ -87,7 +87,6 @@ public class DataLifecycleServiceTests extends ESTestCase {
     }
 
     public void testOperationsExecutedOnce() {
-        assumeTrue("https://github.com/elastic/elasticsearch/issues/94214", Boolean.parseBoolean(System.getProperty("build.snapshot")));
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 3;
         Metadata.Builder builder = Metadata.builder();
@@ -120,7 +119,6 @@ public class DataLifecycleServiceTests extends ESTestCase {
     }
 
     public void testRetentionNotConfigured() {
-        assumeTrue("https://github.com/elastic/elasticsearch/issues/94214", Boolean.parseBoolean(System.getProperty("build.snapshot")));
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 3;
         Metadata.Builder builder = Metadata.builder();
@@ -140,7 +138,6 @@ public class DataLifecycleServiceTests extends ESTestCase {
     }
 
     public void testRetentionNotExecutedDueToAge() {
-        assumeTrue("https://github.com/elastic/elasticsearch/issues/94214", Boolean.parseBoolean(System.getProperty("build.snapshot")));
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 3;
         Metadata.Builder builder = Metadata.builder();

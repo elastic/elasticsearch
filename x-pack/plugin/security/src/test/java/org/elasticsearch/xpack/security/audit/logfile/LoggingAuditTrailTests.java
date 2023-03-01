@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.security.audit.logfile;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.layout.PatternLayout;
@@ -166,6 +164,7 @@ import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.P
 import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.Utils.createApiKeyAuthentication;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -2578,19 +2577,24 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertMsg(logger, checkedFields.map(), checkedArrayFields.map());
     }
 
-    @Repeat(iterations = 100)
     public void testRemoteAccessAuthenticationSuccessTransport() throws Exception {
         final TransportRequest request = randomBoolean() ? new MockRequest(threadContext) : new MockIndicesRequest(threadContext);
         final String requestId = randomRequestId();
-        final Authentication remoteAuthentication = Authentication.newRealmAuthentication(
-            AuthenticationTestHelper.randomUser(),
-            AuthenticationTestHelper.randomRealmRef(false)
+        final Authentication remoteAuthentication = randomValueOtherThanMany(
+            // exclude run-as to simplify the test
+            Authentication::isRunAs,
+            () -> randomFrom(
+                AuthenticationTestHelper.builder().realm(false),
+                AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE),
+                AuthenticationTestHelper.builder().apiKey().metadata(Map.of(AuthenticationField.API_KEY_NAME_KEY, randomAlphaOfLength(42)))
+            ).build()
         );
         final Authentication authentication = AuthenticationTestHelper.builder()
             .remoteAccess(randomAlphaOfLength(42), new RemoteAccessAuthentication(remoteAuthentication, RoleDescriptorsIntersection.EMPTY))
             .build();
         final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
         final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
+        final MapBuilder<String, String> checkedLiteralFields = new MapBuilder<>();
 
         updateLoggerSettings(
             Settings.builder().put(settings).put("xpack.security.audit.logfile.events.include", "authentication_success").build()
@@ -2602,25 +2606,35 @@ public class LoggingAuditTrailTests extends ESTestCase {
             .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action")
             .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
             .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
-        authentication(authentication, checkedFields);
-
+        final String expectedRemoteAccessLiteralField = switch (remoteAuthentication.getEffectiveSubject().getType()) {
+            case USER -> {
+                assertThat(
+                    Set.of(AuthenticationType.INTERNAL, AuthenticationType.REALM),
+                    hasItem(remoteAuthentication.getAuthenticationType())
+                );
+                yield Strings.format(
+                    "{\"authentication.type\":\"%s\",\"user.name\":\"%s\",\"user.realm\":\"%s\"}",
+                    remoteAuthentication.getAuthenticationType(),
+                    remoteAuthentication.getEffectiveSubject().getUser().principal(),
+                    remoteAuthentication.getEffectiveSubject().getRealm().getName()
+                );
+            }
+            case API_KEY -> Strings.format(
+                "{\"apikey.id\":\"%s\",\"apikey.name\":\"%s\",\"authentication.type\":\"API_KEY\",\"user.name\":\"%s\",\"user.realm\":\"%s\"}",
+                remoteAuthentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY),
+                remoteAuthentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_NAME_KEY),
+                remoteAuthentication.getEffectiveSubject().getUser().principal(),
+                remoteAuthentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME)
+            );
+            default -> throw new IllegalArgumentException("unsupported type " + remoteAuthentication.getEffectiveSubject().getType());
+        };
+        remoteAccessAuthentication(authentication, checkedFields, checkedLiteralFields, expectedRemoteAccessLiteralField);
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        final String actualLogLine = singleLogLine(logger);
-
-        final MapBuilder<String, String> checkedLiteralFields = new MapBuilder<>();
-        checkedLiteralFields.put(
-            LoggingAuditTrail.REMOTE_ACCESS_FIELD_NAME,
-            Strings.format(
-                "{\"authentication.type\":\"REALM\",\"user.name\":\"%s\",\"user.realm\":\"%s\"}",
-                remoteAuthentication.getEffectiveSubject().getUser().principal(),
-                remoteAuthentication.getEffectiveSubject().getRealm().getName()
-            )
-        );
-        assertMsg(actualLogLine, checkedFields.map(), checkedArrayFields.map(), checkedLiteralFields.map());
+        assertMsg(singleLogLine(logger), checkedFields.map(), checkedArrayFields.map(), checkedLiteralFields.map());
     }
 
     public void testRequestsWithoutIndices() throws Exception {
@@ -2983,9 +2997,25 @@ public class LoggingAuditTrailTests extends ESTestCase {
     }
 
     private static void authentication(Authentication authentication, MapBuilder<String, String> checkedFields) {
+        assertThat("use remoteAccessAuthentication instead", authentication.isRemoteAccess(), is(false));
+        putCheckedFieldsForAuthentication(authentication, checkedFields);
+    }
+
+    private static void remoteAccessAuthentication(
+        Authentication authentication,
+        MapBuilder<String, String> checkedFields,
+        MapBuilder<String, String> checkedLiteralFields,
+        String expectedRemoteAccessLiteralField
+    ) {
+        assertThat("authentication must be remote access", authentication.isRemoteAccess(), is(true));
+        putCheckedFieldsForAuthentication(authentication, checkedFields);
+        checkedLiteralFields.put(LoggingAuditTrail.REMOTE_ACCESS_FIELD_NAME, expectedRemoteAccessLiteralField);
+    }
+
+    private static void putCheckedFieldsForAuthentication(Authentication authentication, MapBuilder<String, String> checkedFields) {
         checkedFields.put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
         checkedFields.put(LoggingAuditTrail.AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
-        if (authentication.isApiKey() || authentication.isRemoteAccess()) {
+        if (authentication.isApiKey()) {
             assert false == authentication.isRunAs();
             checkedFields.put(
                 LoggingAuditTrail.API_KEY_ID_FIELD_NAME,
@@ -2995,16 +3025,23 @@ public class LoggingAuditTrailTests extends ESTestCase {
             if (apiKeyName != null) {
                 checkedFields.put(LoggingAuditTrail.API_KEY_NAME_FIELD_NAME, apiKeyName);
             }
-            if (authentication.isApiKey()) {
-                String creatorRealmName = (String) authentication.getAuthenticatingSubject()
-                    .getMetadata()
-                    .get(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
-                if (creatorRealmName != null) {
-                    checkedFields.put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, creatorRealmName);
-                }
-            } else if (authentication.isRemoteAccess()) {
-                checkedFields.put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, AuthenticationField.REMOTE_ACCESS_REALM_TYPE);
+            String creatorRealmName = (String) authentication.getAuthenticatingSubject()
+                .getMetadata()
+                .get(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
+            if (creatorRealmName != null) {
+                checkedFields.put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, creatorRealmName);
             }
+        } else if (authentication.isRemoteAccess()) {
+            assert false == authentication.isRunAs();
+            checkedFields.put(
+                LoggingAuditTrail.API_KEY_ID_FIELD_NAME,
+                (String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
+            );
+            String apiKeyName = (String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
+            if (apiKeyName != null) {
+                checkedFields.put(LoggingAuditTrail.API_KEY_NAME_FIELD_NAME, apiKeyName);
+            }
+            checkedFields.put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, AuthenticationField.REMOTE_ACCESS_REALM_NAME);
         } else {
             final RealmRef authenticatedBy = authentication.getAuthenticatingSubject().getRealm();
             if (authentication.isRunAs()) {

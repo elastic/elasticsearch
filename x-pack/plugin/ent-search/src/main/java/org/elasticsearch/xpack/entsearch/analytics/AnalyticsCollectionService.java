@@ -103,13 +103,15 @@ public class AnalyticsCollectionService implements ClusterStateListener {
      * @param listener The action listener to invoke on response/failure.
      */
     public void deleteAnalyticsCollection(String collectionName, ActionListener<AcknowledgedResponse> listener) {
-        if (analyticsCollections.containsKey(collectionName) == false) {
+        Map<String, AnalyticsCollection> collections = analyticsCollections;
+
+        if (collections.containsKey(collectionName) == false) {
             listener.onFailure(new ResourceNotFoundException(collectionName));
             return;
         }
 
         DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(
-            analyticsCollections.get(collectionName).getEventDataStream()
+            collections.get(collectionName).getEventDataStream()
         );
 
         clientWithOrigin.execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamRequest, listener);

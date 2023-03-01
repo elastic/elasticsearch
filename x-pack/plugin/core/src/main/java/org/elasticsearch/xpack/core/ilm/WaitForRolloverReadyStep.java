@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -81,7 +82,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index.getName());
         assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
         final String rolloverTarget;
-        IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
+        DataStream dataStream = indexAbstraction.getParentDataStream();
         if (dataStream != null) {
             assert dataStream.getWriteIndex() != null : "datastream " + dataStream.getName() + " has no write index";
             if (dataStream.getWriteIndex().equals(index) == false) {

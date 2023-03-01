@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz.permission;
 import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
@@ -60,7 +61,7 @@ public class PermissionTests extends ESTestCase {
             when(mockIndexAbstraction.getType()).thenReturn(IndexAbstraction.Type.DATA_STREAM);
             assertThat(indexPredicate.test(mockIndexAbstraction), is(false));
             when(mockIndexAbstraction.getType()).thenReturn(IndexAbstraction.Type.CONCRETE_INDEX);
-            when(mockIndexAbstraction.getParentDataStream()).thenReturn(mock(IndexAbstraction.DataStream.class));
+            when(mockIndexAbstraction.getParentDataStream()).thenReturn(mock(DataStream.class));
             assertThat(indexPredicate.test(mockIndexAbstraction), is(false));
         }
     }

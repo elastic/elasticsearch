@@ -58,7 +58,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -119,9 +118,7 @@ class RollupShardIndexer {
             this.timestampField = (DateFieldMapper.DateFieldType) searchExecutionContext.getFieldType(config.getTimestampField());
             this.timestampFormat = timestampField.docValueFormat(null, null);
             this.rounding = config.createRounding();
-            this.millisecondsSupplier = DateFieldMapper.Resolution.MILLISECONDS.equals(this.timestampField.resolution())
-                ? Function.identity()
-                : TimeUnit.NANOSECONDS::toMillis;
+            this.millisecondsSupplier = timestamp -> timestampField.resolution().roundDownToMillis(timestamp);
 
             List<FieldValueFetcher> fetchers = new ArrayList<>(metricFields.length + labelFields.length);
             fetchers.addAll(FieldValueFetcher.create(searchExecutionContext, metricFields));

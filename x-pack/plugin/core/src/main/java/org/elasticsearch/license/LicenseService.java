@@ -21,16 +21,20 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-//Private interface not intended to be implemented by 3rd parties
+/**
+ * ReadOnly service to get the current license. Consumers should generally not need to read the license directly and should instead
+ * prefer {@link XPackLicenseState} to check if a feature is allowed by the of license. This interface is not intended to be implemented
+ * and alternative implementations
+ */
 public interface LicenseService extends LifecycleComponent {
 
     // should prefer getXPackLicenseState
     License getLicense();
 
-    // Read the license from a provided Metadata. Implementations not backed by {@link ClusterState} should ignore this parameter.
-    License getLicense(Metadata metaData);
-
-    XPackLicenseState getXPackLicenseState(); // TODO: don't allow injection of XPackLicenseState and inject this interface instead
+    // Read the license from a provided Metadata. Implementations not backed by {@link ClusterState} should not implement.
+    default License getLicense(Metadata metaData) {
+        return getLicense();
+    }
 
     Setting<License.LicenseType> SELF_GENERATED_LICENSE_TYPE = new Setting<>(
         "xpack.license.self_generated.type",

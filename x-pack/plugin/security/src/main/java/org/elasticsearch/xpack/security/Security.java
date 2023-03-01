@@ -1696,22 +1696,24 @@ public class Security extends Plugin
     @Override
     public BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
         if (enabled) {
-            return new ValidateLicenseForFIPS(XPackSettings.FIPS_MODE_ENABLED.get(settings));
+            return new ValidateLicenseForFIPS(XPackSettings.FIPS_MODE_ENABLED.get(settings), getLicenseService());
         }
         return null;
     }
 
     static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {
         private final boolean inFipsMode;
+        private final LicenseService licenseService;
 
-        ValidateLicenseForFIPS(boolean inFipsMode) {
+        ValidateLicenseForFIPS(boolean inFipsMode, LicenseService licenseService) {
             this.inFipsMode = inFipsMode;
+            this.licenseService = licenseService;
         }
 
         @Override
         public void accept(DiscoveryNode node, ClusterState state) {
             if (inFipsMode) {
-                License license = XPackPlugin.getSharedLicenseService().getLicense(state.metadata());
+                License license = licenseService.getLicense(state.metadata());
                 if (license != null && XPackLicenseState.isFipsAllowedForOperationMode(license.operationMode()) == false) {
                     throw new IllegalStateException(
                         "FIPS mode cannot be used with a ["

@@ -28,7 +28,7 @@ similar to a if, else-if, else-if, … condition.
 Note that the client needs to have permissions to the final target.
 Otherwise, the document will be rejected with a security exception which looks like this:
 
-[source,json]
+[source,js]
 --------------------------------------------------
 {"type":"security_exception","reason":"action [indices:admin/auto_create] is unauthorized for API key id [8-dt9H8BqGblnY2uSI--] of user [elastic/fleet-server] on indices [logs-foo-default], this action is granted by the index privileges [auto_configure,create_index,manage,all]"}
 --------------------------------------------------

@@ -9,6 +9,7 @@
 package org.elasticsearch.indices.cluster;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -110,6 +111,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static java.util.stream.Collectors.toMap;
@@ -240,7 +242,24 @@ public class ClusterStateChanges {
             clusterSettings,
             Collections.emptySet(),
             Tracer.NOOP
-        );
+        ) {
+            @Override
+            public Transport.Connection getConnection(DiscoveryNode node) {
+                Transport.Connection conn = mock(Transport.Connection.class);
+                when(conn.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
+                return conn;
+            }
+
+            @Override
+            public TransportVersion getMinTransportVersion() {
+                return TransportVersion.CURRENT;
+            }
+
+            @Override
+            public TransportVersion getMinTransportVersion(Predicate<DiscoveryNode> filter) {
+                return TransportVersion.CURRENT;
+            }
+        };
         IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(SETTINGS, xContentRegistry, null, null, null) {
             // metadata upgrader should do nothing
             @Override

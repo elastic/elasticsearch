@@ -407,23 +407,19 @@ public class ClusterSettingsIT extends ESIntegTestCase {
             Settings.Builder builder = Settings.builder();
             clearOrSetFalse(builder, readOnly, Metadata.SETTING_READ_ONLY_SETTING);
             clearOrSetFalse(builder, readOnlyAllowDelete, Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING);
-            assertAcked(
-                client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).setTransientSettings(builder).get()
-            );
+            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).setTransientSettings(builder).get();
         });
         assertTrue(e1.getMessage().contains("unknown setting [archived.this.is.unknown]"));
 
         // fail to clear archived settings with non-archived settings
         final ClusterBlockException e2 = expectThrows(
             ClusterBlockException.class,
-            () -> assertAcked(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setPersistentSettings(Settings.builder().putNull("cluster.routing.allocation.enable"))
-                    .setTransientSettings(Settings.builder().putNull("archived.*"))
-                    .get()
-            )
+            () -> client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().putNull("cluster.routing.allocation.enable"))
+                .setTransientSettings(Settings.builder().putNull("archived.*"))
+                .get()
         );
         if (readOnly) {
             assertTrue(e2.getMessage().contains("cluster read-only (api)"));
@@ -435,9 +431,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         // fail to clear archived settings due to cluster read only block
         final ClusterBlockException e3 = expectThrows(
             ClusterBlockException.class,
-            () -> assertAcked(
-                client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().putNull("archived.*")).get()
-            )
+            () -> client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().putNull("archived.*")).get()
         );
         if (readOnly) {
             assertTrue(e3.getMessage().contains("cluster read-only (api)"));
@@ -457,7 +451,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
             } else {
                 builder.put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), "true");
             }
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).get());
+            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).get();
         });
         if (readOnly) {
             assertTrue(e4.getMessage().contains("cluster read-only (api)"));
@@ -471,7 +465,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
             Settings.Builder builder = Settings.builder().put("archived.this.is.unknown", "false");
             clearOrSetFalse(builder, readOnly, Metadata.SETTING_READ_ONLY_SETTING);
             clearOrSetFalse(builder, readOnlyAllowDelete, Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING);
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).get());
+            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).get();
         });
         if (readOnly) {
             assertTrue(e5.getMessage().contains("cluster read-only (api)"));

@@ -18,6 +18,8 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -266,12 +268,6 @@ public class EngineIndexService {
         return aliasesRequestBuilder;
     }
 
-    private IndicesAliasesRequestBuilder removeAllAliasIndices(String engineAliasName) {
-        IndicesAliasesRequestBuilder aliasesRequestBuilder = clientWithOrigin.admin().indices().prepareAliases();
-        aliasesRequestBuilder.addAliasAction(IndicesAliasesRequest.AliasActions.remove().alias(engineAliasName));
-        return aliasesRequestBuilder;
-    }
-
     private void updateEngine(Engine engine, boolean create, ActionListener<IndexResponse> listener) {
         try (ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())) {
             try (XContentBuilder source = XContentFactory.jsonBuilder(buffer)) {
@@ -305,10 +301,9 @@ public class EngineIndexService {
      * @param listener The action listener to invoke on response/failure.
      *
      */
-    public void deleteEngine(String engineName, ActionListener<DeleteResponse> listener) {
+    void deleteEngine(String engineName, ActionListener<DeleteResponse> listener) {
 
         try {
-            // TODO Delete alias when Engine is deleted
             final DeleteRequest deleteRequest = new DeleteRequest(ENGINE_ALIAS_NAME).id(engineName)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
@@ -322,8 +317,70 @@ public class EngineIndexService {
         } catch (Exception e) {
             listener.onFailure(e);
         }
-
     }
+
+    GetAliasesResponse getAlias(String engineAliasName) {
+        return clientWithOrigin.admin().indices().getAliases(new GetAliasesRequest(engineAliasName)).actionGet();
+    }
+
+    private void removeAlias(String engineAliasName, ActionListener<AcknowledgedResponse> listener) {
+        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest().addAliasAction(
+            IndicesAliasesRequest.AliasActions.remove().aliases(engineAliasName).indices("*")
+        );
+        clientWithOrigin.admin().indices().aliases(aliasesRequest, ActionListener.wrap(response -> {
+            if (response.isAcknowledged() == false) {
+                logger.warn("Request to remove alias [{}] response was not acknowledged", engineAliasName);
+            }
+            listener.onResponse(null);
+        }, listener::onFailure));
+    }
+
+    public void deleteEngineAndAlias(String engineName, ActionListener<DeleteResponse> listener) {
+
+        deleteEngine(engineName, new ActionListener<>() {
+            @Override
+            public void onResponse(DeleteResponse deleteResponse) {
+                removeAlias(Engine.getEngineAliasName(engineName), new ActionListener<>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                        listener.onResponse(null);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                    }
+                });
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    // public void deleteEngineAndAlias(String engineName, ActionListener<DeleteResponse> listener) {
+    // try {
+    // deleteEngine(engineName, new ActionListener<>() {
+    // @Override
+    // public void onResponse(DeleteResponse deleteResponse) {
+    // removeAlias(Engine.getEngineAliasName(engineName), new ActionListener<AcknowledgedResponse>() {
+    // @Override
+    // public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+    // //
+    // }
+    //
+    // @Override
+    // public void onFailure(Exception e) {
+    // listener.onFailure(e);
+    // }
+    // });
+    // }
+    // } catch (Exception e) {
+    // listener.onFailure(e);
+    // }
+    // }
 
     /**
      * List the {@link Engine} in ascending order of their names.

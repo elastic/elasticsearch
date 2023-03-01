@@ -33,6 +33,6 @@ public class TransportDeleteEngineAction extends HandledTransportAction<DeleteEn
     @Override
     protected void doExecute(Task task, DeleteEngineAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         String engineId = request.getEngineId();
-        engineIndexService.deleteEngine(engineId, listener.map(v -> AcknowledgedResponse.TRUE));
+        engineIndexService.deleteEngineAndAlias(engineId, listener.map(v -> AcknowledgedResponse.TRUE));
     }
 }

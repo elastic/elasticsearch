@@ -33,6 +33,12 @@ teardown:
       engine.get:
         engine_id: test-engine-to-delete
 
+  - do:
+      catch: "missing"
+      indices.exists_alias:
+        body:
+          name: engine-test-engine-to-delete
+
 ---
 "Delete Engine - Index does not exist":
   - do:

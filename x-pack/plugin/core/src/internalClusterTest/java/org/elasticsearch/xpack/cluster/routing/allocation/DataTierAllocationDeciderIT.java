@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.cluster.routing.allocation;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -37,7 +36,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING;
@@ -466,10 +464,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
     }
 
     private void updatePreference(String tier) {
-        client().admin()
-            .indices()
-            .updateSettings(new UpdateSettingsRequest(index).settings(Map.of(DataTier.TIER_PREFERENCE, tier)))
-            .actionGet();
+        updateIndexSettings(Settings.builder().put(DataTier.TIER_PREFERENCE, tier), index);
     }
 
     private DataTiersFeatureSetUsage getUsage() {

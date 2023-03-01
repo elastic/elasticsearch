@@ -475,11 +475,10 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         assertSortedSegments("source", expectedIndexSort);
 
         // relocate all shards to one node such that we can merge it.
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("source")
-            .setSettings(Settings.builder().put("index.routing.allocation.require._name", mergeNode).put("index.blocks.write", true))
-            .get();
+        updateIndexSettings(
+            Settings.builder().put("index.routing.allocation.require._name", mergeNode).put("index.blocks.write", true),
+            "source"
+        );
         ensureGreen();
 
         // check that index sort cannot be set on the target index
@@ -545,15 +544,10 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         // to the require._name below.
         ensureGreen();
         // relocate all shards to one node such that we can merge it.
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("source")
-            .setSettings(
-                Settings.builder()
-                    .put("index.routing.allocation.require._name", discoveryNodes[0].getName())
-                    .put("index.blocks.write", true)
-            )
-            .get();
+        updateIndexSettings(
+            Settings.builder().put("index.routing.allocation.require._name", discoveryNodes[0].getName()).put("index.blocks.write", true),
+            "source"
+        );
         ensureGreen();
         IndicesSegmentResponse sourceStats = client().admin().indices().prepareSegments("source").get();
 
@@ -636,15 +630,12 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         ).get();
         client().admin().indices().prepareFlush("original").get();
         ensureGreen();
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("original")
-            .setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), shrinkNode)
-                    .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
-            )
-            .get();
+        updateIndexSettings(
+            Settings.builder()
+                .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), shrinkNode)
+                .put(IndexMetadata.SETTING_BLOCKS_WRITE, true),
+            "original"
+        );
         ensureGreen();
 
         assertAcked(

@@ -18,6 +18,12 @@ public class DocVector extends AbstractVector implements Vector {
     private final IntVector docs;
 
     /**
+     * Are the docs in this vector all in one segment and non-decreasing? If
+     * so we can load doc values via a fast path.
+     */
+    private Boolean singleSegmentNonDecreasing;
+
+    /**
      * Maps the vector positions to ascending docs per-shard and per-segment.
      */
     private int[] shardSegmentDocMapForwards;
@@ -27,11 +33,12 @@ public class DocVector extends AbstractVector implements Vector {
      */
     private int[] shardSegmentDocMapBackwards;
 
-    public DocVector(IntVector shards, IntVector segments, IntVector docs) {
+    public DocVector(IntVector shards, IntVector segments, IntVector docs, Boolean singleSegmentNonDecreasing) {
         super(shards.getPositionCount());
         this.shards = shards;
         this.segments = segments;
         this.docs = docs;
+        this.singleSegmentNonDecreasing = singleSegmentNonDecreasing;
         if (shards.getPositionCount() != segments.getPositionCount()) {
             throw new IllegalArgumentException(
                 "invalid position count [" + shards.getPositionCount() + " != " + segments.getPositionCount() + "]"
@@ -54,6 +61,33 @@ public class DocVector extends AbstractVector implements Vector {
 
     public IntVector docs() {
         return docs;
+    }
+
+    public boolean singleSegmentNonDecreasing() {
+        if (singleSegmentNonDecreasing == null) {
+            singleSegmentNonDecreasing = checkIfSingleSegmentNonDecreasing();
+        }
+        return singleSegmentNonDecreasing;
+    }
+
+    private boolean checkIfSingleSegmentNonDecreasing() {
+        if (getPositionCount() < 2) {
+            return true;
+        }
+        if (shards.isConstant() == false || segments.isConstant() == false) {
+            return false;
+        }
+        int prev = docs.getInt(0);
+        int p = 1;
+        while (p < getPositionCount()) {
+            int v = docs.getInt(p++);
+            if (prev > v) {
+                return false;
+            }
+            prev = v;
+        }
+        return true;
+
     }
 
     /**
@@ -126,7 +160,7 @@ public class DocVector extends AbstractVector implements Vector {
 
     @Override
     public DocVector filter(int... positions) {
-        return new DocVector(shards.filter(positions), segments.filter(positions), docs.filter(positions));
+        return new DocVector(shards.filter(positions), segments.filter(positions), docs.filter(positions), null);
     }
 
     @Override

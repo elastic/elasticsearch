@@ -18,8 +18,8 @@ public class IntBlockEqualityTests extends ESTestCase {
     public void testEmptyVector() {
         // all these "empty" vectors should be equivalent
         List<IntVector> vectors = List.of(
-            new IntArrayVector(new int[] {}, 0, null),
-            new IntArrayVector(new int[] { 0 }, 0, null),
+            new IntArrayVector(new int[] {}, 0),
+            new IntArrayVector(new int[] { 0 }, 0),
             IntBlock.newConstantBlockWith(0, 0).asVector(),
             IntBlock.newConstantBlockWith(0, 0).filter().asVector(),
             IntBlock.newBlockBuilder(0).build().asVector(),
@@ -44,13 +44,13 @@ public class IntBlockEqualityTests extends ESTestCase {
     public void testVectorEquality() {
         // all these vectors should be equivalent
         List<IntVector> vectors = List.of(
-            new IntArrayVector(new int[] { 1, 2, 3 }, 3, null),
-            new IntArrayVector(new int[] { 1, 2, 3 }, 3, null).asBlock().asVector(),
-            new IntArrayVector(new int[] { 1, 2, 3, 4 }, 3, null),
-            new IntArrayVector(new int[] { 1, 2, 3 }, 3, null).filter(0, 1, 2),
-            new IntArrayVector(new int[] { 1, 2, 3, 4 }, 4, null).filter(0, 1, 2),
-            new IntArrayVector(new int[] { 0, 1, 2, 3 }, 4, null).filter(1, 2, 3),
-            new IntArrayVector(new int[] { 1, 4, 2, 3 }, 4, null).filter(0, 2, 3),
+            new IntArrayVector(new int[] { 1, 2, 3 }, 3),
+            new IntArrayVector(new int[] { 1, 2, 3 }, 3).asBlock().asVector(),
+            new IntArrayVector(new int[] { 1, 2, 3, 4 }, 3),
+            new IntArrayVector(new int[] { 1, 2, 3 }, 3).filter(0, 1, 2),
+            new IntArrayVector(new int[] { 1, 2, 3, 4 }, 4).filter(0, 1, 2),
+            new IntArrayVector(new int[] { 0, 1, 2, 3 }, 4).filter(1, 2, 3),
+            new IntArrayVector(new int[] { 1, 4, 2, 3 }, 4).filter(0, 2, 3),
             IntBlock.newBlockBuilder(3).appendInt(1).appendInt(2).appendInt(3).build().asVector(),
             IntBlock.newBlockBuilder(3).appendInt(1).appendInt(2).appendInt(3).build().asVector().filter(0, 1, 2),
             IntBlock.newBlockBuilder(3).appendInt(1).appendInt(4).appendInt(2).appendInt(3).build().filter(0, 2, 3).asVector(),
@@ -60,13 +60,13 @@ public class IntBlockEqualityTests extends ESTestCase {
 
         // all these constant-like vectors should be equivalent
         List<IntVector> moreVectors = List.of(
-            new IntArrayVector(new int[] { 1, 1, 1 }, 3, null),
-            new IntArrayVector(new int[] { 1, 1, 1 }, 3, null).asBlock().asVector(),
-            new IntArrayVector(new int[] { 1, 1, 1, 1 }, 3, null),
-            new IntArrayVector(new int[] { 1, 1, 1 }, 3, null).filter(0, 1, 2),
-            new IntArrayVector(new int[] { 1, 1, 1, 4 }, 4, null).filter(0, 1, 2),
-            new IntArrayVector(new int[] { 3, 1, 1, 1 }, 4, null).filter(1, 2, 3),
-            new IntArrayVector(new int[] { 1, 4, 1, 1 }, 4, null).filter(0, 2, 3),
+            new IntArrayVector(new int[] { 1, 1, 1 }, 3),
+            new IntArrayVector(new int[] { 1, 1, 1 }, 3).asBlock().asVector(),
+            new IntArrayVector(new int[] { 1, 1, 1, 1 }, 3),
+            new IntArrayVector(new int[] { 1, 1, 1 }, 3).filter(0, 1, 2),
+            new IntArrayVector(new int[] { 1, 1, 1, 4 }, 4).filter(0, 1, 2),
+            new IntArrayVector(new int[] { 3, 1, 1, 1 }, 4).filter(1, 2, 3),
+            new IntArrayVector(new int[] { 1, 4, 1, 1 }, 4).filter(0, 2, 3),
             IntBlock.newConstantBlockWith(1, 3).asVector(),
             IntBlock.newBlockBuilder(3).appendInt(1).appendInt(1).appendInt(1).build().asVector(),
             IntBlock.newBlockBuilder(3).appendInt(1).appendInt(1).appendInt(1).build().asVector().filter(0, 1, 2),
@@ -79,13 +79,13 @@ public class IntBlockEqualityTests extends ESTestCase {
     public void testBlockEquality() {
         // all these blocks should be equivalent
         List<IntBlock> blocks = List.of(
-            new IntArrayVector(new int[] { 1, 2, 3 }, 3, null).asBlock(),
+            new IntArrayVector(new int[] { 1, 2, 3 }, 3).asBlock(),
             new IntArrayBlock(new int[] { 1, 2, 3 }, 3, new int[] { 0, 1, 2, 3 }, BitSet.valueOf(new byte[] { 0b000 })),
             new IntArrayBlock(new int[] { 1, 2, 3, 4 }, 3, new int[] { 0, 1, 2, 3 }, BitSet.valueOf(new byte[] { 0b1000 })),
-            new IntArrayVector(new int[] { 1, 2, 3 }, 3, null).filter(0, 1, 2).asBlock(),
-            new IntArrayVector(new int[] { 1, 2, 3, 4 }, 3, null).filter(0, 1, 2).asBlock(),
-            new IntArrayVector(new int[] { 1, 2, 3, 4 }, 4, null).filter(0, 1, 2).asBlock(),
-            new IntArrayVector(new int[] { 1, 2, 4, 3 }, 4, null).filter(0, 1, 3).asBlock(),
+            new IntArrayVector(new int[] { 1, 2, 3 }, 3).filter(0, 1, 2).asBlock(),
+            new IntArrayVector(new int[] { 1, 2, 3, 4 }, 3).filter(0, 1, 2).asBlock(),
+            new IntArrayVector(new int[] { 1, 2, 3, 4 }, 4).filter(0, 1, 2).asBlock(),
+            new IntArrayVector(new int[] { 1, 2, 4, 3 }, 4).filter(0, 1, 3).asBlock(),
             IntBlock.newBlockBuilder(3).appendInt(1).appendInt(2).appendInt(3).build(),
             IntBlock.newBlockBuilder(3).appendInt(1).appendInt(2).appendInt(3).build().filter(0, 1, 2),
             IntBlock.newBlockBuilder(3).appendInt(1).appendInt(4).appendInt(2).appendInt(3).build().filter(0, 2, 3),
@@ -95,13 +95,13 @@ public class IntBlockEqualityTests extends ESTestCase {
 
         // all these constant-like blocks should be equivalent
         List<IntBlock> moreBlocks = List.of(
-            new IntArrayVector(new int[] { 9, 9 }, 2, null).asBlock(),
+            new IntArrayVector(new int[] { 9, 9 }, 2).asBlock(),
             new IntArrayBlock(new int[] { 9, 9 }, 2, new int[] { 0, 1, 2 }, BitSet.valueOf(new byte[] { 0b000 })),
             new IntArrayBlock(new int[] { 9, 9, 4 }, 2, new int[] { 0, 1, 2 }, BitSet.valueOf(new byte[] { 0b100 })),
-            new IntArrayVector(new int[] { 9, 9 }, 2, null).filter(0, 1).asBlock(),
-            new IntArrayVector(new int[] { 9, 9, 4 }, 2, null).filter(0, 1).asBlock(),
-            new IntArrayVector(new int[] { 9, 9, 4 }, 3, null).filter(0, 1).asBlock(),
-            new IntArrayVector(new int[] { 9, 4, 9 }, 3, null).filter(0, 2).asBlock(),
+            new IntArrayVector(new int[] { 9, 9 }, 2).filter(0, 1).asBlock(),
+            new IntArrayVector(new int[] { 9, 9, 4 }, 2).filter(0, 1).asBlock(),
+            new IntArrayVector(new int[] { 9, 9, 4 }, 3).filter(0, 1).asBlock(),
+            new IntArrayVector(new int[] { 9, 4, 9 }, 3).filter(0, 2).asBlock(),
             IntBlock.newConstantBlockWith(9, 2),
             IntBlock.newBlockBuilder(2).appendInt(9).appendInt(9).build(),
             IntBlock.newBlockBuilder(2).appendInt(9).appendInt(9).build().filter(0, 1),
@@ -114,11 +114,11 @@ public class IntBlockEqualityTests extends ESTestCase {
     public void testVectorInequality() {
         // all these vectors should NOT be equivalent
         List<IntVector> notEqualVectors = List.of(
-            new IntArrayVector(new int[] { 1 }, 1, null),
-            new IntArrayVector(new int[] { 9 }, 1, null),
-            new IntArrayVector(new int[] { 1, 2 }, 2, null),
-            new IntArrayVector(new int[] { 1, 2, 3 }, 3, null),
-            new IntArrayVector(new int[] { 1, 2, 4 }, 3, null),
+            new IntArrayVector(new int[] { 1 }, 1),
+            new IntArrayVector(new int[] { 9 }, 1),
+            new IntArrayVector(new int[] { 1, 2 }, 2),
+            new IntArrayVector(new int[] { 1, 2, 3 }, 3),
+            new IntArrayVector(new int[] { 1, 2, 4 }, 3),
             IntBlock.newConstantBlockWith(9, 2).asVector(),
             IntBlock.newBlockBuilder(2).appendInt(1).appendInt(2).build().asVector().filter(1),
             IntBlock.newBlockBuilder(3).appendInt(1).appendInt(2).appendInt(5).build().asVector(),
@@ -130,11 +130,11 @@ public class IntBlockEqualityTests extends ESTestCase {
     public void testBlockInequality() {
         // all these blocks should NOT be equivalent
         List<IntBlock> notEqualBlocks = List.of(
-            new IntArrayVector(new int[] { 1 }, 1, null).asBlock(),
-            new IntArrayVector(new int[] { 9 }, 1, null).asBlock(),
-            new IntArrayVector(new int[] { 1, 2 }, 2, null).asBlock(),
-            new IntArrayVector(new int[] { 1, 2, 3 }, 3, null).asBlock(),
-            new IntArrayVector(new int[] { 1, 2, 4 }, 3, null).asBlock(),
+            new IntArrayVector(new int[] { 1 }, 1).asBlock(),
+            new IntArrayVector(new int[] { 9 }, 1).asBlock(),
+            new IntArrayVector(new int[] { 1, 2 }, 2).asBlock(),
+            new IntArrayVector(new int[] { 1, 2, 3 }, 3).asBlock(),
+            new IntArrayVector(new int[] { 1, 2, 4 }, 3).asBlock(),
             IntBlock.newConstantBlockWith(9, 2),
             IntBlock.newBlockBuilder(2).appendInt(1).appendInt(2).build().filter(1),
             IntBlock.newBlockBuilder(3).appendInt(1).appendInt(2).appendInt(5).build(),

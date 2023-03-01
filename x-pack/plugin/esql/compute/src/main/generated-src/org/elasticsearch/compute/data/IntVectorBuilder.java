@@ -15,14 +15,6 @@ import java.util.Arrays;
  */
 final class IntVectorBuilder extends AbstractVectorBuilder implements IntVector.Builder {
 
-    /**
-     * {@code true} if this every element in this vector is {@code >=}
-     * the previous element, {@code false} if there is some element
-     * {@code <} a previous element, and {@code null} if it is unknown
-     * if either thing is true.
-     */
-    private Boolean nonDecreasing;
-
     private int[] values;
 
     IntVectorBuilder(int estimatedSize) {
@@ -48,12 +40,6 @@ final class IntVectorBuilder extends AbstractVectorBuilder implements IntVector.
     }
 
     @Override
-    public IntVectorBuilder setNonDecreasing(boolean nonDecreasing) {
-        this.nonDecreasing = nonDecreasing;
-        return this;
-    }
-
-    @Override
     public IntVector build() {
         if (valueCount == 1) {
             return new ConstantIntVector(values[0], 1);
@@ -61,6 +47,6 @@ final class IntVectorBuilder extends AbstractVectorBuilder implements IntVector.
         if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
             values = Arrays.copyOf(values, valueCount);
         }
-        return new IntArrayVector(values, valueCount, nonDecreasing);
+        return new IntArrayVector(values, valueCount);
     }
 }

@@ -359,7 +359,8 @@ public class LuceneSourceOperator extends SourceOperator {
                     new DocVector(
                         IntBlock.newConstantBlockWith(shardId, currentPagePos).asVector(),
                         IntBlock.newConstantBlockWith(currentLeafReaderContext.leafReaderContext.ord, currentPagePos).asVector(),
-                        currentBlockBuilder.setNonDecreasing(true).build()
+                        currentBlockBuilder.build(),
+                        true
                     ).asBlock()
                 );
                 currentBlockBuilder = IntVector.newVectorBuilder(maxPageSize);

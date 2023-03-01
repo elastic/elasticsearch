@@ -18,6 +18,37 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DocVectorTests extends ESTestCase {
+    public void testNonDecreasingSetTrue() {
+        int length = between(1, 100);
+        DocVector docs = new DocVector(IntVector.range(0, length), IntVector.range(0, length), IntVector.range(0, length), true);
+        assertTrue(docs.singleSegmentNonDecreasing());
+    }
+
+    public void testNonDecreasingSetFalse() {
+        DocVector docs = new DocVector(IntVector.range(0, 2), IntVector.range(0, 2), new IntArrayVector(new int[] { 1, 0 }, 2), false);
+        assertFalse(docs.singleSegmentNonDecreasing());
+    }
+
+    public void testNonDecreasingNonConstantShard() {
+        DocVector docs = new DocVector(IntVector.range(0, 2), IntBlock.newConstantBlockWith(0, 2).asVector(), IntVector.range(0, 2), null);
+        assertFalse(docs.singleSegmentNonDecreasing());
+    }
+
+    public void testNonDecreasingNonConstantSegment() {
+        DocVector docs = new DocVector(IntBlock.newConstantBlockWith(0, 2).asVector(), IntVector.range(0, 2), IntVector.range(0, 2), null);
+        assertFalse(docs.singleSegmentNonDecreasing());
+    }
+
+    public void testNonDecreasingDescendingDocs() {
+        DocVector docs = new DocVector(
+            IntBlock.newConstantBlockWith(0, 2).asVector(),
+            IntBlock.newConstantBlockWith(0, 2).asVector(),
+            new IntArrayVector(new int[] { 1, 0 }, 2),
+            null
+        );
+        assertFalse(docs.singleSegmentNonDecreasing());
+    }
+
     public void testShardSegmentDocMap() {
         assertShardSegmentDocMap(
             new int[][] {

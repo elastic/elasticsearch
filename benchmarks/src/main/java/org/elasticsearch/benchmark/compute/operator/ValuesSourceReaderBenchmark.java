@@ -174,9 +174,10 @@ public class ValuesSourceReaderBenchmark {
                         pages.add(
                             new Page(
                                 new DocVector(
-                                    docs.build(),
                                     IntBlock.newConstantBlockWith(ctx.ord, end - begin).asVector(),
-                                    IntBlock.newConstantBlockWith(0, end - begin).asVector()
+                                    IntBlock.newConstantBlockWith(0, end - begin).asVector(),
+                                    docs.build(),
+                                    true
                                 ).asBlock()
                             )
                         );
@@ -208,7 +209,8 @@ public class ValuesSourceReaderBenchmark {
                         if (size >= BLOCK_LENGTH) {
                             pages.add(
                                 new Page(
-                                    new DocVector(docs.build(), leafs.build(), IntBlock.newConstantBlockWith(0, size).asVector()).asBlock()
+                                    new DocVector(IntBlock.newConstantBlockWith(0, size).asVector(), leafs.build(), docs.build(), null)
+                                        .asBlock()
                                 )
                             );
                             docs = IntVector.newVectorBuilder(BLOCK_LENGTH);
@@ -218,7 +220,16 @@ public class ValuesSourceReaderBenchmark {
                     }
                 }
                 if (size > 0) {
-                    pages.add(new Page(docs.build().asBlock(), leafs.build().asBlock(), IntBlock.newConstantBlockWith(0, size)));
+                    pages.add(
+                        new Page(
+                            new DocVector(
+                                IntBlock.newConstantBlockWith(0, size).asVector(),
+                                leafs.build().asBlock().asVector(),
+                                docs.build(),
+                                null
+                            ).asBlock()
+                        )
+                    );
                 }
             }
             case "shuffled_singles" -> {
@@ -238,9 +249,10 @@ public class ValuesSourceReaderBenchmark {
                         pages.add(
                             new Page(
                                 new DocVector(
-                                    IntBlock.newConstantBlockWith(next.itr.nextInt(), 1).asVector(),
+                                    IntBlock.newConstantBlockWith(0, 1).asVector(),
                                     IntBlock.newConstantBlockWith(next.ord, 1).asVector(),
-                                    IntBlock.newConstantBlockWith(0, 1).asVector()
+                                    IntBlock.newConstantBlockWith(next.itr.nextInt(), 1).asVector(),
+                                    true
                                 ).asBlock()
                             )
                         );

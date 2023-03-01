@@ -331,7 +331,8 @@ public class TopNOperator implements Operator {
                     yield new DocVector(
                         IntBlock.newConstantBlockWith(shard, 1).asVector(),
                         IntBlock.newConstantBlockWith(segment, 1).asVector(),
-                        IntBlock.newConstantBlockWith(doc, 1).asVector()
+                        IntBlock.newConstantBlockWith(doc, 1).asVector(),
+                        true
                     ).asBlock();
                 }
                 case NULL -> Block.constantNullBlock(1);

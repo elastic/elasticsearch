@@ -30,11 +30,6 @@ $endif$
     @Override
     $Type$Vector filter(int... positions);
 
-$if(int)$
-    /** Does this vector contain a sequence of values where the next values is {@code >=} the previous value. */
-    boolean isNonDecreasing();
-$endif$
-
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the
      * given object is a $Type$Vector, and both vectors are {@link #equals($Type$Vector, $Type$Vector) equal}.
@@ -111,7 +106,7 @@ $if(int)$
         for (int i = 0; i < values.length; i++) {
             values[i] = startInclusive + i;
         }
-        return new IntArrayVector(values, values.length, true);
+        return new IntArrayVector(values, values.length);
     }
 $endif$
 
@@ -120,15 +115,6 @@ $endif$
          * Appends a $type$ to the current entry.
          */
         Builder append$Type$($type$ value);
-
-$if(int)$
-        /**
-         * Call to pre-populate the value of {@link IntVector#isNonDecreasing}
-         * so it is not calculated on the fly. This isn't used everywhere, so
-         * it isn't worth setting this unless you are sure
-         */
-        Builder setNonDecreasing(boolean nonDecreasing);
-$endif$
 
         @Override
         $Type$Vector build();

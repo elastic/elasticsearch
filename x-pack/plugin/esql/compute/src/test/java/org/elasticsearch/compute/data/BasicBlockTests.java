@@ -33,7 +33,7 @@ public class BasicBlockTests extends ESTestCase {
     public void testEmpty() {
         assertThat(new IntArrayBlock(new int[] {}, 0, new int[] {}, new BitSet()).getPositionCount(), is(0));
         assertThat(IntBlock.newBlockBuilder(0).build().getPositionCount(), is(0));
-        assertThat(new IntArrayVector(new int[] {}, 0, null).getPositionCount(), is(0));
+        assertThat(new IntArrayVector(new int[] {}, 0).getPositionCount(), is(0));
         assertThat(IntVector.newVectorBuilder(0).build().getPositionCount(), is(0));
 
         assertThat(new LongArrayBlock(new long[] {}, 0, new int[] {}, new BitSet()).getPositionCount(), is(0));
@@ -133,7 +133,7 @@ public class BasicBlockTests extends ESTestCase {
                 IntStream.range(0, positionCount).forEach(blockBuilder::appendInt);
                 block = blockBuilder.build();
             } else {
-                block = new IntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount, null).asBlock();
+                block = new IntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount).asBlock();
             }
 
             assertThat(positionCount, is(block.getPositionCount()));
@@ -625,28 +625,6 @@ public class BasicBlockTests extends ESTestCase {
         }
         assertThat(block.nullValuesCount(), is(nullCount));
         assertNull(block.asVector());
-    }
-
-    public void testNonDecreasingCalculatedTrue() {
-        IntVector v = IntVector.newVectorBuilder(randomBoolean() ? 2 : 5).appendInt(1).appendInt(1).build();
-        assertThat(v.isNonDecreasing(), is(true));
-    }
-
-    public void testNonDecreasingCalculatedFalse() {
-        IntVector v = IntVector.newVectorBuilder(randomBoolean() ? 2 : 5).appendInt(1).appendInt(0).build();
-        assertThat(v.isNonDecreasing(), is(false));
-    }
-
-    public void testNonDecreasingForSingleton() {
-        IntVector v = IntVector.newVectorBuilder(1).appendInt(1).build();
-        assertThat(v.isNonDecreasing(), is(true));
-    }
-
-    public void testNonDecreasingSet() {
-        boolean hardSet = randomBoolean();
-        IntVector.Builder b = IntVector.newVectorBuilder(2);
-        b.appendInt(1).appendInt(2).setNonDecreasing(hardSet);
-        assertThat(b.build().isNonDecreasing(), is(hardSet));
     }
 
     public void testToStringSmall() {

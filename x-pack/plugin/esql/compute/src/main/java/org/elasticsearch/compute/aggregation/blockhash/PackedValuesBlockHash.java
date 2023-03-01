@@ -277,7 +277,7 @@ final class PackedValuesBlockHash extends BlockHash {
                 keys[i] = (int) intHandle.get(scratch.bytes, scratch.offset + positions[i]);
                 positions[i] += KEY_BYTES;
             }
-            return new IntArrayVector(keys, keys.length, null).asBlock();
+            return new IntArrayVector(keys, keys.length).asBlock();
         }
     }
 

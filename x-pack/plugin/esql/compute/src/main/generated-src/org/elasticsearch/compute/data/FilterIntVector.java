@@ -46,11 +46,6 @@ public final class FilterIntVector extends AbstractFilterVector implements IntVe
     }
 
     @Override
-    public boolean isNonDecreasing() {
-        return vector.isNonDecreasing();
-    }
-
-    @Override
     public boolean equals(Object obj) {
         if (obj instanceof IntVector that) {
             return IntVector.equals(this, that);

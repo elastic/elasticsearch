@@ -54,13 +54,6 @@ $endif$
         return new Filter$Type$Vector(this, positions);
     }
 
-$if(int)$
-    @Override
-    public boolean isNonDecreasing() {
-        return vector.isNonDecreasing();
-    }
-$endif$
-
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof $Type$Vector that) {

@@ -21,9 +21,6 @@ public sealed interface IntVector extends Vector permits ConstantIntVector,Filte
     @Override
     IntVector filter(int... positions);
 
-    /** Does this vector contain a sequence of values where the next values is {@code >=} the previous value. */
-    boolean isNonDecreasing();
-
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the
      * given object is a IntVector, and both vectors are {@link #equals(IntVector, IntVector) equal}.
@@ -79,7 +76,7 @@ public sealed interface IntVector extends Vector permits ConstantIntVector,Filte
         for (int i = 0; i < values.length; i++) {
             values[i] = startInclusive + i;
         }
-        return new IntArrayVector(values, values.length, true);
+        return new IntArrayVector(values, values.length);
     }
 
     sealed interface Builder extends Vector.Builder permits IntVectorBuilder {
@@ -87,13 +84,6 @@ public sealed interface IntVector extends Vector permits ConstantIntVector,Filte
          * Appends a int to the current entry.
          */
         Builder appendInt(int value);
-
-        /**
-         * Call to pre-populate the value of {@link IntVector#isNonDecreasing}
-         * so it is not calculated on the fly. This isn't used everywhere, so
-         * it isn't worth setting this unless you are sure
-         */
-        Builder setNonDecreasing(boolean nonDecreasing);
 
         @Override
         IntVector build();

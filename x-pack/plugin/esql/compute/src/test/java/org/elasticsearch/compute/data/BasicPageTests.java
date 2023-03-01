@@ -53,34 +53,34 @@ public class BasicPageTests extends SerializationTestCase {
             page -> new Page(1, new Block[1])
         );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            new Page(new IntArrayVector(new int[] {}, 0, null).asBlock()),
-            page -> new Page(new IntArrayVector(new int[] {}, 0, null).asBlock()),
-            page -> new Page(new IntArrayVector(new int[] { 1 }, 1, null).asBlock())
+            new Page(new IntArrayVector(new int[] {}, 0).asBlock()),
+            page -> new Page(new IntArrayVector(new int[] {}, 0).asBlock()),
+            page -> new Page(new IntArrayVector(new int[] { 1 }, 1).asBlock())
         );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            new Page(new IntArrayVector(new int[] { 1 }, 0, null).asBlock()),
-            page -> new Page(new IntArrayVector(new int[] { 1 }, 0, null).asBlock()),
-            page -> new Page(new IntArrayVector(new int[] { 1 }, 1, null).asBlock())
+            new Page(new IntArrayVector(new int[] { 1 }, 0).asBlock()),
+            page -> new Page(new IntArrayVector(new int[] { 1 }, 0).asBlock()),
+            page -> new Page(new IntArrayVector(new int[] { 1 }, 1).asBlock())
         );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            new Page(new IntArrayVector(new int[] { 1, 1, 1 }, 3, null).asBlock()),
+            new Page(new IntArrayVector(new int[] { 1, 1, 1 }, 3).asBlock()),
             page -> new Page(IntBlock.newConstantBlockWith(1, 3)),
             page -> new Page(IntBlock.newConstantBlockWith(1, 2))
         );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            new Page(new IntArrayVector(IntStream.range(0, 10).toArray(), 10, null).asBlock()),
-            page -> new Page(new IntArrayVector(IntStream.range(0, 10).toArray(), 10, null).asBlock()),
-            page -> new Page(new IntArrayVector(IntStream.range(0, 10).toArray(), 9, null).asBlock())
+            new Page(new IntArrayVector(IntStream.range(0, 10).toArray(), 10).asBlock()),
+            page -> new Page(new IntArrayVector(IntStream.range(0, 10).toArray(), 10).asBlock()),
+            page -> new Page(new IntArrayVector(IntStream.range(0, 10).toArray(), 9).asBlock())
         );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            new Page(new IntArrayVector(IntStream.range(0, 100).toArray(), 100, null).asBlock()),
-            page -> new Page(new IntArrayVector(IntStream.range(0, 100).toArray(), 100, null).asBlock()),
+            new Page(new IntArrayVector(IntStream.range(0, 100).toArray(), 100).asBlock()),
+            page -> new Page(new IntArrayVector(IntStream.range(0, 100).toArray(), 100).asBlock()),
             page -> new Page(new LongArrayVector(LongStream.range(0, 100).toArray(), 100).asBlock())
         );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            new Page(new IntArrayVector(new int[] { 1 }, 1, null).asBlock()),
+            new Page(new IntArrayVector(new int[] { 1 }, 1).asBlock()),
             page -> new Page(1, page.getBlock(0)),
-            page -> new Page(new IntArrayVector(new int[] { 1 }, 1, null).asBlock(), new IntArrayVector(new int[] { 1 }, 1, null).asBlock())
+            page -> new Page(new IntArrayVector(new int[] { 1 }, 1).asBlock(), new IntArrayVector(new int[] { 1 }, 1).asBlock())
         );
     }
 
@@ -107,7 +107,7 @@ public class BasicPageTests extends SerializationTestCase {
         Block[] blocks = new Block[blockCount];
         for (int blockIndex = 0; blockIndex < blockCount; blockIndex++) {
             blocks[blockIndex] = switch (randomInt(6)) {
-                case 0 -> new IntArrayVector(randomInts(positions).toArray(), positions, null).asBlock();
+                case 0 -> new IntArrayVector(randomInts(positions).toArray(), positions).asBlock();
                 case 1 -> new LongArrayVector(randomLongs(positions).toArray(), positions).asBlock();
                 case 2 -> new DoubleArrayVector(randomDoubles(positions).toArray(), positions).asBlock();
                 case 3 -> IntBlock.newConstantBlockWith(randomInt(), positions);
@@ -125,7 +125,7 @@ public class BasicPageTests extends SerializationTestCase {
 
     public void testBasic() {
         int positions = randomInt(1024);
-        Page page = new Page(new IntArrayVector(IntStream.range(0, positions).toArray(), positions, null).asBlock());
+        Page page = new Page(new IntArrayVector(IntStream.range(0, positions).toArray(), positions).asBlock());
         assertThat(1, is(page.getBlockCount()));
         assertThat(positions, is(page.getPositionCount()));
         IntBlock block = page.getBlock(0);
@@ -133,7 +133,7 @@ public class BasicPageTests extends SerializationTestCase {
     }
 
     public void testAppend() {
-        Page page1 = new Page(new IntArrayVector(IntStream.range(0, 10).toArray(), 10, null).asBlock());
+        Page page1 = new Page(new IntArrayVector(IntStream.range(0, 10).toArray(), 10).asBlock());
         Page page2 = page1.appendBlock(new LongArrayVector(LongStream.range(0, 10).toArray(), 10).asBlock());
         assertThat(1, is(page1.getBlockCount()));
         assertThat(2, is(page2.getBlockCount()));
@@ -147,7 +147,7 @@ public class BasicPageTests extends SerializationTestCase {
         try (var bytesRefArray = bytesRefArrayOf("0a", "1b", "2c", "3d", "4e", "5f", "6g", "7h", "8i", "9j")) {
             final BytesStreamOutput out = new BytesStreamOutput();
             Page origPage = new Page(
-                new IntArrayVector(IntStream.range(0, 10).toArray(), 10, null).asBlock(),
+                new IntArrayVector(IntStream.range(0, 10).toArray(), 10).asBlock(),
                 new LongArrayVector(LongStream.range(10, 20).toArray(), 10).asBlock(),
                 new DoubleArrayVector(LongStream.range(30, 40).mapToDouble(i -> i).toArray(), 10).asBlock(),
                 new BytesRefArrayVector(bytesRefArray, 10).asBlock(),
@@ -155,7 +155,7 @@ public class BasicPageTests extends SerializationTestCase {
                 LongBlock.newConstantBlockWith(randomInt(), 10),
                 DoubleBlock.newConstantBlockWith(randomInt(), 10),
                 BytesRefBlock.newConstantBlockWith(new BytesRef(Integer.toHexString(randomInt())), 10),
-                new IntArrayVector(IntStream.range(0, 20).toArray(), 20, null).filter(5, 6, 7, 8, 9, 10, 11, 12, 13, 14).asBlock()
+                new IntArrayVector(IntStream.range(0, 20).toArray(), 20).filter(5, 6, 7, 8, 9, 10, 11, 12, 13, 14).asBlock()
             );
             Page deserPage = serializeDeserializePage(origPage);
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(origPage, unused -> deserPage);
@@ -172,7 +172,7 @@ public class BasicPageTests extends SerializationTestCase {
     public void testSerializationListPages() throws IOException {
         final int positions = randomIntBetween(1, 64);
         List<Page> origPages = List.of(
-            new Page(new IntArrayVector(randomInts(positions).toArray(), positions, null).asBlock()),
+            new Page(new IntArrayVector(randomInts(positions).toArray(), positions).asBlock()),
             new Page(
                 new LongArrayVector(randomLongs(positions).toArray(), positions).asBlock(),
                 DoubleBlock.newConstantBlockWith(randomInt(), positions)

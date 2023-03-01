@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class BlockHashTests extends ESTestCase {
     public void testIntHash() {
         int[] values = new int[] { 1, 2, 3, 1, 2, 3, 1, 2, 3 };
-        IntBlock block = new IntArrayVector(values, values.length, null).asBlock();
+        IntBlock block = new IntArrayVector(values, values.length).asBlock();
 
         OrdsAndKeys ordsAndKeys = hash(false, block);
         assertThat(ordsAndKeys.description, equalTo("IntBlockHash{channel=0, entries=3}"));
@@ -232,7 +232,7 @@ public class BlockHashTests extends ESTestCase {
 
     public void testIntLongHash() {
         int[] values1 = new int[] { 0, 1, 0, 1, 0, 1 };
-        IntBlock block1 = new IntArrayVector(values1, values1.length, null).asBlock();
+        IntBlock block1 = new IntArrayVector(values1, values1.length).asBlock();
         long[] values2 = new long[] { 0, 0, 0, 1, 1, 1 };
         LongBlock block2 = new LongArrayVector(values2, values2.length).asBlock();
         Object[][] expectedKeys = { new Object[] { 0, 0L }, new Object[] { 1, 0L }, new Object[] { 1, 1L }, new Object[] { 0, 1L } };
@@ -265,7 +265,7 @@ public class BlockHashTests extends ESTestCase {
 
     public void testIntBooleanHash() {
         int[] values1 = new int[] { 0, 1, 0, 1, 0, 1 };
-        IntBlock block1 = new IntArrayVector(values1, values1.length, null).asBlock();
+        IntBlock block1 = new IntArrayVector(values1, values1.length).asBlock();
         boolean[] values2 = new boolean[] { false, false, false, true, true, true };
         BooleanBlock block2 = new BooleanArrayVector(values2, values2.length).asBlock();
         Object[][] expectedKeys = {

@@ -17,18 +17,9 @@ public final class IntArrayVector extends AbstractVector implements IntVector {
 
     private final int[] values;
 
-    /**
-     * {@code true} if this every element in this vector is {@code >=}
-     * the previous element, {@code false} if there is some element
-     * {@code <} a previous element, and {@code null} if it is unknown
-     * if either thing is true.
-     */
-    private Boolean nonDecreasing;
-
-    public IntArrayVector(int[] values, int positionCount, Boolean nonDecreasing) {
+    public IntArrayVector(int[] values, int positionCount) {
         super(positionCount);
         this.values = values;
-        this.nonDecreasing = nonDecreasing;
     }
 
     @Override
@@ -54,25 +45,6 @@ public final class IntArrayVector extends AbstractVector implements IntVector {
     @Override
     public IntVector filter(int... positions) {
         return new FilterIntVector(this, positions);
-    }
-
-    @Override
-    public boolean isNonDecreasing() {
-        if (nonDecreasing != null) {
-            return nonDecreasing;
-        }
-        int prev = values[0];
-        int p = 1;
-        while (p < getPositionCount()) {
-            if (prev > values[p]) {
-                nonDecreasing = false;
-                return false;
-            }
-            prev = values[p];
-            p++;
-        }
-        nonDecreasing = true;
-        return true;
     }
 
     @Override

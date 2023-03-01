@@ -53,13 +53,6 @@ $endif$
         return true;
     }
 
-$if(int)$
-    @Override
-    public boolean isNonDecreasing() {
-        return true;
-    }
-$endif$
-
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof $Type$Vector that) {

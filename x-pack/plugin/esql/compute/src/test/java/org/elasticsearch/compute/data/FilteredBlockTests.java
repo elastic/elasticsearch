@@ -26,7 +26,7 @@ public class FilteredBlockTests extends ESTestCase {
 
     public void testFilterAllPositions() {
         var positionCount = 100;
-        var vector = new IntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount, null);
+        var vector = new IntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount);
         var filteredVector = vector.filter();
 
         assertEquals(0, filteredVector.getPositionCount());
@@ -39,7 +39,7 @@ public class FilteredBlockTests extends ESTestCase {
 
     public void testKeepAllPositions() {
         var positionCount = 100;
-        var vector = new IntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount, null);
+        var vector = new IntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount);
         var positions = IntStream.range(0, positionCount).toArray();
 
         var filteredVector = vector.filter(positions);
@@ -54,7 +54,7 @@ public class FilteredBlockTests extends ESTestCase {
 
     public void testKeepSomePositions() {
         var positionCount = 100;
-        var vector = new IntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount, null);
+        var vector = new IntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount);
         var positions = IntStream.range(0, positionCount).filter(i -> i % 2 == 0).toArray();
 
         var filteredVector = vector.filter(positions);
@@ -70,7 +70,7 @@ public class FilteredBlockTests extends ESTestCase {
 
     public void testFilterOnFilter() {  // TODO: tired of this sv / mv block here. do more below
         var positionCount = 100;
-        var vector = new IntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount, null);
+        var vector = new IntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount);
 
         var filteredVector = vector.filter(IntStream.range(0, positionCount).filter(i1 -> i1 % 2 == 0).toArray());
         var filteredTwice = filteredVector.filter(IntStream.range(0, positionCount / 2).filter(i -> i % 2 == 0).toArray());
@@ -133,7 +133,7 @@ public class FilteredBlockTests extends ESTestCase {
     public void testFilterOnNoNullsBlock() {
         IntBlock block;
         if (randomBoolean()) {
-            block = new IntArrayVector(new int[] { 10, 20, 30, 40 }, 4, null).asBlock();
+            block = new IntArrayVector(new int[] { 10, 20, 30, 40 }, 4).asBlock();
         } else {
             var blockBuilder = IntBlock.newBlockBuilder(4);
             blockBuilder.appendInt(10);
@@ -167,7 +167,7 @@ public class FilteredBlockTests extends ESTestCase {
             assertThat(s, containsString("positions=2"));
         }
 
-        var intVector = new IntArrayVector(new int[] { 10, 20, 30, 40 }, 4, false);
+        var intVector = new IntArrayVector(new int[] { 10, 20, 30, 40 }, 4);
         var intBlock = new IntArrayBlock(new int[] { 10, 20, 30, 40 }, 4, null, nulls);
         for (Object obj : List.of(intVector.filter(0, 2), intVector.asBlock().filter(0, 2), intBlock.filter(0, 2))) {
             String s = obj.toString();

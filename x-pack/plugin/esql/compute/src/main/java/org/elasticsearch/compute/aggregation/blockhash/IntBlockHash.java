@@ -55,7 +55,7 @@ final class IntBlockHash extends BlockHash {
         for (int i = 0; i < size; i++) {
             keys[i] = (int) longHash.get(i);
         }
-        return new IntBlock[] { new IntArrayVector(keys, keys.length, null).asBlock() };
+        return new IntBlock[] { new IntArrayVector(keys, keys.length).asBlock() };
     }
 
     @Override

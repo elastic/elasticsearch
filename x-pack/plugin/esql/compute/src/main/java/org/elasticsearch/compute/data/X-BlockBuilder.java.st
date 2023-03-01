@@ -179,11 +179,7 @@ $else$
             }
 $endif$
             if (isDense() && singleValued()) {
-$if(int)$
-                return new $Type$ArrayVector(values, valueCount, null).asBlock();
-$else$
                 return new $Type$ArrayVector(values, positionCount).asBlock();
-$endif$
             } else {
                 return new $Type$ArrayBlock(values, positionCount, firstValueIndexes, nullsMask);
             }

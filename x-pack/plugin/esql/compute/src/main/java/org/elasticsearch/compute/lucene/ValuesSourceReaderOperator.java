@@ -112,7 +112,7 @@ public class ValuesSourceReaderOperator implements Operator {
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
 
         try {
-            if (docVector.shards().isConstant() && docVector.docs().isConstant() && docVector.docs().isNonDecreasing()) {
+            if (docVector.singleSegmentNonDecreasing()) {
                 lastPage = page.appendBlock(loadFromSingleLeaf(docVector));
             } else {
                 lastPage = page.appendBlock(loadFromManyLeaves(docVector));

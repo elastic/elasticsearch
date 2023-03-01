@@ -22,16 +22,6 @@ $endif$
  */
 final class $Type$VectorBuilder extends AbstractVectorBuilder implements $Type$Vector.Builder {
 
-$if(int)$
-    /**
-     * {@code true} if this every element in this vector is {@code >=}
-     * the previous element, {@code false} if there is some element
-     * {@code <} a previous element, and {@code null} if it is unknown
-     * if either thing is true.
-     */
-    private Boolean nonDecreasing;
-$endif$
-
 $if(BytesRef)$
     private BytesRefArray values;
 
@@ -81,14 +71,6 @@ $else$
 $endif$
     }
 
-$if(int)$
-    @Override
-    public $Type$VectorBuilder setNonDecreasing(boolean nonDecreasing) {
-        this.nonDecreasing = nonDecreasing;
-        return this;
-    }
-$endif$
-
     @Override
     public $Type$Vector build() {
         if (valueCount == 1) {
@@ -102,10 +84,6 @@ $else$
             values = Arrays.copyOf(values, valueCount);
         }
 $endif$
-$if(int)$
-        return new $Type$ArrayVector(values, valueCount, nonDecreasing);
-$else$
         return new $Type$ArrayVector(values, valueCount);
-$endif$
     }
 }

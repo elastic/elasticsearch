@@ -119,7 +119,7 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
                 values = Arrays.copyOf(values, valueCount);
             }
             if (isDense() && singleValued()) {
-                return new IntArrayVector(values, valueCount, null).asBlock();
+                return new IntArrayVector(values, positionCount).asBlock();
             } else {
                 return new IntArrayBlock(values, positionCount, firstValueIndexes, nullsMask);
             }

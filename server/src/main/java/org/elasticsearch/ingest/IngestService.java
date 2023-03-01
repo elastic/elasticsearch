@@ -199,20 +199,20 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      *
      * @param originalRequest Original write request received.
      * @param indexRequest    The {@link org.elasticsearch.action.index.IndexRequest} object to update.
-     * @param clusterMetadata Cluster metadata from where the pipeline information could be derived.
+     * @param metadata        Cluster metadata from where the pipeline information could be derived.
      */
     public static void resolvePipelinesAndUpdateIndexRequest(
         final DocWriteRequest<?> originalRequest,
         final IndexRequest indexRequest,
-        final Metadata clusterMetadata
+        final Metadata metadata
     ) {
-        resolvePipelinesAndUpdateIndexRequest(originalRequest, indexRequest, clusterMetadata, System.currentTimeMillis());
+        resolvePipelinesAndUpdateIndexRequest(originalRequest, indexRequest, metadata, System.currentTimeMillis());
     }
 
     static void resolvePipelinesAndUpdateIndexRequest(
         final DocWriteRequest<?> originalRequest,
         final IndexRequest indexRequest,
-        final Metadata clusterMetadata,
+        final Metadata metadata,
         final long epochMillis
     ) {
         if (indexRequest.isPipelineResolved()) {
@@ -221,8 +221,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         String requestPipeline = indexRequest.getPipeline();
 
-        Pipelines pipelines = resolvePipelinesFromMetadata(originalRequest, indexRequest, clusterMetadata, epochMillis).or(
-            () -> resolvePipelinesFromIndexTemplates(indexRequest, clusterMetadata)
+        Pipelines pipelines = resolvePipelinesFromMetadata(originalRequest, indexRequest, metadata, epochMillis).or(
+            () -> resolvePipelinesFromIndexTemplates(indexRequest, metadata)
         ).orElse(Pipelines.NO_PIPELINES_DEFINED);
 
         if (requestPipeline != null) {
@@ -1163,27 +1163,27 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private static Optional<Pipelines> resolvePipelinesFromMetadata(
         DocWriteRequest<?> originalRequest,
         IndexRequest indexRequest,
-        Metadata clusterMetadata,
+        Metadata metadata,
         long epochMillis
     ) {
         IndexMetadata indexMetadata = null;
         // start to look for default or final pipelines via settings found in the cluster metadata
         if (originalRequest != null) {
-            indexMetadata = clusterMetadata.indices()
+            indexMetadata = metadata.indices()
                 .get(IndexNameExpressionResolver.resolveDateMathExpression(originalRequest.index(), epochMillis));
         }
         // check the alias for the index request (this is how normal index requests are modeled)
         if (indexMetadata == null && indexRequest.index() != null) {
-            IndexAbstraction indexAbstraction = clusterMetadata.getIndicesLookup().get(indexRequest.index());
+            IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(indexRequest.index());
             if (indexAbstraction != null && indexAbstraction.getWriteIndex() != null) {
-                indexMetadata = clusterMetadata.index(indexAbstraction.getWriteIndex());
+                indexMetadata = metadata.index(indexAbstraction.getWriteIndex());
             }
         }
         // check the alias for the action request (this is how upserts are modeled)
         if (indexMetadata == null && originalRequest != null && originalRequest.index() != null) {
-            IndexAbstraction indexAbstraction = clusterMetadata.getIndicesLookup().get(originalRequest.index());
+            IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(originalRequest.index());
             if (indexAbstraction != null && indexAbstraction.getWriteIndex() != null) {
-                indexMetadata = clusterMetadata.index(indexAbstraction.getWriteIndex());
+                indexMetadata = metadata.index(indexAbstraction.getWriteIndex());
             }
         }
 
@@ -1195,7 +1195,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return Optional.of(new Pipelines(IndexSettings.DEFAULT_PIPELINE.get(settings), IndexSettings.FINAL_PIPELINE.get(settings)));
     }
 
-    private static Optional<Pipelines> resolvePipelinesFromIndexTemplates(IndexRequest indexRequest, Metadata clusterMetadata) {
+    private static Optional<Pipelines> resolvePipelinesFromIndexTemplates(IndexRequest indexRequest, Metadata metadatadata) {
         if (indexRequest.index() == null) {
             return Optional.empty();
         }
@@ -1203,15 +1203,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         // the index does not exist yet (and this is a valid request), so match index
         // templates to look for pipelines in either a matching V2 template (which takes
         // precedence), or if a V2 template does not match, any V1 templates
-        String v2Template = MetadataIndexTemplateService.findV2Template(clusterMetadata, indexRequest.index(), false);
+        String v2Template = MetadataIndexTemplateService.findV2Template(metadatadata, indexRequest.index(), false);
         if (v2Template != null) {
-            final Settings settings = MetadataIndexTemplateService.resolveSettings(clusterMetadata, v2Template);
+            final Settings settings = MetadataIndexTemplateService.resolveSettings(metadatadata, v2Template);
             return Optional.of(new Pipelines(IndexSettings.DEFAULT_PIPELINE.get(settings), IndexSettings.FINAL_PIPELINE.get(settings)));
         }
 
         String defaultPipeline = null;
         String finalPipeline = null;
-        List<IndexTemplateMetadata> templates = MetadataIndexTemplateService.findV1Templates(clusterMetadata, indexRequest.index(), null);
+        List<IndexTemplateMetadata> templates = MetadataIndexTemplateService.findV1Templates(metadatadata, indexRequest.index(), null);
         // order of templates are the highest order first
         for (final IndexTemplateMetadata template : templates) {
             final Settings settings = template.settings();

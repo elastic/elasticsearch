@@ -154,12 +154,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
                     }
                 });
         }
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("index1")
-                .setSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", node1))
-        );
+        updateIndexSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", node1), "index1");
         ensureGreen("index1");
     }
 

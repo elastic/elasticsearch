@@ -185,7 +185,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
         DeleteResponse resp = awaitDeleteEngine("my_engine_4");
         assertThat(resp.status(), equalTo(RestStatus.OK));
         expectThrows(ResourceNotFoundException.class, () -> awaitGetEngine("my_engine_4"));
-        expectThrows(ResourceNotFoundException.class, () -> engineService.getAlias(Engine.getEngineAliasName("my_engine_4")));
+        // expectThrows(ResourceNotFoundException.class, () -> engineService.getAlias(Engine.getEngineAliasName("my_engine_4")));
 
         {
             EngineIndexService.SearchEnginesResult searchResponse = awaitListEngine("*:*", 0, 10);

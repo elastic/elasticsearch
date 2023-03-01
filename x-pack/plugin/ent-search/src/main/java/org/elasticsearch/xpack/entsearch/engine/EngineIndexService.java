@@ -360,28 +360,6 @@ public class EngineIndexService {
         });
     }
 
-    // public void deleteEngineAndAlias(String engineName, ActionListener<DeleteResponse> listener) {
-    // try {
-    // deleteEngine(engineName, new ActionListener<>() {
-    // @Override
-    // public void onResponse(DeleteResponse deleteResponse) {
-    // removeAlias(Engine.getEngineAliasName(engineName), new ActionListener<AcknowledgedResponse>() {
-    // @Override
-    // public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-    // //
-    // }
-    //
-    // @Override
-    // public void onFailure(Exception e) {
-    // listener.onFailure(e);
-    // }
-    // });
-    // }
-    // } catch (Exception e) {
-    // listener.onFailure(e);
-    // }
-    // }
-
     /**
      * List the {@link Engine} in ascending order of their names.
      *

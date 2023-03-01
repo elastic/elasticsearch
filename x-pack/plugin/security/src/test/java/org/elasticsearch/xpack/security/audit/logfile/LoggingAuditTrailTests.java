@@ -164,11 +164,11 @@ import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.P
 import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.Utils.createApiKeyAuthentication;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -2608,10 +2608,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         final String expectedRemoteAccessLiteralField = switch (remoteAuthentication.getEffectiveSubject().getType()) {
             case USER -> {
-                assertThat(
-                    Set.of(AuthenticationType.INTERNAL, AuthenticationType.REALM),
-                    hasItem(remoteAuthentication.getAuthenticationType())
-                );
+                assertThat(remoteAuthentication.getAuthenticationType(), oneOf(AuthenticationType.INTERNAL, AuthenticationType.REALM));
                 yield Strings.format(
                     """
                         {"authentication.type":"%s","user.name":"%s","user.realm":"%s"}""",

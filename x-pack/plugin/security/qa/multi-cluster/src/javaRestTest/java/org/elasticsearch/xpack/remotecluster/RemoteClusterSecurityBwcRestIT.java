@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * BWC test which ensures that users and API keys with new remote_indices privileges can still be used to query legacy remote clusters.
+ * BWC test which ensures that users and API keys with defined {@code remote_indices} privileges can be used to query legacy remote clusters
  */
 public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurityTestCase {
 
@@ -49,6 +49,7 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
             .distribution(DistributionType.INTEG_TEST)
             .name("fulfilling-cluster")
             .apply(commonClusterConfig)
+            .setting("xpack.ml.enabled", "false")
             .build();
 
         queryCluster = ElasticsearchCluster.local()
@@ -67,48 +68,14 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
     public void testRemoteAccessForCrossClusterSearch() throws Exception {
-        // Update remote cluster settings on QC with the API key
-        final Settings.Builder builder = Settings.builder();
-        final boolean isProxyMode = randomBoolean();
-        if (isProxyMode) {
-            builder.put("cluster.remote.my_remote_cluster.mode", "proxy")
-                .put("cluster.remote.my_remote_cluster.proxy_address", fulfillingCluster.getTransportEndpoint(0));
-        } else {
-            builder.put("cluster.remote.my_remote_cluster.mode", "sniff")
-                .putList("cluster.remote.my_remote_cluster.seeds", fulfillingCluster.getTransportEndpoint(0));
-        }
-        updateClusterSettings(builder.build());
-
+        final boolean useProxyMode = randomBoolean();
+        // Update remote cluster settings on QC.
+        setupQueryClusterRemoteClusters(useProxyMode);
         // Ensure remote cluster is connected
-        final int numberOfFcNodes = fulfillingCluster.getHttpAddresses().split(",").length;
-        final Request remoteInfoRequest = new Request("GET", "/_remote/info");
-        assertBusy(() -> {
-            final Response remoteInfoResponse = adminClient().performRequest(remoteInfoRequest);
-            assertOK(remoteInfoResponse);
-            final Map<String, Object> remoteInfoMap = responseAsMap(remoteInfoResponse);
-            assertThat(remoteInfoMap, hasKey("my_remote_cluster"));
-            assertThat(org.elasticsearch.xcontent.ObjectPath.eval("my_remote_cluster.connected", remoteInfoMap), is(true));
-            if (false == isProxyMode) {
-                assertThat(
-                    org.elasticsearch.xcontent.ObjectPath.eval("my_remote_cluster.num_nodes_connected", remoteInfoMap),
-                    equalTo(numberOfFcNodes)
-                );
-            }
-        });
+        ensureRemoteFulfillingClusterIsConnected(useProxyMode);
 
         // Fulfilling cluster
         {
-            // Spread the shards to all nodes
-            final Request createIndexRequest = new Request("PUT", "shared-metrics");
-            createIndexRequest.setJsonEntity("""
-                {
-                  "settings": {
-                    "number_of_shards": 3,
-                    "number_of_replicas": 0
-                  }
-                }""");
-            assertOK(performRequestAgainstFulfillingCluster(createIndexRequest));
-
             // Index some documents, so we can attempt to search them from the querying cluster
             final Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
             bulkRequest.setJsonEntity(Strings.format("""
@@ -117,15 +84,7 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
                 { "index": { "_index": "index2" } }
                 { "bar": "foo" }
                 { "index": { "_index": "prefixed_index" } }
-                { "baz": "fee" }
-                { "index": { "_index": "shared-metrics" } }
-                { "name": "metric1" }
-                { "index": { "_index": "shared-metrics" } }
-                { "name": "metric2" }
-                { "index": { "_index": "shared-metrics" } }
-                { "name": "metric3" }
-                { "index": { "_index": "shared-metrics" } }
-                { "name": "metric4" }\n"""));
+                { "baz": "fee" }\n"""));
             assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
         }
 
@@ -188,7 +147,7 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
                       "indices": [
                         {
                           "names": ["local_index", "index1", "index2"],
-                          "privileges": ["read"]
+                          "privileges": ["read", "read_cross_cluster"]
                         }
                       ],
                       "remote_indices": [
@@ -241,6 +200,36 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
                 assertThat(actualIndices, containsInAnyOrder("index1"));
             }
         }
+    }
+
+    private void ensureRemoteFulfillingClusterIsConnected(boolean useProxyMode) throws Exception {
+        final int numberOfFcNodes = fulfillingCluster.getHttpAddresses().split(",").length;
+        final Request remoteInfoRequest = new Request("GET", "/_remote/info");
+        assertBusy(() -> {
+            final Response remoteInfoResponse = adminClient().performRequest(remoteInfoRequest);
+            assertOK(remoteInfoResponse);
+            final Map<String, Object> remoteInfoMap = responseAsMap(remoteInfoResponse);
+            assertThat(remoteInfoMap, hasKey("my_remote_cluster"));
+            assertThat(org.elasticsearch.xcontent.ObjectPath.eval("my_remote_cluster.connected", remoteInfoMap), is(true));
+            if (false == useProxyMode) {
+                assertThat(
+                    org.elasticsearch.xcontent.ObjectPath.eval("my_remote_cluster.num_nodes_connected", remoteInfoMap),
+                    equalTo(numberOfFcNodes)
+                );
+            }
+        });
+    }
+
+    private void setupQueryClusterRemoteClusters(boolean useProxyMode) throws IOException {
+        final Settings.Builder builder = Settings.builder();
+        if (useProxyMode) {
+            builder.put("cluster.remote.my_remote_cluster.mode", "proxy")
+                .put("cluster.remote.my_remote_cluster.proxy_address", fulfillingCluster.getTransportEndpoint(0));
+        } else {
+            builder.put("cluster.remote.my_remote_cluster.mode", "sniff")
+                .putList("cluster.remote.my_remote_cluster.seeds", fulfillingCluster.getTransportEndpoint(0));
+        }
+        updateClusterSettings(builder.build());
     }
 
     private Response performRequestWithRemoteAccessUser(final Request request) throws IOException {

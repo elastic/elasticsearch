@@ -53,7 +53,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldN
  */
 public class ElasticsearchException extends RuntimeException implements ToXContentFragment, Writeable {
 
-    private static final Version UNKNOWN_VERSION_ADDED = Version.fromId(0);
+    private static final TransportVersion UNKNOWN_VERSION_ADDED = TransportVersion.ZERO;
 
     /**
      * Passed in the {@link Params} of {@link #generateThrowableXContent(XContentBuilder, Params, Throwable)}
@@ -290,7 +290,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public static boolean isRegistered(Class<? extends Throwable> exception, TransportVersion version) {
         ElasticsearchExceptionHandle elasticsearchExceptionHandle = CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE.get(exception);
         if (elasticsearchExceptionHandle != null) {
-            return version.onOrAfter(elasticsearchExceptionHandle.versionAdded.transportVersion);
+            return version.onOrAfter(elasticsearchExceptionHandle.versionAdded);
         }
         return false;
     }
@@ -1477,7 +1477,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.cluster.coordination.CoordinationStateRejectedException.class,
             org.elasticsearch.cluster.coordination.CoordinationStateRejectedException::new,
             150,
-            Version.V_7_0_0
+            TransportVersion.V_7_0_0
         ),
         SNAPSHOT_IN_PROGRESS_EXCEPTION(
             org.elasticsearch.snapshots.SnapshotInProgressException.class,
@@ -1513,85 +1513,85 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException.class,
             org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException::new,
             156,
-            Version.V_7_5_0
+            TransportVersion.V_7_5_0
         ),
         INGEST_PROCESSOR_EXCEPTION(
             org.elasticsearch.ingest.IngestProcessorException.class,
             org.elasticsearch.ingest.IngestProcessorException::new,
             157,
-            Version.V_7_5_0
+            TransportVersion.V_7_5_0
         ),
         PEER_RECOVERY_NOT_FOUND_EXCEPTION(
             org.elasticsearch.indices.recovery.PeerRecoveryNotFound.class,
             org.elasticsearch.indices.recovery.PeerRecoveryNotFound::new,
             158,
-            Version.V_7_9_0
+            TransportVersion.V_7_9_0
         ),
         NODE_HEALTH_CHECK_FAILURE_EXCEPTION(
             org.elasticsearch.cluster.coordination.NodeHealthCheckFailureException.class,
             org.elasticsearch.cluster.coordination.NodeHealthCheckFailureException::new,
             159,
-            Version.V_8_0_0
+            TransportVersion.V_8_0_0
         ),
         NO_SEED_NODE_LEFT_EXCEPTION(
             org.elasticsearch.transport.NoSeedNodeLeftException.class,
             org.elasticsearch.transport.NoSeedNodeLeftException::new,
             160,
-            Version.V_7_10_0
+            TransportVersion.V_7_10_0
         ),
         VERSION_MISMATCH_EXCEPTION(
             org.elasticsearch.action.search.VersionMismatchException.class,
             org.elasticsearch.action.search.VersionMismatchException::new,
             161,
-            Version.V_7_12_0
+            TransportVersion.V_7_12_0
         ),
         AUTHENTICATION_PROCESSING_ERROR(
             org.elasticsearch.ElasticsearchAuthenticationProcessingError.class,
             org.elasticsearch.ElasticsearchAuthenticationProcessingError::new,
             162,
-            Version.V_7_16_0
+            TransportVersion.V_7_16_0
         ),
         REPOSITORY_CONFLICT_EXCEPTION(
             org.elasticsearch.repositories.RepositoryConflictException.class,
             org.elasticsearch.repositories.RepositoryConflictException::new,
             163,
-            Version.V_8_0_0
+            TransportVersion.V_8_0_0
         ),
         DESIRED_NODES_VERSION_CONFLICT_EXCEPTION(
             org.elasticsearch.cluster.desirednodes.VersionConflictException.class,
             org.elasticsearch.cluster.desirednodes.VersionConflictException::new,
             164,
-            Version.V_8_1_0
+            TransportVersion.V_8_1_0
         ),
         SNAPSHOT_NAME_ALREADY_IN_USE_EXCEPTION(
             org.elasticsearch.snapshots.SnapshotNameAlreadyInUseException.class,
             org.elasticsearch.snapshots.SnapshotNameAlreadyInUseException::new,
             165,
-            Version.V_8_2_0
+            TransportVersion.V_8_2_0
         ),
         HEALTH_NODE_NOT_DISCOVERED_EXCEPTION(
             HealthNodeNotDiscoveredException.class,
             HealthNodeNotDiscoveredException::new,
             166,
-            Version.V_8_5_0
+            TransportVersion.V_8_5_0
         ),
         UNSUPPORTED_AGGREGATION_ON_DOWNSAMPLED_INDEX_EXCEPTION(
             UnsupportedAggregationOnDownsampledIndex.class,
             UnsupportedAggregationOnDownsampledIndex::new,
             167,
-            Version.V_8_5_0
+            TransportVersion.V_8_5_0
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;
         final int id;
-        final Version versionAdded;
+        final TransportVersion versionAdded;
 
         <E extends ElasticsearchException> ElasticsearchExceptionHandle(
             Class<E> exceptionClass,
             CheckedFunction<StreamInput, E, IOException> constructor,
             int id,
-            Version versionAdded
+            TransportVersion versionAdded
         ) {
             // We need the exceptionClass because you can't dig it out of the constructor reliably.
             this.exceptionClass = exceptionClass;

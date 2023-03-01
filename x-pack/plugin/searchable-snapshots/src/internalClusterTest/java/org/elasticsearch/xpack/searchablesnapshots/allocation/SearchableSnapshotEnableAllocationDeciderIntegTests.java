@@ -85,12 +85,6 @@ public class SearchableSnapshotEnableAllocationDeciderIntegTests extends BaseSea
 
     private void setSetting(Setting<?> setting, String value) {
         logger.info("--> setting [{}={}]", setting.getKey(), value);
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put(setting.getKey(), value).build())
-                .get()
-        );
+        updateClusterSettings(Settings.builder().put(setting.getKey(), value));
     }
 }

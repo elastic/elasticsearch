@@ -15,42 +15,42 @@ import java.util.Objects;
 
 public final class RemoteAccessHeaders {
 
-    public static final String REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY = "_remote_access_cluster_credential";
-    private final String clusterCredentialsHeader;
+    public static final String REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY = "_remote_cluster_authorization";
+    private final String clusterAuthorizationHeader;
     private final RemoteAccessAuthentication remoteAccessAuthentication;
 
-    public RemoteAccessHeaders(String clusterCredentialsHeader, RemoteAccessAuthentication remoteAccessAuthentication) {
-        assert clusterCredentialsHeader.startsWith("ApiKey ") : "cluster credentials headers must start with [ApiKey ]";
-        this.clusterCredentialsHeader = clusterCredentialsHeader;
+    public RemoteAccessHeaders(String clusterAuthorizationHeader, RemoteAccessAuthentication remoteAccessAuthentication) {
+        assert clusterAuthorizationHeader.startsWith("ApiKey ") : "cluster authorization header must start with [ApiKey ]";
+        this.clusterAuthorizationHeader = clusterAuthorizationHeader;
         this.remoteAccessAuthentication = remoteAccessAuthentication;
     }
 
     public void writeToContext(final ThreadContext ctx) throws IOException {
-        ctx.putHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY, clusterCredentialsHeader);
+        ctx.putHeader(REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY, clusterAuthorizationHeader);
         remoteAccessAuthentication.writeToContext(ctx);
     }
 
     public static RemoteAccessHeaders readFromContext(final ThreadContext ctx) throws IOException {
-        final String clusterCredentialsHeader = ctx.getHeader(REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY);
-        if (clusterCredentialsHeader == null) {
-            throw new IllegalArgumentException("remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] is required");
+        final String clusterAuthorizationHeader = ctx.getHeader(REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY);
+        if (clusterAuthorizationHeader == null) {
+            throw new IllegalArgumentException("remote access header [" + REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY + "] is required");
         }
         // Invoke parsing logic to validate that the header decodes to a valid API key credential
         // Call `close` since the returned value is an auto-closable
-        parseClusterCredentialsHeader(clusterCredentialsHeader).close();
-        return new RemoteAccessHeaders(clusterCredentialsHeader, RemoteAccessAuthentication.readFromContext(ctx));
+        parseClusterAuthorizationHeader(clusterAuthorizationHeader).close();
+        return new RemoteAccessHeaders(clusterAuthorizationHeader, RemoteAccessAuthentication.readFromContext(ctx));
     }
 
     public ApiKeyService.ApiKeyCredentials clusterCredentials() {
-        return parseClusterCredentialsHeader(clusterCredentialsHeader);
+        return parseClusterAuthorizationHeader(clusterAuthorizationHeader);
     }
 
-    private static ApiKeyService.ApiKeyCredentials parseClusterCredentialsHeader(final String header) {
+    private static ApiKeyService.ApiKeyCredentials parseClusterAuthorizationHeader(final String header) {
         try {
             return Objects.requireNonNull(ApiKeyService.getCredentialsFromHeader(header));
         } catch (Exception ex) {
             throw new IllegalArgumentException(
-                "remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] value must be a valid API key credential",
+                "remote access header [" + REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY + "] value must be a valid API key credential",
                 ex
             );
         }
@@ -65,12 +65,12 @@ public final class RemoteAccessHeaders {
         if (obj == this) return true;
         if (obj == null || obj.getClass() != this.getClass()) return false;
         var that = (RemoteAccessHeaders) obj;
-        return Objects.equals(this.clusterCredentialsHeader, that.clusterCredentialsHeader)
+        return Objects.equals(this.clusterAuthorizationHeader, that.clusterAuthorizationHeader)
             && Objects.equals(this.remoteAccessAuthentication, that.remoteAccessAuthentication);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(clusterCredentialsHeader, remoteAccessAuthentication);
+        return Objects.hash(clusterAuthorizationHeader, remoteAccessAuthentication);
     }
 }

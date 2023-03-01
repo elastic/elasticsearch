@@ -20,7 +20,7 @@ import java.util.Base64;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
-import static org.elasticsearch.xpack.security.authc.RemoteAccessHeaders.REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY;
+import static org.elasticsearch.xpack.security.authc.RemoteAccessHeaders.REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RemoteAccessHeadersTests extends ESTestCase {
@@ -67,7 +67,7 @@ public class RemoteAccessHeadersTests extends ESTestCase {
 
         assertThat(
             actual.getMessage(),
-            equalTo("remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] value must be a valid API key credential")
+            equalTo("remote access header [" + REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY + "] value must be a valid API key credential")
         );
     }
 
@@ -76,7 +76,7 @@ public class RemoteAccessHeadersTests extends ESTestCase {
         AuthenticationTestHelper.randomRemoteAccessAuthentication(randomRoleDescriptorsIntersection()).writeToContext(ctx);
         final String encodedApiKey = encodedApiKey(UUIDs.randomBase64UUID(), UUIDs.randomBase64UUID());
         ctx.putHeader(
-            REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY,
+            REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY,
             randomFrom(
                 // missing space
                 "ApiKey" + encodedApiKey,
@@ -91,7 +91,7 @@ public class RemoteAccessHeadersTests extends ESTestCase {
 
         assertThat(
             actual.getMessage(),
-            equalTo("remote access header [" + REMOTE_ACCESS_CLUSTER_CREDENTIAL_HEADER_KEY + "] value must be a valid API key credential")
+            equalTo("remote access header [" + REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY + "] value must be a valid API key credential")
         );
     }
 

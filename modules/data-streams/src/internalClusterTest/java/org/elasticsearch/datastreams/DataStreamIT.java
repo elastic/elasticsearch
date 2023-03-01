@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
@@ -59,6 +60,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
@@ -1137,11 +1139,7 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(getSettingsResponse.getSetting(backingIndex1, "index.number_of_replicas"), equalTo("1"));
         assertThat(getSettingsResponse.getSetting(backingIndex2, "index.number_of_replicas"), equalTo("1"));
 
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("logs-foobar")
-            .setSettings(Settings.builder().put("index.number_of_replicas", 0))
-            .get();
+        setReplicaCount(0, "logs-foobar");
         getSettingsResponse = client().admin().indices().prepareGetSettings("logs-foobar").get();
         assertThat(getSettingsResponse.getIndexToSettings().size(), equalTo(2));
         assertThat(getSettingsResponse.getSetting(backingIndex1, "index.number_of_replicas"), equalTo("0"));
@@ -1288,8 +1286,8 @@ public class DataStreamIT extends ESIntegTestCase {
 
     public void testGetDataStream() throws Exception {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, maximumNumberOfReplicas() + 2).build();
-        putComposableIndexTemplate("template_for_foo", null, List.of("metrics-foo*"), settings, null);
-
+        DataLifecycle lifecycle = new DataLifecycle(randomMillisUpToYear9999());
+        putComposableIndexTemplate("template_for_foo", null, List.of("metrics-foo*"), settings, null, null, lifecycle);
         int numDocsFoo = randomIntBetween(2, 16);
         indexDocs("metrics-foo", numDocsFoo);
 
@@ -1303,6 +1301,7 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(metricsFooDataStream.getDataStreamStatus(), is(ClusterHealthStatus.YELLOW));
         assertThat(metricsFooDataStream.getIndexTemplate(), is("template_for_foo"));
         assertThat(metricsFooDataStream.getIlmPolicy(), is(nullValue()));
+        assertThat(metricsFooDataStream.getDataStream().getLifecycle(), is(lifecycle));
     }
 
     private static void assertBackingIndex(String backingIndex, String timestampFieldPathInMapping, Map<?, ?> expectedMapping) {
@@ -1508,7 +1507,11 @@ public class DataStreamIT extends ESIntegTestCase {
                 logger.info("--> [{}] waiting for all the other threads before starting", i);
                 barrier.await();
                 while (running.get()) {
-                    RolloverResponse resp = client().admin().indices().prepareRolloverIndex(dsName).addMaxIndexDocsCondition(2).get();
+                    RolloverResponse resp = client().admin()
+                        .indices()
+                        .prepareRolloverIndex(dsName)
+                        .setConditions(RolloverConditions.newBuilder().addMaxIndexDocsCondition(2L))
+                        .get();
                     if (resp.isRolledOver()) {
                         logger.info("--> thread [{}] successfully rolled over: {}", i, Strings.toString(resp));
                         assertThat(resp.getOldIndex(), backingIndexEqualTo("potato-biscuit", 1));
@@ -1650,7 +1653,8 @@ public class DataStreamIT extends ESIntegTestCase {
                 List.of("my-*"),
                 null,
                 null,
-                Map.of("my-alias", AliasMetadata.builder("my-alias").build())
+                Map.of("my-alias", AliasMetadata.builder("my-alias").build()),
+                null
             );
             var request = new CreateDataStreamAction.Request("my-ds");
             assertAcked(client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
@@ -1685,7 +1689,8 @@ public class DataStreamIT extends ESIntegTestCase {
                 List.of("logs-*"),
                 null,
                 null,
-                Map.of("logs", AliasMetadata.builder("logs").build())
+                Map.of("logs", AliasMetadata.builder("logs").build()),
+                null
             );
 
             var request = new CreateDataStreamAction.Request("logs-es");
@@ -1721,7 +1726,8 @@ public class DataStreamIT extends ESIntegTestCase {
                     List.of("logs-*"),
                     null,
                     null,
-                    Map.of("logs", AliasMetadata.builder("logs").build())
+                    Map.of("logs", AliasMetadata.builder("logs").build()),
+                    null
                 )
             );
             assertThat(
@@ -1796,7 +1802,8 @@ public class DataStreamIT extends ESIntegTestCase {
                         original.isReplicated(),
                         original.isSystem(),
                         original.isAllowCustomRouting(),
-                        original.getIndexMode()
+                        original.getIndexMode(),
+                        original.getLifecycle()
                     );
                     brokenDataStreamHolder.set(broken);
                     return ClusterState.builder(currentState)
@@ -2291,7 +2298,7 @@ public class DataStreamIT extends ESIntegTestCase {
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata
     ) throws IOException {
-        putComposableIndexTemplate(id, mappings, patterns, settings, metadata, null);
+        putComposableIndexTemplate(id, mappings, patterns, settings, metadata, null, null);
     }
 
     static void putComposableIndexTemplate(
@@ -2300,13 +2307,14 @@ public class DataStreamIT extends ESIntegTestCase {
         List<String> patterns,
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata,
-        @Nullable Map<String, AliasMetadata> aliases
+        @Nullable Map<String, AliasMetadata> aliases,
+        @Nullable DataLifecycle lifecycle
     ) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
             new ComposableIndexTemplate(
                 patterns,
-                new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), aliases),
+                new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), aliases, lifecycle),
                 null,
                 null,
                 null,

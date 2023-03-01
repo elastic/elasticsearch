@@ -29,6 +29,7 @@ import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * This class is designed to support building IdP Metadata in test scenarios.
@@ -75,7 +76,14 @@ public class SamlIdpMetadataBuilder {
     }
 
     public String asString() throws CertificateEncodingException {
-        return SamlUtils.getXmlContent(build(), false);
+        var oldLocale = Locale.getDefault();
+        try {
+            // KeyDescriptorMarshaller calls toString on the SIGNING enum and that may not generate the correct value in other locales
+            Locale.setDefault(Locale.ROOT);
+            return SamlUtils.getXmlContent(build(), false);
+        } finally {
+            Locale.setDefault(oldLocale);
+        }
     }
 
     public EntityDescriptor build() throws CertificateEncodingException {

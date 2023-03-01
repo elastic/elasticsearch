@@ -218,14 +218,11 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
 
         // reactivate merges
         assertAcked(admin().indices().prepareClose(indexName).get());
-        assertAcked(
-            admin().indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(
-                    Settings.builder()
-                        .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
-                        .put(MergePolicyConfig.INDEX_MERGE_ENABLED, "true")
-                )
+        updateIndexSettings(
+            Settings.builder()
+                .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
+                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, "true"),
+            indexName
         );
         assertAcked(admin().indices().prepareOpen(indexName).get());
         assertEquals(0, admin().indices().prepareForceMerge(indexName).setFlush(true).get().getFailedShards());

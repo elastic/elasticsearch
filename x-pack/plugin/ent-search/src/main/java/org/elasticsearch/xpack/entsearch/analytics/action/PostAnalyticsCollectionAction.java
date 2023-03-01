@@ -40,11 +40,6 @@ public class PostAnalyticsCollectionAction extends ActionType<PostAnalyticsColle
             this.analyticsCollection = new AnalyticsCollection(in);
         }
 
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
-
         public Request(String resourceName, BytesReference content, XContentType contentType) {
             this.analyticsCollection = AnalyticsCollection.fromXContentBytes(resourceName, content, contentType);
         }
@@ -52,7 +47,18 @@ public class PostAnalyticsCollectionAction extends ActionType<PostAnalyticsColle
         public Request(AnalyticsCollection analyticsCollection) {
             this.analyticsCollection = analyticsCollection;
         }
+        @Override
+        public ActionRequestValidationException validate() {
+            ActionRequestValidationException validationException = null;
 
+            final String name = analyticsCollection.getName();
+
+            if (name == null || name.isEmpty()) {
+                validationException = addValidationError("Analytics collection name is missing", validationException);
+            }
+
+            return validationException;
+        }
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);

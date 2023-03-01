@@ -41,8 +41,11 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.entsearch.analytics.AnalyticsCollectionService;
 import org.elasticsearch.xpack.entsearch.analytics.AnalyticsTemplateRegistry;
+import org.elasticsearch.xpack.entsearch.analytics.action.GetAnalyticsCollectionAction;
 import org.elasticsearch.xpack.entsearch.analytics.action.PostAnalyticsCollectionAction;
+import org.elasticsearch.xpack.entsearch.analytics.action.RestGetAnalyticsCollectionAction;
 import org.elasticsearch.xpack.entsearch.analytics.action.RestPostAnalyticsCollectionAction;
+import org.elasticsearch.xpack.entsearch.analytics.action.TransportGetAnalyticsCollectionAction;
 import org.elasticsearch.xpack.entsearch.analytics.action.TransportPostAnalyticsCollectionAction;
 import org.elasticsearch.xpack.entsearch.engine.EngineIndexService;
 import org.elasticsearch.xpack.entsearch.engine.action.DeleteEngineAction;
@@ -86,6 +89,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         }
         return List.of(
             new ActionHandler<>(PostAnalyticsCollectionAction.INSTANCE, TransportPostAnalyticsCollectionAction.class),
+            new ActionHandler<>(GetAnalyticsCollectionAction.INSTANCE, TransportGetAnalyticsCollectionAction.class),
             new ActionPlugin.ActionHandler<>(GetEngineAction.INSTANCE, TransportGetEngineAction.class),
             new ActionHandler<>(PutEngineAction.INSTANCE, TransportPutEngineAction.class),
             new ActionHandler<>(DeleteEngineAction.INSTANCE, TransportDeleteEngineAction.class)
@@ -106,7 +110,13 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         if (enabled == false) {
             return Collections.emptyList();
         }
-        return List.of(new RestGetEngineAction(), new RestPutEngineAction(), new RestDeleteEngineAction(), new RestPostAnalyticsCollectionAction());
+        return List.of(
+            new RestGetEngineAction(),
+            new RestPutEngineAction(),
+            new RestDeleteEngineAction(),
+            new RestPostAnalyticsCollectionAction(),
+            new RestGetAnalyticsCollectionAction()
+        );
     }
 
     @Override

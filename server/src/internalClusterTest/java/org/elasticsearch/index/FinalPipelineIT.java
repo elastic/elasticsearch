@@ -190,7 +190,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
         assertFalse(target.getHits().getAt(0).getSourceAsMap().containsKey("final"));
     }
 
-    public void testDefaultPipelineOfRedirectDestinationIsInvoked() {
+    public void testDefaultPipelineOfRerouteDestinationIsInvoked() {
         Settings settings = Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline").build();
         createIndex("index", settings);
 
@@ -198,7 +198,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
         createIndex("target", settings);
 
         BytesReference defaultPipelineBody = new BytesArray("""
-            {"processors": [{"redirect": {}}]}""");
+            {"processors": [{"reroute": {}}]}""");
         client().admin()
             .cluster()
             .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON))
@@ -230,14 +230,14 @@ public class FinalPipelineIT extends ESIntegTestCase {
         createIndex("target", settings);
 
         BytesReference defaultPipelineBody = new BytesArray("""
-            {"processors": [{"redirect": {"dest": "target"}}]}""");
+            {"processors": [{"reroute": {"dest": "target"}}]}""");
         client().admin()
             .cluster()
             .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON))
             .actionGet();
 
         BytesReference targetPipeline = new BytesArray("""
-            {"processors": [{"redirect": {"dest": "index"}}]}""");
+            {"processors": [{"reroute": {"dest": "index"}}]}""");
         client().admin()
             .cluster()
             .putPipeline(new PutPipelineRequest("target_default_pipeline", targetPipeline, XContentType.JSON))
@@ -461,7 +461,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
                     }
 
                 },
-                "redirect",
+                "reroute",
                 (processorFactories, tag, description, config) -> {
                     final String dest = Objects.requireNonNullElse(
                         ConfigurationUtils.readOptionalStringProperty(description, tag, config, "dest"),
@@ -470,13 +470,13 @@ public class FinalPipelineIT extends ESIntegTestCase {
                     return new AbstractProcessor(tag, description) {
                         @Override
                         public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
-                            ingestDocument.redirect(dest);
+                            ingestDocument.reroute(dest);
                             return ingestDocument;
                         }
 
                         @Override
                         public String getType() {
-                            return "redirect";
+                            return "reroute";
                         }
 
                     };

@@ -923,14 +923,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         indexRequest.isPipelineResolved(false);
                         resolvePipelines(null, indexRequest, state.metadata());
                         newPipelines = getPipelines(indexRequest);
-                        if (ingestDocument.isRedirect() == false) {
+                        if (ingestDocument.isReroute() == false) {
                             newPipelines = newPipelines.withoutDefaultPipeline();
                         }
                     }
                 }
 
                 if (newPipelines.hasNext()) {
-                    ingestDocument.resetRedirect();
+                    ingestDocument.resetReroute();
                     executePipelines(newPipelines, indexRequest, ingestDocument, listener, indexRecursionDetection);
                 } else {
                     // update the index request's source and (potentially) cache the timestamp for TSDB

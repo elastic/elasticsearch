@@ -533,7 +533,7 @@ public class CompoundProcessorTests extends ESTestCase {
     }
 
     public void testSkipPipeline() {
-        TestProcessor processor1 = new TestProcessor(doc -> doc.redirect("foo"));
+        TestProcessor processor1 = new TestProcessor(doc -> doc.reroute("foo"));
         TestProcessor processor2 = new TestProcessor(new RuntimeException("this processor was expected to be skipped"));
         LongSupplier relativeTimeProvider = mock(LongSupplier.class);
         when(relativeTimeProvider.getAsLong()).thenReturn(0L);
@@ -551,7 +551,7 @@ public class CompoundProcessorTests extends ESTestCase {
     }
 
     public void testSkipAsyncProcessor() {
-        TestProcessor processor1 = new TestProcessor(doc -> doc.redirect("foo")) {
+        TestProcessor processor1 = new TestProcessor(doc -> doc.reroute("foo")) {
             @Override
             public boolean isAsync() {
                 return true;
@@ -575,7 +575,7 @@ public class CompoundProcessorTests extends ESTestCase {
 
     public void testSkipProcessorIgnoreFailure() {
         TestProcessor processor1 = new TestProcessor(doc -> {
-            doc.redirect("foo");
+            doc.reroute("foo");
             throw new RuntimeException("simulate processor failure after calling skipCurrentPipeline()");
         });
         TestProcessor processor2 = new TestProcessor(doc -> {});
@@ -591,7 +591,7 @@ public class CompoundProcessorTests extends ESTestCase {
 
     public void testDontSkipFailureProcessor() {
         TestProcessor processor = new TestProcessor(doc -> {
-            doc.redirect("foo");
+            doc.reroute("foo");
             throw new RuntimeException("simulate processor failure after calling skipCurrentPipeline()");
         });
         TestProcessor failureProcessor1 = new TestProcessor(doc -> {});

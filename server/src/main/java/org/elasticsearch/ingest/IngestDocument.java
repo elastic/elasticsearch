@@ -63,7 +63,7 @@ public final class IngestDocument {
     // Contains all pipelines that have been executed for this document
     private final Set<String> executedPipelines = new LinkedHashSet<>();
     private boolean doNoSelfReferencesCheck = false;
-    private boolean redirect = false;
+    private boolean reroute = false;
 
     public IngestDocument(String index, String id, long version, String routing, VersionType versionType, Map<String, Object> source) {
         this.ctxMap = new IngestCtxMap(index, id, version, routing, versionType, ZonedDateTime.now(ZoneOffset.UTC), source);
@@ -80,7 +80,7 @@ public final class IngestDocument {
             new IngestCtxMap(deepCopyMap(other.ctxMap.getSource()), other.ctxMap.getMetadata().clone()),
             deepCopyMap(other.ingestMetadata)
         );
-        this.redirect = other.redirect;
+        this.reroute = other.reroute;
     }
 
     /**
@@ -904,9 +904,9 @@ public final class IngestDocument {
         return "IngestDocument{" + " sourceAndMetadata=" + ctxMap + ", ingestMetadata=" + ingestMetadata + '}';
     }
 
-    public void redirect(String destIndex) {
+    public void reroute(String destIndex) {
         getMetadata().setIndex(destIndex);
-        redirect = true;
+        reroute = true;
     }
 
     /**
@@ -915,15 +915,15 @@ public final class IngestDocument {
      *
      * @return whether the document is redirected to another target
      */
-    boolean isRedirect() {
-        return redirect;
+    boolean isReroute() {
+        return reroute;
     }
 
     /**
      * Invoked after the pipeline for the initial target has been skipped to avoid that the pipeline of the new target is skipped as well.
      */
-    void resetRedirect() {
-        redirect = false;
+    void resetReroute() {
+        reroute = false;
     }
 
     public enum Metadata {

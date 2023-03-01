@@ -141,7 +141,7 @@ public class CompoundProcessor implements Processor {
 
     void innerExecute(int currentProcessor, IngestDocument ingestDocument, final BiConsumer<IngestDocument, Exception> handler) {
         assert currentProcessor <= processorsWithMetrics.size();
-        if (currentProcessor == processorsWithMetrics.size() || ingestDocument.isRedirect()) {
+        if (currentProcessor == processorsWithMetrics.size() || ingestDocument.isReroute()) {
             handler.accept(ingestDocument, null);
             return;
         }
@@ -152,7 +152,7 @@ public class CompoundProcessor implements Processor {
         // iteratively execute any sync processors
         while (currentProcessor < processorsWithMetrics.size()
             && processorsWithMetrics.get(currentProcessor).v1().isAsync() == false
-            && ingestDocument.isRedirect() == false) {
+            && ingestDocument.isReroute() == false) {
             processorWithMetric = processorsWithMetrics.get(currentProcessor);
             processor = processorWithMetric.v1();
             metric = processorWithMetric.v2();
@@ -178,7 +178,7 @@ public class CompoundProcessor implements Processor {
         }
 
         assert currentProcessor <= processorsWithMetrics.size();
-        if (currentProcessor == processorsWithMetrics.size() || ingestDocument.isRedirect()) {
+        if (currentProcessor == processorsWithMetrics.size() || ingestDocument.isReroute()) {
             handler.accept(ingestDocument, null);
             return;
         }

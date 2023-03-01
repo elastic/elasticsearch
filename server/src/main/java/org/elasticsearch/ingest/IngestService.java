@@ -225,12 +225,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             () -> resolvePipelinesFromIndexTemplates(indexRequest, clusterMetadata)
         ).orElse(Pipelines.NO_PIPELINES_DEFINED);
 
-        indexRequest.setPipeline(pipelines.defaultPipeline);
-        indexRequest.setFinalPipeline(pipelines.finalPipeline);
-
         if (requestPipeline != null) {
             indexRequest.setPipeline(requestPipeline);
+        } else {
+            indexRequest.setPipeline(pipelines.defaultPipeline);
         }
+        indexRequest.setFinalPipeline(pipelines.finalPipeline);
 
         /*
          * We have to track whether the pipeline for this request has already been resolved or not. It can happen that the

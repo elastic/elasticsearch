@@ -154,11 +154,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         messageToForward.setDecoderResult(DecoderResult.failure(e));
         ctx.fireChannelRead(messageToForward);
 
-        if (pending.isEmpty() == false && fullRequestConsumed == false) {
-            // There should not be any data re-enqueued when we are dropping permanently
-            assert state == STATE.HANDLING_QUEUED_DATA;
-            fullRequestConsumed = dropData();
-        }
+        assert fullRequestConsumed || pending.isEmpty();
 
         assert state == STATE.HANDLING_QUEUED_DATA;
         if (pending.isEmpty()) {

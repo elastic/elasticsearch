@@ -32,7 +32,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -84,10 +83,12 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
              * It is possible that deprecationLoggingEnabled is false in the first check but then becomes true (and the queue is
              * drained) before the call to offer. Given the rarity of this case, and the low impact of dropping a single deprecation log
              * message, we're living with this race condition instead of impacting performance (adding a mutex) or complexity and
-             * performance (adding a periodic task to check the queue).
+             * performance (adding a periodic task to check the queue). The call to flushBufferToBulkProcessor() will pick up anything in
+             * the buffer due to this race condition the next time a deprecation log message comes in.
              */
             if (flushEnabled.get()) {
                 processor.add(request);
+                flushBufferToBulkProcessor();
             } else if (requestBuffer.offer(request) == false) {
                 logger.trace("Deprecation logging is not enabled yet, but buffer is full, so not indexing a deprecation log request");
             }
@@ -147,13 +148,20 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
             && indexLifecycleMetadata != null
             && indexLifecycleMetadata.getPolicies().containsKey(".deprecation-indexing-ilm-policy")) {
             flushEnabled.set(true);
-            List<IndexRequest> requests = new ArrayList<>();
-            requestBuffer.drainTo(requests);
-            for (IndexRequest request : requests) {
-                processor.add(request);
-            }
+            flushBufferToBulkProcessor();
             logger.debug("Deprecation log indexing started, because both template and ilm policy are loaded");
             clusterService.removeListener(this);
+        }
+    }
+
+    /**
+     * This method removes everything that is currently in the requestBuffer and sends it to the processor. This method is threadsafe.
+     * Anything added to the requestBuffer while this method is executing might be removed and sent to the processor, but there is no
+     * blocking.
+     */
+    private void flushBufferToBulkProcessor() {
+        for (IndexRequest bufferedRequest = requestBuffer.poll(); bufferedRequest != null; bufferedRequest = requestBuffer.poll()) {
+            processor.add(bufferedRequest);
         }
     }
 

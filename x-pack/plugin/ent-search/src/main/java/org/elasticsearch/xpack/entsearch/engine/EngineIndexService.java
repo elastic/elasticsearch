@@ -196,11 +196,11 @@ public class EngineIndexService {
      * @param engine The engine object.
      * @param listener The action listener to invoke on response/failure.
      */
-    public void putEngine(Engine engine, ActionListener<IndexResponse> listener) {
+    public void putEngine(Engine engine, boolean create, ActionListener<IndexResponse> listener) {
         createOrUpdateAlias(engine, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                updateEngine(engine, listener);
+                updateEngine(engine, create, listener);
             }
 
             @Override
@@ -261,7 +261,7 @@ public class EngineIndexService {
         return aliasesRequestBuilder;
     }
 
-    private void updateEngine(Engine engine, ActionListener<IndexResponse> listener) {
+    private void updateEngine(Engine engine, boolean create, ActionListener<IndexResponse> listener) {
         try (ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())) {
             try (XContentBuilder source = XContentFactory.jsonBuilder(buffer)) {
                 source.startObject()
@@ -273,8 +273,10 @@ public class EngineIndexService {
                     )
                     .endObject();
             }
+            DocWriteRequest.OpType opType = (create ? DocWriteRequest.OpType.CREATE : DocWriteRequest.OpType.INDEX);
             final IndexRequest indexRequest = new IndexRequest(ENGINE_ALIAS_NAME).opType(DocWriteRequest.OpType.INDEX)
                 .id(engine.name())
+                .opType(opType)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .source(buffer.bytes(), XContentType.JSON);
             clientWithOrigin.index(indexRequest, listener);

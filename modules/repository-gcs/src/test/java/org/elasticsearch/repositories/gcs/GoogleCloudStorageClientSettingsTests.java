@@ -176,7 +176,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             ).getBytes(StandardCharsets.UTF_8)
         );
         var settings = Settings.builder().setSecureSettings(secureSettings).build();
-        var proxyServer = new MockHttpProxyServer().handler(() -> new SimpleChannelInboundHandler<>() {
+        var proxyServer = new MockHttpProxyServer().handler(new SimpleChannelInboundHandler<>() {
             @Override
             protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) throws Exception {
                 assertEquals("POST", request.method().name());

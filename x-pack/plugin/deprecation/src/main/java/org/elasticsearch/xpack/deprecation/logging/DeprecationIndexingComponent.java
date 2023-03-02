@@ -167,9 +167,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
 
     @Override
     protected void doClose() {
-        if (pendingRequestsBuffer.isEmpty()) {
-            this.processor.close();
-        } // else no point in waiting for the bulk requests to complete because they're never going to
+        this.processor.close();
     }
 
     public void enableDeprecationLogIndexing(boolean newEnabled) {

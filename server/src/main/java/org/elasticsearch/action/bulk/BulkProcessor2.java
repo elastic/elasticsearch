@@ -259,7 +259,7 @@ public class BulkProcessor2 {
      */
     public void close() {
         try {
-            awaitClose(Integer.MAX_VALUE, TimeUnit.MILLISECONDS);
+            awaitClose(30, TimeUnit.SECONDS);
         } catch (InterruptedException exc) {
             Thread.currentThread().interrupt();
         }

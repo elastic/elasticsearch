@@ -167,5 +167,5 @@
 
   - match: {component_templates.0.name: test-lifecycle}
   - match: {component_templates.0.component_template.version: 1}
-  - match: {component_templates.0.component_template.template.lifecycle: {data_retention: "10d"}}
+  - match: {component_templates.0.component_template.template.lifecycle.data_retention: "10d"}
   - is_true: component_templates.0.component_template.template.lifecycle.rollover

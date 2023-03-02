@@ -36,6 +36,7 @@ CCR::
 * Deduplicate Heavy CCR Repository CS Requests {es-pull}91398[#91398]
 
 CRUD::
+* Avoid NPE in Stateless Get/mGet {es-pull}94164[#94164]
 * Do not refresh all indices in `TransportBulkAction` {es-pull}93417[#93417]
 
 Cluster Coordination::
@@ -80,6 +81,7 @@ Infra/Scripting::
 Ingest Node::
 * Better names and types for ingest stats {es-pull}93533[#93533] (issue: {es-issue}80763[#80763])
 * Correctly handle an exception case for ingest failure {es-pull}92455[#92455]
+* Disable ingest-attachment logging {es-pull}93878[#93878]
 * Download the geoip databases only when needed {es-pull}92335[#92335] (issue: {es-issue}90673[#90673])
 * Forwarding simulate calls to ingest nodes {es-pull}92171[#92171]
 * Grok returns a list of matches for repeated pattern names #92092 {es-pull}92586[#92586] (issue: {es-issue}92092[#92092])
@@ -90,6 +92,7 @@ Ingest Node::
 * Speed up ingest set and append processors {es-pull}92395[#92395]
 
 Machine Learning::
+* Allocate trained models if zone awareness attributes not set {es-pull}94128[#94128] (issue: {es-issue}94123[#94123])
 * Fix data counts race condition when starting a datafeed {es-pull}93324[#93324] (issue: {es-issue}93298[#93298])
 * Fix tokenization bug when handling normalization in BERT and MPNet {es-pull}92329[#92329]
 * Free resources correctly when model loading is cancelled {es-pull}92204[#92204]
@@ -97,6 +100,7 @@ Machine Learning::
 * Use long inference timeout at ingest {es-pull}93731[#93731]
 
 Mapping::
+* Fix dynamic mapping detection for invalid dates {es-pull}94115[#94115] (issue: {es-issue}93888[#93888])
 * No length check for source-only keyword fields {es-pull}93299[#93299] (issue: {es-issue}9304[#9304])
 
 Network::
@@ -138,6 +142,7 @@ Transform::
 * Integrate "sourceHasChanged" call into failure handling and retry logic {es-pull}92762[#92762] (issue: {es-issue}92133[#92133])
 
 Vector Search::
+* Fix `maxScore` calculation for kNN search {es-pull}93875[#93875]
 * Fix explain for kNN search matches {es-pull}93876[#93876]
 
 [[enhancement-8.7.0]]
@@ -152,6 +157,7 @@ Allocation::
 * Expose tier balancing stats via internal endpoint {es-pull}92199[#92199]
 * Introduce ShardRouting.Role {es-pull}92668[#92668]
 * Prevalidate node removal API (pt. 2) {es-pull}91256[#91256] (issue: {es-issue}87776[#87776])
+* Simulate moves using cluster_concurrent_rebalance=2 {es-pull}93977[#93977]
 * Unpromotables skip replication and peer recovery {es-pull}93210[#93210]
 
 Authentication::

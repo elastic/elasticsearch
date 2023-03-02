@@ -73,7 +73,7 @@ public class TransportActionProxyTests extends ESTestCase {
         nodeB = serviceB.getLocalDiscoNode();
         serviceC = buildService(version1, transportVersion1); // this one doesn't support dynamic tracer updates
         nodeC = serviceC.getLocalDiscoNode();
-        serviceD = buildService(version1);
+        serviceD = buildService(version1, transportVersion1);
         nodeD = serviceD.getLocalDiscoNode();
     }
 

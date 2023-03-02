@@ -11,7 +11,14 @@ setup:
       engine.put:
         engine_id: test-engine-to-delete
         body:
-          indices: ["test-index"]
+          indices: [ "test-index" ]
+
+---
+teardown:
+  - do:
+      engine.delete:
+        engine_id: test-engine-to-delete
+        ignore: 404
 
 ---
 "Delete Engine":

@@ -9,13 +9,19 @@ package org.elasticsearch.xpack.entsearch.analytics.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.entsearch.analytics.AnalyticsCollectionService;
 
-public class TransportGetAnalyticsCollectionAction extends HandledTransportAction<
+public class TransportGetAnalyticsCollectionAction extends TransportMasterNodeReadAction<
     GetAnalyticsCollectionAction.Request,
     GetAnalyticsCollectionAction.Response> {
 
@@ -24,23 +30,36 @@ public class TransportGetAnalyticsCollectionAction extends HandledTransportActio
     @Inject
     public TransportGetAnalyticsCollectionAction(
         TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
         ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
         AnalyticsCollectionService analyticsCollectionService
     ) {
-        super(GetAnalyticsCollectionAction.NAME, transportService, actionFilters, GetAnalyticsCollectionAction.Request::new);
+        super(
+            GetAnalyticsCollectionAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            GetAnalyticsCollectionAction.Request::new,
+            indexNameExpressionResolver,
+            GetAnalyticsCollectionAction.Response::new,
+            ThreadPool.Names.SAME);
         this.analyticsCollectionService = analyticsCollectionService;
     }
 
     @Override
-    protected void doExecute(
-        Task task,
-        GetAnalyticsCollectionAction.Request request,
-        ActionListener<GetAnalyticsCollectionAction.Response> listener
-    ) {
+    protected void masterOperation(Task task, GetAnalyticsCollectionAction.Request request, ClusterState state, ActionListener<GetAnalyticsCollectionAction.Response> listener) {
         analyticsCollectionService.getAnalyticsCollection(
             request.getCollectionName(),
             listener.map(GetAnalyticsCollectionAction.Response::new)
         );
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(GetAnalyticsCollectionAction.Request request, ClusterState state) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
 }

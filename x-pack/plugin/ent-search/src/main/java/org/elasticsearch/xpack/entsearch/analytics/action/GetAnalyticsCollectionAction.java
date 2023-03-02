@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -31,7 +32,7 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
         super(NAME, GetAnalyticsCollectionAction.Response::new);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends MasterNodeReadRequest<Request> {
         private final String collectionName;
 
         public Request(StreamInput in) throws IOException {

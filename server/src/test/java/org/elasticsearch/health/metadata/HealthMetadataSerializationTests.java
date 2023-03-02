@@ -62,7 +62,7 @@ public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializ
     }
 
     private static HealthMetadata.ShardLimits randomShardLimitsMetadata() {
-        return new HealthMetadata.ShardLimits(randomIntBetween(1, 10000), randomIntBetween(1, 10000));
+        return randomBoolean() ? new HealthMetadata.ShardLimits(randomIntBetween(1, 10000), randomIntBetween(1, 10000)) : null;
     }
 
     private static HealthMetadata.Disk randomDiskMetadata() {
@@ -84,7 +84,7 @@ public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializ
         }
     }
 
-    static HealthMetadata.Disk mutateDiskMetadata(HealthMetadata.Disk base) {
+    static HealthMetadata.Disk mutate(HealthMetadata.Disk base) {
         RelativeByteSizeValue highWatermark = base.highWatermark();
         ByteSizeValue highWatermarkMaxHeadRoom = base.highMaxHeadroom();
         RelativeByteSizeValue floodStageWatermark = base.floodStageWatermark();
@@ -109,19 +109,19 @@ public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializ
         );
     }
 
-    static HealthMetadata.ShardLimits mutateShardLimitsMetadata(HealthMetadata.ShardLimits base) {
-        var maxShardPerNode = base.maxShardsPerNode();
-        var maxShardPerNodeFrozen = base.maxShardsPerNodeFrozen();
-        switch (randomInt(1)) {
-            case 0 -> maxShardPerNode = randomIntBetween(1, 10000);
-            case 1 -> maxShardPerNodeFrozen = randomIntBetween(1, 10000);
-
+    static HealthMetadata.ShardLimits mutate(HealthMetadata.ShardLimits base) {
+        if (base == null) {
+            return null;
         }
-        return new HealthMetadata.ShardLimits(maxShardPerNode, maxShardPerNodeFrozen);
+        if (randomBoolean()) {
+            return HealthMetadata.ShardLimits.newBuilder(base).maxShardsPerNode(randomIntBetween(1, 10000)).build();
+        } else {
+            return HealthMetadata.ShardLimits.newBuilder(base).maxShardsPerNodeFrozen(randomIntBetween(1, 10000)).build();
+        }
     }
 
     private HealthMetadata mutate(HealthMetadata base) {
-        return new HealthMetadata(mutateDiskMetadata(base.getDiskMetadata()), mutateShardLimitsMetadata(base.getShardLimitsMetadata()));
+        return new HealthMetadata(mutate(base.getDiskMetadata()), mutate(base.getShardLimitsMetadata()));
     }
 
     public void testChunking() {

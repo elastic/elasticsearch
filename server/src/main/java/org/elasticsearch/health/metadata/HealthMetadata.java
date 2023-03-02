@@ -19,7 +19,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
-import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -40,6 +40,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
     private static final ParseField SHARD_LIMITS_METADATA = new ParseField(ShardLimits.TYPE);
 
     private final Disk diskMetadata;
+    @Nullable
     private final ShardLimits shardLimitsMetadata;
 
     public HealthMetadata(Disk diskMetadata, ShardLimits shardLimitsMetadata) {
@@ -50,7 +51,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
     public HealthMetadata(StreamInput in) throws IOException {
         this.diskMetadata = Disk.readFrom(in);
         this.shardLimitsMetadata = in.getTransportVersion().onOrAfter(ShardLimits.VERSION_SUPPORTING_SHARD_LIMIT_FIELDS)
-            ? ShardLimits.readFrom(in)
+            ? in.readOptionalWriteable(ShardLimits::readFrom)
             : null;
     }
 
@@ -68,7 +69,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
     public void writeTo(StreamOutput out) throws IOException {
         diskMetadata.writeTo(out);
         if (out.getTransportVersion().onOrAfter(ShardLimits.VERSION_SUPPORTING_SHARD_LIMIT_FIELDS)) {
-            shardLimitsMetadata.writeTo(out);
+            out.writeOptionalWriteable(shardLimitsMetadata);
         }
     }
 
@@ -82,9 +83,11 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
             builder.startObject(DISK_METADATA.getPreferredName());
             diskMetadata.toXContent(builder, params);
             builder.endObject();
-            builder.startObject(SHARD_LIMITS_METADATA.getPreferredName());
-            shardLimitsMetadata.toXContent(builder, params);
-            builder.endObject();
+            if (shardLimitsMetadata != null) {
+                builder.startObject(SHARD_LIMITS_METADATA.getPreferredName());
+                shardLimitsMetadata.toXContent(builder, params);
+                builder.endObject();
+            }
             return builder;
         });
     }

@@ -10,6 +10,8 @@ import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.precommit.ThirdPartyAuditPrecommitPlugin
+import org.elasticsearch.gradle.internal.precommit.ThirdPartyAuditTask
 import org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
@@ -17,30 +19,31 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 // precompiled script plugins (see https://github.com/gradle/gradle/issues/17004)
 // apply plugin: 'elasticsearch.jdk-download'
 
-jdks {
-  provisioned_runtime {
-    vendor = VersionProperties.bundledJdkVendor
-    version = VersionProperties.bundledJdkVersion
-    platform = OS.current().name().toLowerCase()
-    architecture = Architecture.current().name().toLowerCase()
-  }
-}
-
 configure(allprojects) {
+  apply plugin: 'elasticsearch.jdk-download'
+
+  jdks {
+    provisioned_runtime {
+      vendor = VersionProperties.bundledJdkVendor
+      version = VersionProperties.bundledJdkVersion
+      platform = OS.current().name().toLowerCase()
+      architecture = Architecture.current().name().toLowerCase()
+    }
+  }
   project.tasks.withType(Test).configureEach { Test test ->
     if (BuildParams.getIsRuntimeJavaHomeSet()) {
       test.executable = "${BuildParams.runtimeJavaHome}/bin/java"
     } else {
-      test.dependsOn(rootProject.jdks.provisioned_runtime)
-      test.executable = rootProject.jdks.provisioned_runtime.getBinJavaPath()
+      test.dependsOn(project.jdks.provisioned_runtime)
+      test.executable = project.jdks.provisioned_runtime.getBinJavaPath()
     }
   }
   project.plugins.withType(RestTestBasePlugin) {
     // Use later JDK for new REST test plugins since :test:test-clusters requires Java 17+
     // The clusters under test still use the configured runtime java home
     project.tasks.withType(StandaloneRestIntegTestTask).configureEach { StandaloneRestIntegTestTask test ->
-      test.dependsOn(rootProject.jdks.provisioned_runtime)
-      test.executable = rootProject.jdks.provisioned_runtime.getBinJavaPath()
+      test.dependsOn(project.jdks.provisioned_runtime)
+      test.executable = project.jdks.provisioned_runtime.getBinJavaPath()
       // Pass actual runtime java version used for clusters under test
       test.systemProperty("tests.runtime.java.version", BuildParams.runtimeJavaVersion)
     }
@@ -48,8 +51,15 @@ configure(allprojects) {
   project.plugins.withType(RestTestBasePlugin) {
     tasks.withType(StandaloneRestIntegTestTask).configureEach {
       if (BuildParams.getIsRuntimeJavaHomeSet() == false) {
-        dependsOn(rootProject.jdks.provisioned_runtime)
-        nonInputProperties.systemProperty("tests.runtime.java", "${-> rootProject.jdks.provisioned_runtime.javaHomePath}")
+        dependsOn(project.jdks.provisioned_runtime)
+        nonInputProperties.systemProperty("tests.runtime.java", "${-> project.jdks.provisioned_runtime.javaHomePath}")
+      }
+    }
+  }
+  project.plugins.withType(ThirdPartyAuditPrecommitPlugin) {
+    project.getTasks().withType(ThirdPartyAuditTask.class).configureEach {
+      if (BuildParams.getIsRuntimeJavaHomeSet() == false) {
+        javaHome.set(providers.provider(() -> "${project.jdks.provisioned_runtime.javaHomePath}"))
       }
     }
   }

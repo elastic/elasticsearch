@@ -29,6 +29,7 @@ public class TransportPutEngineAction extends HandledTransportAction<PutEngineAc
     @Override
     protected void doExecute(Task task, PutEngineAction.Request request, ActionListener<PutEngineAction.Response> listener) {
         Engine engine = request.getEngine();
-        engineIndexService.putEngine(engine, listener.map(r -> new PutEngineAction.Response(r.getResult())));
+        boolean create = request.create();
+        engineIndexService.putEngine(engine, create, listener.map(r -> new PutEngineAction.Response(r.getResult())));
     }
 }

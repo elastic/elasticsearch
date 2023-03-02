@@ -38,18 +38,22 @@ public class PutEngineAction extends ActionType<PutEngineAction.Response> {
     public static class Request extends ActionRequest {
 
         private final Engine engine;
+        private final boolean create;
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.engine = new Engine(in);
+            this.create = in.readBoolean();
         }
 
-        public Request(String engineId, BytesReference content, XContentType contentType) {
+        public Request(String engineId, boolean create, BytesReference content, XContentType contentType) {
             this.engine = Engine.fromXContentBytes(engineId, content, contentType);
+            this.create = create;
         }
 
-        public Request(Engine engine) {
+        public Request(Engine engine, boolean create) {
             this.engine = engine;
+            this.create = create;
         }
 
         @Override
@@ -67,10 +71,15 @@ public class PutEngineAction extends ActionType<PutEngineAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             engine.writeTo(out);
+            out.writeBoolean(create);
         }
 
         public Engine getEngine() {
             return engine;
+        }
+
+        public boolean create() {
+            return create;
         }
 
         @Override
@@ -78,12 +87,12 @@ public class PutEngineAction extends ActionType<PutEngineAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request that = (Request) o;
-            return Objects.equals(engine, that.engine);
+            return Objects.equals(engine, that.engine) && create == that.create;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(engine);
+            return Objects.hash(engine, create);
         }
     }
 

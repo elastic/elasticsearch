@@ -35,6 +35,7 @@ public class RestPutEngineAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         PutEngineAction.Request request = new PutEngineAction.Request(
             restRequest.param("engine_id"),
+            restRequest.paramAsBoolean("create", false),
             restRequest.content(),
             restRequest.getXContentType()
         );

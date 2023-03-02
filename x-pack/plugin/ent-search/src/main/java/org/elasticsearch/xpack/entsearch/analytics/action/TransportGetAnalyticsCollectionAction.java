@@ -45,12 +45,18 @@ public class TransportGetAnalyticsCollectionAction extends TransportMasterNodeRe
             GetAnalyticsCollectionAction.Request::new,
             indexNameExpressionResolver,
             GetAnalyticsCollectionAction.Response::new,
-            ThreadPool.Names.SAME);
+            ThreadPool.Names.SAME
+        );
         this.analyticsCollectionService = analyticsCollectionService;
     }
 
     @Override
-    protected void masterOperation(Task task, GetAnalyticsCollectionAction.Request request, ClusterState state, ActionListener<GetAnalyticsCollectionAction.Response> listener) {
+    protected void masterOperation(
+        Task task,
+        GetAnalyticsCollectionAction.Request request,
+        ClusterState state,
+        ActionListener<GetAnalyticsCollectionAction.Response> listener
+    ) {
         analyticsCollectionService.getAnalyticsCollection(
             request.getCollectionName(),
             listener.map(GetAnalyticsCollectionAction.Response::new)

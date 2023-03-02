@@ -207,7 +207,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                 transportActionsDeduplicator.executeOnce(
                     deleteRequest,
                     ActionListener.noop(),
-                    (req, reqListener) -> deleteIndex(deleteRequest, retention,reqListener)
+                    (req, reqListener) -> deleteIndex(deleteRequest, retention, reqListener)
                 );
             }
         }

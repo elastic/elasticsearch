@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -21,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -33,6 +35,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -41,13 +44,17 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.lang.ref.SoftReference;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -55,6 +62,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -531,6 +539,67 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             : Collections.emptyIterator();
     }
 
+    private void cacheBuildRoutingTable(boolean condition, XContentBuilder builder, ToXContent.Params outerParams) throws IOException {
+        if (condition == false) {
+            return;
+        }
+        String indices = outerParams.param("indices", "_all");
+
+        BytesReference compressed = Cache.INSTANCE.get(version, routingTable(), indices);
+        BytesReference unCompressed = null;
+        if (compressed == null) {
+            XContentBuilder routingBuilder = XContentFactory.contentBuilder(builder.contentType());
+            buildXContentRoutingTable(routingBuilder, outerParams);
+            unCompressed = BytesReference.bytes(routingBuilder);
+            compressed = serializeRoutingTableXContent(unCompressed);
+            Cache.INSTANCE.put(version, routingTable(), indices, compressed);
+        } else {
+            unCompressed = deserializeRoutingTableXContent(compressed);
+        }
+        builder.rawField("routing_table", unCompressed.streamInput(), builder.contentType());
+    }
+
+    private void buildXContentRoutingTable(XContentBuilder routingBuilder, ToXContent.Params params) throws IOException {
+        routingBuilder.startObject();
+        routingBuilder.startObject("indices");
+        for (IndexRoutingTable indexRoutingTable : routingTable()) {
+            routingBuilder.startObject(indexRoutingTable.getIndex().getName());
+            routingBuilder.startObject("shards");
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+                routingBuilder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()));
+                for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                    indexShardRoutingTable.shard(copy).toXContent(routingBuilder, params);
+                }
+                routingBuilder.endArray();
+            }
+            routingBuilder.endObject();
+            routingBuilder.endObject();
+        }
+        routingBuilder.endObject();
+        routingBuilder.endObject();
+    }
+
+    private BytesReference serializeRoutingTableXContent(BytesReference bytesReference) {
+        BytesReference compressed;
+        try {
+            compressed = CompressorFactory.COMPRESSOR.compress(bytesReference);
+        } catch (IOException e) {
+            throw new ElasticsearchException("failed to serialize cluster state routing table", e);
+        }
+        return compressed;
+    }
+
+    private BytesReference deserializeRoutingTableXContent(BytesReference bytesReference) {
+        BytesReference uncompress;
+        try {
+            uncompress = CompressorFactory.uncompress(bytesReference);
+        } catch (IOException e) {
+            throw new ElasticsearchException("failed to deserialize cluster state routing table", e);
+        }
+        return uncompress;
+    }
+
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
         final var metrics = Metric.parseString(outerParams.param("metric", "_all"), true);
@@ -596,25 +665,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             metrics.contains(Metric.METADATA) ? metadata.toXContentChunked(outerParams) : Collections.emptyIterator(),
 
             // routing table
-            chunkedSection(
-                metrics.contains(Metric.ROUTING_TABLE),
-                (builder, params) -> builder.startObject("routing_table").startObject("indices"),
-                routingTable().iterator(),
-                indexRoutingTable -> Iterators.single((builder, params) -> {
-                    builder.startObject(indexRoutingTable.getIndex().getName());
-                    builder.startObject("shards");
-                    for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
-                        IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
-                        builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()));
-                        for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
-                            indexShardRoutingTable.shard(copy).toXContent(builder, params);
-                        }
-                        builder.endArray();
-                    }
-                    return builder.endObject().endObject();
-                }),
-                (builder, params) -> builder.endObject().endObject()
-            ),
+            Iterators.single(((builder, params) -> {
+                cacheBuildRoutingTable(metrics.contains(Metric.ROUTING_TABLE), builder, outerParams);
+                return builder;
+            })),
 
             // routing nodes
             chunkedSection(
@@ -945,5 +999,63 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             builder.fromDiff(state);
             return builder.build();
         }
+    }
+
+    /**
+     * Cache for the XContent Reference
+     */
+    static final class Cache {
+        static final Cache INSTANCE;
+
+        static {
+            INSTANCE = new Cache(2);
+        }
+        private final ConcurrentMap<Key, SoftReference<BytesReference>> map;
+        private final int capacity;
+
+        Cache(int capacity) {
+            if (capacity <= 0) {
+                throw new IllegalArgumentException("cache capacity must be a value greater than 0 but was " + capacity);
+            }
+            this.capacity = capacity;
+            this.map = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(this.capacity);
+        }
+
+        // Visible for testing
+        public int getSize() {
+            return map.size();
+        }
+
+        // Visible for testing
+        public void clear() {
+            map.clear();
+        }
+
+        BytesReference get(long version, RoutingTable routingTable, String indices) {
+            SoftReference<BytesReference> element = map.get(new Key(version, routingTable, indices));
+            BytesReference value;
+            if (element != null && (value = element.get()) != null) {
+                return value;
+            }
+            if (map.size() >= capacity) {
+                map.clear();
+            }
+            return null;
+        }
+
+        BytesReference put(long version, RoutingTable routingTable, String indices, BytesReference value) {
+            SoftReference<BytesReference> element = map.get(new Key(version, routingTable, indices));
+            BytesReference preValue = null;
+            if (element != null) {
+                preValue = element.get();
+            }
+            if (map.size() >= capacity) {
+                map.clear();
+            }
+            map.put(new Key(version, routingTable, indices), new SoftReference<>(value));
+            return preValue;
+        }
+
+        record Key(Long version, RoutingTable routingTable, String indices) {}
     }
 }

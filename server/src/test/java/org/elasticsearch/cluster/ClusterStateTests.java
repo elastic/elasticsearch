@@ -129,6 +129,7 @@ public class ClusterStateTests extends ESTestCase {
     }
 
     public void testToXContent() throws IOException {
+        ClusterState.Cache.INSTANCE.clear();
         final ClusterState clusterState = buildClusterState();
 
         IndexRoutingTable index = clusterState.getRoutingTable().getIndicesRouting().get("index");
@@ -136,16 +137,49 @@ public class ClusterStateTests extends ESTestCase {
         String ephemeralId = clusterState.getNodes().get("nodeId1").getEphemeralId();
         String allocationId = index.shard(0).getPromotableAllocationIds().iterator().next();
 
+        String string1, string2, string3;
+
+        assertEquals(0, ClusterState.Cache.INSTANCE.getSize());
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         writeChunks(
             clusterState,
             builder,
             new ToXContent.MapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API)),
-            34
+            32
         );
         builder.endObject();
+        string1 = Strings.toString(builder);
+        assertEquals(1, ClusterState.Cache.INSTANCE.getSize());
 
+        // Make builder read from cache
+        XContentBuilder builder2 = JsonXContent.contentBuilder();
+        builder2.startObject();
+        writeChunks(
+            clusterState,
+            builder2,
+            new ToXContent.MapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API)),
+            32
+        );
+        builder2.endObject();
+        string2 = Strings.toString(builder2);
+        assertEquals(1, ClusterState.Cache.INSTANCE.getSize());
+
+        System.gc();
+        XContentBuilder builder3 = JsonXContent.contentBuilder();
+        builder3.startObject();
+        writeChunks(
+            clusterState,
+            builder3,
+            new ToXContent.MapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API)),
+            32
+        );
+        builder3.endObject();
+        string3 = Strings.toString(builder3);
+        assertEquals(1, ClusterState.Cache.INSTANCE.getSize());
+
+        assertEquals(string1, string2);
+        assertEquals(string2, string3);
         assertEquals(
             XContentHelper.stripWhitespace(Strings.format("""
                 {
@@ -378,7 +412,7 @@ public class ClusterStateTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        writeChunks(clusterState, builder, new ToXContent.MapParams(mapParams), 34);
+        writeChunks(clusterState, builder, new ToXContent.MapParams(mapParams), 32);
         builder.endObject();
 
         assertEquals(
@@ -610,7 +644,7 @@ public class ClusterStateTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        writeChunks(clusterState, builder, new ToXContent.MapParams(mapParams), 34);
+        writeChunks(clusterState, builder, new ToXContent.MapParams(mapParams), 32);
         builder.endObject();
 
         assertEquals(
@@ -866,7 +900,7 @@ public class ClusterStateTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        writeChunks(clusterState, builder, ToXContent.EMPTY_PARAMS, 25);
+        writeChunks(clusterState, builder, ToXContent.EMPTY_PARAMS, 24);
         builder.endObject();
 
         assertEquals(Strings.format("""
@@ -936,6 +970,260 @@ public class ClusterStateTests extends ESTestCase {
                 "nodes" : { }
               }
             }""", Version.CURRENT.id), Strings.toString(builder));
+    }
+
+    public void testToContentFilterIndices() throws IOException {
+        ClusterState.Cache.INSTANCE.clear();
+        Map<String, String> mapParamsAll = new HashMap<>() {
+            {
+                put("flat_settings", "true");
+                put("reduce_mappings", "false");
+                put("indices", "_all");
+                put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API);
+            }
+        };
+        Map<String, String> mapParams = new HashMap<>() {
+            {
+                put("flat_settings", "true");
+                put("reduce_mappings", "false");
+                put("indices", "index");
+                put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API);
+            }
+        };
+        String string1, string2;
+
+        final ClusterState clusterState = buildClusterState();
+        IndexRoutingTable index = clusterState.getRoutingTable().getIndicesRouting().get("index");
+
+        String ephemeralId = clusterState.getNodes().get("nodeId1").getEphemeralId();
+        String allocationId = index.shard(0).getPromotableAllocationIds().iterator().next();
+
+        // With params all indices
+        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
+        builder.startObject();
+        writeChunks(clusterState, builder, new ToXContent.MapParams(mapParamsAll), 32);
+        builder.endObject();
+        string1 = Strings.toString(builder);
+        assertEquals(1, ClusterState.Cache.INSTANCE.getSize());
+
+        // With params sigle indices
+        XContentBuilder builder2 = JsonXContent.contentBuilder().prettyPrint();
+        builder2.startObject();
+        writeChunks(clusterState, builder2, new ToXContent.MapParams(mapParams), 32);
+        builder2.endObject();
+        string2 = Strings.toString(builder2);
+        assertEquals(2, ClusterState.Cache.INSTANCE.getSize());
+
+        assertEquals(string1, string2);
+        assertEquals(
+            Strings.format("""
+                {
+                  "cluster_uuid" : "clusterUUID",
+                  "version" : 0,
+                  "state_uuid" : "stateUUID",
+                  "master_node" : "nodeId1",
+                  "blocks" : {
+                    "global" : {
+                      "1" : {
+                        "description" : "description",
+                        "retryable" : true,
+                        "disable_state_persistence" : true,
+                        "levels" : [
+                          "read",
+                          "write",
+                          "metadata_read",
+                          "metadata_write"
+                        ]
+                      }
+                    },
+                    "indices" : {
+                      "index" : {
+                        "2" : {
+                          "description" : "description2",
+                          "retryable" : false,
+                          "levels" : [
+                            "read",
+                            "write",
+                            "metadata_read",
+                            "metadata_write"
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "nodes" : {
+                    "nodeId1" : {
+                      "name" : "",
+                      "ephemeral_id" : "%s",
+                      "transport_address" : "127.0.0.1:111",
+                      "external_id" : "",
+                      "attributes" : { },
+                      "roles" : [
+                        "data",
+                        "data_cold",
+                        "data_content",
+                        "data_frozen",
+                        "data_hot",
+                        "data_warm",
+                        "index",
+                        "ingest",
+                        "master",
+                        "ml",
+                        "remote_cluster_client",
+                        "search",
+                        "transform",
+                        "voting_only"
+                      ],
+                      "version" : "%s"
+                    }
+                  },
+                  "metadata" : {
+                    "cluster_uuid" : "clusterUUID",
+                    "cluster_uuid_committed" : false,
+                    "cluster_coordination" : {
+                      "term" : 1,
+                      "last_committed_config" : [
+                        "commitedConfigurationNodeId"
+                      ],
+                      "last_accepted_config" : [
+                        "acceptedConfigurationNodeId"
+                      ],
+                      "voting_config_exclusions" : [
+                        {
+                          "node_id" : "exlucdedNodeId",
+                          "node_name" : "excludedNodeName"
+                        }
+                      ]
+                    },
+                    "templates" : {
+                      "template" : {
+                        "order" : 0,
+                        "index_patterns" : [
+                          "pattern1",
+                          "pattern2"
+                        ],
+                        "settings" : {
+                          "index.version.created" : "%s"
+                        },
+                        "mappings" : {
+                          "key1" : { }
+                        },
+                        "aliases" : { }
+                      }
+                    },
+                    "indices" : {
+                      "index" : {
+                        "version" : 1,
+                        "mapping_version" : 1,
+                        "settings_version" : 1,
+                        "aliases_version" : 1,
+                        "routing_num_shards" : 1,
+                        "state" : "open",
+                        "settings" : {
+                          "index.number_of_replicas" : "2",
+                          "index.number_of_shards" : "1",
+                          "index.version.created" : "%s"
+                        },
+                        "mappings" : {
+                          "type" : {
+                            "type1" : {
+                              "key" : "value"
+                            }
+                          }
+                        },
+                        "aliases" : [
+                          "alias"
+                        ],
+                        "primary_terms" : {
+                          "0" : 1
+                        },
+                        "in_sync_allocations" : {
+                          "0" : [
+                            "allocationId"
+                          ]
+                        },
+                        "rollover_info" : {
+                          "rolloveAlias" : {
+                            "met_conditions" : { },
+                            "time" : 1
+                          }
+                        },
+                        "system" : false,
+                        "timestamp_range" : {
+                          "shards" : [ ]
+                        },
+                        "stats" : {
+                          "write_load" : {
+                            "loads" : [
+                              -1.0
+                            ],
+                            "uptimes" : [
+                              -1
+                            ]
+                          },
+                          "avg_size" : {
+                            "total_size_in_bytes" : 120,
+                            "shard_count" : 1
+                          }
+                        },
+                        "write_load_forecast" : 8.0
+                      }
+                    },
+                    "index-graveyard" : {
+                      "tombstones" : [ ]
+                    },
+                    "reserved_state" : { }
+                  },
+                  "routing_table" : {
+                    "indices" : {
+                      "index" : {
+                        "shards" : {
+                          "0" : [
+                            {
+                              "state" : "STARTED",
+                              "primary" : true,
+                              "node" : "nodeId2",
+                              "relocating_node" : null,
+                              "shard" : 0,
+                              "index" : "index",
+                              "allocation_id" : {
+                                "id" : "%s"
+                              },
+                              "relocation_failure_info" : {
+                                "failed_attempts" : 0
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "routing_nodes" : {
+                    "unassigned" : [ ],
+                    "nodes" : {
+                      "nodeId2" : [
+                        {
+                          "state" : "STARTED",
+                          "primary" : true,
+                          "node" : "nodeId2",
+                          "relocating_node" : null,
+                          "shard" : 0,
+                          "index" : "index",
+                          "allocation_id" : {
+                            "id" : "%s"
+                          },
+                          "relocation_failure_info" : {
+                            "failed_attempts" : 0
+                          }
+                        }
+                      ],
+                      "nodeId1" : [ ]
+                    }
+                  }
+                }""", ephemeralId, Version.CURRENT, Version.CURRENT.id, Version.CURRENT.id, allocationId, allocationId),
+            Strings.toString(builder)
+        );
+
     }
 
     private ClusterState buildClusterState() throws IOException {

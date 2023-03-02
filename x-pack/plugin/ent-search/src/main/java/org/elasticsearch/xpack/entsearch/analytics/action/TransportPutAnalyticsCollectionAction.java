@@ -56,7 +56,12 @@ public class TransportPutAnalyticsCollectionAction extends TransportMasterNodeAc
     }
 
     @Override
-    protected void masterOperation(Task task, PutAnalyticsCollectionAction.Request request, ClusterState state, ActionListener<PutAnalyticsCollectionAction.Response> listener) {
+    protected void masterOperation(
+        Task task,
+        PutAnalyticsCollectionAction.Request request,
+        ClusterState state,
+        ActionListener<PutAnalyticsCollectionAction.Response> listener
+    ) {
         AnalyticsCollection analyticsCollection = request.getAnalyticsCollection();
         analyticsCollectionService.createAnalyticsCollection(
             analyticsCollection,

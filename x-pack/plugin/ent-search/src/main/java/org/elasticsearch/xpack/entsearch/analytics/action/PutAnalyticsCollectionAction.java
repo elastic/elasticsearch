@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.entsearch.analytics.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;

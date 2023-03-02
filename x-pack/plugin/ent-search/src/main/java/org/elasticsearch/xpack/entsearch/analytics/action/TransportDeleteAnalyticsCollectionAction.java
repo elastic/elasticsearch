@@ -55,7 +55,12 @@ public class TransportDeleteAnalyticsCollectionAction extends AcknowledgedTransp
     }
 
     @Override
-    protected void masterOperation(Task task, DeleteAnalyticsCollectionAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        DeleteAnalyticsCollectionAction.Request request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         analyticsCollectionService.deleteAnalyticsCollection(request.getCollectionName(), listener.map(v -> AcknowledgedResponse.TRUE));
     }
 }

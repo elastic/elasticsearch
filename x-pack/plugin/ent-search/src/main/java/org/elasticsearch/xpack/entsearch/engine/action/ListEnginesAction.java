@@ -37,7 +37,6 @@ public class ListEnginesAction extends ActionType<ListEnginesAction.Response> {
         super(NAME, ListEnginesAction.Response::new);
     }
 
-    // TODO Check if this should implement IndicesRequest.Replaceable
     public static class Request extends ActionRequest {
 
         private static final String DEFAULT_QUERY = "*";
@@ -76,7 +75,7 @@ public class ListEnginesAction extends ActionType<ListEnginesAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeOptionalString(query);
+            out.writeString(query);
             pageParams.writeTo(out);
         }
 

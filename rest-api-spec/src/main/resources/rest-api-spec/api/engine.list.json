@@ -31,7 +31,7 @@
         "description": "Query in the Lucene query string syntax"
       },
       "from": {
-        "type": "number",
+        "type": "int",
         "description": "Starting offset (default: 0)"
       },
       "size": {

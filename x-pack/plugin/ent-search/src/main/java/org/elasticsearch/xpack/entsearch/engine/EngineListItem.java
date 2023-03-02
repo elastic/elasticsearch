@@ -32,7 +32,7 @@ public class EngineListItem implements Writeable, ToXContentObject {
     private final String engineAlias;
     private final String analyticsCollectionName;
 
-    public EngineListItem(String name, String[] indices, @Nullable String engineAlias, @Nullable String analyticsCollectionName) {
+    public EngineListItem(String name, String[] indices, String engineAlias, @Nullable String analyticsCollectionName) {
         this.name = name;
         this.indices = indices;
         this.engineAlias = engineAlias;

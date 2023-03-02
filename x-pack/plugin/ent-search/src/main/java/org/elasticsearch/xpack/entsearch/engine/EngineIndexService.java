@@ -294,8 +294,6 @@ public class EngineIndexService {
         }
     }
 
-
-
     /**
      * Deletes the provided {@param engineName} in the underlying index, or delegate a failure to the provided
      * listener if the resource does not exist or failed to delete.
@@ -363,8 +361,8 @@ public class EngineIndexService {
         return new EngineListItem(
             engineName,
             documentFields.get(INDICES_FIELD.getPreferredName()).getValues().toArray(String[]::new),
-            documentFields.get(ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName()).getValue(),
-            Engine.getEngineAliasName(engineName)
+            Engine.getEngineAliasName(engineName),
+            documentFields.get(ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName()).getValue()
         );
     }
 

@@ -712,12 +712,12 @@ public final class Authentication implements ToXContentObject {
     }
 
     /**
-     * An Authentication object has internal constraint between its fields, e.g. if it is run-as, it must have
-     * different authenticating and effective subjects. These logics are maintained when authentication is built
-     * as a result of successful authentication. Hence this method mostly runs in test (when assertion is enabled).
+     * An Authentication object has internal constraint between its fields, e.g. if it is internal authentication,
+     * it must have an internal user. These logics are upheld when authentication is built as a result of successful
+     * authentication. Hence, this method mostly runs in test (where assertion is enabled).
      * However, for RCS remote access, FC receives an authentication object as part of the request. There is
-     * no guarantee that this authentication object also maintains the internal logic. Therefore this method
-     * is invoked explicitly in production when handling remote access requests.
+     * no guarantee that this authentication object also maintains the internal logics. Therefore, this method
+     * is called explicitly in production when handling remote access requests.
      */
     public void checkConsistency() {
         // isRunAs logic consistency

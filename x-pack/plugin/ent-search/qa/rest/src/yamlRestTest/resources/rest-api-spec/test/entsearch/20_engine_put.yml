@@ -64,8 +64,9 @@ teardown:
 
   - do:
       indices.exists_alias:
-        body:
-          name: engine-test-engine
+        name: engine-test-engine
+
+  - is_true: ''
 
   - match: { "foo" }
 ---

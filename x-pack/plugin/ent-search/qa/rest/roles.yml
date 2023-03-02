@@ -1,6 +1,7 @@
 entsearch:
   cluster:
-    - manage
+    - manage_engine
+    - monitor
   indices:
     - names: [ "*" ]
       privileges: [ "manage" ]

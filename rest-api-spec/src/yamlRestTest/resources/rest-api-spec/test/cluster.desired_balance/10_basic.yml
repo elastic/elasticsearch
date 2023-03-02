@@ -123,3 +123,15 @@ setup:
   - gte: { routing_table.test.0.desired.unassigned: 0 }
   - gte: { routing_table.test.0.desired.ignored: 0 }
   - is_true: 'routing_table.test.0.desired.node_ids'
+
+---
+"Test cluster_info":
+
+  - skip:
+      version: " - 8.7.99"
+      reason: "Field added in in 8.8.0"
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - is_true: 'cluster_info'

@@ -101,7 +101,14 @@ public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollect
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return this.analyticsCollection.toXContent(builder, params);
+            builder.startObject();
+            builder.startObject(analyticsCollection.getName());
+            builder.startObject("event_data_stream");
+            builder.field("name", analyticsCollection.getEventDataStream());
+            builder.endObject();
+            builder.endObject();
+            builder.endObject();
+            return builder;
         }
 
         @Override

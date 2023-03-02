@@ -100,7 +100,14 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
         }
 
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return analyticsCollection.toXContent(builder, params);
+            builder.startObject();
+            builder.startObject(analyticsCollection.getName());
+            builder.startObject("event_data_stream");
+            builder.field("name", analyticsCollection.getEventDataStream());
+            builder.endObject();
+            builder.endObject();
+            builder.endObject();
+            return builder;
         }
 
         @Override

@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -34,9 +33,6 @@ public class AnalyticsCollection implements Writeable, ToXContentObject {
         "analytics_collection",
         name -> new AnalyticsCollection(name)
     );
-
-    public static final ParseField ANALYTICS_NAME_FIELD = new ParseField("name");
-    public static final ParseField ANALYTICS_DATASTREAM_NAME_FIELD = new ParseField("datastream_name");
 
     private final String name;
 
@@ -83,8 +79,6 @@ public class AnalyticsCollection implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(ANALYTICS_NAME_FIELD.getPreferredName(), this.getName());
-        builder.field(ANALYTICS_DATASTREAM_NAME_FIELD.getPreferredName(), this.getEventDataStream());
         builder.endObject();
 
         return builder;

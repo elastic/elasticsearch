@@ -78,8 +78,8 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
             this.analyticsCollection = analyticsCollection;
         }
 
-        public Response(String collectionId) {
-            this.analyticsCollection = new AnalyticsCollection(collectionId);
+        public Response(String collectionName) {
+            this.analyticsCollection = new AnalyticsCollection(collectionName);
         }
 
         public void writeTo(StreamOutput out) throws IOException {

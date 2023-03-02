@@ -16,6 +16,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -28,7 +29,11 @@ class MockHttpProxyServer implements Closeable {
     private HttpServer httpServer;
 
     MockHttpProxyServer handler(HttpRequestHandler handler) throws IOException {
-        httpServer = ServerBootstrap.bootstrap().setListenerPort(0).registerHandler("*", handler).create();
+        httpServer = ServerBootstrap.bootstrap()
+            .setLocalAddress(InetAddress.getLoopbackAddress())
+            .setListenerPort(0)
+            .registerHandler("*", handler)
+            .create();
         httpServer.start();
         return this;
     }

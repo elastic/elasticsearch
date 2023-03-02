@@ -236,10 +236,7 @@ public class EngineIndexService {
 
         IndicesAliasesRequestBuilder requestBuilder = null;
         if (metadata.hasAlias(engineAliasName)) {
-            Set<String> currentAliases = metadata.aliasedIndices(engineAliasName)
-                .stream()
-                .map(Index::getName)
-                .collect(Collectors.toSet());
+            Set<String> currentAliases = metadata.aliasedIndices(engineAliasName).stream().map(Index::getName).collect(Collectors.toSet());
             Set<String> targetAliases = Set.of(engine.indices());
 
             requestBuilder = updateAliasIndices(currentAliases, targetAliases, engineAliasName);

@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTem
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -216,8 +215,7 @@ public final class MlIndexAndAlias {
     }
 
     private static void waitForShardsReady(Client client, String index, TimeValue masterNodeTimeout, ActionListener<Boolean> listener) {
-        ClusterHealthRequest healthRequest = Requests.clusterHealthRequest(index)
-            .waitForYellowStatus()
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(index).waitForYellowStatus()
             .waitForNoRelocatingShards(true)
             .waitForNoInitializingShards(true)
             .masterNodeTimeout(masterNodeTimeout);

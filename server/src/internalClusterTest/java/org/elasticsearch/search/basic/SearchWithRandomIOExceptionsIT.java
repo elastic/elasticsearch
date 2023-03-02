@@ -11,12 +11,12 @@ package org.elasticsearch.search.basic;
 import org.apache.lucene.tests.util.English;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -103,7 +103,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
         ClusterHealthResponse clusterHealthResponse = client().admin()
             .cluster()
             // it's OK to timeout here
-            .health(Requests.clusterHealthRequest().waitForYellowStatus().timeout(TimeValue.timeValueSeconds(5)))
+            .health(new ClusterHealthRequest(new String[] {}).waitForYellowStatus().timeout(TimeValue.timeValueSeconds(5)))
             .get();
         final int numDocs;
         final boolean expectAllShardsFailed;

@@ -12,7 +12,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.entsearch.EnterpriseSearch;
-import org.elasticsearch.xpack.entsearch.engine.action.DeleteEngineAction;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,6 +33,6 @@ public class RestDeleteAnalyticsCollectionAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         DeleteAnalyticsCollectionAction.Request request = new DeleteAnalyticsCollectionAction.Request(restRequest.param("collection_name"));
-        return channel -> client.execute(DeleteEngineAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(DeleteAnalyticsCollectionAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

@@ -18,7 +18,7 @@
       - axis:
           type: yaml
           filename: ".ci/matrix-runtime-javas-fips.yml"
-          name: "ES_RUNTIME_JAVA"
+          name: "RUNTIME_JAVA_HOME"
       # We shred out these jobs to avoid running out of memory given since we use a ramdisk workspace
       - axis:
           type: user-defined

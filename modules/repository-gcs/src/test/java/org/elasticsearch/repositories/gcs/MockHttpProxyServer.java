@@ -10,8 +10,6 @@ package org.elasticsearch.repositories.gcs;
 import org.apache.http.impl.bootstrap.HttpServer;
 import org.apache.http.impl.bootstrap.ServerBootstrap;
 import org.apache.http.protocol.HttpRequestHandler;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.network.NetworkAddress;
 
 import java.io.Closeable;

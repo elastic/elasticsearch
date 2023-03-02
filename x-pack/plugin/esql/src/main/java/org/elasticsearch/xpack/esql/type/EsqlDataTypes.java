@@ -8,16 +8,12 @@ package org.elasticsearch.xpack.esql.type;
 
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.ql.type.KeywordEsField;
-import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Map;
-import java.util.TreeMap;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
@@ -42,19 +38,25 @@ public final class EsqlDataTypes {
     public static final DataType DATE_PERIOD = new DataType("DATE_PERIOD", null, 3 * Integer.BYTES, false, false, false);
     public static final DataType TIME_DURATION = new DataType("TIME_DURATION", null, Integer.BYTES + Long.BYTES, false, false, false);
 
-    private static final Collection<DataType> TYPES = Arrays.asList(
+    private static final Collection<DataType> TYPES = Stream.of(
         BOOLEAN,
         UNSUPPORTED,
         NULL,
+        BYTE,
+        SHORT,
         INTEGER,
         LONG,
         DOUBLE,
+        FLOAT,
+        HALF_FLOAT,
         KEYWORD,
         DATETIME,
         DATE_PERIOD,
         TIME_DURATION,
+        OBJECT,
+        NESTED,
         SCALED_FLOAT
-    ).stream().sorted(Comparator.comparing(DataType::typeName)).toList();
+    ).sorted(Comparator.comparing(DataType::typeName)).toList();
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
 
@@ -102,8 +104,15 @@ public final class EsqlDataTypes {
         return null;
     }
 
-    public static boolean isUnsupported(DataType from) {
-        return from == UNSUPPORTED || from == NESTED || from == OBJECT;
+    public static boolean isUnsupported(DataType type) {
+        return DataTypes.isUnsupported(type);
+    }
+
+    public static String outputType(DataType type) {
+        if (type != null && type.esType() != null) {
+            return type.esType();
+        }
+        return "unsupported";
     }
 
     public static boolean isString(DataType t) {
@@ -111,7 +120,7 @@ public final class EsqlDataTypes {
     }
 
     public static boolean isPrimitive(DataType t) {
-        return t != OBJECT && t != NESTED && t != UNSUPPORTED;
+        return t != OBJECT && t != NESTED;
     }
 
     public static boolean areCompatible(DataType left, DataType right) {
@@ -122,33 +131,7 @@ public final class EsqlDataTypes {
         }
     }
 
-    public static void filterUnsupportedDataTypes(Map<String, EsField> oldFields, Map<String, EsField> newFields) {
-        for (Map.Entry<String, EsField> entry : oldFields.entrySet()) {
-            EsField field = entry.getValue();
-            Map<String, EsField> subFields = field.getProperties();
-            DataType fieldType = promoteToSupportedType(field.getDataType());
-            if (subFields.isEmpty()) {
-                if (isSupportedDataType(fieldType)) {
-                    newFields.put(entry.getKey(), field.withType(fieldType));
-                }
-            } else {
-                String name = field.getName();
-                Map<String, EsField> newSubFields = new TreeMap<>();
-
-                filterUnsupportedDataTypes(subFields, newSubFields);
-                if (isSupportedDataType(fieldType)) {
-                    newFields.put(entry.getKey(), new EsField(name, fieldType, newSubFields, field.isAggregatable(), field.isAlias()));
-                }
-                // unsupported field having supported sub-fields, except NESTED (which we'll ignore completely)
-                else if (newSubFields.isEmpty() == false && fieldType != DataTypes.NESTED) {
-                    // mark the fields itself as unsupported, but keep its supported subfields
-                    newFields.put(entry.getKey(), new UnsupportedEsField(name, fieldType.typeName(), null, newSubFields));
-                }
-            }
-        }
-    }
-
-    private static DataType promoteToSupportedType(DataType type) {
+    public static DataType widenSmallNumericTypes(DataType type) {
         if (type == BYTE || type == SHORT) {
             return INTEGER;
         }
@@ -156,47 +139,5 @@ public final class EsqlDataTypes {
             return DOUBLE;
         }
         return type;
-    }
-
-    public static boolean isSupportedDataType(DataType type) {
-        return isUnsupported(type) == false && types().contains(type);
-    }
-
-    public static Map<String, EsField> flatten(Map<String, EsField> mapping) {
-        TreeMap<String, EsField> newMapping = new TreeMap<>();
-        flatten(mapping, null, newMapping);
-        return newMapping;
-    }
-
-    public static void flatten(Map<String, EsField> mapping, String parentName, Map<String, EsField> newMapping) {
-        for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
-            String name = entry.getKey();
-            EsField t = entry.getValue();
-
-            if (t != null) {
-                String fullName = parentName == null ? name : parentName + "." + name;
-                var fieldProperties = t.getProperties();
-                if (t instanceof UnsupportedEsField == false) {
-                    if (fieldProperties.isEmpty()) {
-                        // use the field's full name instead
-                        newMapping.put(fullName, t);
-                    } else {
-                        // use the field's full name and an empty list of subfields (each subfield will be created separately from its
-                        // parent)
-                        if (t instanceof KeywordEsField kef) {
-                            newMapping.put(
-                                fullName,
-                                new KeywordEsField(fullName, Map.of(), kef.isAggregatable(), kef.getPrecision(), false, kef.isAlias())
-                            );
-                        } else {
-                            newMapping.put(fullName, new EsField(fullName, t.getDataType(), Map.of(), t.isAggregatable(), t.isAlias()));
-                        }
-                    }
-                }
-                if (fieldProperties.isEmpty() == false) {
-                    flatten(fieldProperties, fullName, newMapping);
-                }
-            }
-        }
     }
 }

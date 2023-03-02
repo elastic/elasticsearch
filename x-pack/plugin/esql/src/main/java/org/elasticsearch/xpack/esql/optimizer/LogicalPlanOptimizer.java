@@ -115,7 +115,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
             if (child instanceof Project p) {
                 // eliminate lower project but first replace the aliases in the upper one
-                return new Project(p.source(), p.child(), combineProjections(plan.projections(), p.projections()));
+                return p.withProjections(combineProjections(plan.projections(), p.projections()));
             } else if (child instanceof Aggregate a) {
                 return new Aggregate(a.source(), a.child(), a.groupings(), combineProjections(plan.projections(), a.aggregates()));
             }
@@ -345,11 +345,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             } else if (child instanceof Project) {
                 var projectWithEvalChild = pushDownPastProject(eval);
                 var fieldProjections = eval.fields().stream().map(NamedExpression::toAttribute).toList();
-                return new Project(
-                    projectWithEvalChild.source(),
-                    projectWithEvalChild.child(),
-                    Eval.outputExpressions(fieldProjections, projectWithEvalChild.projections())
-                );
+                return projectWithEvalChild.withProjections(Eval.outputExpressions(fieldProjections, projectWithEvalChild.projections()));
             }
 
             return eval;

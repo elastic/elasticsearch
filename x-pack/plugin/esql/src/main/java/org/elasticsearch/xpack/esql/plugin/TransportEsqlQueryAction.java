@@ -23,6 +23,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.UnsupportedValueSource;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -82,7 +84,10 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         );
         planExecutor.newSession(configuration).execute(request, wrap(r -> {
             computeService.runCompute(task, r, configuration, listener.map(pages -> {
-                List<ColumnInfo> columns = r.output().stream().map(c -> new ColumnInfo(c.qualifiedName(), c.dataType().esType())).toList();
+                List<ColumnInfo> columns = r.output()
+                    .stream()
+                    .map(c -> new ColumnInfo(c.qualifiedName(), EsqlDataTypes.outputType(c.dataType())))
+                    .toList();
                 return new EsqlQueryResponse(
                     columns,
                     pagesToValues(r.output().stream().map(Expression::dataType).toList(), pages),
@@ -135,6 +140,12 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                         row.add(((BooleanBlock) block).getBoolean(p));
                         continue;
                     }
+
+                    if (dataTypes.get(b) == DataTypes.UNSUPPORTED) {
+                        row.add(UnsupportedValueSource.UNSUPPORTED_OUTPUT);
+                        continue;
+                    }
+
                     throw new UnsupportedOperationException("unsupported data type [" + dataTypes.get(b) + "]");
                 }
                 result.add(row);

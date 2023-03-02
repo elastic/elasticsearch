@@ -199,7 +199,8 @@ public class LocalExecutionPlanner {
         if (dataType == DataTypes.DOUBLE) {
             return ElementType.DOUBLE;
         }
-        if (dataType == DataTypes.KEYWORD) {
+        // unsupported fields are passed through as a BytesRef
+        if (dataType == DataTypes.KEYWORD || dataType == DataTypes.UNSUPPORTED) {
             return ElementType.BYTES_REF;
         }
         if (dataType == DataTypes.BOOLEAN) {

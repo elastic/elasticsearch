@@ -9,14 +9,18 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ProjectReorderRenameRemove;
+import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.BaseAnalyzerRule;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
@@ -37,25 +41,24 @@ import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.type.InvalidMappedField;
+import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.filterUnsupportedDataTypes;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.flatten;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isUnsupported;
-import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.maybeResolveAgainstList;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.resolveFunction;
+import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
 
 public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
     private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
@@ -123,12 +126,53 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             EsIndex esIndex = context.indexResolution().get();
-            // ignore all the unsupported data types fields, except the unsupported fields that have supported sub-fields
-            Map<String, EsField> newFields = new TreeMap<>();
-            // the default IndexResolver is marking a sub-field as unsupported if its parent is unsupported, something that it's specific
-            // to EQL and SQL. With ESQL things might be different in future and we may need to provide an ESQL-specific IndexResolver
-            filterUnsupportedDataTypes(esIndex.mapping(), newFields);
-            return new EsRelation(plan.source(), new EsIndex(esIndex.name(), flatten(newFields), esIndex.concreteIndices()), plan.frozen());
+            return new EsRelation(plan.source(), esIndex, mappingAsAttributes(plan.source(), esIndex.mapping()));
+        }
+
+        /**
+         * Specific flattening method, different from the default EsRelation that:
+         * 1. takes care of data type widening (for certain types)
+         * 2. drops the object and keyword hierarchy
+         */
+        private static List<Attribute> mappingAsAttributes(Source source, Map<String, EsField> mapping) {
+            var list = new ArrayList<Attribute>();
+            mappingAsAttributes(list, source, null, mapping);
+            list.sort(Comparator.comparing(Attribute::qualifiedName));
+            return list;
+        }
+
+        private static void mappingAsAttributes(List<Attribute> list, Source source, String parentName, Map<String, EsField> mapping) {
+            for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
+                String name = entry.getKey();
+                EsField t = entry.getValue();
+
+                if (t != null) {
+                    name = parentName == null ? name : parentName + "." + name;
+                    var fieldProperties = t.getProperties();
+                    // widen the data type
+                    var type = EsqlDataTypes.widenSmallNumericTypes(t.getDataType());
+                    // due to a bug also copy the field since the Attribute hierarchy extracts the data type
+                    // directly even if the data type is passed explicitly
+                    if (type != t.getDataType()) {
+                        t = new EsField(t.getName(), type, t.getProperties(), t.isAggregatable(), t.isAlias());
+                    }
+
+                    // primitive branch
+                    if (EsqlDataTypes.isPrimitive(type)) {
+                        Attribute attribute;
+                        if (t instanceof UnsupportedEsField uef) {
+                            attribute = new UnsupportedAttribute(source, name, uef);
+                        } else {
+                            attribute = new FieldAttribute(source, null, name, t);
+                        }
+                        list.add(attribute);
+                    }
+                    // allow compound object even if they are unknown (but not NESTED)
+                    if (type != NESTED && fieldProperties.isEmpty() == false) {
+                        mappingAsAttributes(list, source, name, fieldProperties);
+                    }
+                }
+            }
         }
     }
 
@@ -238,28 +282,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     resolvedProjections.addAll(starPosition, remainingProjections);
                 }
             }
+
             // continue with removals
             for (var ne : p.removals()) {
                 var resolved = ne instanceof UnresolvedAttribute ua ? resolveAgainstList(ua, childOutput, lazyNames) : singletonList(ne);
-                // the return list might contain either resolved elements or unresolved ones.
-                // if things are resolved, remove them - if not add them to the list to trip the Verifier;
+
                 // thus make sure to remove the intersection but add the unresolved difference (if any).
-                // so, remove things that are in common,
+                // so, remove things that are in common
                 resolvedProjections.removeIf(resolved::contains);
                 // but add non-projected, unresolved extras to later trip the Verifier.
                 resolved.forEach(r -> {
-                    if (r.resolved() == false) {
+                    if (r.resolved() == false && r instanceof UnsupportedAttribute == false) {
                         resolvedProjections.add(r);
                     }
                 });
             }
 
-            return new Project(p.source(), p.child(), resolvedProjections);
+            return new EsqlProject(p.source(), p.child(), resolvedProjections);
         }
     }
 
     public static List<Attribute> resolveAgainstList(UnresolvedAttribute u, Collection<Attribute> attrList, Holder<Set<String>> lazyNames) {
-        var matches = maybeResolveAgainstList(u, attrList, false, true);
+        var matches = AnalyzerRules.maybeResolveAgainstList(u, attrList, false, true, Analyzer::handleSpecialFields);
 
         // none found - add error message
         if (matches.isEmpty()) {
@@ -273,8 +317,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     names = new HashSet<>(attrList.size());
                     for (var a : attrList) {
                         String nameCandidate = a.name();
-                        // add only primitives (object types would only result in another error)
-                        if (isUnsupported(a.dataType()) == false && EsqlDataTypes.isPrimitive(a.dataType())) {
+                        if (EsqlDataTypes.isPrimitive(a.dataType())) {
                             names.add(nameCandidate);
                         }
                     }
@@ -286,6 +329,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         return matches;
+    }
+
+    private static Attribute handleSpecialFields(UnresolvedAttribute u, Attribute named) {
+        if (named instanceof FieldAttribute fa) {
+            // incompatible mappings
+            var field = fa.field();
+            if (field instanceof InvalidMappedField imf) {
+                named = u.withUnresolvedMessage("Cannot use field [" + fa.name() + "] due to ambiguities being " + imf.errorMessage());
+            }
+        }
+
+        return named;
     }
 
     private static class ResolveFunctions extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
@@ -355,7 +410,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             var projections = plan.collect(e -> e instanceof Project || e instanceof Aggregate);
             if (projections.isEmpty()) {
                 // TODO: should unsupported fields be filtered?
-                plan = new Project(plan.source(), plan, plan.output());
+                plan = new EsqlProject(plan.source(), plan, plan.output());
             }
             return plan;
         }

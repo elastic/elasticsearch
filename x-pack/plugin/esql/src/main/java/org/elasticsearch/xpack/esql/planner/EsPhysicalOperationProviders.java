@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.DriverParallelism;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 
 import java.util.List;
@@ -55,7 +56,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             layout.appendChannel(attr.id());
             Layout previousLayout = op.layout;
 
-            var sources = ValueSources.sources(searchContexts, attr.name(), LocalExecutionPlanner.toElementType(attr.dataType()));
+            var sources = ValueSources.sources(
+                searchContexts,
+                attr.name(),
+                EsqlDataTypes.isUnsupported(attr.dataType()),
+                LocalExecutionPlanner.toElementType(attr.dataType())
+            );
 
             int docChannel = previousLayout.getChannel(sourceAttr.id());
 
@@ -114,7 +120,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         // The grouping-by values are ready, let's group on them directly.
         // Costin: why are they ready and not already exposed in the layout?
         return new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
-            ValueSources.sources(searchContexts, attrSource.name(), LocalExecutionPlanner.toElementType(attrSource.dataType())),
+            ValueSources.sources(
+                searchContexts,
+                attrSource.name(),
+                EsqlDataTypes.isUnsupported(attrSource.dataType()),
+                LocalExecutionPlanner.toElementType(attrSource.dataType())
+            ),
             docChannel,
             aggregatorFactories,
             BigArrays.NON_RECYCLING_INSTANCE

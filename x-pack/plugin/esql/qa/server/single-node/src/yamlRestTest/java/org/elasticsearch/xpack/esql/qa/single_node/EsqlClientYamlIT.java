@@ -22,6 +22,10 @@ public class EsqlClientYamlIT extends ESClientYamlSuiteTestCase {
         .module("mapper-extras")
         .module("constant-keyword")
         .module("wildcard")
+        .module("mapper-version")
+        .module("spatial")
+        .module("x-pack-analytics")
+        .module("x-pack-aggregate-metric")
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .build();
 

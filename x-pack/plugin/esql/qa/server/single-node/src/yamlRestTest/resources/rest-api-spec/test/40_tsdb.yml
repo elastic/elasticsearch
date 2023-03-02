@@ -63,19 +63,20 @@ load everything:
         body:
           query: 'from test'
 
-  # We're missing ip and tsid
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}
-  - match: {columns.1.name: "k8s.pod.name"}
-  - match: {columns.1.type: "keyword"}
-  - match: {columns.2.name: "k8s.pod.network.rx"}
-  - match: {columns.2.type: "long"}
-  - match: {columns.3.name: "k8s.pod.network.tx"}
+  - match: {columns.1.name: "k8s.pod.ip"}
+  - match: {columns.1.type: "unsupported"}
+  - match: {columns.2.name: "k8s.pod.name"}
+  - match: {columns.2.type: "keyword"}
+  - match: {columns.3.name: "k8s.pod.network.rx"}
   - match: {columns.3.type: "long"}
-  - match: {columns.4.name: "k8s.pod.uid"}
-  - match: {columns.4.type: "keyword"}
-  - match: {columns.5.name: "metricset"}
+  - match: {columns.4.name: "k8s.pod.network.tx"}
+  - match: {columns.4.type: "long"}
+  - match: {columns.5.name: "k8s.pod.uid"}
   - match: {columns.5.type: "keyword"}
+  - match: {columns.6.name: "metricset"}
+  - match: {columns.6.type: "keyword"}
   - length: {values: 8}
 
 ---
@@ -86,10 +87,11 @@ load a document:
           query: 'from test | where k8s.pod.network.tx == 1434577921'
 
   - length: {values: 1}
-  - length: {values.0: 6}
+  - length: {values.0: 7}
   - match: {values.0.0: "2021-04-28T18:50:23.142Z"}
-  - match: {values.0.1: "dog"}
-  - match: {values.0.2: 530600088}
-  - match: {values.0.3: 1434577921}
-  - match: {values.0.4: "df3145b3-0563-4d3b-a0f7-897eb2876ea9"}
-  - match: {values.0.5: "pod"}
+  - match: {values.0.1: "<unsupported>"}
+  - match: {values.0.2: "dog"}
+  - match: {values.0.3: 530600088}
+  - match: {values.0.4: 1434577921}
+  - match: {values.0.5: "df3145b3-0563-4d3b-a0f7-897eb2876ea9"}
+  - match: {values.0.6: "pod"}

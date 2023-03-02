@@ -216,7 +216,7 @@ public final class EvalMapper {
                 }
                 return () -> new Booleans(channel);
             }
-            throw new UnsupportedOperationException("unsupported field type [" + attr.dataType() + "]");
+            throw new UnsupportedOperationException("unsupported field type [" + attr.dataType().typeName() + "]");
         }
     }
 

@@ -133,7 +133,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(filter.child(), FieldExtractExec.class);
 
         assertEquals(
-            Sets.difference(mapping.keySet(), Set.of("emp_no", "gender")), // gender has unsupported field type
+            Sets.difference(mapping.keySet(), Set.of("emp_no")), // gender has unsupported field type
             Sets.newHashSet(Expressions.names(restExtract.attributesToExtract()))
         );
         assertEquals(Set.of("emp_no"), Sets.newHashSet(Expressions.names(extract.attributesToExtract())));
@@ -157,7 +157,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(filter.child(), FieldExtractExec.class);
 
         assertEquals(
-            Sets.difference(mapping.keySet(), Set.of("emp_no", "gender")),// gender has unsupported field type
+            Sets.difference(mapping.keySet(), Set.of("emp_no")),
             Sets.newHashSet(Expressions.names(restExtract.attributesToExtract()))
         );
         assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no"));
@@ -263,7 +263,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(
             Expressions.names(extract.attributesToExtract()),
-            contains("_meta_field", "first_name", "languages", "last_name", "salary")
+            contains("_meta_field", "first_name", "gender", "languages", "last_name", "salary")
         );
 
         var eval = as(extract.child(), EvalExec.class);
@@ -287,7 +287,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(
             Expressions.names(extract.attributesToExtract()),
-            contains("_meta_field", "first_name", "languages", "last_name", "salary")
+            contains("_meta_field", "first_name", "gender", "languages", "last_name", "salary")
         );
 
         var eval = as(extract.child(), EvalExec.class);

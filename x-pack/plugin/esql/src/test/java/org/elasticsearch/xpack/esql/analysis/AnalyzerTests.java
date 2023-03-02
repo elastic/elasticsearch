@@ -226,23 +226,32 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | project *
-            """, "_meta_field", "emp_no", "first_name", "languages", "last_name", "salary");
+            """, "_meta_field", "emp_no", "first_name", "gender", "languages", "last_name", "salary");
     }
 
     public void testNoProjection() {
         assertProjection("""
             from test
-            """, "_meta_field", "emp_no", "first_name", "languages", "last_name", "salary");
-        assertProjectionTypes("""
-            from test
-            """, DataTypes.KEYWORD, DataTypes.INTEGER, DataTypes.KEYWORD, DataTypes.INTEGER, DataTypes.KEYWORD, DataTypes.INTEGER);
+            """, "_meta_field", "emp_no", "first_name", "gender", "languages", "last_name", "salary");
+        assertProjectionTypes(
+            """
+                from test
+                """,
+            DataTypes.KEYWORD,
+            DataTypes.INTEGER,
+            DataTypes.KEYWORD,
+            DataTypes.UNSUPPORTED,
+            DataTypes.INTEGER,
+            DataTypes.KEYWORD,
+            DataTypes.INTEGER
+        );
     }
 
     public void testProjectOrder() {
         assertProjection("""
             from test
             | project first_name, *, last_name
-            """, "first_name", "_meta_field", "emp_no", "languages", "salary", "last_name");
+            """, "first_name", "_meta_field", "emp_no", "gender", "languages", "salary", "last_name");
     }
 
     public void testProjectExcludeName() {
@@ -263,21 +272,21 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | project *, -*_name
-            """, "_meta_field", "emp_no", "languages", "salary");
+            """, "_meta_field", "emp_no", "gender", "languages", "salary");
     }
 
     public void testProjectExcludeNoStarPattern() {
         assertProjection("""
             from test
             | project -*_name
-            """, "_meta_field", "emp_no", "languages", "salary");
+            """, "_meta_field", "emp_no", "gender", "languages", "salary");
     }
 
     public void testProjectOrderPatternWithRest() {
         assertProjection("""
             from test
             | project *name, *, emp_no
-            """, "first_name", "last_name", "_meta_field", "languages", "salary", "emp_no");
+            """, "first_name", "last_name", "_meta_field", "gender", "languages", "salary", "emp_no");
     }
 
     public void testProjectExcludePatternAndKeepOthers() {
@@ -303,11 +312,65 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("No match found for [*nonExisting]"));
     }
 
+    //
+    // Unsupported field
+    //
+
     public void testIncludeUnsupportedFieldExplicit() {
+        assertProjectionWithMapping("""
+            from test
+            | project unsupported
+            """, "mapping-multi-field-variation.json", "unsupported");
+    }
+
+    public void testUnsupportedFieldAfterProject() {
+        var errorMessage = "Cannot use field [unsupported] with unsupported type [ip_range]";
+
         verifyUnsupported("""
             from test
             | project unsupported
-            """, "Unknown column [unsupported]");
+            | eval x = unsupported
+            """, errorMessage);
+    }
+
+    public void testUnsupportedFieldEvalAfterProject() {
+        var errorMessage = "Cannot use field [unsupported] with unsupported type [ip_range]";
+
+        verifyUnsupported("""
+            from test
+            | project unsupported
+            | eval x = unsupported + 1
+            """, errorMessage);
+    }
+
+    public void testUnsupportedFieldFilterAfterProject() {
+        var errorMessage = "Cannot use field [unsupported] with unsupported type [ip_range]";
+
+        verifyUnsupported("""
+            from test
+            | project unsupported
+            | where unsupported == null
+            """, errorMessage);
+    }
+
+    public void testUnsupportedFieldFunctionAfterProject() {
+        var errorMessage = "Cannot use field [unsupported] with unsupported type [ip_range]";
+
+        verifyUnsupported("""
+            from test
+            | project unsupported
+            | where length(unsupported) > 0
+            """, errorMessage);
+    }
+
+    public void testUnsupportedFieldSortAfterProject() {
+        var errorMessage = "Cannot use field [unsupported] with unsupported type [ip_range]";
+
+        verifyUnsupported("""
+            from test
+            | project unsupported
+            | sort unsupported
+            """, errorMessage);
     }
 
     public void testIncludeUnsupportedFieldPattern() {
@@ -319,10 +382,33 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testExcludeUnsupportedFieldExplicit() {
-        verifyUnsupported("""
-            from test
-            | project -unsupported
-            """, "Unknown column [unsupported]");
+        assertProjectionWithMapping(
+            """
+                from test
+                | project -unsupported
+                """,
+            "mapping-multi-field-variation.json",
+            "bool",
+            "date",
+            "date_nanos",
+            "float",
+            "foo_type",
+            "int",
+            "keyword",
+            "point",
+            "shape",
+            "some.ambiguous",
+            "some.ambiguous.normalized",
+            "some.ambiguous.one",
+            "some.ambiguous.two",
+            "some.dotted.field",
+            "some.string",
+            "some.string.normalized",
+            "some.string.typical",
+            "text",
+            "unsigned_long",
+            "version"
+        );
     }
 
     public void testExcludeMultipleUnsupportedFieldsExplicitly() {
@@ -336,48 +422,57 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | project -*ala*
-            """, "_meta_field", "emp_no", "first_name", "languages", "last_name");
+            """, "_meta_field", "emp_no", "first_name", "gender", "languages", "last_name");
     }
 
     public void testExcludeUnsupportedPattern() {
-        verifyUnsupported("""
-            from test
-            | project -un*
-            """, "No match found for [un*]");
+        assertProjectionWithMapping(
+            """
+                from test
+                | project -un*
+                """,
+            "mapping-multi-field-variation.json",
+            "bool",
+            "date",
+            "date_nanos",
+            "float",
+            "foo_type",
+            "int",
+            "keyword",
+            "point",
+            "shape",
+            "some.ambiguous",
+            "some.ambiguous.normalized",
+            "some.ambiguous.one",
+            "some.ambiguous.two",
+            "some.dotted.field",
+            "some.string",
+            "some.string.normalized",
+            "some.string.typical",
+            "text",
+            "version"
+        );
     }
 
     public void testUnsupportedFieldUsedExplicitly() {
-        verifyUnsupported("""
+        assertProjectionWithMapping("""
             from test
             | project foo_type
-            """, "Unknown column [foo_type]");
+            """, "mapping-multi-field-variation.json", "foo_type");
     }
 
     public void testUnsupportedFieldTypes() {
-        verifyUnsupported(
-            """
-                from test
-                | project unsigned_long, text, date, date_nanos, unsupported, point, shape, version
-                """,
-            "Found 6 problems\n"
-                + "line 2:11: Unknown column [unsigned_long]\n"
-                + "line 2:26: Unknown column [text]\n"
-                + "line 2:50: Unknown column [unsupported]\n"
-                + "line 2:63: Unknown column [point], did you mean [int]?\n"
-                + "line 2:70: Unknown column [shape]\n"
-                + "line 2:77: Unknown column [version]"
-        );
+        assertProjectionWithMapping("""
+            from test
+            | project unsigned_long, date, date_nanos, unsupported, point, version
+            """, "mapping-multi-field-variation.json", "unsigned_long", "date", "date_nanos", "unsupported", "point", "version");
     }
 
     public void testUnsupportedDottedFieldUsedExplicitly() {
-        verifyUnsupported(
-            """
-                from test
-                | project some.string
-                """,
-            "Found 1 problem\n"
-                + "line 2:11: Unknown column [some.string], did you mean any of [some.string.typical, some.string.normalized]?"
-        );
+        assertProjectionWithMapping("""
+            from test
+            | project some.string
+            """, "mapping-multi-field-variation.json", "some.string");
     }
 
     public void testUnsupportedParentField() {
@@ -386,49 +481,33 @@ public class AnalyzerTests extends ESTestCase {
                 from test
                 | project text, text.keyword
                 """,
-            "Found 2 problems\n"
-                + "line 2:11: Unknown column [text], did you mean [text.raw]?\n"
-                + "line 2:17: Unknown column [text.keyword], did you mean any of [text.wildcard, text.raw]?",
+            "Found 1 problem\n" + "line 2:17: Unknown column [text.keyword], did you mean any of [text.wildcard, text.raw]?",
             "mapping-multi-field.json"
         );
     }
 
     public void testUnsupportedParentFieldAndItsSubField() {
-        verifyUnsupported(
-            """
-                from test
-                | project text, text.english
-                """,
-            "Found 2 problems\n"
-                + "line 2:11: Unknown column [text], did you mean [text.raw]?\n"
-                + "line 2:17: Unknown column [text.english]",
-            "mapping-multi-field.json"
-        );
+        assertProjectionWithMapping("""
+            from test
+            | project text, text.english
+            """, "mapping-multi-field.json", "text", "text.english");
     }
 
     public void testUnsupportedDeepHierarchy() {
-        verifyUnsupported(
-            """
-                from test
-                | project x.y.z.w, x.y.z, x.y, x
-                """,
-            "Found 4 problems\n"
-                + "line 2:11: Unknown column [x.y.z.w]\n"
-                + "line 2:20: Unknown column [x.y.z]\n"
-                + "line 2:27: Unknown column [x.y]\n"
-                + "line 2:32: Unknown column [x]",
-            "mapping-multi-field-with-nested.json"
-        );
+        assertProjectionWithMapping("""
+            from test
+            | project x.y.z.w, x.y.z, x.y, x
+            """, "mapping-multi-field-with-nested.json", "x.y.z.w", "x.y.z", "x.y", "x");
     }
 
     /**
      * Here x.y.z.v is of type "keyword" but its parent is of unsupported type "foobar".
      */
     public void testUnsupportedValidFieldTypeInDeepHierarchy() {
-        verifyUnsupported("""
+        assertProjectionWithMapping("""
             from test
             | project x.y.z.v
-            """, "Found 1 problem\n" + "line 2:11: Unknown column [x.y.z.v]", "mapping-multi-field-with-nested.json");
+            """, "mapping-multi-field-with-nested.json", "x.y.z.v");
     }
 
     public void testUnsupportedValidFieldTypeInNestedParentField() {
@@ -449,103 +528,192 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
+    public void testProjectAwayNestedField() {
+        verifyUnsupported(
+            """
+                from test
+                | project -dep, some.string, -dep.dep_id.keyword
+                """,
+            "Found 2 problems\n" + "line 2:11: Unknown column [dep]\n" + "line 2:30: Unknown column [dep.dep_id.keyword]",
+            "mapping-multi-field-with-nested.json"
+        );
+    }
+
+    public void testProjectAwayNestedWildcardField() {
+        verifyUnsupported("""
+            from test
+            | project -dep.*, some.string
+            """, "Found 1 problem\n" + "line 2:11: No match found for [dep.*]", "mapping-multi-field-with-nested.json");
+    }
+
     public void testSupportedDeepHierarchy() {
-        assertProjection("""
+        assertProjectionWithMapping("""
             from test
             | project some.dotted.field, some.string.normalized
-            """, new StringBuilder("mapping-multi-field-with-nested.json"), "some.dotted.field", "some.string.normalized");
+            """, "mapping-multi-field-with-nested.json", "some.dotted.field", "some.string.normalized");
     }
 
     public void testExcludeSupportedDottedField() {
-        assertProjection(
+        assertProjectionWithMapping(
             """
                 from test
                 | project -some.dotted.field
                 """,
-            new StringBuilder("mapping-multi-field-variation.json"),
+            "mapping-multi-field-variation.json",
             "bool",
             "date",
             "date_nanos",
             "float",
+            "foo_type",
             "int",
             "keyword",
+            "point",
+            "shape",
+            "some.ambiguous",
             "some.ambiguous.normalized",
             "some.ambiguous.one",
             "some.ambiguous.two",
+            "some.string",
             "some.string.normalized",
-            "some.string.typical"
+            "some.string.typical",
+            "text",
+            "unsigned_long",
+            "unsupported",
+            "version"
         );
     }
 
     public void testImplicitProjectionOfDeeplyComplexMapping() {
-        assertProjection(
+        assertProjectionWithMapping(
             "from test",
-            new StringBuilder("mapping-multi-field-with-nested.json"),
+            "mapping-multi-field-with-nested.json",
+            "binary",
+            "binary_stored",
             "bool",
             "date",
             "date_nanos",
+            "geo_shape",
             "int",
             "keyword",
+            "shape",
+            "some.ambiguous",
             "some.ambiguous.normalized",
             "some.ambiguous.one",
             "some.ambiguous.two",
             "some.dotted.field",
+            "some.string",
             "some.string.normalized",
-            "some.string.typical"
+            "some.string.typical",
+            "text",
+            "unsigned_long",
+            "unsupported",
+            "x",
+            "x.y",
+            "x.y.z",
+            "x.y.z.v",
+            "x.y.z.w"
         );
     }
 
     public void testExcludeWildcardDottedField() {
-        assertProjection(
+        assertProjectionWithMapping(
             """
                 from test
                 | project -some.ambiguous.*
                 """,
-            new StringBuilder("mapping-multi-field-with-nested.json"),
+            "mapping-multi-field-with-nested.json",
+            "binary",
+            "binary_stored",
             "bool",
             "date",
             "date_nanos",
+            "geo_shape",
             "int",
             "keyword",
+            "shape",
+            "some.ambiguous",
             "some.dotted.field",
+            "some.string",
             "some.string.normalized",
-            "some.string.typical"
+            "some.string.typical",
+            "text",
+            "unsigned_long",
+            "unsupported",
+            "x",
+            "x.y",
+            "x.y.z",
+            "x.y.z.v",
+            "x.y.z.w"
         );
     }
 
     public void testExcludeWildcardDottedField2() {
-        assertProjection("""
-            from test
-            | project -some.*
-            """, new StringBuilder("mapping-multi-field-with-nested.json"), "bool", "date", "date_nanos", "int", "keyword");
+        assertProjectionWithMapping(
+            """
+                from test
+                | project -some.*
+                """,
+            "mapping-multi-field-with-nested.json",
+            "binary",
+            "binary_stored",
+            "bool",
+            "date",
+            "date_nanos",
+            "geo_shape",
+            "int",
+            "keyword",
+            "shape",
+            "text",
+            "unsigned_long",
+            "unsupported",
+            "x",
+            "x.y",
+            "x.y.z",
+            "x.y.z.v",
+            "x.y.z.w"
+        );
     }
 
     public void testProjectOrderPatternWithDottedFields() {
-        assertProjection(
+        assertProjectionWithMapping(
             """
                 from test
                 | project *some.string*, *, some.ambiguous.two, keyword
                 """,
-            new StringBuilder("mapping-multi-field-with-nested.json"),
+            "mapping-multi-field-with-nested.json",
+            "some.string",
             "some.string.normalized",
             "some.string.typical",
+            "binary",
+            "binary_stored",
             "bool",
             "date",
             "date_nanos",
+            "geo_shape",
             "int",
+            "shape",
+            "some.ambiguous",
             "some.ambiguous.normalized",
             "some.ambiguous.one",
             "some.dotted.field",
+            "text",
+            "unsigned_long",
+            "unsupported",
+            "x",
+            "x.y",
+            "x.y.z",
+            "x.y.z.v",
+            "x.y.z.w",
             "some.ambiguous.two",
             "keyword"
         );
     }
 
     public void testUnsupportedFieldUsedExplicitly2() {
-        verifyUnsupported("""
+        assertProjectionWithMapping("""
             from test
             | project keyword, point
-            """, "Unknown column [point]");
+            """, "mapping-multi-field-variation.json", "keyword", "point");
     }
 
     public void testCantFilterAfterProjectedAway() {
@@ -695,6 +863,66 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(Expressions.names(aggregates), contains("b"));
     }
 
+    public void testUnsupportedFieldsInStats() {
+        var errorMsg = "Cannot use field [point] with unsupported type [geo_point]";
+
+        verifyUnsupported("""
+            from test
+            | stats max(point)
+            """, errorMsg);
+        verifyUnsupported("""
+            from test
+            | stats max(int) by point
+            """, errorMsg);
+        verifyUnsupported("""
+            from test
+            | stats max(int) by bool, point
+            """, errorMsg);
+    }
+
+    public void testUnsupportedFieldsInEval() {
+        var errorMsg = "Cannot use field [point] with unsupported type [geo_point]";
+
+        verifyUnsupported("""
+            from test
+            | eval x = point
+            """, errorMsg);
+        verifyUnsupported("""
+            from test
+            | eval foo = 1, x = point
+            """, errorMsg);
+        verifyUnsupported("""
+            from test
+            | eval x = 1 + point
+            """, errorMsg);
+    }
+
+    public void testUnsupportedFieldsInWhere() {
+        var errorMsg = "Cannot use field [point] with unsupported type [geo_point]";
+
+        verifyUnsupported("""
+            from test
+            | where point == "[1.0, 1.0]"
+            """, errorMsg);
+        verifyUnsupported("""
+            from test
+            | where int > 2 and point == "[1.0, 1.0]"
+            """, errorMsg);
+    }
+
+    public void testUnsupportedFieldsInSort() {
+        var errorMsg = "Cannot use field [point] with unsupported type [geo_point]";
+
+        verifyUnsupported("""
+            from test
+            | sort point
+            """, errorMsg);
+        verifyUnsupported("""
+            from test
+            | sort int, point
+            """, errorMsg);
+    }
+
     private void verifyUnsupported(String query, String errorMessage) {
         verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
     }
@@ -718,7 +946,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(project.projections().stream().map(NamedExpression::dataType).toList(), contains(types));
     }
 
-    private void assertProjection(String query, StringBuilder mapping, String... names) {
+    private void assertProjectionWithMapping(String query, String mapping, String... names) {
         var plan = analyze(query, mapping.toString());
         var limit = as(plan, Limit.class);
         var project = as(limit.child(), Project.class);

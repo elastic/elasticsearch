@@ -75,6 +75,11 @@ public abstract class BlockDocValuesReader {
         ElementType elementType,
         LeafReaderContext leafReaderContext
     ) throws IOException {
+        if (valuesSourceType instanceof UnsupportedValueSourceType) {
+            final UnsupportedValueSource bytesVS = (UnsupportedValueSource) valuesSource;
+            final SortedBinaryDocValues bytesValues = bytesVS.bytesValues(leafReaderContext);
+            return new BytesValuesReader(bytesValues);
+        }
         if (CoreValuesSourceType.NUMERIC.equals(valuesSourceType) || CoreValuesSourceType.DATE.equals(valuesSourceType)) {
             ValuesSource.Numeric numericVS = (ValuesSource.Numeric) valuesSource;
             if (numericVS.isFloatingPoint()) {

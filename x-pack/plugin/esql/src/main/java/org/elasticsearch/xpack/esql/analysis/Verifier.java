@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
 
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -37,6 +39,10 @@ public class Verifier {
             if (p instanceof Unresolvable u) {
                 failures.add(fail(p, u.unresolvedMessage()));
             }
+            // p is resolved, skip
+            else if (p.resolved()) {
+                return;
+            }
             p.forEachExpression(e -> {
                 // everything is fine, skip expression
                 if (e.resolved()) {
@@ -50,7 +56,10 @@ public class Verifier {
                     }
 
                     if (ae instanceof Unresolvable u) {
-                        failures.add(fail(ae, u.unresolvedMessage()));
+                        // special handling for Project and unsupported types
+                        if (p instanceof Project == false || u instanceof UnsupportedAttribute == false) {
+                            failures.add(fail(ae, u.unresolvedMessage()));
+                        }
                     }
                     if (ae.typeResolved().unresolved()) {
                         failures.add(fail(ae, ae.typeResolved().message()));

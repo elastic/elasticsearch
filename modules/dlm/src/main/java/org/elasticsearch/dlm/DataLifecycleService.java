@@ -175,8 +175,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     }
 
     private void maybeExecuteRollover(ClusterState state, DataStream dataStream) {
-        IndexMetadata writeIndex = state.metadata().index(dataStream.getWriteIndex());
-        if (writeIndex != null && isManagedByDLM(dataStream, writeIndex)) {
+        if (dataStream.isIndexManagedByDLM(dataStream.getWriteIndex(), state.metadata()::index)) {
             RolloverRequest rolloverRequest = defaultRolloverRequestSupplier.apply(dataStream.getName());
             transportActionsDeduplicator.executeOnce(
                 rolloverRequest,
@@ -194,9 +193,8 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
 
             for (Index index : backingIndicesOlderThanRetention) {
                 IndexMetadata backingIndex = metadata.index(index);
-                if (backingIndex == null || isManagedByDLM(dataStream, backingIndex) == false) {
-                    continue;
-                }
+                assert backingIndex != null : "the data stream backing indices must exist";
+
                 // there's an opportunity here to batch the delete requests (i.e. delete 100 indices / request)
                 // let's start simple and reevaluate
                 DeleteIndexRequest deleteRequest = new DeleteIndexRequest(backingIndex.getIndex().getName()).masterNodeTimeout(
@@ -275,15 +273,6 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         } else {
             return TimeValue.timeValueMillis(index.getCreationDate());
         }
-    }
-
-    /**
-     * This is quite a shallow method but the purpose of its existence is to have only one place to modify once we
-     * introduce the index.lifecycle.prefer_ilm setting. Once the prefer_ilm setting exists the method will also
-     * make more sense as it will encapsulate a bit more logic.
-     */
-    private static boolean isManagedByDLM(DataStream parentDataStream, IndexMetadata indexMetadata) {
-        return indexMetadata.getLifecyclePolicyName() == null && parentDataStream.getLifecycle() != null;
     }
 
     private RolloverRequest getDefaultRolloverRequest(String dataStream) {

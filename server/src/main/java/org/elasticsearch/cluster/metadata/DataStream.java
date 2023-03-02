@@ -46,6 +46,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 
 public final class DataStream implements SimpleDiffable<DataStream>, ToXContentObject {
 
@@ -574,12 +575,23 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         );
     }
 
+    /**
+     * Iterate over the backing indices and return the ones that are managed by DLM and past the configured
+     * retention in their lifecycle.
+     * NOTE that this specifically does not return the write index of the data stream as usually retention
+     * is treated differently for the write index (i.e. they first need to be rolled over)
+     */
     public List<Index> getIndicesPastRetention(Function<String, IndexMetadata> indexMetadataSupplier, LongSupplier nowSupplier) {
         if (lifecycle == null || lifecycle.getDataRetention() == null) {
             return List.of();
         }
 
-        List<Index> indicesPastRetention = getIndicesOlderThan(lifecycle.getDataRetention(), indexMetadataSupplier, nowSupplier);
+        List<Index> indicesPastRetention = getIndicesOlderThan(
+            lifecycle.getDataRetention(),
+            indexMetadataSupplier,
+            this::isIndexManagedByDLM,
+            nowSupplier
+        );
         // when it comes to executing retention the write index should be excluded (a data stream must always have a write index)
         indicesPastRetention.remove(getWriteIndex());
         return indicesPastRetention;
@@ -590,8 +602,16 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * The index age is calculated from the rollover or index creation date.
      * Note that the write index is also evaluated and could be returned in the list
      * of results.
+     * If an indices predicate is provided the returned list of indices will be filtered
+     * according to the predicate definition. This is useful for things like "return only
+     * the backing indices that are managed by DLM".
      */
-    public List<Index> getIndicesOlderThan(TimeValue age, Function<String, IndexMetadata> indexMetadataSupplier, LongSupplier nowSupplier) {
+    public List<Index> getIndicesOlderThan(
+        TimeValue age,
+        Function<String, IndexMetadata> indexMetadataSupplier,
+        @Nullable Predicate<IndexMetadata> indicesPredicate,
+        LongSupplier nowSupplier
+    ) {
         List<Index> olderIndices = new ArrayList<>();
         for (Index index : indices) {
             IndexMetadata indexMetadata = indexMetadataSupplier.apply(index.getName());
@@ -603,10 +623,39 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             TimeValue indexLifecycleDate = getCreationOrRolloverDate(name, indexMetadata);
             long nowMillis = nowSupplier.getAsLong();
             if (nowMillis >= indexLifecycleDate.getMillis() + age.getMillis()) {
-                olderIndices.add(index);
+                if (indicesPredicate == null || indicesPredicate.test(indexMetadata)) {
+                    olderIndices.add(index);
+                }
             }
         }
         return olderIndices;
+    }
+
+    /**
+     * Checks if the provided backing index is managed by DLM as part of this data stream.
+     * If the index is not a backing index of this data stream, or we cannot supply its metadata
+     * we return false.
+     */
+    public boolean isIndexManagedByDLM(Index index, Function<String, IndexMetadata> indexMetadataSupplier) {
+        if (indices.contains(index) == false) {
+            return false;
+        }
+        IndexMetadata indexMetadata = indexMetadataSupplier.apply(index.getName());
+        if (indexMetadata == null) {
+            // the index was deleted
+            return false;
+        }
+        return isIndexManagedByDLM(indexMetadata);
+    }
+
+    /**
+     * This is the raw defintion of an index being managed by DLM. It's currently quite a shallow method
+     * but more logic will land here once we'll have a setting to control if ILM takes precedence or not.
+     * This method also skips any validation to make sure the index is part of this data stream, hence the private
+     * access method.
+     */
+    private boolean isIndexManagedByDLM(IndexMetadata indexMetadata) {
+        return indexMetadata.getLifecyclePolicyName() == null && lifecycle != null;
     }
 
     /**

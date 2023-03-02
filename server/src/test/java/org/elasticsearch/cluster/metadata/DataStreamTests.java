@@ -35,6 +35,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.hamcrest.Matchers.equalTo;
@@ -876,14 +877,14 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         );
         Metadata metadata = builder.build();
         {
-            List<Index> backingIndices = dataStream.getIndicesOlderThan(TimeValue.timeValueMillis(2500), metadata::index, () -> now);
+            List<Index> backingIndices = dataStream.getIndicesOlderThan(TimeValue.timeValueMillis(2500), metadata::index, null, () -> now);
             assertThat(backingIndices.size(), is(2));
             assertThat(backingIndices.get(0).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 1)));
             assertThat(backingIndices.get(1).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 2)));
         }
 
         {
-            List<Index> backingIndices = dataStream.getIndicesOlderThan(TimeValue.timeValueMillis(0), metadata::index, () -> now);
+            List<Index> backingIndices = dataStream.getIndicesOlderThan(TimeValue.timeValueMillis(0), metadata::index, null, () -> now);
             assertThat(backingIndices.size(), is(5));
             assertThat(backingIndices.get(0).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 1)));
             assertThat(backingIndices.get(1).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 2)));
@@ -893,9 +894,25 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         }
 
         {
-            List<Index> backingIndices = dataStream.getIndicesOlderThan(TimeValue.timeValueMillis(6000), metadata::index, () -> now);
+            List<Index> backingIndices = dataStream.getIndicesOlderThan(TimeValue.timeValueMillis(6000), metadata::index, null, () -> now);
             assertThat(backingIndices.isEmpty(), is(true));
         }
+
+        {
+            Predicate<IndexMetadata> genThreeAndFivePredicate = indexMetadata -> indexMetadata.getIndex().getName().endsWith("00003")
+                || indexMetadata.getIndex().getName().endsWith("00005");
+
+            List<Index> backingIndices = dataStream.getIndicesOlderThan(
+                TimeValue.timeValueMillis(0),
+                metadata::index,
+                genThreeAndFivePredicate,
+                () -> now
+            );
+            assertThat(backingIndices.size(), is(2));
+            assertThat(backingIndices.get(0).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 3)));
+            assertThat(backingIndices.get(1).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 5)));
+        }
+
     }
 
     public void testGetIndicesPastRetention() {
@@ -973,7 +990,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         }
 
         {
-            // even though all indices match the write index should not be returned
+            // no index matches the retention age
             Metadata.Builder builder = Metadata.builder();
             DataStream dataStream = createDataStream(
                 builder,
@@ -986,6 +1003,95 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
             List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now);
             assertThat(backingIndices.isEmpty(), is(true));
+        }
+
+        {
+            // no indices are returned as even though all pass retention age none are managed by DLM
+            Metadata.Builder builder = Metadata.builder();
+            DataStream dataStream = createDataStream(
+                builder,
+                dataStreamName,
+                creationAndRolloverTimes,
+                Settings.builder()
+                    .put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy")
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT),
+                new DataLifecycle(TimeValue.timeValueMillis(0))
+            );
+            Metadata metadata = builder.build();
+
+            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now);
+            assertThat(backingIndices.isEmpty(), is(true));
+        }
+    }
+
+    public void testIsIndexManagedByDLM() {
+        String dataStreamName = "metrics-foo";
+        long now = System.currentTimeMillis();
+
+        List<Tuple<Long, Long>> creationAndRolloverTimes = List.of(
+            Tuple.tuple(now - 5000, now - 4000),
+            Tuple.tuple(now - 4000, now - 3000),
+            Tuple.tuple(now - 3000, now - 2000),
+            Tuple.tuple(now - 2000, now - 1000),
+            Tuple.tuple(now, null)
+        );
+        Metadata.Builder builder = Metadata.builder();
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            creationAndRolloverTimes,
+            settings(Version.CURRENT),
+            new DataLifecycle(TimeValue.timeValueMillis(0))
+        );
+        Metadata metadata = builder.build();
+
+        {
+            // false for indices not part of the data stream
+            assertThat(dataStream.isIndexManagedByDLM(new Index("standalone_index", "uuid"), metadata::index), is(false));
+        }
+
+        {
+            // false for indices that were deleted
+            assertThat(dataStream.isIndexManagedByDLM(dataStream.getIndices().get(1), (index) -> null), is(false));
+        }
+
+        {
+            // false if data stream doesn't have a lifecycle
+            Metadata.Builder newBuilder = Metadata.builder();
+            DataStream unmanagedDataStream = createDataStream(
+                newBuilder,
+                dataStreamName,
+                creationAndRolloverTimes,
+                settings(Version.CURRENT),
+                null
+            );
+            Metadata newMetadata = newBuilder.build();
+            assertThat(unmanagedDataStream.isIndexManagedByDLM(unmanagedDataStream.getIndices().get(1), newMetadata::index), is(false));
+        }
+
+        {
+            // false for indices that have an ILM policy configured
+            Metadata.Builder builderWithIlm = Metadata.builder();
+            DataStream ds = createDataStream(
+                builderWithIlm,
+                dataStreamName,
+                creationAndRolloverTimes,
+                Settings.builder()
+                    .put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy")
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT),
+                new DataLifecycle()
+            );
+            Metadata metadataIlm = builderWithIlm.build();
+            for (Index index : ds.getIndices()) {
+                assertThat(ds.isIndexManagedByDLM(index, metadataIlm::index), is(false));
+            }
+        }
+
+        {
+            // true otherwise
+            for (Index index : dataStream.getIndices()) {
+                assertThat(dataStream.isIndexManagedByDLM(index, metadata::index), is(true));
+            }
         }
     }
 

@@ -130,28 +130,6 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
         private static final ParseField MAX_SHARDS_PER_NODE_FROZEN = new ParseField("max_shards_per_node_frozen");
         static final TransportVersion VERSION_SUPPORTING_SHARD_LIMIT_FIELDS = TransportVersion.V_8_8_0;
 
-        public ShardLimits {
-            if (maxShardsPerNode < 1) {
-                throw new IllegalArgumentException(
-                    "Setting "
-                        + ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey()
-                        + " must have a value greater than 1 but it was ["
-                        + maxShardsPerNode
-                        + "]"
-                );
-            }
-
-            if (maxShardsPerNodeFrozen < 1) {
-                throw new IllegalArgumentException(
-                    "Setting "
-                        + ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey()
-                        + " must have a value greater than 1 but it was ["
-                        + maxShardsPerNodeFrozen
-                        + "]"
-                );
-            }
-        }
-
         static ShardLimits readFrom(StreamInput in) throws IOException {
             return new ShardLimits(in.readInt(), in.readInt());
         }
@@ -190,12 +168,12 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
             }
 
             public Builder maxShardsPerNode(int maxShardsPerNode) {
-                this.maxShardPerNode = maxShardPerNode;
+                this.maxShardsPerNode = maxShardsPerNode;
                 return this;
             }
 
             public Builder maxShardsPerNodeFrozen(int maxShardsPerNodeFrozen) {
-                this.maxShardPerNodeFrozen = maxShardPerNodeFrozen;
+                this.maxShardsPerNodeFrozen = maxShardsPerNodeFrozen;
                 return this;
             }
 

@@ -256,7 +256,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
                         shardView.nodeIsDesired()
                     );
                     assertEquals(
-                        shard.relocatingNodeId() != null && desiredNodeIds.contains(shard.relocatingNodeId()),
+                        shard.relocatingNodeId() != null ? desiredNodeIds.contains(shard.relocatingNodeId()) : null,
                         shardView.relocatingNodeIsDesired()
                     );
                 }

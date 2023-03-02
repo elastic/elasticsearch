@@ -171,7 +171,7 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
         String node,
         boolean nodeIsDesired,
         @Nullable String relocatingNode,
-        boolean relocatingNodeIsDesired,
+        @Nullable Boolean relocatingNodeIsDesired,
         int shardId,
         String index,
         @Nullable Double forecastWriteLoad,
@@ -179,37 +179,25 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
     ) implements Writeable, ToXContentObject {
 
         private static final TransportVersion ADD_FORECASTS_VERSION = TransportVersion.V_8_7_0;
+        private static final TransportVersion NULLABLE_RELOCATING_NODE_IS_DESIRED = TransportVersion.V_8_8_0;
 
         public static ShardView from(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(ADD_FORECASTS_VERSION)) {
-                return new ShardView(
-                    ShardRoutingState.fromValue(in.readByte()),
-                    in.readBoolean(),
-                    in.readOptionalString(),
-                    in.readBoolean(),
-                    in.readOptionalString(),
-                    in.readBoolean(),
-                    in.readVInt(),
-                    in.readString(),
-                    in.readOptionalDouble(),
-                    in.readOptionalLong()
-                );
-            } else {
-                var shardView = new ShardView(
-                    ShardRoutingState.fromValue(in.readByte()),
-                    in.readBoolean(),
-                    in.readOptionalString(),
-                    in.readBoolean(),
-                    in.readOptionalString(),
-                    in.readBoolean(),
-                    in.readVInt(),
-                    in.readString(),
-                    null,
-                    null
-                );
+            var shardView = new ShardView(
+                ShardRoutingState.fromValue(in.readByte()),
+                in.readBoolean(),
+                in.readOptionalString(),
+                in.readBoolean(),
+                in.readOptionalString(),
+                in.readOptionalBoolean(), // not checking NULLABLE_RELOCATING_NODE_IS_DESIRED as readOptionalBoolean also reads readBoolean
+                in.readVInt(),
+                in.readString(),
+                in.getTransportVersion().onOrAfter(ADD_FORECASTS_VERSION) ? in.readOptionalDouble() : null,
+                in.getTransportVersion().onOrAfter(ADD_FORECASTS_VERSION) ? in.readOptionalLong() : null
+            );
+            if (in.getTransportVersion().onOrAfter(ADD_FORECASTS_VERSION) == false) {
                 in.readOptionalWriteable(AllocationId::new);
-                return shardView;
             }
+            return shardView;
         }
 
         @Override
@@ -219,7 +207,11 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
             out.writeOptionalString(node);
             out.writeBoolean(nodeIsDesired);
             out.writeOptionalString(relocatingNode);
-            out.writeBoolean(relocatingNodeIsDesired);
+            if (out.getTransportVersion().onOrAfter(NULLABLE_RELOCATING_NODE_IS_DESIRED)) {
+                out.writeOptionalBoolean(relocatingNodeIsDesired);
+            } else {
+                out.writeBoolean(relocatingNodeIsDesired != null && relocatingNodeIsDesired);
+            }
             out.writeVInt(shardId);
             out.writeString(index);
             if (out.getTransportVersion().onOrAfter(ADD_FORECASTS_VERSION)) {
@@ -233,14 +225,14 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject()
+                .field("index", index)
+                .field("shard_id", shardId)
                 .field("state", state.toString())
                 .field("primary", primary)
                 .field("node", node)
                 .field("node_is_desired", nodeIsDesired)
                 .field("relocating_node", relocatingNode)
                 .field("relocating_node_is_desired", relocatingNodeIsDesired)
-                .field("shard_id", shardId)
-                .field("index", index)
                 .field("forecast_write_load", forecastWriteLoad)
                 .field("forecast_shard_size_in_bytes", forecastShardSizeInBytes)
                 .endObject();

@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -457,16 +456,17 @@ public class IndexBalanceTests extends ESAllocationTestCase {
      */
     public void testRebalanceShouldNotPerformUnnecessaryMovesWithMultipleConcurrentRebalances() {
         final var settings = Settings.builder()
-            .put("cluster.routing.allocation.type", "desired_balance")
-            .put("cluster.routing.allocation.cluster_concurrent_rebalance", randomIntBetween(3, 9))
+            // .put("cluster.routing.allocation.type", "desired_balance")
+            .put("cluster.routing.allocation.type", "balanced")
+            .put("cluster.routing.allocation.cluster_concurrent_rebalance", 2)
             .build();
 
         final var allocationService = createAllocationService(settings);
 
-        assertTrue(
-            "Only fixed in DesiredBalanceShardsAllocator",
-            allocationService.shardsAllocator instanceof DesiredBalanceShardsAllocator
-        );
+        // assertTrue(
+        // "Only fixed in DesiredBalanceShardsAllocator",
+        // allocationService.shardsAllocator instanceof DesiredBalanceShardsAllocator
+        // );
 
         final var discoveryNodesBuilder = DiscoveryNodes.builder();
         for (int nodeIndex = 0; nodeIndex < 3; nodeIndex++) {

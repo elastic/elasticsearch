@@ -39,6 +39,11 @@ public class RRFRankContext extends RankContext {
         this.rankConstant = rankConstant;
     }
 
+    // used for faster hash lookup in a map of ranked documents
+    protected record RankKey(int doc, int shardIndex) {
+
+    }
+
     @Override
     public SortedTopDocs rank(List<QuerySearchResult> querySearchResults, TopDocsStats topDocsStats) {
         // for each shard we check to see if it timed out to skip
@@ -106,7 +111,7 @@ public class RRFRankContext extends RankContext {
         // score if we already saw it as part of a previous query's
         // doc set, otherwise we make a new doc and calculate the
         // initial score
-        Map<String, RRFRankDoc> results = new HashMap<>();
+        Map<RankKey, RRFRankDoc> results = new HashMap<>();
         final int fqc = queryCount;
         for (int qi = 0; qi < queryCount; ++qi) {
             PriorityQueue<RRFRankDoc> queue = queues.get(qi);
@@ -114,13 +119,13 @@ public class RRFRankContext extends RankContext {
             for (int rank = queue.size(); rank > 0; --rank) {
                 RRFRankDoc rrfRankDoc = queue.pop();
                 final int frank = rank;
-                results.compute(rrfRankDoc.doc + ":" + rrfRankDoc.shardIndex, (key, value) -> {
+                results.compute(new RankKey(rrfRankDoc.doc, rrfRankDoc.shardIndex), (key, value) -> {
                     if (value == null) {
                         value = new RRFRankDoc(rrfRankDoc.doc, rrfRankDoc.shardIndex, fqc);
                     }
 
                     value.score += 1.0f / (rankConstant + frank);
-                    value.positions[fqi] = frank;
+                    value.positions[fqi] = frank - 1;
                     value.scores[fqi] = rrfRankDoc.scores[fqi];
 
                     return value;

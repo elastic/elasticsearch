@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.rank.RankDoc;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * {@code RRFRankDoc} supports additional ranking information
@@ -21,7 +22,7 @@ import java.io.IOException;
  */
 public class RRFRankDoc extends RankDoc {
 
-    public static final int NO_RANK = 0;
+    public static final int NO_RANK = -1;
 
     /**
      * If this document has been ranked, this is its final
@@ -50,6 +51,7 @@ public class RRFRankDoc extends RankDoc {
     public RRFRankDoc(int doc, int shardIndex, int queryCount) {
         super(doc, 0f, shardIndex);
         positions = new int[queryCount];
+        Arrays.fill(positions, NO_RANK);
         scores = new float[queryCount];
     }
 

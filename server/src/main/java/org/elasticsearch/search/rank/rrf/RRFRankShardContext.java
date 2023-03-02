@@ -125,7 +125,7 @@ public class RRFRankShardContext extends RankShardContext {
 
                     // record the position for each query
                     // for explain and debugging
-                    value.positions[findex] = frank;
+                    value.positions[findex] = frank - 1;
 
                     // record the score for each query
                     // used to later re-rank on the coordinator

@@ -14,7 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.grok.Grok;
+import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -115,17 +115,21 @@ public class GrokProcessorGetActionTests extends ESTestCase {
             ECS_TEST_PATTERNS
         );
         GrokProcessorGetAction.Response[] receivedResponse = new GrokProcessorGetAction.Response[1];
-        transportAction.doExecute(null, new GrokProcessorGetAction.Request(true, Grok.ECS_COMPATIBILITY_MODES[1]), new ActionListener<>() {
-            @Override
-            public void onResponse(GrokProcessorGetAction.Response response) {
-                receivedResponse[0] = response;
-            }
+        transportAction.doExecute(
+            null,
+            new GrokProcessorGetAction.Request(true, GrokBuiltinPatterns.ECS_COMPATIBILITY_MODES[1]),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(GrokProcessorGetAction.Response response) {
+                    receivedResponse[0] = response;
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                fail();
+                @Override
+                public void onFailure(Exception e) {
+                    fail();
+                }
             }
-        });
+        );
         assertThat(receivedResponse[0], notNullValue());
         assertThat(receivedResponse[0].getGrokPatterns().keySet().toArray(), equalTo(sortedKeys.toArray()));
     }

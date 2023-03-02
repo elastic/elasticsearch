@@ -1538,11 +1538,7 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testSortMetaField() throws Exception {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey(), true))
-            .get();
+        updateClusterSettings(Settings.builder().put(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey(), true));
         try {
             createIndex("test");
             ensureGreen();
@@ -1572,11 +1568,7 @@ public class FieldSortIT extends ESIntegTestCase {
             // assertWarnings(ID_FIELD_DATA_DEPRECATION_MESSAGE);
         } finally {
             // unset cluster setting
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()))
-                .get();
+            updateClusterSettings(Settings.builder().putNull(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()));
         }
     }
 

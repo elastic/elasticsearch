@@ -1543,27 +1543,21 @@ public class MasterService extends AbstractLifecycleComponent {
             @Override
             public Stream<PendingClusterTask> getPending(long currentTimeMillis) {
                 return Stream.concat(
-                    executing.stream()
-                        .map(
-                            entry -> new PendingClusterTask(
-                                entry.insertionIndex(),
-                                perPriorityQueue.priority(),
-                                new Text(entry.source()),
-                                currentTimeMillis - entry.insertionTimeMillis(),
-                                true
-                            )
-                        ),
+                    executing.stream().map(entry -> makePendingTask(entry, currentTimeMillis, true)),
                     queue.stream()
                         .filter(entry -> entry.executed().get() == false)
-                        .map(
-                            entry -> new PendingClusterTask(
-                                entry.insertionIndex(),
-                                perPriorityQueue.priority(),
-                                new Text(entry.source()),
-                                currentTimeMillis - entry.insertionTimeMillis(),
-                                false
-                            )
-                        )
+                        .map(entry -> makePendingTask(entry, currentTimeMillis, false))
+                );
+            }
+
+            private PendingClusterTask makePendingTask(Entry<T> entry, long currentTimeMillis, boolean executing) {
+                return new PendingClusterTask(
+                    entry.insertionIndex(),
+                    perPriorityQueue.priority(),
+                    new Text(entry.source()),
+                    // in case an element was added to the queue after we cached the current time, we count the wait time as 0
+                    Math.max(0L, currentTimeMillis - entry.insertionTimeMillis()),
+                    executing
                 );
             }
 

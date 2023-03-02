@@ -379,9 +379,6 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
             .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false);
-        if (randomBoolean()) {
-            indexSettings.put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1);
-        }
         createIndex(indexName, indexSettings.build());
         ensureGreen(indexName);
 

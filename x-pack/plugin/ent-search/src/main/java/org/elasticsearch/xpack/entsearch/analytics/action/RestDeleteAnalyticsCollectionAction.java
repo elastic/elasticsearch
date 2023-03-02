@@ -21,7 +21,6 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteAnalyticsCollectionAction extends BaseRestHandler {
 
-
     @Override
     public String getName() {
         return "behavioral_analytics_delete_action";
@@ -29,9 +28,7 @@ public class RestDeleteAnalyticsCollectionAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(DELETE, "/" + EnterpriseSearch.BEHAVIORAL_ANALYTICS_API_ENDPOINT + "/{collection_id}")
-        );
+        return List.of(new Route(DELETE, "/" + EnterpriseSearch.BEHAVIORAL_ANALYTICS_API_ENDPOINT + "/{collection_id}"));
     }
 
     @Override

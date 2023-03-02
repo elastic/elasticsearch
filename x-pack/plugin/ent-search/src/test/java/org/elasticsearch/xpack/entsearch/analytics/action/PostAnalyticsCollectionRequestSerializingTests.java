@@ -15,7 +15,6 @@ import java.io.IOException;
 
 public class PostAnalyticsCollectionRequestSerializingTests extends AbstractWireSerializingTestCase<PutAnalyticsCollectionAction.Request> {
 
-
     @Override
     protected Writeable.Reader<PutAnalyticsCollectionAction.Request> instanceReader() {
         return PutAnalyticsCollectionAction.Request::new;

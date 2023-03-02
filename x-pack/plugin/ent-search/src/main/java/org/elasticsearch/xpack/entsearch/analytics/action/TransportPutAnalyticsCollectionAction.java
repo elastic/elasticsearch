@@ -16,8 +16,9 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.entsearch.analytics.AnalyticsCollection;
 import org.elasticsearch.xpack.entsearch.analytics.AnalyticsCollectionService;
 
-public class TransportPutAnalyticsCollectionAction extends
-    HandledTransportAction<PutAnalyticsCollectionAction.Request, PutAnalyticsCollectionAction.Response> {
+public class TransportPutAnalyticsCollectionAction extends HandledTransportAction<
+    PutAnalyticsCollectionAction.Request,
+    PutAnalyticsCollectionAction.Response> {
 
     private final AnalyticsCollectionService analyticsCollectionService;
 
@@ -38,9 +39,10 @@ public class TransportPutAnalyticsCollectionAction extends
         ActionListener<PutAnalyticsCollectionAction.Response> listener
     ) {
         AnalyticsCollection analyticsCollection = request.getAnalyticsCollection();
-        analyticsCollectionService.createAnalyticsCollection(analyticsCollection, listener.map(
-            r -> new PutAnalyticsCollectionAction.Response(r)
-        ));
+        analyticsCollectionService.createAnalyticsCollection(
+            analyticsCollection,
+            listener.map(r -> new PutAnalyticsCollectionAction.Response(r))
+        );
     }
 
 }

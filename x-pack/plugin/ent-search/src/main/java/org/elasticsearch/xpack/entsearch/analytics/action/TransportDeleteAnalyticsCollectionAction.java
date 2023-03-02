@@ -16,7 +16,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.entsearch.analytics.AnalyticsCollectionService;
 
-public class TransportDeleteAnalyticsCollectionAction extends HandledTransportAction<DeleteAnalyticsCollectionAction.Request, AcknowledgedResponse> {
+public class TransportDeleteAnalyticsCollectionAction extends HandledTransportAction<
+    DeleteAnalyticsCollectionAction.Request,
+    AcknowledgedResponse> {
 
     private final AnalyticsCollectionService analyticsCollectionService;
 

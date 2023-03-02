@@ -13,7 +13,8 @@ import org.elasticsearch.xpack.entsearch.analytics.AnalyticsTestUtils;
 
 import java.io.IOException;
 
-public class PostAnalyticsCollectionResponseSerializingTests extends AbstractWireSerializingTestCase<PutAnalyticsCollectionAction.Response> {
+public class PostAnalyticsCollectionResponseSerializingTests extends AbstractWireSerializingTestCase<
+    PutAnalyticsCollectionAction.Response> {
 
     @Override
     protected Writeable.Reader<PutAnalyticsCollectionAction.Response> instanceReader() {

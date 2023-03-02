@@ -31,7 +31,10 @@ public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollect
     public static final PutAnalyticsCollectionAction INSTANCE = new PutAnalyticsCollectionAction();
     public static final String NAME = "cluster:admin/analytics/put";
 
-    public PutAnalyticsCollectionAction() { super(NAME, PutAnalyticsCollectionAction.Response::new); }
+    public PutAnalyticsCollectionAction() {
+        super(NAME, PutAnalyticsCollectionAction.Response::new);
+    }
+
     public static class Request extends ActionRequest {
         private final AnalyticsCollection analyticsCollection;
 
@@ -47,6 +50,7 @@ public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollect
         public Request(AnalyticsCollection analyticsCollection) {
             this.analyticsCollection = analyticsCollection;
         }
+
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
@@ -59,6 +63,7 @@ public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollect
 
             return validationException;
         }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);

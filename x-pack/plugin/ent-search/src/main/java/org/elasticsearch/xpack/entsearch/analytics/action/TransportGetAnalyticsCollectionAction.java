@@ -15,10 +15,12 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.entsearch.analytics.AnalyticsCollectionService;
 
-public class TransportGetAnalyticsCollectionAction
-    extends HandledTransportAction<GetAnalyticsCollectionAction.Request, GetAnalyticsCollectionAction.Response> {
+public class TransportGetAnalyticsCollectionAction extends HandledTransportAction<
+    GetAnalyticsCollectionAction.Request,
+    GetAnalyticsCollectionAction.Response> {
 
     private final AnalyticsCollectionService analyticsCollectionService;
+
     @Inject
     public TransportGetAnalyticsCollectionAction(
         TransportService transportService,

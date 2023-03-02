@@ -16,8 +16,6 @@ public final class AnalyticsTestUtils {
     }
 
     public static AnalyticsCollection randomAnalyticsCollection() {
-        return new AnalyticsCollection(
-            ESTestCase.randomAlphaOfLengthBetween(1,10)
-        );
+        return new AnalyticsCollection(ESTestCase.randomAlphaOfLengthBetween(1, 10));
     }
 }

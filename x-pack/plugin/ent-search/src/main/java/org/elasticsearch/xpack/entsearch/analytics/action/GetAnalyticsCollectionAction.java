@@ -27,7 +27,9 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
     public static final GetAnalyticsCollectionAction INSTANCE = new GetAnalyticsCollectionAction();
     public static final String NAME = "cluster:admin/analytics/get";
 
-    private GetAnalyticsCollectionAction() { super(NAME, GetAnalyticsCollectionAction.Response::new); }
+    private GetAnalyticsCollectionAction() {
+        super(NAME, GetAnalyticsCollectionAction.Response::new);
+    }
 
     public static class Request extends ActionRequest {
         private final String collectionId;
@@ -72,7 +74,9 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
             this.analyticsCollection = new AnalyticsCollection(in);
         }
 
-        public Response(AnalyticsCollection analyticsCollection) { this.analyticsCollection = analyticsCollection; }
+        public Response(AnalyticsCollection analyticsCollection) {
+            this.analyticsCollection = analyticsCollection;
+        }
 
         public Response(String collectionId) {
             this.analyticsCollection = new AnalyticsCollection(collectionId);
@@ -99,7 +103,5 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
             return Objects.equals(analyticsCollection, response.analyticsCollection);
         }
     }
-
-
 
 }

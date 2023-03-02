@@ -11,8 +11,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -33,10 +31,9 @@ public class GetEngineAction extends ActionType<GetEngineAction.Response> {
         super(NAME, GetEngineAction.Response::new);
     }
 
-    public static class Request extends ActionRequest implements IndicesRequest {
+    public static class Request extends ActionRequest {
 
         private final String[] names;
-        private final IndicesOptions indicesOptions = Engine.INDICES_OPTIONS;
 
         private final String engineId;
 
@@ -83,16 +80,6 @@ public class GetEngineAction extends ActionType<GetEngineAction.Response> {
         @Override
         public int hashCode() {
             return Objects.hash(engineId);
-        }
-
-        @Override
-        public String[] indices() {
-            return names;
-        }
-
-        @Override
-        public IndicesOptions indicesOptions() {
-            return indicesOptions;
         }
     }
 

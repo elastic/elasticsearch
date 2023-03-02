@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.entsearch.engine.action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,10 +29,9 @@ public class DeleteEngineAction extends ActionType<AcknowledgedResponse> {
         super(NAME, AcknowledgedResponse::readFrom);
     }
 
-    public static class Request extends ActionRequest implements IndicesRequest {
+    public static class Request extends ActionRequest {
 
         private final String[] names;
-        private final IndicesOptions indicesOptions = Engine.INDICES_OPTIONS;
 
         private final String engineId;
 
@@ -68,16 +65,6 @@ public class DeleteEngineAction extends ActionType<AcknowledgedResponse> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(engineId);
-        }
-
-        @Override
-        public String[] indices() {
-            return names;
-        }
-
-        @Override
-        public IndicesOptions indicesOptions() {
-            return indicesOptions;
         }
 
         @Override

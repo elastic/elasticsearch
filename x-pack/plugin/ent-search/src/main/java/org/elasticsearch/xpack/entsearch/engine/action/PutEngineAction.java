@@ -12,8 +12,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,13 +30,12 @@ public class PutEngineAction extends ActionType<PutEngineAction.Response> {
 
     public static final PutEngineAction INSTANCE = new PutEngineAction();
     public static final String NAME = "cluster:admin/engine/put";
-    public static final IndicesOptions INDICES_OPTIONS = Engine.INDICES_OPTIONS;
 
     public PutEngineAction() {
         super(NAME, PutEngineAction.Response::new);
     }
 
-    public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
+    public static class Request extends ActionRequest {
 
         private final Engine engine;
 
@@ -70,23 +67,6 @@ public class PutEngineAction extends ActionType<PutEngineAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             engine.writeTo(out);
-        }
-
-        @Override
-        public String[] indices() {
-            return engine.indices();
-        }
-
-        @Override
-        public IndicesRequest indices(String... indices) {
-            Engine updatedEngine = new Engine(engine.name(), indices, engine.analyticsCollectionName());
-            updatedEngine.setUpdatedAtMillis(System.currentTimeMillis());
-            return new Request(updatedEngine);
-        }
-
-        @Override
-        public IndicesOptions indicesOptions() {
-            return INDICES_OPTIONS;
         }
 
         public Engine getEngine() {

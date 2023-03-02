@@ -15,13 +15,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
-import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
-import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
@@ -57,27 +51,23 @@ public final class EvalMapper {
 
     private static final List<ExpressionMapper<?>> MAPPERS = Arrays.asList(
         new Arithmetics(),
-        new Mapper<>(Abs.class),
         new Comparisons(),
         new BooleanLogic(),
         new Nots(),
         new Attributes(),
         new Literals(),
         new RoundFunction(),
-        new Mapper<>(Length.class),
-        new Mapper<>(DateFormat.class),
-        new Mapper<>(DateTrunc.class),
         new StartsWithFunction(),
-        new SubstringFunction(),
-        new Mapper<>(DateTrunc.class),
-        new Mapper<>(Concat.class),
-        new Mapper<>(Case.class)
+        new SubstringFunction()
     );
 
     private EvalMapper() {}
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public static Supplier<ExpressionEvaluator> toEvaluator(Expression exp, Layout layout) {
+        if (exp instanceof Mappable m) {
+            return m.toEvaluator(e -> toEvaluator(e, layout));
+        }
         for (ExpressionMapper em : MAPPERS) {
             if (em.typeToken.isInstance(exp)) {
                 return em.map(exp, layout);
@@ -332,17 +322,6 @@ public final class EvalMapper {
                 ExpressionEvaluator length = sub.length() == null ? null : toEvaluator(sub.length(), layout).get();
                 return new SubstringEvaluator(input, start, length);
             };
-        }
-    }
-
-    private static class Mapper<E extends Expression & Mappable> extends ExpressionMapper<E> {
-        protected Mapper(Class<E> typeToken) {
-            super(typeToken);
-        }
-
-        @Override
-        public Supplier<ExpressionEvaluator> map(E abs, Layout layout) {
-            return abs.toEvaluator(e -> toEvaluator(e, layout));
         }
     }
 }

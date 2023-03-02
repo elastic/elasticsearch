@@ -254,7 +254,10 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege CANCEL_TASK = new ActionClusterPrivilege("cancel_task", Set.of(CancelTasksAction.NAME + "*"));
 
     public static final NamedClusterPrivilege MANAGE_ENGINE = new ActionClusterPrivilege("manage_engine", MANAGE_ENGINE_PATTERN);
-    public static final NamedClusterPrivilege MANAGE_BEHAVIORAL_ANALYTICS = new ActionClusterPrivilege("manage_behavioral_analytics", MANAGE_BEHAVIORAL_ANALYTICS_PATTERN);
+    public static final NamedClusterPrivilege MANAGE_BEHAVIORAL_ANALYTICS = new ActionClusterPrivilege(
+        "manage_behavioral_analytics",
+        MANAGE_BEHAVIORAL_ANALYTICS_PATTERN
+    );
 
     private static final Map<String, NamedClusterPrivilege> VALUES = sortByAccessLevel(
         List.of(
@@ -303,7 +306,7 @@ public class ClusterPrivilegeResolver {
             CANCEL_TASK,
             MANAGE_ENGINE,
             MANAGE_BEHAVIORAL_ANALYTICS
-            )
+        )
     );
 
     /**

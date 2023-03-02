@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.entsearch.analytics.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -28,7 +28,7 @@ public class DeleteAnalyticsCollectionAction extends ActionType<AcknowledgedResp
         super(NAME, AcknowledgedResponse::readFrom);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends MasterNodeRequest<Request> {
         private final String collectionName;
 
         public Request(StreamInput in) throws IOException {

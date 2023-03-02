@@ -47,6 +47,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.indices.ExecutorNames;
@@ -237,7 +238,7 @@ public class EngineIndexService {
         if (metadata.hasAlias(engineAliasName)) {
             Set<String> currentAliases = metadata.aliasedIndices(engineAliasName)
                 .stream()
-                .map(index -> index.getName())
+                .map(Index::getName)
                 .collect(Collectors.toSet());
             Set<String> targetAliases = Set.of(engine.indices());
 
@@ -293,14 +294,6 @@ public class EngineIndexService {
         }
     }
 
-    /**
-     * Deletes the provided {@param engineName} in the underlying index, or delegate a failure to the provided
-     * listener if the resource does not exist or failed to delete.
-     *
-     * @param engineName The name of the {@link Engine} to delete.
-     * @param listener The action listener to invoke on response/failure.
-     *
-     */
     private void deleteEngine(String engineName, ActionListener<DeleteResponse> listener) {
 
         try {
@@ -332,11 +325,19 @@ public class EngineIndexService {
             .aliases(aliasesRequest, listener.delegateFailure((l, r) -> l.onResponse(AcknowledgedResponse.TRUE)));
     }
 
+    /**
+     * Deletes both the provided {@param engineName} in the underlying index as well as the associated alias,
+     * or delegate a failure to the provided listener if the resource does not exist or failed to delete.
+     *
+     * @param engineName The name of the {@link Engine} to delete.
+     * @param listener The action listener to invoke on response/failure.
+     *
+     */
     public void deleteEngineAndAlias(String engineName, ActionListener<DeleteResponse> listener) {
-        deleteEngine(engineName, new ActionListener<>() {
+        removeAlias(Engine.getEngineAliasName(engineName), new ActionListener<>() {
             @Override
-            public void onResponse(DeleteResponse deleteResponse) {
-                removeAlias(Engine.getEngineAliasName(engineName), listener.delegateFailure((l, r) -> l.onResponse(deleteResponse)));
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                deleteEngine(engineName, listener);
             }
 
             @Override

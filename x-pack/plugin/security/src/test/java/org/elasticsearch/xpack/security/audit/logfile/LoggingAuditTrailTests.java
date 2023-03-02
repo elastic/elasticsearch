@@ -2786,27 +2786,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 logLine = logEntryFieldPattern.matcher(logLine).replaceFirst("");
             }
         }
-        for (final Map.Entry<String, String> checkField : checkLiteralFields.entrySet()) {
-            if (null == checkField.getValue()) {
-                // null checkField means that the field does not exist
-                assertThat(
-                    "Field: " + checkField.getKey() + " should be missing.",
-                    logLine.contains(Pattern.quote("\"" + checkField.getKey() + "\":")),
-                    is(false)
-                );
-            } else {
-                final Pattern logEntryFieldPattern = Pattern.compile(
-                    Pattern.quote("\"" + checkField.getKey() + "\":" + checkField.getValue())
-                );
-                assertThat(
-                    "Field " + checkField.getKey() + " value mismatch. Expected " + checkField.getValue(),
-                    logEntryFieldPattern.matcher(logLine).find(),
-                    is(true)
-                );
-                // remove checked field
-                logLine = logEntryFieldPattern.matcher(logLine).replaceFirst("");
-            }
-        }
         // check each array-valued field
         for (final Map.Entry<String, String[]> checkArrayField : checkArrayFields.entrySet()) {
             if (null == checkArrayField.getValue()) {
@@ -2834,6 +2813,18 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 // remove checked field
                 logLine = logEntryFieldPattern.matcher(logLine).replaceFirst("");
             }
+        }
+        // check each string-valued literal field
+        for (final Map.Entry<String, String> checkField : checkLiteralFields.entrySet()) {
+            assertThat("Use checkFields to mark missing fields", checkField.getValue(), notNullValue());
+            final Pattern logEntryFieldPattern = Pattern.compile(Pattern.quote("\"" + checkField.getKey() + "\":" + checkField.getValue()));
+            assertThat(
+                "Field " + checkField.getKey() + " value mismatch. Expected " + checkField.getValue(),
+                logEntryFieldPattern.matcher(logLine).find(),
+                is(true)
+            );
+            // remove checked field
+            logLine = logEntryFieldPattern.matcher(logLine).replaceFirst("");
         }
         logLine = logLine.replaceFirst("\"" + LoggingAuditTrail.LOG_TYPE + "\":\"audit\", ", "")
             .replaceFirst("\"" + LoggingAuditTrail.TIMESTAMP + "\":\"[^\"]*\"", "")

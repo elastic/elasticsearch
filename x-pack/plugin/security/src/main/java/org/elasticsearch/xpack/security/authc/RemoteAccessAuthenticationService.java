@@ -110,7 +110,7 @@ public class RemoteAccessAuthenticationService {
                 new ContextPreservingActionListener<>(storedContextSupplier, ActionListener.wrap(authentication -> {
                     assert authentication.isApiKey() : "initial authentication for remote access must be by API key";
                     assert false == authentication.isRunAs() : "initial authentication for remote access cannot be run-as";
-                    // try-catch so any failure here is wrapped by withRequestProcessingFailure, whereas `authenticate` failures are not
+                    // try-catch so any failure here is wrapped by `withRequestProcessingFailure`, whereas `authenticate` failures are not
                     // we should _not_ wrap `authenticate` failures since this produces duplicates audit events
                     try {
                         final RemoteAccessAuthentication remoteAccessAuthentication = remoteAccessHeaders.remoteAccessAuthentication();

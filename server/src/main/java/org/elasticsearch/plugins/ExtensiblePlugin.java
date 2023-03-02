@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugins;
 
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -36,4 +37,8 @@ public interface ExtensiblePlugin {
      * any other methods on this Plugin instance are called.
      */
     default void loadExtensions(ExtensionLoader loader) {}
+
+    default List<Class<?>> getSPIInterfaces() {
+        return Collections.emptyList();
+    }
 }

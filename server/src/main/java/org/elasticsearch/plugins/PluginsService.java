@@ -343,19 +343,24 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             logger.info("*** LoadedPlugin: " + loadedPlugin.descriptor());
             // TODO: alt implementation that where getSPIInterfaces() returns the implementation clazz as well
             // avoiding using META-INF/services entirely (which negates the need for special file or module or dummy default constructor)
-            List<Class<?>> interfaceClazzList = loadedPlugin.instance.getSPIInterfaces();
-            logger.info("*** LoadedPlugin SPI interfaces: " + Arrays.toString(interfaceClazzList.toArray()));
-            for (Class<?> interfaceClazz : interfaceClazzList) {
-                SPIClassIterator<?> spiClassIterator = SPIClassIterator.get(interfaceClazz, loadedPlugin.loader());
-                while (spiClassIterator.hasNext()) {
-                    Class<?> clazz = spiClassIterator.next();
-                    logger.info(
-                        "Found SPI for interface " + interfaceClazz.getCanonicalName() + " with implementation " + clazz.getCanonicalName()
-                    ); // TODO: use debug
+            if (loadedPlugin.instance instanceof ExtensiblePlugin) {
+                List<Class<?>> interfaceClazzList = ((ExtensiblePlugin) loadedPlugin.instance).getSPIInterfaces();
+                logger.info("*** LoadedPlugin SPI interfaces: " + Arrays.toString(interfaceClazzList.toArray()));
+                for (Class<?> interfaceClazz : interfaceClazzList) {
+                    SPIClassIterator<?> spiClassIterator = SPIClassIterator.get(interfaceClazz, loadedPlugin.loader());
+                    while (spiClassIterator.hasNext()) {
+                        Class<?> clazz = spiClassIterator.next();
+                        logger.info(
+                            "Found SPI for interface "
+                                + interfaceClazz.getCanonicalName()
+                                + " with implementation "
+                                + clazz.getCanonicalName()
+                        ); // TODO: use debug
 
-                    implementations.computeIfAbsent(interfaceClazz, k -> new HashMap<>())
-                        .computeIfAbsent(loadedPlugin.loader, k -> new HashSet<>())
-                        .add(clazz.getCanonicalName());
+                        implementations.computeIfAbsent(interfaceClazz, k -> new HashMap<>())
+                            .computeIfAbsent(loadedPlugin.loader, k -> new HashSet<>())
+                            .add(clazz.getCanonicalName());
+                    }
                 }
             }
         }

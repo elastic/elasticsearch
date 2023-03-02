@@ -29,7 +29,7 @@ public class PutEngineActionRequestSerializingTests extends AbstractWireSerializ
 
     @Override
     protected PutEngineAction.Request createTestInstance() {
-        return new PutEngineAction.Request(randomEngine(), false); // TODO change to randomBoolean()
+        return new PutEngineAction.Request(randomEngine(), randomBoolean());
     }
 
     @Override

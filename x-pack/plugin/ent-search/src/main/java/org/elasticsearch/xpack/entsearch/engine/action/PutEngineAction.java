@@ -43,7 +43,7 @@ public class PutEngineAction extends ActionType<PutEngineAction.Response> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.engine = new Engine(in);
-            this.create = false; // TODO What's the best way of initializing this?
+            this.create = in.readBoolean();
         }
 
         public Request(String engineId, boolean create, BytesReference content, XContentType contentType) {
@@ -71,6 +71,7 @@ public class PutEngineAction extends ActionType<PutEngineAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             engine.writeTo(out);
+            out.writeBoolean(create);
         }
 
         public Engine getEngine() {

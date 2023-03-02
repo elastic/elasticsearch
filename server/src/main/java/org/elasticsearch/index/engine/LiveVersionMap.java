@@ -257,13 +257,6 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         return getUnderLock(uid, maps);
     }
 
-    public boolean exists(final BytesRef uid) {
-        if (maps.isSafeAccessMode()) {
-            return getUnderLock(uid) != null;
-        }
-        return getVersionForAssert(uid) != null;
-    }
-
     private VersionValue getUnderLock(final BytesRef uid, Maps currentMaps) {
         assert assertKeyedLockHeldByCurrentThread(uid);
         // First try to get the "live" value:

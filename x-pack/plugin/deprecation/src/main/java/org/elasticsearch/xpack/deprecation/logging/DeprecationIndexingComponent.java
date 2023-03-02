@@ -13,7 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configuration;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -30,14 +29,12 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.RateLimitingFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -53,14 +50,13 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
 
     private final DeprecationIndexingAppender appender;
     private final BulkProcessor2 processor;
-    private final Client client;
     /*
      * We do not want to index deprecation logs on server startup before the index template and ILM policy are available. So we have
      * processor put them in the following buffer until the server is ready. Once the template and ILM policy are available, this buffer is
      * drained and its contents are sent to the processor. The queue is unbounded because we are first going through processor::add, which
      * starts rejecting documents if the total number of bytes in flight gets too large.
      */
-    private final BlockingQueue<Tuple<BulkRequest, ActionListener<BulkResponse>>> requestAndListenerBuffer = new LinkedBlockingQueue<>();
+    private final ConcurrentLinkedQueue<Runnable> pendingRequestsBuffer = new ConcurrentLinkedQueue<>();
     private final RateLimitingFilter rateLimitingFilterForIndexing;
     private final ClusterService clusterService;
 
@@ -81,7 +77,6 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
         this.clusterService = clusterService;
 
         this.processor = getBulkProcessor(new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN), settings);
-        this.client = client;
         final Consumer<IndexRequest> consumer = processor::add;
 
         final LoggerContext context = (LoggerContext) LogManager.getContext(false);
@@ -145,14 +140,14 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
     }
 
     /**
-     * This method removes everything that is currently in the requestAndListenerBuffer and sends it to the client. This method is
-     * threadsafe. Anything added to the requestAndListenerBuffer while this method is executing might be removed and sent to the client,
+     * This method removes everything that is currently in the pendingRequestsBuffer and sends it to the client. This method is
+     * threadsafe. Anything added to the pendingRequestsBuffer while this method is executing might be removed and sent to the client,
      * but there is no blocking so there is no guarantee of it.
      */
     private void flushBuffer() {
-        for (Tuple<BulkRequest, ActionListener<BulkResponse>> bufferedRequestAndListener = requestAndListenerBuffer
-            .poll(); bufferedRequestAndListener != null; bufferedRequestAndListener = requestAndListenerBuffer.poll()) {
-            client.bulk(bufferedRequestAndListener.v1(), bufferedRequestAndListener.v2());
+        for (Runnable pendingRequest = pendingRequestsBuffer.poll(); pendingRequest != null; pendingRequest = pendingRequestsBuffer
+            .poll()) {
+            pendingRequest.run();
         }
     }
 
@@ -172,7 +167,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
 
     @Override
     protected void doClose() {
-        if (requestAndListenerBuffer.isEmpty()) {
+        if (pendingRequestsBuffer.isEmpty()) {
             this.processor.close();
         } // else no point in waiting for the bulk requests to complete because they're never going to
     }
@@ -198,23 +193,18 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
      */
     private BulkProcessor2 getBulkProcessor(Client client, Settings settings) {
         BulkProcessor2.Listener listener = new DeprecationBulkListener();
-        return BulkProcessor2.builder((bulkRequest, listener1) -> {
+        return BulkProcessor2.builder((bulkRequest, actionListener) -> {
             /*
              * If flush is enabled already, we just call client::bulk. But if it is not ready then we store the request and listener in a
              * queue. We do this here because at this point the bulk processor will have already rejected the request if the
-             * in-flight-bytes limit has been exceeded. This means that we don't have to worry about bounding requestAndListenerBuffer.
+             * in-flight-bytes limit has been exceeded. This means that we don't have to worry about bounding pendingRequestsBuffer.
              */
             if (flushEnabled.get()) {
-                client.bulk(bulkRequest, listener1);
+                client.bulk(bulkRequest, actionListener);
                 flushBuffer(); // just in case something was missed after the first flush
             } else {
                 // this is an unbounded queue, so the entry will always be accepted
-                try {
-                    requestAndListenerBuffer.put(Tuple.tuple(bulkRequest, listener1));
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException(e);
-                }
+                pendingRequestsBuffer.offer(() -> client.bulk(bulkRequest, actionListener));
             }
         }, listener, client.threadPool()).setMaxNumberOfRetries(3).setFlushInterval(TimeValue.timeValueSeconds(5)).build();
     }

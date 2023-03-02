@@ -275,10 +275,10 @@ public class HealthMetadataService {
         private HealthMetadata.ShardLimits shardLimitsMetadataFrom(HealthMetadata.ShardLimits initialShardLimits) {
             var builder = HealthMetadata.ShardLimits.newBuilder(initialShardLimits);
             if (SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey().equals(setting)) {
-                builder.maxShardPerNode(value);
+                builder.maxShardsPerNode(value);
             }
             if (SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey().equals(setting)) {
-                builder.maxShardPerNodeFrozen(value);
+                builder.maxShardsPerNodeFrozen(value);
             }
             return builder.build();
         }

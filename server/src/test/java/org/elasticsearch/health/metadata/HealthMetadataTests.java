@@ -54,7 +54,7 @@ public class HealthMetadataTests extends ESTestCase {
     }
 
     public void testShardLimitsBuilders() {
-        var shardLimits = HealthMetadata.ShardLimits.newBuilder().maxShardPerNode(100).maxShardPerNodeFrozen(999).build();
+        var shardLimits = HealthMetadata.ShardLimits.newBuilder().maxShardsPerNode(100).maxShardsPerNodeFrozen(999).build();
 
         // Regular builder
         assertEquals(shardLimits, new HealthMetadata.ShardLimits(100, 999));

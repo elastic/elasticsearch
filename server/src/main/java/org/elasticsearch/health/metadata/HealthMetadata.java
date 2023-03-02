@@ -169,10 +169,6 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
             out.writeInt(maxShardsPerNodeFrozen);
         }
 
-        public boolean isUnknown() {
-            return maxShardsPerNode != -1 && maxShardsPerNodeFrozen != -1;
-        }
-
         public static Builder newBuilder() {
             return new Builder();
         }
@@ -183,28 +179,28 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
 
         public static class Builder {
 
-            private int maxShardPerNode;
-            private int maxShardPerNodeFrozen;
+            private int maxShardsPerNode;
+            private int maxShardsPerNodeFrozen;
 
             private Builder() {}
 
             private Builder(ShardLimits shardLimits) {
-                this.maxShardPerNode = shardLimits.maxShardsPerNode;
-                this.maxShardPerNodeFrozen = shardLimits.maxShardsPerNodeFrozen;
+                this.maxShardsPerNode = shardLimits.maxShardsPerNode;
+                this.maxShardsPerNodeFrozen = shardLimits.maxShardsPerNodeFrozen;
             }
 
-            public Builder maxShardPerNode(int maxShardPerNode) {
+            public Builder maxShardsPerNode(int maxShardsPerNode) {
                 this.maxShardPerNode = maxShardPerNode;
                 return this;
             }
 
-            public Builder maxShardPerNodeFrozen(int maxShardPerNodeFrozen) {
+            public Builder maxShardsPerNodeFrozen(int maxShardsPerNodeFrozen) {
                 this.maxShardPerNodeFrozen = maxShardPerNodeFrozen;
                 return this;
             }
 
             public ShardLimits build() {
-                return new ShardLimits(maxShardPerNode, maxShardPerNodeFrozen);
+                return new ShardLimits(maxShardsPerNode, maxShardsPerNodeFrozen);
             }
         }
     }

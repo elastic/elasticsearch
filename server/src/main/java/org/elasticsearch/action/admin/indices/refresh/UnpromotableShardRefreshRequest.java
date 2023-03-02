@@ -8,16 +8,12 @@
 
 package org.elasticsearch.action.admin.indices.refresh;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.unpromotable.BroadcastUnpromotableRequest;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.engine.Engine;
 
 import java.io.IOException;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class UnpromotableShardRefreshRequest extends BroadcastUnpromotableRequest {
 
@@ -31,15 +27,6 @@ public class UnpromotableShardRefreshRequest extends BroadcastUnpromotableReques
     public UnpromotableShardRefreshRequest(StreamInput in) throws IOException {
         super(in);
         segmentGeneration = in.readVLong();
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = super.validate();
-        if (segmentGeneration == Engine.RefreshResult.UNKNOWN_GENERATION) {
-            validationException = addValidationError("segment generation is unknown", validationException);
-        }
-        return validationException;
     }
 
     @Override

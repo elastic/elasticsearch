@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.indices.refresh;
 
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -20,22 +19,24 @@ import java.io.IOException;
  */
 public class ShardRefreshReplicaRequest extends ReplicationRequest<ShardRefreshReplicaRequest> {
 
+    public static final long NO_FLUSH_PERFORMED = Long.MIN_VALUE;
+
     /**
-     * Holds the refresh result of the primary shard. This will be used by {@link TransportShardRefreshAction} to construct a
-     * {@link UnpromotableShardRefreshRequest} to broadcast to the unpromotable replicas. The refresh result is not serialized to maintain
-     * backwards compatibility for the refresh requests to promotable replicas which do not need the refresh result. For this reason, the
-     * field is package-private.
+     * Holds the flushed generation of the primary shard. This will be used by {@link TransportShardRefreshAction} to construct a
+     * {@link UnpromotableShardRefreshRequest} to broadcast to the unpromotable replicas. The flushedGeneration is not serialized to
+     * maintain backwards compatibility for the refresh requests to promotable replicas which do not need the refresh result. For this
+     * reason, the field is package-private.
      */
-    final Engine.RefreshResult primaryRefreshResult;
+    final long flushedGeneration;
 
     public ShardRefreshReplicaRequest(StreamInput in) throws IOException {
         super(in);
-        primaryRefreshResult = Engine.RefreshResult.NO_REFRESH;
+        flushedGeneration = NO_FLUSH_PERFORMED;
     }
 
-    public ShardRefreshReplicaRequest(ShardId shardId, Engine.RefreshResult primaryRefreshResult) {
+    public ShardRefreshReplicaRequest(ShardId shardId, long flushedGeneration) {
         super(shardId);
-        this.primaryRefreshResult = primaryRefreshResult;
+        this.flushedGeneration = flushedGeneration;
     }
 
     @Override

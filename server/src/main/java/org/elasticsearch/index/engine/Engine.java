@@ -1014,14 +1014,14 @@ public abstract class Engine implements Closeable {
      * changes.
      */
     @Nullable
-    public abstract RefreshResult refresh(String source) throws EngineException;
+    public abstract void refresh(String source) throws EngineException;
 
     /**
      * Synchronously refreshes the engine for new search operations to reflect the latest
      * changes unless another thread is already refreshing the engine concurrently.
      */
     @Nullable
-    public abstract RefreshResult maybeRefresh(String source) throws EngineException;
+    public abstract boolean maybeRefresh(String source) throws EngineException;
 
     /**
      * Called when our engine is using too much heap and should move buffered indexed/deleted documents to disk.
@@ -1965,21 +1965,5 @@ public abstract class Engine implements Closeable {
 
     public void addFlushListener(Translog.Location location, ActionListener<Long> listener) {
         listener.onFailure(new UnsupportedOperationException("Engine type " + this.getClass() + " does not support flush listeners."));
-    }
-
-    /**
-     * Captures the result of a refresh operation on the index shard.
-     * <p>
-     * <code>refreshed</code> is true if a refresh happened. If refreshed, <code>generation</code>
-     * contains the generation of the index commit that the reader has opened upon refresh.
-     */
-    public record RefreshResult(boolean refreshed, long generation) {
-
-        public static final long UNKNOWN_GENERATION = -1L;
-        public static final RefreshResult NO_REFRESH = new RefreshResult(false);
-
-        public RefreshResult(boolean refreshed) {
-            this(refreshed, UNKNOWN_GENERATION);
-        }
     }
 }

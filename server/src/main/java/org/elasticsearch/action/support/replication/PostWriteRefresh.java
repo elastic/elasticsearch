@@ -12,6 +12,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.indices.refresh.ShardRefreshReplicaRequest;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.UnpromotableShardRefreshRequest;
 import org.elasticsearch.action.support.WriteRequest;
@@ -37,12 +38,13 @@ public class PostWriteRefresh {
         @Nullable Translog.Location location,
         ActionListener<Boolean> listener
     ) {
+        final boolean hasUnpromotableReplicas = indexShard.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0;
         switch (policy) {
             case NONE -> listener.onResponse(false);
             case WAIT_UNTIL -> waitUntil(indexShard, location, new ActionListener<>() {
                 @Override
                 public void onResponse(Boolean forced) {
-                    if (indexShard.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0) {
+                    if (hasUnpromotableReplicas) {
                         refreshUnpromotables(indexShard, location, listener, forced);
                     } else {
                         listener.onResponse(forced);
@@ -56,9 +58,9 @@ public class PostWriteRefresh {
             });
             case IMMEDIATE -> immediate(indexShard, new ActionListener<>() {
                 @Override
-                public void onResponse(Engine.RefreshResult refreshResult) {
-                    if (indexShard.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0) {
-                        sendUnpromotableRequests(indexShard, refreshResult.generation(), true, listener);
+                public void onResponse(Void ignored) {
+                    if (hasUnpromotableReplicas) {
+                        sendUnpromotableRequests(indexShard, indexShard.commitStats().getGeneration(), true, listener);
                     } else {
                         listener.onResponse(true);
                     }
@@ -87,9 +89,9 @@ public class PostWriteRefresh {
         }
     }
 
-    private static void immediate(IndexShard indexShard, ActionListener<Engine.RefreshResult> listener) {
-        Engine.RefreshResult refreshResult = indexShard.refresh(FORCED_REFRESH_AFTER_INDEX);
-        listener.onResponse(refreshResult);
+    private static void immediate(IndexShard indexShard, ActionListener<Void> listener) {
+        indexShard.refresh(FORCED_REFRESH_AFTER_INDEX);
+        listener.onResponse(null);
     }
 
     private static void waitUntil(IndexShard indexShard, Translog.Location location, ActionListener<Boolean> listener) {
@@ -121,6 +123,12 @@ public class PostWriteRefresh {
     }
 
     private void sendUnpromotableRequests(IndexShard indexShard, long generation, boolean wasForced, ActionListener<Boolean> listener) {
+        if (generation == ShardRefreshReplicaRequest.NO_FLUSH_PERFORMED) {
+            listener.onFailure(
+                new IllegalArgumentException("Shard with unpromotable replicas require a flush to occur, but no flush occurred.")
+            );
+            return;
+        }
         UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
             indexShard.getReplicationGroup().getRoutingTable(),
             generation

@@ -82,7 +82,9 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
         ActionListener<PrimaryResult<ShardRefreshReplicaRequest, ReplicationResponse>> listener
     ) {
         ActionListener.completeWith(listener, () -> {
-            ShardRefreshReplicaRequest replicaRequest = new ShardRefreshReplicaRequest(shardRequest.shardId(), primary.refresh(SOURCE_API));
+            primary.refresh(SOURCE_API);
+            long lastCommitGeneration = primary.commitStats().getGeneration();
+            ShardRefreshReplicaRequest replicaRequest = new ShardRefreshReplicaRequest(shardRequest.shardId(), lastCommitGeneration);
             replicaRequest.setParentTask(shardRequest.getParentTask());
             logger.trace("{} refresh request executed on primary", primary.shardId());
             return new PrimaryResult<>(replicaRequest, new ReplicationResponse());
@@ -111,10 +113,9 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             IndexShardRoutingTable indexShardRoutingTable,
             ActionListener<Void> listener
         ) {
-            assert replicaRequest.primaryRefreshResult.refreshed() : "primary has not refreshed";
             UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
                 indexShardRoutingTable,
-                replicaRequest.primaryRefreshResult.generation()
+                replicaRequest.flushedGeneration
             );
             transportService.sendRequest(
                 transportService.getLocalNode(),

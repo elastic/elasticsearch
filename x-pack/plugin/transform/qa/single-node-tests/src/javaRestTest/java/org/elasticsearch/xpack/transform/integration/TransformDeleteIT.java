@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.integration;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -19,6 +20,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransformDeleteIT extends TransformRestTestCase {
@@ -67,22 +69,12 @@ public class TransformDeleteIT extends TransformRestTestCase {
         indicesCreated = true;
     }
 
-    @SuppressWarnings("unchecked")
     public void testDeleteDoesNotDeleteDestinationIndexByDefault() throws Exception {
         String transformId = "transform-1";
         String transformDest = transformId + "_idx";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformDest);
 
-        final Request createTransformRequest = createRequestWithAuth(
-            "PUT",
-            getTransformEndpoint() + transformId,
-            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1
-        );
-        String config = createConfig(transformDest);
-        createTransformRequest.setJsonEntity(config);
-        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
-        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-
+        createTransform(transformId, transformDest);
         assertFalse(indexExists(transformDest));
 
         startTransform(transformId);
@@ -94,26 +86,17 @@ public class TransformDeleteIT extends TransformRestTestCase {
         assertTrue(indexExists(transformDest));
     }
 
-    @SuppressWarnings("unchecked")
     public void testDeleteWithParamDeletesAutoCreatedDestinationIndex() throws Exception {
         String transformId = "transform-2";
         String transformDest = transformId + "_idx";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformDest);
 
-        final Request createTransformRequest = createRequestWithAuth(
-            "PUT",
-            getTransformEndpoint() + transformId,
-            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1
-        );
-        String config = createConfig(transformDest);
-        createTransformRequest.setJsonEntity(config);
-        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
-        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-
+        createTransform(transformId, transformDest);
         assertFalse(indexExists(transformDest));
 
         startTransform(transformId);
         waitForTransformCheckpoint(transformId, 1);
+
         stopTransform(transformId, false);
         assertTrue(indexExists(transformDest));
 
@@ -121,27 +104,19 @@ public class TransformDeleteIT extends TransformRestTestCase {
         assertFalse(indexExists(transformDest));
     }
 
-    @SuppressWarnings("unchecked")
     public void testDeleteWithParamDeletesManuallyCreatedDestinationIndex() throws Exception {
         String transformId = "transform-3";
         String transformDest = transformId + "_idx";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformDest);
 
-        final Request createTransformRequest = createRequestWithAuth(
-            "PUT",
-            getTransformEndpoint() + transformId,
-            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1
-        );
-        String config = createConfig(transformDest);
-        createTransformRequest.setJsonEntity(config);
-        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
-        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-
         createIndex(transformDest);
         assertTrue(indexExists(transformDest));
 
+        createTransform(transformId, transformDest);
+
         startTransform(transformId);
         waitForTransformCheckpoint(transformId, 1);
+
         stopTransform(transformId, false);
         assertTrue(indexExists(transformDest));
 
@@ -149,8 +124,43 @@ public class TransformDeleteIT extends TransformRestTestCase {
         assertFalse(indexExists(transformDest));
     }
 
-    private static String createConfig(String transformDestIndex) {
-        return Strings.format("""
+    public void testDeleteWithParamDoesNotDeleteAlias() throws Exception {
+        String transformId = "transform-4";
+        String transformDest = transformId + "_idx";
+        String transformDestAlias = transformId + "_alias";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformDest, transformDestAlias);
+
+        createIndex(transformDest, null, null, "\"" + transformDestAlias + "\": { \"is_write_index\": true }");
+        assertTrue(indexExists(transformDest));
+        assertTrue(indexExists(transformDestAlias));
+
+        createTransform(transformId, transformDestAlias);
+
+        startTransform(transformId);
+        waitForTransformCheckpoint(transformId, 1);
+
+        stopTransform(transformId, false);
+        assertTrue(indexExists(transformDest));
+
+        ResponseException e = expectThrows(ResponseException.class, () -> deleteTransform(transformId, true));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                String.format(
+                    "The provided expression [%s] matches an alias, specify the corresponding concrete indices instead.",
+                    transformDestAlias
+                )
+            )
+        );
+    }
+
+    private void createTransform(String transformId, String destIndex) throws IOException {
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1
+        );
+        String config = Strings.format("""
             {
               "dest": {
                 "index": "%s"
@@ -174,6 +184,9 @@ public class TransformDeleteIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""", transformDestIndex, REVIEWS_INDEX_NAME);
+            }""", destIndex, REVIEWS_INDEX_NAME);
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
     }
 }

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -72,6 +73,8 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
         Engine getEngine = awaitGetEngine(engine.name());
         assertThat(getEngine, equalTo(engine));
         checkAliases(engine);
+
+        expectThrows(VersionConflictEngineException.class, () -> awaitPutEngine(engine, true));
     }
 
     private void checkAliases(Engine engine) {

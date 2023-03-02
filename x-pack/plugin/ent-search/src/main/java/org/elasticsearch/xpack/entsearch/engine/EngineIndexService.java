@@ -194,6 +194,7 @@ public class EngineIndexService {
      * Creates or updates the {@link Engine} in the underlying index.
      *
      * @param engine The engine object.
+     * @param create If true, the engine must not already exist
      * @param listener The action listener to invoke on response/failure.
      */
     public void putEngine(Engine engine, boolean create, ActionListener<IndexResponse> listener) {

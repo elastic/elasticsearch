@@ -75,11 +75,16 @@ public class TransportTestsScanner {
         Set<Class<?>> transportTestRootClasses = transportTestClassesRoots.stream().map(c -> loadClass(cl, c)).collect(Collectors.toSet());
 
         Set<String> transportTests = traverseClassesInRoots(testClasses).stream()
+            .filter(this::isNotWriteable)
             .filter(n -> isSubclassOf(n, cl, transportTestRootClasses))
             .collect(Collectors.toSet());
 
         return findMissingTestClasses(transportClasses, transportTests);
 
+    }
+
+    private boolean isNotWriteable(String className) {
+        return className.equals(writeableClassName) == false;
     }
 
     private Set<String> findMissingTestClasses(Set<String> transportClasses, Set<String> transportTests) {

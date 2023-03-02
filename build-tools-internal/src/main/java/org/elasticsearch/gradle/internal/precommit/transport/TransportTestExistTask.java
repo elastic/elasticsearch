@@ -18,7 +18,6 @@ import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
-import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.workers.WorkAction;
 import org.gradle.workers.WorkParameters;
@@ -64,7 +63,6 @@ public abstract class TransportTestExistTask extends PrecommitTask {
     }
 
     @InputFiles
-    @SkipWhenEmpty
     @PathSensitive(PathSensitivity.RELATIVE)
     public FileCollection getMainSources() {
         return mainSources;
@@ -75,7 +73,6 @@ public abstract class TransportTestExistTask extends PrecommitTask {
     }
 
     @InputFiles
-    @SkipWhenEmpty
     @PathSensitive(PathSensitivity.RELATIVE)
     public FileCollection getTestSources() {
         return testSources;

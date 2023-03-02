@@ -10,14 +10,12 @@ package org.elasticsearch.gradle.internal.precommit.transport
 
 import spock.lang.Shared
 
-import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.elasticsearch.gradle.fixtures.LocalRepositoryFixture
-import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin
-import org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
-import org.gradle.api.Plugin
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.ClassRule
+
+import java.nio.file.Files
 
 class TransportTestExistPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
     Class<? extends TransportTestExistPrecommitPlugin> pluginClassUnderTest = TransportTestExistPrecommitPlugin.class
@@ -118,5 +116,4 @@ class TransportTestExistPluginFuncTest extends AbstractGradleInternalPluginFuncT
             public abstract class %s { }
         """.formatted(packageName, className)
     }
-//
 }

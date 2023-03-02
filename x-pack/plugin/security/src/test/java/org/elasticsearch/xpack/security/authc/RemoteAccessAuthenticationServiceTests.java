@@ -19,7 +19,9 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.junit.Before;
@@ -31,6 +33,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService.CROSS_CLUSTER_INTERNAL_ROLE;
 import static org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService.VERSION_REMOTE_ACCESS_AUTHENTICATION;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
@@ -55,19 +58,25 @@ public class RemoteAccessAuthenticationServiceTests extends ESTestCase {
     public void init() throws Exception {
         this.apiKeyService = mock(ApiKeyService.class);
         this.authenticationService = mock(AuthenticationService.class);
-        this.clusterService = mock(ClusterService.class);
+        this.clusterService = mockClusterServiceWithMinNodeVersion(Version.CURRENT);
     }
 
     public void testAuthenticateThrowsOnUnsupportedMinVersions() throws IOException {
         clusterService = mockClusterServiceWithMinNodeVersion(VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_8_0));
         final var authcContext = mock(Authenticator.Context.class, Mockito.RETURNS_DEEP_STUBS);
         final var threadContext = new ThreadContext(Settings.EMPTY);
-        new RemoteAccessHeaders(
+        final var remoteAccessHeaders = new RemoteAccessHeaders(
             RemoteAccessHeadersTests.randomEncodedApiKeyHeader(),
             AuthenticationTestHelper.randomRemoteAccessAuthentication()
-        ).writeToContext(threadContext);
+        );
+        remoteAccessHeaders.writeToContext(threadContext);
         when(authcContext.getThreadContext()).thenReturn(threadContext);
-        when(authcContext.getRequest().exceptionProcessingRequest(any(), any())).thenAnswer(
+        final AuthenticationService.AuditableRequest auditableRequest = mock(AuthenticationService.AuditableRequest.class);
+        final ArgumentCaptor<AuthenticationToken> authenticationTokenCapture = ArgumentCaptor.forClass(AuthenticationToken.class);
+        doNothing().when(authcContext).addAuthenticationToken(authenticationTokenCapture.capture());
+        when(authcContext.getMostRecentAuthenticationToken()).thenAnswer(ignored -> authenticationTokenCapture.getValue());
+        when(authcContext.getRequest()).thenReturn(auditableRequest);
+        when(auditableRequest.exceptionProcessingRequest(any(), any())).thenAnswer(
             i -> new ElasticsearchSecurityException("potato", (Exception) i.getArguments()[0])
         );
         when(authenticationService.newContext(anyString(), any(), anyBoolean())).thenReturn(authcContext);
@@ -90,11 +99,14 @@ public class RemoteAccessAuthenticationServiceTests extends ESTestCase {
                     + "] or higher to support cross cluster requests through the dedicated remote cluster port"
             )
         );
+        verify(auditableRequest).exceptionProcessingRequest(
+            any(Exception.class),
+            credentialsArgMatches(remoteAccessHeaders.clusterCredentials())
+        );
+        verifyNoMoreInteractions(auditableRequest);
     }
 
-    public void testSuccessfulAuthenticateCallsAuthenticationSuccessOnAuditableRequest() throws IOException, ExecutionException,
-        InterruptedException {
-        clusterService = mockClusterServiceWithMinNodeVersion(Version.CURRENT);
+    public void testAuthenticationSuccessOnSuccessfulAuthentication() throws IOException, ExecutionException, InterruptedException {
         final var threadContext = new ThreadContext(Settings.EMPTY);
         final var remoteAccessHeaders = new RemoteAccessHeaders(
             RemoteAccessHeadersTests.randomEncodedApiKeyHeader(),
@@ -141,13 +153,78 @@ public class RemoteAccessAuthenticationServiceTests extends ESTestCase {
         }
         verify(auditableRequest).authenticationSuccess(expectedAuthentication);
         verifyNoMoreInteractions(auditableRequest);
-        verify(authcContext).addAuthenticationToken(argThat(i -> {
-            final ApiKeyService.ApiKeyCredentials credentials = remoteAccessHeaders.clusterCredentials();
-            return i.principal().equals(credentials.principal()) && i.credentials().equals(credentials.credentials());
-        }));
+        verify(authcContext).addAuthenticationToken(credentialsArgMatches(remoteAccessHeaders.clusterCredentials()));
     }
 
-    private ClusterService mockClusterServiceWithMinNodeVersion(final Version version) {
+    public void testExceptionProcessingRequestOnInvalidRemoteAccessAuthentication() throws IOException {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+        final var remoteAccessHeaders = new RemoteAccessHeaders(
+            RemoteAccessHeadersTests.randomEncodedApiKeyHeader(),
+            new RemoteAccessAuthentication(
+                Authentication.newRealmAuthentication(AuthenticationTestHelper.randomUser(), AuthenticationTestHelper.randomRealmRef()),
+                new RoleDescriptorsIntersection(
+                    new RoleDescriptor(
+                        "invalid_role",
+                        new String[] { "all" }, // invalid privileges
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+
+                    )
+                )
+            )
+        );
+        remoteAccessHeaders.writeToContext(threadContext);
+        final AuthenticationService.AuditableRequest auditableRequest = mock(AuthenticationService.AuditableRequest.class);
+        final ArgumentCaptor<Authentication> authenticationCapture = ArgumentCaptor.forClass(Authentication.class);
+        doNothing().when(auditableRequest).authenticationSuccess(authenticationCapture.capture());
+        final Authenticator.Context authcContext = mock(Authenticator.Context.class, Mockito.RETURNS_DEEP_STUBS);
+        final ArgumentCaptor<AuthenticationToken> authenticationTokenCapture = ArgumentCaptor.forClass(AuthenticationToken.class);
+        doNothing().when(authcContext).addAuthenticationToken(authenticationTokenCapture.capture());
+        when(authcContext.getMostRecentAuthenticationToken()).thenAnswer(ignored -> authenticationTokenCapture.getValue());
+        when(authcContext.getThreadContext()).thenReturn(threadContext);
+        when(authcContext.getRequest()).thenReturn(auditableRequest);
+        when(auditableRequest.exceptionProcessingRequest(any(), any())).thenAnswer(
+            i -> new ElasticsearchSecurityException("potato", (Exception) i.getArguments()[0])
+        );
+        when(authenticationService.newContext(anyString(), any(), anyBoolean())).thenReturn(authcContext);
+        @SuppressWarnings("unchecked")
+        final ArgumentCaptor<ActionListener<Authentication>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
+        doAnswer(i -> null).when(authenticationService).authenticate(eq(authcContext), listenerCaptor.capture());
+        final RemoteAccessAuthenticationService service = new RemoteAccessAuthenticationService(
+            clusterService,
+            apiKeyService,
+            authenticationService
+        );
+
+        final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
+        service.authenticate("action", mock(TransportRequest.class), future);
+        final Authentication apiKeyAuthentication = AuthenticationTestHelper.builder().apiKey().build(false);
+        listenerCaptor.getValue().onResponse(apiKeyAuthentication);
+
+        final ExecutionException actual = expectThrows(ExecutionException.class, future::get);
+
+        assertThat(actual.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(
+            actual.getCause().getCause().getMessage(),
+            containsString("role descriptor for remote access can only contain index privileges but other privileges found for subject")
+        );
+        verify(auditableRequest).exceptionProcessingRequest(
+            any(Exception.class),
+            credentialsArgMatches(remoteAccessHeaders.clusterCredentials())
+        );
+        verifyNoMoreInteractions(auditableRequest);
+    }
+
+    private static AuthenticationToken credentialsArgMatches(AuthenticationToken credentials) {
+        return argThat(arg -> arg.principal().equals(credentials.principal()) && arg.credentials().equals(credentials.credentials()));
+    }
+
+    private static ClusterService mockClusterServiceWithMinNodeVersion(final Version version) {
         final ClusterService clusterService = mock(ClusterService.class, Mockito.RETURNS_DEEP_STUBS);
         when(clusterService.state().nodes().getMinNodeVersion()).thenReturn(version);
         return clusterService;

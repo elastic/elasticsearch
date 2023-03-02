@@ -333,8 +333,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public boolean ensureTranslogSynced(Stream<Translog.Location> locations) {
-        return false;
+    public void ensureTranslogSynced(Stream<Translog.Location> locations) {
     }
 
     @Override

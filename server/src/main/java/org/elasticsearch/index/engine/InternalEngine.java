@@ -584,12 +584,11 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException {
+    public void ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException {
         final boolean synced = translog.ensureSynced(locations);
         if (synced) {
             revisitIndexDeletionPolicyOnTranslogSynced();
         }
-        return synced;
     }
 
     @Override

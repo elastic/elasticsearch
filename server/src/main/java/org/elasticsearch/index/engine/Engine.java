@@ -742,7 +742,7 @@ public abstract class Engine implements Closeable {
     /**
      * Ensures that all locations in the given stream have been written to the underlying storage.
      */
-    public abstract boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException;
+    public abstract void ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException;
 
     public abstract void syncTranslog() throws IOException;
 

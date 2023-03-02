@@ -1733,7 +1733,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             stringBuilder.append("]");
             return stringBuilder.toString();
         }
-
     }
 
     public static void registerSettings(List<Setting<?>> settings) {

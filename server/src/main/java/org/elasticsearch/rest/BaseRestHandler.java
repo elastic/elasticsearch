@@ -29,7 +29,6 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.stream.Collectors;
 
 /**
  * Base handler for REST requests.

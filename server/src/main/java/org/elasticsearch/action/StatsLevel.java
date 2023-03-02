@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.common.Strings;
+
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public enum StatsLevel {
@@ -33,8 +35,13 @@ public enum StatsLevel {
 
         ActionRequestValidationException validationException = null;
         if (isLevelValid == false) {
-            String errorMsg = String.format("level parameter must be one of [%s] or [%s] or [%s] but was [%s]",
-                CLUSTER.getName(), INDICES.getName(), SHARDS.getName(), level);
+            String errorMsg = Strings.format(
+                "level parameter must be one of [%s] or [%s] or [%s] but was [%s]",
+                CLUSTER.getName(),
+                INDICES.getName(),
+                SHARDS.getName(),
+                level
+            );
             validationException = addValidationError(errorMsg, null);
         }
         return validationException;
@@ -47,8 +54,13 @@ public enum StatsLevel {
 
         ActionRequestValidationException validationException = null;
         if (isLevelValid == false) {
-            String errorMsg = String.format("level parameter must be one of [%s] or [%s] or [%s] but was [%s]",
-                NODE.getName(), INDICES.getName(), SHARDS.getName(), level);
+            String errorMsg = Strings.format(
+                "level parameter must be one of [%s] or [%s] or [%s] but was [%s]",
+                NODE.getName(),
+                INDICES.getName(),
+                SHARDS.getName(),
+                level
+            );
             validationException = addValidationError(errorMsg, null);
         }
         return validationException;

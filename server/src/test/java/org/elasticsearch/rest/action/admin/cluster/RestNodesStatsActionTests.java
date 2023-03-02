@@ -162,7 +162,9 @@ public class RestNodesStatsActionTests extends ESTestCase {
         action.prepareRequest(request, mock(NodeClient.class));
 
         params.put("level", "invalid");
-        final RestRequest invalidLevelRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats").withParams(params).build();
+        final RestRequest invalidLevelRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats")
+            .withParams(params)
+            .build();
 
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

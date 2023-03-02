@@ -9,7 +9,6 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.StatsLevel;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;

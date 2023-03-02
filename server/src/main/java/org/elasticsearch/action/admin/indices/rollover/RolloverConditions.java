@@ -257,6 +257,10 @@ public class RolloverConditions implements Writeable, ToXContentObject {
         return builder;
     }
 
+    /**
+     * Parses a cluster setting configuration, it expects it to have the following format: "condition1=value1,condition2=value2"
+     * @throws ElasticsearchParseException if the input is invalid, if there are unknown conditions or invalid format values.
+     */
     public static RolloverConditions parseSetting(String input, String setting) {
         String[] sConditions = input.split(",");
         RolloverConditions.Builder builder = newBuilder();

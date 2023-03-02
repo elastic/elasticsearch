@@ -260,6 +260,9 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         return toXContent(builder, params, null);
     }
 
+    /**
+     * Converts the composable index template to XContent and passes the RolloverConditions, when provided, to the template.
+     */
     public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConditions rolloverConditions)
         throws IOException {
         builder.startObject();

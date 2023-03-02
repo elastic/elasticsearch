@@ -166,14 +166,16 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
                     streamHealth.getStatus(),
                     indexTemplate,
                     ilmPolicyName,
-                    timeSeries,
-                    request.includeDefaults() && DataLifecycle.isEnabled()
-                        ? clusterSettings.get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING)
-                        : null
+                    timeSeries
                 )
             );
         }
-        return new GetDataStreamAction.Response(dataStreamInfos);
+        return new GetDataStreamAction.Response(
+            dataStreamInfos,
+            request.includeDefaults() && DataLifecycle.isEnabled()
+                ? clusterSettings.get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING)
+                : null
+        );
     }
 
     static List<DataStream> getDataStreams(

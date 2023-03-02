@@ -705,6 +705,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return toXContent(builder, params, null);
     }
 
+    /**
+     * Converts the data stream to XContent and passes the RolloverConditions, when provided, to the lifecycle.
+     */
     public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConditions rolloverConditions)
         throws IOException {
         builder.startObject();

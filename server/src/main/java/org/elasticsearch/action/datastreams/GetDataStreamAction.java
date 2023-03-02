@@ -168,8 +168,6 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             private final String ilmPolicyName;
             @Nullable
             private final TimeSeries timeSeries;
-            @Nullable
-            private final RolloverConditions rolloverConditions;
 
             public DataStreamInfo(
                 DataStream dataStream,
@@ -178,23 +176,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 @Nullable String ilmPolicyName,
                 @Nullable TimeSeries timeSeries
             ) {
-                this(dataStream, dataStreamStatus, indexTemplate, ilmPolicyName, timeSeries, null);
-            }
-
-            public DataStreamInfo(
-                DataStream dataStream,
-                ClusterHealthStatus dataStreamStatus,
-                @Nullable String indexTemplate,
-                @Nullable String ilmPolicyName,
-                @Nullable TimeSeries timeSeries,
-                @Nullable RolloverConditions rolloverConditions
-            ) {
                 this.dataStream = dataStream;
                 this.dataStreamStatus = dataStreamStatus;
                 this.indexTemplate = indexTemplate;
                 this.ilmPolicyName = ilmPolicyName;
                 this.timeSeries = timeSeries;
-                this.rolloverConditions = rolloverConditions;
             }
 
             DataStreamInfo(StreamInput in) throws IOException {
@@ -203,10 +189,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     ClusterHealthStatus.readFrom(in),
                     in.readOptionalString(),
                     in.readOptionalString(),
-                    in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0) ? in.readOptionalWriteable(TimeSeries::new) : null,
-                    in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()
-                        ? in.readOptionalWriteable(RolloverConditions::new)
-                        : null
+                    in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0) ? in.readOptionalWriteable(TimeSeries::new) : null
                 );
             }
 
@@ -242,13 +225,18 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
                     out.writeOptionalWriteable(timeSeries);
                 }
-                if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
-                    out.writeOptionalWriteable(rolloverConditions);
-                }
             }
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                return toXContent(builder, params, null);
+            }
+
+            /**
+             * Converts the response to XContent and passes the RolloverConditions, when provided, to the data stream.
+             */
+            public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConditions rolloverConditions)
+                throws IOException {
                 builder.startObject();
                 builder.field(DataStream.NAME_FIELD.getPreferredName(), dataStream.getName());
                 builder.field(DataStream.TIMESTAMP_FIELD_FIELD.getPreferredName(), dataStream.getTimeStampField());
@@ -337,22 +325,41 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         }
 
         private final List<DataStreamInfo> dataStreams;
+        @Nullable
+        private final RolloverConditions rolloverConditions;
 
         public Response(List<DataStreamInfo> dataStreams) {
+            this(dataStreams, null);
+        }
+
+        public Response(List<DataStreamInfo> dataStreams, RolloverConditions rolloverConditions) {
             this.dataStreams = dataStreams;
+            this.rolloverConditions = rolloverConditions;
         }
 
         public Response(StreamInput in) throws IOException {
-            this(in.readList(DataStreamInfo::new));
+            this(
+                in.readList(DataStreamInfo::new),
+                in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()
+                    ? in.readOptionalWriteable(RolloverConditions::new)
+                    : null
+            );
         }
 
         public List<DataStreamInfo> getDataStreams() {
             return dataStreams;
         }
 
+        public RolloverConditions getRolloverConditions() {
+            return rolloverConditions;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeList(dataStreams);
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+                out.writeOptionalWriteable(rolloverConditions);
+            }
         }
 
         @Override
@@ -360,7 +367,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             builder.startObject();
             builder.startArray(DATA_STREAMS_FIELD.getPreferredName());
             for (DataStreamInfo dataStream : dataStreams) {
-                dataStream.toXContent(builder, params);
+                dataStream.toXContent(builder, params, rolloverConditions);
             }
             builder.endArray();
             builder.endObject();
@@ -372,12 +379,12 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
-            return dataStreams.equals(response.dataStreams);
+            return dataStreams.equals(response.dataStreams) && Objects.equals(rolloverConditions, response.rolloverConditions);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(dataStreams);
+            return Objects.hash(dataStreams, rolloverConditions);
         }
     }
 

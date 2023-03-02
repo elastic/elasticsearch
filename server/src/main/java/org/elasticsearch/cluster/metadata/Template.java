@@ -215,8 +215,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
     }
 
     /**
-     * Converts the template to XContent and passes the RolloverCondition if they exist to the
-     * data lifecycle, so they can be added at a lower level.
+     * Converts the template to XContent and passes the RolloverConditions, when provided, to the lifecycle.
      */
     public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConditions rolloverConditions)
         throws IOException {

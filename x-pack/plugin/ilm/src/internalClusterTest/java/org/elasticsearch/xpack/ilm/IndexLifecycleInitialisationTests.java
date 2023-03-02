@@ -499,10 +499,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         // update the poll interval
         TimeValue newPollInterval = TimeValue.timeValueHours(randomLongBetween(6, 1000));
-        Settings newIntervalSettings = Settings.builder()
-            .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, newPollInterval.getStringRep())
-            .build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(newIntervalSettings));
+        updateClusterSettings(Settings.builder().put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, newPollInterval.getStringRep()));
         {
             TimeValueSchedule schedule = (TimeValueSchedule) indexLifecycleService.getScheduledJob().getSchedule();
             assertThat(schedule.getInterval(), equalTo(newPollInterval));

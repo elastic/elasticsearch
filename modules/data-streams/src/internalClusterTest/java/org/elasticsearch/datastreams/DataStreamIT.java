@@ -1139,11 +1139,7 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(getSettingsResponse.getSetting(backingIndex1, "index.number_of_replicas"), equalTo("1"));
         assertThat(getSettingsResponse.getSetting(backingIndex2, "index.number_of_replicas"), equalTo("1"));
 
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("logs-foobar")
-            .setSettings(Settings.builder().put("index.number_of_replicas", 0))
-            .get();
+        setReplicaCount(0, "logs-foobar");
         getSettingsResponse = client().admin().indices().prepareGetSettings("logs-foobar").get();
         assertThat(getSettingsResponse.getIndexToSettings().size(), equalTo(2));
         assertThat(getSettingsResponse.getSetting(backingIndex1, "index.number_of_replicas"), equalTo("0"));

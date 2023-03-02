@@ -3,7 +3,10 @@
   - skip:
       version: " - 8.7.99"
       reason: "Data lifecycle in index templates was added after 8.7"
+      features: allowed_warnings
   - do:
+      allowed_warnings:
+        - "index template [template-with-lifecycle] has index patterns [dlm-managed-data-stream] matching patterns from existing older templates [global] with patterns (global => [*]); this template [template-with-lifecycle] will take precedence during new index creation"
       indices.put_index_template:
         name: template-with-lifecycle
         body:

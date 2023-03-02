@@ -22,6 +22,7 @@ import java.io.IOException;
 public class RescorePhase {
 
     public static void execute(SearchContext context) {
+        // Read access to queryResult doesn't need to incRef
         TopDocs topDocs = context.queryResult().topDocs().topDocs;
         if (topDocs.scoreDocs.length == 0) {
             return;
@@ -33,6 +34,7 @@ public class RescorePhase {
                 // here we only assert that this condition is met.
                 assert context.sort() == null && topDocsSortedByScore(topDocs) : "topdocs should be sorted after rescore";
             }
+            // Non-acquiring access to queryResult, just adding data.  Doesn't need to incRef
             context.queryResult()
                 .topDocs(new TopDocsAndMaxScore(topDocs, topDocs.scoreDocs[0].score), context.queryResult().sortValueFormats());
         } catch (IOException e) {

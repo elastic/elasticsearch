@@ -84,6 +84,7 @@ public final class InnerHitsPhase implements FetchSubPhase {
             if (results == null) {
                 hit.setInnerHits(results = new HashMap<>());
             }
+            // Read access to queryResult doesn't need to incRef
             innerHitsContext.queryResult().topDocs(topDoc, innerHitsContext.sort() == null ? null : innerHitsContext.sort().formats);
             int[] docIdsToLoad = new int[topDoc.topDocs.scoreDocs.length];
             for (int j = 0; j < topDoc.topDocs.scoreDocs.length; j++) {

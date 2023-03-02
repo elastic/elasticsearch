@@ -65,6 +65,7 @@ public class FetchPhase {
 
         if (context.docIdsToLoad() == null || context.docIdsToLoad().length == 0) {
             // no individual hits to process, so we shortcut
+            // Read access to queryResult doesn't need to incRef
             SearchHits hits = new SearchHits(new SearchHit[0], context.queryResult().getTotalHits(), context.queryResult().getMaxScore());
             context.fetchResult().shardResult(hits, null);
             return;
@@ -164,6 +165,7 @@ public class FetchPhase {
             throw new TaskCancelledException("cancelled");
         }
 
+        // Read access to queryResult doesn't need to incRef
         TotalHits totalHits = context.queryResult().getTotalHits();
         return new SearchHits(hits, totalHits, context.queryResult().getMaxScore());
     }

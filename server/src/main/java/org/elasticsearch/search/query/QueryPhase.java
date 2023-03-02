@@ -61,6 +61,7 @@ public class QueryPhase {
     public static void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
         if (searchContext.hasOnlySuggest()) {
             SuggestPhase.execute(searchContext);
+            // non-acquiring access to queryResult doesn't need to incRef
             searchContext.queryResult()
                 .topDocs(
                     new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
@@ -86,6 +87,7 @@ public class QueryPhase {
         AggregationPhase.execute(searchContext);
 
         if (searchContext.getProfilers() != null) {
+            // Non-acquiring access to queryResult doesn't need to incRef
             searchContext.queryResult().profileResults(searchContext.getProfilers().buildQueryPhaseResults());
         }
     }
@@ -98,6 +100,7 @@ public class QueryPhase {
     static boolean executeInternal(SearchContext searchContext) throws QueryPhaseExecutionException {
         final ContextIndexSearcher searcher = searchContext.searcher();
         final IndexReader reader = searcher.getIndexReader();
+        // I don't think we need to incRef queryResult here; it doesn't escape this method.
         QuerySearchResult queryResult = searchContext.queryResult();
         queryResult.searchTimedOut(false);
         try {
@@ -210,6 +213,7 @@ public class QueryPhase {
         } else {
             queryCollector = QueryCollectorContext.createQueryCollector(collectors);
         }
+        // I don't think we need to incRef here?  Not totally clear. I think this is just populating the QuerySearchResult object.
         QuerySearchResult queryResult = searchContext.queryResult();
         try {
             searcher.search(query, queryCollector);

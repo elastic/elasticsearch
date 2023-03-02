@@ -12,10 +12,12 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -46,9 +48,15 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
         private String[] names;
         private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
+        private boolean includeDefaults = false;
 
         public Request(String[] names) {
             this.names = names;
+        }
+
+        public Request(String[] names, boolean includeDefaults) {
+            this.names = names;
+            this.includeDefaults = includeDefaults;
         }
 
         public String[] getNames() {
@@ -64,6 +72,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             super(in);
             this.names = in.readOptionalStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+                this.includeDefaults = in.readBoolean();
+            } else {
+                this.includeDefaults = false;
+            }
         }
 
         @Override
@@ -71,6 +84,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             super.writeTo(out);
             out.writeOptionalStringArray(names);
             indicesOptions.writeIndicesOptions(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+                out.writeBoolean(includeDefaults);
+            }
         }
 
         @Override
@@ -78,12 +94,14 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Arrays.equals(names, request.names) && indicesOptions.equals(request.indicesOptions);
+            return Arrays.equals(names, request.names)
+                && indicesOptions.equals(request.indicesOptions)
+                && includeDefaults == request.includeDefaults;
         }
 
         @Override
         public int hashCode() {
-            int result = Objects.hash(indicesOptions);
+            int result = Objects.hash(indicesOptions, includeDefaults);
             result = 31 * result + Arrays.hashCode(names);
             return result;
         }
@@ -96,6 +114,10 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         @Override
         public IndicesOptions indicesOptions() {
             return indicesOptions;
+        }
+
+        public boolean includeDefaults() {
+            return includeDefaults;
         }
 
         public Request indicesOptions(IndicesOptions indicesOptions) {
@@ -111,6 +133,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         @Override
         public IndicesRequest indices(String... indices) {
             this.names = indices;
+            return this;
+        }
+
+        public Request includeDefaults(boolean includeDefaults) {
+            this.includeDefaults = includeDefaults;
             return this;
         }
     }
@@ -141,6 +168,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             private final String ilmPolicyName;
             @Nullable
             private final TimeSeries timeSeries;
+            @Nullable
+            private final RolloverConditions rolloverConditions;
 
             public DataStreamInfo(
                 DataStream dataStream,
@@ -149,11 +178,23 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 @Nullable String ilmPolicyName,
                 @Nullable TimeSeries timeSeries
             ) {
+                this(dataStream, dataStreamStatus, indexTemplate, ilmPolicyName, timeSeries, null);
+            }
+
+            public DataStreamInfo(
+                DataStream dataStream,
+                ClusterHealthStatus dataStreamStatus,
+                @Nullable String indexTemplate,
+                @Nullable String ilmPolicyName,
+                @Nullable TimeSeries timeSeries,
+                @Nullable RolloverConditions rolloverConditions
+            ) {
                 this.dataStream = dataStream;
                 this.dataStreamStatus = dataStreamStatus;
                 this.indexTemplate = indexTemplate;
                 this.ilmPolicyName = ilmPolicyName;
                 this.timeSeries = timeSeries;
+                this.rolloverConditions = rolloverConditions;
             }
 
             DataStreamInfo(StreamInput in) throws IOException {
@@ -162,7 +203,10 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     ClusterHealthStatus.readFrom(in),
                     in.readOptionalString(),
                     in.readOptionalString(),
-                    in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0) ? in.readOptionalWriteable(TimeSeries::new) : null
+                    in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0) ? in.readOptionalWriteable(TimeSeries::new) : null,
+                    in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()
+                        ? in.readOptionalWriteable(RolloverConditions::new)
+                        : null
                 );
             }
 
@@ -198,6 +242,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
                     out.writeOptionalWriteable(timeSeries);
                 }
+                if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+                    out.writeOptionalWriteable(rolloverConditions);
+                }
             }
 
             @Override
@@ -215,7 +262,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     builder.field(INDEX_TEMPLATE_FIELD.getPreferredName(), indexTemplate);
                 }
                 if (dataStream.getLifecycle() != null) {
-                    builder.field(LIFECYCLE_FIELD.getPreferredName(), dataStream.getLifecycle());
+                    builder.field(LIFECYCLE_FIELD.getPreferredName());
+                    dataStream.getLifecycle().toXContent(builder, params, rolloverConditions);
                 }
                 if (ilmPolicyName != null) {
                     builder.field(ILM_POLICY_FIELD.getPreferredName(), ilmPolicyName);

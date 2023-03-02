@@ -7,7 +7,10 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditionsTests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -19,7 +22,11 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -32,7 +39,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.randomIndexInstances;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItems;
@@ -539,7 +549,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             // never remove them all
             indicesToRemove.remove(0);
         }
-        var indicesToAdd = DataStreamTestHelper.randomIndexInstances();
+        var indicesToAdd = randomIndexInstances();
         var postSnapshotIndices = new ArrayList<>(preSnapshotDataStream.getIndices());
         postSnapshotIndices.removeAll(indicesToRemove);
         postSnapshotIndices.addAll(indicesToAdd);
@@ -584,7 +594,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         var indicesToAdd = new ArrayList<Index>();
         while (indicesToAdd.isEmpty()) {
             // ensure at least one index
-            indicesToAdd.addAll(DataStreamTestHelper.randomIndexInstances());
+            indicesToAdd.addAll(randomIndexInstances());
         }
 
         var postSnapshotDataStream = new DataStream(
@@ -803,4 +813,39 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         }
     }
 
+    public void testXContentSerializationWithRollover() throws IOException {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        List<Index> indices = randomIndexInstances();
+        long generation = indices.size() + ESTestCase.randomLongBetween(1, 128);
+        indices.add(new Index(getDefaultBackingIndexName(dataStreamName, generation), UUIDs.randomBase64UUID(LuceneTestCase.random())));
+        Map<String, Object> metadata = null;
+        if (randomBoolean()) {
+            metadata = Map.of("key", "value");
+        }
+
+        DataStream dataStream = new DataStream(
+            dataStreamName,
+            indices,
+            generation,
+            metadata,
+            randomBoolean(),
+            randomBoolean(),
+            false, // Some tests don't work well with system data streams, since these data streams require special handling
+            System::currentTimeMillis,
+            randomBoolean(),
+            randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
+            new DataLifecycle(randomMillisUpToYear9999())
+        );
+
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.humanReadable(true);
+            RolloverConditions rolloverConditions = RolloverConditionsTests.randomRolloverConditions();
+            dataStream.toXContent(builder, ToXContent.EMPTY_PARAMS, rolloverConditions);
+            String serialized = Strings.toString(builder);
+            assertThat(serialized, containsString("rollover"));
+            for (String label : rolloverConditions.getConditions().keySet()) {
+                assertThat(serialized, containsString(label));
+            }
+        }
+    }
 }

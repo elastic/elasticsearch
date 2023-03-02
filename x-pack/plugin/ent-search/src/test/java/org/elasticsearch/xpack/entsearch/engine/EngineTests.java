@@ -46,7 +46,7 @@ public class EngineTests extends ESTestCase {
 
     public final void testRandomSerialization() throws IOException {
         for (int runs = 0; runs < 10; runs++) {
-            Engine testInstance = randomEngine();
+            Engine testInstance = EngineTestUtils.randomEngine();
             assertTransportSerialization(testInstance);
             assertXContent(testInstance, randomBoolean());
             assertIndexSerialization(testInstance, Version.CURRENT);
@@ -56,6 +56,7 @@ public class EngineTests extends ESTestCase {
     public void testToXContent() throws IOException {
         String content = XContentHelper.stripWhitespace("""
             {
+              "name": "my_engine",
               "indices": ["my_index"],
               "analytics_collection_name": "my_engine_analytics",
               "updated_at_millis": 0
@@ -68,6 +69,20 @@ public class EngineTests extends ESTestCase {
             parsed = Engine.fromXContent(engine.name(), parser);
         }
         assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
+    }
+
+    public void testToXContentInvalidEngineName() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+              "name": "different_engine_name",
+              "indices": ["my_index"],
+              "analytics_collection_name": "my_engine_analytics",
+              "updated_at_millis": 0
+            }""");
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> Engine.fromXContentBytes("my_engine", new BytesArray(content), XContentType.JSON)
+        );
     }
 
     public void testMerge() {
@@ -131,15 +146,5 @@ public class EngineTests extends ESTestCase {
 
     private Engine copyInstance(Engine instance, Version version) throws IOException {
         return copyWriteable(instance, namedWriteableRegistry, Engine::new, version.transportVersion);
-    }
-
-    static Engine randomEngine() {
-        String name = randomAlphaOfLengthBetween(5, 10);
-        String[] indices = new String[randomIntBetween(1, 3)];
-        for (int i = 0; i < indices.length; i++) {
-            indices[i] = randomAlphaOfLengthBetween(10, 20);
-        }
-        String analyticsCollectionName = randomBoolean() ? randomAlphaOfLengthBetween(10, 15) : null;
-        return new Engine(name, indices, analyticsCollectionName);
     }
 }

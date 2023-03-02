@@ -91,14 +91,23 @@ public class Engine implements Writeable, ToXContentObject {
     private static final ConstructingObjectParser<Engine, String> PARSER = new ConstructingObjectParser<>(
         "engine",
         false,
-        (params, engineName) -> {
+        (params, engineResourceName) -> {
+            final String engineName = (String) params[0];
+            // If engine name is provided, check that it matches the resource name. We don't want it to be updatable
+            if (engineName != null) {
+                if (engineName.equals(engineResourceName) == false) {
+                    throw new IllegalArgumentException(
+                        "Engine name [" + engineName + "] does not match the resource engine name: [" + engineResourceName + "]"
+                    );
+                }
+            }
             @SuppressWarnings("unchecked")
-            final String[] indices = ((List<String>) params[0]).toArray(String[]::new);
-            final String analyticsCollectionName = (String) params[1];
-            final Long maybeUpdatedAtMillis = (Long) params[2];
+            final String[] indices = ((List<String>) params[1]).toArray(String[]::new);
+            final String analyticsCollectionName = (String) params[2];
+            final Long maybeUpdatedAtMillis = (Long) params[3];
             long updatedAtMillis = (maybeUpdatedAtMillis != null ? maybeUpdatedAtMillis : System.currentTimeMillis());
 
-            Engine newEngine = new Engine(engineName, indices, analyticsCollectionName);
+            Engine newEngine = new Engine(engineResourceName, indices, analyticsCollectionName);
             newEngine.setUpdatedAtMillis(updatedAtMillis);
             return newEngine;
         }
@@ -112,6 +121,7 @@ public class Engine implements Writeable, ToXContentObject {
     public static final ParseField BINARY_CONTENT_FIELD = new ParseField("binary_content");
 
     static {
+        PARSER.declareStringOrNull(optionalConstructorArg(), NAME_FIELD);
         PARSER.declareStringArray(constructorArg(), INDICES_FIELD);
         PARSER.declareStringOrNull(optionalConstructorArg(), ANALYTICS_COLLECTION_NAME_FIELD);
         PARSER.declareLong(optionalConstructorArg(), UPDATED_AT_MILLIS_FIELD);

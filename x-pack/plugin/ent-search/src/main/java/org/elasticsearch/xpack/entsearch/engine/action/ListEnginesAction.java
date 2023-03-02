@@ -11,35 +11,34 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.entsearch.engine.Engine;
-import org.elasticsearch.xpack.entsearch.engine.EngineIndexService;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 
 public class ListEnginesAction extends ActionType<ListEnginesAction.Response> {
 
     public static final ListEnginesAction INSTANCE = new ListEnginesAction();
-    public static final String NAME = "indices:admin/engine/list";
+    public static final String NAME = "cluster:manage/engines/list";
 
     public ListEnginesAction() {
         super(NAME, ListEnginesAction.Response::new);
     }
 
     // TODO Check if this should implement IndicesRequest.Replaceable
-    public static class Request extends ActionRequest implements IndicesRequest {
+    public static class Request extends ActionRequest {
 
         private static final String DEFAULT_QUERY = "*";
         private final String query;
@@ -82,16 +81,6 @@ public class ListEnginesAction extends ActionType<ListEnginesAction.Response> {
         }
 
         @Override
-        public String[] indices() {
-            return new String[] { EngineIndexService.ENGINE_ALIAS_NAME };
-        }
-
-        @Override
-        public IndicesOptions indicesOptions() {
-            return IndicesOptions.strictExpandOpen();
-        }
-
-        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
@@ -107,47 +96,27 @@ public class ListEnginesAction extends ActionType<ListEnginesAction.Response> {
 
     public static class Response extends ActionResponse implements StatusToXContentObject {
 
-        final Engine[] engines;
-        final PageParams pageParams;
-        final Integer totalResults;
+        public static final ParseField ENGINES_RESULT_FIELD = new ParseField("results");
+
+        final QueryPage<Engine> queryPage;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.pageParams = new PageParams(in);
-            this.totalResults = in.readVInt();
-            this.engines = in.readArray(Engine::new, Engine[]::new);
+            this.queryPage = new QueryPage<>(in, Engine::new);
         }
 
-        public Response(Engine[] engines, PageParams pageParams, Integer totalResults) {
-            this.engines = engines;
-            this.pageParams = pageParams;
-            this.totalResults = totalResults;
+        public Response(List<Engine> engines, Long totalResults) {
+            this.queryPage = new QueryPage<>(engines, totalResults, ENGINES_RESULT_FIELD);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            pageParams.writeTo(out);
-            out.writeVInt(totalResults);
-            out.writeArray(engines);
+            queryPage.writeTo(out);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            {
-                builder.startObject("_meta");
-                {
-                    builder.field("from", pageParams.getFrom());
-                    builder.field("size", pageParams.getSize());
-                    builder.field("total", totalResults);
-                }
-                builder.endObject();
-            }
-
-            builder.array("results", (Object[]) engines);
-            builder.endObject();
-
-            return builder;
+            return queryPage.toXContent(builder, params);
         }
 
         @Override
@@ -160,16 +129,12 @@ public class ListEnginesAction extends ActionType<ListEnginesAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response that = (Response) o;
-            return Arrays.equals(engines, that.engines)
-                && Objects.equals(pageParams, that.pageParams)
-                && Objects.equals(totalResults, that.totalResults);
+            return queryPage.equals(that.queryPage);
         }
 
         @Override
         public int hashCode() {
-            int result = Objects.hash(pageParams, totalResults);
-            result = 31 * result + Arrays.hashCode(engines);
-            return result;
+            return queryPage.hashCode();
         }
     }
 }

@@ -67,6 +67,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -313,7 +314,7 @@ public class EngineIndexService {
     }
 
     private static SearchEnginesResult mapSearchResponse(SearchResponse response) {
-        Engine[] engines = Arrays.stream(response.getHits().getHits()).map(EngineIndexService::hitToEngine).toArray(Engine[]::new);
+        final List<Engine> engines = Arrays.stream(response.getHits().getHits()).map(EngineIndexService::hitToEngine).toList();
         return new SearchEnginesResult(engines, (int) response.getHits().getTotalHits().value);
     }
 
@@ -430,5 +431,5 @@ public class EngineIndexService {
         }
     }
 
-    public record SearchEnginesResult(Engine[] engines, int totalResults) {}
+    public record SearchEnginesResult(List<Engine> engines, long totalResults) {}
 }

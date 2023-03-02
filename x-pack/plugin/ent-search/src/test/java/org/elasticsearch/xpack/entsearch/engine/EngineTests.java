@@ -59,7 +59,7 @@ public class EngineTests extends ESTestCase {
               "name": "my_engine",
               "indices": ["my_index"],
               "analytics_collection_name": "my_engine_analytics",
-              "updated_at_millis": 0
+              "updated_at_millis": 12345
             }""");
         Engine engine = Engine.fromXContentBytes("my_engine", new BytesArray(content), XContentType.JSON);
         boolean humanReadable = true;
@@ -95,13 +95,15 @@ public class EngineTests extends ESTestCase {
         String update = """
             {
               "indices": ["my_index_2", "my_index"],
-              "analytics_collection_name": "my_engine_analytics"
+              "analytics_collection_name": "my_engine_analytics",
+              "updated_at_millis": 12345
             }""";
         Engine engine = Engine.fromXContentBytes("my_engine", new BytesArray(content), XContentType.JSON);
         Engine updatedEngine = engine.merge(new BytesArray(update), XContentType.JSON, BigArrays.NON_RECYCLING_INSTANCE);
         assertNotSame(engine, updatedEngine);
         assertThat(updatedEngine.indices(), equalTo(new String[] { "my_index", "my_index_2" }));
         assertThat(updatedEngine.analyticsCollectionName(), equalTo("my_engine_analytics"));
+        assertThat(updatedEngine.updatedAtMillis(), equalTo(12345L));
     }
 
     private Engine assertXContent(Engine engine, boolean humanReadable) throws IOException {

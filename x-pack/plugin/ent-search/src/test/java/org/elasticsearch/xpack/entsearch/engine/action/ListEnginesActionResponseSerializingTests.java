@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.entsearch.engine.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.action.util.PageParams;
-import org.elasticsearch.xpack.entsearch.engine.Engine;
 import org.elasticsearch.xpack.entsearch.engine.EngineTestUtils;
 
 public class ListEnginesActionResponseSerializingTests extends AbstractWireSerializingTestCase<ListEnginesAction.Response> {
@@ -22,11 +20,9 @@ public class ListEnginesActionResponseSerializingTests extends AbstractWireSeria
 
     @Override
     protected ListEnginesAction.Response createTestInstance() {
-        PageParams pageParams = EngineTestUtils.randomPageParams();
         return new ListEnginesAction.Response(
-            randomArray(10, Engine[]::new, EngineTestUtils::randomEngine),
-            pageParams,
-            randomIntBetween(0, 1000)
+            randomList(10, EngineTestUtils::randomEngine),
+            randomLongBetween(0, 1000)
         );
     }
 

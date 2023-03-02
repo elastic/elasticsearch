@@ -111,13 +111,13 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
 
         {
             EngineIndexService.SearchEnginesResult searchResponse = awaitListEngine("*:*", 0, 10);
-            final Engine[] engines = searchResponse.engines();
+            final List<Engine> engines = searchResponse.engines();
             assertNotNull(engines);
-            assertThat(engines.length, equalTo(10));
+            assertThat(engines.size(), equalTo(10));
             assertThat(searchResponse.totalResults(), equalTo(10));
 
             for (int i = 0; i < NUM_INDICES; i++) {
-                Engine engine = engines[i];
+                Engine engine = engines.get(i);
                 assertThat(engine.name(), equalTo("my_engine_" + i));
                 assertThat(engine.indices(), equalTo(new String[] { "index_" + i }));
             }
@@ -125,14 +125,14 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
 
         {
             EngineIndexService.SearchEnginesResult searchResponse = awaitListEngine("*:*", 5, 10);
-            final Engine[] engines = searchResponse.engines();
+            final List<Engine> engines = searchResponse.engines();
             assertNotNull(engines);
-            assertThat(engines.length, equalTo(5));
+            assertThat(engines.size(), equalTo(5));
             assertThat(searchResponse.totalResults(), equalTo(10));
 
             for (int i = 0; i < 5; i++) {
                 int index = i + 5;
-                Engine engine = engines[i];
+                Engine engine = engines.get(i);
                 assertThat(engine.name(), equalTo("my_engine_" + index));
                 assertThat(engine.indices(), equalTo(new String[] { "index_" + index }));
             }
@@ -158,12 +158,12 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
                 "*_4" }) {
 
                 EngineIndexService.SearchEnginesResult searchResponse = awaitListEngine(queryString, 0, 10);
-                final Engine[] engines = searchResponse.engines();
+                final List<Engine> engines = searchResponse.engines();
                 assertNotNull(engines);
-                assertThat(engines.length, equalTo(1));
+                assertThat(engines.size(), equalTo(1));
                 assertThat(searchResponse.totalResults(), equalTo(1));
-                assertThat(engines[0].name(), equalTo("my_engine_4"));
-                assertThat(engines[0].indices(), equalTo(new String[] { "index_4" }));
+                assertThat(engines.get(0).name(), equalTo("my_engine_4"));
+                assertThat(engines.get(0).indices(), equalTo(new String[] { "index_4" }));
             }
         }
     }
@@ -185,13 +185,13 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
 
         {
             EngineIndexService.SearchEnginesResult searchResponse = awaitListEngine("*:*", 0, 10);
-            final Engine[] engines = searchResponse.engines();
+            final List<Engine> engines = searchResponse.engines();
             assertNotNull(engines);
-            assertThat(engines.length, equalTo(4));
+            assertThat(engines.size(), equalTo(4));
             assertThat(searchResponse.totalResults(), equalTo(4));
 
             for (int i = 0; i < 4; i++) {
-                Engine engine = engines[i];
+                Engine engine = engines.get(i);
                 assertThat(engine.name(), equalTo("my_engine_" + i));
                 assertThat(engine.indices(), equalTo(new String[] { "index_" + i }));
             }

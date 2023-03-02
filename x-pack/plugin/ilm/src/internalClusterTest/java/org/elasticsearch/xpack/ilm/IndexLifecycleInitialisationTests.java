@@ -282,11 +282,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         }
 
         // set the origination date setting to an older value
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test")
-            .setSettings(Collections.singletonMap(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, 1000L))
-            .get();
+        updateIndexSettings(Settings.builder().put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, 1000L), "test");
 
         {
             assertBusy(() -> {
@@ -296,11 +292,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         }
 
         // set the origination date setting to null
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test")
-            .setSettings(Collections.singletonMap(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, null))
-            .get();
+        updateIndexSettings(Settings.builder().putNull(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE), "test");
 
         {
             assertBusy(() -> {
@@ -314,11 +306,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         }
 
         // complete the step
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test")
-            .setSettings(Collections.singletonMap("index.lifecycle.test.complete", true))
-            .get();
+        updateIndexSettings(Settings.builder().put("index.lifecycle.test.complete", true), "test");
 
         {
             Phase phase = new Phase("mock", TimeValue.ZERO, Collections.singletonMap("TEST_ACTION", OBSERVABLE_ACTION));
@@ -369,11 +357,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         });
 
         // disabling the lifecycle parsing would maintain the parsed value as that was set as the origination date
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(indexName)
-            .setSettings(Collections.singletonMap(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, false))
-            .get();
+        updateIndexSettings(Settings.builder().put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, false), indexName);
 
         assertBusy(() -> {
             IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse(indexName);
@@ -381,11 +365,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         });
 
         // setting the lifecycle origination date setting to null should make the lifecyle date fallback on the index creation date
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(indexName)
-            .setSettings(Collections.singletonMap(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, null))
-            .get();
+        updateIndexSettings(Settings.builder().putNull(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE), indexName);
 
         assertBusy(() -> {
             IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse(indexName);
@@ -394,18 +374,12 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         // setting the lifecycle origination date to an explicit value overrides the date parsing
         long originationDate = 42L;
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(indexName)
-            .setSettings(
-                Map.of(
-                    LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE,
-                    true,
-                    LifecycleSettings.LIFECYCLE_ORIGINATION_DATE,
-                    originationDate
-                )
-            )
-            .get();
+        updateIndexSettings(
+            Settings.builder()
+                .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
+                .put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, originationDate),
+            indexName
+        );
 
         assertBusy(() -> {
             IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse(indexName);

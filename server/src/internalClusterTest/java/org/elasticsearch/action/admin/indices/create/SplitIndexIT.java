@@ -176,7 +176,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         }
 
         ensureYellow();
-        client().admin().indices().prepareUpdateSettings("source").setSettings(Settings.builder().put("index.blocks.write", true)).get();
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), "source");
         ensureGreen();
         Settings.Builder firstSplitSettingsBuilder = Settings.builder()
             .put("index.number_of_replicas", 0)
@@ -212,11 +212,7 @@ public class SplitIndexIT extends ESIntegTestCase {
             assertTrue(getResponse.isExists());
         }
 
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("first_split")
-            .setSettings(Settings.builder().put("index.blocks.write", true))
-            .get();
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), "first_split");
         ensureGreen();
         // now split source into a new index
         assertAcked(
@@ -238,11 +234,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         assertNoResizeSourceIndexSettings("second_split");
 
         // let it be allocated anywhere and bump replicas
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("second_split")
-            .setSettings(Settings.builder().put("index.number_of_replicas", 1))
-            .get();
+        setReplicaCount(1, "second_split");
         ensureGreen();
         assertHitCount(client().prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
 
@@ -340,8 +332,7 @@ public class SplitIndexIT extends ESIntegTestCase {
             }
         }
 
-        final Settings.Builder prepareSplitSettings = Settings.builder().put("index.blocks.write", true);
-        client().admin().indices().prepareUpdateSettings("source").setSettings(prepareSplitSettings).get();
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), "source");
         ensureYellow();
 
         final IndexMetadata indexMetadata = indexMetadata(client(), "source");
@@ -391,7 +382,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         // to the require._name below.
         ensureGreen();
         // relocate all shards to one node such that we can merge it.
-        client().admin().indices().prepareUpdateSettings("source").setSettings(Settings.builder().put("index.blocks.write", true)).get();
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), "source");
         ensureGreen();
 
         final IndicesStatsResponse sourceStats = client().admin().indices().prepareStats("source").setSegments(true).get();
@@ -461,11 +452,7 @@ public class SplitIndexIT extends ESIntegTestCase {
 
             if (createWithReplicas == false) {
                 // bump replicas
-                client().admin()
-                    .indices()
-                    .prepareUpdateSettings("target")
-                    .setSettings(Settings.builder().put("index.number_of_replicas", 1))
-                    .get();
+                setReplicaCount(1, "target");
                 ensureGreen();
                 assertHitCount(client().prepareSearch("target").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")).get(), docs);
             }
@@ -521,7 +508,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         flushAndRefresh();
         assertSortedSegments("source", expectedIndexSort);
 
-        client().admin().indices().prepareUpdateSettings("source").setSettings(Settings.builder().put("index.blocks.write", true)).get();
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), "source");
         ensureYellow();
 
         // check that index sort cannot be set on the target index

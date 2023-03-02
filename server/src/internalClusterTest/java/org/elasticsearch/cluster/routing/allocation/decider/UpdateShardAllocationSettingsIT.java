@@ -58,31 +58,25 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
 
         final String secondNode = internalCluster().startNode();
         // prevent via index setting but only on index test
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test")
-            .setSettings(
-                Settings.builder()
-                    .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
-            )
-            .get();
+        updateIndexSettings(
+            Settings.builder()
+                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE),
+            "test"
+        );
         client().admin().cluster().prepareReroute().get();
         ensureGreen();
         assertAllShardsOnNodes("test", firstNode);
         assertAllShardsOnNodes("test_1", firstNode);
 
         // now enable the index test to relocate since index settings override cluster settings
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test")
-            .setSettings(
-                Settings.builder()
-                    .put(
-                        EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(),
-                        randomBoolean() ? EnableAllocationDecider.Rebalance.PRIMARIES : EnableAllocationDecider.Rebalance.ALL
-                    )
-            )
-            .get();
+        updateIndexSettings(
+            Settings.builder()
+                .put(
+                    EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(),
+                    randomBoolean() ? EnableAllocationDecider.Rebalance.PRIMARIES : EnableAllocationDecider.Rebalance.ALL
+                ),
+            "test"
+        );
         logger.info("--> balance index [test]");
         client().admin().cluster().prepareReroute().get();
         ensureGreen("test");

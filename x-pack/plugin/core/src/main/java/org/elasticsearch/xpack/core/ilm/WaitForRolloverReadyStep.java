@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -22,7 +23,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
-import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -34,16 +34,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
 
     public static final String NAME = "check-rollover-ready";
 
-    private final ByteSizeValue maxSize;
-    private final ByteSizeValue maxPrimaryShardSize;
-    private final TimeValue maxAge;
-    private final Long maxDocs;
-    private final Long maxPrimaryShardDocs;
-    private final ByteSizeValue minSize;
-    private final ByteSizeValue minPrimaryShardSize;
-    private final TimeValue minAge;
-    private final Long minDocs;
-    private final Long minPrimaryShardDocs;
+    private final RolloverConditions conditions;
 
     public WaitForRolloverReadyStep(
         StepKey key,
@@ -61,16 +52,23 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         Long minPrimaryShardDocs
     ) {
         super(key, nextStepKey, client);
-        this.maxSize = maxSize;
-        this.maxPrimaryShardSize = maxPrimaryShardSize;
-        this.maxAge = maxAge;
-        this.maxDocs = maxDocs;
-        this.maxPrimaryShardDocs = maxPrimaryShardDocs;
-        this.minSize = minSize;
-        this.minPrimaryShardSize = minPrimaryShardSize;
-        this.minAge = minAge;
-        this.minDocs = minDocs;
-        this.minPrimaryShardDocs = minPrimaryShardDocs;
+        this.conditions = RolloverConditions.newBuilder()
+            .addMaxIndexSizeCondition(maxSize)
+            .addMaxPrimaryShardSizeCondition(maxPrimaryShardSize)
+            .addMaxIndexAgeCondition(maxAge)
+            .addMaxIndexDocsCondition(maxDocs)
+            .addMaxPrimaryShardDocsCondition(maxPrimaryShardDocs)
+            .addMinIndexSizeCondition(minSize)
+            .addMinPrimaryShardSizeCondition(minPrimaryShardSize)
+            .addMinIndexAgeCondition(minAge)
+            .addMinIndexDocsCondition(minDocs)
+            .addMinPrimaryShardDocsCondition(minPrimaryShardDocs)
+            .build();
+    }
+
+    public WaitForRolloverReadyStep(StepKey key, StepKey nextStepKey, Client client, RolloverConditions conditions) {
+        super(key, nextStepKey, client);
+        this.conditions = conditions;
     }
 
     @Override
@@ -206,7 +204,10 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             .rolloverIndex(
                 rolloverRequest,
                 ActionListener.wrap(
-                    response -> listener.onResponse(rolloverRequest.areConditionsMet(response.getConditionStatus()), EmptyInfo.INSTANCE),
+                    response -> listener.onResponse(
+                        rolloverRequest.getConditions().areConditionsMet(response.getConditionStatus()),
+                        EmptyInfo.INSTANCE
+                    ),
                     listener::onFailure
                 )
             );
@@ -228,98 +229,21 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
     RolloverRequest createRolloverRequest(String rolloverTarget, TimeValue masterTimeout, boolean rolloverOnlyIfHasDocuments) {
         RolloverRequest rolloverRequest = new RolloverRequest(rolloverTarget, null).masterNodeTimeout(masterTimeout);
         rolloverRequest.dryRun(true);
-        if (maxSize != null) {
-            rolloverRequest.addMaxIndexSizeCondition(maxSize);
-        }
-        if (maxPrimaryShardSize != null) {
-            rolloverRequest.addMaxPrimaryShardSizeCondition(maxPrimaryShardSize);
-        }
-        if (maxAge != null) {
-            rolloverRequest.addMaxIndexAgeCondition(maxAge);
-        }
-        if (maxDocs != null) {
-            rolloverRequest.addMaxIndexDocsCondition(maxDocs);
-        }
-        if (maxPrimaryShardDocs != null) {
-            rolloverRequest.addMaxPrimaryShardDocsCondition(maxPrimaryShardDocs);
-        }
-        if (minSize != null) {
-            rolloverRequest.addMinIndexSizeCondition(minSize);
-        }
-        if (minPrimaryShardSize != null) {
-            rolloverRequest.addMinPrimaryShardSizeCondition(minPrimaryShardSize);
-        }
-        if (minAge != null) {
-            rolloverRequest.addMinIndexAgeCondition(minAge);
-        }
-        if (minDocs != null) {
-            rolloverRequest.addMinIndexDocsCondition(minDocs);
-        }
-        if (minPrimaryShardDocs != null) {
-            rolloverRequest.addMinPrimaryShardDocsCondition(minPrimaryShardDocs);
-        }
-
-        if (rolloverOnlyIfHasDocuments && (minDocs == null && minPrimaryShardDocs == null)) {
-            rolloverRequest.addMinIndexDocsCondition(1L);
+        if (rolloverOnlyIfHasDocuments && (conditions.getMinDocs() == null && conditions.getMinPrimaryShardDocs() == null)) {
+            rolloverRequest.setConditions(RolloverConditions.newBuilder(conditions).addMinIndexDocsCondition(1L).build());
+        } else {
+            rolloverRequest.setConditions(conditions);
         }
         return rolloverRequest;
     }
 
-    ByteSizeValue getMaxSize() {
-        return maxSize;
-    }
-
-    ByteSizeValue getMaxPrimaryShardSize() {
-        return maxPrimaryShardSize;
-    }
-
-    TimeValue getMaxAge() {
-        return maxAge;
-    }
-
-    Long getMaxDocs() {
-        return maxDocs;
-    }
-
-    Long getMaxPrimaryShardDocs() {
-        return maxPrimaryShardDocs;
-    }
-
-    ByteSizeValue getMinSize() {
-        return minSize;
-    }
-
-    ByteSizeValue getMinPrimaryShardSize() {
-        return minPrimaryShardSize;
-    }
-
-    TimeValue getMinAge() {
-        return minAge;
-    }
-
-    Long getMinDocs() {
-        return minDocs;
-    }
-
-    Long getMinPrimaryShardDocs() {
-        return minPrimaryShardDocs;
+    public RolloverConditions getConditions() {
+        return conditions;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-            super.hashCode(),
-            maxSize,
-            maxPrimaryShardSize,
-            maxAge,
-            maxDocs,
-            maxPrimaryShardDocs,
-            minSize,
-            minPrimaryShardSize,
-            minAge,
-            minDocs,
-            minPrimaryShardDocs
-        );
+        return Objects.hash(super.hashCode(), conditions);
     }
 
     @Override
@@ -331,17 +255,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             return false;
         }
         WaitForRolloverReadyStep other = (WaitForRolloverReadyStep) obj;
-        return super.equals(obj)
-            && Objects.equals(maxSize, other.maxSize)
-            && Objects.equals(maxPrimaryShardSize, other.maxPrimaryShardSize)
-            && Objects.equals(maxAge, other.maxAge)
-            && Objects.equals(maxDocs, other.maxDocs)
-            && Objects.equals(maxPrimaryShardDocs, other.maxPrimaryShardDocs)
-            && Objects.equals(minSize, other.minSize)
-            && Objects.equals(minPrimaryShardSize, other.minPrimaryShardSize)
-            && Objects.equals(minAge, other.minAge)
-            && Objects.equals(minDocs, other.minDocs)
-            && Objects.equals(minPrimaryShardDocs, other.minPrimaryShardDocs);
+        return super.equals(obj) && Objects.equals(conditions, other.conditions);
     }
 
     // We currently have no information to provide for this AsyncWaitStep, so this is an empty object
@@ -352,7 +266,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         private EmptyInfo() {}
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) {
             return builder;
         }
     }

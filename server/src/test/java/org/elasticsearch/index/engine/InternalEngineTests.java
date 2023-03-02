@@ -7588,25 +7588,6 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    public void testFlushAndRefresh() throws IOException {
-        try (
-            Store store = createStore();
-            InternalEngine engine =
-                // disable merges to make sure that the reader doesn't change unexpectedly during the test
-                createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE)
-        ) {
-            var generation1 = engine.flushAndRefresh("warm_up");
-            assertThat(generation1, equalTo(engine.getLastCommittedSegmentInfos().getGeneration()));
-            for (int i = 0; i < 10; i++) {
-                engine.index(indexForDoc(createParsedDoc(String.valueOf(i), EngineTestCase.randomIdFieldType(), null)));
-            }
-            assertTrue(engine.refreshNeeded());
-            long generation2 = engine.flushAndRefresh("test");
-            assertThat(generation2, greaterThan(generation1));
-            assertThat(generation2, equalTo(engine.getLastCommittedSegmentInfos().getGeneration()));
-        }
-    }
-
     public void testFlushListener() throws Exception {
         try (
             Store store = createStore();

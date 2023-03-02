@@ -1237,19 +1237,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Flushes all indexing changes to disk, triggers a new commit, and opens a new searcher reflecting all changes. Returns the committed
-     * generation.
-     * This can throw {@link AlreadyClosedException}.
-     */
-    public long flushAndRefresh(String source) {
-        verifyNotClosed();
-        if (logger.isTraceEnabled()) {
-            logger.trace("flush and refresh with source [{}]", source);
-        }
-        return getEngine().flushAndRefresh(source);
-    }
-
-    /**
      * Returns how many bytes we are currently moving from heap to disk
      */
     public long getWritingBytes() {

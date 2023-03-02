@@ -56,11 +56,11 @@ public class PostWriteRefresh {
                     listener.onFailure(e);
                 }
             });
-            case IMMEDIATE -> immediate(indexShard, hasUnpromotableReplicas, new ActionListener<>() {
+            case IMMEDIATE -> immediate(indexShard, new ActionListener<>() {
                 @Override
-                public void onResponse(Long generation) {
+                public void onResponse(Void ignored) {
                     if (hasUnpromotableReplicas) {
-                        sendUnpromotableRequests(indexShard, generation, true, listener);
+                        sendUnpromotableRequests(indexShard, indexShard.commitStats().getGeneration(), true, listener);
                     } else {
                         listener.onResponse(true);
                     }
@@ -84,20 +84,14 @@ public class PostWriteRefresh {
         switch (policy) {
             case NONE -> listener.onResponse(false);
             case WAIT_UNTIL -> waitUntil(indexShard, location, listener);
-            case IMMEDIATE -> immediate(indexShard, false, listener.map(r -> true));
+            case IMMEDIATE -> immediate(indexShard, listener.map(r -> true));
             default -> throw new IllegalArgumentException("unknown refresh policy: " + policy);
         }
     }
 
-    private static void immediate(IndexShard indexShard, boolean needsFlush, ActionListener<Long> listener) {
-        final long flushedGeneration;
-        if (needsFlush) {
-            flushedGeneration = indexShard.flushAndRefresh(FORCED_REFRESH_AFTER_INDEX);
-        } else {
-            indexShard.refresh(FORCED_REFRESH_AFTER_INDEX);
-            flushedGeneration = ShardRefreshReplicaRequest.NO_FLUSH_PERFORMED;
-        }
-        listener.onResponse(flushedGeneration);
+    private static void immediate(IndexShard indexShard, ActionListener<Void> listener) {
+        indexShard.refresh(FORCED_REFRESH_AFTER_INDEX);
+        listener.onResponse(null);
     }
 
     private static void waitUntil(IndexShard indexShard, Translog.Location location, ActionListener<Boolean> listener) {

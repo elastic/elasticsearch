@@ -1966,12 +1966,4 @@ public abstract class Engine implements Closeable {
     public void addFlushListener(Translog.Location location, ActionListener<Long> listener) {
         listener.onFailure(new UnsupportedOperationException("Engine type " + this.getClass() + " does not support flush listeners."));
     }
-
-    public long flushAndRefresh(String source) {
-        flush(true, true);
-        SegmentInfos lastCommittedSegmentInfos = getLastCommittedSegmentInfos();
-        refresh(source);
-        return lastCommittedSegmentInfos.getGeneration();
-
-    }
 }

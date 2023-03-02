@@ -435,14 +435,7 @@ public class RelocationIT extends ESIntegTestCase {
         corruptionCount.await();
 
         logger.info("--> stopping replica assignment");
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
-                )
-        );
+        updateClusterSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"));
 
         logger.info("--> wait for all replica shards to be removed, on all nodes");
         assertBusy(() -> {

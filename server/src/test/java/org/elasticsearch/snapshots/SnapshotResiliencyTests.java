@@ -1755,6 +1755,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         .build(),
                     snapshotsInfoService
                 );
+                assertCriticalWarnings(
+                    "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release."
+                );
                 rerouteService = new BatchedRerouteService(clusterService, allocationService::reroute);
                 rerouteServiceSetOnce.set(rerouteService);
                 final IndexScopedSettings indexScopedSettings = new IndexScopedSettings(

@@ -1834,21 +1834,20 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public RefreshResult refresh(String source) throws EngineException {
-        return refresh(source, SearcherScope.EXTERNAL, true);
+    public void refresh(String source) throws EngineException {
+        refresh(source, SearcherScope.EXTERNAL, true);
     }
 
     @Override
-    public RefreshResult maybeRefresh(String source) throws EngineException {
+    public boolean maybeRefresh(String source) throws EngineException {
         return refresh(source, SearcherScope.EXTERNAL, false);
     }
 
-    final RefreshResult refresh(String source, SearcherScope scope, boolean block) throws EngineException {
+    final boolean refresh(String source, SearcherScope scope, boolean block) throws EngineException {
         // both refresh types will result in an internal refresh but only the external will also
         // pass the new reader reference to the external reader manager.
         final long localCheckpointBeforeRefresh = localCheckpointTracker.getProcessedCheckpoint();
         boolean refreshed;
-        long segmentGeneration = RefreshResult.UNKNOWN_GENERATION;
         try {
             // refresh does not need to hold readLock as ReferenceManager can handle correctly if the engine is closed in mid-way.
             if (store.tryIncRef()) {
@@ -1863,14 +1862,6 @@ public class InternalEngine extends Engine {
                         refreshed = true;
                     } else {
                         refreshed = referenceManager.maybeRefresh();
-                    }
-                    if (refreshed) {
-                        final ElasticsearchDirectoryReader current = referenceManager.acquire();
-                        try {
-                            segmentGeneration = current.getIndexCommit().getGeneration();
-                        } finally {
-                            referenceManager.release(current);
-                        }
                     }
                 } finally {
                     store.decRef();
@@ -1903,7 +1894,7 @@ public class InternalEngine extends Engine {
         // for a long time:
         maybePruneDeletes();
         mergeScheduler.refreshConfig();
-        return new RefreshResult(refreshed, segmentGeneration);
+        return refreshed;
     }
 
     @Override

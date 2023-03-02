@@ -1228,12 +1228,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Writes all indexing changes to disk and opens a new searcher reflecting all changes.  This can throw {@link AlreadyClosedException}.
      */
-    public Engine.RefreshResult refresh(String source) {
+    public void refresh(String source) {
         verifyNotClosed();
         if (logger.isTraceEnabled()) {
             logger.trace("refresh with source [{}]", source);
         }
-        return getEngine().refresh(source);
+        getEngine().refresh(source);
+    }
+
+    /**
+     * Flushes all indexing changes to disk, triggers a new commit, and opens a new searcher reflecting all changes. Returns the committed
+     * generation.
+     * This can throw {@link AlreadyClosedException}.
+     */
+    public long flushAndRefresh(String source) {
+        verifyNotClosed();
+        if (logger.isTraceEnabled()) {
+            logger.trace("flush and refresh with source [{}]", source);
+        }
+        return getEngine().flushAndRefresh(source);
     }
 
     /**
@@ -3823,7 +3836,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 if (logger.isTraceEnabled()) {
                     logger.trace("refresh with source [schedule]");
                 }
-                return getEngine().maybeRefresh("schedule").refreshed();
+                return getEngine().maybeRefresh("schedule");
             }
         }
         final Engine engine = getEngine();

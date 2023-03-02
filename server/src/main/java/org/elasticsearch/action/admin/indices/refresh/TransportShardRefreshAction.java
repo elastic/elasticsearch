@@ -82,7 +82,14 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
         ActionListener<PrimaryResult<ShardRefreshReplicaRequest, ReplicationResponse>> listener
     ) {
         ActionListener.completeWith(listener, () -> {
-            ShardRefreshReplicaRequest replicaRequest = new ShardRefreshReplicaRequest(shardRequest.shardId(), primary.refresh(SOURCE_API));
+            final long generation;
+            if (primary.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0) {
+                generation = primary.flushAndRefresh(SOURCE_API);
+            } else {
+                primary.refresh(SOURCE_API);
+                generation = Long.MIN_VALUE;
+            }
+            ShardRefreshReplicaRequest replicaRequest = new ShardRefreshReplicaRequest(shardRequest.shardId(), generation);
             replicaRequest.setParentTask(shardRequest.getParentTask());
             logger.trace("{} refresh request executed on primary", primary.shardId());
             return new PrimaryResult<>(replicaRequest, new ReplicationResponse());
@@ -111,10 +118,13 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             IndexShardRoutingTable indexShardRoutingTable,
             ActionListener<Void> listener
         ) {
-            assert replicaRequest.primaryRefreshResult.refreshed() : "primary has not refreshed";
+            if (replicaRequest.flushedGeneration == ShardRefreshReplicaRequest.NO_FLUSH_PERFORMED) {
+                listener.onFailure(new IllegalArgumentException("Unpromotables require a flush to occur, but no flush occurred"));
+                return;
+            }
             UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
                 indexShardRoutingTable,
-                replicaRequest.primaryRefreshResult.generation()
+                replicaRequest.flushedGeneration
             );
             transportService.sendRequest(
                 transportService.getLocalNode(),

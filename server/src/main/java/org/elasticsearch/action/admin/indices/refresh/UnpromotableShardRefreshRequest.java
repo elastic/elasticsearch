@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.broadcast.unpromotable.BroadcastUnpromot
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.engine.Engine;
 
 import java.io.IOException;
 
@@ -36,7 +35,7 @@ public class UnpromotableShardRefreshRequest extends BroadcastUnpromotableReques
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (segmentGeneration == Engine.RefreshResult.UNKNOWN_GENERATION) {
+        if (segmentGeneration == ShardRefreshReplicaRequest.NO_FLUSH_PERFORMED) {
             validationException = addValidationError("segment generation is unknown", validationException);
         }
         return validationException;

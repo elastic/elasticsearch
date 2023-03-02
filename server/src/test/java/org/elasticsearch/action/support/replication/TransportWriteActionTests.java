@@ -33,7 +33,6 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexingPressure;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
@@ -102,7 +101,6 @@ public class TransportWriteActionTests extends ESTestCase {
         indexShard = mock(IndexShard.class);
         location = mock(Translog.Location.class);
         clusterService = createClusterService(threadPool);
-        when(indexShard.refresh(any())).thenReturn(new Engine.RefreshResult(true, 1));
         ReplicationGroup replicationGroup = mock(ReplicationGroup.class);
         when(indexShard.getReplicationGroup()).thenReturn(replicationGroup);
         when(replicationGroup.getReplicationTargets()).thenReturn(Collections.emptyList());

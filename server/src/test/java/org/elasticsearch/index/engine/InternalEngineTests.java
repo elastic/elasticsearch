@@ -5430,9 +5430,8 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.index(primaryResponse);
             }
             assertTrue(engine.refreshNeeded());
-            var refreshResult = engine.refresh("test", Engine.SearcherScope.INTERNAL, true);
-            assertTrue(refreshResult.refreshed());
-            assertNotEquals(refreshResult.generation(), Engine.RefreshResult.UNKNOWN_GENERATION);
+            var refreshed = engine.refresh("test", Engine.SearcherScope.INTERNAL, true);
+            assertTrue(refreshed);
             try (
                 Engine.Searcher getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
                 Engine.Searcher searchSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)
@@ -7589,27 +7588,22 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    public void testRefreshResult() throws IOException {
+    public void testFlushAndRefresh() throws IOException {
         try (
             Store store = createStore();
             InternalEngine engine =
                 // disable merges to make sure that the reader doesn't change unexpectedly during the test
                 createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE)
         ) {
-            var refresh1Result = engine.refresh("warm_up");
-            assertTrue(refresh1Result.refreshed());
-            assertNotEquals("when refreshed, generation must be set", refresh1Result.generation(), Engine.RefreshResult.UNKNOWN_GENERATION);
+            var generation1 = engine.flushAndRefresh("warm_up");
+            assertThat(generation1, equalTo(engine.getLastCommittedSegmentInfos().getGeneration()));
             for (int i = 0; i < 10; i++) {
                 engine.index(indexForDoc(createParsedDoc(String.valueOf(i), EngineTestCase.randomIdFieldType(), null)));
             }
             assertTrue(engine.refreshNeeded());
-            var refresh2Result = engine.refresh("test", Engine.SearcherScope.INTERNAL, true);
-            assertTrue(refresh2Result.refreshed());
-            assertThat(refresh2Result.generation(), greaterThanOrEqualTo(refresh1Result.generation()));
-            engine.flush(true, true);
-            var refresh3Result = engine.refresh("test");
-            assertTrue(refresh3Result.refreshed());
-            assertThat(refresh3Result.generation(), greaterThan(refresh2Result.generation()));
+            long generation2 = engine.flushAndRefresh("test");
+            assertThat(generation2, greaterThan(generation1));
+            assertThat(generation2, equalTo(engine.getLastCommittedSegmentInfos().getGeneration()));
         }
     }
 

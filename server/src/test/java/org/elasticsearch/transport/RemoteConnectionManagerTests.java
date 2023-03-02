@@ -12,22 +12,27 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.Mockito;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 public class RemoteConnectionManagerTests extends ESTestCase {
 
@@ -111,6 +116,30 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         PlainActionFuture<Transport.Connection> future2 = PlainActionFuture.newFuture();
         remoteConnectionManager.openConnection(remoteNode1, null, future2);
         assertThat(RemoteConnectionManager.resolveRemoteClusterAlias(future2.get()).get(), equalTo("remote-cluster"));
+    }
+
+    public void testRewriteHandshakeAction() throws IOException {
+        final Transport.Connection connection = mock(Transport.Connection.class);
+        final Transport.Connection wrappedConnection = RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
+            connection,
+            randomAlphaOfLengthBetween(3, 8),
+            RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE
+        );
+        final long requestId = randomLong();
+        final TransportRequest request = mock(TransportRequest.class);
+        final TransportRequestOptions options = mock(TransportRequestOptions.class);
+
+        wrappedConnection.sendRequest(requestId, TransportService.HANDSHAKE_ACTION_NAME, request, options);
+        verify(connection).sendRequest(requestId, REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME, request, options);
+
+        final String anotherAction = randomValueOtherThan(
+            TransportService.HANDSHAKE_ACTION_NAME,
+            () -> randomFrom("cluster:", "indices:", "internal:", randomAlphaOfLengthBetween(3, 10) + ":") + Strings
+                .collectionToDelimitedString(randomList(1, 5, () -> randomAlphaOfLengthBetween(3, 20)), "/")
+        );
+        Mockito.reset(connection);
+        wrappedConnection.sendRequest(requestId, anotherAction, request, options);
+        verify(connection).sendRequest(requestId, anotherAction, request, options);
     }
 
     private static class TestRemoteConnection extends CloseableConnection {

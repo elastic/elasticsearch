@@ -647,13 +647,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         indexRandomDocs(sourceIdx, randomIntBetween(10, 100));
 
         logger.info("--> shrink the index");
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(sourceIdx)
-                .setSettings(Settings.builder().put("index.blocks.write", true))
-                .get()
-        );
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIdx);
         assertAcked(client().admin().indices().prepareResizeIndex(sourceIdx, shrunkIdx).get());
 
         logger.info("--> snapshot the shrunk index");

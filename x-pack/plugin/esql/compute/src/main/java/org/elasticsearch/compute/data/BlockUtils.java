@@ -65,7 +65,7 @@ public final class BlockUtils {
             } else if (object == null) {
                 blocks[i] = constantNullBlock(blockSize);
             } else {
-                throw new UnsupportedOperationException();
+                throw new UnsupportedOperationException("can't make a block out of [" + object + "/" + object.getClass() + "]");
             }
         }
         return blocks;

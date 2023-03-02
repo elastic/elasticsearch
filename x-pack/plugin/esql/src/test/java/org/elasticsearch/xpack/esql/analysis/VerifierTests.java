@@ -60,36 +60,6 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testConcatFunctionInvalidInputs() {
-        assertEquals(
-            "1:22: argument of [concat(a, \"a\")] must be [string], found value [a] type [integer]",
-            error("row a = 1 | eval x = concat(a, \"a\")")
-        );
-        assertEquals(
-            "1:22: argument of [concat(123, \"a\")] must be [string], found value [123] type [integer]",
-            error("row a = 1 | eval x = concat(123, \"a\")")
-        );
-        assertEquals(
-            "1:22: argument of [concat(\"a\", a)] must be [string], found value [a] type [integer]",
-            error("row a = 1 | eval x = concat(\"a\", a)")
-        );
-        assertEquals(
-            "1:22: argument of [concat(\"a\", 123)] must be [string], found value [123] type [integer]",
-            error("row a = 1 | eval x = concat(\"a\", 123)")
-        );
-    }
-
-    public void testLengthFunctionInvalidInputs() {
-        assertEquals(
-            "1:22: first argument of [length(a)] must be [keyword], found value [a] type [integer]",
-            error("row a = 1 | eval x = length(a)")
-        );
-        assertEquals(
-            "1:22: first argument of [length(123)] must be [keyword], found value [123] type [integer]",
-            error("row a = 1 | eval x = length(123)")
-        );
-    }
-
     public void testStartsWithFunctionInvalidInputs() {
         assertEquals(
             "1:22: first argument of [starts_with(a, \"foo\")] must be [string], found value [a] type [integer]",

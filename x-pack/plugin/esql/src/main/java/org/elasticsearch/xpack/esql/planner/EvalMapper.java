@@ -43,7 +43,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 
-final class EvalMapper {
+public final class EvalMapper {
 
     abstract static class ExpressionMapper<E extends Expression> {
         private final Class<E> typeToken;
@@ -68,7 +68,7 @@ final class EvalMapper {
         new Attributes(),
         new Literals(),
         new RoundFunction(),
-        new LengthFunction(),
+        new Mapper<>(Length.class),
         new DateFormatFunction(),
         new StartsWithFunction(),
         new SubstringFunction(),
@@ -80,7 +80,7 @@ final class EvalMapper {
     private EvalMapper() {}
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    static Supplier<ExpressionEvaluator> toEvaluator(Expression exp, Layout layout) {
+    public static Supplier<ExpressionEvaluator> toEvaluator(Expression exp, Layout layout) {
         for (ExpressionMapper em : MAPPERS) {
             if (em.typeToken.isInstance(exp)) {
                 return em.map(exp, layout);
@@ -293,20 +293,6 @@ final class EvalMapper {
             } else {
                 return fieldEvaluator;
             }
-        }
-    }
-
-    static class LengthFunction extends ExpressionMapper<Length> {
-
-        @Override
-        protected Supplier<ExpressionEvaluator> map(Length length, Layout layout) {
-            record LengthFunctionExpressionEvaluator(ExpressionEvaluator exp) implements ExpressionEvaluator {
-                @Override
-                public Object computeRow(Page page, int pos) {
-                    return Length.process(((BytesRef) exp.computeRow(page, pos)));
-                }
-            }
-            return () -> new LengthFunctionExpressionEvaluator(toEvaluator(length.field(), layout).get());
         }
     }
 

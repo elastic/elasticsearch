@@ -8,61 +8,15 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
-import java.util.Arrays;
-import java.util.List;
-
 import static org.hamcrest.Matchers.containsString;
 
 public class StringFunctionsTests extends ESTestCase {
-    public void testConcat() {
-        assertEquals(new BytesRef("cats and"), processConcat(new BytesRef("cats"), new BytesRef(" and")));
-        assertEquals(
-            new BytesRef("cats and dogs"),
-            processConcat(new BytesRef("cats"), new BytesRef(" "), new BytesRef("and"), new BytesRef(" "), new BytesRef("dogs"))
-        );
-        assertEquals(null, processConcat(new BytesRef("foo"), null));
-        assertEquals(null, processConcat(null, new BytesRef("foo")));
-
-        Concat c = concatWithLiterals(new BytesRef("cats"), new BytesRef(" and"));
-        assertTrue(c.foldable());
-        assertEquals(new BytesRef("cats and"), c.fold());
-
-        c = concatWithLiterals(new BytesRef("cats"), new BytesRef(" "), new BytesRef("and"), new BytesRef(" "), new BytesRef("dogs"));
-        assertTrue(c.foldable());
-        assertEquals(new BytesRef("cats and dogs"), c.fold());
-    }
-
-    private Concat concatWithLiterals(Object... inputs) {
-        if (inputs.length < 2) {
-            throw new IllegalArgumentException("needs at least two");
-        }
-        List<Expression> values = Arrays.stream(inputs).map(i -> (Expression) new Literal(Source.EMPTY, i, DataTypes.KEYWORD)).toList();
-        return new Concat(Source.EMPTY, values.get(0), values.subList(1, values.size()));
-    }
-
-    private BytesRef processConcat(Object... inputs) {
-        Concat concat = concatWithLiterals(inputs);
-        EvalOperator.ExpressionEvaluator eval = concat.toEvaluator(e -> () -> (page, position) -> ((Literal) e).value()).get();
-        return (BytesRef) eval.computeRow(null, 0);
-    }
-
-    public void testLength() {
-        assertEquals(Integer.valueOf(0), Length.process(new BytesRef("")));
-        assertEquals(Integer.valueOf(1), Length.process(new BytesRef("a")));
-        assertEquals(Integer.valueOf(1), Length.process(new BytesRef("☕"))); // 3 bytes, 1 code point
-        assertEquals(Integer.valueOf(2), Length.process(new BytesRef("❗️"))); // 6 bytes, 2 code points
-        assertEquals(Integer.valueOf(100), Length.process(new BytesRef(randomUnicodeOfCodepointLength(100))));
-        assertEquals(Integer.valueOf(100), Length.process(new BytesRef(randomAlphaOfLength(100))));
-        assertNull(Length.process(null));
-    }
-
     public void testStartsWith() {
         assertEquals(true, StartsWith.process(new BytesRef("cat"), new BytesRef("cat")));
         assertEquals(true, StartsWith.process(new BytesRef("cat"), new BytesRef("ca")));

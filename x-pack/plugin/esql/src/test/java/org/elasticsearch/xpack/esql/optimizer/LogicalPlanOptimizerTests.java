@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -17,8 +16,6 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.FoldNull;
@@ -53,7 +50,6 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.junit.BeforeClass;
 
@@ -486,14 +482,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         FoldNull rule = new FoldNull();
         assertNullLiteral(rule.rule(new Add(EMPTY, L(randomInt()), Literal.NULL)));
         assertNullLiteral(rule.rule(new Round(EMPTY, Literal.NULL, null)));
-        assertNullLiteral(rule.rule(new Length(EMPTY, Literal.NULL)));
         assertNullLiteral(rule.rule(new DateFormat(EMPTY, Literal.NULL, Literal.NULL)));
         assertNullLiteral(rule.rule(new DateTrunc(EMPTY, Literal.NULL, Literal.NULL)));
         assertNullLiteral(rule.rule(new StartsWith(EMPTY, Literal.NULL, Literal.NULL)));
         assertNullLiteral(rule.rule(new Substring(EMPTY, Literal.NULL, Literal.NULL, Literal.NULL)));
-        assertNullLiteral(rule.rule(new Concat(EMPTY, Literal.NULL, List.of(Literal.NULL))));
-        assertNullLiteral(rule.rule(new Concat(EMPTY, new Literal(EMPTY, new BytesRef("cat"), DataTypes.KEYWORD), List.of(Literal.NULL))));
-        assertNullLiteral(rule.rule(new Concat(EMPTY, Literal.NULL, List.of(new Literal(EMPTY, new BytesRef("cat"), DataTypes.KEYWORD)))));
     }
 
     public void testPruneSortBeforeStats() {

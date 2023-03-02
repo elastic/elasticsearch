@@ -34,7 +34,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndE
  * Join strings.
  */
 public class Concat extends ScalarFunction implements Mappable {
-    public Concat(Source source, Expression first, List<Expression> rest) {
+    public Concat(Source source, Expression first, List<? extends Expression> rest) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
     }
 
@@ -83,9 +83,8 @@ public class Concat extends ScalarFunction implements Mappable {
     public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
         Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
     ) {
-        return () -> new Evaluator(
-            children().stream().map(toEvaluator).map(Supplier::get).toArray(EvalOperator.ExpressionEvaluator[]::new)
-        );
+        List<Supplier<EvalOperator.ExpressionEvaluator>> values = children().stream().map(toEvaluator).toList();
+        return () -> new Evaluator(values.stream().map(Supplier::get).toArray(EvalOperator.ExpressionEvaluator[]::new));
     }
 
     private class Evaluator implements EvalOperator.ExpressionEvaluator {
@@ -111,7 +110,7 @@ public class Concat extends ScalarFunction implements Mappable {
 
         @Override
         public String toString() {
-            return "Evaluator{values=" + Arrays.toString(values) + '}';
+            return "Concat{values=" + Arrays.toString(values) + '}';
         }
     }
 

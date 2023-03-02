@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
@@ -17,10 +20,13 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.util.function.Function;
+import java.util.function.Supplier;
+
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
-public class Length extends UnaryScalarFunction {
+public class Length extends UnaryScalarFunction implements Mappable {
 
     public Length(Source source, Expression field) {
         super(source, field);
@@ -70,5 +76,20 @@ public class Length extends UnaryScalarFunction {
     @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, Length::new, field());
+    }
+
+    @Override
+    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
+        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
+    ) {
+        Supplier<EvalOperator.ExpressionEvaluator> field = toEvaluator.apply(field());
+        return () -> new LengthEvaluator(field.get());
+    }
+
+    record LengthEvaluator(EvalOperator.ExpressionEvaluator exp) implements EvalOperator.ExpressionEvaluator {
+        @Override
+        public Object computeRow(Page page, int pos) {
+            return Length.process(((BytesRef) exp.computeRow(page, pos)));
+        }
     }
 }

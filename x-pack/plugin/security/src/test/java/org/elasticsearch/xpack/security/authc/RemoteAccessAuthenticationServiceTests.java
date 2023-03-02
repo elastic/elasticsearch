@@ -45,6 +45,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -218,6 +219,36 @@ public class RemoteAccessAuthenticationServiceTests extends ESTestCase {
             credentialsArgMatches(remoteAccessHeaders.clusterCredentials())
         );
         verifyNoMoreInteractions(auditableRequest);
+    }
+
+    public void testNoInteractionWithAuditableRequestOnInitialAuthenticationFailure() throws IOException {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+        final var remoteAccessHeaders = new RemoteAccessHeaders(
+            RemoteAccessHeadersTests.randomEncodedApiKeyHeader(),
+            AuthenticationTestHelper.randomRemoteAccessAuthentication()
+        );
+        remoteAccessHeaders.writeToContext(threadContext);
+        final AuthenticationService.AuditableRequest auditableRequest = mock(AuthenticationService.AuditableRequest.class);
+        final Authenticator.Context authcContext = mock(Authenticator.Context.class, Mockito.RETURNS_DEEP_STUBS);
+        when(authcContext.getThreadContext()).thenReturn(threadContext);
+        when(authenticationService.newContext(anyString(), any(), anyBoolean())).thenReturn(authcContext);
+        @SuppressWarnings("unchecked")
+        final ArgumentCaptor<ActionListener<Authentication>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
+        doAnswer(i -> null).when(authenticationService).authenticate(eq(authcContext), listenerCaptor.capture());
+        final RemoteAccessAuthenticationService service = new RemoteAccessAuthenticationService(
+            clusterService,
+            apiKeyService,
+            authenticationService
+        );
+
+        final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
+        service.authenticate("action", mock(TransportRequest.class), future);
+        final ElasticsearchSecurityException authenticationFailure = new ElasticsearchSecurityException("authentication failure");
+        listenerCaptor.getValue().onFailure(authenticationFailure);
+
+        final ExecutionException actual = expectThrows(ExecutionException.class, future::get);
+        assertThat(actual.getCause(), equalTo(authenticationFailure));
+        verifyNoInteractions(auditableRequest);
     }
 
     private static AuthenticationToken credentialsArgMatches(AuthenticationToken credentials) {

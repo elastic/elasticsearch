@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.entsearch.engine.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
@@ -29,7 +30,7 @@ public class TransportPutEngineAction extends HandledTransportAction<PutEngineAc
     @Override
     protected void doExecute(Task task, PutEngineAction.Request request, ActionListener<PutEngineAction.Response> listener) {
         Engine engine = request.getEngine();
-        boolean create = request.create();
-        engineIndexService.putEngine(engine, create, listener.map(r -> new PutEngineAction.Response(r.getResult())));
+        DocWriteRequest.OpType opType = request.opType();
+        engineIndexService.putEngine(engine, opType, listener.map(r -> new PutEngineAction.Response(r.getResult())));
     }
 }

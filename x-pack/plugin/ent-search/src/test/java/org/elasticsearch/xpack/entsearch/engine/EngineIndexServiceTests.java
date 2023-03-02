@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.entsearch.engine;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -65,7 +66,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
     public void testCreateEngine() throws Exception {
         final Engine engine = new Engine("my_engine", new String[] { "index_1" }, null);
 
-        IndexResponse resp = awaitPutEngine(engine, true);
+        IndexResponse resp = awaitPutEngine(engine, DocWriteRequest.OpType.CREATE);
         assertThat(resp.status(), equalTo(RestStatus.CREATED));
         assertThat(resp.getIndex(), equalTo(ENGINE_CONCRETE_INDEX_NAME));
 
@@ -88,7 +89,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
     public void testUpdateEngine() throws Exception {
         {
             final Engine engine = new Engine("my_engine", new String[] { "index_1", "index_2" }, null);
-            IndexResponse resp = awaitPutEngine(engine, false);
+            IndexResponse resp = awaitPutEngine(engine, DocWriteRequest.OpType.INDEX);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
             assertThat(resp.getIndex(), equalTo(ENGINE_CONCRETE_INDEX_NAME));
 
@@ -97,7 +98,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
         }
 
         final Engine engine = new Engine("my_engine", new String[] { "index_3", "index_4" }, "my_engine_analytics_collection");
-        IndexResponse newResp = awaitPutEngine(engine, false);
+        IndexResponse newResp = awaitPutEngine(engine, DocWriteRequest.OpType.INDEX);
         assertThat(newResp.status(), equalTo(RestStatus.OK));
         assertThat(newResp.getIndex(), equalTo(ENGINE_CONCRETE_INDEX_NAME));
         Engine getNewEngine = awaitGetEngine(engine.name());
@@ -108,7 +109,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
     public void testListEngine() throws Exception {
         for (int i = 0; i < NUM_INDICES; i++) {
             final Engine engine = new Engine("my_engine_" + i, new String[] { "index_" + i }, null);
-            IndexResponse resp = awaitPutEngine(engine, false);
+            IndexResponse resp = awaitPutEngine(engine, DocWriteRequest.OpType.INDEX);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
             assertThat(resp.getIndex(), equalTo(ENGINE_CONCRETE_INDEX_NAME));
         }
@@ -150,7 +151,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
     public void testListEngineWithQuery() throws Exception {
         for (int i = 0; i < 10; i++) {
             final Engine engine = new Engine("my_engine_" + i, new String[] { "index_" + i }, null);
-            IndexResponse resp = awaitPutEngine(engine, false);
+            IndexResponse resp = awaitPutEngine(engine, DocWriteRequest.OpType.INDEX);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
             assertThat(resp.getIndex(), equalTo(ENGINE_CONCRETE_INDEX_NAME));
         }
@@ -182,7 +183,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
     public void testDeleteEngine() throws Exception {
         for (int i = 0; i < 5; i++) {
             final Engine engine = new Engine("my_engine_" + i, new String[] { "index_" + i }, null);
-            IndexResponse resp = awaitPutEngine(engine, false);
+            IndexResponse resp = awaitPutEngine(engine, DocWriteRequest.OpType.INDEX);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
             assertThat(resp.getIndex(), equalTo(ENGINE_CONCRETE_INDEX_NAME));
 
@@ -211,11 +212,11 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    private IndexResponse awaitPutEngine(Engine engine, boolean create) throws Exception {
+    private IndexResponse awaitPutEngine(Engine engine, DocWriteRequest.OpType opType) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<IndexResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        engineService.putEngine(engine, create, new ActionListener<>() {
+        engineService.putEngine(engine, opType, new ActionListener<>() {
             @Override
             public void onResponse(IndexResponse indexResponse) {
                 resp.set(indexResponse);

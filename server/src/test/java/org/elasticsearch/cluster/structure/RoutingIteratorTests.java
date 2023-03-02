@@ -362,33 +362,46 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         GroupShardsIterator<ShardIterator> shardIterators = operationRouting.searchShards(
             clusterState,
             new String[] { "test" },
+            ShardRouting.ANY_ROLE,
             null,
             "_shards:0"
         );
         assertThat(shardIterators.size(), equalTo(1));
         assertThat(shardIterators.iterator().next().shardId().id(), equalTo(0));
 
-        shardIterators = operationRouting.searchShards(clusterState, new String[] { "test" }, null, "_shards:1");
+        shardIterators = operationRouting.searchShards(clusterState, new String[] { "test" }, ShardRouting.ANY_ROLE, null, "_shards:1");
         assertThat(shardIterators.size(), equalTo(1));
         assertThat(shardIterators.iterator().next().shardId().id(), equalTo(1));
 
         // check node preference, first without preference to see they switch
-        shardIterators = operationRouting.searchShards(clusterState, new String[] { "test" }, null, "_shards:0|");
+        shardIterators = operationRouting.searchShards(clusterState, new String[] { "test" }, ShardRouting.ANY_ROLE, null, "_shards:0|");
         assertThat(shardIterators.size(), equalTo(1));
         assertThat(shardIterators.iterator().next().shardId().id(), equalTo(0));
         String firstRoundNodeId = shardIterators.iterator().next().nextOrNull().currentNodeId();
 
-        shardIterators = operationRouting.searchShards(clusterState, new String[] { "test" }, null, "_shards:0");
+        shardIterators = operationRouting.searchShards(clusterState, new String[] { "test" }, ShardRouting.ANY_ROLE, null, "_shards:0");
         assertThat(shardIterators.size(), equalTo(1));
         assertThat(shardIterators.iterator().next().shardId().id(), equalTo(0));
         assertThat(shardIterators.iterator().next().nextOrNull().currentNodeId(), not(equalTo(firstRoundNodeId)));
 
-        shardIterators = operationRouting.searchShards(clusterState, new String[] { "test" }, null, "_shards:0|_prefer_nodes:node1");
+        shardIterators = operationRouting.searchShards(
+            clusterState,
+            new String[] { "test" },
+            ShardRouting.ANY_ROLE,
+            null,
+            "_shards:0|_prefer_nodes:node1"
+        );
         assertThat(shardIterators.size(), equalTo(1));
         assertThat(shardIterators.iterator().next().shardId().id(), equalTo(0));
         assertThat(shardIterators.iterator().next().nextOrNull().currentNodeId(), equalTo("node1"));
 
-        shardIterators = operationRouting.searchShards(clusterState, new String[] { "test" }, null, "_shards:0|_prefer_nodes:node1,node2");
+        shardIterators = operationRouting.searchShards(
+            clusterState,
+            new String[] { "test" },
+            ShardRouting.ANY_ROLE,
+            null,
+            "_shards:0|_prefer_nodes:node1,node2"
+        );
         assertThat(shardIterators.size(), equalTo(1));
         Iterator<ShardIterator> iterator = shardIterators.iterator();
         final ShardIterator it = iterator.next();
@@ -426,7 +439,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         for (String pref : removedPreferences) {
             expectThrows(
                 IllegalArgumentException.class,
-                () -> operationRouting.searchShards(clusterState, new String[] { "test" }, null, pref)
+                () -> operationRouting.searchShards(clusterState, new String[] { "test" }, ShardRouting.ANY_ROLE, null, pref)
             );
         }
     }

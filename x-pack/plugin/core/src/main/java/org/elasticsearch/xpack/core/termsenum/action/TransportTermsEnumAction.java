@@ -175,7 +175,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
             String[] singleIndex = { indexName };
 
             GroupShardsIterator<ShardIterator> shards = clusterService.operationRouting()
-                .searchShards(clusterState, singleIndex, null, null);
+                .searchShards(clusterState, singleIndex, ShardRouting::isSearchable, null, null);
 
             for (ShardIterator copiesOfShard : shards) {
                 ShardRouting selectedCopyOfShard = null;

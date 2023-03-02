@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -218,7 +219,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
             }
 
             GroupShardsIterator<ShardIterator> result = clusterService.operationRouting()
-                .searchShards(state, new String[] { index }, null, Preference.LOCAL.type());
+                .searchShards(state, new String[] { index }, ShardRouting.ANY_ROLE, null, Preference.LOCAL.type());
             return result.get(0);
         }
 

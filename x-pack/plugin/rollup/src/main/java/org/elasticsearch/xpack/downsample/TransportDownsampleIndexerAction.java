@@ -87,7 +87,7 @@ public class TransportDownsampleIndexerAction extends TransportBroadcastAction<
         }
 
         final GroupShardsIterator<ShardIterator> groups = clusterService.operationRouting()
-            .searchShards(clusterState, concreteIndices, null, null);
+            .searchShards(clusterState, concreteIndices, ShardRouting::isSearchable, null, null);
         for (ShardIterator group : groups) {
             // fails fast if any non-active groups
             if (group.size() == 0) {

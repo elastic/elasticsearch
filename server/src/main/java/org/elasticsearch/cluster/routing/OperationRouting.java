@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class OperationRouting {
@@ -79,15 +80,17 @@ public class OperationRouting {
     public GroupShardsIterator<ShardIterator> searchShards(
         ClusterState clusterState,
         String[] concreteIndices,
+        Predicate<ShardRouting> shardRole,
         @Nullable Map<String, Set<String>> routing,
         @Nullable String preference
     ) {
-        return searchShards(clusterState, concreteIndices, routing, preference, null, null);
+        return searchShards(clusterState, concreteIndices, shardRole, routing, preference, null, null);
     }
 
     public GroupShardsIterator<ShardIterator> searchShards(
         ClusterState clusterState,
         String[] concreteIndices,
+        Predicate<ShardRouting> shardRole,
         @Nullable Map<String, Set<String>> routing,
         @Nullable String preference,
         @Nullable ResponseCollectorService collectorService,
@@ -105,8 +108,7 @@ public class OperationRouting {
                 nodeCounts
             );
             if (iterator != null) {
-                var searchableShards = iterator.getShardRoutings().stream().filter(ShardRouting::isSearchable).toList();
-                set.add(new PlainShardIterator(iterator.shardId(), searchableShards));
+                set.add(new PlainShardIterator(iterator.shardId(), iterator.getShardRoutings().stream().filter(shardRole).toList()));
             }
         }
         return GroupShardsIterator.sortAndCreate(new ArrayList<>(set));

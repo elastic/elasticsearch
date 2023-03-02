@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 /**
  * {@link ShardRouting} immutably encapsulates information about shard
@@ -982,4 +983,6 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             };
         }
     }
+
+    public static final Predicate<ShardRouting> ANY_ROLE = s -> true;
 }

@@ -93,7 +93,7 @@ final class RequestDispatcher {
         this.indexSelectors = ConcurrentCollections.newConcurrentMap();
         for (String index : indices) {
             final GroupShardsIterator<ShardIterator> shardIts = clusterService.operationRouting()
-                .searchShards(clusterState, new String[] { index }, null, null, null, null);
+                .searchShards(clusterState, new String[] { index }, ShardRouting::isSearchable, null, null, null, null);
             final IndexSelector indexResult = new IndexSelector(shardIts);
             if (indexResult.nodeToShards.isEmpty()) {
                 onIndexFailure.accept(index, new NoShardAvailableActionException(null, "index [" + index + "] has no active shard copy"));

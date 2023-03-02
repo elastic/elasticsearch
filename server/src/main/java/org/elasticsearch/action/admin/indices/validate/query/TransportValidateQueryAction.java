@@ -135,7 +135,8 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
             routing = Integer.toString(Randomness.get().nextInt(1000));
         }
         Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, routing, request.indices());
-        return clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap, "_local");
+        return clusterService.operationRouting()
+            .searchShards(clusterState, concreteIndices, ShardRouting::isSearchable, routingMap, "_local");
     }
 
     @Override

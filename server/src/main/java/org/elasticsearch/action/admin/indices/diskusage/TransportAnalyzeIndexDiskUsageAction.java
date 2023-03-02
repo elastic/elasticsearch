@@ -45,6 +45,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.function.Predicate;
 
 public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastAction<
     AnalyzeIndexDiskUsageRequest,
@@ -216,8 +217,9 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
         AnalyzeIndexDiskUsageRequest request,
         String[] concreteIndices
     ) {
+        final Predicate<ShardRouting> shardRole = request.flush ? ShardRouting::isPromotableToPrimary : ShardRouting.ANY_ROLE;
         final GroupShardsIterator<ShardIterator> groups = clusterService.operationRouting()
-            .searchShards(clusterState, concreteIndices, null, null);
+            .searchShards(clusterState, concreteIndices, shardRole, null, null);
         for (ShardIterator group : groups) {
             // fails fast if any non-active groups
             if (group.size() == 0) {

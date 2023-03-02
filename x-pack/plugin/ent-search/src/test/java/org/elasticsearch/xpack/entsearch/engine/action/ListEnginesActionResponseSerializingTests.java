@@ -20,10 +20,7 @@ public class ListEnginesActionResponseSerializingTests extends AbstractWireSeria
 
     @Override
     protected ListEnginesAction.Response createTestInstance() {
-        return new ListEnginesAction.Response(
-            randomList(10, EngineTestUtils::randomEngine),
-            randomLongBetween(0, 1000)
-        );
+        return new ListEnginesAction.Response(randomList(10, EngineTestUtils::randomEngine), randomLongBetween(0, 1000));
     }
 
     @Override

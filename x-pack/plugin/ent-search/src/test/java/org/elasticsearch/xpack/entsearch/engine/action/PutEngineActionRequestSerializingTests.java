@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.entsearch.engine.action;
 
-import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -30,7 +29,7 @@ public class PutEngineActionRequestSerializingTests extends AbstractWireSerializ
 
     @Override
     protected PutEngineAction.Request createTestInstance() {
-        return new PutEngineAction.Request(randomEngine(), randomFrom(DocWriteRequest.OpType.CREATE, DocWriteRequest.OpType.INDEX));
+        return new PutEngineAction.Request(randomEngine(), false); // TODO change to randomBoolean()
     }
 
     @Override

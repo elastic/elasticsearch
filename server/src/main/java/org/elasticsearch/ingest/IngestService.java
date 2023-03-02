@@ -1234,7 +1234,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return Optional.of(new Pipelines(defaultPipeline, finalPipeline));
     }
 
+    /**
+     * Checks whether an IndexRequest has at least one pipeline defined.
+     *
+     * This method assumes that the pipelines are beforehand resolved.
+     */
     public static boolean hasPipeline(IndexRequest indexRequest) {
+        assert indexRequest.isPipelineResolved();
+        assert indexRequest.getPipeline() != null;
+        assert indexRequest.getFinalPipeline() != null;
         return NOOP_PIPELINE_NAME.equals(indexRequest.getPipeline()) == false
             || NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false;
     }

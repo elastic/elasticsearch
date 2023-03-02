@@ -1886,16 +1886,18 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     public void testHasPipeline() {
-        var indexRequest = new IndexRequest("idx").setPipeline(NOOP_PIPELINE_NAME).setFinalPipeline(NOOP_PIPELINE_NAME);
+        var indexRequest = new IndexRequest("idx").isPipelineResolved(true);
+
+        indexRequest.setPipeline(NOOP_PIPELINE_NAME).setFinalPipeline(NOOP_PIPELINE_NAME);
         assertFalse(hasPipeline(indexRequest));
 
-        indexRequest = new IndexRequest("idx").setPipeline("some-pipeline").setFinalPipeline(NOOP_PIPELINE_NAME);
+        indexRequest.setPipeline("some-pipeline").setFinalPipeline(NOOP_PIPELINE_NAME);
         assertTrue(hasPipeline(indexRequest));
 
-        indexRequest = new IndexRequest("idx").setPipeline(NOOP_PIPELINE_NAME).setFinalPipeline("some-final-pipeline");
+        indexRequest.setPipeline(NOOP_PIPELINE_NAME).setFinalPipeline("some-final-pipeline");
         assertTrue(hasPipeline(indexRequest));
 
-        indexRequest = new IndexRequest("idx").setPipeline("some-pipeline").setFinalPipeline("some-final-pipeline");
+        indexRequest.setPipeline("some-pipeline").setFinalPipeline("some-final-pipeline");
         assertTrue(hasPipeline(indexRequest));
     }
 

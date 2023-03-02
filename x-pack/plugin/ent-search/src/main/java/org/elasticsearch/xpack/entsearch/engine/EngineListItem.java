@@ -16,6 +16,8 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * This class is used for returning information for lists of engines, to avoid including all Engine information
@@ -81,5 +83,23 @@ public class EngineListItem implements Writeable, ToXContentObject {
 
     public String analyticsCollectionName() {
         return analyticsCollectionName;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        EngineListItem engineListItem = (EngineListItem) o;
+        return name.equals(engineListItem.name)
+            && Arrays.equals(indices, engineListItem.indices)
+            && Objects.equals(engineAlias, engineListItem.engineAlias)
+            && Objects.equals(analyticsCollectionName, engineListItem.analyticsCollectionName);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(name, engineAlias, analyticsCollectionName);
+        result = 31 * result + Arrays.hashCode(indices);
+        return result;
     }
 }

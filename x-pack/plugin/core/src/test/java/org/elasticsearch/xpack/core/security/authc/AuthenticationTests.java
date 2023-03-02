@@ -39,6 +39,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthenticationTests.randomRoleDescriptorsIntersection;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -897,13 +898,13 @@ public class AuthenticationTests extends ESTestCase {
         final String apiKeyId = randomAlphaOfLengthBetween(1, 10);
         final String apiKeyName = randomAlphaOfLengthBetween(1, 10);
         final Map<String, Object> metadata = Map.ofEntries(
-            Map.entry(AuthenticationField.API_KEY_ID_KEY, apiKeyId),
-            Map.entry(AuthenticationField.API_KEY_NAME_KEY, apiKeyName),
-            Map.entry(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("""
+            entry(AuthenticationField.API_KEY_ID_KEY, apiKeyId),
+            entry(AuthenticationField.API_KEY_NAME_KEY, apiKeyName),
+            entry(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("""
                 {"base_role":{"cluster":["all"],
                 "remote_indices":{"names":["logs-*"],"privileges":["read"],"clusters":["my_cluster*","other_cluster"]}}
                 }""")),
-            Map.entry(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("""
+            entry(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("""
                 {"limited_by_role":{"cluster":["*"],
                 "remote_indices":{"names":["logs-*-*"],"privileges":["write"],"clusters":["my_cluster*"]}}
                 }"""))
@@ -967,6 +968,92 @@ public class AuthenticationTests extends ESTestCase {
         final BytesReference empty = randomBoolean() ? new BytesArray("""
             {}""") : new BytesArray("");
         assertThat(empty.toBytesRef(), equalTo(Authentication.maybeRemoveRemoteIndicesFromRoleDescriptors(empty).toBytesRef()));
+    }
+
+    public void testCheckConsistency() throws IOException {
+        @SuppressWarnings("checkstyle:linelength")
+        final Map<String, String> testCases = Map.ofEntries(
+            entry("Anonymous authentication cannot have realm type [realm_1]", "45XtAwADZm9vAAoAAAABAARub2RlB3JlYWxtXzEHcmVhbG1fMQAAAwA="),
+            entry(
+                "Anonymous authentication cannot have domain",
+                "45XtAwADZm9vAAoAAAABAARub2RlC19fYW5vbnltb3VzC19fYW5vbnltb3VzAQdkb21haW4xAQtfX2Fub255bW91cwtfX2Fub255bW91cwADAA=="
+            ),
+            entry(
+                "Anonymous authentication cannot have internal user [_xpack]",
+                "45XtAwEGX3hwYWNrBG5vZGULX19hbm9ueW1vdXMLX19hbm9ueW1vdXMAAAMA"
+            ),
+            entry(
+                "Anonymous authentication cannot have run-as",
+                "45XtAwADYmFyAAoAAAABAQADZm9vAAoAAAABAARub2RlC19fYW5vbnltb3VzC19fYW5vbnltb3VzAAEEbm9kZQdyZWFsbV8yB3JlYWxtXzIAAwA="
+            ),
+            entry("Internal authentication cannot have realm type [realm_1]", "45XtAwADZm9vAAoAAAABAARub2RlB3JlYWxtXzEHcmVhbG1fMQAABAA="),
+            entry(
+                "Internal authentication cannot have domain",
+                "45XtAwADZm9vAAoAAAABAARub2RlCl9fZmFsbGJhY2sKX19mYWxsYmFjawEHZG9tYWluMQEKX19mYWxsYmFjawpfX2ZhbGxiYWNrAAQA"
+            ),
+            entry("Internal authentication must have internal user", "45XtAwADZm9vAAoAAAABAARub2RlCF9fYXR0YWNoCF9fYXR0YWNoAAAEAA=="),
+            entry("API key authentication cannot have realm type [realm_1]", "45XtAwADZm9vAAoAAAABAARub2RlB3JlYWxtXzEHcmVhbG1fMQAAAQA="),
+            entry(
+                "API key authentication cannot have domain",
+                "45XtAwADZm9vAAoAAAABAARub2RlC19lc19hcGlfa2V5C19lc19hcGlfa2V5AQdkb21haW4xAQtfZXNfYXBpX2tleQtfZXNfYXBpX2tleQABAA=="
+            ),
+            entry(
+                "API key authentication cannot have internal user [_xpack]",
+                "45XtAwEGX3hwYWNrBG5vZGULX2VzX2FwaV9rZXkLX2VzX2FwaV9rZXkAAAEA"
+            ),
+            entry(
+                "API key authentication user must have no role",
+                "45XtAwADZm9vAQRyb2xlCgAAAAEABG5vZGULX2VzX2FwaV9rZXkLX2VzX2FwaV9rZXkAAAEA"
+            ),
+            entry(
+                "API key authentication requires metadata to contain a non-null API key ID",
+                "45XtAwADZm9vAAoAAAABAARub2RlC19lc19hcGlfa2V5C19lc19hcGlfa2V5AAABAA=="
+            ),
+            entry(
+                "Remote access authentication requires metadata to contain a non-null serialized remote access authentication",
+                "45XtAwADZm9vAAoAAAABAARub2RlEV9lc19yZW1vdGVfYWNjZXNzEV9lc19yZW1vdGVfYWNjZXNzAAABARRfc2VjdXJpdHlfYXBpX2tleV9pZAADYWJj"
+            ),
+            entry(
+                "Remote access authentication requires metadata to contain a non-null serialized remote access role descriptors",
+                "45XtAwADZm9vAAoAAAABAARub2RlEV9lc19yZW1vdGVfYWNjZXNzEV9lc19yZW1vdGVfYWNjZXNzAAABAhRfc2VjdXJpdHlfYXBpX2tleV9pZAADYWJjJl9zZWN1cml0eV9yZW1vdGVfYWNjZXNzX2F1dGhlbnRpY2F0aW9uAANiYXIACgAAAAEABG5vZGUHcmVhbG1fMgdyZWFsbV8yAAAAAA=="
+            ),
+            entry(
+                "Remote access authentication cannot run-as other user",
+                "45XtAwADYmFyAAoAAAABAQADZm9vAAoAAAABAARub2RlEV9lc19yZW1vdGVfYWNjZXNzEV9lc19yZW1vdGVfYWNjZXNzAAEEbm9kZQdyZWFsbV8yB3JlYWxtXzIAAQMoX3NlY3VyaXR5X3JlbW90ZV9hY2Nlc3Nfcm9sZV9kZXNjcmlwdG9ycwAmX3NlY3VyaXR5X3JlbW90ZV9hY2Nlc3NfYXV0aGVudGljYXRpb24AA2JhcgAKAAAAAQAEbm9kZQdyZWFsbV8yB3JlYWxtXzIAAAAAFF9zZWN1cml0eV9hcGlfa2V5X2lkAANhYmM="
+            ),
+            entry(
+                "Realm authentication must have subject type of user",
+                "45XtAwADZm9vAAoAAAABAARub2RlC19lc19hcGlfa2V5C19lc19hcGlfa2V5AAAAAA=="
+            ),
+            entry("Token authentication cannot have internal user [_xpack]", "45XtAwEGX3hwYWNrBG5vZGUHcmVhbG1fMQdyZWFsbV8xAAACAA=="),
+            entry(
+                "Service account authentication cannot have domain",
+                "45XtAwADZm9vAAoAAAABAARub2RlEF9zZXJ2aWNlX2FjY291bnQQX3NlcnZpY2VfYWNjb3VudAEHZG9tYWluMQEQX3NlcnZpY2VfYWNjb3VudBBfc2VydmljZV9hY2NvdW50AAIA"
+            ),
+            entry(
+                "Service account authentication user must have no role",
+                "45XtAwADZm9vAQRyb2xlCgAAAAEABG5vZGUQX3NlcnZpY2VfYWNjb3VudBBfc2VydmljZV9hY2NvdW50AAACAA=="
+            ),
+            entry(
+                "Service account authentication cannot run-as other user",
+                "45XtAwADYmFyAAoAAAABAQADZm9vAAoAAAABAARub2RlEF9zZXJ2aWNlX2FjY291bnQQX3NlcnZpY2VfYWNjb3VudAABBG5vZGUHcmVhbG1fMgdyZWFsbV8yAAIA"
+            ),
+            entry(
+                "Run-as subject type cannot be [API_KEY]",
+                "45XtAwADYmFyAAoAAAABAQADZm9vAAoAAAABAARub2RlB3JlYWxtXzEHcmVhbG1fMQABBG5vZGULX2VzX2FwaV9rZXkLX2VzX2FwaV9rZXkAAAA="
+            )
+        );
+
+        for (Map.Entry<String, String> entry : testCases.entrySet()) {
+            final String errorMessage = entry.getKey();
+            final String encodedAuthentication = entry.getValue();
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                "expected [" + errorMessage + "]",
+                () -> AuthenticationContextSerializer.decode(encodedAuthentication)
+            );
+            assertThat(e.getMessage(), equalTo(errorMessage));
+        }
     }
 
     private void runWithAuthenticationToXContent(Authentication authentication, Consumer<Map<String, Object>> consumer) throws IOException {

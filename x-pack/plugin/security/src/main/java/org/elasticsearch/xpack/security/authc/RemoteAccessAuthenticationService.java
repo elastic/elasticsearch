@@ -149,7 +149,7 @@ public class RemoteAccessAuthenticationService {
 
     private void validate(final RemoteAccessAuthentication remoteAccessAuthentication) {
         final Authentication authentication = remoteAccessAuthentication.getAuthentication();
-        authentication.checkInternalConsistency();
+        authentication.checkConsistency();
         final Subject effectiveSubject = authentication.getEffectiveSubject();
         if (false == effectiveSubject.getType().equals(Subject.Type.USER)) {
             throw new IllegalArgumentException(

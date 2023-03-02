@@ -192,6 +192,10 @@ public abstract class Plugin implements Closeable {
         return Collections.emptyList();
     }
 
+    public List<Class<?>> getSPIInterfaces() {
+        return Collections.emptyList();
+    }
+
     /**
      * Close the resources opened by this plugin.
      *

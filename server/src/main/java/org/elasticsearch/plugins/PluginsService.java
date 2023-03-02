@@ -46,6 +46,7 @@ import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -329,6 +330,35 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
 
         return Collections.unmodifiableList(result);
+    }
+
+    private static Map<Class<?>, Map<ClassLoader, Set<String>>> implementations = new HashMap<>();
+
+    public static Map<ClassLoader, Set<String>> getSPIImplementationClassNames(Class<?> interfaceClazz) {
+        return implementations.get(interfaceClazz);
+    }
+
+    public void findServiceProvidersImplementations() {
+        for (LoadedPlugin loadedPlugin : plugins()) {
+            logger.info("*** LoadedPlugin: " + loadedPlugin.descriptor());
+            // TODO: alt implementation that where getSPIInterfaces() returns the implementation clazz as well
+            // avoiding using META-INF/services entirely (which negates the need for special file or module or dummy default constructor)
+            List<Class<?>> interfaceClazzList = loadedPlugin.instance.getSPIInterfaces();
+            logger.info("*** LoadedPlugin SPI interfaces: " + Arrays.toString(interfaceClazzList.toArray()));
+            for (Class<?> interfaceClazz : interfaceClazzList) {
+                SPIClassIterator<?> spiClassIterator = SPIClassIterator.get(interfaceClazz, loadedPlugin.loader());
+                while (spiClassIterator.hasNext()) {
+                    Class<?> clazz = spiClassIterator.next();
+                    logger.info(
+                        "Found SPI for interface " + interfaceClazz.getCanonicalName() + " with implementation " + clazz.getCanonicalName()
+                    ); // TODO: use debug
+
+                    implementations.computeIfAbsent(interfaceClazz, k -> new HashMap<>())
+                        .computeIfAbsent(loadedPlugin.loader, k -> new HashSet<>())
+                        .add(clazz.getCanonicalName());
+                }
+            }
+        }
     }
 
     private static void loadExtensionsForPlugin(ExtensiblePlugin extensiblePlugin, List<Plugin> extendingPlugins) {

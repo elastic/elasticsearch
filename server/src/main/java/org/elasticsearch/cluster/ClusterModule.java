@@ -397,6 +397,7 @@ public class ClusterModule extends AbstractModule {
         );
 
         for (ClusterPlugin plugin : clusterPlugins) {
+            // noinspection removal
             plugin.getShardsAllocators(settings, clusterSettings).forEach((k, v) -> {
                 if (allocators.put(k, v) != null) {
                     throw new IllegalArgumentException("ShardsAllocator [" + k + "] already defined");

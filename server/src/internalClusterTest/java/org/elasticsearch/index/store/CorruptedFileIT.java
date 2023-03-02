@@ -16,6 +16,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -24,7 +25,6 @@ import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -182,8 +182,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ClusterHealthResponse health = client().admin()
             .cluster()
             .health(
-                Requests.clusterHealthRequest("test")
-                    .waitForGreenStatus()
+                new ClusterHealthRequest("test").waitForGreenStatus()
                     .timeout("5m") // sometimes due to cluster rebalacing and random settings default timeout is just not enough.
                     .waitForNoRelocatingShards(true)
             )
@@ -294,11 +293,11 @@ public class CorruptedFileIT extends ESIntegTestCase {
         client().admin().cluster().prepareReroute().get();
 
         boolean didClusterTurnRed = waitUntil(() -> {
-            ClusterHealthStatus test = client().admin().cluster().health(Requests.clusterHealthRequest("test")).actionGet().getStatus();
+            ClusterHealthStatus test = client().admin().cluster().health(new ClusterHealthRequest("test")).actionGet().getStatus();
             return test == ClusterHealthStatus.RED;
         }, 5, TimeUnit.MINUTES);// sometimes on slow nodes the replication / recovery is just dead slow
 
-        final ClusterHealthResponse response = client().admin().cluster().health(Requests.clusterHealthRequest("test")).get();
+        final ClusterHealthResponse response = client().admin().cluster().health(new ClusterHealthRequest("test")).get();
 
         if (response.getStatus() != ClusterHealthStatus.RED) {
             logger.info("Cluster turned red in busy loop: {}", didClusterTurnRed);

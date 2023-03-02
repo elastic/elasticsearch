@@ -62,7 +62,6 @@ public class SeekTrackerPlugin extends Plugin implements ActionPlugin {
         return Collections.singletonList(seekStatsService);
     }
 
-
     // seeks per index/shard/file
 
     @Override

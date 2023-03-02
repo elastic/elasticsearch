@@ -26,14 +26,16 @@ public class RestSeekStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new RestHandler.Route(RestRequest.Method.GET, "/_seek_stats"),
-            new RestHandler.Route(RestRequest.Method.GET, "/{index}/_seek_stats"));
+        return List.of(
+            new RestHandler.Route(RestRequest.Method.GET, "/_seek_stats"),
+            new RestHandler.Route(RestRequest.Method.GET, "/{index}/_seek_stats")
+        );
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         String[] indices = request.paramAsStringArray("index", Strings.EMPTY_ARRAY);
         SeekStatsRequest seekStatsRequest = new SeekStatsRequest(indices);
-        return channel -> client.executeLocally(SeekStatsAction.INSTANCE, seekStatsRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(SeekStatsAction.INSTANCE, seekStatsRequest, new RestToXContentListener<>(channel));
     }
 }

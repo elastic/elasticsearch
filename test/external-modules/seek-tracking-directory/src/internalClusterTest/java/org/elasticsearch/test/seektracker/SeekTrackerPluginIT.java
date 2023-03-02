@@ -12,9 +12,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -29,7 +27,7 @@ public class SeekTrackerPluginIT extends ESIntegTestCase {
         return List.of(SeekTrackerPlugin.class);
     }
 
-    public void testSeekTrackerPlugin() throws IOException, InterruptedException {
+    public void testSeekTrackerPlugin() throws InterruptedException {
 
         assertAcked(client().admin().indices().prepareCreate("index"));
         List<IndexRequestBuilder> docs = new ArrayList<>();
@@ -43,7 +41,6 @@ public class SeekTrackerPluginIT extends ESIntegTestCase {
         SeekStatsResponse response = client().execute(SeekStatsAction.INSTANCE, new SeekStatsRequest("index")).actionGet();
         List<ShardSeekStats> shardSeekStats = response.getSeekStats().get("index");
         assertThat(shardSeekStats.size(), greaterThan(0));
-
     }
 
 }

@@ -24,8 +24,6 @@ import java.util.concurrent.TimeUnit;
  */
 class MockHttpProxyServer implements Closeable {
 
-    private static final Logger log = LogManager.getLogger(MockHttpProxyServer.class);
-
     private HttpServer httpServer;
 
     MockHttpProxyServer handler(HttpRequestHandler handler) throws IOException {

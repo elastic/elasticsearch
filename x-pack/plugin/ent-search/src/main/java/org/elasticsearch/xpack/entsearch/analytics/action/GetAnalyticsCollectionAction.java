@@ -63,6 +63,19 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
         public String getCollectionName() {
             return this.collectionName;
         }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(this.collectionName);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Request request = (Request) o;
+            return Objects.equals(this.collectionName, request.collectionName);
+        }
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {

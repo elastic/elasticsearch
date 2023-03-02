@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.entsearch.analytics.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.entsearch.analytics.AnalyticsTestUtils;
+import org.elasticsearch.xpack.entsearch.analytics.AnalyticsCollectionTests;
 
 import java.io.IOException;
 
@@ -22,7 +22,7 @@ public class PutAnalyticsCollectionResponseSerializingTests extends AbstractWire
 
     @Override
     protected PutAnalyticsCollectionAction.Response createTestInstance() {
-        return new PutAnalyticsCollectionAction.Response(AnalyticsTestUtils.randomAnalyticsCollection());
+        return new PutAnalyticsCollectionAction.Response(AnalyticsCollectionTests.randomAnalyticsCollection());
     }
 
     @Override

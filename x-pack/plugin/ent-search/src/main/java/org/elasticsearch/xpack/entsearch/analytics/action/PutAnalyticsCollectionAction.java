@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -78,8 +77,8 @@ public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollect
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            PutAnalyticsCollectionAction.Request that = (PutAnalyticsCollectionAction.Request) o;
-            return analyticsCollection.getName() == that.analyticsCollection.getName();
+            Request that = (Request) o;
+            return Objects.equals(analyticsCollection, that.analyticsCollection);
         }
 
         @Override
@@ -88,7 +87,7 @@ public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollect
         }
     }
 
-    public static class Response extends ActionResponse implements Writeable, StatusToXContentObject {
+    public static class Response extends ActionResponse implements StatusToXContentObject {
         final AnalyticsCollection analyticsCollection;
 
         public Response(StreamInput in) throws IOException {
@@ -98,11 +97,6 @@ public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollect
 
         public Response(AnalyticsCollection analyticsCollection) {
             this.analyticsCollection = analyticsCollection;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            //
         }
 
         @Override
@@ -120,12 +114,17 @@ public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollect
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response that = (Response) o;
-            return analyticsCollection.getName() == that.analyticsCollection.getName();
+            return Objects.equals(this.analyticsCollection, that.analyticsCollection);
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(analyticsCollection);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            this.analyticsCollection.writeTo(out);
         }
     }
 }

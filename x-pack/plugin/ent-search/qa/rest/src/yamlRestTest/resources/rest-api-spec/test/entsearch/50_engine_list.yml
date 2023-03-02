@@ -39,6 +39,23 @@ setup:
           analytics_collection_name: "test-another-analytics"
 
 ---
+teardown:
+  - do:
+      engine.delete:
+        engine_id: test-engine-1
+        ignore: 404
+
+  - do:
+      engine.delete:
+        engine_id: test-engine-2
+        ignore: 404
+
+  - do:
+      engine.delete:
+        engine_id: another-test-engine
+        ignore: 404
+
+---
 "List Engines":
   - do:
       engine.list: { }

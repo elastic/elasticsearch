@@ -162,7 +162,7 @@ public class RefCountingListenerTests extends ESTestCase {
 
     public void testValidation() {
         final var callCount = new AtomicInteger();
-        final var refs = new RefCountingListener(Integer.MAX_VALUE, ActionListener.wrap(callCount::incrementAndGet));
+        final var refs = new RefCountingListener(Integer.MAX_VALUE, ActionListener.running(callCount::incrementAndGet));
         refs.close();
         assertEquals(1, callCount.get());
 
@@ -184,7 +184,7 @@ public class RefCountingListenerTests extends ESTestCase {
 
     public void testJavaDocExample() {
         final var flag = new AtomicBoolean();
-        runExample(ActionListener.wrap(() -> assertTrue(flag.compareAndSet(false, true))));
+        runExample(ActionListener.running(() -> assertTrue(flag.compareAndSet(false, true))));
         assertTrue(flag.get());
     }
 

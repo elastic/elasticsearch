@@ -47,7 +47,7 @@ public class InternalTDigestPercentiles extends AbstractInternalTDigestPercentil
 
     @Override
     public double percentile(double percent) {
-        return state.quantile(percent / 100);
+        return this.state != null ? state.quantile(percent / 100) : Double.NaN;
     }
 
     @Override

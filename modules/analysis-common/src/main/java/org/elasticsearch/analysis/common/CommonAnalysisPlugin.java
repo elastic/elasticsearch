@@ -181,8 +181,12 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     public Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
         Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> analyzers = new TreeMap<>();
         analyzers.put("fingerprint", FingerprintAnalyzerProvider::new);
+        analyzers.put("keyword", KeywordAnalyzerProvider::new);
         analyzers.put("pattern", PatternAnalyzerProvider::new);
+        analyzers.put("simple", SimpleAnalyzerProvider::new);
         analyzers.put("snowball", SnowballAnalyzerProvider::new);
+        analyzers.put("stop", StopAnalyzerProvider::new);
+        analyzers.put("whitespace", WhitespaceAnalyzerProvider::new);
 
         // Language analyzers:
         analyzers.put("arabic", ArabicAnalyzerProvider::new);

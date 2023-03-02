@@ -590,7 +590,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                                 registry
                             )
                         ) {
-                            input.setVersion(indexVersion);
+                            input.setTransportVersion(indexVersion.transportVersion);
                             // Query builder's content is stored via BinaryFieldMapper, which has a custom encoding
                             // to encode multiple binary values into a single binary doc values field.
                             // This is the reason we need to first need to read the number of values and

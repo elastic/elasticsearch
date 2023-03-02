@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -96,10 +97,10 @@ public class DateHistogramGroupSourceTests extends AbstractXContentSerializingTe
         );
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.V_7_2_0);
+            output.setTransportVersion(TransportVersion.V_7_2_0);
             groupSource.writeTo(output);
             try (StreamInput in = output.bytes().streamInput()) {
-                in.setVersion(Version.V_7_2_0);
+                in.setTransportVersion(TransportVersion.V_7_2_0);
                 DateHistogramGroupSource streamedGroupSource = new DateHistogramGroupSource(in);
                 assertEquals(groupSource, streamedGroupSource);
             }

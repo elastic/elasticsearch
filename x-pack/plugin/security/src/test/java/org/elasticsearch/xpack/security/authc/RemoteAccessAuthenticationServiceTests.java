@@ -22,6 +22,7 @@ import org.mockito.Mockito;
 
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService.VERSION_REMOTE_ACCESS_AUTHENTICATION;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
@@ -44,7 +45,7 @@ public class RemoteAccessAuthenticationServiceTests extends ESTestCase {
     }
 
     public void testAuthenticateThrowsOnUnsupportedMinVersions() {
-        clusterService = mockClusterServiceWithMinNodeVersion(VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_7_0));
+        clusterService = mockClusterServiceWithMinNodeVersion(VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_8_0));
         final var authcContext = mock(Authenticator.Context.class, Mockito.RETURNS_DEEP_STUBS);
         final var threadContext = new ThreadContext(Settings.EMPTY);
         when(authcContext.getThreadContext()).thenReturn(threadContext);
@@ -67,7 +68,7 @@ public class RemoteAccessAuthenticationServiceTests extends ESTestCase {
             actual.getCause().getCause().getMessage(),
             equalTo(
                 "all nodes must have version ["
-                    + Authentication.VERSION_REMOTE_ACCESS_REALM
+                    + VERSION_REMOTE_ACCESS_AUTHENTICATION
                     + "] or higher to support cross cluster requests through the dedicated remote cluster port"
             )
         );

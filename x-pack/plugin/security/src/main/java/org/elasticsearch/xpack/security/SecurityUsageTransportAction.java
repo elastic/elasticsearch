@@ -190,7 +190,7 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
             Map<String, Object> map = Maps.newMapWithExpectedSize(2);
             map.put("http", singletonMap("enabled", HTTP_SSL_ENABLED.get(settings)));
             map.put("transport", singletonMap("enabled", TRANSPORT_SSL_ENABLED.get(settings)));
-            if (RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED.get(settings)) {
+            if (RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.get(settings)) {
                 map.put("remote_cluster_server", singletonMap("enabled", REMOTE_CLUSTER_SERVER_SSL_ENABLED.get(settings)));
             }
             return map;

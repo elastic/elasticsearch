@@ -28,8 +28,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 
-import static org.elasticsearch.core.Strings.format;
-
 /**
  * Handles inbound messages by first deserializing a {@link TransportMessage} from an {@link InboundMessage} and then passing
  * it to the appropriate handler.
@@ -217,19 +215,8 @@ public class InboundHandler {
             try {
                 handshaker.handleHandshake(transportChannel, requestId, stream);
             } catch (Exception e) {
-                if (TransportVersion.CURRENT.isCompatible(header.getVersion())) {
-                    sendErrorResponse(action, transportChannel, e);
-                } else {
-                    logger.warn(
-                        () -> format(
-                            "could not send error response to handshake received on [%s] using wire format version [%s], closing channel",
-                            channel,
-                            header.getVersion()
-                        ),
-                        e
-                    );
-                    channel.close();
-                }
+                logger.warn(() -> "error processing handshake version [" + version + "] received on [" + channel + "], closing channel", e);
+                channel.close();
             }
         } else {
             final TransportChannel transportChannel = new TcpTransportChannel(

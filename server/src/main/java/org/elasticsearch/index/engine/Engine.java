@@ -1963,6 +1963,10 @@ public abstract class Engine implements Closeable {
         throw new UnsupportedOperationException();
     }
 
+    public void addFlushListener(Translog.Location location, ActionListener<Long> listener) {
+        listener.onFailure(new UnsupportedOperationException("Engine type " + this.getClass() + " does not support flush listeners."));
+    }
+
     /**
      * Captures the result of a refresh operation on the index shard.
      * <p>

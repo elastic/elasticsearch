@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.ClusterSnapshotStats;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
@@ -122,6 +123,10 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         final CancellableTask cancellableTask = (CancellableTask) task;
         final ClusterState state = clusterService.state();
         final Metadata metadata = state.metadata();
+        final ClusterSnapshotStats clusterSnapshotStats = ClusterSnapshotStats.of(
+            state,
+            clusterService.threadPool().absoluteTimeInMillis()
+        );
 
         final StepListener<MappingStats> mappingStatsStep = new StepListener<>();
         final StepListener<AnalysisStats> analysisStatsStep = new StepListener<>();
@@ -139,7 +144,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                         failures,
                         mappingStats,
                         analysisStats,
-                        VersionStats.of(metadata, responses)
+                        VersionStats.of(metadata, responses),
+                        clusterSnapshotStats
                     )
                 ),
                 listener::onFailure

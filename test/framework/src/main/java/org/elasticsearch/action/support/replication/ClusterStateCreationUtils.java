@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.selection.HealthNodeTaskParams;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -68,19 +69,45 @@ public class ClusterStateCreationUtils {
         ShardRoutingState primaryState,
         ShardRoutingState... replicaStates
     ) {
+        return state(
+            index,
+            activePrimaryLocal,
+            primaryState,
+            Arrays.stream(replicaStates).map(shardRoutingState -> new Tuple<>(shardRoutingState, ShardRouting.Role.DEFAULT)).toList()
+        );
+    }
+
+    /**
+     * Creates cluster state with and index that has one shard and #(replicaStates) replicas with given roles
+     *
+     * @param index              name of the index
+     * @param activePrimaryLocal if active primary should coincide with the local node in the cluster state
+     * @param primaryState       state of primary
+     * @param replicaStates      states and roles of the replicas. length of this collection determines also the number of replicas
+     */
+    public static ClusterState state(
+        String index,
+        boolean activePrimaryLocal,
+        ShardRoutingState primaryState,
+        List<Tuple<ShardRoutingState, ShardRouting.Role>> replicaStates
+    ) {
         assert primaryState == ShardRoutingState.STARTED
             || primaryState == ShardRoutingState.RELOCATING
-            || Arrays.stream(replicaStates).allMatch(s -> s == ShardRoutingState.UNASSIGNED)
-            : "invalid shard states [" + primaryState + "] vs [" + Arrays.toString(replicaStates) + "]";
+            || replicaStates.stream().allMatch(s -> s.v1() == ShardRoutingState.UNASSIGNED)
+            : "invalid shard states ["
+                + primaryState
+                + "] vs ["
+                + Arrays.toString(replicaStates.stream().map(t -> t.v1()).toArray(String[]::new))
+                + "]";
 
-        final int numberOfReplicas = replicaStates.length;
+        final int numberOfReplicas = replicaStates.size();
 
         int numberOfNodes = numberOfReplicas + 1;
         if (primaryState == ShardRoutingState.RELOCATING) {
             numberOfNodes++;
         }
-        for (ShardRoutingState state : replicaStates) {
-            if (state == ShardRoutingState.RELOCATING) {
+        for (var state : replicaStates) {
+            if (state.v1() == ShardRoutingState.RELOCATING) {
                 numberOfNodes++;
             }
         }
@@ -139,21 +166,30 @@ public class ClusterStateCreationUtils {
             TestShardRouting.newShardRouting(index, 0, primaryNode, relocatingNode, true, primaryState, unassignedInfo)
         );
 
-        for (ShardRoutingState replicaState : replicaStates) {
+        for (var replicaState : replicaStates) {
             String replicaNode = null;
             relocatingNode = null;
             unassignedInfo = null;
-            if (replicaState != ShardRoutingState.UNASSIGNED) {
+            if (replicaState.v1() != ShardRoutingState.UNASSIGNED) {
                 assert primaryNode != null : "a replica is assigned but the primary isn't";
                 replicaNode = selectAndRemove(unassignedNodes);
-                if (replicaState == ShardRoutingState.RELOCATING) {
+                if (replicaState.v1() == ShardRoutingState.RELOCATING) {
                     relocatingNode = selectAndRemove(unassignedNodes);
                 }
             } else {
                 unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
             }
             indexShardRoutingBuilder.addShard(
-                TestShardRouting.newShardRouting(index, shardId.id(), replicaNode, relocatingNode, false, replicaState, unassignedInfo)
+                TestShardRouting.newShardRouting(
+                    index,
+                    shardId.id(),
+                    replicaNode,
+                    relocatingNode,
+                    false,
+                    replicaState.v1(),
+                    unassignedInfo,
+                    replicaState.v2()
+                )
             );
         }
         final IndexShardRoutingTable indexShardRoutingTable = indexShardRoutingBuilder.build();
@@ -316,8 +352,22 @@ public class ClusterStateCreationUtils {
      * Creates cluster state with several indexes, shards and replicas and all shards STARTED.
      */
     public static ClusterState stateWithAssignedPrimariesAndReplicas(String[] indices, int numberOfShards, int numberOfReplicas) {
+        return stateWithAssignedPrimariesAndReplicas(
+            indices,
+            numberOfShards,
+            Collections.nCopies(numberOfReplicas, ShardRouting.Role.DEFAULT)
+        );
+    }
 
-        int numberOfDataNodes = numberOfReplicas + 1;
+    /**
+     * Creates cluster state with several indexes, shards and replicas (with given roles) and all shards STARTED.
+     */
+    public static ClusterState stateWithAssignedPrimariesAndReplicas(
+        String[] indices,
+        int numberOfShards,
+        List<ShardRouting.Role> replicaRoles
+    ) {
+        int numberOfDataNodes = replicaRoles.size() + 1;
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         for (int i = 0; i < numberOfDataNodes + 1; i++) {
             final DiscoveryNode node = newNode(i);
@@ -340,7 +390,7 @@ public class ClusterStateCreationUtils {
                     Settings.builder()
                         .put(SETTING_VERSION_CREATED, Version.CURRENT)
                         .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                        .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
+                        .put(SETTING_NUMBER_OF_REPLICAS, replicaRoles.size())
                         .put(SETTING_CREATION_DATE, System.currentTimeMillis())
                 )
                 .timestampRange(IndexLongFieldRange.UNKNOWN)
@@ -353,9 +403,17 @@ public class ClusterStateCreationUtils {
                 indexShardRoutingBuilder.addShard(
                     TestShardRouting.newShardRouting(index, i, newNode(0).getId(), null, true, ShardRoutingState.STARTED)
                 );
-                for (int replica = 0; replica < numberOfReplicas; replica++) {
+                for (int replica = 0; replica < replicaRoles.size(); replica++) {
                     indexShardRoutingBuilder.addShard(
-                        TestShardRouting.newShardRouting(index, i, newNode(replica + 1).getId(), null, false, ShardRoutingState.STARTED)
+                        TestShardRouting.newShardRouting(
+                            index,
+                            i,
+                            newNode(replica + 1).getId(),
+                            null,
+                            false,
+                            ShardRoutingState.STARTED,
+                            replicaRoles.get(replica)
+                        )
                     );
                 }
                 indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder);

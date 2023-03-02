@@ -18,7 +18,6 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -87,26 +86,10 @@ public abstract class StreamInput extends InputStream {
     private TransportVersion version = TransportVersion.CURRENT;
 
     /**
-     * The version of the node on the other side of this stream.
-     */
-    @Deprecated(forRemoval = true)
-    public Version getVersion() {
-        return Version.fromId(this.version.id);
-    }
-
-    /**
      * The transport version the data is serialized as.
      */
     public TransportVersion getTransportVersion() {
         return this.version;
-    }
-
-    /**
-     * Set the version of the node on the other side of this stream.
-     */
-    @Deprecated(forRemoval = true)
-    public void setVersion(Version version) {
-        this.version = version.transportVersion;
     }
 
     /**
@@ -146,6 +129,26 @@ public abstract class StreamInput extends InputStream {
      */
     public ReleasableBytesReference readReleasableBytesReference() throws IOException {
         return ReleasableBytesReference.wrap(readBytesReference());
+    }
+
+    /**
+     * Checks if this {@link InputStream} supports {@link #readAllToReleasableBytesReference()}.
+     */
+    public boolean supportReadAllToReleasableBytesReference() {
+        return false;
+    }
+
+    /**
+     * Reads all remaining bytes in the stream as a releasable bytes reference.
+     * Similarly to {@link #readReleasableBytesReference} the returned bytes reference may reference bytes in a
+     * pooled buffer and must be explicitly released via {@link ReleasableBytesReference#close()} once no longer used.
+     * However, unlike {@link #readReleasableBytesReference()}, this method doesn't have the prefix size.
+     * <p>
+     * NOTE: Always check {@link #supportReadAllToReleasableBytesReference()} before calling this method.
+     */
+    public ReleasableBytesReference readAllToReleasableBytesReference() throws IOException {
+        assert false : "This InputStream doesn't support readAllToReleasableBytesReference";
+        throw new UnsupportedOperationException("This InputStream doesn't support readAllToReleasableBytesReference");
     }
 
     /**

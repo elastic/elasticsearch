@@ -38,8 +38,8 @@ public class RemoteClusterPortSettings {
     public static final String REMOTE_CLUSTER_PROFILE = "_remote_cluster";
     public static final String REMOTE_CLUSTER_PREFIX = "remote_cluster.";
 
-    public static final Setting<Boolean> REMOTE_CLUSTER_PORT_ENABLED = boolSetting(
-        REMOTE_CLUSTER_PREFIX + "enabled",
+    public static final Setting<Boolean> REMOTE_CLUSTER_SERVER_ENABLED = boolSetting(
+        "remote_cluster_server.enabled",
         false,
         Setting.Property.NodeScope
     );
@@ -127,7 +127,7 @@ public class RemoteClusterPortSettings {
     );
 
     static void validateRemoteAccessSettings(Settings settings) {
-        if (REMOTE_CLUSTER_PORT_ENABLED.get(settings)
+        if (REMOTE_CLUSTER_SERVER_ENABLED.get(settings)
             && settings.getGroups("transport.profiles.", true).keySet().contains(REMOTE_CLUSTER_PROFILE)) {
             throw new IllegalArgumentException(
                 "Remote Access settings should not be configured using the ["

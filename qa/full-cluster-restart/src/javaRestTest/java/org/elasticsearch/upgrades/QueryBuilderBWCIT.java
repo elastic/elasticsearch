@@ -244,7 +244,7 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
                 byte[] qbSource = Base64.getDecoder().decode(queryBuilderStr);
                 try (InputStream in = new ByteArrayInputStream(qbSource, 0, qbSource.length)) {
                     try (StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in), registry)) {
-                        input.setVersion(getOldClusterVersion());
+                        input.setTransportVersion(getOldClusterVersion().transportVersion);
                         QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
                         assert in.read() == -1;
                         assertEquals(expectedQueryBuilder, queryBuilder);

@@ -109,7 +109,7 @@ public final class TransportSearchHelper {
     */
     public static void checkCCSVersionCompatibility(Writeable writeableRequest) {
         try {
-            writeableRequest.writeTo(new VersionCheckingStreamOutput(CCS_CHECK_VERSION));
+            writeableRequest.writeTo(new VersionCheckingStreamOutput(CCS_CHECK_VERSION.transportVersion));
         } catch (Exception e) {
             // if we cannot serialize, raise this as an error to indicate to the caller that CCS has problems with this request
             throw new IllegalArgumentException(

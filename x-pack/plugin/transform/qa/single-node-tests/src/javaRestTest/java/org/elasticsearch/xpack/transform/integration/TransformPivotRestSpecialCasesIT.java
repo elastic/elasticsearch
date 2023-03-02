@@ -21,6 +21,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -411,7 +412,7 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
 
         // Create index template for data stream
         Request createIndexTemplateRequest = new Request("PUT", "_index_template/" + dataStreamIndexTemplate);
-        createIndexTemplateRequest.setJsonEntity(String.format("""
+        createIndexTemplateRequest.setJsonEntity(String.format(Locale.ROOT, """
             {
               "index_patterns": [ "%s*" ],
               "data_stream": {}
@@ -431,6 +432,7 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
             e.getMessage(),
             containsString(
                 String.format(
+                    Locale.ROOT,
                     "cannot create index with name [%s], because it matches with template [%s] that creates data streams only, "
                         + "use create data stream api instead",
                     destDataStream,

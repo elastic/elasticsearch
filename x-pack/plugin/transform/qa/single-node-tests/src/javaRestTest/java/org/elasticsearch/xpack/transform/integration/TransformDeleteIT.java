@@ -13,11 +13,11 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Strings;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -147,6 +147,7 @@ public class TransformDeleteIT extends TransformRestTestCase {
             e.getMessage(),
             containsString(
                 String.format(
+                    Locale.ROOT,
                     "The provided expression [%s] matches an alias, specify the corresponding concrete indices instead.",
                     transformDestAlias
                 )
@@ -160,7 +161,7 @@ public class TransformDeleteIT extends TransformRestTestCase {
             getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1
         );
-        String config = Strings.format("""
+        String config = String.format(Locale.ROOT, """
             {
               "dest": {
                 "index": "%s"

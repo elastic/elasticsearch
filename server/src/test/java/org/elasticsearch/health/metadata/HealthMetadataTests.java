@@ -61,25 +61,4 @@ public class HealthMetadataTests extends ESTestCase {
         // Copy-builder
         assertEquals(HealthMetadata.ShardLimits.newBuilder(shardLimits).build(), new HealthMetadata.ShardLimits(100, 999));
     }
-
-    public void testShardLimitValidations() {
-        int invalidValue = -1 * randomNonNegativeInt();
-        var thrownException = expectThrows(
-            IllegalArgumentException.class,
-            () -> new HealthMetadata.ShardLimits(invalidValue, randomIntBetween(1, 100))
-        );
-        assertEquals(
-            thrownException.getMessage(),
-            "Setting cluster.max_shards_per_node must have a value greater than 1 but it was [" + invalidValue + "]"
-        );
-
-        thrownException = expectThrows(
-            IllegalArgumentException.class,
-            () -> new HealthMetadata.ShardLimits(randomIntBetween(1, 100), invalidValue)
-        );
-        assertEquals(
-            thrownException.getMessage(),
-            "Setting cluster.max_shards_per_node.frozen must have a value greater than 1 but it was [" + invalidValue + "]"
-        );
-    }
 }

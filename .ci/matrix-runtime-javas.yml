@@ -5,7 +5,7 @@
 # which Elasticsearch will be tested.  Valid Java versions are 'java'
 # or 'openjdk' followed by the major release number.
 
-RUNTIME_JAVA_HOME:
+ES_RUNTIME_JAVA:
   - graalvm-ce17
   - openjdk17
   - openjdk18

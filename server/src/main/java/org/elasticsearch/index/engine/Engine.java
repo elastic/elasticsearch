@@ -1026,6 +1026,8 @@ public abstract class Engine implements Closeable {
     @Nullable
     public abstract RefreshResult maybeRefresh(String source) throws EngineException;
 
+    protected abstract RefreshResult refresh(String source, SearcherScope scope, boolean block) throws EngineException;
+
     /**
      * Called when our engine is using too much heap and should move buffered indexed/deleted documents to disk.
      */

@@ -433,6 +433,11 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    protected RefreshResult refresh(String source, SearcherScope scope, boolean block) throws EngineException {
+        return RefreshResult.NO_REFRESH;
+    }
+
+    @Override
     public void writeIndexingBuffer() throws EngineException {}
 
     @Override

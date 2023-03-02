@@ -761,7 +761,7 @@ public class InternalEngine extends Engine {
                         }
                     }
                     assert versionValue.seqNo >= 0 : versionValue;
-                    refreshIfNeeded(versionValue.seqNo, () -> refresh(REALTIME_GET_REFRESH_SOURCE_NAME));
+                    refreshIfNeeded(REALTIME_GET_REFRESH_SOURCE_NAME, versionValue.seqNo);
                 }
                 return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper), false);
             } else {
@@ -1853,7 +1853,8 @@ public class InternalEngine extends Engine {
         return refresh(source, SearcherScope.EXTERNAL, false);
     }
 
-    final RefreshResult refresh(String source, SearcherScope scope, boolean block) throws EngineException {
+    @Override
+    protected RefreshResult refresh(String source, SearcherScope scope, boolean block) throws EngineException {
         // both refresh types will result in an internal refresh but only the external will also
         // pass the new reader reference to the external reader manager.
         final long localCheckpointBeforeRefresh = localCheckpointTracker.getProcessedCheckpoint();
@@ -2313,7 +2314,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public SegmentInfos getLastCommittedSegmentInfos() {
+    protected SegmentInfos getLastCommittedSegmentInfos() {
         return lastCommittedSegmentInfos;
     }
 
@@ -2925,14 +2926,10 @@ public class InternalEngine extends Engine {
      * Refresh this engine **internally** iff the requesting seq_no is greater than the last refreshed checkpoint.
      */
     protected final void refreshIfNeeded(String source, long requestingSeqNo) {
-        refreshIfNeeded(requestingSeqNo, () -> refresh(source, SearcherScope.INTERNAL, true));
-    }
-
-    private void refreshIfNeeded(long requestingSeqNo, Runnable refreshRunnable) {
         if (lastRefreshedCheckpoint() < requestingSeqNo) {
             synchronized (refreshIfNeededMutex) {
                 if (lastRefreshedCheckpoint() < requestingSeqNo) {
-                    refreshRunnable.run();
+                    refresh(source, SearcherScope.INTERNAL, true);
                 }
             }
         }

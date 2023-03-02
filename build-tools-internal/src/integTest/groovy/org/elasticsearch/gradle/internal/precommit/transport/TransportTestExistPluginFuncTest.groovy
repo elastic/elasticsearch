@@ -84,6 +84,12 @@ class TransportTestExistPluginFuncTest extends AbstractGradleInternalPluginFuncT
 
         then:
         result.task(":transportTestExistCheck").outcome == TaskOutcome.SUCCESS
+
+        when:
+        result = gradleRunner(":transportTestExistCheck").build()
+
+        then:
+        result.task(":transportTestExistCheck").outcome == TaskOutcome.UP_TO_DATE
     }
 
     def "can fail when transport classes missing a test"() {

@@ -71,9 +71,11 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         new ExecuteWatchRequestBuilder(client()).setId("test_watch").setRecordExecution(true).get();
 
-        flushAndRefresh(".watcher-history-*");
-        SearchResponse searchResponse = client().prepareSearch(".watcher-history-*").get();
-        assertHitCount(searchResponse, 1);
+        assertBusy(() -> {
+            flushAndRefresh(".watcher-history-*");
+            SearchResponse searchResponse = client().prepareSearch(".watcher-history-*").get();
+            assertHitCount(searchResponse, 1);
+        });
     }
 
     // See https://github.com/elastic/x-plugins/issues/2913
@@ -103,9 +105,11 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         new ExecuteWatchRequestBuilder(client()).setId("test_watch").setRecordExecution(true).get();
 
-        refresh(".watcher-history*");
-        SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(0).get();
-        assertHitCount(searchResponse, 1);
+        assertBusy(() -> {
+            refresh(".watcher-history*");
+            SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(0).get();
+            assertHitCount(searchResponse, 1);
+        });
 
         // as fields with dots are allowed in 5.0 again, the mapping must be checked in addition
         GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*").get();
@@ -147,9 +151,11 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         new ExecuteWatchRequestBuilder(client()).setId("test_watch").setRecordExecution(true).get();
 
-        refresh(".watcher-history*");
-        SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(0).get();
-        assertHitCount(searchResponse, 1);
+        assertBusy(() -> {
+            refresh(".watcher-history*");
+            SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(0).get();
+            assertHitCount(searchResponse, 1);
+        });
 
         // as fields with dots are allowed in 5.0 again, the mapping must be checked in addition
         GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*").get();

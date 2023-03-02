@@ -243,9 +243,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         createSystemIndexForDescriptor(INTERNAL_UNMANAGED);
 
         String indexName = INTERNAL_UNMANAGED.getIndexPattern().replace("*", "old");
-
-        client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder().put("index.blocks.write", true)).get();
-
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), indexName);
         ensureGreen();
 
         client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest()).get();

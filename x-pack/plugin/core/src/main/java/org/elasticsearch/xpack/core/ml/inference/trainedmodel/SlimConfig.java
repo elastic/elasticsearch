@@ -77,14 +77,6 @@ public class SlimConfig implements NlpConfig {
                 this.tokenization.getName()
             );
         }
-        // TODO support spanning
-        if (this.tokenization.span != -1) {
-            throw ExceptionsHelper.badRequestException(
-                "[{}] does not support windowing long text sequences; configured span [{}]",
-                NAME,
-                this.tokenization.span
-            );
-        }
         this.resultsField = resultsField;
     }
 

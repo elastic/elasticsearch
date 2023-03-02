@@ -204,7 +204,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
               "name": "remote_access_key",
               "role_descriptors": {
                 "role": {
-                  "cluster": ["cluster:monitor/state"],
+                  "cluster": ["cluster:internal/remote_cluster/handshake", "cluster:internal/remote_cluster/nodes"],
                   "index": [
                     {
                       "names": ["*"],
@@ -220,11 +220,16 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         final Map<String, Object> apiKeyMap = responseAsMap(createApiKeyResponse);
         final String encodedRemoteAccessApiKey = (String) apiKeyMap.get("encoded");
 
-        final Settings remoteClusterSettings = Settings.builder()
-            .put("cluster.remote." + REMOTE_CLUSTER_NAME + ".mode", "proxy")
-            .put("cluster.remote." + REMOTE_CLUSTER_NAME + ".proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
-            .put("cluster.remote." + REMOTE_CLUSTER_NAME + ".authorization", encodedRemoteAccessApiKey)
-            .build();
+        final Settings.Builder builder = Settings.builder()
+            .put("cluster.remote." + REMOTE_CLUSTER_NAME + ".authorization", encodedRemoteAccessApiKey);
+        if (randomBoolean()) {
+            builder.put("cluster.remote." + REMOTE_CLUSTER_NAME + ".mode", "proxy")
+                .put("cluster.remote." + REMOTE_CLUSTER_NAME + ".proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0));
+        } else {
+            builder.put("cluster.remote." + REMOTE_CLUSTER_NAME + ".mode", "sniff")
+                .putList("cluster.remote." + REMOTE_CLUSTER_NAME + ".seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0));
+        }
+        final Settings remoteClusterSettings = builder.build();
 
         final Request request = new Request("PUT", "/_cluster/settings");
         request.setJsonEntity("{ \"persistent\":" + Strings.toString(remoteClusterSettings) + "}");

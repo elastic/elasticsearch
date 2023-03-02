@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.Setting;
@@ -33,18 +32,15 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
-import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -97,7 +93,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     /**
      * Period before the license expires when warning starts being added to the response header
      */
-    static final TimeValue LICENSE_EXPIRATION_WARNING_PERIOD = days(7);
+    static final TimeValue LICENSE_EXPIRATION_WARNING_PERIOD = TimeValue.timeValueDays(7);
 
     public static final long BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS =
         XPackInfoResponse.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
@@ -178,7 +174,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         logger.warn("{}", buildExpirationMessage(expirationMillis, expired));
     }
 
-    static CharSequence buildExpirationMessage(long expirationMillis, boolean expired) {
+    CharSequence buildExpirationMessage(long expirationMillis, boolean expired) {
         String expiredMsg = expired ? "expired" : "will expire";
         String general = LoggerMessageFormat.format(null, """
             License [{}] on [{}].
@@ -214,38 +210,15 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         expirationCallbacks.add(new ExpirationCallback.Pre(days(0), days(25), days(1)) {
             @Override
             public void on(License license) {
-                logExpirationWarning(getExpiryDate(license), false);
+                logExpirationWarning(LicenseUtils.getExpiryDate(license), false);
             }
         });
         expirationCallbacks.add(new ExpirationCallback.Post(days(0), null, TimeValue.timeValueMinutes(10)) {
             @Override
             public void on(License license) {
-                logExpirationWarning(getExpiryDate(license), true);
+                logExpirationWarning(LicenseUtils.getExpiryDate(license), true);
             }
         });
-    }
-
-    /**
-     * Gets the effective expiry date of the given license, including any overrides.
-     */
-    public static long getExpiryDate(License license) {
-        String licenseUidHash = MessageDigests.toHexString(MessageDigests.sha256().digest(license.uid().getBytes(StandardCharsets.UTF_8)));
-        return LicenseOverrides.overrideDateForLicense(licenseUidHash)
-            .map(date -> date.toInstant().toEpochMilli())
-            .orElse(license.expiryDate());
-    }
-
-    /**
-     * Gets the current status of a license
-     */
-    public static LicenseStatus status(License license) {
-        long now = System.currentTimeMillis();
-        if (license.issueDate() > now) {
-            return LicenseStatus.INVALID;
-        } else if (LicenseService.getExpiryDate(license) < now) {
-            return LicenseStatus.EXPIRED;
-        }
-        return LicenseStatus.ACTIVE;
     }
 
     /**
@@ -272,14 +245,14 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             listener.onFailure(
                 new IllegalArgumentException("Registering [" + licenseType.getTypeName() + "] licenses is not allowed on this cluster")
             );
-        } else if (getExpiryDate(newLicense) < now) {
+        } else if (LicenseUtils.getExpiryDate(newLicense) < now) {
             listener.onResponse(new PutLicenseResponse(true, LicensesStatus.EXPIRED));
         } else {
             if (request.acknowledged() == false) {
                 // TODO: ack messages should be generated on the master, since another node's cluster state may be behind...
                 final License currentLicense = getLicense();
                 if (currentLicense != null) {
-                    Map<String, String[]> acknowledgeMessages = getAckMessages(newLicense, currentLicense);
+                    Map<String, String[]> acknowledgeMessages = LicenseUtils.getAckMessages(newLicense, currentLicense);
                     if (acknowledgeMessages.isEmpty() == false) {
                         // needs acknowledgement
                         listener.onResponse(
@@ -336,7 +309,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
-    private static boolean licenseIsCompatible(License license, Version version) {
+    private boolean licenseIsCompatible(License license, Version version) {
         final int maxVersion = LicenseUtils.getMaxLicenseVersion(version);
         return license.version() <= maxVersion;
     }
@@ -346,27 +319,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         return allowedLicenseTypes.contains(type);
     }
 
-    public static Map<String, String[]> getAckMessages(License newLicense, License currentLicense) {
-        Map<String, String[]> acknowledgeMessages = new HashMap<>();
-        if (License.isAutoGeneratedLicense(currentLicense.signature()) == false // current license is not auto-generated
-            && currentLicense.issueDate() > newLicense.issueDate()) { // and has a later issue date
-            acknowledgeMessages.put(
-                "license",
-                new String[] {
-                    "The new license is older than the currently installed license. "
-                        + "Are you sure you want to override the current license?" }
-            );
-        }
-        XPackLicenseState.ACKNOWLEDGMENT_MESSAGES.forEach((feature, ackMessages) -> {
-            String[] messages = ackMessages.apply(currentLicense.operationMode(), newLicense.operationMode());
-            if (messages.length > 0) {
-                acknowledgeMessages.put(feature, messages);
-            }
-        });
-        return acknowledgeMessages;
-    }
-
-    private static TimeValue days(int days) {
+    private TimeValue days(int days) {
         return TimeValue.timeValueHours(days * 24);
     }
 
@@ -545,7 +498,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         }
     }
 
-    protected static String getExpiryWarning(long licenseExpiryDate, long currentTime) {
+    protected String getExpiryWarning(long licenseExpiryDate, long currentTime) {
         final long diff = licenseExpiryDate - currentTime;
         if (LICENSE_EXPIRATION_WARNING_PERIOD.getMillis() > diff) {
             final long days = TimeUnit.MILLISECONDS.toDays(diff);
@@ -566,17 +519,17 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         long time = clock.millis();
         if (license == LicensesMetadata.LICENSE_TOMBSTONE) {
             // implies license has been explicitly deleted
-            licenseState.update(License.OperationMode.MISSING, false, getExpiryWarning(getExpiryDate(license), time));
+            licenseState.update(License.OperationMode.MISSING, false, getExpiryWarning(LicenseUtils.getExpiryDate(license), time));
             return;
         }
         if (license != null) {
             final boolean active;
-            if (getExpiryDate(license) == BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
+            if (LicenseUtils.getExpiryDate(license) == BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
                 active = true;
             } else {
-                active = time >= license.issueDate() && time < getExpiryDate(license);
+                active = time >= license.issueDate() && time < LicenseUtils.getExpiryDate(license);
             }
-            licenseState.update(license.operationMode(), active, getExpiryWarning(getExpiryDate(license), time));
+            licenseState.update(license.operationMode(), active, getExpiryWarning(LicenseUtils.getExpiryDate(license), time));
 
             if (active) {
                 logger.debug("license [{}] - valid", license.uid());
@@ -605,7 +558,11 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                     scheduler.add(
                         new SchedulerEngine.Job(
                             expirationCallback.getId(),
-                            (startTime, now) -> expirationCallback.nextScheduledTimeForExpiry(getExpiryDate(license), startTime, now)
+                            (startTime, now) -> expirationCallback.nextScheduledTimeForExpiry(
+                                LicenseUtils.getExpiryDate(license),
+                                startTime,
+                                now
+                            )
                         )
                     );
                 }
@@ -616,7 +573,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     }
 
     // pkg private for tests
-    static SchedulerEngine.Schedule nextLicenseCheck(License license) {
+    SchedulerEngine.Schedule nextLicenseCheck(License license) {
         return (startTime, time) -> {
             if (time < license.issueDate()) {
                 // when we encounter a license with a future issue date
@@ -625,10 +582,10 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                 // so the license is notified once it is valid
                 // see https://github.com/elastic/x-plugins/issues/983
                 return license.issueDate();
-            } else if (time < getExpiryDate(license)) {
+            } else if (time < LicenseUtils.getExpiryDate(license)) {
                 // Re-check the license every day during the warning period up to the license expiration.
                 // This will cause the warning message to be updated that is emitted on soon-expiring license use.
-                long nextTime = getExpiryDate(license) - LICENSE_EXPIRATION_WARNING_PERIOD.getMillis();
+                long nextTime = LicenseUtils.getExpiryDate(license) - LICENSE_EXPIRATION_WARNING_PERIOD.getMillis();
                 while (nextTime <= time) {
                     nextTime += TimeValue.timeValueDays(1).getMillis();
                 }

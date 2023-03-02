@@ -305,6 +305,11 @@ contains:  { nodes.$master.plugins: { name: painless-whitelist } }
 
 Asserts the plugins array contains an object with a `name` property with the value `painless-whitelist`
 
+Alternatively, this can be used to assert that a string response contains a certain substring:
+
+...
+contains: { items.0.index.error.reason: "must be mapped" }
+
 ==== `transform_and_set`
 
 Supports the `transform_and_set` operator as described in this document.

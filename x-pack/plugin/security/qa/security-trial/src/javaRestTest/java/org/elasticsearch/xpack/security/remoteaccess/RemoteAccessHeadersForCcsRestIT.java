@@ -13,21 +13,17 @@ import org.apache.http.nio.entity.NStringEntity;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -938,7 +934,7 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
             expectedActions.add(ClusterSearchShardsAction.NAME);
         }
         if (false == useProxyMode) {
-            expectedActions.add(ClusterStateAction.NAME);
+            expectedActions.add(RemoteClusterNodesAction.NAME);
         }
         assertThat(
             actualActionsWithHeaders.stream().map(CapturedActionWithHeaders::action).collect(Collectors.toUnmodifiableSet()),
@@ -946,9 +942,9 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
         );
         for (CapturedActionWithHeaders actual : actualActionsWithHeaders) {
             switch (actual.action) {
-                // the cluster state action is run by the system user, so we expect a remote access authentication header with an internal
+                // this action is run by the system user, so we expect a remote access authentication header with an internal
                 // user authentication and empty role descriptors intersection
-                case ClusterStateAction.NAME -> {
+                case RemoteClusterNodesAction.NAME -> {
                     assertContainsRemoteAccessHeaders(actual.headers());
                     assertContainsRemoteClusterAuthorizationHeader(encodedCredential, actual);
                     final var actualRemoteAccessAuthentication = RemoteAccessAuthentication.decode(
@@ -999,7 +995,6 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
             .put("remote_cluster.port", "0")
             .put("xpack.security.remote_cluster_server.ssl.enabled", "false")
             .build();
-        final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         final MockTransportService service = MockTransportService.createNewService(
             settings,
             Version.CURRENT,
@@ -1009,14 +1004,14 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
         );
         try {
             service.registerRequestHandler(
-                ClusterStateAction.NAME,
+                RemoteClusterNodesAction.NAME,
                 ThreadPool.Names.SAME,
-                ClusterStateRequest::new,
+                RemoteClusterNodesAction.Request::new,
                 (request, channel, task) -> {
                     capturedHeaders.add(
                         new CapturedActionWithHeaders(task.getAction(), Map.copyOf(threadPool.getThreadContext().getHeaders()))
                     );
-                    channel.sendResponse(new ClusterStateResponse(clusterName, ClusterState.builder(clusterName).build(), false));
+                    channel.sendResponse(new RemoteClusterNodesAction.Response(List.of()));
                 }
             );
             service.registerRequestHandler(

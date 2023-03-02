@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,7 +35,7 @@ public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollect
         super(NAME, PutAnalyticsCollectionAction.Response::new);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends MasterNodeRequest<Request> {
         private final AnalyticsCollection analyticsCollection;
 
         public Request(StreamInput in) throws IOException {

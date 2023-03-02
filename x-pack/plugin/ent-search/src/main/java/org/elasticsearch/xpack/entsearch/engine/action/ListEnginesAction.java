@@ -45,7 +45,7 @@ public class ListEnginesAction extends ActionType<ListEnginesAction.Response> {
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.query = Objects.requireNonNullElse(in.readOptionalString(), DEFAULT_QUERY);
+            this.query = Objects.requireNonNullElse(in.readString(), DEFAULT_QUERY);
             this.pageParams = new PageParams(in);
         }
 

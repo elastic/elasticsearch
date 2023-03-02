@@ -58,11 +58,6 @@ import static org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT.rewrite;
 @TimeoutSuite(millis = 15 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-    @Override
-    protected boolean preserveSystemFeatureStates() {
-        return true;
-    }
-
     private static final Logger logger = LogManager.getLogger(RcsCcsCommonYamlTestSuiteIT.class);
     private static RestClient searchClient;
     private static RestClient adminSearchClient;
@@ -122,6 +117,11 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()))
             )
             .build();
+    }
+
+    @Override
+    protected boolean preserveSystemFeatureStates() {
+        return true;
     }
 
     @Override

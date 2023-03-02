@@ -93,8 +93,7 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
         client().prepareIndex().setIndex("test").setId("1").setSource("foo", "bar").get();
         refresh();
         try {
-            Settings settings = Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true).build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get());
+            updateClusterSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true));
             assertSearchHits(client().prepareSearch().get(), "1");
             assertBlocked(
                 client().prepareIndex().setIndex("test").setId("2").setSource("foo", "bar"),
@@ -107,8 +106,7 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
             assertSearchHits(client().prepareSearch().get(), "1");
             assertAcked(client().admin().indices().prepareDelete("test"));
         } finally {
-            Settings settings = Settings.builder().putNull(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey()).build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get());
+            updateClusterSettings(Settings.builder().putNull(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey()));
         }
     }
 }

@@ -278,14 +278,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
 
         // disable rebalancing to be able to capture the right stats. balancing can move the target primary
         // making it hard to pin point the source shards.
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
-            )
-            .get();
-
+        updateClusterSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none"));
         // now merge source into a single shard index
         final boolean createWithReplicas = randomBoolean();
         assertAcked(
@@ -357,13 +350,9 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         assertEquals(version, target.getIndexToSettings().get("target").getAsVersion("index.version.created", null));
 
         // clean up
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), (String) null)
-            )
-            .get();
+        updateClusterSettings(
+            Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), (String) null)
+        );
     }
 
     /**
@@ -553,13 +542,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
 
         // disable rebalancing to be able to capture the right stats. balancing can move the target primary
         // making it hard to pin point the source shards.
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
-            )
-            .get();
+        updateClusterSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none"));
         try {
             // now merge source into a single shard index
             assertAcked(
@@ -604,17 +587,11 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                 assertEquals(1, targetShardSegments.getSegments().size());
             });
         } finally {
-
             // clean up
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), (String) null)
-                )
-                .get();
+            updateClusterSettings(
+                Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), (String) null)
+            );
         }
-
     }
 
     public void testShrinkThenSplitWithFailedNode() throws Exception {

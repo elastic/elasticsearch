@@ -56,6 +56,7 @@ fi
 sudo bash -c 'cat > /etc/sudoers.d/elasticsearch_vars'  << SUDOERS_VARS
     Defaults   env_keep += "ES_JAVA_HOME"
     Defaults   env_keep += "JAVA_HOME"
+    Defaults   env_keep += "SYSTEM_JAVA_HOME"
 SUDOERS_VARS
 sudo chmod 0440 /etc/sudoers.d/elasticsearch_vars
 
@@ -74,5 +75,6 @@ sudo -E env \
   PATH=$BUILD_JAVA_HOME/bin:`sudo bash -c 'echo -n $PATH'` \
   --unset=ES_JAVA_HOME \
   --unset=JAVA_HOME \
+  SYSTEM_JAVA_HOME=`readlink -f -n $BUILD_JAVA_HOME` \
   ./gradlew -g $HOME/.gradle --scan --parallel --continue $@
 

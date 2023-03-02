@@ -22,6 +22,7 @@ Copy-Item .ci/init.gradle -Destination $gradleInit
 [Environment]::SetEnvironmentVariable("JAVA_HOME", $null, "Machine")
 $env:PATH="C:\Users\jenkins\.java\$env:ES_BUILD_JAVA\bin\;$env:PATH"
 $env:JAVA_HOME=$null
+$env:SYSTEM_JAVA_HOME="C:\Users\jenkins\.java\$env:ES_BUILD_JAVA"
 Remove-Item -Recurse -Force \tmp -ErrorAction Ignore
 New-Item -ItemType directory -Path \tmp
 

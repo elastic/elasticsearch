@@ -271,25 +271,6 @@ public class EngineIndexService {
         return aliasesRequestBuilder;
     }
 
-    /**
-     * Deletes the provided {@param engineName} in the underlying index, or delegate a failure to the provided
-     * listener if the resource does not exist or failed to delete.
-     *
-     * @param engineName The name of the {@link Engine} to delete.
-     * @param listener The action listener to invoke on response/failure.
-     *
-     */
-    public void deleteEngine(String engineName, ActionListener<DeleteResponse> listener) {
-        try {
-            // TODO Delete alias when Engine is deleted
-            final DeleteRequest deleteRequest = new DeleteRequest(ENGINE_ALIAS_NAME).id(engineName)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            clientWithOrigin.delete(deleteRequest, listener);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
-    }
-
     private void updateEngine(Engine engine, ActionListener<IndexResponse> listener) {
         try (ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())) {
             try (XContentBuilder source = XContentFactory.jsonBuilder(buffer)) {

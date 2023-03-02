@@ -31,7 +31,7 @@ import java.util.Objects;
 public class ListEnginesAction extends ActionType<ListEnginesAction.Response> {
 
     public static final ListEnginesAction INSTANCE = new ListEnginesAction();
-    public static final String NAME = "cluster:admin/engines/list";
+    public static final String NAME = "cluster:admin/engine/list";
 
     public ListEnginesAction() {
         super(NAME, ListEnginesAction.Response::new);

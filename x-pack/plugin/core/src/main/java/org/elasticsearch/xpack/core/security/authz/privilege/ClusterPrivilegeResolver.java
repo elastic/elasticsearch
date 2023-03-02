@@ -77,6 +77,7 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MANAGE_OIDC_PATTERN = Set.of("cluster:admin/xpack/security/oidc/*");
     private static final Set<String> MANAGE_TOKEN_PATTERN = Set.of("cluster:admin/xpack/security/token/*");
     private static final Set<String> MANAGE_API_KEY_PATTERN = Set.of("cluster:admin/xpack/security/api_key/*");
+    private static final Set<String> MANAGE_BEHAVIORAL_ANALYTICS_PATTERN = Set.of("cluster:admin/behavioral_analytics/*");
     private static final Set<String> MANAGE_SERVICE_ACCOUNT_PATTERN = Set.of("cluster:admin/xpack/security/service_account/*");
     private static final Set<String> MANAGE_USER_PROFILE_PATTERN = Set.of("cluster:admin/xpack/security/profile/*");
     private static final Set<String> GRANT_API_KEY_PATTERN = Set.of(GrantApiKeyAction.NAME + "*");
@@ -249,6 +250,7 @@ public class ClusterPrivilegeResolver {
 
     public static final NamedClusterPrivilege CANCEL_TASK = new ActionClusterPrivilege("cancel_task", Set.of(CancelTasksAction.NAME + "*"));
 
+    public static final NamedClusterPrivilege MANAGE_BEHAVIORAL_ANALYTICS = new ActionClusterPrivilege("manage_behavioral_analytics", MANAGE_BEHAVIORAL_ANALYTICS_PATTERN);
     private static final Map<String, NamedClusterPrivilege> VALUES = sortByAccessLevel(
         List.of(
             NONE,
@@ -293,7 +295,8 @@ public class ClusterPrivilegeResolver {
             MANAGE_OWN_API_KEY,
             MANAGE_ENRICH,
             MANAGE_LOGSTASH_PIPELINES,
-            CANCEL_TASK
+            CANCEL_TASK,
+            MANAGE_BEHAVIORAL_ANALYTICS
         )
     );
 

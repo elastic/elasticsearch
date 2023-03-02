@@ -38,7 +38,7 @@ public class TransportGetAnalyticsCollectionAction extends HandledTransportActio
         ActionListener<GetAnalyticsCollectionAction.Response> listener
     ) {
         analyticsCollectionService.getAnalyticsCollection(
-            request.getCollectionId(),
+            request.getCollectionName(),
             listener.map(GetAnalyticsCollectionAction.Response::new)
         );
     }

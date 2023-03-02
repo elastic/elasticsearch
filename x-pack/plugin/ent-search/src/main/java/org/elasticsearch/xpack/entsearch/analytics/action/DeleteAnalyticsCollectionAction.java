@@ -22,34 +22,34 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class DeleteAnalyticsCollectionAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteAnalyticsCollectionAction INSTANCE = new DeleteAnalyticsCollectionAction();
-    public static final String NAME = "cluster:admin/analytics/delete";
+    public static final String NAME = "cluster:admin/behavioral_analytics/delete";
 
     private DeleteAnalyticsCollectionAction() {
         super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends ActionRequest {
-        private final String collectionId;
+        private final String collectionName;
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.collectionId = in.readString();
+            this.collectionName = in.readString();
         }
 
-        public Request(String collectionId) {
-            this.collectionId = collectionId;
+        public Request(String collectionName) {
+            this.collectionName = collectionName;
         }
 
-        public String getCollectionId() {
-            return collectionId;
+        public String getCollectionName() {
+            return collectionName;
         }
 
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
 
-            if (this.collectionId == null || this.collectionId.isEmpty()) {
-                validationException = addValidationError("collectionId missing", validationException);
+            if (this.collectionName == null || this.collectionName.isEmpty()) {
+                validationException = addValidationError("collection name missing", validationException);
             }
 
             return validationException;
@@ -58,7 +58,7 @@ public class DeleteAnalyticsCollectionAction extends ActionType<AcknowledgedResp
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(collectionId);
+            out.writeString(collectionName);
         }
 
         @Override
@@ -66,12 +66,12 @@ public class DeleteAnalyticsCollectionAction extends ActionType<AcknowledgedResp
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request that = (Request) o;
-            return Objects.equals(collectionId, that.collectionId);
+            return Objects.equals(collectionName, that.collectionName);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(collectionId);
+            return Objects.hash(collectionName);
         }
 
     }

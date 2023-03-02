@@ -25,30 +25,30 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollectionAction.Response> {
 
     public static final GetAnalyticsCollectionAction INSTANCE = new GetAnalyticsCollectionAction();
-    public static final String NAME = "cluster:admin/analytics/get";
+    public static final String NAME = "cluster:admin/behavioral_analytics/get";
 
     private GetAnalyticsCollectionAction() {
         super(NAME, GetAnalyticsCollectionAction.Response::new);
     }
 
     public static class Request extends ActionRequest {
-        private final String collectionId;
+        private final String collectionName;
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.collectionId = in.readString();
+            this.collectionName = in.readString();
         }
 
-        public Request(String collectionId) {
-            this.collectionId = collectionId;
+        public Request(String collectionName) {
+            this.collectionName = collectionName;
         }
 
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
 
-            if (collectionId == null || collectionId.isEmpty()) {
-                validationException = addValidationError("collection id missing", validationException);
+            if (collectionName == null || collectionName.isEmpty()) {
+                validationException = addValidationError("collection name missing", validationException);
             }
 
             return validationException;
@@ -57,11 +57,11 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(collectionId);
+            out.writeString(collectionName);
         }
 
-        public String getCollectionId() {
-            return this.collectionId;
+        public String getCollectionName() {
+            return this.collectionName;
         }
     }
 

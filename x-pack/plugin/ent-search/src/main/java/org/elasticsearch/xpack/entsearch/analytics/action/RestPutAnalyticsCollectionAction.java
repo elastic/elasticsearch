@@ -29,13 +29,13 @@ public class RestPutAnalyticsCollectionAction extends BaseRestHandler {
 
     @Override
     public List<RestHandler.Route> routes() {
-        return List.of(new RestHandler.Route(PUT, "/" + EnterpriseSearch.BEHAVIORAL_ANALYTICS_API_ENDPOINT + "/{collection_id}"));
+        return List.of(new RestHandler.Route(PUT, "/" + EnterpriseSearch.BEHAVIORAL_ANALYTICS_API_ENDPOINT + "/{collection_name}"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         PutAnalyticsCollectionAction.Request request = new PutAnalyticsCollectionAction.Request(
-            restRequest.param("collection_id"),
+            restRequest.param("collection_name"),
             restRequest.content(),
             restRequest.getXContentType()
         );

@@ -27,12 +27,12 @@ public class RestGetAnalyticsCollectionAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/" + EnterpriseSearch.BEHAVIORAL_ANALYTICS_API_ENDPOINT + "/{collection_id}"));
+        return List.of(new Route(GET, "/" + EnterpriseSearch.BEHAVIORAL_ANALYTICS_API_ENDPOINT + "/{collection_name}"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        GetAnalyticsCollectionAction.Request request = new GetAnalyticsCollectionAction.Request(restRequest.param("collection_id"));
+        GetAnalyticsCollectionAction.Request request = new GetAnalyticsCollectionAction.Request(restRequest.param("collection_name"));
         return channel -> client.execute(GetAnalyticsCollectionAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

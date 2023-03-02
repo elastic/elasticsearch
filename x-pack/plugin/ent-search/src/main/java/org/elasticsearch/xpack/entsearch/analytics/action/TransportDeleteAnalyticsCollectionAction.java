@@ -34,7 +34,6 @@ public class TransportDeleteAnalyticsCollectionAction extends HandledTransportAc
 
     @Override
     protected void doExecute(Task task, DeleteAnalyticsCollectionAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        final String collectionId = request.getCollectionId();
-        analyticsCollectionService.deleteAnalyticsCollection(collectionId, listener.map(v -> AcknowledgedResponse.TRUE));
+        analyticsCollectionService.deleteAnalyticsCollection(request.getCollectionName(), listener.map(v -> AcknowledgedResponse.TRUE));
     }
 }

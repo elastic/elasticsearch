@@ -76,7 +76,7 @@ public class SqlSearchIT extends ESRestTestCase {
             deleteIndex(index);
         }
     }
-    
+
     @Override
     protected boolean preserveSystemResources() {
         // bug in the ML reset API before v8.7

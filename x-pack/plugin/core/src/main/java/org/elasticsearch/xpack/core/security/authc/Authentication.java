@@ -750,13 +750,9 @@ public final class Authentication implements ToXContentObject {
                 Strings.format("Anonymous authentication cannot have realm type [%s]", authenticatingRealm.type)
             );
         }
-        if (authenticatingRealm.getDomain() != null) {
-            throw new IllegalArgumentException("Anonymous authentication cannot have domain");
-        }
-        checkNotInternalUser(authenticatingSubject, "Anonymous authentication cannot have internal user [%s]");
-        if (isRunAs()) {
-            throw new IllegalArgumentException("Anonymous authentication cannot have run-as");
-        }
+        checkNoDomain(authenticatingRealm, "Anonymous");
+        checkNoInternalUser(authenticatingSubject, "Anonymous");
+        checkNoRunAs(this, "Anonymous");
     }
 
     private void checkConsistencyForInternalAuthenticationType() {
@@ -766,15 +762,11 @@ public final class Authentication implements ToXContentObject {
                 Strings.format("Internal authentication cannot have realm type [%s]", authenticatingRealm.type)
             );
         }
-        if (authenticatingRealm.getDomain() != null) {
-            throw new IllegalArgumentException("Internal authentication cannot have domain");
-        }
+        checkNoDomain(authenticatingRealm, "Internal");
         if (false == User.isInternal(authenticatingSubject.getUser())) {
             throw new IllegalArgumentException("Internal authentication must have internal user");
         }
-        if (isRunAs()) {
-            throw new IllegalArgumentException("Internal authentication cannot have run-as");
-        }
+        checkNoRunAs(this, "Internal");
     }
 
     private void checkConsistencyForApiKeyAuthenticationType() {
@@ -784,13 +776,9 @@ public final class Authentication implements ToXContentObject {
                 Strings.format("API key authentication cannot have realm type [%s]", authenticatingRealm.type)
             );
         }
-        if (authenticatingRealm.getDomain() != null) {
-            throw new IllegalArgumentException("API key authentication cannot have domain");
-        }
-        checkNotInternalUser(authenticatingSubject, "API key authentication cannot have internal user [%s]");
-        if (authenticatingSubject.getUser().roles().length != 0) {
-            throw new IllegalArgumentException("API key authentication user must have no role");
-        }
+        checkNoDomain(authenticatingRealm, "API key");
+        checkNoInternalUser(authenticatingSubject, "API key");
+        checkNoRole(authenticatingSubject, "API key");
         if (authenticatingSubject.getMetadata().get(AuthenticationField.API_KEY_ID_KEY) == null) {
             throw new IllegalArgumentException("API key authentication requires metadata to contain a non-null API key ID");
         }
@@ -805,9 +793,7 @@ public final class Authentication implements ToXContentObject {
                     "Remote access authentication requires metadata to contain a non-null serialized remote access role descriptors"
                 );
             }
-            if (isRunAs()) {
-                throw new IllegalArgumentException("Remote access authentication cannot run-as other user");
-            }
+            checkNoRunAs(this, "Remote access");
         } else {
             if (isRunAs()) {
                 checkRunAsConsistency(effectiveSubject, authenticatingSubject);
@@ -831,17 +817,11 @@ public final class Authentication implements ToXContentObject {
             && false == authenticatingRealm.isRemoteAccessRealm()
             : "Token authentication cannot have authenticating realm " + authenticatingRealm;
 
-        checkNotInternalUser(authenticatingSubject, "Token authentication cannot have internal user [%s]");
+        checkNoInternalUser(authenticatingSubject, "Token");
         if (Subject.Type.SERVICE_ACCOUNT == authenticatingSubject.getType()) {
-            if (authenticatingRealm.getDomain() != null) {
-                throw new IllegalArgumentException("Service account authentication cannot have domain");
-            }
-            if (authenticatingSubject.getUser().roles().length != 0) {
-                throw new IllegalArgumentException("Service account authentication user must have no role");
-            }
-            if (isRunAs()) {
-                throw new IllegalArgumentException("Service account authentication cannot run-as other user");
-            }
+            checkNoDomain(authenticatingRealm, "Service account");
+            checkNoRole(authenticatingSubject, "Service account");
+            checkNoRunAs(this, "Service account");
         } else {
             if (isRunAs()) {
                 checkRunAsConsistency(effectiveSubject, authenticatingSubject);
@@ -869,9 +849,29 @@ public final class Authentication implements ToXContentObject {
         assert false == hasSyntheticRealmNameOrType(effectiveSubject.getRealm()) : "run-as subject cannot be from a synthetic realm";
     }
 
-    private static void checkNotInternalUser(Subject subject, String templateMessage) {
+    private static void checkNoInternalUser(Subject subject, String prefixMessage) {
         if (User.isInternal(subject.getUser())) {
-            throw new IllegalArgumentException(Strings.format(templateMessage, subject.getUser().principal()));
+            throw new IllegalArgumentException(
+                Strings.format(prefixMessage + " authentication cannot have internal user [%s]", subject.getUser().principal())
+            );
+        }
+    }
+
+    private static void checkNoDomain(RealmRef realm, String prefixMessage) {
+        if (realm.getDomain() != null) {
+            throw new IllegalArgumentException(prefixMessage + " authentication cannot have domain");
+        }
+    }
+
+    private static void checkNoRole(Subject subject, String prefixMessage) {
+        if (subject.getUser().roles().length != 0) {
+            throw new IllegalArgumentException(prefixMessage + " authentication user must have no role");
+        }
+    }
+
+    private static void checkNoRunAs(Authentication authentication, String prefixMessage) {
+        if (authentication.isRunAs()) {
+            throw new IllegalArgumentException(prefixMessage + " authentication cannot run-as other user");
         }
     }
 

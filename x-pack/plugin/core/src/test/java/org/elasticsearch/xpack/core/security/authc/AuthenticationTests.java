@@ -970,7 +970,7 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(empty.toBytesRef(), equalTo(Authentication.maybeRemoveRemoteIndicesFromRoleDescriptors(empty).toBytesRef()));
     }
 
-    public void testCheckConsistency() throws IOException {
+    public void testCheckConsistency() {
         @SuppressWarnings("checkstyle:linelength")
         final Map<String, String> testCases = Map.ofEntries(
             entry("Anonymous authentication cannot have realm type [realm_1]", "45XtAwADZm9vAAoAAAABAARub2RlB3JlYWxtXzEHcmVhbG1fMQAAAwA="),
@@ -983,7 +983,7 @@ public class AuthenticationTests extends ESTestCase {
                 "45XtAwEGX3hwYWNrBG5vZGULX19hbm9ueW1vdXMLX19hbm9ueW1vdXMAAAMA"
             ),
             entry(
-                "Anonymous authentication cannot have run-as",
+                "Anonymous authentication cannot run-as other user",
                 "45XtAwADYmFyAAoAAAABAQADZm9vAAoAAAABAARub2RlC19fYW5vbnltb3VzC19fYW5vbnltb3VzAAEEbm9kZQdyZWFsbV8yB3JlYWxtXzIAAwA="
             ),
             entry("Internal authentication cannot have realm type [realm_1]", "45XtAwADZm9vAAoAAAABAARub2RlB3JlYWxtXzEHcmVhbG1fMQAABAA="),

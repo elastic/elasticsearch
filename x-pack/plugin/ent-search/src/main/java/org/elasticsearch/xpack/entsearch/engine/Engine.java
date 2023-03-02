@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.entsearch.engine;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
@@ -42,9 +41,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class Engine implements Writeable, ToXContentObject {
 
     public static final String ENGINE_ALIAS_PREFIX = "engine-";
-    // Shared indices options for Engines API requests that require every specified index to exist, do not expand wildcards,
-    // don't allow that no indices are resolved from wildcard expressions and resolve the expressions only against indices
-    public static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, false, false, true, false, true, false);
     private final String name;
     private final String[] indices;
     private long updatedAtMillis = System.currentTimeMillis();

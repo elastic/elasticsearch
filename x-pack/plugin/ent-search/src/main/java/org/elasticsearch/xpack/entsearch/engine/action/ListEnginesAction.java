@@ -22,7 +22,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
-import org.elasticsearch.xpack.entsearch.engine.Engine;
+import org.elasticsearch.xpack.entsearch.engine.EngineListItem;
 
 import java.io.IOException;
 import java.util.List;
@@ -98,14 +98,14 @@ public class ListEnginesAction extends ActionType<ListEnginesAction.Response> {
 
         public static final ParseField ENGINES_RESULT_FIELD = new ParseField("results");
 
-        final QueryPage<Engine> queryPage;
+        final QueryPage<EngineListItem> queryPage;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.queryPage = new QueryPage<>(in, Engine::new);
+            this.queryPage = new QueryPage<>(in, EngineListItem::new);
         }
 
-        public Response(List<Engine> engines, Long totalResults) {
+        public Response(List<EngineListItem> engines, Long totalResults) {
             this.queryPage = new QueryPage<>(engines, totalResults, ENGINES_RESULT_FIELD);
         }
 

@@ -37,7 +37,7 @@ public class TransportListEnginesAction extends HandledTransportAction<ListEngin
             request.query(),
             pageParams.getFrom(),
             pageParams.getSize(),
-            listener.map(r -> new ListEnginesAction.Response(r.engines(), r.totalResults()))
+            listener.map(r -> new ListEnginesAction.Response(r.engineListItems(), r.totalResults()))
         );
     }
 }

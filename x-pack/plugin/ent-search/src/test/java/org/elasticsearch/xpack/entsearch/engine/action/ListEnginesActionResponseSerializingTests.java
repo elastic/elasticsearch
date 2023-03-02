@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.entsearch.engine.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.entsearch.engine.Engine;
+import org.elasticsearch.xpack.entsearch.engine.EngineListItem;
 import org.elasticsearch.xpack.entsearch.engine.EngineTestUtils;
 
 public class ListEnginesActionResponseSerializingTests extends AbstractWireSerializingTestCase<ListEnginesAction.Response> {
@@ -18,13 +20,20 @@ public class ListEnginesActionResponseSerializingTests extends AbstractWireSeria
         return ListEnginesAction.Response::new;
     }
 
-    @Override
-    protected ListEnginesAction.Response createTestInstance() {
-        return new ListEnginesAction.Response(randomList(10, EngineTestUtils::randomEngine), randomLongBetween(0, 1000));
+    private static ListEnginesAction.Response randomEngineListItem() {
+        return new ListEnginesAction.Response(randomList(10, () -> {
+            Engine engine = EngineTestUtils.randomEngine();
+            return new EngineListItem(engine.name(), engine.indices(), engine.engineAlias(), engine.analyticsCollectionName());
+        }), randomLongBetween(0, 1000));
     }
 
     @Override
     protected ListEnginesAction.Response mutateInstance(ListEnginesAction.Response instance) {
         return randomValueOtherThan(instance, this::createTestInstance);
+    }
+
+    @Override
+    protected ListEnginesAction.Response createTestInstance() {
+        return randomEngineListItem();
     }
 }

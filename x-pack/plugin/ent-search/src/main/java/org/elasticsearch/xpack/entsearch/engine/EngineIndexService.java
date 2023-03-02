@@ -294,19 +294,7 @@ public class EngineIndexService {
         }
     }
 
-    private static SearchEnginesResult mapSearchResponse(SearchResponse response) {
-        final List<Engine> engines = Arrays.stream(response.getHits().getHits()).map(EngineIndexService::hitToEngine).toList();
-        return new SearchEnginesResult(engines, (int) response.getHits().getTotalHits().value);
-    }
 
-    private static Engine hitToEngine(SearchHit searchHit) {
-        final Map<String, DocumentField> documentFields = searchHit.getDocumentFields();
-        return new Engine(
-            documentFields.get(NAME_FIELD.getPreferredName()).getValue(),
-            documentFields.get(INDICES_FIELD.getPreferredName()).getValues().toArray(String[]::new),
-            documentFields.get(ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName()).getValue()
-        );
-    }
 
     /**
      * Deletes the provided {@param engineName} in the underlying index, or delegate a failure to the provided
@@ -362,6 +350,24 @@ public class EngineIndexService {
         }
     }
 
+    private static SearchEnginesResult mapSearchResponse(SearchResponse response) {
+        final List<EngineListItem> engines = Arrays.stream(response.getHits().getHits())
+            .map(EngineIndexService::hitToEngineListItem)
+            .toList();
+        return new SearchEnginesResult(engines, (int) response.getHits().getTotalHits().value);
+    }
+
+    private static EngineListItem hitToEngineListItem(SearchHit searchHit) {
+        final Map<String, DocumentField> documentFields = searchHit.getDocumentFields();
+        final String engineName = documentFields.get(NAME_FIELD.getPreferredName()).getValue();
+        return new EngineListItem(
+            engineName,
+            documentFields.get(INDICES_FIELD.getPreferredName()).getValues().toArray(String[]::new),
+            documentFields.get(ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName()).getValue(),
+            Engine.getEngineAliasName(engineName)
+        );
+    }
+
     private Engine parseEngineBinaryFromSource(BytesReference source) {
         try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, XContentType.JSON)) {
             ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_OBJECT, parser);
@@ -412,5 +418,5 @@ public class EngineIndexService {
         }
     }
 
-    public record SearchEnginesResult(List<Engine> engines, long totalResults) {}
+    public record SearchEnginesResult(List<EngineListItem> engineListItems, long totalResults) {}
 }

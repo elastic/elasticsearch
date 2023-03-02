@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -874,6 +875,84 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         );
 
         assertNoLogging(monitor, allDisksOk);
+    }
+
+    public void testSkipDiskThresholdMonitorWhenStateNotRecovered() {
+        Metadata.Builder metadataBuilder = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1));
+        boolean shutdownMetadataInState = randomBoolean();
+        if (shutdownMetadataInState) {
+            metadataBuilder.putCustom(
+                NodesShutdownMetadata.TYPE,
+                new NodesShutdownMetadata(
+                    Collections.singletonMap(
+                        "node1",
+                        SingleNodeShutdownMetadata.builder()
+                            .setNodeId("node1")
+                            .setReason("testing")
+                            .setType(SingleNodeShutdownMetadata.Type.REPLACE)
+                            .setTargetNodeName("node3")
+                            .setStartedAtMillis(randomNonNegativeLong())
+                            .build()
+                    )
+                )
+            );
+        }
+        Metadata metadata = metadataBuilder.build();
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder()
+            .add(newNormalNode("node1", "node1"))
+            .add(newNormalNode("node2", "node2"));
+        // node3 which is to replace node1 may or may not be in the cluster
+        if (shutdownMetadataInState && randomBoolean()) {
+            discoveryNodesBuilder.add(newNormalNode("node3", "node3"));
+        }
+        DiscoveryNodes discoveryNodes = discoveryNodesBuilder.build();
+        final ClusterState clusterState = applyStartedShardsUntilNoChange(
+            ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+                .metadata(metadata)
+                .routingTable(routingTable)
+                .nodes(discoveryNodes)
+                .build(),
+            createAllocationService(Settings.EMPTY)
+        );
+        ImmutableOpenMap.Builder<String, DiskUsage> builder = ImmutableOpenMap.builder();
+        builder.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(0, 4)));
+        builder.put("node2", new DiskUsage("node2", "node2", "/foo/bar", 100, between(0, 4)));
+        final ClusterInfo clusterInfo = clusterInfo(builder.build());
+        Set<String> result = runDiskThresholdMonitor(clusterState, clusterInfo);
+        assertEquals(Collections.singleton("test"), result);
+
+        final ClusterState blockedClusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .nodes(DiscoveryNodes.builder(discoveryNodes))
+            .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK).build())
+            .build();
+        Set<String> result2 = runDiskThresholdMonitor(blockedClusterState, clusterInfo);
+        assertNull(result2);
+    }
+
+    // Runs a disk threshold monitor with a given cluster state and cluster info and returns any indices that should be marked as read-only.
+    private Set<String> runDiskThresholdMonitor(ClusterState clusterState, ClusterInfo clusterInfo) {
+        AtomicReference<Set<String>> indices = new AtomicReference<>();
+        DiskThresholdMonitor monitor = new DiskThresholdMonitor(
+            Settings.EMPTY,
+            () -> clusterState,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            null,
+            System::currentTimeMillis,
+            (reason, priority, listener) -> listener.onResponse(clusterState)
+        ) {
+
+            @Override
+            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
+                assertTrue(readOnly);
+                indices.set(indicesToUpdate);
+                listener.onResponse(null);
+            }
+        };
+        monitor.onNewInfo(clusterInfo);
+        return indices.get();
     }
 
     private void assertNoLogging(DiskThresholdMonitor monitor, ImmutableOpenMap<String, DiskUsage> diskUsages)

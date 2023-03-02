@@ -49,7 +49,7 @@ Total number of failed database downloads.
 (integer)
 Total milliseconds spent downloading databases.
 
-`database_count`::
+`databases_count`::
 (integer)
 Current number of databases available for use.
 

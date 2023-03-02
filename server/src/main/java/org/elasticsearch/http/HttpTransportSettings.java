@@ -44,7 +44,13 @@ public final class HttpTransportSettings {
     );
     public static final Setting<String> SETTING_CORS_ALLOW_HEADERS = new Setting<>(
         "http.cors.allow-headers",
-        "X-Requested-With,Content-Type,Content-Length",
+        "X-Requested-With,Content-Type,Content-Length,Authorization,Accept,User-Agent,X-Elastic-Client-Meta",
+        (value) -> value,
+        Property.NodeScope
+    );
+    public static final Setting<String> SETTING_CORS_EXPOSE_HEADERS = new Setting<>(
+        "http.cors.expose-headers",
+        "X-elastic-product",
         (value) -> value,
         Property.NodeScope
     );

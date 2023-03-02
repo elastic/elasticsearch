@@ -17,6 +17,7 @@ These issues will impact any subsequent upgrade to 8.x, and are fixed in
 7.17.1. We strongly recommend that all users upgrade to a later patch
 release of 7.17 before upgrading to 8.x.
 
+include::7.7.asciidoc[tag=jackson-filtering-bug]
 
 [[deprecation-7.17.0]]
 [float]

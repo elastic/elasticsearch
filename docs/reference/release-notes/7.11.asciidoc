@@ -9,6 +9,8 @@ Also see <<breaking-changes-7.11,Breaking changes in 7.11>>.
 
 include::7.9.asciidoc[tag=snapshot-repo-corruption-73456-known-issue]
 
+include::7.7.asciidoc[tag=jackson-filtering-bug]
+
 [[enhancement-7.11.2]]
 [float]
 === Enhancements
@@ -70,6 +72,8 @@ Also see <<breaking-changes-7.11,Breaking changes in 7.11>>.
 === Known issues
 
 include::7.9.asciidoc[tag=snapshot-repo-corruption-73456-known-issue]
+
+include::7.7.asciidoc[tag=jackson-filtering-bug]
 
 [[enhancement-7.11.1]]
 [float]
@@ -175,6 +179,8 @@ Also see <<breaking-changes-7.11,Breaking changes in 7.11>>.
   For more details, see {es-issue}72509[#72509]
 
 include::7.9.asciidoc[tag=snapshot-repo-corruption-73456-known-issue]
+
+include::7.7.asciidoc[tag=jackson-filtering-bug]
 
 [discrete]
 [[fips-140-2-compliance-7.11.0]]

@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.gradle;
 
+import java.io.Serializable;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -14,7 +15,7 @@ import java.util.regex.Pattern;
 /**
  * Encapsulates comparison and printing logic for an x.y.z version.
  */
-public final class Version implements Comparable<Version> {
+public final class Version implements Comparable<Version>, Serializable {
     private final int major;
     private final int minor;
     private final int revision;

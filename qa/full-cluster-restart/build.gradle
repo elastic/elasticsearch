@@ -6,54 +6,20 @@
  * Side Public License, v 1.
  */
 
-
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-test-artifact-base'
 apply plugin: 'elasticsearch.bwc-test'
 
-BuildParams.bwcVersions.withIndexCompatiple { bwcVersion, baseName ->
-  def baseCluster = testClusters.register(baseName) {
-      versions =  [bwcVersion.toString(), project.version]
-      numberOfNodes = 2
-      // some tests rely on the translog not being flushed
-      setting 'indices.memory.shard_inactive_time', '60m'
-      setting 'http.content_type.required', 'true'
-      setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-      setting 'xpack.security.enabled', 'false'
-  }
+testArtifacts {
+  registerTestArtifactFromSourceSet(sourceSets.javaRestTest)
+}
 
-  tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
-    useCluster baseCluster
-    mustRunAfter("precommit")
-    doFirst {
-      delete("${buildDir}/cluster/shared/repo/${baseName}")
-    }
-
-    systemProperty 'tests.is_old_cluster', 'true'
-  }
-
-  tasks.register("${baseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
-    useCluster baseCluster
-    dependsOn "${baseName}#oldClusterTest"
-    doFirst {
-      baseCluster.get().goToNextVersion()
-    }
-    systemProperty 'tests.is_old_cluster', 'false'
-  }
-
-  String oldVersion = bwcVersion.toString().minus("-SNAPSHOT")
-  tasks.matching { it.name.startsWith(baseName) && it.name.endsWith("ClusterTest") }.configureEach {
-    it.systemProperty 'tests.old_cluster_version', oldVersion
-    it.systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-    it.nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c -> c.allHttpSocketURI.join(",")))
-    it.nonInputProperties.systemProperty('tests.clustername', baseName)
-  }
-
-  tasks.register(bwcTaskName(bwcVersion)) {
-    dependsOn tasks.named("${baseName}#upgradedClusterTest")
+BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
+  tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.old_cluster_version", bwcVersion)
   }
 }

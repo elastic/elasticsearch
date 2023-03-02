@@ -22,6 +22,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.LongGCDisruption;
@@ -172,6 +173,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
      * following another elected master node. These nodes should reject this cluster state and prevent them from following the stale master.
      */
     public void testStaleMasterNotHijackingMajority() throws Exception {
+        assumeFalse("jdk20 removed thread suspend/resume", JavaVersion.current().compareTo(JavaVersion.parse("20")) >= 0);
         final List<String> nodes = internalCluster().startNodes(
             3,
             Settings.builder()

@@ -9,7 +9,7 @@
 package org.elasticsearch.test.cluster.local.model;
 
 public class User {
-    public static final User DEFAULT_USER = new User("test_user", "x-pack-test-password", "_es_test_root");
+    public static final User DEFAULT_USER = new User("test_user", "x-pack-test-password", "superuser");
 
     private final String username;
     private final String password;
@@ -18,7 +18,7 @@ public class User {
     public User(String username, String password) {
         this.username = username;
         this.password = password;
-        this.role = "_es_test_root";
+        this.role = DEFAULT_USER.role;
     }
 
     public User(String username, String password, String role) {

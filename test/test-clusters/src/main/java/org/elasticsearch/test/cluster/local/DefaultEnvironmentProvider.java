@@ -21,6 +21,7 @@ public class DefaultEnvironmentProvider implements EnvironmentProvider {
     private static final String HOSTNAME_OVERRIDE = "LinuxDarwinHostname";
     private static final String COMPUTERNAME_OVERRIDE = "WindowsComputername";
     private static final String TESTS_RUNTIME_JAVA_SYSPROP = "tests.runtime.java";
+    private static final String TESTS_LEGACY_JAVA_SYSPROP = "tests.legacy.java";
 
     @Override
     public Map<String, String> get(LocalNodeSpec nodeSpec) {
@@ -29,6 +30,8 @@ public class DefaultEnvironmentProvider implements EnvironmentProvider {
         // If we are testing the current version of Elasticsearch, use the configured runtime Java, otherwise use the bundled JDK
         if (nodeSpec.getDistributionType() == DistributionType.INTEG_TEST || nodeSpec.getVersion().equals(Version.CURRENT)) {
             environment.put("ES_JAVA_HOME", System.getProperty(TESTS_RUNTIME_JAVA_SYSPROP));
+        } else if (nodeSpec.getVersion().before("7.0.0")) {
+            environment.put("JAVA_HOME", System.getProperty(TESTS_LEGACY_JAVA_SYSPROP));
         }
 
         // Override the system hostname variables for testing

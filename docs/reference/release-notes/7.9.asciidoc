@@ -18,6 +18,8 @@ see {es-issue}65488[#65488].
 
 include::7.9.asciidoc[tag=snapshot-repo-corruption-73456-known-issue]
 
+include::7.7.asciidoc[tag=jackson-filtering-bug]
+
 [[bug-7.9.3]]
 [float]
 === Bug fixes
@@ -97,6 +99,8 @@ We have fixed this issue in {es} 7.10.1 and later versions. For more details,
 see {es-issue}65488[#65488].
 
 include::7.9.asciidoc[tag=snapshot-repo-corruption-73456-known-issue]
+
+include::7.7.asciidoc[tag=jackson-filtering-bug]
 
 [[deprecation-7.9.2]]
 [float]
@@ -208,6 +212,8 @@ We have fixed this issue in {es} 7.10.1 and later versions. For more details,
 see {es-issue}65488[#65488].
 
 include::7.9.asciidoc[tag=snapshot-repo-corruption-73456-known-issue]
+
+include::7.7.asciidoc[tag=jackson-filtering-bug]
 
 [[feature-7.9.1]]
 [float]
@@ -390,6 +396,8 @@ repository from a backup, or clear the repository by executing
 `DELETE _snapshot/<repository name>/*`, or move to a fresh repository. For more
 details, see {es-issue}73456[#73456].
 // end::snapshot-repo-corruption-73456-known-issue[]
+
+include::7.7.asciidoc[tag=jackson-filtering-bug]
 
 [[breaking-7.9.0]]
 [discrete]

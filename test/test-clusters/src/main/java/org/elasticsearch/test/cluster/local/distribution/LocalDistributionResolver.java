@@ -13,6 +13,9 @@ import org.elasticsearch.test.cluster.util.Version;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+/**
+ * A {@link DistributionResolver} for resolving locally built distributions for the current version of Elasticsearch.
+ */
 public class LocalDistributionResolver implements DistributionResolver {
     private final DistributionResolver delegate;
 

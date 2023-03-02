@@ -42,12 +42,13 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Implements a <a href="https://en.wikipedia.org/wiki/Proxy_server#Web_proxy_servers">Web Proxy Server</a> for end-to-end testing
- * of proxy support for client APIs.
- *
+ * Emulates a <a href="https://en.wikipedia.org/wiki/Proxy_server#Web_proxy_servers">Web Proxy Server</a>.
  * @see <a href="https://github.com/netty/netty/tree/4.1/example/src/main/java/io/netty/example/proxy">Netty Proxy Example</a>
  */
 class WebProxyServer implements Closeable {
+
+    private static final Set<String> BLOCKED_HEADERS = Stream.of("Host", "Proxy-Connection", "Proxy-Authenticate")
+        .collect(Collectors.toCollection(() -> new TreeSet<>(String.CASE_INSENSITIVE_ORDER)));
 
     private final EventLoopGroup bossGroup = new NioEventLoopGroup(1);
     private final EventLoopGroup workerGroup = new NioEventLoopGroup();
@@ -93,9 +94,6 @@ class WebProxyServer implements Closeable {
     }
 
     private static class ProxyFrontendHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
-
-        private static final Set<String> BLOCKED_HEADERS = Stream.of("Host", "Proxy-Connection", "Proxy-Authenticate")
-            .collect(Collectors.toCollection(() -> new TreeSet<>(String.CASE_INSENSITIVE_ORDER)));
 
         private final String upstreamHost;
         private final int upstreamPort;

@@ -143,6 +143,9 @@ public class ClusterPrivilegeResolver {
         GetStatusAction.NAME
     );
     private static final Set<String> READ_SLM_PATTERN = Set.of(GetSnapshotLifecycleAction.NAME, GetStatusAction.NAME);
+
+    private static final Set<String> MANAGE_ENGINE_PATTERN = Set.of("cluster:admin/engine/*");
+
     private static final Set<String> MANAGE_ENRICH_AUTOMATON = Set.of("cluster:admin/xpack/enrich/*");
 
     public static final NamedClusterPrivilege NONE = new ActionClusterPrivilege("none", Set.of(), Set.of());
@@ -250,7 +253,9 @@ public class ClusterPrivilegeResolver {
 
     public static final NamedClusterPrivilege CANCEL_TASK = new ActionClusterPrivilege("cancel_task", Set.of(CancelTasksAction.NAME + "*"));
 
+    public static final NamedClusterPrivilege MANAGE_ENGINE = new ActionClusterPrivilege("manage_engine", MANAGE_ENGINE_PATTERN);
     public static final NamedClusterPrivilege MANAGE_BEHAVIORAL_ANALYTICS = new ActionClusterPrivilege("manage_behavioral_analytics", MANAGE_BEHAVIORAL_ANALYTICS_PATTERN);
+
     private static final Map<String, NamedClusterPrivilege> VALUES = sortByAccessLevel(
         List.of(
             NONE,
@@ -296,8 +301,9 @@ public class ClusterPrivilegeResolver {
             MANAGE_ENRICH,
             MANAGE_LOGSTASH_PIPELINES,
             CANCEL_TASK,
+            MANAGE_ENGINE,
             MANAGE_BEHAVIORAL_ANALYTICS
-        )
+            )
     );
 
     /**

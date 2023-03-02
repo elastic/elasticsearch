@@ -1,6 +1,8 @@
 entsearch:
   cluster:
-    - manage
+    - manage_engine
+    - manage_behavioral_analytics
+    - monitor
   indices:
     - names: [ "*" ]
       privileges: [ "manage" ]

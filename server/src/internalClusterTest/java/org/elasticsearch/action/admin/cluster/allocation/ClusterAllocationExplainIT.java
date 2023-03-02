@@ -727,11 +727,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         prepareIndex(5, 0);
 
         logger.info("--> setting balancing threshold really high, so it won't be met");
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.balance.threshold", 1000.0f))
-            .get();
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.balance.threshold", 1000.0f));
 
         logger.info("--> starting another node, with the rebalance threshold so high, it should not get any shards");
         internalCluster().startNode();

@@ -431,7 +431,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
         builder.startObject("properties");
 
-        addTimestampField(config, builder);
+        addTimestampField(config, sourceIndexMappings, builder);
         addMetricFields(helper, sourceIndexMappings, builder);
 
         builder.endObject(); // match initial startObject
@@ -462,15 +462,32 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         });
     }
 
-    private static void addTimestampField(final DownsampleConfig config, final XContentBuilder builder) throws IOException {
+    private static void addTimestampField(
+        final DownsampleConfig config,
+        Map<String, Object> sourceIndexMappings,
+        final XContentBuilder builder
+    ) throws IOException {
         final String timestampField = config.getTimestampField();
         final String dateIntervalType = config.getIntervalType();
         final String dateInterval = config.getInterval().toString();
         final String timezone = config.getTimeZone();
+        builder.startObject(timestampField);
 
-        builder.startObject(timestampField)
-            .field("type", DateFieldMapper.CONTENT_TYPE)
-            .startObject("meta")
+        MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
+            try {
+                if (timestampField.equals(field)) {
+                    final String timestampType = String.valueOf(mapping.get("type"));
+                    builder.field("type", timestampType != null ? timestampType : DateFieldMapper.CONTENT_TYPE);
+                    if (mapping.get("format") != null) {
+                        builder.field("format", mapping.get("format"));
+                    }
+                }
+            } catch (IOException e) {
+                throw new ElasticsearchException("Unable to create timestamp field mapping for field [" + timestampField + "]", e);
+            }
+        });
+
+        builder.startObject("meta")
             .field(dateIntervalType, dateInterval)
             .field(DownsampleConfig.TIME_ZONE, timezone)
             .endObject()

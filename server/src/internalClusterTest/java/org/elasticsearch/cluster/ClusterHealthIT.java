@@ -11,7 +11,6 @@ package org.elasticsearch.cluster;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -354,14 +353,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
             internalCluster().restartNode(internalCluster().getMasterName(), InternalTestCluster.EMPTY_CALLBACK);
         }
         if (withIndex) {
-            assertAcked(
-                client().admin()
-                    .indices()
-                    .updateSettings(
-                        new UpdateSettingsRequest("test").settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
-                    )
-                    .get()
-            );
+            setReplicaCount(0, "test");
         }
         for (ActionFuture<ClusterHealthResponse> responseFuture : responseFutures) {
             assertSame(responseFuture.get().getStatus(), ClusterHealthStatus.GREEN);

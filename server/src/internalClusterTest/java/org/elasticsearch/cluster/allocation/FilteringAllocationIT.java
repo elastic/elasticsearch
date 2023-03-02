@@ -69,12 +69,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         }
 
         logger.info("--> decommission the second node");
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", node_1))
-            .execute()
-            .actionGet();
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", node_1));
         ensureGreen("test");
 
         logger.info("--> verify all are allocated on node1 now");
@@ -120,12 +115,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
         logger.info("--> filter out the second node");
         if (randomBoolean()) {
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", node_1))
-                .execute()
-                .actionGet();
+            updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", node_1));
         } else {
             updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", node_1), "test");
         }
@@ -193,12 +183,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         }
 
         if (numShardsOnNode1 > ThrottlingAllocationDecider.DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES) {
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", numShardsOnNode1))
-                .execute()
-                .actionGet();
+            updateClusterSettings(Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", numShardsOnNode1));
             // make sure we can recover all the nodes at once otherwise we might run into a state where
             // one of the shards has not yet started relocating but we already fired up the request to wait for 0 relocating shards.
         }

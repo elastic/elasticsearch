@@ -637,13 +637,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
         // disable allocations of replicas post restart (the restart will change replicas to primaries, so we have
         // to capture replicas post restart)
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries")
-                )
+        updateClusterSettings(
+            Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries")
         );
 
         internalCluster().fullRestart();
@@ -671,14 +666,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }
 
         // enable allocation
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().putNull(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey())
-                )
-        );
+        updateClusterSettings(Settings.builder().putNull(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()));
 
         ensureGreen(TimeValue.timeValueSeconds(60));
     }

@@ -64,7 +64,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class SearchScrollIT extends ESIntegTestCase {
     @After
     public void cleanup() throws Exception {
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().putNull("*")));
+        updateClusterSettings(Settings.builder().putNull("*"));
     }
 
     public void testSimpleScrollQueryThenFetch() throws Exception {
@@ -574,29 +574,9 @@ public class SearchScrollIT extends ESIntegTestCase {
         );
         assertThat(exc.getMessage(), containsString("was (2m > 1m)"));
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "5m").put("search.max_keep_alive", "5m"))
-                .get()
-        );
-
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "2m"))
-                .get()
-        );
-
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("search.max_keep_alive", "2m"))
-                .get()
-        );
+        updateClusterSettings(Settings.builder().put("search.default_keep_alive", "5m").put("search.max_keep_alive", "5m"));
+        updateClusterSettings(Settings.builder().put("search.default_keep_alive", "2m"));
+        updateClusterSettings(Settings.builder().put("search.max_keep_alive", "2m"));
 
         exc = expectThrows(
             IllegalArgumentException.class,
@@ -608,13 +588,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         );
         assertThat(exc.getMessage(), containsString("was (3m > 2m)"));
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "1m"))
-                .get()
-        );
+        updateClusterSettings(Settings.builder().put("search.default_keep_alive", "1m"));
 
         exc = expectThrows(
             IllegalArgumentException.class,
@@ -636,13 +610,7 @@ public class SearchScrollIT extends ESIntegTestCase {
                 .get();
         }
         refresh();
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "5m").put("search.max_keep_alive", "5m"))
-                .get()
-        );
+        updateClusterSettings(Settings.builder().put("search.default_keep_alive", "5m").put("search.max_keep_alive", "5m"));
 
         Exception exc = expectThrows(
             Exception.class,

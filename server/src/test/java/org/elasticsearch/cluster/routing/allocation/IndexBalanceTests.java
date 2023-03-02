@@ -462,6 +462,9 @@ public class IndexBalanceTests extends ESAllocationTestCase {
             .build();
 
         final var allocationService = createAllocationService(settings);
+        assertCriticalWarnings(
+            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release."
+        );
 
         assertTrue(
             "Only fixed in DesiredBalanceShardsAllocator",

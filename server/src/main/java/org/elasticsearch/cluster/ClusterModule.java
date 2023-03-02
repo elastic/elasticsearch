@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.ComponentTemplateMetadata;
@@ -103,7 +104,8 @@ public class ClusterModule extends AbstractModule {
         "cluster.routing.allocation.type",
         DESIRED_BALANCE_ALLOCATOR,
         Function.identity(),
-        Property.NodeScope
+        Property.NodeScope,
+        Property.Deprecated
     );
 
     private final ClusterService clusterService;
@@ -395,6 +397,7 @@ public class ClusterModule extends AbstractModule {
         );
 
         for (ClusterPlugin plugin : clusterPlugins) {
+            // noinspection removal
             plugin.getShardsAllocators(settings, clusterSettings).forEach((k, v) -> {
                 if (allocators.put(k, v) != null) {
                     throw new IllegalArgumentException("ShardsAllocator [" + k + "] already defined");
@@ -402,6 +405,7 @@ public class ClusterModule extends AbstractModule {
             });
         }
         String allocatorName = SHARDS_ALLOCATOR_TYPE_SETTING.get(settings);
+        assert Version.CURRENT.major == Version.V_7_17_0.major + 1; // in v9 there is only one allocator
         Supplier<ShardsAllocator> allocatorSupplier = allocators.get(allocatorName);
         if (allocatorSupplier == null) {
             throw new IllegalArgumentException("Unknown ShardsAllocator [" + allocatorName + "]");

@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-import static org.elasticsearch.client.internal.Requests.clusterHealthRequest;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestClusterHealthAction extends BaseRestHandler {
@@ -52,7 +51,8 @@ public class RestClusterHealthAction extends BaseRestHandler {
     }
 
     public static ClusterHealthRequest fromRequest(final RestRequest request) {
-        final ClusterHealthRequest clusterHealthRequest = clusterHealthRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
+        final ClusterHealthRequest clusterHealthRequest = new ClusterHealthRequest(indices);
         clusterHealthRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterHealthRequest.indicesOptions()));
         clusterHealthRequest.local(request.paramAsBoolean("local", clusterHealthRequest.local()));
         clusterHealthRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterHealthRequest.masterNodeTimeout()));

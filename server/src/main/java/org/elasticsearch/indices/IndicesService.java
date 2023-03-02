@@ -1527,7 +1527,7 @@ public class IndicesService extends AbstractLifecycleComponent
             // restore the cached query result into the context
             final QuerySearchResult result = context.queryResult();
             StreamInput in = new NamedWriteableAwareStreamInput(bytesReference.streamInput(), namedWriteableRegistry);
-            // Overwriting this should be safe from a refcounting point of view.  The object we're reading into shouldn't be holding any
+            // Overwriting this should be safe from a refcounting point of view. The object we're reading into shouldn't be holding any
             // resources, and the new object will be released normally
             result.readFromWithId(context.id(), in);
             result.setSearchShardTarget(context.shardTarget());

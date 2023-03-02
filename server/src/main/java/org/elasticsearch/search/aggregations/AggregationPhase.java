@@ -90,7 +90,7 @@ public class AggregationPhase {
 
     public static void execute(SearchContext context) {
         if (context.aggregations() == null) {
-            // Does this do anything?  It looks to me like QuerySearchResult#aggregations asserts that it's already null in this case
+            // Does this do anything? It looks to me like QuerySearchResult#aggregations asserts that it's already null in this case
             context.queryResult().aggregations(null);
             return;
         }

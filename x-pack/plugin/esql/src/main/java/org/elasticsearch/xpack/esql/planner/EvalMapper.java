@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -41,10 +40,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
-
 public final class EvalMapper {
-
     abstract static class ExpressionMapper<E extends Expression> {
         private final Class<E> typeToken;
 
@@ -69,7 +65,8 @@ public final class EvalMapper {
         new Literals(),
         new RoundFunction(),
         new Mapper<>(Length.class),
-        new DateFormatFunction(),
+        new Mapper<>(DateFormat.class),
+        new Mapper<>(DateTrunc.class),
         new StartsWithFunction(),
         new SubstringFunction(),
         new Mapper<>(DateTrunc.class),
@@ -293,42 +290,6 @@ public final class EvalMapper {
             } else {
                 return fieldEvaluator;
             }
-        }
-    }
-
-    public static class DateFormatFunction extends ExpressionMapper<DateFormat> {
-        @Override
-        public Supplier<ExpressionEvaluator> map(DateFormat df, Layout layout) {
-            record DateFormatEvaluator(ExpressionEvaluator exp, ExpressionEvaluator formatEvaluator) implements ExpressionEvaluator {
-                @Override
-                public Object computeRow(Page page, int pos) {
-                    return DateFormat.process(((Long) exp.computeRow(page, pos)), toFormatter(formatEvaluator.computeRow(page, pos)));
-                }
-            }
-
-            record ConstantDateFormatEvaluator(ExpressionEvaluator exp, DateFormatter formatter) implements ExpressionEvaluator {
-                @Override
-                public Object computeRow(Page page, int pos) {
-                    return DateFormat.process(((Long) exp.computeRow(page, pos)), formatter);
-                }
-            }
-
-            Supplier<ExpressionEvaluator> fieldEvaluator = toEvaluator(df.field(), layout);
-            Expression format = df.format();
-            if (format == null) {
-                return () -> new ConstantDateFormatEvaluator(fieldEvaluator.get(), UTC_DATE_TIME_FORMATTER);
-            }
-            if (format.dataType() != DataTypes.KEYWORD) {
-                throw new IllegalArgumentException("unsupported data type for format [" + format.dataType() + "]");
-            }
-            if (format.foldable()) {
-                return () -> new ConstantDateFormatEvaluator(fieldEvaluator.get(), toFormatter(format.fold()));
-            }
-            return () -> new DateFormatEvaluator(fieldEvaluator.get(), toEvaluator(format, layout).get());
-        }
-
-        private static DateFormatter toFormatter(Object format) {
-            return format == null ? UTC_DATE_TIME_FORMATTER : DateFormatter.forPattern(((BytesRef) format).utf8ToString());
         }
     }
 

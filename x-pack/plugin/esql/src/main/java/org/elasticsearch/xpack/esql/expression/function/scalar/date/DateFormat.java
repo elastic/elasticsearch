@@ -7,7 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -19,6 +23,8 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -26,7 +32,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 
-public class DateFormat extends ScalarFunction implements OptionalArgument {
+public class DateFormat extends ScalarFunction implements OptionalArgument, Mappable {
 
     private final Expression field;
     private final Expression format;
@@ -80,12 +86,53 @@ public class DateFormat extends ScalarFunction implements OptionalArgument {
         }
     }
 
-    public static String process(Long fieldVal, DateFormatter formatter) {
+    private static BytesRef process(Long fieldVal, DateFormatter formatter) {
         if (fieldVal == null) {
             return null;
         } else {
-            return formatter.formatMillis(fieldVal);
+            return new BytesRef(formatter.formatMillis(fieldVal));
         }
+    }
+
+    record DateFormatEvaluator(EvalOperator.ExpressionEvaluator exp, EvalOperator.ExpressionEvaluator formatEvaluator)
+        implements
+            EvalOperator.ExpressionEvaluator {
+        @Override
+        public Object computeRow(Page page, int pos) {
+            return process(((Long) exp.computeRow(page, pos)), toFormatter(formatEvaluator.computeRow(page, pos)));
+        }
+    }
+
+    record ConstantDateFormatEvaluator(EvalOperator.ExpressionEvaluator exp, DateFormatter formatter)
+        implements
+            EvalOperator.ExpressionEvaluator {
+        @Override
+        public Object computeRow(Page page, int pos) {
+            return process(((Long) exp.computeRow(page, pos)), formatter);
+        }
+    }
+
+    @Override
+    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
+        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
+    ) {
+        Supplier<EvalOperator.ExpressionEvaluator> fieldEvaluator = toEvaluator.apply(field);
+        if (format == null) {
+            return () -> new ConstantDateFormatEvaluator(fieldEvaluator.get(), UTC_DATE_TIME_FORMATTER);
+        }
+        if (format.dataType() != DataTypes.KEYWORD) {
+            throw new IllegalArgumentException("unsupported data type for format [" + format.dataType() + "]");
+        }
+        if (format.foldable()) {
+            DateFormatter formatter = toFormatter(format.fold());
+            return () -> new ConstantDateFormatEvaluator(fieldEvaluator.get(), formatter);
+        }
+        Supplier<EvalOperator.ExpressionEvaluator> formatEvaluator = toEvaluator.apply(format);
+        return () -> new DateFormatEvaluator(fieldEvaluator.get(), formatEvaluator.get());
+    }
+
+    private static DateFormatter toFormatter(Object format) {
+        return format == null ? UTC_DATE_TIME_FORMATTER : DateFormatter.forPattern(((BytesRef) format).utf8ToString());
     }
 
     @Override
@@ -101,13 +148,5 @@ public class DateFormat extends ScalarFunction implements OptionalArgument {
     @Override
     public ScriptTemplate asScript() {
         throw new UnsupportedOperationException();
-    }
-
-    public Expression field() {
-        return field;
-    }
-
-    public Expression format() {
-        return format;
     }
 }

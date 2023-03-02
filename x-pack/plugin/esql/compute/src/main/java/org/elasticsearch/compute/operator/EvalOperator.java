@@ -82,11 +82,11 @@ public class EvalOperator implements Operator {
             case BYTES_REF -> {
                 var blockBuilder = BytesRefBlock.newBlockBuilder(rowsCount);
                 for (int i = 0; i < lastInput.getPositionCount(); i++) {
-                    Object result = evaluator.computeRow(lastInput, i);
+                    BytesRef result = (BytesRef) evaluator.computeRow(lastInput, i);
                     if (result == null) {
                         blockBuilder.appendNull();
                     } else {
-                        blockBuilder.appendBytesRef(result instanceof BytesRef br ? br : new BytesRef(result.toString()));
+                        blockBuilder.appendBytesRef(result);
                     }
                 }
                 yield blockBuilder.build();

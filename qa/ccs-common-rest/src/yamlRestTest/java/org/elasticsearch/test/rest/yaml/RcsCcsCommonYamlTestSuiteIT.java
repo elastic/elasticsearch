@@ -59,7 +59,7 @@ import static org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT.rewrite;
 public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @Override
-    protected boolean preserveSystemResources() {
+    protected boolean preserveSystemFeatureStates() {
         return true;
     }
 

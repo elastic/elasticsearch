@@ -21,7 +21,7 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @Override
-    protected boolean preserveSystemResources() {
+    protected boolean preserveSystemFeatureStates() {
         return true;
     }
 

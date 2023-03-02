@@ -42,7 +42,7 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
     static final String INDEX_NAME = "created_index";
 
     @Override
-    protected boolean preserveSystemResources() {
+    protected boolean preserveSystemFeatureStates() {
         return true;
     }
 

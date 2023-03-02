@@ -76,7 +76,7 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
     }
 
     @Override
-    protected boolean preserveSystemResources() {
+    protected boolean preserveSystemFeatureStates() {
         return true;
     }
 

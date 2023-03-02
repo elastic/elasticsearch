@@ -21,7 +21,7 @@ public class MultiClusterSearchWithSecurityYamlTestSuiteIT extends ESClientYamlS
     private static final String PASS = "x-pack-test-password";
 
     @Override
-    protected boolean preserveSystemResources() {
+    protected boolean preserveSystemFeatureStates() {
         return true;
     }
 

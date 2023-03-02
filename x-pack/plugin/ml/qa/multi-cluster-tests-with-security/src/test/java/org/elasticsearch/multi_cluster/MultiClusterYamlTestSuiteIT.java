@@ -30,7 +30,7 @@ public class MultiClusterYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     }
 
     @Override
-    protected boolean preserveSystemResources() {
+    protected boolean preserveSystemFeatureStates() {
         return true;
     }
 

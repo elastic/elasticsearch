@@ -89,14 +89,6 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
             client().admin().indices().prepareRefresh("test").execute().get();
             client().admin().indices().prepareFlush("test").execute().get();
             client().admin().indices().prepareClose("test").execute().get();
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(
-                    Settings.builder()
-                        .put(MockFSDirectoryFactory.RANDOM_IO_EXCEPTION_RATE_SETTING.getKey(), exceptionRate)
-                        .put(MockFSDirectoryFactory.RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING.getKey(), exceptionOnOpenRate)
-                );
             client().admin().indices().prepareOpen("test").execute().get();
         } else {
             Settings.Builder settings = Settings.builder()
@@ -200,14 +192,6 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
         if (createIndexWithoutErrors) {
             // check the index still contains the records that we indexed without errors
             client().admin().indices().prepareClose("test").execute().get();
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(
-                    Settings.builder()
-                        .put(MockFSDirectoryFactory.RANDOM_IO_EXCEPTION_RATE_SETTING.getKey(), 0)
-                        .put(MockFSDirectoryFactory.RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING.getKey(), 0)
-                );
             client().admin().indices().prepareOpen("test").execute().get();
             ensureGreen();
             SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchQuery("test", "init")).get();

@@ -21,6 +21,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> implements LocalSpecBuilder<T> {
@@ -64,6 +65,12 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     @Override
     public T setting(String setting, Supplier<String> value) {
         this.settingsProviders.add(s -> Map.of(setting, value.get()));
+        return cast(this);
+    }
+
+    @Override
+    public T setting(String setting, Supplier<String> value, Predicate<LocalClusterSpec.LocalNodeSpec> predicate) {
+        this.settingsProviders.add(s -> predicate.test(s) ? Map.of(setting, value.get()) : Map.of());
         return cast(this);
     }
 

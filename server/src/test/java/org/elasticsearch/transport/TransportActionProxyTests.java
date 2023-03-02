@@ -28,11 +28,17 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class TransportActionProxyTests extends ESTestCase {
@@ -53,6 +59,9 @@ public class TransportActionProxyTests extends ESTestCase {
     protected DiscoveryNode nodeC;
     protected MockTransportService serviceC;
 
+    protected DiscoveryNode nodeD;
+    protected MockTransportService serviceD;
+
     @Override
     @Before
     public void setUp() throws Exception {
@@ -64,12 +73,14 @@ public class TransportActionProxyTests extends ESTestCase {
         nodeB = serviceB.getLocalDiscoNode();
         serviceC = buildService(version1, transportVersion1); // this one doesn't support dynamic tracer updates
         nodeC = serviceC.getLocalDiscoNode();
+        serviceD = buildService(version1);
+        nodeD = serviceD.getLocalDiscoNode();
     }
 
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
-        IOUtils.close(serviceA, serviceB, serviceC, () -> { terminate(threadPool); });
+        IOUtils.close(serviceA, serviceB, serviceC, serviceD, () -> { terminate(threadPool); });
     }
 
     private MockTransportService buildService(Version version, TransportVersion transportVersion) {
@@ -109,39 +120,99 @@ public class TransportActionProxyTests extends ESTestCase {
         });
 
         TransportActionProxy.registerProxyAction(serviceC, "internal:test", cancellable, SimpleTestResponse::new);
+        // Node A -> Node B -> Node C: different versions - serialize the response
+        {
+            final List<TransportMessage> responses = Collections.synchronizedList(new ArrayList<>());
+            final CountDownLatch latch = new CountDownLatch(1);
+            serviceB.addRequestHandlingBehavior(
+                TransportActionProxy.getProxyAction("internal:test"),
+                (handler, request, channel, task) -> handler.messageReceived(
+                    request,
+                    new CapturingTransportChannel(channel, responses::add),
+                    task
+                )
+            );
+            serviceA.sendRequest(
+                nodeB,
+                TransportActionProxy.getProxyAction("internal:test"),
+                TransportActionProxy.wrapRequest(nodeC, new SimpleTestRequest("TS_A", cancellable)),
+                new TransportResponseHandler<SimpleTestResponse>() {
+                    @Override
+                    public SimpleTestResponse read(StreamInput in) throws IOException {
+                        return new SimpleTestResponse(in);
+                    }
 
-        final CountDownLatch latch = new CountDownLatch(1);
-        // Node A -> Node B -> Node C
-        serviceA.sendRequest(
-            nodeB,
-            TransportActionProxy.getProxyAction("internal:test"),
-            TransportActionProxy.wrapRequest(nodeC, new SimpleTestRequest("TS_A", cancellable)),
-            new TransportResponseHandler<SimpleTestResponse>() {
-                @Override
-                public SimpleTestResponse read(StreamInput in) throws IOException {
-                    return new SimpleTestResponse(in);
-                }
+                    @Override
+                    public void handleResponse(SimpleTestResponse response) {
+                        try {
+                            assertEquals("TS_C", response.targetNode);
+                        } finally {
+                            latch.countDown();
+                        }
+                    }
 
-                @Override
-                public void handleResponse(SimpleTestResponse response) {
-                    try {
-                        assertEquals("TS_C", response.targetNode);
-                    } finally {
-                        latch.countDown();
+                    @Override
+                    public void handleException(TransportException exp) {
+                        try {
+                            throw new AssertionError(exp);
+                        } finally {
+                            latch.countDown();
+                        }
                     }
                 }
+            );
+            latch.await();
+            assertThat(responses, hasSize(1));
+            assertThat(responses.get(0), instanceOf(SimpleTestResponse.class));
+            serviceB.clearAllRules();
+        }
+        // Node D -> node B -> Node C: the same version - do not serialize the responses
+        {
+            AbstractSimpleTransportTestCase.connectToNode(serviceD, nodeB);
+            final CountDownLatch latch = new CountDownLatch(1);
+            final List<TransportMessage> responses = Collections.synchronizedList(new ArrayList<>());
+            serviceB.addRequestHandlingBehavior(
+                TransportActionProxy.getProxyAction("internal:test"),
+                (handler, request, channel, task) -> handler.messageReceived(
+                    request,
+                    new CapturingTransportChannel(channel, responses::add),
+                    task
+                )
+            );
+            serviceD.sendRequest(
+                nodeB,
+                TransportActionProxy.getProxyAction("internal:test"),
+                TransportActionProxy.wrapRequest(nodeC, new SimpleTestRequest("TS_A", cancellable)),
+                new TransportResponseHandler<SimpleTestResponse>() {
+                    @Override
+                    public SimpleTestResponse read(StreamInput in) throws IOException {
+                        return new SimpleTestResponse(in);
+                    }
 
-                @Override
-                public void handleException(TransportException exp) {
-                    try {
-                        throw new AssertionError(exp);
-                    } finally {
-                        latch.countDown();
+                    @Override
+                    public void handleResponse(SimpleTestResponse response) {
+                        try {
+                            assertEquals("TS_C", response.targetNode);
+                        } finally {
+                            latch.countDown();
+                        }
+                    }
+
+                    @Override
+                    public void handleException(TransportException exp) {
+                        try {
+                            throw new AssertionError(exp);
+                        } finally {
+                            latch.countDown();
+                        }
                     }
                 }
-            }
-        );
-        latch.await();
+            );
+            latch.await();
+            assertThat(responses, hasSize(1));
+            assertThat(responses.get(0), instanceOf(TransportActionProxy.BytesTransportResponse.class));
+            serviceB.clearAllRules();
+        }
     }
 
     public void testSendLocalRequest() throws Exception {
@@ -366,5 +437,41 @@ public class TransportActionProxyTests extends ESTestCase {
     public void testIsProxyRequest() {
         assertTrue(TransportActionProxy.isProxyRequest(new TransportActionProxy.ProxyRequest<>(TransportRequest.Empty.INSTANCE, null)));
         assertFalse(TransportActionProxy.isProxyRequest(TransportRequest.Empty.INSTANCE));
+    }
+
+    static class CapturingTransportChannel implements TransportChannel {
+        final TransportChannel in;
+        final Consumer<TransportResponse> onResponse;
+
+        CapturingTransportChannel(TransportChannel in, Consumer<TransportResponse> onResponse) {
+            this.in = in;
+            this.onResponse = onResponse;
+        }
+
+        @Override
+        public String getProfileName() {
+            return in.getProfileName();
+        }
+
+        @Override
+        public String getChannelType() {
+            return in.getChannelType();
+        }
+
+        @Override
+        public void sendResponse(TransportResponse response) throws IOException {
+            onResponse.accept(response);
+            in.sendResponse(response);
+        }
+
+        @Override
+        public void sendResponse(Exception exception) throws IOException {
+            in.sendResponse(exception);
+        }
+
+        @Override
+        public TransportVersion getVersion() {
+            return in.getVersion();
+        }
     }
 }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.entsearch.engine.action;
 
-import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -15,6 +14,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.entsearch.EnterpriseSearch;
 
+import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -32,10 +32,10 @@ public class RestPutEngineAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
+    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         PutEngineAction.Request request = new PutEngineAction.Request(
             restRequest.param("engine_id"),
-            DocWriteRequest.OpType.fromString(restRequest.param("op_type", "index")),
+            restRequest.paramAsBoolean("create", false),
             restRequest.content(),
             restRequest.getXContentType()
         );

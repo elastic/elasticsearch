@@ -301,7 +301,7 @@ public class EngineIndexService {
      * @param listener The action listener to invoke on response/failure.
      *
      */
-    void deleteEngine(String engineName, ActionListener<DeleteResponse> listener) {
+    private void deleteEngine(String engineName, ActionListener<DeleteResponse> listener) {
 
         try {
             final DeleteRequest deleteRequest = new DeleteRequest(ENGINE_ALIAS_NAME).id(engineName)
@@ -327,30 +327,16 @@ public class EngineIndexService {
         IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest().addAliasAction(
             IndicesAliasesRequest.AliasActions.remove().aliases(engineAliasName).indices("*")
         );
-        clientWithOrigin.admin().indices().aliases(aliasesRequest, ActionListener.wrap(response -> {
-            if (response.isAcknowledged() == false) {
-                logger.warn("Request to remove alias [{}] response was not acknowledged", engineAliasName);
-            }
-            listener.onResponse(null);
-        }, listener::onFailure));
+        clientWithOrigin.admin()
+            .indices()
+            .aliases(aliasesRequest, listener.delegateFailure((l, r) -> l.onResponse(AcknowledgedResponse.TRUE)));
     }
 
     public void deleteEngineAndAlias(String engineName, ActionListener<DeleteResponse> listener) {
-
         deleteEngine(engineName, new ActionListener<>() {
             @Override
             public void onResponse(DeleteResponse deleteResponse) {
-                removeAlias(Engine.getEngineAliasName(engineName), new ActionListener<>() {
-                    @Override
-                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                        listener.onResponse(null);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-                });
+                removeAlias(Engine.getEngineAliasName(engineName), listener.delegateFailure((l, r) -> l.onResponse(deleteResponse)));
             }
 
             @Override

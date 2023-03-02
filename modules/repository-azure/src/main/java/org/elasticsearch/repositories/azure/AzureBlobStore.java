@@ -31,17 +31,21 @@ import com.azure.storage.blob.models.BlobRequestConditions;
 import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.blob.models.DownloadRetryOptions;
 import com.azure.storage.blob.models.ListBlobsOptions;
+import com.azure.storage.blob.options.BlobParallelUploadOptions;
 import com.azure.storage.blob.options.BlockBlobSimpleUploadOptions;
+import com.azure.storage.blob.specialized.BlobLeaseClientBuilder;
 import com.azure.storage.blob.specialized.BlockBlobAsyncClient;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.support.BlobContainerUtils;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -52,6 +56,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.repositories.azure.AzureRepository.Repository;
 import org.elasticsearch.repositories.blobstore.ChunkedBlobOutputStream;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -71,6 +76,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalLong;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -795,4 +801,72 @@ public class AzureBlobStore implements BlobStore {
             onHttpRequest.run();
         }
     }
+
+    OptionalLong getRegister(String blobPath, String containerPath, String blobKey) {
+        try {
+            return SocketAccess.doPrivilegedException(() -> {
+                final var blobClient = getAzureBlobServiceClientClient().getSyncClient()
+                    .getBlobContainerClient(container)
+                    .getBlobClient(blobPath);
+                return OptionalLong.of(
+                    BlobContainerUtils.getRegisterUsingConsistentRead(blobClient.downloadContent().toStream(), containerPath, blobKey)
+                );
+            });
+        } catch (Exception e) {
+            if (Throwables.getRootCause(e)instanceof BlobStorageException blobStorageException
+                && blobStorageException.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
+                return OptionalLong.empty();
+            }
+            throw e;
+        }
+    }
+
+    OptionalLong compareAndExchangeRegister(String blobPath, String containerPath, String blobKey, long expected, long updated) {
+        try {
+            return SocketAccess.doPrivilegedException(() -> {
+
+                final var blobClient = getAzureBlobServiceClientClient().getSyncClient()
+                    .getBlobContainerClient(container)
+                    .getBlobClient(blobPath);
+
+                if (blobClient.exists()) {
+                    final var leaseClient = new BlobLeaseClientBuilder().blobClient(blobClient).buildClient();
+                    final var leaseId = leaseClient.acquireLease(60);
+                    try {
+                        final var currentValue = getRegister(blobPath, containerPath, blobKey);
+                        if (currentValue.equals(OptionalLong.of(expected))) {
+                            blobClient.uploadWithResponse(
+                                new BlobParallelUploadOptions(BlobContainerUtils.getRegisterBlobContents(updated).streamInput())
+                                    .setRequestConditions(new BlobRequestConditions().setLeaseId(leaseId)),
+                                null,
+                                null
+                            );
+                        }
+                        return currentValue;
+                    } finally {
+                        leaseClient.releaseLease();
+                    }
+                } else {
+                    if (expected == 0L) {
+                        blobClient.uploadWithResponse(
+                            new BlobParallelUploadOptions(BlobContainerUtils.getRegisterBlobContents(updated).streamInput())
+                                .setRequestConditions(new BlobRequestConditions().setIfNoneMatch("*")),
+                            null,
+                            null
+                        );
+                    }
+                    return OptionalLong.of(0L);
+                }
+            });
+        } catch (Exception e) {
+            if (Throwables.getRootCause(e)instanceof BlobStorageException blobStorageException) {
+                if (blobStorageException.getStatusCode() == RestStatus.PRECONDITION_FAILED.getStatus()
+                    || blobStorageException.getStatusCode() == RestStatus.CONFLICT.getStatus()) {
+                    return OptionalLong.empty();
+                }
+            }
+            throw e;
+        }
+    }
+
 }

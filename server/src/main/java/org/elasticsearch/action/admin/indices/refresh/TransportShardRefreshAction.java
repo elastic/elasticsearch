@@ -118,8 +118,11 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             IndexShardRoutingTable indexShardRoutingTable,
             ActionListener<Void> listener
         ) {
-            if (replicaRequest.flushedGeneration == ShardRefreshReplicaRequest.NO_FLUSH_PERFORMED) {
-                listener.onFailure(new IllegalArgumentException("Unpromotables require a flush to occur, but no flush occurred"));
+            final boolean hasUnpromotableReplicas = indexShardRoutingTable.unpromotableShards().size() > 0;
+            if (hasUnpromotableReplicas && replicaRequest.flushedGeneration == ShardRefreshReplicaRequest.NO_FLUSH_PERFORMED) {
+                listener.onFailure(
+                    new IllegalArgumentException("Shard with unpromotable replicas require a flush to occur, but no flush occurred.")
+                );
                 return;
             }
             UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(

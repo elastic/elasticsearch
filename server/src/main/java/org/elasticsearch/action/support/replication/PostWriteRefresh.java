@@ -130,7 +130,9 @@ public class PostWriteRefresh {
 
     private void sendUnpromotableRequests(IndexShard indexShard, long generation, boolean wasForced, ActionListener<Boolean> listener) {
         if (generation == ShardRefreshReplicaRequest.NO_FLUSH_PERFORMED) {
-            listener.onFailure(new IllegalArgumentException("Unpromotables require a flush to occur, but no flush occurred"));
+            listener.onFailure(
+                new IllegalArgumentException("Shard with unpromotable replicas require a flush to occur, but no flush occurred.")
+            );
             return;
         }
         UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(

@@ -648,6 +648,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final RescoreDocIds rescoreDocIds = context.rescoreDocIds();
                 context.queryResult().setRescoreDocIds(rescoreDocIds);
                 readerContext.setRescoreDocIds(rescoreDocIds);
+
+                // I think this is where the QuerySearchResult enters the transport layer, and as such we need to incRef here.
+                // This will outlive the SearchContext
+                context.queryResult().incRef();
                 return context.queryResult();
             }
         } catch (Exception e) {

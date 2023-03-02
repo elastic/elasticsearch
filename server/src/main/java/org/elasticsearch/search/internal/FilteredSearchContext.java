@@ -370,6 +370,7 @@ public abstract class FilteredSearchContext extends SearchContext {
 
     @Override
     public QuerySearchResult queryResult() {
+        // this is a non-acquiring access to QuerySearchResult and does not need to incRef
         return in.queryResult();
     }
 

@@ -189,6 +189,7 @@ public final class SearchSlowLog implements SearchOperationListener {
             messageFields.put("elasticsearch.slowlog.message", context.indexShard().shardId());
             messageFields.put("elasticsearch.slowlog.took", TimeValue.timeValueNanos(tookInNanos).toString());
             messageFields.put("elasticsearch.slowlog.took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
+            // This is a non-acquiring access to query search result and thus does not need to incRef
             if (context.queryResult().getTotalHits() != null) {
                 messageFields.put("elasticsearch.slowlog.total_hits", context.queryResult().getTotalHits());
             } else {

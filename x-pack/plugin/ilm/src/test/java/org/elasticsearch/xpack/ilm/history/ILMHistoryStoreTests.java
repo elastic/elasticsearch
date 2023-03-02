@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -27,7 +28,9 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -43,10 +46,12 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -82,7 +87,13 @@ public class ILMHistoryStoreTests extends ESTestCase {
             clusterService,
             ClusterState.builder(state).metadata(Metadata.builder(state.metadata()).indexTemplates(templates)).build()
         );
-        historyStore = new ILMHistoryStore(Settings.EMPTY, client, clusterService, threadPool);
+        historyStore = new ILMHistoryStore(Settings.EMPTY, client, clusterService, threadPool, new ActionListener<BulkResponse>() {
+            @Override
+            public void onResponse(BulkResponse response) {}
+
+            @Override
+            public void onFailure(Exception e) {}
+        }, TimeValue.timeValueMillis(500));
     }
 
     private ComposableIndexTemplate parseIndexTemplate(IndexTemplateConfig c) {
@@ -109,7 +120,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
 
     public void testNoActionIfDisabled() throws Exception {
         Settings settings = Settings.builder().put(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), false).build();
-        try (ILMHistoryStore disabledHistoryStore = new ILMHistoryStore(settings, client, null, threadPool)) {
+        try (ILMHistoryStore disabledHistoryStore = new ILMHistoryStore(settings, client, clusterService, threadPool)) {
             String policyId = randomAlphaOfLength(5);
             final long timestamp = randomNonNegativeLong();
             ILMHistoryItem record = ILMHistoryItem.success("index", policyId, timestamp, null, null);
@@ -121,7 +132,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
                 return null;
             });
             disabledHistoryStore.putAsync(record);
-            latch.await(10, TimeUnit.SECONDS);
+            assertFalse(latch.await(2, TimeUnit.SECONDS));
         }
     }
 
@@ -218,6 +229,91 @@ public class ILMHistoryStoreTests extends ESTestCase {
         }
     }
 
+    /*
+     * This tests that things behave correctly if we throw a lot of data at the ILMHistoryStore quickly -- multiple flushes occur, all
+     * counts add up, and no deadlock occurs.
+     */
+    // @TestLogging(
+    // value = "org.elasticsearch.action.bulk:trace",
+    // reason = "Logging information about locks useful for tracking down deadlock"
+    // )
+    public void testMultipleFlushes() throws Exception {
+        String policyId = randomAlphaOfLength(5);
+        final long timestamp = randomNonNegativeLong();
+        AtomicLong actions = new AtomicLong(0);
+        long numberOfDocs = 400_000;
+        CountDownLatch latch = new CountDownLatch((int) numberOfDocs);
+        client.setVerifier((action, request, listener) -> {
+            assertThat(action, instanceOf(BulkAction.class));
+            assertThat(request, instanceOf(BulkRequest.class));
+            BulkRequest bulkRequest = (BulkRequest) request;
+            List<DocWriteRequest<?>> realRequests = bulkRequest.requests();
+            realRequests.forEach(dwr -> assertEquals(ILM_HISTORY_DATA_STREAM, dwr.index()));
+            assertNotNull(listener);
+
+            // The content of this BulkResponse doesn't matter, so just make it have the same number of responses
+            int responses = bulkRequest.numberOfActions();
+            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(
+                "index",
+                "type",
+                "1",
+                new Exception("message"),
+                RestStatus.TOO_MANY_REQUESTS
+            );
+            DocWriteResponse response = new IndexResponse(new ShardId("index", "indexUUID", 1), "_doc", "1", 1L, 1L, 1L, true);
+            BulkResponse bulkItemResponse = new BulkResponse(
+                IntStream.range(0, responses)
+                    .mapToObj(
+                        i -> randomBoolean()
+                            ? BulkItemResponse.success(i, DocWriteRequest.OpType.INDEX, response)
+                            : BulkItemResponse.failure(i, DocWriteRequest.OpType.INDEX, failure)
+                    )
+                    .toArray(BulkItemResponse[]::new),
+                1000L
+            );
+            return bulkItemResponse;
+        });
+        try (
+            ILMHistoryStore localHistoryStore = new ILMHistoryStore(
+                Settings.EMPTY,
+                client,
+                clusterService,
+                threadPool,
+                new ActionListener<BulkResponse>() {
+                    @Override
+                    public void onResponse(BulkResponse response) {
+                        int itemsInResponse = response.getItems().length;
+                        actions.addAndGet(itemsInResponse);
+                        for (int i = 0; i < itemsInResponse; i++) {
+                            latch.countDown();
+                        }
+                        logger.info("cumulative responses: {}", actions.get());
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.error(e);
+                        fail(e.getMessage());
+                    }
+                },
+                TimeValue.timeValueMillis(randomIntBetween(50, 1000))
+            )
+        ) {
+            for (int i = 0; i < numberOfDocs; i++) {
+                ILMHistoryItem record1 = ILMHistoryItem.success(
+                    "index",
+                    policyId,
+                    timestamp,
+                    10L,
+                    LifecycleExecutionState.builder().setPhase("phase").build()
+                );
+                localHistoryStore.putAsync(record1);
+            }
+            latch.await(5, TimeUnit.SECONDS);
+            assertThat(actions.get(), equalTo(numberOfDocs));
+        }
+    }
+
     /**
      * A client that delegates to a verifying function for action/request/listener
      */
@@ -251,4 +347,5 @@ public class ILMHistoryStoreTests extends ESTestCase {
             return this;
         }
     }
+
 }

@@ -18,7 +18,7 @@
       - axis:
           type: yaml
           filename: ".ci/matrix-runtime-javas.yml"
-          name: "RUNTIME_JAVA_HOME"
+          name: "ES_RUNTIME_JAVA"
       # We shred out these jobs to avoid running out of memory given since we use a ramdisk workspace
       - axis:
           type: user-defined
@@ -34,6 +34,7 @@
           properties-file: '.ci/java-versions.properties'
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
+            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
             JAVA11_HOME=$HOME/.java/java11
             JAVA16_HOME=$HOME/.java/openjdk16
       - shell: |

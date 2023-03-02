@@ -39,11 +39,13 @@ import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.ann.Experimental;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
@@ -596,10 +598,51 @@ public class OperatorTests extends ESTestCase {
             writer.commit();
             Map<BytesRef, Long> actualCounts = new HashMap<>();
             BigArrays bigArrays = bigArrays();
+            boolean shuffleDocs = randomBoolean();
+            Operator shuffleDocsOperator = new MapPageOperator(page -> {
+                if (shuffleDocs == false) {
+                    return page;
+                }
+                DocVector docVector = (DocVector) page.getBlock(0).asVector();
+                int positionCount = docVector.getPositionCount();
+                IntVector shards = docVector.shards();
+                if (randomBoolean()) {
+                    IntVector.Builder builder = IntVector.newVectorBuilder(positionCount);
+                    for (int i = 0; i < positionCount; i++) {
+                        builder.appendInt(shards.getInt(i));
+                    }
+                    shards = builder.build();
+                }
+                IntVector segments = docVector.segments();
+                if (randomBoolean()) {
+                    IntVector.Builder builder = IntVector.newVectorBuilder(positionCount);
+                    for (int i = 0; i < positionCount; i++) {
+                        builder.appendInt(segments.getInt(i));
+                    }
+                    segments = builder.build();
+                }
+                IntVector docs = docVector.docs();
+                if (randomBoolean()) {
+                    List<Integer> ids = new ArrayList<>(positionCount);
+                    for (int i = 0; i < positionCount; i++) {
+                        ids.add(docs.getInt(i));
+                    }
+                    Collections.shuffle(ids, random());
+                    docs = new IntArrayVector(ids.stream().mapToInt(n -> n).toArray(), positionCount);
+                }
+                Block[] blocks = new Block[page.getBlockCount()];
+                blocks[0] = new DocVector(shards, segments, docs, false).asBlock();
+                for (int i = 1; i < blocks.length; i++) {
+                    blocks[i] = page.getBlock(i);
+                }
+                return new Page(blocks);
+            });
+
             try (DirectoryReader reader = writer.getReader()) {
                 Driver driver = new Driver(
                     new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery()),
                     List.of(
+                        shuffleDocsOperator,
                         new MapPageOperator(p -> p.appendBlock(IntBlock.newConstantBlockWith(1, p.getPositionCount()))),
                         new OrdinalsGroupingOperator(
                             List.of(
@@ -778,9 +821,10 @@ public class OperatorTests extends ESTestCase {
 
     static ValuesSource.Bytes.WithOrdinals getOrdinalsValuesSource(String field) {
         return new ValuesSource.Bytes.WithOrdinals() {
+
             @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
-                throw new UnsupportedOperationException();
+            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+                return getBytesValuesSource(field).bytesValues(context);
             }
 
             @Override
@@ -795,7 +839,7 @@ public class OperatorTests extends ESTestCase {
 
             @Override
             public boolean supportsGlobalOrdinalsMapping() {
-                throw new UnsupportedOperationException();
+                return false;
             }
 
             @Override
@@ -809,7 +853,7 @@ public class OperatorTests extends ESTestCase {
         return new ValuesSource.Bytes() {
             @Override
             public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
-                SortedSetDocValues dv = context.reader().getSortedSetDocValues(field);
+                final SortedSetDocValues dv = context.reader().getSortedSetDocValues(field);
                 return new SortedBinaryDocValues() {
                     @Override
                     public boolean advanceExact(int doc) throws IOException {

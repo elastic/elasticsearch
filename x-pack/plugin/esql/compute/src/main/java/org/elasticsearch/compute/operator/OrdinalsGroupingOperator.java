@@ -23,7 +23,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -110,16 +109,12 @@ public class OrdinalsGroupingOperator implements Operator {
         checkState(needsInput(), "Operator is already finishing");
         requireNonNull(page, "page is null");
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
-        IntVector docs = docVector.docs();
-        if (docs.getPositionCount() == 0) {
+        if (docVector.getPositionCount() == 0) {
             return;
         }
-        assert docs.elementType() == ElementType.INT;
-        final IntVector shardIndexVector = docVector.shards();
-        assert shardIndexVector.isConstant();
-        final int shardIndex = shardIndexVector.getInt(0);
-        var source = sources.get(shardIndex);
-        if (source.source()instanceof ValuesSource.Bytes.WithOrdinals withOrdinals) {
+        final int shardIndex = docVector.shards().getInt(0);
+        final var source = sources.get(shardIndex);
+        if (docVector.singleSegmentNonDecreasing() && source.source()instanceof ValuesSource.Bytes.WithOrdinals withOrdinals) {
             final IntVector segmentIndexVector = docVector.segments();
             assert segmentIndexVector.isConstant();
             final OrdinalSegmentAggregator ordinalAggregator = this.ordinalAggregators.computeIfAbsent(
@@ -146,7 +141,7 @@ public class OrdinalsGroupingOperator implements Operator {
                     }
                 }
             );
-            ordinalAggregator.addInput(docs, page);
+            ordinalAggregator.addInput(docVector.docs(), page);
         } else {
             if (valuesAggregator == null) {
                 int channelIndex = page.getBlockCount(); // extractor will append a new block at the end

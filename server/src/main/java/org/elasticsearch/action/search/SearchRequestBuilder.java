@@ -192,9 +192,9 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Defines a ranker for scoring results.
+     * Defines a rank method for ranking results.
      */
-    public SearchRequestBuilder setRankContextBuilder(RankContextBuilder rankContextBuilder) {
+    public SearchRequestBuilder setRankContextBuilder(RankContextBuilder<?> rankContextBuilder) {
         sourceBuilder().rankContextBuilder(rankContextBuilder);
         return this;
     }

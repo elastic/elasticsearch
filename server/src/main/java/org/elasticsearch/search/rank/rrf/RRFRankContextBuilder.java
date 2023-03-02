@@ -36,21 +36,20 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * The builder to support RRF. Adds user-defined parameters for window size and rank constant.
  */
-public class RRFRankContextBuilder extends RankContextBuilder {
+public class RRFRankContextBuilder extends RankContextBuilder<RRFRankContextBuilder> {
 
     public static final String NAME = "rrf";
 
-    public static final int RANK_CONSTANT_DEFAULT = 60;
-    public static final int WINDOW_SIZE_DEFAULT = 10;
+    public static final int DEFAULT_RANK_CONSTANT = 60;
 
     public static final ParseField RANK_CONSTANT_FIELD = new ParseField("rank_constant");
-    public static final ParseField WINDOW_SIZE_FIELD = new ParseField("window_size");
 
-    private static final ConstructingObjectParser<RRFRankContextBuilder, Void> PARSER = new ConstructingObjectParser<>(
-        "rrf",
-        args -> new RRFRankContextBuilder().windowSize(args[0] == null ? WINDOW_SIZE_DEFAULT : (int) args[0])
-            .rankConstant(args[1] == null ? RANK_CONSTANT_DEFAULT : (int) args[1])
-    );
+    private static final ConstructingObjectParser<RRFRankContextBuilder, Void> PARSER = new ConstructingObjectParser<>("rrf", args -> {
+        RRFRankContextBuilder builder = new RRFRankContextBuilder();
+        builder.windowSize(args[0] == null ? DEFAULT_WINDOW_SIZE : (int) args[0]);
+        builder.rankConstant(args[1] == null ? DEFAULT_RANK_CONSTANT : (int) args[1]);
+        return builder;
+    });
 
     static {
         PARSER.declareInt(optionalConstructorArg(), WINDOW_SIZE_FIELD);
@@ -62,30 +61,21 @@ public class RRFRankContextBuilder extends RankContextBuilder {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(WINDOW_SIZE_FIELD.getPreferredName(), windowSize);
+    public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(RANK_CONSTANT_FIELD.getPreferredName(), rankConstant);
-        builder.endArray();
-
-        return builder;
     }
 
-    private int windowSize;
-    private int rankConstant;
+    protected int rankConstant;
 
     public RRFRankContextBuilder() {}
 
     public RRFRankContextBuilder(StreamInput in) throws IOException {
         super(in);
-        windowSize = in.readVInt();
         rankConstant = in.readVInt();
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeVInt(windowSize);
+    public void doWriteTo(StreamOutput out) throws IOException {
         out.writeVInt(rankConstant);
     }
 
@@ -96,12 +86,12 @@ public class RRFRankContextBuilder extends RankContextBuilder {
     public ActionRequestValidationException validate(ActionRequestValidationException validationException, SearchSourceBuilder source) {
         if (source.size() >= windowSize) {
             validationException = addValidationError(
-                "[window size] must be greater than or equal to [size] for [rrf]",
+                "[window_size] must be greater than or equal to [size] for [rrf]",
                 validationException
             );
         }
         if (rankConstant < 1) {
-            validationException = addValidationError("[rank constant] must be greater than [0] for [rrf]", validationException);
+            validationException = addValidationError("[rank_constant] must be greater than [0] for [rrf]", validationException);
         }
         if (source.knnSearch().isEmpty() || source.query() == null && source.knnSearch().size() < 2) {
             validationException = addValidationError("[rrf] requires a minimum of [2] queries", validationException);
@@ -120,15 +110,6 @@ public class RRFRankContextBuilder extends RankContextBuilder {
         return TransportVersion.V_8_8_0;
     }
 
-    public RRFRankContextBuilder windowSize(int windowSize) {
-        this.windowSize = windowSize;
-        return this;
-    }
-
-    public int windowSize() {
-        return windowSize;
-    }
-
     public RRFRankContextBuilder rankConstant(int rankConstant) {
         this.rankConstant = rankConstant;
         return this;
@@ -139,9 +120,8 @@ public class RRFRankContextBuilder extends RankContextBuilder {
     }
 
     @Override
-    public RankContextBuilder subShallowCopy() {
+    public RRFRankContextBuilder subShallowCopy() {
         RRFRankContextBuilder rrfRankContextBuilder = new RRFRankContextBuilder();
-        rrfRankContextBuilder.windowSize = windowSize;
         rrfRankContextBuilder.rankConstant = rankConstant;
         return rrfRankContextBuilder;
     }
@@ -176,32 +156,12 @@ public class RRFRankContextBuilder extends RankContextBuilder {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
-        RRFRankContextBuilder that = (RRFRankContextBuilder) o;
-        return windowSize == that.windowSize && rankConstant == that.rankConstant;
+    protected boolean doEquals(RRFRankContextBuilder other) {
+        return Objects.equals(rankConstant, other.rankConstant);
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), windowSize, rankConstant);
-    }
-
-    @Override
-    public String toString() {
-        return "RRFRankContextBuilder{"
-            + "windowSize="
-            + windowSize
-            + ", rankConstant="
-            + rankConstant
-            + ", queryBuilders="
-            + queryBuilders
-            + ", size="
-            + size
-            + ", from="
-            + from
-            + '}';
+    protected int doHashCode() {
+        return Objects.hash(rankConstant);
     }
 }

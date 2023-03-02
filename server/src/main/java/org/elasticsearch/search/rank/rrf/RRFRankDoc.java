@@ -12,7 +12,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.rank.RankDoc;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -66,15 +65,6 @@ public class RRFRankDoc extends RankDoc {
         out.writeVInt(rank);
         out.writeIntArray(positions);
         out.writeFloatArray(scores);
-    }
-
-    @Override
-    public XContentBuilder doToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.array("positions", positions);
-        builder.array("scores", scores);
-        builder.endObject();
-        return builder;
     }
 
     @Override

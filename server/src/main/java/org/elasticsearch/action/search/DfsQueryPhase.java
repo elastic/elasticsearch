@@ -172,7 +172,7 @@ final class DfsQueryPhase extends SearchPhase {
             }
             request.source(newSource);
         } else {
-            RankContextBuilder rankContextBuilder = source.rankContextBuilder().shallowCopy();
+            RankContextBuilder<?> rankContextBuilder = source.rankContextBuilder().shallowCopy();
             rankContextBuilder.size(source.size());
             rankContextBuilder.from(source.from());
             if (source.query() != null) {

@@ -281,7 +281,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             listener.delegateFailure(
                 (l, repositoryData) -> createSnapshotQueue.submitTask(
                     "create_snapshot [" + snapshot.getSnapshotId().getName() + ']',
-                    new CreateSnapshotTask(l, snapshot, repositoryData, repository, request, initialRepositoryMetadata),
+                    new CreateSnapshotTask(repository, repositoryData, l, snapshot, request, initialRepositoryMetadata),
                     request.masterNodeTimeout()
                 )
             )
@@ -3611,35 +3611,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
     }
 
-    private static final class CreateSnapshotTask implements ClusterStateTaskListener {
-
-        private final Repository repository;
-
-        private final RepositoryData repositoryData;
-
-        private final ActionListener<Snapshot> listener;
-
-        private final Snapshot snapshot;
-
-        private final CreateSnapshotRequest createSnapshotRequest;
-
-        private final RepositoryMetadata repositoryMetadata;
-
-        CreateSnapshotTask(
-            ActionListener<Snapshot> listener,
-            Snapshot snapshot,
-            RepositoryData repositoryData,
-            Repository repository,
-            CreateSnapshotRequest createSnapshotRequest,
-            RepositoryMetadata initialRepositoryMetadata
-        ) {
-            this.listener = listener;
-            this.snapshot = snapshot;
-            this.repositoryData = repositoryData;
-            this.repository = repository;
-            this.createSnapshotRequest = createSnapshotRequest;
-            this.repositoryMetadata = initialRepositoryMetadata;
-        }
+    private record CreateSnapshotTask(
+        Repository repository,
+        RepositoryData repositoryData,
+        ActionListener<Snapshot> listener,
+        Snapshot snapshot,
+        CreateSnapshotRequest createSnapshotRequest,
+        RepositoryMetadata initialRepositoryMetadata
+    ) implements ClusterStateTaskListener {
 
         @Override
         public void onFailure(Exception e) {
@@ -3663,12 +3642,19 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     final var repoMeta = state.metadata()
                         .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY)
                         .repository(task.snapshot.getRepository());
-                    if (Objects.equals(task.repositoryMetadata, repoMeta)) {
+                    if (Objects.equals(task.initialRepositoryMetadata, repoMeta)) {
                         snapshotsInProgress = createSnapshot(taskContext, state, snapshotsInProgress);
                     } else {
                         // repository data changed in between starting the task and executing this cluster state update so try again
-                        submitCreateSnapshotRequest(task.createSnapshotRequest, task.listener, task.repository, task.snapshot, repoMeta);
-                        taskContext.success(() -> {});
+                        taskContext.success(
+                            () -> submitCreateSnapshotRequest(
+                                task.createSnapshotRequest,
+                                task.listener,
+                                task.repository,
+                                task.snapshot,
+                                repoMeta
+                            )
+                        );
                     }
                 } catch (Exception e) {
                     taskContext.onFailure(e);

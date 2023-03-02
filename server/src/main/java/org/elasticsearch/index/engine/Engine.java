@@ -103,6 +103,8 @@ public abstract class Engine implements Closeable {
     public static final String SEARCH_SOURCE = "search"; // TODO: Make source of search enum?
     public static final String CAN_MATCH_SEARCH_SOURCE = "can_match";
     protected static final String DOC_STATS_SOURCE = "doc_stats";
+    public static final String REALTIME_GET_REFRESH_SOURCE_NAME = "realtime_get";
+    public static final String UNSAFE_VERSION_MAP_REFRESH_SOURCE_NAME = "unsafe_version_map";
 
     protected final ShardId shardId;
     protected final Logger logger;

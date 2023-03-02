@@ -761,7 +761,7 @@ public class InternalEngine extends Engine {
                         }
                     }
                     assert versionValue.seqNo >= 0 : versionValue;
-                    refreshIfNeeded(versionValue.seqNo, () -> refresh("realtime_get"));
+                    refreshIfNeeded(versionValue.seqNo, () -> refresh(REALTIME_GET_REFRESH_SOURCE_NAME));
                 }
                 return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper), false);
             } else {
@@ -884,7 +884,7 @@ public class InternalEngine extends Engine {
                 // but we only need to do this once since the last operation per ID is to add to the version
                 // map so once we pass this point we can safely lookup from the version map.
                 if (versionMap.isUnsafe()) {
-                    refresh("unsafe_version_map", SearcherScope.INTERNAL, true);
+                    refresh(UNSAFE_VERSION_MAP_REFRESH_SOURCE_NAME, SearcherScope.INTERNAL, true);
                 }
                 versionMap.enforceSafeAccess();
             }

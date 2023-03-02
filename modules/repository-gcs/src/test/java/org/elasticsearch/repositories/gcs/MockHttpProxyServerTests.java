@@ -31,7 +31,7 @@ public class MockHttpProxyServerTests extends ESTestCase {
 
     public void testProxyServerWorks() throws Exception {
         String httpBody = randomAlphaOfLength(32);
-        var proxyServer = new MockHttpProxyServer().handler(new SimpleChannelInboundHandler<>() {
+        var proxyServer = new MockHttpProxyServer().handler(() -> new SimpleChannelInboundHandler<>() {
             @Override
             protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) throws Exception {
                 assertEquals("GET", request.method().name());

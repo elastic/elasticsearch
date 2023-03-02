@@ -196,7 +196,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
 
     public void testGetDefaultProjectIdViaProxy() throws Exception {
         String proxyProjectId = randomAlphaOfLength(16);
-        var proxyServer = new MockHttpProxyServer().handler(new SimpleChannelInboundHandler<>() {
+        var proxyServer = new MockHttpProxyServer().handler(() -> new SimpleChannelInboundHandler<>() {
             @Override
             protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) throws Exception {
                 assertEquals("GET", request.method().name());

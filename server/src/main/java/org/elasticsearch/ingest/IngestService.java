@@ -199,6 +199,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * Resolves the potential pipelines (default and final) from the requests or templates associated to the index and then **mutates**
      * the {@link org.elasticsearch.action.index.IndexRequest} passed object with the pipeline information.
      *
+     * Also, this method marks the request as `isPipelinesResolved = true`: Due to the request could be rerouted from a coordinating node
+     * to an ingest node, we have to be able to avoid double resolving the pipelines and also able to distinguish that either the pipeline
+     * comes as part of the request or resolved from this method. All this is made to later be able to reject the request in case the
+     * pipeline was set by a required pipeline **and** the request also has a pipeline request too.
+     *
      * @param originalRequest Original write request received.
      * @param indexRequest    The {@link org.elasticsearch.action.index.IndexRequest} object to update.
      * @param metadata        Cluster metadata from where the pipeline information could be derived.
@@ -227,23 +232,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             () -> resolvePipelinesFromIndexTemplates(indexRequest, metadata)
         ).orElse(Pipelines.NO_PIPELINES_DEFINED);
 
+        // The pipeline coming as part the requests always has priority over the derived one
         if (requestPipeline != null) {
             indexRequest.setPipeline(requestPipeline);
         } else {
             indexRequest.setPipeline(pipelines.defaultPipeline);
         }
         indexRequest.setFinalPipeline(pipelines.finalPipeline);
-
-        /*
-         * We have to track whether the pipeline for this request has already been resolved or not. It can happen that the
-         * pipeline for this request has already been derived, yet we execute this loop again. That occurs if the bulk request
-         * has been forwarded by a non-ingest coordinating node to an ingest node. In this case, the coordinating node will have
-         * already resolved the pipeline for this request. It is important that we are able to distinguish this situation as we
-         * can not double-resolve the pipeline because we will not be able to distinguish the case of the pipeline having been
-         * set from a request pipeline parameter versus having been set by the resolution. We need to be able to distinguish
-         * these cases as we need to reject the request if the pipeline was set by a required pipeline and there is a request
-         * pipeline parameter too.
-         */
         indexRequest.isPipelineResolved(true);
     }
 

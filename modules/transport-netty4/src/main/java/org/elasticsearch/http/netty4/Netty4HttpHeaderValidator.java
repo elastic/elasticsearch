@@ -84,8 +84,8 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         HttpObject httpObject = pending.getFirst();
         boolean isStartMessage = httpObject instanceof HttpRequest;
 
-        if (false == isStartMessage || httpObject.decoderResult().isSuccess() == false) {
-            // this expects a properly decoded HTTP start message
+        if (isStartMessage == false || httpObject.decoderResult().isSuccess() == false) {
+            // a properly decoded HTTP start message is expected
             // anything else is probably an error that the HTTP message aggregator will have to handle
             ctx.fireChannelRead(pending.pollFirst());
             ReferenceCountUtil.release(httpObject); // reference count was increased when enqueued

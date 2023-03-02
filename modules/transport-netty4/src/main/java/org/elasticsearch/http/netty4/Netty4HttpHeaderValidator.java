@@ -80,6 +80,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
 
     private void requestStart(ChannelHandlerContext ctx) {
         assert pending.isEmpty() == false;
+        assert state == STATE.WAITING_TO_START;
 
         HttpObject httpObject = pending.getFirst();
         boolean isStartMessage = httpObject instanceof HttpRequest;
@@ -89,7 +90,8 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
             // anything else is probably an error that the HTTP message aggregator will have to handle
             ctx.fireChannelRead(pending.pollFirst());
             ReferenceCountUtil.release(httpObject); // reference count was increased when enqueued
-            state = STATE.WAITING_TO_START; // keep waiting for a valid HTTP start message
+            // state = STATE.WAITING_TO_START keep waiting for a valid HTTP start message
+            // TODO forward more than a single request
             return;
         }
 
@@ -111,20 +113,11 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
 
     private void validationSuccess(ChannelHandlerContext ctx) {
         assert ctx.channel().eventLoop().inEventLoop();
+        assert state == STATE.QUEUEING_DATA;
+
         state = STATE.HANDLING_QUEUED_DATA;
-
         int pendingMessages = pending.size();
-
-        boolean fullRequestForwarded = false;
-        HttpObject object;
-        while ((object = pending.poll()) != null) {
-            ctx.fireChannelRead(object);
-            ReferenceCountUtil.release(object);
-            if (object instanceof LastHttpContent) {
-                fullRequestForwarded = true;
-                break;
-            }
-        }
+        boolean fullRequestForwarded = forwardData(ctx);
         if (pending.size() <= 4 && pendingMessages > 32) {
             // Prevent the ArrayDeque from becoming forever large due to a single large message.
             ArrayDeque<HttpObject> old = pending;
@@ -146,6 +139,8 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
 
     private void validationFailure(ChannelHandlerContext ctx, Exception e) {
         assert ctx.channel().eventLoop().inEventLoop();
+        assert state == STATE.QUEUEING_DATA;
+
         state = STATE.HANDLING_QUEUED_DATA;
         HttpMessage messageToForward = (HttpMessage) pending.remove();
         boolean fullRequestConsumed;
@@ -177,17 +172,6 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         ctx.channel().config().setAutoRead(shouldRead());
     }
 
-    private boolean dropData() {
-        HttpObject toRelease;
-        while ((toRelease = pending.poll()) != null) {
-            ReferenceCountUtil.release(toRelease, 2); // 1 for enqueuing, 1 for consuming
-            if (toRelease instanceof LastHttpContent) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         state = STATE.DROPPING_DATA_PERMANENTLY;
@@ -197,6 +181,29 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
             }
         }
         super.channelInactive(ctx);
+    }
+
+    private boolean forwardData(ChannelHandlerContext ctx) {
+        HttpObject toForward;
+        while ((toForward = pending.poll()) != null) {
+            ctx.fireChannelRead(toForward);
+            ReferenceCountUtil.release(toForward); // reference cnt incremented when enqueued
+            if (toForward instanceof LastHttpContent) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean dropData() {
+        HttpObject toDrop;
+        while ((toDrop = pending.poll()) != null) {
+            ReferenceCountUtil.release(toDrop, 2); // 1 for enqueuing, 1 for consuming
+            if (toDrop instanceof LastHttpContent) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean shouldRead() {

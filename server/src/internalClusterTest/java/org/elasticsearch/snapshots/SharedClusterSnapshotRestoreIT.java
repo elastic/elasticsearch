@@ -611,12 +611,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         Runnable fixupAction = () -> {
             // remove the shard allocation filtering settings and use the Reroute API to retry the failed shards
-            assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareUpdateSettings(indexName)
-                    .setSettings(Settings.builder().putNull("index.routing.allocation.include._name").build())
-            );
+            updateIndexSettings(Settings.builder().putNull("index.routing.allocation.include._name"), indexName);
             assertAcked(clusterAdmin().prepareReroute().setRetryFailed(true));
         };
 
@@ -908,7 +903,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> execution was blocked on node [{}], moving shards away from this node", blockedNode);
         Settings.Builder excludeSettings = Settings.builder().put("index.routing.allocation.exclude._name", blockedNode);
-        client().admin().indices().prepareUpdateSettings("test-idx").setSettings(excludeSettings).get();
+        updateIndexSettings(excludeSettings, "test-idx");
 
         unblockNode("test-repo", blockedNode);
         awaitNoMoreRunningOperations();

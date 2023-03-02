@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.PendingReplicationActions;
+import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
@@ -98,6 +99,7 @@ import java.util.stream.StreamSupport;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.mockito.Mockito.mock;
 
 public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase {
 
@@ -1059,7 +1061,10 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 new ResyncReplicationResponse(),
                 null,
                 primary,
-                logger
+                logger,
+                // TODO: Fix
+                new PostWriteRefresh(mock(TransportService.class))
+
             );
         TransportWriteActionTestHelper.performPostWriteActions(primary, request, result.location, logger);
         return result;

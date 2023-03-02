@@ -267,11 +267,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         ensureStableCluster(numMlNodes + 1);
 
         int maxConcurrentJobAllocations = randomIntBetween(1, 4);
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(MachineLearning.CONCURRENT_JOB_ALLOCATIONS.getKey(), maxConcurrentJobAllocations))
-            .get();
+        updateClusterSettings(Settings.builder().put(MachineLearning.CONCURRENT_JOB_ALLOCATIONS.getKey(), maxConcurrentJobAllocations));
 
         // Sample each cs update and keep track each time a node holds more than `maxConcurrentJobAllocations` opening jobs.
         List<String> violations = new CopyOnWriteArrayList<>();

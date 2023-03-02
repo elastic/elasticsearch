@@ -1866,6 +1866,12 @@ public class MachineLearning extends Plugin
         Client unwrappedClient,
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> finalListener
     ) {
+        if (this.enabled == false) {
+            // if ML is disabled, the custom cleanup can fail, but we can still clean up indices
+            // by calling the superclass cleanup method
+            SystemIndexPlugin.super.cleanUpFeature(clusterService, unwrappedClient, finalListener);
+            return;
+        }
         logger.info("Starting machine learning feature reset");
         OriginSettingClient client = new OriginSettingClient(unwrappedClient, ML_ORIGIN);
 

@@ -23,7 +23,6 @@ class TransportTestExistPluginNonJavaFuncTest extends AbstractGradleInternalPlug
     public LocalRepositoryFixture repository = new LocalRepositoryFixture()
 
     def setup() {
-        configurationCacheCompatible = false
         buildFile << """
             apply plugin: 'elasticsearch.build'
             repositories {

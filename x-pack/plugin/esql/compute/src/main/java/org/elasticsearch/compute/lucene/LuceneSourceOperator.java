@@ -30,7 +30,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -83,13 +83,13 @@ public class LuceneSourceOperator extends SourceOperator {
 
     public static class LuceneSourceOperatorFactory implements SourceOperatorFactory {
 
-        private final Function<SearchExecutionContext, Query> queryFunction;
+        private final Function<SearchContext, Query> queryFunction;
 
         private final DataPartitioning dataPartitioning;
 
         private final int maxPageSize;
 
-        private final List<SearchExecutionContext> matchedSearchContexts;
+        private final List<SearchContext> searchContexts;
 
         private final int taskConcurrency;
 
@@ -98,13 +98,13 @@ public class LuceneSourceOperator extends SourceOperator {
         private Iterator<LuceneSourceOperator> iterator;
 
         public LuceneSourceOperatorFactory(
-            List<SearchExecutionContext> matchedSearchContexts,
-            Function<SearchExecutionContext, Query> queryFunction,
+            List<SearchContext> searchContexts,
+            Function<SearchContext, Query> queryFunction,
             DataPartitioning dataPartitioning,
             int taskConcurrency,
             int limit
         ) {
-            this.matchedSearchContexts = matchedSearchContexts;
+            this.searchContexts = searchContexts;
             this.queryFunction = queryFunction;
             this.dataPartitioning = dataPartitioning;
             this.taskConcurrency = taskConcurrency;
@@ -126,11 +126,11 @@ public class LuceneSourceOperator extends SourceOperator {
 
         private Iterator<LuceneSourceOperator> sourceOperatorIterator() {
             final List<LuceneSourceOperator> luceneOperators = new ArrayList<>();
-            for (int shardIndex = 0; shardIndex < matchedSearchContexts.size(); shardIndex++) {
-                final SearchExecutionContext ctx = matchedSearchContexts.get(shardIndex);
+            for (int shardIndex = 0; shardIndex < searchContexts.size(); shardIndex++) {
+                final SearchContext ctx = searchContexts.get(shardIndex);
                 final Query query = queryFunction.apply(ctx);
                 final LuceneSourceOperator queryOperator = new LuceneSourceOperator(
-                    ctx.getIndexReader(),
+                    ctx.getSearchExecutionContext().getIndexReader(),
                     shardIndex,
                     query,
                     maxPageSize,

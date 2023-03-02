@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperat
 import org.elasticsearch.xpack.ql.expression.Attribute;
 
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.common.lucene.search.Queries.newNonNestedFilter;
 import static org.elasticsearch.compute.lucene.LuceneSourceOperator.NO_LIMIT;
@@ -70,12 +69,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     @Override
     public final PhysicalOperation sourcePhysicalOperation(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
-        Set<String> indices = esQueryExec.index().concreteIndices();
-        List<SearchExecutionContext> matchedSearchContexts = searchContexts.stream()
-            .filter(ctx -> indices.contains(ctx.indexShard().shardId().getIndexName()))
-            .map(SearchContext::getSearchExecutionContext)
-            .toList();
-        LuceneSourceOperatorFactory operatorFactory = new LuceneSourceOperatorFactory(matchedSearchContexts, ctx -> {
+        LuceneSourceOperatorFactory operatorFactory = new LuceneSourceOperatorFactory(searchContexts, searchContext -> {
+            SearchExecutionContext ctx = searchContext.getSearchExecutionContext();
             Query query = ctx.toQuery(esQueryExec.query()).query();
             NestedLookup nestedLookup = ctx.nestedLookup();
             if (nestedLookup != NestedLookup.EMPTY) {

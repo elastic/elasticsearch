@@ -19,7 +19,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
@@ -59,27 +58,25 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<GetRe
             listener.onFailure(new AlreadyClosedException("engine closed"));
             return;
         }
-        assert engine instanceof InternalEngine;
-        var internalEngine = (InternalEngine) engine;
         var get = new Engine.Get(request.realtime(), request.realtime(), request.id()).version(request.version())
             .versionType(request.versionType());
         assert Objects.equals(get.uid().field(), IdFieldMapper.NAME) : get.uid().field();
         ActionListener.completeWith(listener, () -> {
-            long segmentGeneration = internalEngine.getLastCommittedSegmentInfos().getGeneration();
-            if (internalEngine.isInVersionMap(get.uid().bytes()) == false) {
-                return new Response(null, segmentGeneration);
+            if (engine.isInVersionMap(get.uid().bytes())) {
+                var result = indexShard.getService()
+                    .get(
+                        request.id(),
+                        request.storedFields(),
+                        request.realtime(),
+                        request.version(),
+                        request.versionType(),
+                        request.fetchSourceContext(),
+                        request.isForceSyntheticSource()
+                    );
+                return new Response(result, -1);
             }
-            var result = indexShard.getService()
-                .get(
-                    request.id(),
-                    request.storedFields(),
-                    request.realtime(),
-                    request.version(),
-                    request.versionType(),
-                    request.fetchSourceContext(),
-                    request.isForceSyntheticSource()
-                );
-            return new Response(result, segmentGeneration);
+            long segmentGeneration = engine.commitStats().getGeneration();
+            return new Response(null, segmentGeneration);
         });
     }
 
@@ -94,7 +91,7 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<GetRe
 
         Response(StreamInput in) throws IOException {
             super(in);
-            segmentGeneration = in.readVLong();
+            segmentGeneration = in.readZLong();
             if (in.readBoolean()) {
                 getResult = new GetResult(in);
             }
@@ -102,7 +99,7 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<GetRe
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(segmentGeneration);
+            out.writeZLong(segmentGeneration);
             if (getResult == null) {
                 out.writeBoolean(false);
             } else {

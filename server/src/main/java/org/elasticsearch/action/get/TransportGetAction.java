@@ -130,6 +130,11 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                         }
 
                         @Override
+                        public String executor() {
+                            return ThreadPool.Names.GET;
+                        }
+
+                        @Override
                         public void handleException(TransportException e) {
                             listener.onFailure(e);
                         }

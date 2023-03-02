@@ -759,7 +759,7 @@ public class InternalEngine extends Engine {
                         }
                     }
                     assert versionValue.seqNo >= 0 : versionValue;
-                    refreshIfNeeded("realtime_get", versionValue.seqNo);
+                    refreshIfNeeded(versionValue.seqNo, () -> refresh("realtime_get"));
                 }
                 return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper), false);
             } else {
@@ -774,7 +774,7 @@ public class InternalEngine extends Engine {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             try (Releasable ignore = versionMap.acquireLock(uid)) {
-                return versionMap.exists(uid);
+                return getVersionFromMap(uid) != null;
             }
         }
     }
@@ -2922,10 +2922,14 @@ public class InternalEngine extends Engine {
      * Refresh this engine **internally** iff the requesting seq_no is greater than the last refreshed checkpoint.
      */
     protected final void refreshIfNeeded(String source, long requestingSeqNo) {
+        refreshIfNeeded(requestingSeqNo, () -> refresh(source, SearcherScope.INTERNAL, true));
+    }
+
+    private void refreshIfNeeded(long requestingSeqNo, Runnable refreshRunnable) {
         if (lastRefreshedCheckpoint() < requestingSeqNo) {
             synchronized (refreshIfNeededMutex) {
                 if (lastRefreshedCheckpoint() < requestingSeqNo) {
-                    refresh(source, SearcherScope.INTERNAL, true);
+                    refreshRunnable.run();
                 }
             }
         }

@@ -544,6 +544,14 @@ public abstract class ESRestTestCase extends ESTestCase {
      * all feature states, deleting system indices, system associated indices, and system data streams.
      */
     protected boolean preserveSystemResources() {
+        try {
+            // ML reset fails when ML is disabled in versions before 8.7
+            if (isMlEnabled() == false && minimumNodeVersion().before(Version.V_8_7_0)) {
+                return true;
+            }
+        } catch (IOException e) {
+            return true; // can't determine minimum node version, so do this to be safe
+        }
         return false;
     }
 
@@ -2077,6 +2085,16 @@ public abstract class ESRestTestCase extends ESTestCase {
         assertOK(response);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, response.getEntity().getContent())) {
             return FieldCapabilitiesResponse.fromXContent(parser);
+        }
+    }
+
+    private static boolean isMlEnabled() {
+        try {
+            adminClient().performRequest(new Request("GET", "_ml/info"));
+            return true;
+        } catch (IOException e) {
+            // do nothing, ML is disabled
+            return false;
         }
     }
 

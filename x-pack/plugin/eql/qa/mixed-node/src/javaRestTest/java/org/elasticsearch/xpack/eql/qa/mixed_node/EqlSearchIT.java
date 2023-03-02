@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.eql.qa.mixed_node;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -57,19 +56,6 @@ public class EqlSearchIT extends ESRestTestCase {
     private static TestNodes nodes;
     private static List<TestNode> newNodes;
     private static List<TestNode> bwcNodes;
-
-    @Override
-    protected boolean preserveSystemResources() {
-        // bug in the ML reset API before v8.7
-        try {
-            if (minimumNodeVersion().before(Version.V_8_7_0)) {
-                return true;
-            }
-        } catch (IOException e) {
-            return true;
-        }
-        return false;
-    }
 
     @Before
     public void createIndex() throws IOException {

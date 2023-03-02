@@ -6,27 +6,12 @@
  */
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 
-import java.io.IOException;
 import java.util.Map;
 
 public class BasicLicenseUpgradeIT extends AbstractUpgradeTestCase {
-
-    @Override
-    protected boolean preserveSystemResources() {
-        // bug in the ML reset API before v8.7
-        try {
-            if (minimumNodeVersion().before(Version.V_8_7_0)) {
-                return true;
-            }
-        } catch (IOException e) {
-            return true;
-        }
-        return false;
-    }
 
     public void testOldAndMixedClusterHaveActiveBasic() throws Exception {
         assumeTrue("only runs against old or mixed cluster", clusterType == CLUSTER_TYPE.OLD || clusterType == CLUSTER_TYPE.MIXED);

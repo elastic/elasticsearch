@@ -77,19 +77,6 @@ public class SqlSearchIT extends ESRestTestCase {
         }
     }
 
-    @Override
-    protected boolean preserveSystemResources() {
-        // bug in the ML reset API before v8.7
-        try {
-            if (minimumNodeVersion().before(Version.V_8_7_0)) {
-                return true;
-            }
-        } catch (IOException e) {
-            return true;
-        }
-        return false;
-    }
-
     public void testAllTypesWithRequestToOldNodes() throws Exception {
         Map<String, Object> expectedResponse = prepareTestData(columns -> {
             columns.add(columnInfo("geo_point_field", "geo_point"));

@@ -68,19 +68,6 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         });
     }
 
-    @Override
-    protected boolean preserveSystemResources() {
-        // bug in the ML reset API before v8.7
-        try {
-            if (minimumNodeVersion().before(Version.V_8_7_0)) {
-                return true;
-            }
-        } catch (IOException e) {
-            return true;
-        }
-        return false;
-    }
-
     public void testNullsOrderWithMissingOrderSupportQueryingNewNode() throws IOException {
         testNullsOrderWithMissingOrderSupport(newNodesClient);
     }

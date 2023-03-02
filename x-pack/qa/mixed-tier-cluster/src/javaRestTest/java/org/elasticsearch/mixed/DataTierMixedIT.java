@@ -7,27 +7,11 @@
 
 package org.elasticsearch.mixed;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
-import java.io.IOException;
-
 public class DataTierMixedIT extends ESRestTestCase {
-
-    @Override
-    protected boolean preserveSystemResources() {
-        // bug in the ML reset API before v8.7
-        try {
-            if (minimumNodeVersion().before(Version.V_8_7_0)) {
-                return true;
-            }
-        } catch (IOException e) {
-            return true;
-        }
-        return false;
-    }
 
     public void testMixedTierCompatibility() throws Exception {
         createIndex(

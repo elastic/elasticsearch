@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ilm;
 
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
@@ -64,7 +65,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static java.time.format.DateTimeFormatter.ISO_ZONED_DATE_TIME;
-import static org.elasticsearch.client.internal.Requests.createIndexRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -179,7 +179,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         logger.info("Creating index [test]");
         CreateIndexResponse createIndexResponse = client().admin()
             .indices()
-            .create(createIndexRequest("test").settings(settings))
+            .create(new CreateIndexRequest("test").settings(settings))
             .actionGet();
         assertAcked(createIndexResponse);
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
@@ -265,7 +265,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         logger.info("Creating index [test]");
         CreateIndexResponse createIndexResponse = client().admin()
             .indices()
-            .create(createIndexRequest("test").settings(settings))
+            .create(new CreateIndexRequest("test").settings(settings))
             .actionGet();
         assertAcked(createIndexResponse);
 
@@ -342,7 +342,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         CreateIndexResponse createIndexResponse = client().admin()
             .indices()
             .create(
-                createIndexRequest(indexName).settings(
+                new CreateIndexRequest(indexName).settings(
                     Settings.builder().put(settings).put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
                 )
             )
@@ -423,7 +423,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         logger.info("Creating index [test]");
         CreateIndexResponse createIndexResponse = client().admin()
             .indices()
-            .create(createIndexRequest("test").settings(settings))
+            .create(new CreateIndexRequest("test").settings(settings))
             .actionGet();
         assertAcked(createIndexResponse);
 

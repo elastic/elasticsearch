@@ -9,10 +9,15 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.replication.BasicReplicationRequest;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -99,61 +104,80 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     protected void asyncShardOperation(GetRequest request, ShardId shardId, ActionListener<GetResponse> listener) throws IOException {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
-        if (request.realtime()) { // we are not tied to a refresh cycle here anyway
-            var shardRouting = clusterService.state().getRoutingNodes().node(clusterService.localNode().getId()).getByShardId(shardId);
-            if (shardRouting == null) {
-                listener.onFailure(new ShardNotFoundException(shardId, "shard is no longer assigned to current node"));
-                return;
-            }
-            if (shardRouting.isPromotableToPrimary()) {
+        var shardRouting = clusterService.state().getRoutingNodes().node(clusterService.localNode().getId()).getByShardId(shardId);
+        if (shardRouting == null) {
+            listener.onFailure(new ShardNotFoundException(shardId, "shard is no longer assigned to current node"));
+            return;
+        }
+        // A TransportGetAction always goes to a search shard in Stateless.
+        if (shardRouting.isPromotableToPrimary() == false) {
+            handleGetOnUnpromotableShard(request, indexShard, listener);
+        } else {
+            assert DiscoveryNode.isStateless(clusterService.getSettings()) == false;
+            if (request.realtime()) { // we are not tied to a refresh cycle here anyway
                 super.asyncShardOperation(request, shardId, listener);
             } else {
-                var node = clusterService.state()
-                    .nodes()
-                    .get(clusterService.state().routingTable().shardRoutingTable(shardId).primaryShard().currentNodeId());
-                transportService.sendRequest(
-                    node,
-                    TransportGetFromTranslogAction.NAME,
-                    request,
-                    new TransportResponseHandler<TransportGetFromTranslogAction.Response>() {
-                        @Override
-                        public void handleResponse(TransportGetFromTranslogAction.Response response) {
-                            if (response.getResult() != null) {
-                                listener.onResponse(new GetResponse(response.getResult()));
-                            } else {
-                                assert response.segmentGeneration() > -1L;
-                                indexShard.waitForSegmentGeneration(
-                                    response.segmentGeneration(),
-                                    listener.map(aLong -> shardOperation(request, shardId))
-                                );
-                            }
-                        }
+                indexShard.awaitShardSearchActive(b -> {
+                    try {
+                        super.asyncShardOperation(request, shardId, listener);
+                    } catch (Exception ex) {
+                        listener.onFailure(ex);
+                    }
+                });
+            }
+        }
+    }
 
-                        @Override
-                        public String executor() {
-                            return ThreadPool.Names.GET;
-                        }
-
-                        @Override
-                        public void handleException(TransportException e) {
-                            listener.onFailure(e);
-                        }
-
-                        @Override
-                        public TransportGetFromTranslogAction.Response read(StreamInput in) throws IOException {
-                            return new TransportGetFromTranslogAction.Response(in);
+    private void handleGetOnUnpromotableShard(GetRequest request, IndexShard indexShard, ActionListener<GetResponse> listener)
+        throws IOException {
+        ShardId shardId = indexShard.shardId();
+        var node = clusterService.state()
+            .nodes()
+            .get(clusterService.state().routingTable().shardRoutingTable(shardId).primaryShard().currentNodeId());
+        if (request.refresh()) {
+            transportService.sendRequest(
+                node,
+                TransportShardRefreshAction.NAME,
+                new BasicReplicationRequest(shardId),
+                new ActionListenerResponseHandler<>(listener.map(t -> shardOperation(request, shardId)), ReplicationResponse::new)
+            );
+        } else if (request.realtime()) {
+            transportService.sendRequest(
+                node,
+                TransportGetFromTranslogAction.NAME,
+                request,
+                new TransportResponseHandler<TransportGetFromTranslogAction.Response>() {
+                    @Override
+                    public void handleResponse(TransportGetFromTranslogAction.Response response) {
+                        if (response.getResult() != null) {
+                            listener.onResponse(new GetResponse(response.getResult()));
+                        } else {
+                            assert response.segmentGeneration() > -1L;
+                            indexShard.waitForSegmentGeneration(
+                                response.segmentGeneration(),
+                                listener.map(aLong -> shardOperation(request, shardId))
+                            );
                         }
                     }
-                );
-            }
-        } else {
-            indexShard.awaitShardSearchActive(b -> {
-                try {
-                    super.asyncShardOperation(request, shardId, listener);
-                } catch (Exception ex) {
-                    listener.onFailure(ex);
+
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.GET;
+                    }
+
+                    @Override
+                    public void handleException(TransportException e) {
+                        listener.onFailure(e);
+                    }
+
+                    @Override
+                    public TransportGetFromTranslogAction.Response read(StreamInput in) throws IOException {
+                        return new TransportGetFromTranslogAction.Response(in);
+                    }
                 }
-            });
+            );
+        } else {
+            super.asyncShardOperation(request, shardId, listener);
         }
     }
 

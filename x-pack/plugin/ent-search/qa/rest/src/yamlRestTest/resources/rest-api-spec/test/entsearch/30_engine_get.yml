@@ -24,6 +24,12 @@ setup:
           indices: [ "test-index1", "test-index2"]
           analytics_collection_name: "test-analytics"
 
+---
+teardown:
+  - do:
+      engine.delete:
+        engine_id: my-test-engine
+        ignore: 404
 
 ---
 "Get Engine":
@@ -31,9 +37,11 @@ setup:
       engine.get:
         engine_id: my-test-engine
 
+  - match: { name: "my-test-engine" }
   - match: { indices: [ "test-index1", "test-index2" ] }
   - match: { analytics_collection_name: "test-analytics" }
   - match: { engine_alias: "engine-my-test-engine" }
+  - gte: { updated_at_millis: 0 }
 
 ---
 "Get Engine - Engine does not exist":

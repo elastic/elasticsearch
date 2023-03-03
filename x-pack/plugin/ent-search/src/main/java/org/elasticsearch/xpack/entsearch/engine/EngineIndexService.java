@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -48,6 +49,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -61,15 +63,19 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.CharBuffer;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
+import static org.elasticsearch.xpack.entsearch.engine.Engine.ANALYTICS_COLLECTION_NAME_FIELD;
 import static org.elasticsearch.xpack.entsearch.engine.Engine.BINARY_CONTENT_FIELD;
 import static org.elasticsearch.xpack.entsearch.engine.Engine.INDICES_FIELD;
 import static org.elasticsearch.xpack.entsearch.engine.Engine.NAME_FIELD;
@@ -148,6 +154,10 @@ public class EngineIndexService {
                     builder.endObject();
 
                     builder.startObject(INDICES_FIELD.getPreferredName());
+                    builder.field("type", "keyword");
+                    builder.endObject();
+
+                    builder.startObject(ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName());
                     builder.field("type", "keyword");
                     builder.endObject();
 
@@ -268,6 +278,7 @@ public class EngineIndexService {
                 source.startObject()
                     .field(NAME_FIELD.getPreferredName(), engine.name())
                     .field(INDICES_FIELD.getPreferredName(), engine.indices())
+                    .field(ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName(), engine.analyticsCollectionName())
                     .directFieldAsBase64(
                         BINARY_CONTENT_FIELD.getPreferredName(),
                         os -> writeEngineBinaryWithVersion(engine, os, clusterService.state().nodes().getMinNodeVersion())
@@ -321,21 +332,41 @@ public class EngineIndexService {
      * @param from From index to start the search from.
      * @param size The maximum number of {@link Engine} to return.
      * @param listener The action listener to invoke on response/failure.
+     *  It will receive a tuple containing the Engine results and an Integer with the total number of engines found
      */
-    public void listEngine(String queryString, int from, int size, ActionListener<SearchResponse> listener) {
+    public void listEngines(String queryString, int from, int size, ActionListener<SearchEnginesResult> listener) {
         try {
             final SearchSourceBuilder source = new SearchSourceBuilder().from(from)
                 .size(size)
                 .query(new QueryStringQueryBuilder(queryString))
                 .docValueField(NAME_FIELD.getPreferredName())
                 .docValueField(INDICES_FIELD.getPreferredName())
+                .docValueField(ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName())
                 .storedFields(Collections.singletonList("_none_"))
                 .sort(NAME_FIELD.getPreferredName(), SortOrder.ASC);
             final SearchRequest req = new SearchRequest(ENGINE_ALIAS_NAME).source(source);
-            clientWithOrigin.search(req, listener);
+            clientWithOrigin.search(req, listener.map(EngineIndexService::mapSearchResponse));
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    private static SearchEnginesResult mapSearchResponse(SearchResponse response) {
+        final List<EngineListItem> engines = Arrays.stream(response.getHits().getHits())
+            .map(EngineIndexService::hitToEngineListItem)
+            .toList();
+        return new SearchEnginesResult(engines, (int) response.getHits().getTotalHits().value);
+    }
+
+    private static EngineListItem hitToEngineListItem(SearchHit searchHit) {
+        final Map<String, DocumentField> documentFields = searchHit.getDocumentFields();
+        final String engineName = documentFields.get(NAME_FIELD.getPreferredName()).getValue();
+        return new EngineListItem(
+            engineName,
+            documentFields.get(INDICES_FIELD.getPreferredName()).getValues().toArray(String[]::new),
+            Engine.getEngineAliasName(engineName),
+            documentFields.get(ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName()).getValue()
+        );
     }
 
     private Engine parseEngineBinaryFromSource(BytesReference source) {
@@ -387,4 +418,6 @@ public class EngineIndexService {
             engine.writeTo(out);
         }
     }
+
+    public record SearchEnginesResult(List<EngineListItem> engineListItems, long totalResults) {}
 }

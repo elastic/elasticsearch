@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.entsearch.engine;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
@@ -42,9 +41,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class Engine implements Writeable, ToXContentObject {
 
     public static final String ENGINE_ALIAS_PREFIX = "engine-";
-    // Shared indices options for Engines API requests that require every specified index to exist, do not expand wildcards,
-    // don't allow that no indices are resolved from wildcard expressions and resolve the expressions only against indices
-    public static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, false, false, true, false, true, false);
     private final String name;
     private final String[] indices;
     private long updatedAtMillis = System.currentTimeMillis();
@@ -91,14 +87,23 @@ public class Engine implements Writeable, ToXContentObject {
     private static final ConstructingObjectParser<Engine, String> PARSER = new ConstructingObjectParser<>(
         "engine",
         false,
-        (params, engineName) -> {
+        (params, engineResourceName) -> {
+            final String engineName = (String) params[0];
+            // If engine name is provided, check that it matches the resource name. We don't want it to be updatable
+            if (engineName != null) {
+                if (engineName.equals(engineResourceName) == false) {
+                    throw new IllegalArgumentException(
+                        "Engine name [" + engineName + "] does not match the resource engine name: [" + engineResourceName + "]"
+                    );
+                }
+            }
             @SuppressWarnings("unchecked")
-            final String[] indices = ((List<String>) params[0]).toArray(String[]::new);
-            final String analyticsCollectionName = (String) params[1];
-            final Long maybeUpdatedAtMillis = (Long) params[2];
+            final String[] indices = ((List<String>) params[1]).toArray(String[]::new);
+            final String analyticsCollectionName = (String) params[2];
+            final Long maybeUpdatedAtMillis = (Long) params[3];
             long updatedAtMillis = (maybeUpdatedAtMillis != null ? maybeUpdatedAtMillis : System.currentTimeMillis());
 
-            Engine newEngine = new Engine(engineName, indices, analyticsCollectionName);
+            Engine newEngine = new Engine(engineResourceName, indices, analyticsCollectionName);
             newEngine.setUpdatedAtMillis(updatedAtMillis);
             return newEngine;
         }
@@ -112,6 +117,7 @@ public class Engine implements Writeable, ToXContentObject {
     public static final ParseField BINARY_CONTENT_FIELD = new ParseField("binary_content");
 
     static {
+        PARSER.declareStringOrNull(optionalConstructorArg(), NAME_FIELD);
         PARSER.declareStringArray(constructorArg(), INDICES_FIELD);
         PARSER.declareStringOrNull(optionalConstructorArg(), ANALYTICS_COLLECTION_NAME_FIELD);
         PARSER.declareLong(optionalConstructorArg(), UPDATED_AT_MILLIS_FIELD);
@@ -155,6 +161,7 @@ public class Engine implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field(NAME_FIELD.getPreferredName(), name);
         builder.field(INDICES_FIELD.getPreferredName(), indices);
         if (analyticsCollectionName != null) {
             builder.field(ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName(), analyticsCollectionName);

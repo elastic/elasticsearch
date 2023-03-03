@@ -137,6 +137,10 @@ for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoo
             } else {
                 miniHDFSArgs.add("-Dhdfs.config.port=" + getNonSecureNamenodePortForVersion(hadoopVer))
             }
+            // This is required for webhdfs to work, otherwise miniHDFS will fail with module java.base does not "opens java.lang" to unnamed module
+            miniHDFSArgs.add('--add-opens')
+            miniHDFSArgs.add('java.base/java.lang=ALL-UNNAMED')
+            miniHDFSArgs.add('-Dhdfs.config.http.port=' + getHttpPortForVersion(hadoopVer))
             // If it's an HA fixture, set a nameservice to use in the JVM options
             if (name.startsWith('haHdfs') || name.startsWith('secureHaHdfs')) {
                 miniHDFSArgs.add("-Dha-nameservice=ha-hdfs")
@@ -189,7 +193,7 @@ for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoo
         }
     }
 
-    for (String integTestTaskName : ['yamlRestTest' + hadoopVersion, 'yamlRestTestSecure' + hadoopVersion]) {
+    for (String integTestTaskName : ['yamlRestTest' + hadoopVersion, 'yamlRestTestSecure' + hadoopVersion, 'yamlRestTestWeb' + hadoopVersion]) {
         tasks.register(integTestTaskName, RestIntegTestTask) {
             description = "Runs rest tests against an elasticsearch cluster with HDFS" + hadoopVer
 
@@ -207,6 +211,7 @@ for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoo
         Map<String, Object> expansions = [
                 'hdfs_port'       : getNonSecureNamenodePortForVersion(hadoopVer),
                 'secure_hdfs_port': getSecureNamenodePortForVersion(hadoopVer),
+                'hdfs_http_port'  : getHttpPortForVersion(hadoopVer),
         ]
         inputs.properties(expansions)
         filter("tokens": expansions.collectEntries { k, v -> [k, v.toString()]}, ReplaceTokens.class)
@@ -216,6 +221,9 @@ for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoo
         }
         it.into("secure_hdfs_repository_" + hadoopVer) {
             from "src/yamlRestTest/resources/rest-api-spec/test/secure_hdfs_repository"
+        }
+        it.into("webhdfs_repository_" + hadoopVer) {
+          from "src/yamlRestTest/resources/rest-api-spec/test/webhdfs_repository"
         }
     }
     tasks.named("processYamlRestTestResources").configure {
@@ -234,6 +242,11 @@ for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoo
             // The normal test runner only runs the standard hdfs rest tests
             systemProperty 'tests.rest.suite', 'hdfs_repository_' + hadoopVer
         }
+        tasks.named("yamlRestTestWeb" + hadoopVer).configure {
+          dependsOn "hdfs" + hadoopVer + "Fixture"
+          // The normal test runner only runs the standard hdfs rest tests
+          systemProperty 'tests.rest.suite', 'hdfs_repository_' + hadoopVer
+        }
         tasks.named("javaRestTest" + hadoopVer).configure {
             dependsOn "haHdfs" + hadoopVer + "Fixture"
         }
@@ -243,19 +256,27 @@ for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoo
             systemProperty 'tests.rest.suite', 'hdfs_repository_' + hadoopVer + '/10_basic'
         }
         // HA fixture is unsupported. Don't run them.
+        tasks.named("yamlRestTestSecure" + hadoopVer).configure {
+          enabled = false
+        }
         tasks.named("javaRestTestSecure" + hadoopVer).configure {
             enabled = false
         }
     }
 
     tasks.named("check").configure {
-        dependsOn("yamlRestTest" + hadoopVer, "yamlRestTestSecure" + hadoopVer, "javaRestTestSecure" + hadoopVer)
+        dependsOn("yamlRestTest" + hadoopVer, "yamlRestTestSecure" + hadoopVer, "javaRestTestSecure" + hadoopVer, "yamlRestTestWeb" + hadoopVer)
     }
 
     // Run just the secure hdfs rest test suite.
     tasks.named("yamlRestTestSecure" + hadoopVer).configure {
         systemProperty 'tests.rest.suite', 'secure_hdfs_repository_' + hadoopVer
     }
+
+  // Run just the secure webhdfs rest test suite.
+  tasks.named("yamlRestTestWeb" + hadoopVer).configure {
+    systemProperty 'tests.rest.suite', 'webhdfs_repository_' + hadoopVer
+  }
 }
 
 
@@ -265,6 +286,10 @@ def getSecureNamenodePortForVersion(hadoopVersion) {
 
 def getNonSecureNamenodePortForVersion(hadoopVersion) {
     return 10003 - (2 * hadoopVersion)
+}
+
+def getHttpPortForVersion(hadoopVersion) {
+  return 10004 - (2 * hadoopVersion)
 }
 
 Set disabledIntegTestTaskNames = []

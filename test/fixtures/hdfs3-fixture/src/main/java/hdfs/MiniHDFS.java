@@ -100,6 +100,10 @@ public class MiniHDFS {
                 builder.nameNodePort(9999);
             }
         }
+        String explicitHttpPort = System.getProperty("hdfs.config.http.port");
+        if (explicitHttpPort != null) {
+            builder.nameNodeHttpPort(Integer.parseInt(explicitHttpPort));
+        }
 
         // Configure HA mode
         String haNameService = System.getProperty("ha-nameservice");

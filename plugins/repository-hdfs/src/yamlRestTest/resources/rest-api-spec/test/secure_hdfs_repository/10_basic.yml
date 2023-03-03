@@ -19,7 +19,7 @@
 ---
 #
 # Check that we can't use file:// repositories or anything like that
-# We only test this plugin against hdfs://
+# We only test this plugin against hdfs:// and webhdfs://
 #
 "HDFS only":
     - do:

@@ -84,7 +84,7 @@ public final class HdfsRepository extends BlobStoreRepository {
                 )
             );
         }
-        if (Strings.hasLength(uri.getPath()) && uri.getPath().equals("/") == false) {
+        if (uri.getScheme().equals("hdfs") && Strings.hasLength(uri.getPath()) && uri.getPath().equals("/") == false) {
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,

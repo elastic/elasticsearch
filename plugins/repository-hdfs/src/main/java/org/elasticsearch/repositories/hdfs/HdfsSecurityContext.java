@@ -9,6 +9,7 @@ package org.elasticsearch.repositories.hdfs;
 
 import org.apache.hadoop.security.UserGroupInformation;
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
@@ -22,6 +23,7 @@ import java.security.Permission;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Arrays;
+import java.util.Objects;
 
 import javax.security.auth.AuthPermission;
 import javax.security.auth.PrivateCredentialPermission;
@@ -37,6 +39,8 @@ class HdfsSecurityContext {
 
     private static final Permission[] SIMPLE_AUTH_PERMISSIONS;
     private static final Permission[] KERBEROS_AUTH_PERMISSIONS;
+    private static final Permission[] WEBHDFS_PERMISSIONS;
+    private static final Permission[] SWEBHDFS_PERMISSIONS;
     static {
         // We can do FS ops with only a few elevated permissions:
         SIMPLE_AUTH_PERMISSIONS = new Permission[] {
@@ -46,10 +50,7 @@ class HdfsSecurityContext {
             // 2) allow hadoop to add credentials to our Subject
             new AuthPermission("modifyPrivateCredentials"),
             // 3) RPC Engine requires this for re-establishing pooled connections over the lifetime of the client
-            new PrivateCredentialPermission("org.apache.hadoop.security.Credentials * \"*\"", "read"),
-            // 4) Allow WebHDFS to act as the logged in Subject
-            new AuthPermission("doAs")
-        };
+            new PrivateCredentialPermission("org.apache.hadoop.security.Credentials * \"*\"", "read") };
 
         // If Security is enabled, we need all the following elevated permissions:
         KERBEROS_AUTH_PERMISSIONS = new Permission[] {
@@ -75,6 +76,13 @@ class HdfsSecurityContext {
             // 7) allow code to initiate kerberos connections as the logged in user
             // Still far and away fewer permissions than the original full plugin policy
         };
+        WEBHDFS_PERMISSIONS = new Permission[] {
+            new AuthPermission("doAs")
+        };
+        SWEBHDFS_PERMISSIONS = new Permission[] {
+            new AuthPermission("doAs"),
+            new RuntimePermission("setFactory"),
+        };
     }
 
     /**
@@ -97,13 +105,13 @@ class HdfsSecurityContext {
     private final boolean restrictPermissions;
     private final Permission[] restrictedExecutionPermissions;
 
-    HdfsSecurityContext(UserGroupInformation ugi, boolean restrictPermissions) {
+    HdfsSecurityContext(UserGroupInformation ugi, boolean restrictPermissions, String scheme) {
         this.ugi = ugi;
         this.restrictPermissions = restrictPermissions;
-        this.restrictedExecutionPermissions = renderPermissions(ugi);
+        this.restrictedExecutionPermissions = renderPermissions(ugi, scheme);
     }
 
-    private Permission[] renderPermissions(UserGroupInformation userGroupInformation) {
+    private Permission[] renderPermissions(UserGroupInformation userGroupInformation, String scheme) {
         Permission[] permissions;
         if (userGroupInformation.isFromKeytab()) {
             // KERBEROS
@@ -120,6 +128,12 @@ class HdfsSecurityContext {
             // SIMPLE
             permissions = Arrays.copyOf(SIMPLE_AUTH_PERMISSIONS, SIMPLE_AUTH_PERMISSIONS.length);
         }
+        if (Objects.equals(scheme, "webhdfs")) {
+            permissions = ArrayUtils.concat(permissions, WEBHDFS_PERMISSIONS, Permission.class);
+        } else if (Objects.equals(scheme, "swebhdfs")) {
+            permissions = ArrayUtils.concat(permissions, SWEBHDFS_PERMISSIONS, Permission.class);
+        }
+
         return permissions;
     }
 

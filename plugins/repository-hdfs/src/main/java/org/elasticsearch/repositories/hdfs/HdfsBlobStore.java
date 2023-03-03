@@ -35,7 +35,11 @@ final class HdfsBlobStore implements BlobStore {
         this.fileContext = fileContext;
         // Only restrict permissions if not running with HA
         boolean restrictPermissions = (haEnabled == false);
-        this.securityContext = new HdfsSecurityContext(fileContext.getUgi(), restrictPermissions);
+        this.securityContext = new HdfsSecurityContext(
+            fileContext.getUgi(),
+            restrictPermissions,
+            fileContext.getDefaultFileSystem().getUri().getScheme()
+        );
         this.bufferSize = bufferSize;
         this.root = execute(fileContext1 -> fileContext1.makeQualified(new Path(path)));
         this.readOnly = readOnly;

@@ -70,5 +70,6 @@ grant {
   permission java.net.SocketPermission "localhost:0", "listen,resolve";
 
   // org.apache.hadoop.hdfs.web.SSLConnectionConfigurator
+  // This is used by swebhdfs connections
   permission java.lang.RuntimePermission "setFactory";
 };

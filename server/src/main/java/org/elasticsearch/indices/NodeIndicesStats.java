@@ -9,6 +9,7 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.StatsLevel;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -216,13 +217,13 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        final String level = params.param("level", "node");
+        final StatsLevel level = StatsLevel.valueOf(params.param("level", StatsLevel.NODE.name()));
 
         // "node" level
         builder.startObject(Fields.INDICES);
         stats.toXContent(builder, params);
 
-        if ("indices".equals(level)) {
+        if (level == StatsLevel.INDICES) {
             Map<Index, CommonStats> indexStats = createCommonStatsByIndex();
             builder.startObject(Fields.INDICES);
             for (Map.Entry<Index, CommonStats> entry : indexStats.entrySet()) {
@@ -231,8 +232,8 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
                 builder.endObject();
             }
             builder.endObject();
-        } else if ("shards".equals(level)) {
-            builder.startObject("shards");
+        } else if (level == StatsLevel.SHARDS) {
+            builder.startObject(Fields.SHARDS);
             for (Map.Entry<Index, List<IndexShardStats>> entry : statsByShard.entrySet()) {
                 builder.startArray(entry.getKey().getName());
                 for (IndexShardStats indexShardStats : entry.getValue()) {
@@ -279,5 +280,6 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
 
     static final class Fields {
         static final String INDICES = "indices";
+        static final String SHARDS = "shards";
     }
 }

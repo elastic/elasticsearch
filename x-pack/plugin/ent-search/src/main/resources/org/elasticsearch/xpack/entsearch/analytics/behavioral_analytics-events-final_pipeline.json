@@ -1,0 +1,40 @@
+{
+  "description": "Built ingest pipeline applied by as default final pipeline to behavioral analytics event data streams.",
+  "processors": [
+    {
+      "user_agent": {
+        "field": "event.user_agent",
+        "ignore_missing": true
+      }
+    },
+    {
+      "uri_parts": {
+        "field": "event.page_url",
+        "if": "ctx.event.page_url != null",
+        "target_field": "url",
+        "keep_original": false,
+        "remove_if_successful": true
+      }
+    },
+    {
+      "remove": {
+        "field": [
+          "agent.ephemeral_id",
+          "agent.id",
+          "agent.name",
+          "agent.type",
+          "agent.version",
+          "host.name",
+          "input.type",
+          "log.file.path",
+          "log.offset"
+        ],
+        "ignore_missing": true
+      }
+    }
+  ],
+  "_meta": {
+    "managed": true
+  },
+  "version": ${xpack.entsearch.analytics.template.version}
+}

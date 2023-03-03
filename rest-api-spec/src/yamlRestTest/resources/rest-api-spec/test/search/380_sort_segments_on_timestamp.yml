@@ -15,7 +15,6 @@
                 type: date
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
 
   # 1st segment
   - do:
@@ -54,7 +53,6 @@
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
 
   # 1st segment
   - do:
@@ -114,7 +112,6 @@
                 type: date
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
 
   # 1st segment missing @timestamp field
   - do:

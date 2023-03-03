@@ -44,6 +44,7 @@ import java.io.Closeable;
 import java.time.Clock;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -208,7 +209,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                     transportActionsDeduplicator.executeOnce(
                         deleteRequest,
                         ActionListener.noop(),
-                        (req, reqListener) -> deleteIndex(deleteRequest, reqListener)
+                        (req, reqListener) -> deleteIndex(deleteRequest, retention, reqListener)
                     );
                 }
             }
@@ -239,9 +240,17 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
             public void onResponse(RolloverResponse rolloverResponse) {
                 // Log only when the conditions were met and the index was rolled over.
                 if (rolloverResponse.isRolledOver()) {
+                    List<String> metConditions = rolloverResponse.getConditionStatus()
+                        .entrySet()
+                        .stream()
+                        .filter(Map.Entry::getValue)
+                        .map(Map.Entry::getKey)
+                        .toList();
                     logger.info(
-                        "DLM successfully rolled over datastream [{}]. The new index is [{}]",
+                        "DLM successfully rolled over datastream [{}] due to the following met rollover conditions {}. The new index is "
+                            + "[{}]",
                         rolloverTarget,
+                        metConditions,
                         rolloverResponse.getNewIndex()
                     );
                 }
@@ -256,7 +265,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         });
     }
 
-    private void deleteIndex(DeleteIndexRequest deleteIndexRequest, ActionListener<Void> listener) {
+    private void deleteIndex(DeleteIndexRequest deleteIndexRequest, TimeValue retention, ActionListener<Void> listener) {
         assert deleteIndexRequest.indices() != null && deleteIndexRequest.indices().length == 1 : "DLM deletes one index at a time";
         // "saving" the index name here so we don't capture the entire request
         String targetIndex = deleteIndexRequest.indices()[0];
@@ -264,7 +273,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         client.admin().indices().delete(deleteIndexRequest, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                logger.info("DLM successfully deleted index [{}]", targetIndex);
+                logger.info("DLM successfully deleted index [{}] due to the lapsed [{}] retention period", targetIndex, retention);
                 listener.onResponse(null);
             }
 

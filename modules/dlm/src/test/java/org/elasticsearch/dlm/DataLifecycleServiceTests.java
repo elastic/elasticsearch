@@ -196,9 +196,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
         String dataStreamName = "metrics-foo";
         {
             IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
+                .settings(settings(Version.CURRENT, 1, 1))
                 .creationDate(now - 3000L);
             MaxAgeCondition rolloverCondition = new MaxAgeCondition(TimeValue.timeValueMillis(now - 2000L));
             indexMetaBuilder.putRolloverInfo(new RolloverInfo(dataStreamName, List.of(rolloverCondition), now - 2000L));
@@ -218,9 +216,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
         {
             // if rollover info is missing the creation date should be used
             IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
+                .settings(settings(Version.CURRENT, 1, 1))
                 .creationDate(now - 3000L);
             IndexMetadata noRolloverIndex = indexMetaBuilder.build();
 

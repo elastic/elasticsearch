@@ -78,7 +78,7 @@ import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import javax.security.auth.x500.X500Principal;
 
-import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS;
 import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_SERVER_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX;
@@ -594,7 +594,7 @@ public class SSLService {
         sslSettingsMap.put(XPackSettings.TRANSPORT_SSL_PREFIX, settings.getByPrefix(XPackSettings.TRANSPORT_SSL_PREFIX));
         sslSettingsMap.putAll(getTransportProfileSSLSettings(settings));
         // Only build remote cluster server SSL if the port is enabled
-        if (REMOTE_CLUSTER_PORT_ENABLED.get(settings)) {
+        if (REMOTE_CLUSTER_SERVER_ENABLED.get(settings)) {
             sslSettingsMap.put(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX, getRemoteClusterServerSslSettings(settings));
         }
         // We always build the ssl settings for the remote cluster client
@@ -655,7 +655,7 @@ public class SSLService {
     }
 
     private void maybeValidateRemoteClusterServerConfiguration() {
-        if (REMOTE_CLUSTER_PORT_ENABLED.get(settings) == false) {
+        if (REMOTE_CLUSTER_SERVER_ENABLED.get(settings) == false) {
             return;
         }
         final SslConfiguration sslConfiguration = getSSLConfiguration(REMOTE_CLUSTER_SERVER_SSL_PREFIX);

@@ -412,7 +412,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             .numberOfReplicas(0)
             .build();
         CountDownLatch latch = new CountDownLatch(1);
-        dangling.allocateDangled(Arrays.asList(indexMetadata), ActionListener.wrap(latch::countDown));
+        dangling.allocateDangled(Arrays.asList(indexMetadata), ActionListener.running(latch::countDown));
         latch.await();
         assertThat(clusterService.state(), equalTo(originalState));
 
@@ -421,7 +421,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         // now try importing a dangling index with the same name as the alias, it should succeed.
         latch = new CountDownLatch(1);
-        dangling.allocateDangled(Arrays.asList(indexMetadata), ActionListener.wrap(latch::countDown));
+        dangling.allocateDangled(Arrays.asList(indexMetadata), ActionListener.running(latch::countDown));
         latch.await();
         assertThat(clusterService.state(), not(originalState));
         assertNotNull(clusterService.state().getMetadata().index(alias));
@@ -443,7 +443,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             .numberOfReplicas(0)
             .build();
         CountDownLatch latch = new CountDownLatch(1);
-        dangling.allocateDangled(Arrays.asList(indexMetadataLater), ActionListener.wrap(latch::countDown));
+        dangling.allocateDangled(Arrays.asList(indexMetadataLater), ActionListener.running(latch::countDown));
         latch.await();
         assertThat(clusterService.state(), equalTo(originalState));
     }

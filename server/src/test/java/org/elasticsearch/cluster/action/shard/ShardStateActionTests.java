@@ -10,7 +10,7 @@ package org.elasticsearch.cluster.action.shard;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
@@ -62,7 +62,7 @@ import java.util.function.LongConsumer;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
-import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
+import static org.elasticsearch.test.TransportVersionUtils.randomCompatibleVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.sameInstance;
@@ -548,10 +548,10 @@ public class ShardStateActionTests extends ESTestCase {
         final Exception failure = randomBoolean() ? null : getSimulatedFailure();
         final boolean markAsStale = randomBoolean();
 
-        final Version version = randomFrom(randomCompatibleVersion(random(), Version.CURRENT));
+        final TransportVersion version = randomFrom(randomCompatibleVersion(random(), TransportVersion.CURRENT));
         final FailedShardEntry failedShardEntry = new FailedShardEntry(shardId, allocationId, primaryTerm, message, failure, markAsStale);
         try (StreamInput in = serialize(failedShardEntry, version).streamInput()) {
-            in.setVersion(version);
+            in.setTransportVersion(version);
             final FailedShardEntry deserialized = new FailedShardEntry(in);
             assertThat(deserialized.getShardId(), equalTo(shardId));
             assertThat(deserialized.getAllocationId(), equalTo(allocationId));
@@ -575,11 +575,11 @@ public class ShardStateActionTests extends ESTestCase {
         final long primaryTerm = randomIntBetween(0, 100);
         final String message = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);
 
-        final Version version = randomFrom(randomCompatibleVersion(random(), Version.CURRENT));
+        final TransportVersion version = randomFrom(randomCompatibleVersion(random(), TransportVersion.CURRENT));
         final ShardLongFieldRange timestampRange = ShardLongFieldRangeWireTests.randomRange();
         final StartedShardEntry startedShardEntry = new StartedShardEntry(shardId, allocationId, primaryTerm, message, timestampRange);
         try (StreamInput in = serialize(startedShardEntry, version).streamInput()) {
-            in.setVersion(version);
+            in.setTransportVersion(version);
             final StartedShardEntry deserialized = new StartedShardEntry(in);
             assertThat(deserialized.shardId, equalTo(shardId));
             assertThat(deserialized.allocationId, equalTo(allocationId));
@@ -589,9 +589,9 @@ public class ShardStateActionTests extends ESTestCase {
         }
     }
 
-    BytesReference serialize(Writeable writeable, Version version) throws IOException {
+    BytesReference serialize(Writeable writeable, TransportVersion version) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setVersion(version);
+            out.setTransportVersion(version);
             writeable.writeTo(out);
             return out.bytes();
         }

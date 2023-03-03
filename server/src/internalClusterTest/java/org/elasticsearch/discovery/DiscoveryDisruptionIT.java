@@ -229,7 +229,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
             } catch (Exception e) {
                 throw new AssertionError(e);
             }
-        }, ActionListener.wrap(() -> {}));
+        }, ActionListener.noop());
         barrier.await(10, TimeUnit.SECONDS);
 
         // drop the victim from the cluster with a network disruption

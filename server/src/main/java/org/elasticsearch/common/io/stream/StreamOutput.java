@@ -18,7 +18,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -81,26 +80,10 @@ public abstract class StreamOutput extends OutputStream {
     private TransportVersion version = TransportVersion.CURRENT;
 
     /**
-     * The version of the node on the other side of this stream.
-     */
-    @Deprecated(forRemoval = true)
-    public Version getVersion() {
-        return Version.fromId(this.version.id);
-    }
-
-    /**
      * The transport version to serialize the data as.
      */
     public TransportVersion getTransportVersion() {
         return this.version;
-    }
-
-    /**
-     * Set the version of the node on the other side of this stream.
-     */
-    @Deprecated(forRemoval = true)
-    public void setVersion(Version version) {
-        this.version = version.transportVersion;
     }
 
     /**

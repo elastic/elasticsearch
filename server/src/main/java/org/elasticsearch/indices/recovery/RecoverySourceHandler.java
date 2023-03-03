@@ -967,7 +967,7 @@ public class RecoverySourceHandler {
             // to notify the listener about the cancellation
             final CountDown pendingRequestsCountDown = new CountDown(pendingRequests.size());
             for (ListenableFuture<Void> outstandingFuture : pendingRequests) {
-                outstandingFuture.addListener(ActionListener.wrap(() -> {
+                outstandingFuture.addListener(ActionListener.running(() -> {
                     if (pendingRequestsCountDown.countDown()) {
                         listener.onFailure(e);
                     }

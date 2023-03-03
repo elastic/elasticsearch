@@ -42,7 +42,8 @@ public class AllocationDecidersTests extends ESTestCase {
         var allDecisions = generateDecisions(() -> Decision.YES);
         var debugMode = randomFrom(RoutingAllocation.DebugMode.values());
         var expectedDecision = switch (debugMode) {
-            case OFF, EXCLUDE_YES_DECISIONS -> new Decision.Multi();
+            case OFF -> Decision.YES;
+            case EXCLUDE_YES_DECISIONS -> new Decision.Multi();
             case ON -> collectToMultiDecision(allDecisions);
         };
 
@@ -53,7 +54,8 @@ public class AllocationDecidersTests extends ESTestCase {
         var allDecisions = generateDecisions(Decision.THROTTLE, () -> Decision.YES);
         var debugMode = randomFrom(RoutingAllocation.DebugMode.values());
         var expectedDecision = switch (debugMode) {
-            case OFF, EXCLUDE_YES_DECISIONS -> new Decision.Multi().add(Decision.THROTTLE);
+            case OFF -> Decision.THROTTLE;
+            case EXCLUDE_YES_DECISIONS -> new Decision.Multi().add(Decision.THROTTLE);
             case ON -> collectToMultiDecision(allDecisions);
         };
 
@@ -61,10 +63,9 @@ public class AllocationDecidersTests extends ESTestCase {
     }
 
     public void testExitsAfterFirstNoDecision() {
-        var expectedDecision = Decision.NO;
-        var terminatingDecision = randomFrom(Decision.NO, Decision.single(Decision.Type.NO, "no with label", "explanation"));
-        var allDecisions = generateDecisions(terminatingDecision, () -> randomFrom(Decision.YES, Decision.THROTTLE));
-        var expectedCalls = allDecisions.indexOf(terminatingDecision) + 1;
+        var expectedDecision = randomFrom(Decision.NO, Decision.single(Decision.Type.NO, "no with label", "explanation"));
+        var allDecisions = generateDecisions(expectedDecision, () -> randomFrom(Decision.YES, Decision.THROTTLE));
+        var expectedCalls = allDecisions.indexOf(expectedDecision) + 1;
 
         verifyDecidersCall(RoutingAllocation.DebugMode.OFF, allDecisions, expectedCalls, expectedDecision);
     }
@@ -146,8 +147,7 @@ public class AllocationDecidersTests extends ESTestCase {
             (allocation, deciders) -> deciders.canAllocate(index, routingNode, allocation),
             (allocation, deciders) -> deciders.canRebalance(allocation),
             (allocation, deciders) -> deciders.canRebalance(shardRouting, allocation),
-            // TODO https://github.com/elastic/elasticsearch/pull/93374
-            // (allocation, deciders) -> deciders.canRemain(shardRouting, routingNode, allocation),
+            (allocation, deciders) -> deciders.canRemain(shardRouting, routingNode, allocation),
             (allocation, deciders) -> deciders.shouldAutoExpandToNode(index, discoveryNode, allocation),
             (allocation, deciders) -> deciders.canForceAllocatePrimary(shardRouting, routingNode, allocation),
             (allocation, deciders) -> deciders.canForceAllocateDuringReplace(shardRouting, routingNode, allocation),

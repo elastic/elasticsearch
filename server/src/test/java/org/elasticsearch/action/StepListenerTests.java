@@ -171,7 +171,7 @@ public class StepListenerTests extends ESTestCase {
         final ReachabilityChecker reachabilityChecker = new ReachabilityChecker();
 
         for (int i = between(1, 3); i > 0; i--) {
-            step.addListener(reachabilityChecker.register(ActionListener.wrap(() -> {})));
+            step.addListener(reachabilityChecker.register(ActionListener.running(() -> {})));
         }
         reachabilityChecker.checkReachable();
         if (randomBoolean()) {
@@ -181,7 +181,7 @@ public class StepListenerTests extends ESTestCase {
         }
         reachabilityChecker.ensureUnreachable();
 
-        step.addListener(reachabilityChecker.register(ActionListener.wrap(() -> {})));
+        step.addListener(reachabilityChecker.register(ActionListener.running(() -> {})));
         reachabilityChecker.ensureUnreachable();
     }
 }

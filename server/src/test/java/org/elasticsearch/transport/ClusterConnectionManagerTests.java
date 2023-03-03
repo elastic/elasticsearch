@@ -9,6 +9,7 @@
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -277,7 +278,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                         assertThat(threadContext.getHeader(contextHeader), equalTo(contextValue));
 
                         assertTrue(pendingCloses.tryAcquire());
-                        connectionManager.getConnection(node).addRemovedListener(ActionListener.wrap(pendingCloses::release));
+                        connectionManager.getConnection(node).addRemovedListener(ActionListener.running(pendingCloses::release));
 
                         if (randomBoolean()) {
                             releasables[threadIndex] = c;
@@ -622,7 +623,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                 if (closePermits.tryAcquire() && closingRefs.tryIncRef()) {
                     try {
                         var connection = connectionManager.getConnection(node);
-                        connection.addRemovedListener(ActionListener.wrap(this::runAgain));
+                        connection.addRemovedListener(ActionListener.running(this::runAgain));
                         connection.close();
                     } catch (NodeNotConnectedException e) {
                         closePermits.release();
@@ -766,6 +767,11 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         @Override
         public Version getVersion() {
             return node.getVersion();
+        }
+
+        @Override
+        public TransportVersion getTransportVersion() {
+            return TransportVersion.CURRENT;
         }
 
         @Override

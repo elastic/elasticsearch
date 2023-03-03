@@ -36,7 +36,7 @@ public class RemoteClusterSecurityAnonymousUserIT extends AbstractRemoteClusterS
             .apply(commonClusterConfig)
             // anonymous user has superuser role, but it won't be applied to remote access users
             .setting("xpack.security.authc.anonymous.roles", "superuser")
-            .setting("remote_cluster.enabled", "true")
+            .setting("remote_cluster_server.enabled", "true")
             .setting("remote_cluster.port", "0")
             .setting("xpack.security.remote_cluster_server.ssl.enabled", "true")
             .setting("xpack.security.remote_cluster_server.ssl.key", "remote-cluster.key")
@@ -60,7 +60,7 @@ public class RemoteClusterSecurityAnonymousUserIT extends AbstractRemoteClusterS
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
     public void testAnonymousUserFromQueryClusterWorks() throws Exception {
-        configureRemoteClustersWithApiKey("""
+        final String remoteAccessApiKeyId = configureRemoteClustersWithApiKey("""
             [
                {
                  "names": ["shared-*"],
@@ -109,7 +109,10 @@ public class RemoteClusterSecurityAnonymousUserIT extends AbstractRemoteClusterS
             assertThat(
                 e2.getMessage(),
                 containsString(
-                    "action [indices:data/read/search] is unauthorized for user [_anonymous] on indices ["
+                    "action [indices:data/read/search] towards remote cluster is unauthorized for user [_anonymous] "
+                        + "with assigned roles [read_remote_shared_logs] authenticated by API key id ["
+                        + remoteAccessApiKeyId
+                        + "] of user [test_user] on indices ["
                         + inaccessibleIndexForAnonymous
                         + "]"
                 )

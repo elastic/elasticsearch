@@ -80,7 +80,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         assumeTrue("tests Remote Cluster Security 2.0 functionality", TcpTransport.isUntrustedRemoteClusterEnabled());
         final Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {
-            builder.put(RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED.getKey(), false);
+            builder.put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), false);
         }
         final Map<String, Settings> settingsMap = SSLService.getSSLSettingsMap(builder.build());
         // Server (SSL is not built when port is not enabled)
@@ -100,7 +100,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
      */
     public void testRemoteClusterPortConfigurationIsInjectedWithDefaults() {
         assumeTrue("tests Remote Cluster Security 2.0 functionality", TcpTransport.isUntrustedRemoteClusterEnabled());
-        Settings testSettings = Settings.builder().put(RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED.getKey(), true).build();
+        Settings testSettings = Settings.builder().put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), true).build();
         Map<String, Settings> settingsMap = SSLService.getSSLSettingsMap(testSettings);
         // Server
         assertThat(settingsMap, hasKey(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX));
@@ -128,7 +128,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
             "testnode"
         );
         Settings testSettings = Settings.builder()
-            .put(RemoteClusterPortSettings.REMOTE_CLUSTER_PORT_ENABLED.getKey(), true)
+            .put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), true)
             .put(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX + SslConfigurationKeys.KEYSTORE_PATH, path)
             .putList(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX + SslConfigurationKeys.PROTOCOLS, "TLSv1.3", "TLSv1.2")
             .put(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX + SslConfigurationKeys.CLIENT_AUTH, "required")

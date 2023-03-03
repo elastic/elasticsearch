@@ -208,7 +208,7 @@ public class SSLErrorMessageFileTests extends ESTestCase {
 
     public void testMessageForRemoteClusterSslEnabledWithoutKeys() {
         final String prefix = "xpack.security.remote_cluster_server.ssl";
-        final Settings.Builder builder = Settings.builder().put("remote_cluster.enabled", true);
+        final Settings.Builder builder = Settings.builder().put("remote_cluster_server.enabled", true);
         // remote cluster ssl is enabled by default
         if (randomBoolean()) {
             builder.put(prefix + ".enabled", true);
@@ -242,9 +242,9 @@ public class SSLErrorMessageFileTests extends ESTestCase {
         final String prefix = "xpack.security.remote_cluster_server.ssl";
         final Settings.Builder builder = Settings.builder().put(prefix + ".enabled", false);
         if (randomBoolean()) {
-            builder.put("remote_cluster.enabled", true);
+            builder.put("remote_cluster_server.enabled", true);
         } else {
-            builder.put("remote_cluster.enabled", false);
+            builder.put("remote_cluster_server.enabled", false);
         }
         if (inFipsJvm()) {
             configureWorkingTrustedAuthorities(prefix, builder);

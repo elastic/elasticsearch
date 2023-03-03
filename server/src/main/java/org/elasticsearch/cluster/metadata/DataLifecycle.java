@@ -27,6 +27,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -38,9 +40,31 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         "cluster.dlm.default.rollover",
         "max_age=7d,max_primary_shard_size=50gb,min_docs=1,max_primary_shard_docs=200000000",
         (s) -> RolloverConditions.parseSetting(s, "cluster.dlm.default.rollover"),
+        new RolloverConditionsValidator(),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+
+    /**
+     * We require the default rollover conditions to have min_docs set to a non-negative number to avoid empty indices
+     * and to have at least one MAX condition set to ensure that the rollover will be triggered.
+     */
+    static class RolloverConditionsValidator implements Setting.Validator<RolloverConditions> {
+
+        @Override
+        public void validate(RolloverConditions value) {
+            List<String> errors = new ArrayList<>(2);
+            if (value.getMinDocs() == null) {
+                errors.add("The min_docs rollover condition should be set and greater than 0.");
+            }
+            if (value.hasMaxConditions() == false) {
+                errors.add("At least one max_* rollover condition must be set.");
+            }
+            if (errors.isEmpty() == false) {
+                throw new IllegalArgumentException(String.join(" ", errors));
+            }
+        }
+    }
 
     private static final boolean FEATURE_FLAG_ENABLED;
 

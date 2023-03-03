@@ -27,6 +27,8 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.StatsLevel.genIllegalNodeLevelException;
+
 /**
  * A request to get node (cluster) level stats.
  */
@@ -34,7 +36,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
     private CommonStatsFlags indices = new CommonStatsFlags();
     private final Set<String> requestedMetrics = new HashSet<>();
-    private String level = StatsLevel.NODE.getName();
+    private StatsLevel level = StatsLevel.NODE;
 
     public NodesStatsRequest() {
         super((String[]) null);
@@ -106,7 +108,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         return this;
     }
 
-    public NodesStatsRequest level(String level) {
+    public NodesStatsRequest level(StatsLevel level) {
         this.level = level;
         return this;
     }
@@ -181,7 +183,11 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
     @Override
     public ActionRequestValidationException validate() {
-        return StatsLevel.nodeLevelsValidation(level);
+        ActionRequestValidationException validationException = null;
+        if (level == StatsLevel.CLUSTER) {
+            validationException = genIllegalNodeLevelException(level.name());
+        }
+        return validationException;
     }
 
     /**

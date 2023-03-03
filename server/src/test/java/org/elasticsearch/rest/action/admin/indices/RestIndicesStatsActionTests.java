@@ -8,6 +8,7 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.elasticsearch.action.StatsLevel;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -72,32 +73,39 @@ public class RestIndicesStatsActionTests extends ESTestCase {
 
     public void testLevelValidation() throws IOException {
         final HashMap<String, String> params = new HashMap<>();
-        params.put("level", "cluster");
+        params.put("level", StatsLevel.CLUSTER.name());
 
         // cluster is valid
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats").withParams(params).build();
         action.prepareRequest(request, mock(NodeClient.class));
 
         // indices is valid
-        params.put("level", "indices");
+        params.put("level", StatsLevel.INDICES.name());
         request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats").withParams(params).build();
         action.prepareRequest(request, mock(NodeClient.class));
 
         // shards is valid
-        params.put("level", "shards");
+        params.put("level", StatsLevel.SHARDS.name());
         request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats").withParams(params).build();
         action.prepareRequest(request, mock(NodeClient.class));
 
-        params.put("level", "invalid");
-        final RestRequest invalidLevelRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats")
+        params.put("level", StatsLevel.NODE.name());
+        final RestRequest invalidLevelRequest1 = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats")
             .withParams(params)
             .build();
 
-        final IllegalArgumentException e = expectThrows(
+        IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> action.prepareRequest(invalidLevelRequest, mock(NodeClient.class))
+            () -> action.prepareRequest(invalidLevelRequest1, mock(NodeClient.class))
         );
+        assertThat(e, hasToString(containsString("level parameter must be one of [cluster] or [indices] or [shards] but was [node]")));
 
+        params.put("level", "invalid");
+        final RestRequest invalidLevelRequest2 = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats")
+            .withParams(params)
+            .build();
+
+        e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(invalidLevelRequest2, mock(NodeClient.class)));
         assertThat(e, hasToString(containsString("level parameter must be one of [cluster] or [indices] or [shards] but was [invalid]")));
     }
 }

@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.action.StatsLevel.genIllegalClusterLevelException;
+
 public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices;
@@ -39,7 +41,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
      * Only used by the high-level REST Client. Controls the details level of the health information returned.
      * The default value is 'cluster'.
      */
-    private String level = StatsLevel.CLUSTER.getName();
+    private StatsLevel level = StatsLevel.CLUSTER;
 
     public ClusterHealthRequest() {}
 
@@ -237,7 +239,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
      * Set the level of detail for the health information to be returned.
      * Only used by the high-level REST Client.
      */
-    public void level(String level) {
+    public void level(StatsLevel level) {
         this.level = Objects.requireNonNull(level, "level must not be null");
     }
 
@@ -245,12 +247,16 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
      * Get the level of detail for the health information to be returned.
      * Only used by the high-level REST Client.
      */
-    public String level() {
+    public StatsLevel level() {
         return level;
     }
 
     @Override
     public ActionRequestValidationException validate() {
-        return StatsLevel.clusterLevelsValidation(level);
+        ActionRequestValidationException validationException = null;
+        if (level == StatsLevel.NODE) {
+            validationException = genIllegalClusterLevelException(level.name());
+        }
+        return validationException;
     }
 }

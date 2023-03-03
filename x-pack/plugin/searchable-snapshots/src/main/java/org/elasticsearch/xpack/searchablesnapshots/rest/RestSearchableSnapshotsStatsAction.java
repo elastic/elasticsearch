@@ -38,7 +38,14 @@ public class RestSearchableSnapshotsStatsAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) {
         String[] indices = Strings.splitStringByCommaToArray(restRequest.param("index"));
         SearchableSnapshotsStatsRequest statsRequest = new SearchableSnapshotsStatsRequest(indices);
-        statsRequest.level(restRequest.param("level", StatsLevel.INDICES.getName()));
+        String level = restRequest.param("level", StatsLevel.INDICES.name());
+        StatsLevel statsLevel;
+        try {
+            statsLevel = StatsLevel.valueOf(level);
+        } catch (IllegalArgumentException e) {
+            throw StatsLevel.genIllegalClusterLevelException(level);
+        }
+        statsRequest.level(statsLevel);
 
         ActionRequestValidationException validationException = statsRequest.validate();
         if (validationException != null) {

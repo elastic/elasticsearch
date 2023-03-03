@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.action.StatsLevel.genIllegalClusterLevelException;
+
 /**
  * A request to get indices level stats. Allow to enable different stats to be returned.
  * <p>
@@ -33,7 +35,7 @@ import java.util.Objects;
 public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
 
     private CommonStatsFlags flags = new CommonStatsFlags();
-    private String level = StatsLevel.INDICES.getName();
+    private StatsLevel level = StatsLevel.INDICES;
 
     public IndicesStatsRequest() {
         super((String[]) null);
@@ -256,7 +258,7 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
         return this;
     }
 
-    public IndicesStatsRequest level(String level) {
+    public IndicesStatsRequest level(StatsLevel level) {
         this.level = Objects.requireNonNull(level, "level must not be null");
         return this;
     }
@@ -281,7 +283,11 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
 
     @Override
     public ActionRequestValidationException validate() {
-        return StatsLevel.clusterLevelsValidation(level);
+        ActionRequestValidationException validationException = null;
+        if (level == StatsLevel.NODE) {
+            validationException = genIllegalClusterLevelException(level.name());
+        }
+        return validationException;
     }
 
     @Override

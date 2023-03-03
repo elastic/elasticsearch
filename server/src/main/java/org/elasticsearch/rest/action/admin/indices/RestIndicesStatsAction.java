@@ -9,6 +9,7 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.StatsLevel;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
@@ -86,7 +87,14 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             : "IndicesStats default indices options changed";
         indicesStatsRequest.indicesOptions(IndicesOptions.fromRequest(request, defaultIndicesOption));
         indicesStatsRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
-        indicesStatsRequest.level(request.param("level", "indices"));
+        String level = request.param("level", StatsLevel.INDICES.name());
+        StatsLevel statsLevel;
+        try {
+            statsLevel = StatsLevel.valueOf(level);
+        } catch (IllegalArgumentException e) {
+            throw StatsLevel.genIllegalClusterLevelException(level);
+        }
+        indicesStatsRequest.level(statsLevel);
 
         Set<String> metrics = Strings.tokenizeByCommaToSet(request.param("metric", "_all"));
         // short cut, if no metrics have been specified in URI

@@ -13,56 +13,30 @@ import org.elasticsearch.common.Strings;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public enum StatsLevel {
-    CLUSTER("cluster"),
-    NODE("node"),
-    INDICES("indices"),
-    SHARDS("shards");
+    CLUSTER,
+    NODE,
+    INDICES,
+    SHARDS;
 
-    private final String name;
-
-    StatsLevel(String name) {
-        this.name = name;
+    public static ActionRequestValidationException genIllegalClusterLevelException(String level) {
+        String errorMsg = Strings.format(
+            "level parameter must be one of [%s] or [%s] or [%s] but was [%s]",
+            Strings.toLowercaseAscii(StatsLevel.CLUSTER.name()),
+            Strings.toLowercaseAscii(StatsLevel.INDICES.name()),
+            Strings.toLowercaseAscii(StatsLevel.SHARDS.name()),
+            Strings.toLowercaseAscii(level)
+        );
+        return addValidationError(errorMsg, null);
     }
 
-    public String getName() {
-        return name;
-    }
-
-    public static ActionRequestValidationException clusterLevelsValidation(final String level) {
-        final boolean isLevelValid = CLUSTER.getName().equalsIgnoreCase(level)
-            || INDICES.getName().equalsIgnoreCase(level)
-            || SHARDS.getName().equalsIgnoreCase(level);
-
-        ActionRequestValidationException validationException = null;
-        if (isLevelValid == false) {
-            String errorMsg = Strings.format(
-                "level parameter must be one of [%s] or [%s] or [%s] but was [%s]",
-                CLUSTER.getName(),
-                INDICES.getName(),
-                SHARDS.getName(),
-                level
-            );
-            validationException = addValidationError(errorMsg, null);
-        }
-        return validationException;
-    }
-
-    public static ActionRequestValidationException nodeLevelsValidation(final String level) {
-        final boolean isLevelValid = NODE.getName().equalsIgnoreCase(level)
-            || INDICES.getName().equalsIgnoreCase(level)
-            || SHARDS.getName().equalsIgnoreCase(level);
-
-        ActionRequestValidationException validationException = null;
-        if (isLevelValid == false) {
-            String errorMsg = Strings.format(
-                "level parameter must be one of [%s] or [%s] or [%s] but was [%s]",
-                NODE.getName(),
-                INDICES.getName(),
-                SHARDS.getName(),
-                level
-            );
-            validationException = addValidationError(errorMsg, null);
-        }
-        return validationException;
+    public static ActionRequestValidationException genIllegalNodeLevelException(String level) {
+        String errorMsg = Strings.format(
+            "level parameter must be one of [%s] or [%s] or [%s] but was [%s]",
+            Strings.toLowercaseAscii(StatsLevel.NODE.name()),
+            Strings.toLowercaseAscii(StatsLevel.INDICES.name()),
+            Strings.toLowercaseAscii(StatsLevel.SHARDS.name()),
+            Strings.toLowercaseAscii(level)
+        );
+        return addValidationError(errorMsg, null);
     }
 }

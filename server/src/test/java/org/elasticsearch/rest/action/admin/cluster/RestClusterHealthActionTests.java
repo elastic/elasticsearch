@@ -8,6 +8,7 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.action.StatsLevel;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -76,30 +77,37 @@ public class RestClusterHealthActionTests extends ESTestCase {
     public void testLevelValidation() throws IOException {
         RestClusterHealthAction action = new RestClusterHealthAction();
         final HashMap<String, String> params = new HashMap<>();
-        params.put("level", "cluster");
+        params.put("level", StatsLevel.CLUSTER.name());
 
         // cluster is valid
         RestRequest request = buildRestRequest(params);
         action.prepareRequest(request, mock(NodeClient.class));
 
         // indices is valid
-        params.put("level", "indices");
+        params.put("level", StatsLevel.INDICES.name());
         request = buildRestRequest(params);
         action.prepareRequest(request, mock(NodeClient.class));
 
         // shards is valid
-        params.put("level", "shards");
+        params.put("level", StatsLevel.SHARDS.name());
         request = buildRestRequest(params);
         action.prepareRequest(request, mock(NodeClient.class));
+
+        params.put("level", StatsLevel.NODE.name());
+        final RestRequest invalidLevelRequest1 = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats")
+            .withParams(params)
+            .build();
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> action.prepareRequest(invalidLevelRequest1, mock(NodeClient.class))
+        );
+        assertThat(e, hasToString(containsString("level parameter must be one of [cluster] or [indices] or [shards] but was [node]")));
 
         params.put("level", "invalid");
         final RestRequest invalidLevelRequest = buildRestRequest(params);
 
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> action.prepareRequest(invalidLevelRequest, mock(NodeClient.class))
-        );
-
+        e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(invalidLevelRequest, mock(NodeClient.class)));
         assertThat(e, hasToString(containsString("level parameter must be one of [cluster] or [indices] or [shards] but was [invalid]")));
     }
 

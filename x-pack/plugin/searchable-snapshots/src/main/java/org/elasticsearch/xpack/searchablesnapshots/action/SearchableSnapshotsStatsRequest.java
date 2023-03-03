@@ -15,9 +15,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.action.StatsLevel.genIllegalClusterLevelException;
+
 public class SearchableSnapshotsStatsRequest extends BroadcastRequest<SearchableSnapshotsStatsRequest> {
 
-    private String level = StatsLevel.INDICES.getName();
+    private StatsLevel level = StatsLevel.INDICES;
 
     SearchableSnapshotsStatsRequest(StreamInput in) throws IOException {
         super(in);
@@ -31,12 +33,16 @@ public class SearchableSnapshotsStatsRequest extends BroadcastRequest<Searchable
         super(indices, indicesOptions);
     }
 
-    public void level(String level) {
+    public void level(StatsLevel level) {
         this.level = Objects.requireNonNull(level, "level must not be null");
     }
 
     @Override
     public ActionRequestValidationException validate() {
-        return StatsLevel.clusterLevelsValidation(level);
+        ActionRequestValidationException validationException = null;
+        if (level == StatsLevel.NODE) {
+            validationException = genIllegalClusterLevelException(level.name());
+        }
+        return validationException;
     }
 }

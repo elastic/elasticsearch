@@ -88,7 +88,14 @@ public class RestNodesStatsAction extends BaseRestHandler {
 
         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(nodesIds);
         nodesStatsRequest.timeout(request.param("timeout"));
-        nodesStatsRequest.level(request.param("level", StatsLevel.NODE.getName()));
+        String level = request.param("level", StatsLevel.NODE.name());
+        StatsLevel statsLevel;
+        try {
+            statsLevel = StatsLevel.valueOf(level);
+        } catch (IllegalArgumentException e) {
+            throw StatsLevel.genIllegalNodeLevelException(level);
+        }
+        nodesStatsRequest.level(statsLevel);
 
         if (metrics.size() == 1 && metrics.contains("_all")) {
             if (request.hasParam("index_metric")) {

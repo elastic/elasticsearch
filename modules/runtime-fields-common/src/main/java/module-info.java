@@ -17,6 +17,8 @@ module org.elasticsearch.runtimefields {
 
     requires org.apache.lucene.core;
 
+    exports org.elasticsearch.runtimefields;
+
     opens org.elasticsearch.runtimefields to org.elasticsearch.painless.spi; // whitelist resource access
 
     provides org.elasticsearch.painless.spi.PainlessExtension with org.elasticsearch.runtimefields.RuntimeFieldsPainlessExtension;

@@ -23,6 +23,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -31,7 +32,6 @@ import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.scheduler.TimeValueSchedule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -45,7 +45,6 @@ import java.time.Clock;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 /**
@@ -76,11 +75,9 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     private final Clock clock;
     private volatile boolean isMaster = false;
     private volatile TimeValue pollInterval;
+    private volatile RolloverConditions rolloverConditions;
     private SchedulerEngine.Job scheduledJob;
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
-    // we use this rollover supplier to facilitate testing until we'll be able to read the
-    // rollover configuration from a cluster setting
-    private Function<String, RolloverRequest> defaultRolloverRequestSupplier;
 
     public DataLifecycleService(
         Settings settings,
@@ -98,7 +95,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         this.nowSupplier = nowSupplier;
         this.scheduledJob = null;
         this.pollInterval = DLM_POLL_INTERVAL_SETTING.get(settings);
-        this.defaultRolloverRequestSupplier = this::getDefaultRolloverRequest;
+        this.rolloverConditions = clusterService.getClusterSettings().get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING);
     }
 
     /**
@@ -107,6 +104,8 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     public void init() {
         clusterService.addListener(this);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DLM_POLL_INTERVAL_SETTING, this::updatePollInterval);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING, this::updateRolloverConditions);
     }
 
     @Override
@@ -178,7 +177,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     private void maybeExecuteRollover(ClusterState state, DataStream dataStream) {
         IndexMetadata writeIndex = state.metadata().index(dataStream.getWriteIndex());
         if (writeIndex != null && isManagedByDLM(dataStream, writeIndex)) {
-            RolloverRequest rolloverRequest = defaultRolloverRequestSupplier.apply(dataStream.getName());
+            RolloverRequest rolloverRequest = getDefaultRolloverRequest(dataStream.getName());
             transportActionsDeduplicator.executeOnce(
                 rolloverRequest,
                 ActionListener.noop(),
@@ -317,22 +316,17 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
 
     private RolloverRequest getDefaultRolloverRequest(String dataStream) {
         RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null).masterNodeTimeout(TimeValue.MAX_VALUE);
-        rolloverRequest.setConditions(
-            RolloverConditions.newBuilder()
-                // TODO get rollover from cluster setting once we have it
-                .addMaxIndexAgeCondition(TimeValue.timeValueDays(7))
-                .addMaxPrimaryShardSizeCondition(ByteSizeValue.ofGb(50))
-                .addMaxPrimaryShardDocsCondition(200_000_000L)
-                // don't rollover an empty index
-                .addMinIndexDocsCondition(1L)
-                .build()
-        );
+        rolloverRequest.setConditions(rolloverConditions);
         return rolloverRequest;
     }
 
     private void updatePollInterval(TimeValue newInterval) {
         this.pollInterval = newInterval;
         maybeScheduleJob();
+    }
+
+    private void updateRolloverConditions(RolloverConditions newRolloverConditions) {
+        this.rolloverConditions = newRolloverConditions;
     }
 
     private void cancelJob() {
@@ -366,10 +360,5 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         assert scheduler.get() != null : "scheduler should be available";
         scheduledJob = new SchedulerEngine.Job(DATA_LIFECYCLE_JOB_NAME, new TimeValueSchedule(pollInterval));
         scheduler.get().add(scheduledJob);
-    }
-
-    // package visibility for testing
-    void setDefaultRolloverRequestSupplier(Function<String, RolloverRequest> defaultRolloverRequestSupplier) {
-        this.defaultRolloverRequestSupplier = defaultRolloverRequestSupplier;
     }
 }

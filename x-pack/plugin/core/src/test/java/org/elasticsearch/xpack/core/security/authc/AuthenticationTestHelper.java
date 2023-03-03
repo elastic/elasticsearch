@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
@@ -241,31 +240,39 @@ public class AuthenticationTestHelper {
 
     public static RemoteAccessAuthentication randomRemoteAccessAuthentication(RoleDescriptorsIntersection roleDescriptorsIntersection) {
         try {
-            final Authentication authentication = ESTestCase.randomFrom(
-                AuthenticationTestHelper.builder().realm(),
-                AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE),
-                AuthenticationTestHelper.builder().apiKey()
-            ).build();
+            final Authentication authentication = randomRemoteAccessSupportedAuthenticationSubject();
             return new RemoteAccessAuthentication(authentication, roleDescriptorsIntersection);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
-    public static RemoteAccessAuthentication randomRemoteAccessAuthentication() {
-        // The common use case would be 1 (user or API key auth) or 2 (API key auth) role descriptors.
-        return randomRemoteAccessAuthentication(ESTestCase.randomIntBetween(1, 2));
+    private static Authentication randomRemoteAccessSupportedAuthenticationSubject() {
+        return ESTestCase.randomFrom(
+            AuthenticationTestHelper.builder().realm(),
+            AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE),
+            AuthenticationTestHelper.builder().apiKey()
+        ).build();
     }
 
-    public static RemoteAccessAuthentication randomRemoteAccessAuthentication(int numberOfRandomRoleDescriptors) {
-        final List<Set<RoleDescriptor>> roleDescriptors = new ArrayList<>(numberOfRandomRoleDescriptors);
-        for (int i = 0; i < numberOfRandomRoleDescriptors; i++) {
+    public static RemoteAccessAuthentication randomRemoteAccessAuthentication() {
+        final Authentication authentication = randomRemoteAccessSupportedAuthenticationSubject();
+        final int numberOfRoleDescriptors;
+        if (authentication.isApiKey()) {
+            // In case of API keys, we can have either 1 (only owner's - aka limited-by) or 2 role descriptors.
+            numberOfRoleDescriptors = ESTestCase.randomIntBetween(1, 2);
+        } else {
+            numberOfRoleDescriptors = 1;
+        }
+        final List<Set<RoleDescriptor>> roleDescriptors = new ArrayList<>(numberOfRoleDescriptors);
+        for (int i = 0; i < numberOfRoleDescriptors; i++) {
             roleDescriptors.add(
                 Set.of(
                     new RoleDescriptor(
                         "_remote_user",
                         null,
-                        RoleDescriptorTests.randomIndicesPrivileges(1, 3),
+                        new RoleDescriptor.IndicesPrivileges[] {
+                            RoleDescriptor.IndicesPrivileges.builder().indices("index1").privileges("read", "read_cross_cluster").build() },
                         null,
                         null,
                         null,
@@ -276,7 +283,11 @@ public class AuthenticationTestHelper {
                 )
             );
         }
-        return randomRemoteAccessAuthentication(new RoleDescriptorsIntersection(roleDescriptors));
+        try {
+            return new RemoteAccessAuthentication(authentication, new RoleDescriptorsIntersection(roleDescriptors));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     public static class AuthenticationTestBuilder {

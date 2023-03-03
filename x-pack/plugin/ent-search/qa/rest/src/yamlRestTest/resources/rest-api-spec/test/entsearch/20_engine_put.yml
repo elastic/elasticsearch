@@ -47,6 +47,10 @@ teardown:
         engine_id: test-updated-engine
         ignore: 404
 
+  - do:
+      engine.delete:
+        engine_id: test-re-creating-engine
+        ignore: 404
 
 ---
 "Create Engine":

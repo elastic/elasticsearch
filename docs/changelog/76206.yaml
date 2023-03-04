@@ -1,0 +1,6 @@
+pr: 76206
+summary: Optimize single node selecting in the Shrink Action of ILM
+area: ILM+SLM
+type: enhancement
+issues:
+  - 67957

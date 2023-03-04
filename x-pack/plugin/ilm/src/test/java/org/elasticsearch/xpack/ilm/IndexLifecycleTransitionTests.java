@@ -1180,8 +1180,12 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         LifecycleExecutionState lifecycleState,
         List<LifecyclePolicyMetadata> lifecyclePolicyMetadatas
     ) {
+        Settings indexSettings = indexSettingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .build();
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT, 1, 0))
+            .settings(indexSettings)
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.asMap())
             .build();
 

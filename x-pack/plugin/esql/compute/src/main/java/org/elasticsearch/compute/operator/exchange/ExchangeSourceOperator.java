@@ -40,7 +40,7 @@ public class ExchangeSourceOperator extends SourceOperator {
 
         @Override
         public String describe() {
-            return "ExchangeSourceOperator(partitioning = " + exchange.partitioning() + ")";
+            return "ExchangeSourceOperator()";
         }
     }
 

@@ -246,11 +246,9 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planExchange(ExchangeExec exchangeExec, LocalExecutionPlannerContext context) {
-        DriverParallelism parallelism = exchangeExec.getType() == ExchangeExec.Type.GATHER
-            ? DriverParallelism.SINGLE
-            : new DriverParallelism(DriverParallelism.Type.TASK_LEVEL_PARALLELISM, context.taskConcurrency);
+        DriverParallelism parallelism = DriverParallelism.SINGLE;
         context.driverParallelism(parallelism);
-        Exchange ex = new Exchange(parallelism.instanceCount(), exchangeExec.getPartitioning().toExchange(), context.bufferMaxPages);
+        Exchange ex = new Exchange(parallelism.instanceCount(), context.bufferMaxPages);
 
         LocalExecutionPlannerContext subContext = context.createSubContext();
         PhysicalOperation source = plan(exchangeExec.child(), subContext);

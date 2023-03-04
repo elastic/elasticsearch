@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -55,7 +54,6 @@ import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirec
 @Experimental
 public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, PhysicalOptimizerContext> {
 
-    static Setting<Boolean> ADD_TASK_PARALLELISM_ABOVE_QUERY = Setting.boolSetting("add_task_parallelism_above_query", false);
     private static final QlTranslatorHandler TRANSLATOR_HANDLER = new QlTranslatorHandler();
 
     private static final Iterable<RuleExecutor.Batch<PhysicalPlan>> rules = initializeRules(true);
@@ -71,8 +69,6 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
     static Iterable<RuleExecutor.Batch<PhysicalPlan>> initializeRules(boolean isOptimizedForEsSource) {
         // keep filters pushing before field extraction insertion
         var exchange = new Batch<>("Data flow", Limiter.ONCE, new AddExchangeOnSingleNodeSplit());
-
-        var parallelism = new Batch<>("Add task parallelization above query", Limiter.ONCE, new AddTaskParallelismAboveQuery());
         var reducer = new Batch<>("Gather data flow", Limiter.ONCE, new EnsureSingleGatheringNode());
 
         // local planning - add marker
@@ -93,7 +89,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
         // local planning - clean-up
         var localPlanningStop = new Batch<>("Local Plan Stop", Limiter.ONCE, new InsertFieldExtraction(), new RemoveLocalPlanMarker());
 
-        return asList(exchange, parallelism, reducer, localPlanningStart, localPlanning, localPlanningStop);
+        return asList(exchange, reducer, localPlanningStart, localPlanning, localPlanningStop);
     }
 
     @Override
@@ -152,10 +148,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
 
         @Override
         protected PhysicalPlan rule(ExchangeExec exchange) {
-            if (exchange.getType() == ExchangeExec.Type.GATHER) {
-                return maybeAddGlobalLimitOrTopN(exchange);
-            }
-            return exchange;
+            return maybeAddGlobalLimitOrTopN(exchange);
         }
 
         /**
@@ -358,43 +351,10 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
 
         @Override
         protected PhysicalPlan rule(UnaryExec parent) {
-            if (parent.singleNode() && parent.child().singleNode() == false) {
-                if (parent instanceof ExchangeExec exchangeExec
-                    // TODO: this check might not be needed
-                    && exchangeExec.getType() == ExchangeExec.Type.GATHER
-                    && exchangeExec.getPartitioning() == ExchangeExec.Partitioning.SINGLE_DISTRIBUTION) {
-                    return parent;
-                }
-                return parent.replaceChild(
-                    new ExchangeExec(
-                        parent.source(),
-                        parent.child(),
-                        ExchangeExec.Type.GATHER,
-                        ExchangeExec.Partitioning.SINGLE_DISTRIBUTION
-                    )
-                );
+            if (parent instanceof ExchangeExec == false && parent.singleNode() && parent.child().singleNode() == false) {
+                return parent.replaceChild(new ExchangeExec(parent.source(), parent.child()));
             }
             return parent;
-        }
-    }
-
-    private static class AddTaskParallelismAboveQuery extends ParameterizedOptimizerRule<EsQueryExec, PhysicalOptimizerContext> {
-
-        protected AddTaskParallelismAboveQuery() {
-            super(UP);
-        }
-
-        protected PhysicalPlan rule(EsQueryExec plan, PhysicalOptimizerContext context) {
-            // enable plan only if the setting is in place
-            if (ADD_TASK_PARALLELISM_ABOVE_QUERY.get(context.configuration().pragmas()) == false) {
-                return plan;
-            }
-            return new ExchangeExec(
-                plan.source(),
-                plan,
-                ExchangeExec.Type.REPARTITION,
-                ExchangeExec.Partitioning.FIXED_ARBITRARY_DISTRIBUTION
-            );
         }
     }
 
@@ -404,7 +364,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
         public PhysicalPlan apply(PhysicalPlan plan) {
             // ensure we always have single node at the end
             if (plan.singleNode() == false) {
-                plan = new ExchangeExec(plan.source(), plan, ExchangeExec.Type.GATHER, ExchangeExec.Partitioning.SINGLE_DISTRIBUTION);
+                plan = new ExchangeExec(plan.source(), plan);
             }
             return plan;
         }

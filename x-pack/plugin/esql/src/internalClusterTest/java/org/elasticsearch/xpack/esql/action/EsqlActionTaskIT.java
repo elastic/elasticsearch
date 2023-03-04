@@ -68,7 +68,7 @@ public class EsqlActionTaskIT extends ESIntegTestCase {
         \\_AggregationOperator(mode = INITIAL, aggs = sum of longs)
         \\_ExchangeSinkOperator""";
     private static final String MERGE_DESCRIPTION = """
-        \\_ExchangeSourceOperator(partitioning = SINGLE_DISTRIBUTION)
+        \\_ExchangeSourceOperator()
         \\_AggregationOperator(mode = FINAL, aggs = sum of longs)
         \\_LimitOperator(limit = 10000)
         \\_OutputOperator (columns = sum(pause_me))""";

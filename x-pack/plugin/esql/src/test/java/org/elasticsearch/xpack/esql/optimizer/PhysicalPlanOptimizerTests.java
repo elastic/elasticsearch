@@ -52,7 +52,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.hamcrest.Matchers.contains;
@@ -91,10 +90,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     private static List<Tuple<String, Map<String, Object>>> settings() {
-        return asList(
-            new Tuple<>("default", Map.of()),
-            new Tuple<>("parallelism above the query", Map.of(PhysicalPlanOptimizer.ADD_TASK_PARALLELISM_ABOVE_QUERY.getKey(), true))
-        );
+        return List.of(new Tuple<>("default", Map.of()));
     }
 
     public PhysicalPlanOptimizerTests(String name, EsqlConfiguration config) {
@@ -777,9 +773,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private static EsQueryExec source(PhysicalPlan plan) {
         if (plan instanceof ExchangeExec exchange) {
-            assertThat(exchange.getPartitioning(), is(ExchangeExec.Partitioning.FIXED_ARBITRARY_DISTRIBUTION));
-            assertThat(exchange.getType(), is(ExchangeExec.Type.REPARTITION));
-
             plan = exchange.child();
         }
         return as(plan, EsQueryExec.class);

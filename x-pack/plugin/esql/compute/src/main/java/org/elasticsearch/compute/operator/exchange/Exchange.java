@@ -11,7 +11,6 @@ import org.elasticsearch.compute.ann.Experimental;
 
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -30,42 +29,15 @@ public class Exchange {
 
     private final List<ExchangeSource> sources = new ArrayList<>();
     private final Set<ExchangeSink> sinks = new HashSet<>();
-
-    private final Partitioning partitioning;
-
     private int nextSourceIndex;
 
-    public enum Partitioning {
-        SINGLE_DISTRIBUTION, // single exchange source, no partitioning
-        FIXED_ARBITRARY_DISTRIBUTION, // multiple exchange sources, random partitioning
-        FIXED_BROADCAST_DISTRIBUTION, // multiple exchange sources, broadcasting
-        FIXED_PASSTHROUGH_DISTRIBUTION,; // n:n forwarding
-        // FIXED_HASH_DISTRIBUTION, TODO: implement hash partitioning
-    }
-
-    public Exchange(int defaultConcurrency, Partitioning partitioning, int bufferMaxPages) {
-        int bufferCount = partitioning == Partitioning.SINGLE_DISTRIBUTION ? 1 : defaultConcurrency;
-        for (int i = 0; i < bufferCount; i++) {
-            sources.add(new ExchangeSource(source -> checkAllSourcesFinished()));
-        }
+    public Exchange(int defaultConcurrency, int bufferMaxPages) {
+        sources.add(new ExchangeSource(source -> checkAllSourcesFinished()));
         List<Consumer<ExchangeSource.PageReference>> buffers = this.sources.stream()
             .map(buffer -> (Consumer<ExchangeSource.PageReference>) buffer::addPage)
             .collect(Collectors.toList());
-
         memoryManager = new ExchangeMemoryManager(bufferMaxPages);
-
-        if (partitioning == Partitioning.SINGLE_DISTRIBUTION || partitioning == Partitioning.FIXED_BROADCAST_DISTRIBUTION) {
-            exchangerSupplier = () -> new BroadcastExchanger(buffers, memoryManager);
-        } else if (partitioning == Partitioning.FIXED_PASSTHROUGH_DISTRIBUTION) {
-            Iterator<ExchangeSource> sourceIterator = this.sources.iterator();
-            // TODO: fairly partition memory usage over sources
-            exchangerSupplier = () -> new PassthroughExchanger(sourceIterator.next(), memoryManager);
-        } else if (partitioning == Partitioning.FIXED_ARBITRARY_DISTRIBUTION) {
-            exchangerSupplier = () -> new RandomExchanger(buffers, memoryManager);
-        } else {
-            throw new UnsupportedOperationException(partitioning.toString());
-        }
-        this.partitioning = partitioning;
+        exchangerSupplier = () -> new BroadcastExchanger(buffers, memoryManager);
     }
 
     private void checkAllSourcesFinished() {
@@ -118,9 +90,5 @@ public class Exchange {
         ExchangeSource result = sources.get(nextSourceIndex);
         nextSourceIndex++;
         return result;
-    }
-
-    public Partitioning partitioning() {
-        return partitioning;
     }
 }

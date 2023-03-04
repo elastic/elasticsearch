@@ -999,9 +999,6 @@ public class EsqlActionIT extends ESIntegTestCase {
         // pragmas are only enabled on snapshot builds
         if (Build.CURRENT.isSnapshot()) {
             if (randomBoolean()) {
-                settings.put("add_task_parallelism_above_query", randomBoolean());
-            }
-            if (randomBoolean()) {
                 settings.put("task_concurrency", randomLongBetween(1, 10));
             }
             if (randomBoolean()) {

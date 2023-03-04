@@ -13,9 +13,12 @@ import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
+import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 
@@ -30,11 +33,19 @@ public final class RerouteProcessor extends AbstractProcessor {
     private static final char[] DISALLOWED_IN_NAMESPACE = new char[] { '\\', '/', '*', '?', '\"', '<', '>', '|', ' ', ',', '#', ':' };
     private static final int MAX_LENGTH = 100;
     private static final char REPLACEMENT_CHAR = '_';
-    private final String dataset;
-    private final String namespace;
+    private final List<String> dataset;
+    private final List<String> namespace;
     private final String destination;
 
-    RerouteProcessor(String tag, String description, String dataset, String namespace, String destination) {
+    RerouteProcessor(List<String> dataset, List<String> namespace) {
+        this(null, null, dataset, namespace, null);
+    }
+
+    RerouteProcessor(String destination) {
+        this(null, null, null, null, destination);
+    }
+
+    RerouteProcessor(String tag, String description, List<String> dataset, List<String> namespace, String destination) {
         super(tag, description);
         this.dataset = dataset;
         this.namespace = namespace;
@@ -53,6 +64,14 @@ public final class RerouteProcessor extends AbstractProcessor {
         return s;
     }
 
+    private static String sanitizeDataset(String dataset) {
+        return sanitizeDataStreamField(dataset, DISALLOWED_IN_DATASET);
+    }
+
+    private static String sanitizeNamespace(String namespace) {
+        return sanitizeDataStreamField(namespace, DISALLOWED_IN_NAMESPACE);
+    }
+
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         if (destination != null) {
@@ -61,8 +80,8 @@ public final class RerouteProcessor extends AbstractProcessor {
         }
         final String indexName = ingestDocument.getFieldValue(IngestDocument.Metadata.INDEX.getFieldName(), String.class);
         final String type;
-        final String datasetFallback;
-        final String namespaceFallback;
+        final String currentDataset;
+        final String currentNamespace;
         int indexOfFirstDash = indexName.indexOf('-');
         if (indexOfFirstDash < 0) {
             throw createInvalidDataStreamNameException(indexName);
@@ -72,15 +91,19 @@ public final class RerouteProcessor extends AbstractProcessor {
             throw createInvalidDataStreamNameException(indexName);
         }
         type = parseDataStreamType(indexName, indexOfFirstDash);
-        datasetFallback = parseDataStreamDataset(indexName, indexOfFirstDash, indexOfSecondDash);
-        namespaceFallback = parseDataStreamNamespace(indexName, indexOfSecondDash);
+        currentDataset = parseDataStreamDataset(indexName, indexOfFirstDash, indexOfSecondDash);
+        currentNamespace = parseDataStreamNamespace(indexName, indexOfSecondDash);
 
-        String dataset = getDataset(ingestDocument, datasetFallback);
-        String namespace = getNamespace(ingestDocument, namespaceFallback);
+        String dataset = determineDataset(ingestDocument, currentDataset);
+        String namespace = determineNamespace(ingestDocument, currentNamespace);
+        if (dataset == null || namespace == null) {
+            return ingestDocument;
+        }
+        String newTarget = type + "-" + dataset + "-" + namespace;
+        ingestDocument.reroute(newTarget);
         ingestDocument.setFieldValue(DATA_STREAM_TYPE, type);
         ingestDocument.setFieldValue(DATA_STREAM_DATASET, dataset);
         ingestDocument.setFieldValue(DATA_STREAM_NAMESPACE, namespace);
-        ingestDocument.reroute(type + "-" + dataset + "-" + namespace);
         return ingestDocument;
     }
 
@@ -102,29 +125,50 @@ public final class RerouteProcessor extends AbstractProcessor {
         return dataStreamName.substring(indexOfSecondDash + 1);
     }
 
-    private String getDataset(IngestDocument ingestDocument, String datasetFallback) {
-        String dataset = this.dataset;
-        if (dataset == null) {
-            dataset = sanitizeDataStreamField(ingestDocument.getFieldValue(DATA_STREAM_DATASET, String.class, true), DISALLOWED_IN_DATASET);
-        }
-        if (dataset == null) {
-            dataset = datasetFallback;
-        }
-        return dataset;
+    private String determineDataset(IngestDocument ingestDocument, String currentDataset) {
+        return determineDataStreamField(ingestDocument, dataset, currentDataset, RerouteProcessor::sanitizeDataset, DATA_STREAM_DATASET);
     }
 
-    private String getNamespace(IngestDocument ingestDocument, String namespaceFallback) {
-        String namespace = this.namespace;
-        if (namespace == null) {
-            namespace = sanitizeDataStreamField(
-                ingestDocument.getFieldValue(DATA_STREAM_NAMESPACE, String.class, true),
-                DISALLOWED_IN_NAMESPACE
-            );
+    private String determineNamespace(IngestDocument ingestDocument, String currentNamespace) {
+        return determineDataStreamField(
+            ingestDocument,
+            namespace,
+            currentNamespace,
+            RerouteProcessor::sanitizeNamespace,
+            DATA_STREAM_NAMESPACE
+        );
+    }
+
+    private String determineDataStreamField(
+        IngestDocument ingestDocument,
+        List<String> valueSources,
+        String fromCurrentTarget,
+        Function<String, String> sanitization,
+        String dataStreamFieldName
+    ) {
+        String result = null;
+        for (Iterator<String> iterator = valueSources.iterator(); iterator.hasNext(); ) {
+            String value = iterator.next();
+            if (value.startsWith("{") && value.endsWith("}")) {
+                String fieldReference = value.substring(1, value.length() - 1);
+                result = sanitization.apply(ingestDocument.getFieldValue(fieldReference, String.class, true));
+                if (fieldReference.equals(dataStreamFieldName) && fromCurrentTarget.equals(result)) {
+                    result = null;
+                }
+            } else {
+                result = value;
+            }
+            if (result != null) {
+                break;
+            }
         }
-        if (namespace == null) {
-            namespace = namespaceFallback;
+        if (result == null) {
+            result = sanitization.apply(ingestDocument.getFieldValue(dataStreamFieldName, String.class, true));
         }
-        return namespace;
+        if (result == null) {
+            result = fromCurrentTarget;
+        }
+        return result;
     }
 
     @Override
@@ -132,11 +176,11 @@ public final class RerouteProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    public String getDataStreamDataset() {
+    public List<String> getDataStreamDataset() {
         return dataset;
     }
 
-    public String getDataStreamNamespace() {
+    public List<String> getDataStreamNamespace() {
         return namespace;
     }
 
@@ -153,16 +197,25 @@ public final class RerouteProcessor extends AbstractProcessor {
             String description,
             Map<String, Object> config
         ) throws Exception {
-            String dataset = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "dataset");
-            if (Objects.equals(sanitizeDataStreamField(dataset, DISALLOWED_IN_DATASET), dataset) == false) {
-                throw newConfigurationException(TYPE, tag, "dataset", "contains illegal characters");
-            }
-            String namespace = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "namespace");
-            if (Objects.equals(sanitizeDataStreamField(namespace, DISALLOWED_IN_NAMESPACE), namespace) == false) {
-                throw newConfigurationException(TYPE, tag, "namespace", "contains illegal characters");
-            }
+            List<String> dataset = ConfigurationUtils.readOptionalListOrString(TYPE, tag, config, "dataset");
+            dataset.stream()
+                .filter(ds -> ds.startsWith("{") == false)
+                .filter(ds -> Objects.equals(sanitizeDataset(ds), ds) == false)
+                .findAny()
+                .ifPresent(ds -> {
+                    throw newConfigurationException(TYPE, tag, "dataset", "'" + ds + "' contains disallowed characters");
+                });
+            List<String> namespace = ConfigurationUtils.readOptionalListOrString(TYPE, tag, config, "namespace");
+            namespace.stream()
+                .filter(ns -> ns.startsWith("{") == false)
+                .filter(ns -> Objects.equals(sanitizeNamespace(ns), ns) == false)
+                .findAny()
+                .ifPresent(ns -> {
+                    throw newConfigurationException(TYPE, tag, "namespace", "'" + ns + "' contains disallowed characters");
+                });
+
             String destination = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "destination");
-            if (destination != null && (dataset != null || namespace != null)) {
+            if (destination != null && (dataset.isEmpty() == false || namespace.isEmpty() == false)) {
                 throw newConfigurationException(TYPE, tag, "destination", "can only be set if dataset and namespace are not set");
             }
 

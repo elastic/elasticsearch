@@ -13,33 +13,33 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.nullValue;
 
 public class RerouteProcessorFactoryTests extends ESTestCase {
 
     public void testSuccess() throws Exception {
         RerouteProcessor processor = create(null, null);
-        assertThat(processor.getDataStreamDataset(), nullValue());
-        assertThat(processor.getDataStreamNamespace(), nullValue());
+        assertThat(processor.getDataStreamDataset(), equalTo(List.of()));
+        assertThat(processor.getDataStreamNamespace(), equalTo(List.of()));
     }
 
     public void testInvalidDataset() throws Exception {
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> create("my-service", null));
-        assertThat(e.getMessage(), Matchers.equalTo("[dataset] contains illegal characters"));
+        assertThat(e.getMessage(), Matchers.equalTo("[dataset] 'my-service' contains disallowed characters"));
     }
 
     public void testInvalidNamespace() throws Exception {
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> create("generic", "foo:bar"));
-        assertThat(e.getMessage(), Matchers.equalTo("[namespace] contains illegal characters"));
+        assertThat(e.getMessage(), Matchers.equalTo("[namespace] 'foo:bar' contains disallowed characters"));
     }
 
     public void testDestinationSuccess() throws Exception {
         RerouteProcessor processor = create(Map.of("destination", "foo"));
-        assertThat(processor.getDataStreamDataset(), nullValue());
-        assertThat(processor.getDataStreamNamespace(), nullValue());
+        assertThat(processor.getDataStreamDataset(), equalTo(List.of()));
+        assertThat(processor.getDataStreamNamespace(), equalTo(List.of()));
         assertThat(processor.getDestination(), equalTo("foo"));
     }
 

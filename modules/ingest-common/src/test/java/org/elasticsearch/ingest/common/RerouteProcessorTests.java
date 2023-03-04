@@ -12,20 +12,20 @@ import org.elasticsearch.ingest.CompoundProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.ingest.WrappingProcessor;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Map;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 public class RerouteProcessorTests extends ESTestCase {
 
     public void testDefaults() throws Exception {
         IngestDocument ingestDocument = createIngestDocument("logs-generic-default");
 
-        RerouteProcessor processor = new RerouteProcessor(null, null, null, null, null);
+        RerouteProcessor processor = new RerouteProcessor(List.of(), List.of());
         processor.execute(ingestDocument);
         assertDataSetFields(ingestDocument, "logs", "generic", "default");
     }
@@ -33,8 +33,8 @@ public class RerouteProcessorTests extends ESTestCase {
     public void testSkipFirstProcessor() throws Exception {
         IngestDocument ingestDocument = createIngestDocument("logs-generic-default");
 
-        RerouteProcessor skippedProcessor = new RerouteProcessor(null, null, "skip", null, null);
-        RerouteProcessor executedProcessor = new RerouteProcessor(null, null, "executed", null, null);
+        RerouteProcessor skippedProcessor = new RerouteProcessor(List.of("skip"), List.of());
+        RerouteProcessor executedProcessor = new RerouteProcessor(List.of("executed"), List.of());
         CompoundProcessor processor = new CompoundProcessor(new SkipProcessor(skippedProcessor), executedProcessor);
         processor.execute(ingestDocument);
         assertDataSetFields(ingestDocument, "logs", "executed", "default");
@@ -43,8 +43,8 @@ public class RerouteProcessorTests extends ESTestCase {
     public void testSkipLastProcessor() throws Exception {
         IngestDocument ingestDocument = createIngestDocument("logs-generic-default");
 
-        RerouteProcessor executedProcessor = new RerouteProcessor(null, null, "executed", null, null);
-        RerouteProcessor skippedProcessor = new RerouteProcessor(null, null, "skip", null, null);
+        RerouteProcessor executedProcessor = new RerouteProcessor(List.of("executed"), List.of());
+        RerouteProcessor skippedProcessor = new RerouteProcessor(List.of("skip"), List.of());
         CompoundProcessor processor = new CompoundProcessor(executedProcessor, skippedProcessor);
         processor.execute(ingestDocument);
         assertDataSetFields(ingestDocument, "logs", "executed", "default");
@@ -55,7 +55,7 @@ public class RerouteProcessorTests extends ESTestCase {
         ingestDocument.setFieldValue("data_stream.dataset", "foo");
         ingestDocument.setFieldValue("data_stream.namespace", "bar");
 
-        RerouteProcessor processor = new RerouteProcessor(null, null, null, null, null);
+        RerouteProcessor processor = new RerouteProcessor(List.of(), List.of());
         processor.execute(ingestDocument);
         assertDataSetFields(ingestDocument, "logs", "foo", "bar");
     }
@@ -65,7 +65,7 @@ public class RerouteProcessorTests extends ESTestCase {
         ingestDocument.setFieldValue("data_stream.dataset", "foo-bar");
         ingestDocument.setFieldValue("data_stream.namespace", "baz#qux");
 
-        RerouteProcessor processor = new RerouteProcessor(null, null, null, null, null);
+        RerouteProcessor processor = new RerouteProcessor(List.of(), List.of());
         processor.execute(ingestDocument);
         assertDataSetFields(ingestDocument, "logs", "foo_bar", "baz_qux");
     }
@@ -73,10 +73,84 @@ public class RerouteProcessorTests extends ESTestCase {
     public void testDestination() throws Exception {
         IngestDocument ingestDocument = createIngestDocument("logs-generic-default");
 
-        RerouteProcessor processor = new RerouteProcessor(null, null, null, null, "foo");
+        RerouteProcessor processor = new RerouteProcessor("foo");
         processor.execute(ingestDocument);
         assertFalse(ingestDocument.hasField("data_stream"));
         assertThat(ingestDocument.getFieldValue("_index", String.class), equalTo("foo"));
+    }
+
+    public void testFieldReference() throws Exception {
+        IngestDocument ingestDocument = createIngestDocument("logs-generic-default");
+        ingestDocument.setFieldValue("service.name", "opbeans-java");
+        ingestDocument.setFieldValue("service.environment", "dev");
+
+        RerouteProcessor processor = new RerouteProcessor(List.of("{service.name}"), List.of("{service.environment}"));
+        processor.execute(ingestDocument);
+        assertDataSetFields(ingestDocument, "logs", "opbeans_java", "dev");
+    }
+
+    public void testRerouteToCurrentTarget() throws Exception {
+        IngestDocument ingestDocument = createIngestDocument("logs-generic-default");
+
+        RerouteProcessor reroute = new RerouteProcessor(List.of("generic"), List.of("default"));
+        CompoundProcessor processor = new CompoundProcessor(
+            reroute,
+            new TestProcessor(doc -> doc.setFieldValue("pipeline_is_continued", true))
+        );
+        processor.execute(ingestDocument);
+        assertDataSetFields(ingestDocument, "logs", "generic", "default");
+        assertFalse(ingestDocument.hasField("pipeline_is_continued"));
+    }
+
+    public void testFieldReferenceWithMissingReroutesToCurrentTarget() throws Exception {
+        IngestDocument ingestDocument = createIngestDocument("logs-generic-default");
+
+        RerouteProcessor reroute = new RerouteProcessor(List.of("{service.name}"), List.of("{service.environment}"));
+        CompoundProcessor processor = new CompoundProcessor(
+            reroute,
+            new TestProcessor(doc -> doc.setFieldValue("pipeline_is_continued", true))
+        );
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("_index", String.class), equalTo("logs-generic-default"));
+        assertDataSetFields(ingestDocument, "logs", "generic", "default");
+        assertFalse(ingestDocument.hasField("pipeline_is_continued"));
+    }
+
+    public void testDataStreamFieldReference() throws Exception {
+        IngestDocument ingestDocument = createIngestDocument("logs-generic-default");
+        ingestDocument.setFieldValue("data_stream.dataset", "dataset_from_doc");
+        ingestDocument.setFieldValue("data_stream.namespace", "namespace_from_doc");
+
+        RerouteProcessor processor = new RerouteProcessor(
+            List.of("{data_stream.dataset}", "fallback"),
+            List.of("{data_stream.namespace}", "fallback")
+        );
+        processor.execute(ingestDocument);
+        assertDataSetFields(ingestDocument, "logs", "dataset_from_doc", "namespace_from_doc");
+    }
+
+    public void testDatasetFieldReferenceMissingValue() throws Exception {
+        IngestDocument ingestDocument = createIngestDocument("logs-generic-default");
+
+        RerouteProcessor processor = new RerouteProcessor(
+            List.of("{data_stream.dataset}", "fallback"),
+            List.of("{data_stream.namespace}", "fallback")
+        );
+        processor.execute(ingestDocument);
+        assertDataSetFields(ingestDocument, "logs", "fallback", "fallback");
+    }
+
+    public void testDatasetFieldReference() throws Exception {
+        IngestDocument ingestDocument = createIngestDocument("logs-generic-default");
+        ingestDocument.setFieldValue("data_stream.dataset", "generic");
+        ingestDocument.setFieldValue("data_stream.namespace", "default");
+
+        RerouteProcessor processor = new RerouteProcessor(
+            List.of("{data_stream.dataset}", "fallback"),
+            List.of("{data_stream.namespace}", "fallback")
+        );
+        processor.execute(ingestDocument);
+        assertDataSetFields(ingestDocument, "logs", "fallback", "fallback");
     }
 
     private void assertDataSetFields(IngestDocument ingestDocument, String type, String dataset, String namespace) {

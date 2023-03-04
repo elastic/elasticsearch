@@ -18,6 +18,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsFinite;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsInfinite;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsNaN;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
@@ -40,6 +43,7 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
 
     private FunctionDefinition[][] functions() {
         return new FunctionDefinition[][] {
+            // aggregate functions
             new FunctionDefinition[] {
                 def(Avg.class, Avg::new, "avg"),
                 def(Count.class, Count::new, "count"),
@@ -49,7 +53,12 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
                 def(Min.class, Min::new, "min"),
                 def(Sum.class, Sum::new, "sum") },
             // math
-            new FunctionDefinition[] { def(Abs.class, Abs::new, "abs"), def(Round.class, Round::new, "round") },
+            new FunctionDefinition[] {
+                def(Abs.class, Abs::new, "abs"),
+                def(IsFinite.class, IsFinite::new, "is_finite"),
+                def(IsInfinite.class, IsInfinite::new, "is_infinite"),
+                def(IsNaN.class, IsNaN::new, "is_nan"),
+                def(Round.class, Round::new, "round") },
             // string
             new FunctionDefinition[] {
                 def(Length.class, Length::new, "length"),

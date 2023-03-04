@@ -24,3 +24,38 @@ s:double
 25945.0
 25976.0
 ;
+
+isFiniteFalse
+row d = 1.0 | eval s = is_finite(d/0);
+
+d:double | s:boolean
+1.0      | false
+;
+
+isFiniteTrue
+row d = 1.0 | eval s = is_finite(d);
+
+d:double | s:boolean
+1.0      | true
+;
+
+isInfiniteFalse
+row d = 1.0 | eval s = is_infinite(d);
+
+d:double | s:boolean
+1.0      | false
+;
+
+isInfiniteTrue
+row d = 1.0/0 | eval s = is_infinite(d);
+
+d:double | s:boolean
+Infinity | true
+;
+
+isNaN
+row d = 1.0 | eval s = is_nan(d);
+
+d:double | s:boolean
+1.0      | false
+;

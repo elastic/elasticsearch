@@ -149,7 +149,7 @@ public class ClusterFormationFailureHelper {
             List<TransportAddress> resolvedAddresses,
             List<DiscoveryNode> foundPeers,
             long currentTerm,
-            QuorumStrategy quorumStrategy,
+            ElectionStrategy electionStrategy,
             StatusInfo statusInfo,
             List<JoinStatus> inFlightJoinStatuses
         ) {
@@ -166,7 +166,7 @@ public class ClusterFormationFailureHelper {
                 currentTerm,
                 calculateHasDiscoveredQuorum(
                     foundPeers,
-                    quorumStrategy,
+                    electionStrategy,
                     clusterState.nodes().getLocalNode(),
                     currentTerm,
                     clusterState.term(),
@@ -181,7 +181,7 @@ public class ClusterFormationFailureHelper {
 
         private static boolean calculateHasDiscoveredQuorum(
             List<DiscoveryNode> foundPeers,
-            QuorumStrategy quorumStrategy,
+            ElectionStrategy electionStrategy,
             DiscoveryNode localNode,
             long currentTerm,
             long acceptedTerm,
@@ -191,7 +191,7 @@ public class ClusterFormationFailureHelper {
         ) {
             final VoteCollection voteCollection = new VoteCollection();
             foundPeers.forEach(voteCollection::addVote);
-            return quorumStrategy.isElectionQuorum(
+            return electionStrategy.isElectionQuorum(
                 localNode,
                 currentTerm,
                 acceptedTerm,

@@ -17,9 +17,9 @@ import java.util.Optional;
  * Allows plugging in a custom election strategy, restricting the notion of an election quorum.
  * Custom additional quorum restrictions can be defined by implementing the {@link #satisfiesAdditionalQuorumConstraints} method.
  */
-public abstract class QuorumStrategy {
+public abstract class ElectionStrategy {
 
-    public static final QuorumStrategy DEFAULT_INSTANCE = new QuorumStrategy() {
+    public static final ElectionStrategy DEFAULT_INSTANCE = new ElectionStrategy() {
         @Override
         protected boolean satisfiesAdditionalQuorumConstraints(
             DiscoveryNode localNode,
@@ -34,7 +34,7 @@ public abstract class QuorumStrategy {
         }
     };
 
-    protected QuorumStrategy() {
+    protected ElectionStrategy() {
 
     }
 
@@ -99,4 +99,6 @@ public abstract class QuorumStrategy {
         VotingConfiguration lastAcceptedConfiguration,
         VoteCollection joinVotes
     );
+
+    public void onNewElection(DiscoveryNode sourceNode, long proposedTerm) {}
 }

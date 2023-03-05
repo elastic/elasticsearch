@@ -14,9 +14,9 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
+import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.Join;
 import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
-import org.elasticsearch.cluster.coordination.QuorumStrategy;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -110,8 +110,8 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
     }
 
     @Override
-    public Map<String, QuorumStrategy> getElectionStrategies() {
-        return Collections.singletonMap(VOTING_ONLY_ELECTION_STRATEGY, new VotingOnlyNodeQuorumStrategy());
+    public Map<String, ElectionStrategy> getElectionStrategies() {
+        return Collections.singletonMap(VOTING_ONLY_ELECTION_STRATEGY, new VotingOnlyNodeElectionStrategy());
     }
 
     @Override
@@ -133,7 +133,7 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
         return Settings.builder().put(DiscoveryModule.ELECTION_STRATEGY_SETTING.getKey(), VOTING_ONLY_ELECTION_STRATEGY).build();
     }
 
-    static class VotingOnlyNodeQuorumStrategy extends QuorumStrategy {
+    static class VotingOnlyNodeElectionStrategy extends ElectionStrategy {
 
         @Override
         public boolean satisfiesAdditionalQuorumConstraints(

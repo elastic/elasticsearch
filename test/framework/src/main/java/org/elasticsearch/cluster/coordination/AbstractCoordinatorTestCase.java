@@ -1487,7 +1487,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     }
 
     protected interface CoordinationServices {
-        QuorumStrategy getQuorumStrategy();
+        ElectionStrategy getQuorumStrategy();
 
         Reconfigurator getReconfigurator();
 
@@ -1495,22 +1495,22 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     }
 
     public class DefaultCoordinatorStrategy implements CoordinatorStrategy {
-        private final QuorumStrategy quorumStrategy;
+        private final ElectionStrategy electionStrategy;
 
         public DefaultCoordinatorStrategy() {
-            this(QuorumStrategy.DEFAULT_INSTANCE);
+            this(ElectionStrategy.DEFAULT_INSTANCE);
         }
 
-        public DefaultCoordinatorStrategy(QuorumStrategy quorumStrategy) {
-            this.quorumStrategy = quorumStrategy;
+        public DefaultCoordinatorStrategy(ElectionStrategy electionStrategy) {
+            this.electionStrategy = electionStrategy;
         }
 
         @Override
         public CoordinationServices getCoordinationServices(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
             return new CoordinationServices() {
                 @Override
-                public QuorumStrategy getQuorumStrategy() {
-                    return quorumStrategy;
+                public ElectionStrategy getQuorumStrategy() {
+                    return electionStrategy;
                 }
 
                 @Override

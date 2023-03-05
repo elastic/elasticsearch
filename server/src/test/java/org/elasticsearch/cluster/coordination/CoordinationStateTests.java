@@ -857,12 +857,12 @@ public class CoordinationStateTests extends ESTestCase {
             IntStream.range(0, randomIntBetween(1, 5))
                 .mapToObj(i -> new DiscoveryNode("node_" + i, buildNewFakeTransportAddress(), Version.CURRENT))
                 .toList(),
-            QuorumStrategy.DEFAULT_INSTANCE
+            ElectionStrategy.DEFAULT_INSTANCE
         ).runRandomly();
     }
 
     public static CoordinationState createCoordinationState(PersistedState storage, DiscoveryNode localNode) {
-        return new CoordinationState(localNode, storage, QuorumStrategy.DEFAULT_INSTANCE);
+        return new CoordinationState(localNode, storage, ElectionStrategy.DEFAULT_INSTANCE);
     }
 
     public static ClusterState clusterState(

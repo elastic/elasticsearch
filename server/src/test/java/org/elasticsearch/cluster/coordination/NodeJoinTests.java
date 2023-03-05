@@ -225,7 +225,7 @@ public class NodeJoinTests extends ESTestCase {
             Collections.emptyList(),
             random,
             (s, p, r) -> {},
-            QuorumStrategy.DEFAULT_INSTANCE,
+            ElectionStrategy.DEFAULT_INSTANCE,
             nodeHealthService,
             new NoneCircuitBreakerService(),
             new Reconfigurator(Settings.EMPTY, clusterSettings),

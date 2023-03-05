@@ -9,7 +9,7 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.QuorumStrategy;
+import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -82,10 +82,10 @@ public interface DiscoveryPlugin {
     }
 
     /**
-     * Allows plugging in election strategies (see {@link QuorumStrategy}) that define a customized notion of an election quorum.
+     * Allows plugging in election strategies (see {@link ElectionStrategy}) that define a customized notion of an election quorum.
      */
     @Deprecated
-    default Map<String, QuorumStrategy> getElectionStrategies() {
+    default Map<String, ElectionStrategy> getElectionStrategies() {
         return Collections.emptyMap();
     }
 }

@@ -36,7 +36,7 @@ public class CoordinationState {
 
     private final DiscoveryNode localNode;
 
-    private final QuorumStrategy quorumStrategy;
+    private final ElectionStrategy electionStrategy;
 
     // persisted state
     private final PersistedState persistedState;
@@ -49,12 +49,12 @@ public class CoordinationState {
     private VotingConfiguration lastPublishedConfiguration;
     private VoteCollection publishVotes;
 
-    public CoordinationState(DiscoveryNode localNode, PersistedState persistedState, QuorumStrategy quorumStrategy) {
+    public CoordinationState(DiscoveryNode localNode, PersistedState persistedState, ElectionStrategy electionStrategy) {
         this.localNode = localNode;
 
         // persisted state
         this.persistedState = persistedState;
-        this.quorumStrategy = quorumStrategy;
+        this.electionStrategy = electionStrategy;
 
         // transient state
         this.joinVotes = new VoteCollection();
@@ -98,7 +98,7 @@ public class CoordinationState {
     }
 
     public boolean isElectionQuorum(VoteCollection joinVotes) {
-        return quorumStrategy.isElectionQuorum(
+        return electionStrategy.isElectionQuorum(
             localNode,
             getCurrentTerm(),
             getLastAcceptedTerm(),
@@ -110,7 +110,7 @@ public class CoordinationState {
     }
 
     public boolean isPublishQuorum(VoteCollection votes) {
-        return quorumStrategy.isPublishQuorum(votes, getLastCommittedConfiguration(), lastPublishedConfiguration);
+        return electionStrategy.isPublishQuorum(votes, getLastCommittedConfiguration(), lastPublishedConfiguration);
     }
 
     public boolean containsJoinVoteFor(DiscoveryNode node) {
@@ -167,7 +167,7 @@ public class CoordinationState {
      * @throws CoordinationStateRejectedException if the arguments were incompatible with the current state of this object.
      */
     public Join handleStartJoin(StartJoinRequest startJoinRequest) {
-        if (quorumStrategy.isValidStartJoinRequest(startJoinRequest, getCurrentTerm()) == false) {
+        if (electionStrategy.isValidStartJoinRequest(startJoinRequest, getCurrentTerm()) == false) {
             logger.debug(
                 "handleStartJoin: ignoring [{}] as term provided is not greater than current term [{}]",
                 startJoinRequest,

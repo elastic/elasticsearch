@@ -133,7 +133,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
     private final Settings settings;
     private final boolean singleNodeDiscovery;
-    private final QuorumStrategy quorumStrategy;
+    private final ElectionStrategy electionStrategy;
     private final TransportService transportService;
     private final MasterService masterService;
     private final AllocationService allocationService;
@@ -200,7 +200,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators,
         Random random,
         RerouteService rerouteService,
-        QuorumStrategy quorumStrategy,
+        ElectionStrategy electionStrategy,
         NodeHealthService nodeHealthService,
         CircuitBreakerService circuitBreakerService,
         Reconfigurator reconfigurator,
@@ -212,7 +212,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.allocationService = allocationService;
         this.onJoinValidators = NodeJoinExecutor.addBuiltInJoinValidators(onJoinValidators);
         this.singleNodeDiscovery = DiscoveryModule.isSingleNodeDiscovery(settings);
-        this.quorumStrategy = quorumStrategy;
+        this.electionStrategy = electionStrategy;
         this.joinReasonService = new JoinReasonService(transportService.getThreadPool()::relativeTimeInMillis);
         this.joinHelper = new JoinHelper(
             allocationService,
@@ -248,7 +248,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             transportService,
             this::startElection,
             this::updateMaxTermSeen,
-            quorumStrategy,
+            electionStrategy,
             nodeHealthService
         );
         configuredHostsResolver = new SeedHostsResolver(nodeName, settings, transportService, seedHostsProvider);
@@ -319,7 +319,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             peerFinder.getLastResolvedAddresses(),
             Stream.concat(Stream.of(getLocalNode()), StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false)).toList(),
             getCurrentTerm(),
-            quorumStrategy,
+            electionStrategy,
             nodeHealthService.getHealth(),
             joinHelper.getInFlightJoinStatuses()
         );
@@ -523,6 +523,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
                 final StartJoinRequest startJoinRequest = new StartJoinRequest(getLocalNode(), Math.max(getCurrentTerm(), maxTermSeen) + 1);
                 logger.debug("starting election with {}", startJoinRequest);
+                electionStrategy.onNewElection(startJoinRequest.getSourceNode(), startJoinRequest.getTerm());
                 getDiscoveredNodes().forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
             }
         }
@@ -556,7 +557,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
     private Optional<Join> ensureTermAtLeast(DiscoveryNode sourceNode, long targetTerm) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-        if (quorumStrategy.shouldJoinLeaderInTerm(getCurrentTerm(), targetTerm, lastJoin)) {
+        if (electionStrategy.shouldJoinLeaderInTerm(getCurrentTerm(), targetTerm, lastJoin)) {
             return Optional.of(joinLeaderInTerm(new StartJoinRequest(sourceNode, targetTerm)));
         }
         return Optional.empty();
@@ -883,8 +884,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     void becomeFollower(String method, DiscoveryNode leaderNode) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         assert leaderNode.isMasterNode() : leaderNode + " became a leader but is not master-eligible";
-        assert mode != Mode.LEADER || REGISTER_COORDINATION_MODE_ENABLED
-            : "do not switch to follower from leader (should be candidate first)";
+        assert mode != Mode.LEADER : "do not switch to follower from leader (should be candidate first)";
 
         if (mode == Mode.FOLLOWER && Optional.of(leaderNode).equals(lastKnownLeader)) {
             logger.trace("{}: coordinator remaining FOLLOWER of [{}] in term {}", method, leaderNode, getCurrentTerm());
@@ -981,7 +981,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     protected void doStart() {
         synchronized (mutex) {
             CoordinationState.PersistedState persistedState = persistedStateSupplier.get();
-            coordinationState.set(new CoordinationState(getLocalNode(), persistedState, quorumStrategy));
+            coordinationState.set(new CoordinationState(getLocalNode(), persistedState, electionStrategy));
             peerFinder.setCurrentTerm(getCurrentTerm());
             configuredHostsResolver.start();
             final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
@@ -1060,7 +1060,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             assert peerFinder.getCurrentTerm() == getCurrentTerm();
             assert followersChecker.getFastResponseState().term() == getCurrentTerm() : followersChecker.getFastResponseState();
             assert followersChecker.getFastResponseState().mode() == getMode() : followersChecker.getFastResponseState();
-            assert (applierState.nodes().getMasterNodeId() == null) == applierState.blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID);
+            assert (applierState.nodes().getMasterNodeId() == null) == applierState.blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID)
+                : applierState.toString();
             assert preVoteCollector.getPreVoteResponse().equals(getPreVoteResponse()) : preVoteCollector + " vs " + getPreVoteResponse();
 
             assert lagDetector.getTrackedNodes().contains(getLocalNode()) == false : lagDetector.getTrackedNodes();
@@ -1072,7 +1073,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             if (mode == Mode.LEADER) {
                 final boolean becomingMaster = getStateForMasterService().term() != getCurrentTerm();
 
-                assert coordinationState.get().electionWon() || REGISTER_COORDINATION_MODE_ENABLED;
+                assert coordinationState.get().electionWon();
                 assert lastKnownLeader.isPresent() && lastKnownLeader.get().equals(getLocalNode());
                 assert joinAccumulator instanceof JoinHelper.LeaderJoinAccumulator;
                 assert peerFinderLeader.equals(lastKnownLeader) : peerFinderLeader;
@@ -1081,8 +1082,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 assert becomingMaster || getStateForMasterService().nodes().getMasterNodeId() != null : getStateForMasterService();
                 assert leaderChecker.leader() == null : leaderChecker.leader();
                 assert getLocalNode().equals(applierState.nodes().getMasterNode())
-                    || (applierState.nodes().getMasterNodeId() == null && applierState.term() < getCurrentTerm())
-                    || REGISTER_COORDINATION_MODE_ENABLED;
+                    || (applierState.nodes().getMasterNodeId() == null && applierState.term() < getCurrentTerm());
                 assert preVoteCollector.getLeader() == getLocalNode() : preVoteCollector;
                 assert clusterFormationFailureHelper.isRunning() == false;
 
@@ -1102,7 +1102,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     final Set<DiscoveryNode> lastPublishedNodes = new HashSet<>();
                     lastPublishedState.nodes().forEach(lastPublishedNodes::add);
                     assert lastPublishedNodes.remove(getLocalNode()); // followersChecker excludes local node
-                    assert lastPublishedNodes.equals(followersChecker.getKnownFollowers()) || REGISTER_COORDINATION_MODE_ENABLED
+                    assert lastPublishedNodes.equals(followersChecker.getKnownFollowers())
                         : lastPublishedNodes + " != " + followersChecker.getKnownFollowers();
                 }
 
@@ -1115,9 +1115,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                         + " != "
                         + coordinationState.get().getLastCommittedConfiguration();
             } else if (mode == Mode.FOLLOWER) {
-                // TODO: clear electionWon in register coordination mode?
-                assert coordinationState.get().electionWon() == false || REGISTER_COORDINATION_MODE_ENABLED
-                    : getLocalNode() + " is FOLLOWER so electionWon() should be false";
+                assert coordinationState.get().electionWon() == false : getLocalNode() + " is FOLLOWER so electionWon() should be false";
                 assert lastKnownLeader.isPresent() && (lastKnownLeader.get().equals(getLocalNode()) == false);
                 assert joinAccumulator instanceof JoinHelper.FollowerJoinAccumulator;
                 assert peerFinderLeader.equals(lastKnownLeader) : peerFinderLeader;
@@ -1845,7 +1843,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                                                             new Join(completedNode, node, futureElectionTerm, state.term(), state.version())
                                                         )
                                                     );
-                                                    return quorumStrategy.isElectionQuorum(
+                                                    return electionStrategy.isElectionQuorum(
                                                         node,
                                                         futureElectionTerm,
                                                         state.term(),

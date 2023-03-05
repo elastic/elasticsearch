@@ -119,7 +119,7 @@ public class PreVoteCollectorTests extends ESTestCase {
         preVoteCollector = new PreVoteCollector(transportService, () -> {
             assert electionOccurred == false;
             electionOccurred = true;
-        }, l -> {}, QuorumStrategy.DEFAULT_INSTANCE, () -> healthStatus);
+        }, l -> {}, ElectionStrategy.DEFAULT_INSTANCE, () -> healthStatus);
         preVoteCollector.update(getLocalPreVoteResponse(), null);
     }
 
@@ -269,7 +269,7 @@ public class PreVoteCollectorTests extends ESTestCase {
         final CoordinationState coordinationState = new CoordinationState(
             localNode,
             new InMemoryPersistedState(currentTerm, makeClusterState(votingNodes)),
-            QuorumStrategy.DEFAULT_INSTANCE
+            ElectionStrategy.DEFAULT_INSTANCE
         );
 
         final long newTerm = randomLongBetween(currentTerm + 1, Long.MAX_VALUE);

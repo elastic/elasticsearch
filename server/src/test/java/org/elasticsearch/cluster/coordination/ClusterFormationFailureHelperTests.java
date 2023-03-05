@@ -54,7 +54,7 @@ import static org.hamcrest.Matchers.oneOf;
 
 public class ClusterFormationFailureHelperTests extends ESTestCase {
 
-    private static final QuorumStrategy QUORUM_STRATEGY = QuorumStrategy.DEFAULT_INSTANCE;
+    private static final ElectionStrategy QUORUM_STRATEGY = ElectionStrategy.DEFAULT_INSTANCE;
 
     // Hard-coding the class name here because it is also mentioned in the troubleshooting docs, so should not be renamed without care.
     private static final String LOGGER_NAME = "org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper";

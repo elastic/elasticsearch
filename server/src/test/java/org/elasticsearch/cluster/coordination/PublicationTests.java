@@ -69,7 +69,7 @@ public class PublicationTests extends ESTestCase {
             coordinationState = new CoordinationState(
                 localNode,
                 new InMemoryPersistedState(0L, initialState),
-                QuorumStrategy.DEFAULT_INSTANCE
+                ElectionStrategy.DEFAULT_INSTANCE
             );
         }
 

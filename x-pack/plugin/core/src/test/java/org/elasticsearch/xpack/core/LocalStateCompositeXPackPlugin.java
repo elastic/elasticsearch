@@ -20,7 +20,7 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.QuorumStrategy;
+import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -479,8 +479,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
-    public Map<String, QuorumStrategy> getElectionStrategies() {
-        Map<String, QuorumStrategy> electionStrategies = new HashMap<>();
+    public Map<String, ElectionStrategy> getElectionStrategies() {
+        Map<String, ElectionStrategy> electionStrategies = new HashMap<>();
         filterPlugins(DiscoveryPlugin.class).stream().forEach(p -> electionStrategies.putAll(p.getElectionStrategies()));
         return electionStrategies;
     }

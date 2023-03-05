@@ -35,7 +35,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.coordination.Coordinator.REGISTER_COORDINATION_MODE_ENABLED;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
@@ -88,8 +87,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         ClusterState.Builder newState;
 
         if (currentNodes.getMasterNode() == null && isBecomingMaster) {
-            assert initialState.term() < term || REGISTER_COORDINATION_MODE_ENABLED && initialState.term() == term
-                : "there should be at most one become master task per election (= by term)";
+            assert initialState.term() < term : "there should be at most one become master task per election (= by term)";
 
             // use these joins to try and become the master.
             // Note that we don't have to do any validation of the amount of joining nodes - the commit
@@ -228,8 +226,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         long term
     ) {
         assert currentState.nodes().getMasterNodeId() == null : currentState;
-        assert currentState.term() < term || REGISTER_COORDINATION_MODE_ENABLED && currentState.term() == term
-            : term + " vs " + currentState;
+        assert currentState.term() < term : term + " vs " + currentState;
         DiscoveryNodes currentNodes = currentState.nodes();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentNodes);
         nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());

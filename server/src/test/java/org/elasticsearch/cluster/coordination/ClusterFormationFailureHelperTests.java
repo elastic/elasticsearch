@@ -92,7 +92,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                     clusterState,
                     emptyList(),
                     emptyList(),
-                    0L, electionStrategy,
+                    0L,
+                    electionStrategy,
                     new StatusInfo(HEALTHY, "healthy-info"),
                     emptyList()
                 );
@@ -189,7 +190,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 emptyList(),
-                15L, electionStrategy,
+                15L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -206,7 +208,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 singletonList(otherAddress),
                 emptyList(),
-                16L, electionStrategy,
+                16L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -224,7 +227,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 singletonList(otherNode),
-                17L, electionStrategy,
+                17L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -250,7 +254,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 emptyList(),
-                15L, electionStrategy,
+                15L,
+                electionStrategy,
                 new StatusInfo(UNHEALTHY, "unhealthy-info"),
                 emptyList()
             ).getDescription(),
@@ -275,7 +280,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 emptyList(),
-                15L, electionStrategy,
+                15L,
+                electionStrategy,
                 new StatusInfo(UNHEALTHY, "unhealthy-info"),
                 emptyList()
             ).getDescription(),
@@ -297,7 +303,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 emptyList(),
-                1L, electionStrategy,
+                1L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -317,7 +324,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 singletonList(otherAddress),
                 emptyList(),
-                2L, electionStrategy,
+                2L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -339,7 +347,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 singletonList(otherNode),
-                3L, electionStrategy,
+                3L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -360,7 +369,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 emptyList(),
-                4L, electionStrategy,
+                4L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -411,7 +421,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 emptyList(),
-                0L, electionStrategy,
+                0L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -431,7 +442,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 singletonList(otherAddress),
                 emptyList(),
-                0L, electionStrategy,
+                0L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -453,7 +465,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 singletonList(otherNode),
-                0L, electionStrategy,
+                0L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -475,7 +488,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 singletonList(yetAnotherNode),
-                0L, electionStrategy,
+                0L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -503,7 +517,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 emptyList(),
-                0L, electionStrategy,
+                0L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -523,7 +538,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 singletonList(otherAddress),
                 emptyList(),
-                0L, electionStrategy,
+                0L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -545,7 +561,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 singletonList(otherNode),
-                0L, electionStrategy,
+                0L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -567,7 +584,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 singletonList(yetAnotherNode),
-                0L, electionStrategy,
+                0L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -588,7 +606,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 state(localNode, "n1", "n2"),
                 emptyList(),
                 emptyList(),
-                0L, electionStrategy,
+                0L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -607,7 +626,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 state(localNode, "n1", "n2", "n3"),
                 emptyList(),
                 emptyList(),
-                0L, electionStrategy,
+                0L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -626,7 +646,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 state(localNode, "n1", "n2", BOOTSTRAP_PLACEHOLDER_PREFIX + "n3"),
                 emptyList(),
                 emptyList(),
-                0L, electionStrategy,
+                0L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -645,7 +666,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 state(localNode, "n1", "n2", "n3", "n4"),
                 emptyList(),
                 emptyList(),
-                0L, electionStrategy,
+                0L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -664,7 +686,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 state(localNode, "n1", "n2", "n3", "n4", "n5"),
                 emptyList(),
                 emptyList(),
-                0L, electionStrategy,
+                0L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -683,7 +706,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 state(localNode, "n1", "n2", "n3", "n4", BOOTSTRAP_PLACEHOLDER_PREFIX + "n5"),
                 emptyList(),
                 emptyList(),
-                0L, electionStrategy,
+                0L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -702,7 +726,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 state(localNode, "n1", "n2", "n3", BOOTSTRAP_PLACEHOLDER_PREFIX + "n4", BOOTSTRAP_PLACEHOLDER_PREFIX + "n5"),
                 emptyList(),
                 emptyList(),
-                0L, electionStrategy,
+                0L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -721,7 +746,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 state(localNode, new String[] { "n1" }, new String[] { "n1" }),
                 emptyList(),
                 emptyList(),
-                0L, electionStrategy,
+                0L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -740,7 +766,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 state(localNode, new String[] { "n1" }, new String[] { "n2" }),
                 emptyList(),
                 emptyList(),
-                0L, electionStrategy,
+                0L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -759,7 +786,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 state(localNode, new String[] { "n1" }, new String[] { "n2", "n3" }),
                 emptyList(),
                 emptyList(),
-                0L, electionStrategy,
+                0L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -778,7 +806,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 state(localNode, new String[] { "n1" }, new String[] { "n2", "n3", "n4" }),
                 emptyList(),
                 emptyList(),
-                0L, electionStrategy,
+                0L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -821,7 +850,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 stateWithOtherNodes,
                 emptyList(),
                 emptyList(),
-                0L, electionStrategy,
+                0L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -854,7 +884,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 state(localNode, GatewayMetaState.STALE_STATE_CONFIG_NODE_ID),
                 emptyList(),
                 emptyList(),
-                0L, electionStrategy,
+                0L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 emptyList()
             ).getDescription(),
@@ -888,7 +919,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 emptyList(),
-                0L, electionStrategy,
+                0L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 List.of(new JoinStatus(otherNode1, 1, JoinHelper.PENDING_JOIN_WAITING_RESPONSE, TimeValue.ZERO))
             ).getDescription(),
@@ -901,7 +933,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 emptyList(),
-                0L, electionStrategy,
+                0L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 List.of(
                     new JoinStatus(otherNode1, 2, JoinHelper.PENDING_JOIN_CONNECTING, TimeValue.timeValueMillis(10000)),
@@ -946,7 +979,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 clusterState,
                 emptyList(),
                 emptyList(),
-                0L, electionStrategy,
+                0L,
+                electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 manyStatuses
             ).getDescription(),
@@ -976,7 +1010,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             state(localNode, new String[] { "n1" }, new String[] { "n2", "n3", "n4" }),
             resolvedAddresses,
             foundPeers,
-            0L, electionStrategy,
+            0L,
+            electionStrategy,
             new StatusInfo(HEALTHY, "healthy-info"),
             joinStatuses
         );
@@ -1024,7 +1059,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                     clusterState,
                     resolvedAddresses,
                     foundPeers,
-                    currentTerm + 1, electionStrategy,
+                    currentTerm + 1,
+                    electionStrategy,
                     statusInfo,
                     joinStatuses
                 );
@@ -1037,7 +1073,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                     clusterState,
                     resolvedAddresses,
                     newFoundPeers,
-                    currentTerm, electionStrategy,
+                    currentTerm,
+                    electionStrategy,
                     statusInfo,
                     joinStatuses
                 );
@@ -1057,7 +1094,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                     clusterState,
                     resolvedAddresses,
                     foundPeers,
-                    currentTerm, electionStrategy,
+                    currentTerm,
+                    electionStrategy,
                     statusInfo,
                     newJoinStatuses
                 );
@@ -1069,7 +1107,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                     clusterState,
                     resolvedAddresses,
                     foundPeers,
-                    currentTerm, electionStrategy,
+                    currentTerm,
+                    electionStrategy,
                     newStatusInfo,
                     joinStatuses
                 );
@@ -1080,7 +1119,8 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                     clusterState,
                     resolvedAddresses,
                     foundPeers,
-                    currentTerm, electionStrategy,
+                    currentTerm,
+                    electionStrategy,
                     statusInfo,
                     joinStatuses
                 );

@@ -471,25 +471,25 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             CoordinationMetadata.VotingConfiguration lastAcceptedConfiguration,
             CoordinationState.VoteCollection joinVotes
         ) {
-            // TODO: keep state per term
-            final var currentRegisterPersistentState = register.readClusterState(key);
-            if (currentRegisterPersistentState != null) {
-                if (currentRegisterPersistentState.term() > localAcceptedTerm
-                    // it's possible that a node received a cluster state update that didn't make
-                    // through the register CAS, to avoid consistency issues avoid electing a node
-                    // as leader if it doesn't have the latest known state
-                    || (currentRegisterPersistentState.term() == localAcceptedTerm
-                        && currentRegisterPersistentState.version() != localAcceptedVersion)) {
-                    return false;
-                }
-            }
             // Safety is guaranteed by the blob store CAS, elect the current node immediately as
             // master and let the blob store decide whether this node should be the master.
-            return lastCommittedConfiguration.isEmpty() == false && lastAcceptedConfiguration.isEmpty() == false
-            // if there's a leader that's not the local node wait, otherwise win the election immediately (use the leader node id instead of
-            // equals to take into account restarts)
+            return lastCommittedConfiguration.isEmpty() == false
+                && lastAcceptedConfiguration.isEmpty() == false
+                && isLatestAcceptedStateOutdated(localAcceptedTerm, localAcceptedVersion) == false
+                // if there's a leader that's not the local node wait, otherwise win the election immediately
+                // (use the leader node id instead of equals to take into account restarts)
                 && currentLeaderSupplier.get().map(leader -> leader.getId().equals(localNode.getId())).orElse(true)
                 && joinVotes.containsVoteFor(localNode);
+        }
+
+        private boolean isLatestAcceptedStateOutdated(long localAcceptedTerm, long localAcceptedVersion) {
+            final var currentRegisterPersistentState = register.readClusterState(key);
+            if (currentRegisterPersistentState == null) {
+                return false;
+            }
+            return currentRegisterPersistentState.term() > localAcceptedTerm
+                || (currentRegisterPersistentState.term() == localAcceptedTerm
+                    && currentRegisterPersistentState.version() > localAcceptedVersion);
         }
 
         @Override
@@ -541,45 +541,52 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
     }
 
-    record ElectionWinner(DiscoveryNode node, long term) {
-        static ElectionWinner EMPTY = new ElectionWinner(null, 0);
+    record TermOwner(DiscoveryNode node, long term) {
+        static TermOwner EMPTY = new TermOwner(null, 0);
     }
 
     static class KeyedAtomicRegister {
         private final Map<String, PersistentClusterState> clusterStates = new HashMap<>();
         private final Map<String, HeartBeat> heartBeats = new HashMap<>();
-        private final Map<String, ElectionWinner> currentTerms = new HashMap<>();
+        private final Map<String, TermOwner> currentTermOwners = new HashMap<>();
 
         PersistentClusterState readClusterState(String key) {
             return clusterStates.get(key);
         }
 
-        boolean compareAndSetClusterState(String key, PersistentClusterState expectedValue, PersistentClusterState newValue) {
-            final var currentValue = clusterStates.get(key);
+        boolean compareAndSetClusterState(String key, PersistentClusterState expectedState, PersistentClusterState newState) {
+            final var currentPersistentState = clusterStates.get(key);
 
-            if (winner(key).term() > newValue.term()) {
-                throw new RuntimeException("boom 2");
+            final var winner = getTermOwner(key);
+            if (winner.term() > newState.term()) {
+                throw new RuntimeException(
+                    "There's a new leader in the cluster with term "
+                        + winner.term()
+                        + " while the cluster state update is for term "
+                        + newState.term()
+                );
             }
-            if (Objects.equals(expectedValue, currentValue)) {
-                clusterStates.put(key, newValue);
+
+            if (Objects.equals(expectedState, currentPersistentState)) {
+                clusterStates.put(key, newState);
                 return true;
             } else {
                 return false;
             }
         }
 
-        ElectionWinner winner(String key) {
-            return currentTerms.getOrDefault(key, ElectionWinner.EMPTY);
+        private TermOwner getTermOwner(String key) {
+            return currentTermOwners.getOrDefault(key, TermOwner.EMPTY);
         }
 
-        boolean claimTerm(String key, DiscoveryNode newWinner, long newTerm) {
-            final var currentLeader = currentTerms.getOrDefault(key, ElectionWinner.EMPTY);
+        boolean claimTerm(String key, DiscoveryNode newOwner, long newTerm) {
+            final var currentTermOwner = getTermOwner(key);
 
-            if (currentLeader.term() >= newTerm) {
+            if (currentTermOwner.term() >= newTerm) {
                 return false;
             }
 
-            currentTerms.put(key, new ElectionWinner(newWinner, newTerm));
+            currentTermOwners.put(key, new TermOwner(newOwner, newTerm));
             return true;
         }
 
@@ -609,9 +616,9 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             this.keyedAtomicRegister = keyedAtomicRegister;
             this.registerKey = registerKey;
             final var currentState = keyedAtomicRegister.readClusterState(registerKey);
-            final var winner = keyedAtomicRegister.winner(registerKey);
+            final var termOwner = keyedAtomicRegister.getTermOwner(registerKey);
             if (currentState == null) {
-                currentTerm = winner.term;
+                currentTerm = termOwner.term;
                 latestAcceptedState = ClusterStateUpdaters.addStateNotRecoveredBlock(
                     clusterState(
                         0L,
@@ -623,8 +630,8 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                     )
                 );
             } else {
-                assert winner.term() >= currentState.term();
-                currentTerm = Math.max(currentState.term, winner.term);
+                assert termOwner.term() >= currentState.term();
+                currentTerm = Math.max(currentState.term, termOwner.term);
                 latestAcceptedState = ClusterStateUpdaters.addStateNotRecoveredBlock(
                     ClusterState.builder(new ClusterName("elasticsearch"))
                         .metadata(currentState.state())

@@ -36,4 +36,23 @@ public class SlimProcessorTests extends ESTestCase {
         assertEquals(new SlimResults.WeightedToken(3, 3.0f), weightedTokens.get(1));
         assertEquals(new SlimResults.WeightedToken(4, 4.0f), weightedTokens.get(2));
     }
+
+    public void testProcessResultMultipleVectors() {
+        double[][][] pytorchResult = new double[][][] { { { 0.0, 1.0, 0.0, 1.0, 4.0, 0.0, 0.0 }, { 1.0, 2.0, 0.0, 3.0, 4.0, 0.0, 0.1 } } };
+
+        TokenizationResult tokenizationResult = new BertTokenizationResult(List.of(), List.of(), 0);
+
+        var inferenceResult = SlimProcessor.processResult(tokenizationResult, new PyTorchInferenceResult(pytorchResult), "foo");
+        assertThat(inferenceResult, instanceOf(SlimResults.class));
+        var slimResults = (SlimResults) inferenceResult;
+        assertEquals(slimResults.getResultsField(), "foo");
+
+        var weightedTokens = slimResults.getWeightedTokens();
+        assertThat(weightedTokens, hasSize(5));
+        assertEquals(new SlimResults.WeightedToken(0, 1.0f), weightedTokens.get(0));
+        assertEquals(new SlimResults.WeightedToken(1, 2.0f), weightedTokens.get(1));
+        assertEquals(new SlimResults.WeightedToken(3, 3.0f), weightedTokens.get(2));
+        assertEquals(new SlimResults.WeightedToken(4, 4.0f), weightedTokens.get(3));
+        assertEquals(new SlimResults.WeightedToken(6, 0.1f), weightedTokens.get(4));
+    }
 }

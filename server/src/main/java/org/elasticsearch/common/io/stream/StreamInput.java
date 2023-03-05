@@ -132,6 +132,26 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Checks if this {@link InputStream} supports {@link #readAllToReleasableBytesReference()}.
+     */
+    public boolean supportReadAllToReleasableBytesReference() {
+        return false;
+    }
+
+    /**
+     * Reads all remaining bytes in the stream as a releasable bytes reference.
+     * Similarly to {@link #readReleasableBytesReference} the returned bytes reference may reference bytes in a
+     * pooled buffer and must be explicitly released via {@link ReleasableBytesReference#close()} once no longer used.
+     * However, unlike {@link #readReleasableBytesReference()}, this method doesn't have the prefix size.
+     * <p>
+     * NOTE: Always check {@link #supportReadAllToReleasableBytesReference()} before calling this method.
+     */
+    public ReleasableBytesReference readAllToReleasableBytesReference() throws IOException {
+        assert false : "This InputStream doesn't support readAllToReleasableBytesReference";
+        throw new UnsupportedOperationException("This InputStream doesn't support readAllToReleasableBytesReference");
+    }
+
+    /**
      * Reads an optional bytes reference from this stream. It might hold an actual reference to the underlying bytes of the stream. Use this
      * only if you must differentiate null from empty. Use {@link StreamInput#readBytesReference()} and
      * {@link StreamOutput#writeBytesReference(BytesReference)} if you do not.

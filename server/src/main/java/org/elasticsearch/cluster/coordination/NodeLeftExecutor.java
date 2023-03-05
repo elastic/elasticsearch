@@ -76,6 +76,7 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
 
         try (var ignored = batchExecutionContext.dropHeadersContext()) {
             // suppress deprecation warnings e.g. from reroute()
+
             final var remainingNodesClusterState = remainingNodesClusterState(initialState, remainingNodesBuilder);
             final var ptasksDisassociatedState = PersistentTasksCustomMetadata.disassociateDeadNodes(remainingNodesClusterState);
             return allocationService.disassociateDeadNodes(

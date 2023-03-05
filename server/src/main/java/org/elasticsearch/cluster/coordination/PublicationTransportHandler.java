@@ -375,7 +375,6 @@ public class PublicationTransportHandler {
             assert transportService.getThreadPool().getThreadContext().isSystemContext();
             final var newStateVersion = newState.version();
             if (destination.equals(discoveryNodes.getLocalNode())) {
-                
                 // The transport service normally avoids serializing/deserializing requests to the local node but here we have special
                 // handling to re-use the serialized representation of the cluster state across requests which means we must also handle
                 // local requests differently to avoid having to decompress and deserialize the request on the master.

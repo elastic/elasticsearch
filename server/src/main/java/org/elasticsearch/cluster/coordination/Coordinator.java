@@ -749,7 +749,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 optionalJoin.ifPresent(this::handleJoin);
                 joinAccumulator.handleJoinRequest(joinRequest.getSourceNode(), joinListener);
 
-                if (prevElectionWon == false && coordState.electionWon() && mode == Mode.CANDIDATE) {
+                if (prevElectionWon == false && coordState.electionWon()) {
                     becomeLeader();
                 }
             }

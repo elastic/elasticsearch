@@ -63,8 +63,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
-experimental:[]
 include::{docdir}/rest-api/common-parms.asciidoc[tag=include-defaults]
+experimental:[]
 
 
 [[get-template-api-example]]

@@ -417,13 +417,11 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @BeforeClass
     public static void setContentType() throws Exception {
-        Requests.CONTENT_TYPE = randomFrom(XContentType.values());
         Requests.INDEX_CONTENT_TYPE = randomFrom(XContentType.values());
     }
 
     @AfterClass
     public static void restoreContentType() {
-        Requests.CONTENT_TYPE = XContentType.SMILE;
         Requests.INDEX_CONTENT_TYPE = XContentType.JSON;
     }
 

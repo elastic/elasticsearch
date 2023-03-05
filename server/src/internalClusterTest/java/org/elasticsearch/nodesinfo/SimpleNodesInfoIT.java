@@ -9,6 +9,7 @@
 package org.elasticsearch.nodesinfo;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -20,7 +21,6 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.util.List;
 
-import static org.elasticsearch.client.internal.Requests.nodesInfoRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -46,24 +46,24 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 
-        response = client().admin().cluster().nodesInfo(nodesInfoRequest()).actionGet();
+        response = client().admin().cluster().nodesInfo(new NodesInfoRequest()).actionGet();
         assertThat(response.getNodes().size(), is(2));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 
-        response = client().admin().cluster().nodesInfo(nodesInfoRequest(server1NodeId)).actionGet();
+        response = client().admin().cluster().nodesInfo(new NodesInfoRequest(server1NodeId)).actionGet();
         assertThat(response.getNodes().size(), is(1));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
 
-        response = client().admin().cluster().nodesInfo(nodesInfoRequest(server1NodeId)).actionGet();
+        response = client().admin().cluster().nodesInfo(new NodesInfoRequest(server1NodeId)).actionGet();
         assertThat(response.getNodes().size(), is(1));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
 
-        response = client().admin().cluster().nodesInfo(nodesInfoRequest(server2NodeId)).actionGet();
+        response = client().admin().cluster().nodesInfo(new NodesInfoRequest(server2NodeId)).actionGet();
         assertThat(response.getNodes().size(), is(1));
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 
-        response = client().admin().cluster().nodesInfo(nodesInfoRequest(server2NodeId)).actionGet();
+        response = client().admin().cluster().nodesInfo(new NodesInfoRequest(server2NodeId)).actionGet();
         assertThat(response.getNodes().size(), is(1));
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
     }

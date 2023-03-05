@@ -579,7 +579,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             assertTrue(leaderId + " has been bootstrapped", leader.coordinator.isInitialConfigurationSet());
             assertTrue(leaderId + " exists in its last-applied state", leader.getLastAppliedClusterState().getNodes().nodeExists(leaderId));
             assertThat(
-                leaderId + " has no NO_MASTER_BLOCK " + leader.getLastAppliedClusterState(),
+                leaderId + " has no NO_MASTER_BLOCK ",
                 leader.getLastAppliedClusterState().blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID),
                 equalTo(false)
             );

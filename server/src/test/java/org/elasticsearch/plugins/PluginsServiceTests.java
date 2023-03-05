@@ -750,10 +750,10 @@ public class PluginsServiceTests extends ESTestCase {
             package p;
             import java.util.Map;
             import org.elasticsearch.plugins.*;
-            import org.elasticsearch.cluster.coordination.QuorumStrategy;
+            import org.elasticsearch.cluster.coordination.ElectionStrategy;
             public class DeprecatedPlugin extends Plugin implements DiscoveryPlugin {
                 @Override
-                public Map<String, QuorumStrategy> getElectionStrategies() {
+                public Map<String, ElectionStrategy> getElectionStrategies() {
                     return Map.of();
                 }
             }

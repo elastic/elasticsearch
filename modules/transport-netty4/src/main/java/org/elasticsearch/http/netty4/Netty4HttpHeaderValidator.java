@@ -83,25 +83,13 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         assert pending.isEmpty() == false;
         assert state == STATE.WAITING_TO_START;
 
-        boolean isStartMessage;
-        HttpObject httpObject;
-        do {
-            httpObject = pending.getFirst();
-            isStartMessage = pending instanceof HttpRequest;
-            if (isStartMessage && httpObject.decoderResult().isSuccess()) {
-                break;
-            }
-            // a properly decoded HTTP start message is expected to begin validation
-            // anything else is probably an error that the downstream HTTP message aggregator will have to handle
-            ctx.fireChannelRead(pending.pollFirst());
-            ReferenceCountUtil.release(httpObject); // reference count was increased when enqueued
-            if (pending.isEmpty()) {
-                return;
-            }
-        } while (true);
+        HttpRequest httpRequest = forwardUntilFirstProperRequestStart(ctx, pending);
+        if (httpRequest == null) {
+            return;
+        }
 
         state = STATE.QUEUEING_DATA;
-        validator.apply((HttpRequest) httpObject, ctx.channel(), new ActionListener<>() {
+        validator.apply(httpRequest, ctx.channel(), new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
                 // Always use "Submit" to prevent reentrancy concerns if we are still on event loop
@@ -179,8 +167,22 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         super.channelInactive(ctx);
     }
 
-    private static void setAutoReadForState(ChannelHandlerContext ctx, STATE state) {
-        ctx.channel().config().setAutoRead((state == STATE.QUEUEING_DATA || state == STATE.DROPPING_DATA_PERMANENTLY) == false);
+    private static HttpRequest forwardUntilFirstProperRequestStart(ChannelHandlerContext ctx, ArrayDeque<HttpObject> pending) {
+        assert pending.isEmpty() == false;
+        boolean isStartMessage;
+        HttpObject httpObject;
+        do {
+            httpObject = pending.getFirst();
+            isStartMessage = httpObject instanceof HttpRequest;
+            if (isStartMessage && httpObject.decoderResult().isSuccess()) {
+                return (HttpRequest) httpObject;
+            }
+            // a properly decoded HTTP start message is expected to begin validation
+            // anything else is probably an error that the downstream HTTP message aggregator will have to handle
+            ctx.fireChannelRead(pending.pollFirst());
+            ReferenceCountUtil.release(httpObject); // reference count was increased when enqueued
+        } while (pending.isEmpty() == false);
+        return null;
     }
 
     private static boolean forwardData(ChannelHandlerContext ctx, ArrayDeque<HttpObject> pending) {
@@ -223,6 +225,10 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
             pending = new ArrayDeque<>(4);
             pending.addAll(old);
         }
+    }
+
+    private static void setAutoReadForState(ChannelHandlerContext ctx, STATE state) {
+        ctx.channel().config().setAutoRead((state == STATE.QUEUEING_DATA || state == STATE.DROPPING_DATA_PERMANENTLY) == false);
     }
 
     enum STATE {

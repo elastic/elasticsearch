@@ -69,9 +69,8 @@ public final class DocumentParser {
         } catch (Exception e) {
             throw wrapInMapperParsingException(source, e);
         }
-        String remainingPath = context.path().pathAsText("");
-        if (remainingPath.isEmpty() == false) {
-            throwOnLeftoverPathElements(remainingPath);
+        if (context.path.atRoot() == false) {
+            throwOnLeftoverPathElements(context.path);
         }
 
         return new ParsedDocument(
@@ -92,8 +91,8 @@ public final class DocumentParser {
         };
     }
 
-    private static void throwOnLeftoverPathElements(String remainingPath) {
-        throw new IllegalStateException("found leftover path elements: " + remainingPath);
+    private static void throwOnLeftoverPathElements(ContentPath path) {
+        throw new IllegalStateException("found leftover path elements: " + path.pathAsText(""));
     }
 
     private static void internalParseDocument(
@@ -798,7 +797,7 @@ public final class DocumentParser {
      * and how they are stored in the lucene index.
      */
     private static class InternalDocumentParserContext extends DocumentParserContext {
-        private final ContentPath path = new ContentPath(0);
+        private final ContentPath path = new ContentPath();
         private final XContentParser parser;
         private final LuceneDocument document;
         private final List<LuceneDocument> documents = new ArrayList<>();
@@ -814,7 +813,7 @@ public final class DocumentParser {
         ) throws IOException {
             super(mappingLookup, mappingParserContext, source);
             if (mappingLookup.getMapping().getRoot().subobjects()) {
-                this.parser = DotExpandingXContentParser.expandDots(parser, this.path::isWithinLeafObject);
+                this.parser = DotExpandingXContentParser.expandDots(parser, this.path);
             } else {
                 this.parser = parser;
             }

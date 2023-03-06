@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionRequest;
@@ -43,9 +45,9 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicenseServiceFactory;
-import org.elasticsearch.license.LicenseServiceLoader;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.Licensing;
+import org.elasticsearch.license.StandardLicenseFactory;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.PluginComponentInterface;
 import org.elasticsearch.plugins.ClusterPlugin;
@@ -118,6 +120,7 @@ public class XPackPlugin extends XPackClientPlugin
         ClusterPlugin,
         MapperPlugin {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(XPackPlugin.class);
+    private static final Logger logger = LogManager.getLogger(XPackPlugin.class);
 
     public static final String ASYNC_RESULTS_INDEX = ".async-search";
     public static final String XPACK_INSTALLED_NODE_ATTR = "xpack.installed";
@@ -156,6 +159,7 @@ public class XPackPlugin extends XPackClientPlugin
     protected final Settings settings;
     // private final Environment env;
     protected final Licensing licensing;
+    private LicenseServiceFactory licenseServiceFactory;
     // These should not be directly accessed as they cannot be overridden in tests. Please use the getters so they can be overridden.
     private static final SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
     private static final SetOnce<SSLService> sslService = new SetOnce<>();
@@ -315,16 +319,7 @@ public class XPackPlugin extends XPackClientPlugin
         List<Object> components = new ArrayList<>();
 
         final SSLService sslService = createSSLService(environment, resourceWatcherService);
-
-        LicenseService licenseService;
-        LicenseServiceFactory factory;
-        try {
-            factory = LicenseServiceLoader.load();
-            licenseService = factory.create(settings, threadPool, clusterService, getClock(), getLicenseState());
-            // licenseService = new ClusterStateLicenseService(settings, threadPool, clusterService, getClock(), getLicenseState());
-        } catch (Exception e) {
-            throw new IllegalStateException("Can not determine implementation for LicenseService", e);
-        }
+        LicenseService licenseService = licenseServiceFactory.create(settings, threadPool, clusterService, getClock(), getLicenseState());
         setLicenseService(licenseService);
 
         setEpochMillisSupplier(threadPool::absoluteTimeInMillis);
@@ -486,5 +481,24 @@ public class XPackPlugin extends XPackClientPlugin
         reloader.setSSLService(sslService);
         setSslService(sslService);
         return sslService;
+    }
+
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        List<LicenseServiceFactory> licenseServiceFactories = loader.loadExtensions(LicenseServiceFactory.class);
+        logger.info(
+            "Found extensions: ["
+                + licenseServiceFactories.stream().map(l -> l.getClass().getCanonicalName()).collect(Collectors.joining(","))
+                + "] for "
+                + LicenseServiceFactory.class.getCanonicalName()
+        ); // TODO: debug level
+
+        if (licenseServiceFactories.size() > 1) {
+            throw new IllegalStateException(LicenseServiceFactory.class + " may not have multiple extensions");
+        } else if (licenseServiceFactories.size() == 1) {
+            licenseServiceFactory = licenseServiceFactories.get(0);
+        } else {
+            licenseServiceFactory = new StandardLicenseFactory();
+        }
     }
 }

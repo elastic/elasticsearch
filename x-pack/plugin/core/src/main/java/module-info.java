@@ -211,6 +211,4 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.watcher.watch;
     exports org.elasticsearch.xpack.core.watcher;
 
-    provides org.elasticsearch.license.LicenseServiceFactory with org.elasticsearch.license.StandardLicenseFactory;
-
 }

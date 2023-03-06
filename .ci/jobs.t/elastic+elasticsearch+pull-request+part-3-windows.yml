@@ -33,7 +33,6 @@
           properties-file: '.ci/java-versions.properties'
           properties-content: |
             JAVA_HOME=$USERPROFILE\\.java\\$ES_BUILD_JAVA
-            RUNTIME_JAVA_HOME=$USERPROFILE\\.java\\$ES_RUNTIME_JAVA
             JAVA11_HOME=$USERPROFILE\\.java\\java11
             JAVA16_HOME=$USERPROFILE\\.java\\openjdk16
             GRADLE_TASK=checkPart3

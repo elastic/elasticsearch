@@ -17,14 +17,12 @@ public class DestructiveOperationsTests extends SecurityIntegTestCase {
 
     @After
     public void afterTest() {
-        Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), (String) null).build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+        updateClusterSettings(Settings.builder().putNull(DestructiveOperations.REQUIRES_NAME_SETTING.getKey()));
     }
 
     public void testDeleteIndexDestructiveOperationsRequireName() {
         createIndex("index1");
-        Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true).build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+        updateClusterSettings(Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true));
         {
             IllegalArgumentException illegalArgumentException = expectThrows(
                 IllegalArgumentException.class,
@@ -63,8 +61,7 @@ public class DestructiveOperationsTests extends SecurityIntegTestCase {
 
     public void testDestructiveOperationsDefaultBehaviour() {
         if (randomBoolean()) {
-            Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false).build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+            updateClusterSettings(Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false));
         }
         createIndex("index1", "index2");
 
@@ -89,8 +86,7 @@ public class DestructiveOperationsTests extends SecurityIntegTestCase {
     }
 
     public void testOpenCloseIndexDestructiveOperationsRequireName() {
-        Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true).build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+        updateClusterSettings(Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true));
         {
             IllegalArgumentException illegalArgumentException = expectThrows(
                 IllegalArgumentException.class,

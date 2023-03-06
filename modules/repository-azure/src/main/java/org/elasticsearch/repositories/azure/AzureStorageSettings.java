@@ -22,6 +22,8 @@ import org.elasticsearch.core.TimeValue;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.HashMap;
@@ -265,5 +267,57 @@ final class AzureStorageSettings {
         final Setting.AffixKey k = (Setting.AffixKey) setting.getRawKey();
         final String fullKey = k.toConcreteKey(groupName).toString();
         return setting.getConcreteSetting(fullKey).get(settings);
+    }
+
+    private static final String BLOB_ENDPOINT_NAME = "BlobEndpoint";
+    private static final String BLOB_SECONDARY_ENDPOINT_NAME = "BlobSecondaryEndpoint";
+
+    record StorageEndpoint(String primaryURI, @Nullable String secondaryURI) {}
+
+    StorageEndpoint getStorageEndpoint() {
+        String primaryURI = getProperty(BLOB_ENDPOINT_NAME);
+        String secondaryURI = getProperty(BLOB_SECONDARY_ENDPOINT_NAME);
+        if (primaryURI != null) {
+            return new StorageEndpoint(primaryURI, secondaryURI);
+        }
+        return new StorageEndpoint(deriveURIFromSettings(true), deriveURIFromSettings(false));
+    }
+
+    /**
+     * Returns the value for the given property name, or null if not configured.
+     * @throws IllegalArgumentException if the connectionString is malformed
+     */
+    private String getProperty(String propertyName) {
+        final String[] settings = getConnectString().split(";");
+        for (int i = 0; i < settings.length; i++) {
+            String setting = settings[i].trim();
+            if (setting.length() > 0) {
+                final int idx = setting.indexOf("=");
+                if (idx == -1 || idx == 0 || idx == settings[i].length() - 1) {
+                    new IllegalArgumentException("Invalid connection string: " + getConnectString());
+                }
+                if (propertyName.equals(setting.substring(0, idx))) {
+                    return setting.substring(idx + 1);
+                }
+            }
+        }
+        return null;
+    }
+
+    private static final String DEFAULT_DNS = "core.windows.net";
+
+    /** Derives the primary or secondary endpoint from the settings. */
+    private String deriveURIFromSettings(boolean isPrimary) {
+        String uriString = new StringBuilder().append("https://")
+            .append(account)
+            .append(isPrimary ? "" : "-secondary")
+            .append(".blob.")
+            .append(Strings.isNullOrEmpty(endpointSuffix) ? DEFAULT_DNS : endpointSuffix)
+            .toString();
+        try {
+            return new URI(uriString).toString();  // validates the URI
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException(e);
+        }
     }
 }

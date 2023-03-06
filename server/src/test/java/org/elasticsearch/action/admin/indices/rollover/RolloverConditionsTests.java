@@ -8,9 +8,9 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -240,16 +240,21 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
         assertThat(randomSetting.getMinDocs(), equalTo(minDocs));
         assertThat(randomSetting.getMinSize(), equalTo(minSize));
 
-        ElasticsearchParseException invalid = expectThrows(
-            ElasticsearchParseException.class,
-            () -> RolloverConditions.parseSetting("", "empty-setting")
-        );
+        SettingsException invalid = expectThrows(SettingsException.class, () -> RolloverConditions.parseSetting("", "empty-setting"));
         assertEquals("Invalid condition: '', format must be 'condition=value'", invalid.getMessage());
-        ElasticsearchParseException unknown = expectThrows(
-            ElasticsearchParseException.class,
+        SettingsException unknown = expectThrows(
+            SettingsException.class,
             () -> RolloverConditions.parseSetting("unknown_condition=?", "unknown-setting")
         );
         assertEquals("Unknown condition: 'unknown_condition'", unknown.getMessage());
+        SettingsException numberFormat = expectThrows(
+            SettingsException.class,
+            () -> RolloverConditions.parseSetting("max_docs=one", "invalid-number-setting")
+        );
+        assertEquals(
+            "Invalid value 'one' in setting 'invalid-number-setting', the value is expected to be of type long",
+            numberFormat.getMessage()
+        );
     }
 
     private static final List<Consumer<RolloverConditions.Builder>> conditionsGenerator = Arrays.asList(

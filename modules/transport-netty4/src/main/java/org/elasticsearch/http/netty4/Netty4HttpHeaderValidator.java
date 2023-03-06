@@ -13,6 +13,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.DecoderResult;
+import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpRequest;
@@ -141,15 +142,15 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
 
         state = STATE.HANDLING_QUEUED_DATA;
         HttpMessage messageToForward = (HttpMessage) pending.remove();
-        boolean fullRequestConsumed;
-        if (messageToForward instanceof LastHttpContent toRelease) {
+        boolean fullRequestConsumed = messageToForward instanceof LastHttpContent;
+        if (fullRequestConsumed == false) {
+            fullRequestConsumed = dropData(pending);
+        }
+        if (messageToForward instanceof HttpContent toRelease) {
             // drop the original content
             toRelease.release(2); // 1 for enqueuing, 1 for consuming
             // replace with empty content
             messageToForward = (HttpMessage) toRelease.replace(Unpooled.EMPTY_BUFFER);
-            fullRequestConsumed = true;
-        } else {
-            fullRequestConsumed = dropData(pending);
         }
         messageToForward.setDecoderResult(DecoderResult.failure(e));
         ctx.fireChannelRead(messageToForward);

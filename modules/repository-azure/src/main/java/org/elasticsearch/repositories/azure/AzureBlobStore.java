@@ -16,6 +16,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import com.azure.core.http.rest.ResponseBase;
+import com.azure.core.util.BinaryData;
 import com.azure.storage.blob.BlobAsyncClient;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerAsyncClient;
@@ -858,12 +859,7 @@ public class AzureBlobStore implements BlobStore {
                     blobKey
                 );
                 if (currentValue == expected) {
-                    blobClient.uploadWithResponse(
-                        new BlobParallelUploadOptions(BlobContainerUtils.getRegisterBlobContents(updated).streamInput())
-                            .setRequestConditions(new BlobRequestConditions().setLeaseId(leaseId)),
-                        null,
-                        null
-                    );
+                    uploadRegisterBlob(updated, blobClient, new BlobRequestConditions().setLeaseId(leaseId));
                 }
                 return currentValue;
             } finally {
@@ -871,16 +867,20 @@ public class AzureBlobStore implements BlobStore {
             }
         } else {
             if (expected == 0L) {
-                blobClient.uploadWithResponse(
-                    new BlobParallelUploadOptions(BlobContainerUtils.getRegisterBlobContents(updated).streamInput()).setRequestConditions(
-                        new BlobRequestConditions().setIfNoneMatch("*")
-                    ),
-                    null,
-                    null
-                );
+                uploadRegisterBlob(updated, blobClient, new BlobRequestConditions().setIfNoneMatch("*"));
             }
             return 0L;
         }
+    }
+
+    private void uploadRegisterBlob(long value, BlobClient blobClient, BlobRequestConditions requestConditions) throws IOException {
+        final var blobContents = BlobContainerUtils.getRegisterBlobContents(value);
+        blobClient.uploadWithResponse(
+            new BlobParallelUploadOptions(BinaryData.fromStream(blobContents.streamInput(), (long) blobContents.length()))
+                .setRequestConditions(requestConditions),
+            null,
+            null
+        );
     }
 
 }

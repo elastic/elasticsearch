@@ -71,7 +71,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
             ThreadPool.Names.SAME
         );
         this.systemIndices = systemIndices;
-        clusterSettings = DataLifecycle.isEnabled() ? clusterService.getClusterSettings() : null;
+        clusterSettings = clusterService.getClusterSettings();
     }
 
     @Override

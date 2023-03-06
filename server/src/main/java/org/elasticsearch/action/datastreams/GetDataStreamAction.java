@@ -332,7 +332,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             this(dataStreams, null);
         }
 
-        public Response(List<DataStreamInfo> dataStreams, RolloverConditions rolloverConditions) {
+        public Response(List<DataStreamInfo> dataStreams, @Nullable RolloverConditions rolloverConditions) {
             this.dataStreams = dataStreams;
             this.rolloverConditions = rolloverConditions;
         }
@@ -350,6 +350,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             return dataStreams;
         }
 
+        @Nullable
         public RolloverConditions getRolloverConditions() {
             return rolloverConditions;
         }

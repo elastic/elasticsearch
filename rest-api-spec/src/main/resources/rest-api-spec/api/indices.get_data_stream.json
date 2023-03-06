@@ -46,7 +46,7 @@
       },
       "include_defaults":{
         "type":"boolean",
-        "description":"Return relevant default configuration (default: false)"
+        "description":"Return all relevant default configurations for the data stream (default: false)"
       }
     }
   }

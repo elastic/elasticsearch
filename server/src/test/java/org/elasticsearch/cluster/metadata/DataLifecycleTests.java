@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
@@ -69,6 +70,85 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
                 assertThat(serialized, containsString(label));
             }
         }
+    }
+
+    public void testClusterSettingParsing() {
+        RolloverConditions defaultSetting = RolloverConditions.parseSetting(
+            "max_age=7d,max_primary_shard_size=50gb,min_docs=1,max_primary_shard_docs=200000000",
+            "test-setting"
+        );
+
+        assertThat(defaultSetting.getMaxSize(), nullValue());
+        assertThat(defaultSetting.getMaxPrimaryShardSize(), equalTo(ByteSizeValue.ofGb(50)));
+        assertThat(defaultSetting.getMaxAge(), equalTo(TimeValue.timeValueDays(7)));
+        assertThat(defaultSetting.getMaxDocs(), nullValue());
+        assertThat(defaultSetting.getMaxPrimaryShardDocs(), equalTo(200_000_000L));
+
+        assertThat(defaultSetting.getMinSize(), nullValue());
+        assertThat(defaultSetting.getMinPrimaryShardSize(), nullValue());
+        assertThat(defaultSetting.getMinAge(), nullValue());
+        assertThat(defaultSetting.getMinDocs(), equalTo(1L));
+        assertThat(defaultSetting.getMinPrimaryShardDocs(), nullValue());
+
+        var maxSize = ByteSizeValue.ofGb(randomIntBetween(1, 100));
+        var maxPrimaryShardSize = ByteSizeValue.ofGb(randomIntBetween(1, 50));
+        var maxAge = TimeValue.timeValueMillis(randomMillisUpToYear9999());
+        var maxDocs = randomLongBetween(1_000_000, 1_000_000_000);
+        var maxPrimaryShardDocs = randomLongBetween(1_000_000, 1_000_000_000);
+
+        var minSize = ByteSizeValue.ofGb(randomIntBetween(1, 100));
+        var minPrimaryShardSize = ByteSizeValue.ofGb(randomIntBetween(1, 50));
+        var minAge = TimeValue.timeValueMillis(randomMillisUpToYear9999());
+        var minDocs = randomLongBetween(1_000_000, 1_000_000_000);
+        var minPrimaryShardDocs = randomLongBetween(1_000_000, 1_000_000_000);
+        String setting = "max_size="
+            + maxSize.getStringRep()
+            + ",max_primary_shard_size="
+            + maxPrimaryShardSize.getStringRep()
+            + ",max_age="
+            + maxAge.getStringRep()
+            + ",max_docs="
+            + maxDocs
+            + ",max_primary_shard_docs="
+            + maxPrimaryShardDocs
+            + ",min_size="
+            + minSize.getStringRep()
+            + ",min_primary_shard_size="
+            + minPrimaryShardSize.getStringRep()
+            + ",min_age="
+            + minAge.getStringRep()
+            + ",min_docs="
+            + minDocs
+            + ",min_primary_shard_docs="
+            + minPrimaryShardDocs;
+        RolloverConditions randomSetting = RolloverConditions.parseSetting(setting, "test2");
+        assertThat(randomSetting.getMaxAge(), equalTo(maxAge));
+        assertThat(randomSetting.getMaxPrimaryShardSize(), equalTo(maxPrimaryShardSize));
+        assertThat(randomSetting.getMaxDocs(), equalTo(maxDocs));
+        assertThat(randomSetting.getMaxPrimaryShardDocs(), equalTo(maxPrimaryShardDocs));
+        assertThat(randomSetting.getMaxSize(), equalTo(maxSize));
+
+        assertThat(randomSetting.getMinAge(), equalTo(minAge));
+        assertThat(randomSetting.getMinPrimaryShardSize(), equalTo(minPrimaryShardSize));
+        assertThat(randomSetting.getMinPrimaryShardDocs(), equalTo(minPrimaryShardDocs));
+        assertThat(randomSetting.getMinDocs(), equalTo(minDocs));
+        assertThat(randomSetting.getMinSize(), equalTo(minSize));
+
+        SettingsException invalid = expectThrows(SettingsException.class, () -> RolloverConditions.parseSetting("", "empty-setting"));
+        assertEquals("Invalid condition: '', format must be 'condition=value'", invalid.getMessage());
+        SettingsException unknown = expectThrows(
+            SettingsException.class,
+            () -> RolloverConditions.parseSetting("unknown_condition=?", "unknown-setting")
+        );
+        assertEquals("Unknown condition: 'unknown_condition'", unknown.getMessage());
+        SettingsException numberFormat = expectThrows(
+            SettingsException.class,
+            () -> RolloverConditions.parseSetting("max_docs=one", "invalid-number-setting")
+        );
+        assertEquals(
+            "Invalid value 'one' in setting 'invalid-number-setting', the value is expected to be of type long",
+            numberFormat.getMessage()
+        );
     }
 
     public void testDefaultClusterSetting() {

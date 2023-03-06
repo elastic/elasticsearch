@@ -54,7 +54,7 @@ public class TransportGetComponentTemplateAction extends TransportMasterNodeRead
             GetComponentTemplateAction.Response::new,
             ThreadPool.Names.SAME
         );
-        clusterSettings = DataLifecycle.isEnabled() ? clusterService.getClusterSettings() : null;
+        clusterSettings = clusterService.getClusterSettings();
     }
 
     @Override

@@ -42,7 +42,7 @@
       },
       "include_defaults":{
         "type":"boolean",
-        "description":"Return relevant default configuration (default: false)"
+        "description":"Return all default configurations for the component template (default: false)"
       }
     }
   }

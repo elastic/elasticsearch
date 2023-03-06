@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
@@ -267,7 +268,7 @@ public class RolloverConditions implements Writeable, ToXContentObject {
         for (String sCondition : sConditions) {
             String[] keyValue = sCondition.split("=");
             if (keyValue.length != 2) {
-                throw new ElasticsearchParseException("Invalid condition: '{}', format must be 'condition=value'", sCondition);
+                throw new SettingsException("Invalid condition: '{}', format must be 'condition=value'", sCondition);
             }
             var condition = keyValue[0];
             var value = keyValue[1];
@@ -292,7 +293,7 @@ public class RolloverConditions implements Writeable, ToXContentObject {
             } else if (MIN_PRIMARY_SHARD_DOCS_FIELD.getPreferredName().equals(condition)) {
                 builder.addMinPrimaryShardDocsCondition(parseLong(value, condition));
             } else {
-                throw new ElasticsearchParseException("Unknown condition: '{}'", condition);
+                throw new SettingsException("Unknown condition: '{}'", condition);
             }
         }
         return builder.build();
@@ -302,11 +303,11 @@ public class RolloverConditions implements Writeable, ToXContentObject {
         try {
             return Long.parseLong(sValue);
         } catch (NumberFormatException e) {
-            throw new ElasticsearchParseException(
-                "failed to parse setting [{}] with value [{}] as a long: {}",
-                e.getMessage(),
+            throw new SettingsException(
+                "Invalid value '{}' in setting '{}', the value is expected to be of type long",
+                sValue,
                 settingName,
-                sValue
+                e.getMessage()
             );
         }
     }

@@ -54,7 +54,7 @@ public class TransportGetComposableIndexTemplateAction extends TransportMasterNo
             GetComposableIndexTemplateAction.Response::new,
             ThreadPool.Names.SAME
         );
-        clusterSettings = DataLifecycle.isEnabled() ? clusterService.getClusterSettings() : null;
+        clusterSettings = clusterService.getClusterSettings();
     }
 
     @Override

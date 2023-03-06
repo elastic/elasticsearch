@@ -116,6 +116,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         public static final ParseField COMPONENT_TEMPLATE = new ParseField("component_template");
 
         private final Map<String, ComponentTemplate> componentTemplates;
+        @Nullable
         private final RolloverConditions rolloverConditions;
 
         public Response(StreamInput in) throws IOException {
@@ -133,7 +134,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
             this.rolloverConditions = null;
         }
 
-        public Response(Map<String, ComponentTemplate> componentTemplates, RolloverConditions rolloverConditions) {
+        public Response(Map<String, ComponentTemplate> componentTemplates, @Nullable RolloverConditions rolloverConditions) {
             this.componentTemplates = componentTemplates;
             this.rolloverConditions = rolloverConditions;
         }

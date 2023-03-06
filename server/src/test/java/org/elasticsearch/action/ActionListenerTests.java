@@ -16,6 +16,7 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ReachabilityChecker;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -621,5 +622,9 @@ public class ActionListenerTests extends ESTestCase {
                 return description;
             }
         };
+    }
+
+    public static <T> Matcher<T> isMappedActionListener() {
+        return instanceOf(ActionListenerImplementations.MappedActionListener.class);
     }
 }

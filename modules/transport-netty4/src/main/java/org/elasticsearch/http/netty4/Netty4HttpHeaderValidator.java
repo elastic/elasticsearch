@@ -82,18 +82,22 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         assert pending.isEmpty() == false;
         assert state == STATE.WAITING_TO_START;
 
-        HttpObject httpObject = pending.getFirst();
-        boolean isStartMessage = httpObject instanceof HttpRequest;
-
-        if (isStartMessage == false || httpObject.decoderResult().isSuccess() == false) {
-            // a properly decoded HTTP start message is expected
-            // anything else is probably an error that the HTTP message aggregator will have to handle
+        boolean isStartMessage;
+        HttpObject httpObject;
+        do {
+            httpObject = pending.getFirst();
+            isStartMessage = pending instanceof HttpRequest;
+            if (isStartMessage && httpObject.decoderResult().isSuccess()) {
+                break;
+            }
+            // a properly decoded HTTP start message is expected to begin validation
+            // anything else is probably an error that the downstream HTTP message aggregator will have to handle
             ctx.fireChannelRead(pending.pollFirst());
             ReferenceCountUtil.release(httpObject); // reference count was increased when enqueued
-            // state = STATE.WAITING_TO_START keep waiting for a valid HTTP start message
-            // TODO forward more than a single request
-            return;
-        }
+            if (pending.isEmpty()) {
+                return;
+            }
+        } while (true);
 
         state = STATE.QUEUEING_DATA;
         validator.apply((HttpRequest) httpObject, ctx.channel(), new ActionListener<>() {

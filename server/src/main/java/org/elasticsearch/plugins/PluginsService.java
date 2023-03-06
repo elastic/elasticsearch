@@ -132,10 +132,14 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
         // load modules
         List<PluginDescriptor> modulesList = new ArrayList<>();
+        Set<String> moduleNameList = new HashSet<>();
         if (modulesDirectory != null) {
             try {
                 Set<PluginBundle> modules = PluginsUtils.getModuleBundles(modulesDirectory);
-                modules.stream().map(PluginBundle::pluginDescriptor).forEach(modulesList::add);
+                modules.stream().map(PluginBundle::pluginDescriptor).forEach(m -> {
+                    modulesList.add(m);
+                    moduleNameList.add(m.getName());
+                });
                 seenBundles.addAll(modules);
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize modules", ex);
@@ -173,8 +177,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
         // we don't log jars in lib/ we really shouldn't log modules,
         // but for now: just be transparent so we can debug any potential issues
-        logPluginInfo(info.getModuleInfos(), "module", logger);
-        logPluginInfo(pluginsList, "plugin", logger);
+        for (String name : loadedPlugins.keySet()) {
+            if (moduleNameList.contains(name)) {
+                logger.info("loaded module [{}]", name);
+            } else {
+                logger.info("loaded plugin [{}]", name);
+            }
+        }
     }
 
     // package-private for testing
@@ -191,17 +200,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 + String.join(", ", existingPlugins)
                 + "]";
             throw new IllegalStateException(message);
-        }
-    }
-
-    private static void logPluginInfo(final List<PluginDescriptor> pluginDescriptors, final String type, final Logger logger) {
-        assert pluginDescriptors != null;
-        if (pluginDescriptors.isEmpty()) {
-            logger.info("no " + type + "s loaded");
-        } else {
-            for (final String name : pluginDescriptors.stream().map(PluginDescriptor::getName).sorted().toList()) {
-                logger.info("loaded " + type + " [" + name + "]");
-            }
         }
     }
 

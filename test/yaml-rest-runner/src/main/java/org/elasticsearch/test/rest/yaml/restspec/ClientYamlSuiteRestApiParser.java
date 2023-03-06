@@ -86,6 +86,14 @@ public class ClientYamlSuiteRestApiParser {
                 } else if ("feature_flag".equals(parser.currentName())) {
                     parser.nextToken();
                     restApi.setFeatureFlag(parser.textOrNull());
+                } else if ("deprecated".equals(parser.currentName())) {
+                    if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            apiName + " API: expected [deprecated] field in rest api definition to hold an object"
+                        );
+                    }
+                    parser.skipChildren();
                 } else if ("url".equals(parser.currentName())) {
                     String currentFieldName = null;
                     assert parser.nextToken() == XContentParser.Token.START_OBJECT;

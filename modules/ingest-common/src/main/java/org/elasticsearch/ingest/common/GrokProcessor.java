@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.common;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.grok.Grok;
+import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
@@ -26,7 +27,7 @@ import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationExcept
 public final class GrokProcessor extends AbstractProcessor {
 
     public static final String TYPE = "grok";
-    public static final String DEFAULT_ECS_COMPATIBILITY_MODE = Grok.ECS_COMPATIBILITY_MODES[0];
+    public static final String DEFAULT_ECS_COMPATIBILITY_MODE = GrokBuiltinPatterns.ECS_COMPATIBILITY_MODES[0];
 
     private static final String PATTERN_MATCH_KEY = "_ingest._grok_match_index";
     private static final Logger logger = LogManager.getLogger(GrokProcessor.class);
@@ -159,7 +160,7 @@ public final class GrokProcessor extends AbstractProcessor {
                 "ecs_compatibility",
                 DEFAULT_ECS_COMPATIBILITY_MODE
             );
-            if (Grok.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
+            if (GrokBuiltinPatterns.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
                 throw newConfigurationException(TYPE, processorTag, "ecs_compatibility", "unsupported mode '" + ecsCompatibility + "'");
             }
 
@@ -167,7 +168,7 @@ public final class GrokProcessor extends AbstractProcessor {
                 throw newConfigurationException(TYPE, processorTag, "patterns", "List of patterns must not be empty");
             }
             Map<String, String> customPatternBank = ConfigurationUtils.readOptionalMap(TYPE, processorTag, config, "pattern_definitions");
-            Map<String, String> patternBank = new HashMap<>(Grok.getBuiltinPatterns(ecsCompatibility));
+            Map<String, String> patternBank = new HashMap<>(GrokBuiltinPatterns.get(ecsCompatibility));
             if (customPatternBank != null) {
                 patternBank.putAll(customPatternBank);
             }

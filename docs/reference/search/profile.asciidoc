@@ -17,7 +17,7 @@ The Profile API gives the user insight into how search requests are executed at
 a low level so that the user can understand why certain requests are slow, and
 take steps to improve them. Note that the Profile API,
 <<profile-limitations, amongst other things>>, doesn't measure network latency,
-time spent while the requests spends in queues, or while merging shard
+time the requests spend in queues, or time spent merging shard
 responses on the coordinating node.
 
 The output from the Profile API is *very* verbose, especially for complicated

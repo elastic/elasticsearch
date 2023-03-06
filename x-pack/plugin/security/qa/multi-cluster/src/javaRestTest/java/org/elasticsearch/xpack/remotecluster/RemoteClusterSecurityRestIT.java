@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -38,6 +39,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
     static {
         fulfillingCluster = ElasticsearchCluster.local()
             .name("fulfilling-cluster")
+            .nodes(3)
             .apply(commonClusterConfig)
             .setting("remote_cluster_server.enabled", "true")
             .setting("remote_cluster.port", "0")
@@ -52,6 +54,8 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             .apply(commonClusterConfig)
             .setting("xpack.security.remote_cluster_client.ssl.enabled", "true")
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
+            .rolesFile(Resource.fromClasspath("roles.yml"))
+            .user(REMOTE_METRIC_USER, PASS.toString(), "read_remote_shared_metrics")
             .build();
     }
 
@@ -60,28 +64,45 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
     public void testRemoteAccessForCrossClusterSearch() throws Exception {
-        configureRemoteClustersWithApiKey("""
+        final String remoteAccessApiKeyId = configureRemoteClustersWithApiKey("""
             [
                {
-                 "names": ["index*", "not_found_index"],
+                 "names": ["index*", "not_found_index", "shared-metrics"],
                  "privileges": ["read", "read_cross_cluster"]
                }
              ]""");
 
         // Fulfilling cluster
         {
+            // Spread the shards to all nodes
+            final Request createIndexRequest = new Request("PUT", "shared-metrics");
+            createIndexRequest.setJsonEntity("""
+                {
+                  "settings": {
+                    "number_of_shards": 3,
+                    "number_of_replicas": 0
+                  }
+                }""");
+            assertOK(performRequestAgainstFulfillingCluster(createIndexRequest));
+
             // Index some documents, so we can attempt to search them from the querying cluster
-            final var indexDocRequest = new Request("POST", "/index1/_doc?refresh=true");
-            indexDocRequest.setJsonEntity("{\"foo\": \"bar\"}");
-            assertOK(performRequestAgainstFulfillingCluster(indexDocRequest));
-
-            final var indexDocRequest2 = new Request("POST", "/index2/_doc?refresh=true");
-            indexDocRequest2.setJsonEntity("{\"bar\": \"foo\"}");
-            assertOK(performRequestAgainstFulfillingCluster(indexDocRequest2));
-
-            final var indexDocRequest3 = new Request("POST", "/prefixed_index/_doc?refresh=true");
-            indexDocRequest3.setJsonEntity("{\"baz\": \"fee\"}");
-            assertOK(performRequestAgainstFulfillingCluster(indexDocRequest3));
+            final Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
+            bulkRequest.setJsonEntity(Strings.format("""
+                { "index": { "_index": "index1" } }
+                { "foo": "bar" }
+                { "index": { "_index": "index2" } }
+                { "bar": "foo" }
+                { "index": { "_index": "prefixed_index" } }
+                { "baz": "fee" }
+                { "index": { "_index": "shared-metrics" } }
+                { "name": "metric1" }
+                { "index": { "_index": "shared-metrics" } }
+                { "name": "metric2" }
+                { "index": { "_index": "shared-metrics" } }
+                { "name": "metric3" }
+                { "index": { "_index": "shared-metrics" } }
+                { "name": "metric4" }\n"""));
+            assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
         }
 
         // Query cluster
@@ -143,6 +164,20 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 assertThat(actualIndices, containsInAnyOrder("index1"));
             }
 
+            // Check remote metric users can search metric documents from all FC nodes
+            final var metricSearchRequest = new Request(
+                "GET",
+                String.format(Locale.ROOT, "/my_remote_cluster:*/_search?ccs_minimize_roundtrips=%s", randomBoolean())
+            );
+            final SearchResponse metricSearchResponse = SearchResponse.fromXContent(
+                responseAsParser(performRequestWithRemoteMetricUser(metricSearchRequest))
+            );
+            assertThat(metricSearchResponse.getHits().getTotalHits().value, equalTo(4L));
+            assertThat(
+                Arrays.stream(metricSearchResponse.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toSet()),
+                containsInAnyOrder("shared-metrics")
+            );
+
             // Check that access is denied because of user privileges
             final ResponseException exception = expectThrows(
                 ResponseException.class,
@@ -151,7 +186,12 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
             assertThat(
                 exception.getMessage(),
-                containsString("action [indices:data/read/search] is unauthorized for user [remote_search_user] on indices [index2]")
+                containsString(
+                    "action [indices:data/read/search] towards remote cluster is unauthorized for user [remote_search_user] "
+                        + "with assigned roles [remote_search] authenticated by API key id ["
+                        + remoteAccessApiKeyId
+                        + "] of user [test_user] on indices [index2]"
+                )
             );
 
             // Check that access is denied because of API key privileges
@@ -163,7 +203,10 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             assertThat(
                 exception2.getMessage(),
                 containsString(
-                    "action [indices:data/read/search] is unauthorized for user [remote_search_user] on indices [prefixed_index]"
+                    "action [indices:data/read/search] towards remote cluster is unauthorized for user [remote_search_user] "
+                        + "with assigned roles [remote_search] authenticated by API key id ["
+                        + remoteAccessApiKeyId
+                        + "] of user [test_user] on indices [prefixed_index]"
                 )
             );
 
@@ -224,6 +267,11 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
 
     private Response performRequestWithRemoteAccessUser(final Request request) throws IOException {
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(REMOTE_SEARCH_USER, PASS)));
+        return client().performRequest(request);
+    }
+
+    private Response performRequestWithRemoteMetricUser(final Request request) throws IOException {
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(REMOTE_METRIC_USER, PASS)));
         return client().performRequest(request);
     }
 

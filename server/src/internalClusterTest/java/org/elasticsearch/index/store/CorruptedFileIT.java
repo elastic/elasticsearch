@@ -16,6 +16,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -24,7 +25,6 @@ import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -178,13 +178,11 @@ public class CorruptedFileIT extends ESIntegTestCase {
         /*
          * we corrupted the primary shard - now lets make sure we never recover from it successfully
          */
-        Settings build = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "2").build();
-        client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
+        setReplicaCount(2, "test");
         ClusterHealthResponse health = client().admin()
             .cluster()
             .health(
-                Requests.clusterHealthRequest("test")
-                    .waitForGreenStatus()
+                new ClusterHealthRequest("test").waitForGreenStatus()
                     .timeout("5m") // sometimes due to cluster rebalacing and random settings default timeout is just not enough.
                     .waitForNoRelocatingShards(true)
             )
@@ -291,16 +289,15 @@ public class CorruptedFileIT extends ESIntegTestCase {
         /*
          * we corrupted the primary shard - now lets make sure we never recover from it successfully
          */
-        Settings build = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1").build();
-        client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
+        setReplicaCount(1, "test");
         client().admin().cluster().prepareReroute().get();
 
         boolean didClusterTurnRed = waitUntil(() -> {
-            ClusterHealthStatus test = client().admin().cluster().health(Requests.clusterHealthRequest("test")).actionGet().getStatus();
+            ClusterHealthStatus test = client().admin().cluster().health(new ClusterHealthRequest("test")).actionGet().getStatus();
             return test == ClusterHealthStatus.RED;
         }, 5, TimeUnit.MINUTES);// sometimes on slow nodes the replication / recovery is just dead slow
 
-        final ClusterHealthResponse response = client().admin().cluster().health(Requests.clusterHealthRequest("test")).get();
+        final ClusterHealthResponse response = client().admin().cluster().health(new ClusterHealthRequest("test")).get();
 
         if (response.getStatus() != ClusterHealthStatus.RED) {
             logger.info("Cluster turned red in busy loop: {}", didClusterTurnRed);
@@ -381,11 +378,12 @@ public class CorruptedFileIT extends ESIntegTestCase {
             );
         }
 
-        Settings build = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
-            .put("index.routing.allocation.include._name", primariesNode.getName() + "," + unluckyNode.getName())
-            .build();
-        client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
+        updateIndexSettings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
+                .put("index.routing.allocation.include._name", primariesNode.getName() + "," + unluckyNode.getName()),
+            "test"
+        );
         client().admin().cluster().prepareReroute().get();
         hasCorrupted.await();
         corrupt.set(false);
@@ -492,15 +490,12 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }, TimeValue.timeValueSeconds(30));
 
         // can not allocate on unluckyNode
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test")
-            .setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
-                    .put("index.routing.allocation.include._name", primariesNode.getName() + "," + unluckyNode.getName())
-            )
-            .get();
+        updateIndexSettings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
+                .put("index.routing.allocation.include._name", primariesNode.getName() + "," + unluckyNode.getName()),
+            "test"
+        );
         allocationGivenUpFuture.actionGet();
         assertThatAllShards("test", shard -> {
             assertThat(shard.primaryShard().currentNodeId(), equalTo(primariesNode.getId()));
@@ -508,16 +503,13 @@ public class CorruptedFileIT extends ESIntegTestCase {
         });
 
         // can allocate on any other data node
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test")
-            .setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
-                    .putNull("index.routing.allocation.include._name")
-                    .put("index.routing.allocation.exclude._name", unluckyNode.getName())
-            )
-            .get();
+        updateIndexSettings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
+                .putNull("index.routing.allocation.include._name")
+                .put("index.routing.allocation.exclude._name", unluckyNode.getName()),
+            "test"
+        );
         client().admin().cluster().prepareReroute().setRetryFailed(true).get();
         ensureGreen("test");
         assertThatAllShards("test", shard -> {
@@ -644,13 +636,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
         // disable allocations of replicas post restart (the restart will change replicas to primaries, so we have
         // to capture replicas post restart)
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries")
-                )
+        updateClusterSettings(
+            Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries")
         );
 
         internalCluster().fullRestart();
@@ -678,14 +665,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }
 
         // enable allocation
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().putNull(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey())
-                )
-        );
+        updateClusterSettings(Settings.builder().putNull(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()));
 
         ensureGreen(TimeValue.timeValueSeconds(60));
     }

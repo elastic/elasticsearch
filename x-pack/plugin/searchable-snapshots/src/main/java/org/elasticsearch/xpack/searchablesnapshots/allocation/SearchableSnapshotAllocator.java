@@ -528,24 +528,26 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         }
     }
 
-    /**
-     * {@param nodeWithHighestMatch} the node with the highest number of bytes cached for the shard or {@code null} if no node with any bytes matched exists
-     */
     private record MatchingNodes(DiscoveryNode nodeWithHighestMatch, @Nullable Map<String, NodeAllocationResult> nodeDecisions) {
 
         private static MatchingNodes create(
             Map<DiscoveryNode, Long> matchingNodes,
             @Nullable Map<String, NodeAllocationResult> nodeDecisions
         ) {
-            return new MatchingNodes(
-                matchingNodes.entrySet()
-                    .stream()
-                    .filter(entry -> entry.getValue() > 0L)
-                    .max(Map.Entry.comparingByValue())
-                    .map(Map.Entry::getKey)
-                    .orElse(null),
-                nodeDecisions
-            );
+            return new MatchingNodes(getNodeWithHighestMatch(matchingNodes), nodeDecisions);
+        }
+
+        /**
+         * Returns the node with the highest number of bytes cached for the shard or {@code null} if no node with any bytes matched exists.
+         */
+        @Nullable
+        private static DiscoveryNode getNodeWithHighestMatch(Map<DiscoveryNode, Long> matchingNodes) {
+            return matchingNodes.entrySet()
+                .stream()
+                .filter(entry -> entry.getValue() > 0L)
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse(null);
         }
     }
 }

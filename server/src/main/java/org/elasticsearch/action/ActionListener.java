@@ -208,7 +208,7 @@ public interface ActionListener<Response> {
                 listener.onResponse(response);
             } catch (Exception ex) {
                 try {
-                    listener.onFailure(ex);
+                    safeOnFailure(listener, ex);
                 } catch (Exception ex1) {
                     exceptionList.add(ex1);
                 }

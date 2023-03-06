@@ -494,17 +494,29 @@ public final class Authentication implements ToXContentObject {
     }
 
     public String encode() throws IOException {
+        return doEncode(effectiveSubject, authenticatingSubject, type);
+    }
+
+    // Package private for testing
+    static String doEncode(Subject effectiveSubject, Subject authenticatingSubject, AuthenticationType type) throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setTransportVersion(getEffectiveSubject().getTransportVersion());
-        TransportVersion.writeVersion(getEffectiveSubject().getTransportVersion(), output);
-        writeTo(output);
+        output.setTransportVersion(effectiveSubject.getTransportVersion());
+        TransportVersion.writeVersion(effectiveSubject.getTransportVersion(), output);
+        doWriteTo(effectiveSubject, authenticatingSubject, type, output);
         return Base64.getEncoder().encodeToString(BytesReference.toBytes(output.bytes()));
     }
 
     public void writeTo(StreamOutput out) throws IOException {
+        doWriteTo(effectiveSubject, authenticatingSubject, type, out);
+    }
+
+    // Package private for testing
+    static void doWriteTo(Subject effectiveSubject, Subject authenticatingSubject, AuthenticationType type, StreamOutput out)
+        throws IOException {
         // remote access introduced a new synthetic realm and subject type; these cannot be parsed by older versions, so rewriting we should
         // not send them across the wire to older nodes
-        if (isRemoteAccess() && out.getTransportVersion().before(VERSION_REMOTE_ACCESS_REALM)) {
+        final boolean isRemoteAccess = effectiveSubject.getType() == Subject.Type.REMOTE_ACCESS;
+        if (isRemoteAccess && out.getTransportVersion().before(VERSION_REMOTE_ACCESS_REALM)) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
                     + VERSION_REMOTE_ACCESS_REALM
@@ -513,7 +525,8 @@ public final class Authentication implements ToXContentObject {
                     + "]"
             );
         }
-        if (isRunAs()) {
+        final boolean isRunAs = authenticatingSubject != effectiveSubject;
+        if (isRunAs) {
             final User outerUser = effectiveSubject.getUser();
             final User innerUser = authenticatingSubject.getUser();
             assert false == User.isInternal(outerUser) && false == User.isInternal(innerUser)
@@ -527,7 +540,7 @@ public final class Authentication implements ToXContentObject {
             AuthenticationSerializationHelper.writeUserTo(user, out);
         }
         authenticatingSubject.getRealm().writeTo(out);
-        final RealmRef lookedUpBy = isRunAs() ? effectiveSubject.getRealm() : null;
+        final RealmRef lookedUpBy = isRunAs ? effectiveSubject.getRealm() : null;
 
         if (lookedUpBy != null) {
             out.writeBoolean(true);
@@ -535,7 +548,7 @@ public final class Authentication implements ToXContentObject {
         } else {
             out.writeBoolean(false);
         }
-        final Map<String, Object> metadata = getAuthenticatingSubject().getMetadata();
+        final Map<String, Object> metadata = authenticatingSubject.getMetadata();
         if (out.getTransportVersion().onOrAfter(VERSION_AUTHENTICATION_TYPE)) {
             out.writeVInt(type.ordinal());
             writeMetadata(out, metadata);
@@ -728,18 +741,15 @@ public final class Authentication implements ToXContentObject {
         }
 
         // check consistency for each authentication type
-        if (isAuthenticatedAnonymously()) {
-            checkConsistencyForAnonymousAuthenticationType();
-        } else if (isAuthenticatedInternally()) {
-            checkConsistencyForInternalAuthenticationType();
-        } else if (type == AuthenticationType.API_KEY) {
-            checkConsistencyForApiKeyAuthenticationType();
-        } else if (type == AuthenticationType.REALM) {
-            checkConsistencyForRealmAuthenticationType();
-        } else if (type == AuthenticationType.TOKEN) {
-            checkConsistencyForTokenAuthenticationType();
-        } else {
-            assert false : "unknown authentication type " + type;
+        switch (getAuthenticationType()) {
+            case ANONYMOUS -> checkConsistencyForAnonymousAuthenticationType();
+            case INTERNAL -> checkConsistencyForInternalAuthenticationType();
+            case API_KEY -> checkConsistencyForApiKeyAuthenticationType();
+            case REALM -> checkConsistencyForRealmAuthenticationType();
+            case TOKEN -> checkConsistencyForTokenAuthenticationType();
+            default -> {
+                assert false : "unknown authentication type " + type;
+            }
         }
     }
 
@@ -776,12 +786,7 @@ public final class Authentication implements ToXContentObject {
                 Strings.format("API key authentication cannot have realm type [%s]", authenticatingRealm.type)
             );
         }
-        checkNoDomain(authenticatingRealm, "API key");
-        checkNoInternalUser(authenticatingSubject, "API key");
-        checkNoRole(authenticatingSubject, "API key");
-        if (authenticatingSubject.getMetadata().get(AuthenticationField.API_KEY_ID_KEY) == null) {
-            throw new IllegalArgumentException("API key authentication requires metadata to contain a non-null API key ID");
-        }
+        checkConsistencyForApiKeyAuthenticatingSubject("API key");
         if (Subject.Type.REMOTE_ACCESS == authenticatingSubject.getType()) {
             if (authenticatingSubject.getMetadata().get(REMOTE_ACCESS_AUTHENTICATION_KEY) == null) {
                 throw new IllegalArgumentException(
@@ -812,6 +817,9 @@ public final class Authentication implements ToXContentObject {
 
     private void checkConsistencyForTokenAuthenticationType() {
         final RealmRef authenticatingRealm = authenticatingSubject.getRealm();
+        // The below assertion does not hold for custom realms. That's why it is an assertion instead of runtime error.
+        // Custom realms with synthetic realm names are likely fail in other places. But we don't fail in name/type checks
+        // for mostly historical reasons.
         assert false == authenticatingRealm.isAttachRealm()
             && false == authenticatingRealm.isFallbackRealm()
             && false == authenticatingRealm.isRemoteAccessRealm()
@@ -823,6 +831,9 @@ public final class Authentication implements ToXContentObject {
             checkNoRole(authenticatingSubject, "Service account");
             checkNoRunAs(this, "Service account");
         } else {
+            if (Subject.Type.API_KEY == authenticatingSubject.getType()) {
+                checkConsistencyForApiKeyAuthenticatingSubject("API key token");
+            }
             if (isRunAs()) {
                 checkRunAsConsistency(effectiveSubject, authenticatingSubject);
             }
@@ -847,6 +858,16 @@ public final class Authentication implements ToXContentObject {
         }
         // assert here because it does not hold for custom realm
         assert false == hasSyntheticRealmNameOrType(effectiveSubject.getRealm()) : "run-as subject cannot be from a synthetic realm";
+    }
+
+    private void checkConsistencyForApiKeyAuthenticatingSubject(String prefixMessage) {
+        final RealmRef authenticatingRealm = authenticatingSubject.getRealm();
+        checkNoDomain(authenticatingRealm, prefixMessage);
+        checkNoInternalUser(authenticatingSubject, prefixMessage);
+        checkNoRole(authenticatingSubject, prefixMessage);
+        if (authenticatingSubject.getMetadata().get(AuthenticationField.API_KEY_ID_KEY) == null) {
+            throw new IllegalArgumentException(prefixMessage + " authentication requires metadata to contain a non-null API key ID");
+        }
     }
 
     private static void checkNoInternalUser(Subject subject, String prefixMessage) {

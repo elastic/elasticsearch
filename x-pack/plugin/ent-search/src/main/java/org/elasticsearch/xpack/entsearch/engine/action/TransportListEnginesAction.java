@@ -9,14 +9,14 @@ package org.elasticsearch.xpack.entsearch.engine.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.entsearch.EnterpriseSearchTransportAction;
 import org.elasticsearch.xpack.entsearch.engine.EngineIndexService;
 
-public class TransportListEnginesAction extends HandledTransportAction<ListEnginesAction.Request, ListEnginesAction.Response> {
+public class TransportListEnginesAction extends EnterpriseSearchTransportAction<ListEnginesAction.Request, ListEnginesAction.Response> {
 
     private final EngineIndexService engineIndexService;
 
@@ -24,14 +24,15 @@ public class TransportListEnginesAction extends HandledTransportAction<ListEngin
     public TransportListEnginesAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        EngineIndexService engineIndexService
+        EngineIndexService engineIndexService,
+        XPackLicenseState licenseState
     ) {
-        super(ListEnginesAction.NAME, transportService, actionFilters, ListEnginesAction.Request::new);
+        super(ListEnginesAction.NAME, transportService, actionFilters, ListEnginesAction.Request::new, licenseState);
         this.engineIndexService = engineIndexService;
     }
 
     @Override
-    protected void doExecute(Task task, ListEnginesAction.Request request, ActionListener<ListEnginesAction.Response> listener) {
+    protected void doExecute(ListEnginesAction.Request request, ActionListener<ListEnginesAction.Response> listener) {
         final PageParams pageParams = request.pageParams();
         engineIndexService.listEngines(
             request.query(),

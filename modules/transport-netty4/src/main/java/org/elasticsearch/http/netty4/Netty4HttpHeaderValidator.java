@@ -120,14 +120,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         assert state == STATE.QUEUEING_DATA;
 
         state = STATE.HANDLING_QUEUED_DATA;
-        int pendingMessages = pending.size();
         boolean fullRequestForwarded = forwardData(ctx);
-        if (pending.size() <= 4 && pendingMessages > 32) {
-            // Prevent the ArrayDeque from becoming forever large due to a single large message.
-            ArrayDeque<HttpObject> old = pending;
-            pending = new ArrayDeque<>(4);
-            pending.addAll(old);
-        }
 
         if (fullRequestForwarded) {
             state = STATE.WAITING_TO_START;
@@ -188,30 +181,49 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
     }
 
     private boolean forwardData(ChannelHandlerContext ctx) {
-        HttpObject toForward;
-        while ((toForward = pending.poll()) != null) {
-            ctx.fireChannelRead(toForward);
-            ReferenceCountUtil.release(toForward); // reference cnt incremented when enqueued
-            if (toForward instanceof LastHttpContent) {
-                return true;
+        final int pendingMessages = pending.size();
+        try {
+            HttpObject toForward;
+            while ((toForward = pending.poll()) != null) {
+                ctx.fireChannelRead(toForward);
+                ReferenceCountUtil.release(toForward); // reference cnt incremented when enqueued
+                if (toForward instanceof LastHttpContent) {
+                    return true;
+                }
             }
+            return false;
+        } finally {
+            maybeResizePendingDown(pendingMessages);
         }
-        return false;
     }
 
     private boolean dropData() {
-        HttpObject toDrop;
-        while ((toDrop = pending.poll()) != null) {
-            ReferenceCountUtil.release(toDrop, 2); // 1 for enqueuing, 1 for consuming
-            if (toDrop instanceof LastHttpContent) {
-                return true;
+        final int pendingMessages = pending.size();
+        try {
+            HttpObject toDrop;
+            while ((toDrop = pending.poll()) != null) {
+                ReferenceCountUtil.release(toDrop, 2); // 1 for enqueuing, 1 for consuming
+                if (toDrop instanceof LastHttpContent) {
+                    return true;
+                }
             }
+            return false;
+        } finally {
+            maybeResizePendingDown(pendingMessages);
         }
-        return false;
     }
 
     private boolean shouldRead() {
         return (state == STATE.QUEUEING_DATA || state == STATE.DROPPING_DATA_PERMANENTLY) == false;
+    }
+
+    private void maybeResizePendingDown(int largeSize) {
+        if (pending.size() <= 4 && largeSize > 32) {
+            // Prevent the ArrayDeque from becoming forever large due to a single large message.
+            ArrayDeque<HttpObject> old = pending;
+            pending = new ArrayDeque<>(4);
+            pending.addAll(old);
+        }
     }
 
     enum STATE {

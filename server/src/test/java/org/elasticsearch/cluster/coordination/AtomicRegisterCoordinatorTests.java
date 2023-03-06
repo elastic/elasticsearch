@@ -36,7 +36,6 @@ import java.util.concurrent.Callable;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.clusterState;
 
@@ -255,24 +254,21 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
     static class StoreHeartbeatService implements LeaderHeartbeatService {
         private final SharedStore sharedStore;
-        private final AtomicRegister atomicRegister;
         private final ThreadPool threadPool;
         private final TimeValue heartbeatFrequency;
         private final TimeValue maxTimeSinceLastHeartbeat;
 
         private DiscoveryNode currentLeader;
-        private Scheduler.Cancellable heartbeatTask;
         private long currentTerm;
+        private Scheduler.Cancellable heartbeatTask;
 
         StoreHeartbeatService(
             SharedStore sharedStore,
-            AtomicRegister atomicRegister,
             ThreadPool threadPool,
             TimeValue heartbeatFrequency,
             TimeValue maxTimeSinceLastHeartbeat
         ) {
             this.sharedStore = sharedStore;
-            this.atomicRegister = atomicRegister;
             this.threadPool = threadPool;
             this.heartbeatFrequency = heartbeatFrequency;
             this.maxTimeSinceLastHeartbeat = maxTimeSinceLastHeartbeat;
@@ -305,9 +301,8 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             }
         }
 
-        private Optional<DiscoveryNode> getCurrentLeaderFromRegister() {
-            final var termOwner = atomicRegister.getTermOwner();
-            var latestHeartBeat = sharedStore.getHearbeatForTerm(termOwner.term());
+        private Optional<DiscoveryNode> isLeaderInTermAlive(long term) {
+            var latestHeartBeat = sharedStore.getHearbeatForTerm(term);
             if (latestHeartBeat == null) {
                 return Optional.empty();
             }
@@ -341,17 +336,12 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             final TimeValue heartbeatFrequency = HEARTBEAT_FREQUENCY.get(settings);
             var atomicHeartBeat = new StoreHeartbeatService(
                 sharedStore,
-                atomicRegister,
                 threadPool,
                 heartbeatFrequency,
                 TimeValue.timeValueMillis(heartbeatFrequency.millis() * MAX_MISSED_HEARTBEATS.get(settings))
             );
             var reconfigurator = new SingleNodeReconfigurator(settings, clusterSettings);
-            var quorumStrategy = new AtomicRegisterElectionStrategy(
-                atomicRegister,
-                sharedStore,
-                atomicHeartBeat::getCurrentLeaderFromRegister
-            );
+            var quorumStrategy = new AtomicRegisterElectionStrategy(atomicRegister, sharedStore, atomicHeartBeat::isLeaderInTermAlive);
             return new CoordinationServices() {
                 @Override
                 public ElectionStrategy getQuorumStrategy() {
@@ -438,16 +428,16 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     }
 
     static class AtomicRegisterElectionStrategy extends ElectionStrategy {
-        private final Supplier<Optional<DiscoveryNode>> currentLeaderSupplier;
+        private final Function<Long, Optional<DiscoveryNode>> getLeaderForTermIfAlive;
         private final AtomicRegister register;
         private final SharedStore sharedStore;
 
         AtomicRegisterElectionStrategy(
             AtomicRegister register,
             SharedStore sharedStore,
-            Supplier<Optional<DiscoveryNode>> currentLeaderSupplier
+            Function<Long, Optional<DiscoveryNode>> getLeaderForTermIfAlive
         ) {
-            this.currentLeaderSupplier = currentLeaderSupplier;
+            this.getLeaderForTermIfAlive = getLeaderForTermIfAlive;
             this.sharedStore = sharedStore;
             this.register = register;
         }
@@ -482,7 +472,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                 && isLatestAcceptedStateOutdated(localAcceptedTerm, localAcceptedVersion) == false
                 // if there's a leader that's not the local node wait, otherwise win the election immediately
                 // (use the leader node id instead of equals to take into account restarts)
-                && currentLeaderSupplier.get().map(leader -> leader.getId().equals(localNode.getId())).orElse(true)
+                && getLeaderForTermIfAlive.apply(localCurrentTerm).map(leader -> leader.getId().equals(localNode.getId())).orElse(true)
                 && joinVotes.containsVoteFor(localNode);
         }
 
@@ -550,11 +540,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             );
         }
 
-        private void writeHearBeat(long term, HeartBeat heartBeat) {
-            HeartBeat previousHeartbeat = heartBeatsByTerm.put(term, heartBeat);
-            assert previousHeartbeat == null || heartBeat.leader().equals(previousHeartbeat.leader());
-        }
-
         private PersistentClusterState getLatestClusterState() {
             final var termOwner = register.getTermOwner();
 
@@ -575,6 +560,11 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                 }
             }
             return null;
+        }
+
+        private void writeHearBeat(long term, HeartBeat heartBeat) {
+            HeartBeat previousHeartbeat = heartBeatsByTerm.put(term, heartBeat);
+            assert previousHeartbeat == null || heartBeat.leader().equals(previousHeartbeat.leader());
         }
 
         private HeartBeat getHearbeatForTerm(long term) {

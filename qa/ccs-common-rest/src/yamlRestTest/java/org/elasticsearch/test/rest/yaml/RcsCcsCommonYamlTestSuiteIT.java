@@ -120,8 +120,8 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     }
 
     @Override
-    protected boolean preserveSystemFeatureStates() {
-        return true;
+    protected boolean resetFeatureStates() {
+        return false;
     }
 
     @Override

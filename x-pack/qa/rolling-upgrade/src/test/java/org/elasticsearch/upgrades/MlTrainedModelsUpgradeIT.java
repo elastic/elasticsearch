@@ -41,11 +41,6 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
     static final List<String> KEYWORD_FIELD_VALUES = List.of("cat", "dog");
     static final String INDEX_NAME = "created_index";
 
-    @Override
-    protected boolean preserveSystemFeatureStates() {
-        return true;
-    }
-
     @BeforeClass
     public static void maybeSkip() {
         assumeFalse("Skip ML tests on unsupported glibc versions", SKIP_ML_TESTS);

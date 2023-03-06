@@ -543,16 +543,16 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Determines whether the system feature reset API should be invoked between tests. The default implementation is to reset
      * all feature states, deleting system indices, system associated indices, and system data streams.
      */
-    protected boolean preserveSystemFeatureStates() {
+    protected boolean resetFeatureStates() {
         try {
             // ML reset fails when ML is disabled in versions before 8.7
             if (isMlEnabled() == false && minimumNodeVersion().before(Version.V_8_7_0)) {
-                return true;
+                return false;
             }
         } catch (IOException e) {
-            return true; // can't determine minimum node version, so do this to be safe
+            throw new AssertionError("Failed to find a minimum node version.", e);
         }
-        return false;
+        return true;
     }
 
     /**
@@ -684,7 +684,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         wipeSnapshots();
 
-        if (preserveSystemFeatureStates() == false) {
+        if (resetFeatureStates()) {
             final Request postRequest = new Request("POST", "/_features/_reset");
             adminClient().performRequest(postRequest);
         }

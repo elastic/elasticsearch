@@ -13,6 +13,10 @@ import org.gradle.testkit.runner.TaskOutcome
 
 class ElasticsearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
 
+    def setup() {
+        configurationCacheCompatible = false
+    }
+
     def "can configure nonInputProperties for test tasks"() {
         given:
         file("src/test/java/acme/SomeTests.java").text = """

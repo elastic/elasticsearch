@@ -98,7 +98,5 @@ public class ClearDeploymentCacheAction extends ActionType<ClearDeploymentCacheA
             builder.endObject();
             return builder;
         }
-
-
     }
 }

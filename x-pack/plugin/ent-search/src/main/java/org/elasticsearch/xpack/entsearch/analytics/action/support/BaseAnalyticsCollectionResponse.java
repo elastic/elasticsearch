@@ -14,7 +14,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.entsearch.analytics.AnalyticsCollection;
-import org.elasticsearch.xpack.entsearch.analytics.action.PutAnalyticsCollectionAction;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -49,7 +48,7 @@ public class BaseAnalyticsCollectionResponse extends ActionResponse {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        PutAnalyticsCollectionAction.Response that = (PutAnalyticsCollectionAction.Response) o;
+        BaseAnalyticsCollectionResponse that = (BaseAnalyticsCollectionResponse) o;
         return Objects.equals(this.analyticsCollection, that.analyticsCollection);
     }
 

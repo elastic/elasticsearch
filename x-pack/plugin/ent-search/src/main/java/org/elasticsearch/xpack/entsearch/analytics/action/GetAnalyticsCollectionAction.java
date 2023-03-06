@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -99,9 +98,6 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
             return toXContentCommon(builder, params);
         }
 
-        public RestStatus status() {
-            return RestStatus.OK;
-        }
     }
 
 }

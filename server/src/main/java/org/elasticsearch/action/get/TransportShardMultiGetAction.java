@@ -88,12 +88,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         if (iterator == null) {
             return null;
         }
-        // Only route to promotable shards. This is a temporary workaround for stateless until a more cohesive solution can be
-        // implemented for search shards.
-        return new PlainShardIterator(
-            iterator.shardId(),
-            iterator.getShardRoutings().stream().filter(ShardRouting::isPromotableToPrimary).toList()
-        );
+        return new PlainShardIterator(iterator.shardId(), iterator.getShardRoutings().stream().filter(ShardRouting::isSearchable).toList());
     }
 
     @Override

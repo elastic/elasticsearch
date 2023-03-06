@@ -807,14 +807,11 @@ public class AzureBlobStore implements BlobStore {
         try {
             return SocketAccess.doPrivilegedException(
                 () -> OptionalLong.of(
-                    BlobContainerUtils.getRegisterUsingConsistentRead(
-                        getAzureBlobServiceClientClient().getSyncClient()
-                            .getBlobContainerClient(container)
-                            .getBlobClient(blobPath)
-                            .downloadContent()
-                            .toStream(),
+                    downloadRegisterBlob(
                         containerPath,
-                        blobKey
+                        blobKey,
+                        getAzureBlobServiceClientClient().getSyncClient().getBlobContainerClient(container).getBlobClient(blobPath),
+                        null
                     )
                 )
             );
@@ -830,7 +827,15 @@ public class AzureBlobStore implements BlobStore {
     OptionalLong compareAndExchangeRegister(String blobPath, String containerPath, String blobKey, long expected, long updated) {
         try {
             return SocketAccess.doPrivilegedException(
-                () -> OptionalLong.of(innerCompareAndExchangeRegister(blobPath, containerPath, blobKey, expected, updated))
+                () -> OptionalLong.of(
+                    innerCompareAndExchangeRegister(
+                        containerPath,
+                        blobKey,
+                        getAzureBlobServiceClientClient().getSyncClient().getBlobContainerClient(container).getBlobClient(blobPath),
+                        expected,
+                        updated
+                    )
+                )
             );
         } catch (Exception e) {
             if (Throwables.getRootCause(e)instanceof BlobStorageException blobStorageException) {
@@ -843,20 +848,22 @@ public class AzureBlobStore implements BlobStore {
         }
     }
 
-    private long innerCompareAndExchangeRegister(String blobPath, String containerPath, String blobKey, long expected, long updated)
-        throws IOException {
-        final var blobClient = getAzureBlobServiceClientClient().getSyncClient().getBlobContainerClient(container).getBlobClient(blobPath);
-
+    private static long innerCompareAndExchangeRegister(
+        String containerPath,
+        String blobKey,
+        BlobClient blobClient,
+        long expected,
+        long updated
+    ) throws IOException {
         if (blobClient.exists()) {
             final var leaseClient = new BlobLeaseClientBuilder().blobClient(blobClient).buildClient();
             final var leaseId = leaseClient.acquireLease(60);
             try {
-                final var currentValue = BlobContainerUtils.getRegisterUsingConsistentRead(
-                    blobClient.downloadContentWithResponse(null, new BlobRequestConditions().setLeaseId(leaseId), null, null)
-                        .getValue()
-                        .toStream(),
+                final long currentValue = downloadRegisterBlob(
                     containerPath,
-                    blobKey
+                    blobKey,
+                    blobClient,
+                    new BlobRequestConditions().setLeaseId(leaseId)
                 );
                 if (currentValue == expected) {
                     uploadRegisterBlob(updated, blobClient, new BlobRequestConditions().setLeaseId(leaseId));
@@ -873,7 +880,22 @@ public class AzureBlobStore implements BlobStore {
         }
     }
 
-    private void uploadRegisterBlob(long value, BlobClient blobClient, BlobRequestConditions requestConditions) throws IOException {
+    private static long downloadRegisterBlob(
+        String containerPath,
+        String blobKey,
+        BlobClient blobClient,
+        BlobRequestConditions blobRequestConditions
+    ) throws IOException {
+        return BlobContainerUtils.getRegisterUsingConsistentRead(
+            blobClient.downloadContentWithResponse(new DownloadRetryOptions().setMaxRetryRequests(0), blobRequestConditions, null, null)
+                .getValue()
+                .toStream(),
+            containerPath,
+            blobKey
+        );
+    }
+
+    private static void uploadRegisterBlob(long value, BlobClient blobClient, BlobRequestConditions requestConditions) throws IOException {
         final var blobContents = BlobContainerUtils.getRegisterBlobContents(value);
         blobClient.uploadWithResponse(
             new BlobParallelUploadOptions(BinaryData.fromStream(blobContents.streamInput(), (long) blobContents.length()))

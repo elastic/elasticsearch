@@ -13,6 +13,8 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.vectors.KnnSearchRequestParser;
@@ -27,6 +29,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * The REST action for handling kNN searches. Currently, it just parses
  * the REST request into a search request and calls the search action.
  */
+@ServerlessScope(Scope.PUBLIC)
 public class RestKnnSearchAction extends BaseRestHandler {
 
     static final String DEPRECATION_MESSAGE = "The kNN search API has been replaced by the `knn` option in the search API.";

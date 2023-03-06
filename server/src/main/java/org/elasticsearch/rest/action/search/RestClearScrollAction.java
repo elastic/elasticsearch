@@ -22,6 +22,7 @@ import java.util.List;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestClearScrollAction extends BaseRestHandler {
 
     @Override

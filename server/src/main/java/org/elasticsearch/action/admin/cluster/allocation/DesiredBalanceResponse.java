@@ -181,6 +181,11 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
         private static final TransportVersion ADD_FORECASTS_VERSION = TransportVersion.V_8_7_0;
         private static final TransportVersion NULLABLE_RELOCATING_NODE_IS_DESIRED = TransportVersion.V_8_8_0;
 
+        public ShardView {
+            assert (relocatingNode == null) == (relocatingNodeIsDesired == null)
+                : "relocatingNodeIsDesired should only be set when relocatingNode is set";
+        }
+
         public static ShardView from(StreamInput in) throws IOException {
             var shardView = new ShardView(
                 ShardRoutingState.fromValue(in.readByte()),

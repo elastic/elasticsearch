@@ -1068,9 +1068,16 @@ public class Node implements Closeable {
                 }
                 b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
                 pluginComponents.forEach(p -> {
-                    @SuppressWarnings("unchecked")
-                    Class<Object> pluginClass = (Class<Object>) p.getClass();
-                    b.bind(pluginClass).toInstance(p);
+                    if (p instanceof PluginComponentInterface<?, ?> pci) {
+                        @SuppressWarnings("unchecked")
+                        Class<Object> clazz = (Class<Object>) pci.clazz();
+                        b.bind(clazz).toProvider(pci.provider());
+
+                    } else {
+                        @SuppressWarnings("unchecked")
+                        Class<Object> clazz = (Class<Object>) p.getClass();
+                        b.bind(clazz).toInstance(p);
+                    }
                 });
                 b.bind(PersistentTasksService.class).toInstance(persistentTasksService);
                 b.bind(PersistentTasksClusterService.class).toInstance(persistentTasksClusterService);
@@ -1113,10 +1120,12 @@ public class Node implements Closeable {
             // reroute, which needs to call into the allocation service. We close the loop here:
             clusterModule.setExistingShardsAllocators(injector.getInstance(GatewayAllocator.class));
 
-            List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream()
-                .filter(p -> p instanceof LifecycleComponent)
-                .map(p -> (LifecycleComponent) p)
-                .toList();
+            List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream().map(p -> {
+                if (p instanceof PluginComponentInterface<?, ?> pci) {
+                    return pci.provider().get();
+                }
+                return p;
+            }).filter(p -> p instanceof LifecycleComponent).map(p -> (LifecycleComponent) p).toList();
             resourcesToClose.addAll(pluginLifecycleComponents);
             resourcesToClose.add(injector.getInstance(PeerRecoverySourceService.class));
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);

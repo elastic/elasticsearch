@@ -117,13 +117,7 @@ public interface ActionListener<Response> {
 
             @Override
             public void onFailure(Exception e) {
-                try {
-                    runnable.run();
-                } catch (RuntimeException ex) {
-                    ex.addSuppressed(e);
-                    assert false : ex;
-                    throw ex;
-                }
+                safeAcceptException(ignored -> runnable.run(), e);
             }
 
             @Override

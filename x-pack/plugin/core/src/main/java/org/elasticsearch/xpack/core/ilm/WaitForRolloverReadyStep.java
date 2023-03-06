@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.rollover.Condition;
+import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.internal.Client;
@@ -25,7 +27,9 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -201,7 +205,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         // if we should only rollover if not empty, *and* if neither an explicit min_docs nor an explicit min_primary_shard_docs
         // has been specified on this policy, then inject a default min_docs: 1 condition so that we do not rollover empty indices
         boolean rolloverOnlyIfHasDocuments = LifecycleSettings.LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS_SETTING.get(metadata.settings());
-        boolean targetIsTsdb = dataStream != null && dataStream.getDataStream().getIndexMode() == IndexMode.TIME_SERIES;
+        boolean targetIsTsdb = dataStream != null && dataStream.getIndexMode() == IndexMode.TIME_SERIES;
         RolloverRequest rolloverRequest = createRolloverRequest(rolloverTarget, masterTimeout, rolloverOnlyIfHasDocuments, targetIsTsdb);
 
         getClient().admin()
@@ -244,6 +248,14 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             rolloverRequest.setConditions(RolloverConditions.newBuilder(conditions).addMinIndexDocsCondition(1L).build());
         } else {
             rolloverRequest.setConditions(conditions);
+        }
+        long currentMaxPrimaryShardDocs = rolloverRequest.getConditions().getMaxPrimaryShardDocs() != null
+            ? rolloverRequest.getConditions().getMaxPrimaryShardDocs()
+            : Long.MAX_VALUE;
+        if (targetIsTsdb && currentMaxPrimaryShardDocs > MAX_PRIMARY_SHARD_DOCS_FOR_TSDB) {
+            Map<String, Condition<?>> conditions = new HashMap<>(rolloverRequest.getConditions().getConditions());
+            conditions.put(MaxPrimaryShardDocsCondition.NAME, new MaxPrimaryShardDocsCondition(MAX_PRIMARY_SHARD_DOCS_FOR_TSDB));
+            rolloverRequest.setConditions(new RolloverConditions(conditions));
         }
         return rolloverRequest;
     }

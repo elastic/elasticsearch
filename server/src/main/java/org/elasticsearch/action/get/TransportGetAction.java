@@ -146,7 +146,11 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                 node,
                 TransportShardRefreshAction.NAME,
                 refreshRequest,
-                new ActionListenerResponseHandler<>(listener.map(t -> shardOperation(request, shardId)), ReplicationResponse::new)
+                new ActionListenerResponseHandler<>(
+                    listener.map(t -> shardOperation(request, shardId)),
+                    ReplicationResponse::new,
+                    ThreadPool.Names.GET
+                )
             );
         } else if (request.realtime()) {
             transportService.sendRequest(

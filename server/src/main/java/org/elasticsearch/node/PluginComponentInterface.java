@@ -8,31 +8,50 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.common.inject.Provider;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 
 /**
  *<p>
- * Describes the relationship between an interface and a provider to the implementation for {@link Plugin} components. All {@link Plugin}'s
- * must implement the plugin interface which requires returning a collection of components via createComponents(...). Those components are
- * then made available for dependency injection while setting up the {@link Node}. The common convention is for a plugin is to create
- * a concrete implementation and return that instance from createComponents(...). However, that does not work if a plugin
- * wants to contribute a different implementation of an interface based on some condition defined within the plugin. This class exists
- * so that a plugin can define the interface and then conditionally define the implementation which is wired in for dependency injection.
+ * Describes the relationship between an interface and an implementation for a {@link Plugin} component. All {@link Plugin}'s
+ * provide a collection of components via the createComponents(...) that are made available for
+ * dependency injection. An {@link ExtensiblePlugin} may want to expose an interface such that extensions can change the implementation.
+ * Usage of this class allows the interface to made available for dependency injection where the implementation is defined at runtime.
  *</p>
- *
  *     Usage:
  * <pre>{@code
-
-//TODO...
+public class MyPlugin extends Plugin implements ExtensiblePlugin
+{
+    @Override
+    public Collection<Object> createComponents(...) {
+        List<Object> components = new ArrayList<>();
+        components.add(new PluginComponentInterface<>(MyInterface.class, this.myImplementation));
+        ...
+        return components;
+    }
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        List<MyInterface> myImplementations = loader.loadExtensions(MyInterface.class);
+        if(myImplementations.size() > 0) {
+            this.myImplementation = myImplementations.get(0); //use extension provided implementation
+        } else {
+            this.myImplementation = new StandardMyImplementation()
+        }
+    }
+...
 }
- * </pre>
- *
- *
+public class TransportMyAction extends TransportMasterNodeAction<MyRequest, MyResponse> {
+    @Inject
+    public TransportMyAction(MyInterface myInterface) {
+        this.myInterface = myInterface; //implementation may vary depending on extensions defined for
+    }
+    ...
+}
+}</pre>
  *<p>
  * Note - usage of the class does not change any class loader isolation strategies nor visibility of the provided classes.
  * </p>
- * @param <C> The interface
- * @param <I> A provider to the instance of the interface
+ * @param <I> The interface class
+ * @param <T> The implementation class
  */
-public record PluginComponentInterface<C, I extends C> (Class<? extends C> clazz, Provider<I> provider) {}
+public record PluginComponentInterface<I, T extends I> (Class<? extends I> inter, T impl) {}

@@ -1068,16 +1068,11 @@ public class Node implements Closeable {
                 }
                 b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
                 pluginComponents.forEach(p -> {
-                    // TODO: mature this
-                    if (p instanceof PluginComponentInterface<?, ?>) {
-                        // bind private interface component to custom implementation
-                        // @SuppressWarnings("unchecked")
-                        PluginComponentInterface<?, ?> pi = (PluginComponentInterface<?, ?>) p;
+                    if (p instanceof PluginComponentInterface<?, ?> pci) {
                         @SuppressWarnings("unchecked")
-                        Class<Object> clazz = (Class<Object>) pi.clazz();
-                        b.bind(clazz).toProvider(pi.provider());
+                        Class<Object> clazz = (Class<Object>) pci.inter();
+                        b.bind(clazz).to((Class<?>) pci.impl());
                     } else {
-                        // instance bind components
                         @SuppressWarnings("unchecked")
                         Class<Object> clazz = (Class<Object>) p.getClass();
                         b.bind(clazz).toInstance(p);
@@ -1124,26 +1119,15 @@ public class Node implements Closeable {
             // reroute, which needs to call into the allocation service. We close the loop here:
             clusterModule.setExistingShardsAllocators(injector.getInstance(GatewayAllocator.class));
 
-            // TODO: fix this mess
-            List<LifecycleComponent> initialLifecycleComponents = pluginComponents.stream()
-                .filter(p -> p instanceof LifecycleComponent)
-                .map(p -> (LifecycleComponent) p)
-                .toList();
-
-            // THIS IS bad and I should feel bad
-            List<LifecycleComponent> additionlaPluginLifecycleComponents = pluginComponents.stream()
-                .filter(p -> p instanceof PluginComponentInterface)
-                .map(p -> ((PluginComponentInterface) p).provider().get())
-                .filter(p -> p instanceof LifecycleComponent)
-                .map(p -> (LifecycleComponent) p)
-                .toList();
-
-            ArrayList<LifecycleComponent> lifecycleComponents = new ArrayList<>(initialLifecycleComponents);
-            lifecycleComponents.addAll(additionlaPluginLifecycleComponents);
-
-            resourcesToClose.addAll(lifecycleComponents);
+            List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream().map(p -> {
+                if (p instanceof PluginComponentInterface<?, ?> pci) {
+                    return pci.impl();
+                }
+                return p;
+            }).filter(p -> p instanceof LifecycleComponent).map(p -> (LifecycleComponent) p).toList();
+            resourcesToClose.addAll(pluginLifecycleComponents);
             resourcesToClose.add(injector.getInstance(PeerRecoverySourceService.class));
-            this.pluginLifecycleComponents = Collections.unmodifiableList(lifecycleComponents);
+            this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
 
             // Due to Java's type erasure with generics, the injector can't give us exactly what we need, and we have
             // to resort to some evil casting.

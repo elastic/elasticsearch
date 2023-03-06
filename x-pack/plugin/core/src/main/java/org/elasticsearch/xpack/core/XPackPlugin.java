@@ -326,8 +326,8 @@ public class XPackPlugin extends XPackClientPlugin
 
         // It is useful to override these as they are what guice is injecting into actions
         components.add(sslService);
-        components.add(new PluginComponentInterface<>(LicenseService.MutableLicense.class, () -> licenseService));
-        components.add(new PluginComponentInterface<>(LicenseService.class, () -> licenseService));
+        components.add(new PluginComponentInterface<>(LicenseService.MutableLicense.class, licenseService));
+        components.add(new PluginComponentInterface<>(LicenseService.class, licenseService));
         components.add(getLicenseState());
 
         return components;

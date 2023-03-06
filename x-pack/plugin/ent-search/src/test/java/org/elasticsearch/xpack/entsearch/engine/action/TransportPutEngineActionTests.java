@@ -14,9 +14,9 @@ import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.entsearch.EnterpriseSearchTransportAction;
 import org.elasticsearch.xpack.entsearch.engine.Engine;
 import org.elasticsearch.xpack.entsearch.engine.EngineIndexService;
+import org.elasticsearch.xpack.entsearch.utils.LicenseUtils;
 
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -31,7 +31,7 @@ public class TransportPutEngineActionTests extends ESTestCase {
     public void testWithUnsupportedLicense() {
         MockLicenseState licenseState = mock(MockLicenseState.class);
 
-        when(licenseState.isAllowed(EnterpriseSearchTransportAction.LICENSED_ENGINE_FEATURE)).thenReturn(false);
+        when(licenseState.isAllowed(LicenseUtils.LICENSED_ENT_SEARCH_FEATURE)).thenReturn(false);
         when(licenseState.isActive()).thenReturn(false);
         when(licenseState.statusDescription()).thenReturn("invalid license");
 
@@ -62,6 +62,9 @@ public class TransportPutEngineActionTests extends ESTestCase {
 
         assertThat(responseRef.get(), is(nullValue()));
         assertThat(throwableRef.get(), instanceOf(ElasticsearchSecurityException.class));
-        assertThat(throwableRef.get().getMessage(), containsString("Engines require an active trial or platinum license"));
+        assertThat(
+            throwableRef.get().getMessage(),
+            containsString("Engines and behavioral analytics require an active trial, platinum or enterprise license.")
+        );
     }
 }

@@ -5,35 +5,26 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.entsearch;
+package org.elasticsearch.xpack.entsearch.engine.action;
 
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.license.License;
-import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.entsearch.utils.LicenseUtils;
 
-public abstract class EnterpriseSearchTransportAction<Request extends ActionRequest, Response extends ActionResponse> extends
-    HandledTransportAction<Request, Response> {
+public abstract class EngineTransportAction<Request extends ActionRequest, Response extends ActionResponse> extends HandledTransportAction<
+    Request,
+    Response> {
 
     protected final XPackLicenseState licenseState;
 
-    public static final LicensedFeature.Momentary LICENSED_ENGINE_FEATURE = LicensedFeature.momentary(
-        null,
-        XPackField.ENTEPRISE_SEARCH,
-        License.OperationMode.PLATINUM
-    );
-
-    public EnterpriseSearchTransportAction(
+    public EngineTransportAction(
         String actionName,
         TransportService transportService,
         ActionFilters actionFilters,
@@ -46,24 +37,12 @@ public abstract class EnterpriseSearchTransportAction<Request extends ActionRequ
 
     @Override
     public final void doExecute(Task task, final Request request, ActionListener<Response> listener) {
-        if (LICENSED_ENGINE_FEATURE.check(licenseState)) {
+        if (LicenseUtils.supportedLicense(licenseState)) {
             doExecute(request, listener);
         } else {
-            listener.onFailure(newComplianceException(licenseState));
+            listener.onFailure(LicenseUtils.newComplianceException(licenseState));
         }
     }
 
     protected abstract void doExecute(Request request, ActionListener<Response> listener);
-
-    private static ElasticsearchSecurityException newComplianceException(XPackLicenseState licenseState) {
-        String licenseStatus = licenseState.statusDescription();
-
-        ElasticsearchSecurityException e = new ElasticsearchSecurityException(
-            "Current license is non-compliant for engines. Current license is {}. "
-                + "Engines require an active trial or platinum license.",
-            RestStatus.FORBIDDEN,
-            licenseStatus
-        );
-        return e;
-    }
 }

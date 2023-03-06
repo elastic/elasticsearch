@@ -12,11 +12,10 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.entsearch.EnterpriseSearchTransportAction;
 import org.elasticsearch.xpack.entsearch.engine.Engine;
 import org.elasticsearch.xpack.entsearch.engine.EngineIndexService;
 
-public class TransportPutEngineAction extends EnterpriseSearchTransportAction<PutEngineAction.Request, PutEngineAction.Response> {
+public class TransportPutEngineAction extends EngineTransportAction<PutEngineAction.Request, PutEngineAction.Response> {
 
     private final EngineIndexService engineIndexService;
 

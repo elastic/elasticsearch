@@ -13,10 +13,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.PageParams;
-import org.elasticsearch.xpack.entsearch.EnterpriseSearchTransportAction;
 import org.elasticsearch.xpack.entsearch.engine.EngineIndexService;
 
-public class TransportListEnginesAction extends EnterpriseSearchTransportAction<ListEnginesAction.Request, ListEnginesAction.Response> {
+public class TransportListEnginesAction extends EngineTransportAction<ListEnginesAction.Request, ListEnginesAction.Response> {
 
     private final EngineIndexService engineIndexService;
 

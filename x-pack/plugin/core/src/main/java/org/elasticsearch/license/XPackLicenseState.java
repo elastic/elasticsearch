@@ -57,7 +57,7 @@ public class XPackLicenseState {
         messages.put(XPackField.DEPRECATION, new String[] { "Deprecation APIs are disabled" });
         messages.put(XPackField.UPGRADE, new String[] { "Upgrade API is disabled" });
         messages.put(XPackField.SQL, new String[] { "SQL support is disabled" });
-        messages.put(XPackField.ENTEPRISE_SEARCH, new String[] { "Engines and behavioural analytics will be disabled" });
+        messages.put(XPackField.ENTERPRISE_SEARCH, new String[] { "Engines and behavioral analytics will be disabled" });
         messages.put(
             XPackField.ROLLUP,
             new String[] {
@@ -99,7 +99,7 @@ public class XPackLicenseState {
         messages.put(XPackField.BEATS, XPackLicenseState::beatsAcknowledgementMessages);
         messages.put(XPackField.SQL, XPackLicenseState::sqlAcknowledgementMessages);
         messages.put(XPackField.CCR, XPackLicenseState::ccrAcknowledgementMessages);
-        messages.put(XPackField.ENTEPRISE_SEARCH, XPackLicenseState::enterpriseSearchAcknowledgementMessages);
+        messages.put(XPackField.ENTERPRISE_SEARCH, XPackLicenseState::enterpriseSearchAcknowledgementMessages);
         ACKNOWLEDGMENT_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -222,7 +222,7 @@ public class XPackLicenseState {
                     case TRIAL:
                     case PLATINUM:
                     case ENTERPRISE:
-                        return new String[] { "Engines and behavioural analytics will be disabled" };
+                        return new String[] { "Engines and behavioral analytics will be disabled" };
                 }
                 break;
         }

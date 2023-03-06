@@ -8,17 +8,18 @@
 package org.elasticsearch.xpack.entsearch.analytics.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.entsearch.analytics.AnalyticsCollection;
+import org.elasticsearch.xpack.entsearch.analytics.action.support.BaseAnalyticsCollectionResponse;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -87,51 +88,22 @@ public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollect
         }
     }
 
-    public static class Response extends ActionResponse implements StatusToXContentObject {
-        final AnalyticsCollection analyticsCollection;
-
+    public static class Response extends BaseAnalyticsCollectionResponse implements ToXContentObject {
         public Response(StreamInput in) throws IOException {
             super(in);
-            analyticsCollection = new AnalyticsCollection(in);
         }
 
         public Response(AnalyticsCollection analyticsCollection) {
-            this.analyticsCollection = analyticsCollection;
+            super(analyticsCollection);
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.startObject(analyticsCollection.getName());
-            builder.startObject("event_data_stream");
-            builder.field("name", analyticsCollection.getEventDataStream());
-            builder.endObject();
-            builder.endObject();
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
         public RestStatus status() {
             return RestStatus.OK;
         }
 
         @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response that = (Response) o;
-            return Objects.equals(this.analyticsCollection, that.analyticsCollection);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(analyticsCollection);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            this.analyticsCollection.writeTo(out);
+        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+            return toXContentCommon(builder, params);
         }
     }
 }

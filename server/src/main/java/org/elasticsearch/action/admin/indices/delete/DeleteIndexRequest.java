@@ -23,7 +23,7 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * A request to delete an index. Best created with {@link org.elasticsearch.client.internal.Requests#deleteIndexRequest(String)}.
+ * A request to delete an index.
  */
 public class DeleteIndexRequest extends AcknowledgedRequest<DeleteIndexRequest> implements IndicesRequest.Replaceable {
 

@@ -13,16 +13,16 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.time.Clock;
 
-public interface LicenseServiceFactory {
+public class StandardLicenseFactory implements LicenseServiceFactory {
 
-    /**
-     * Creates a {@link LicenseService}
-     */
-    LicenseService create(
+    @Override
+    public LicenseService create(
         Settings settings,
         ThreadPool threadPool,
         ClusterService clusterService,
         Clock clock,
         XPackLicenseState xPacklicenseState
-    );
+    ) {
+        return new ClusterStateLicenseService(settings, threadPool, clusterService, clock, xPacklicenseState);
+    }
 }

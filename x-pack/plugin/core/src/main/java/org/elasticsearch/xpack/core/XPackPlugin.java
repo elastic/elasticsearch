@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicenseServiceFactory;
+import org.elasticsearch.license.LicenseServiceLoader;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
@@ -316,8 +317,10 @@ public class XPackPlugin extends XPackClientPlugin
         final SSLService sslService = createSSLService(environment, resourceWatcherService);
 
         LicenseService licenseService;
+        LicenseServiceFactory factory;
         try {
-            licenseService = LicenseServiceFactory.create(settings, threadPool, clusterService, getClock(), getLicenseState());
+            factory = LicenseServiceLoader.load();
+            licenseService = factory.create(settings, threadPool, clusterService, getClock(), getLicenseState());
             // licenseService = new ClusterStateLicenseService(settings, threadPool, clusterService, getClock(), getLicenseState());
         } catch (Exception e) {
             throw new IllegalStateException("Can not determine implementation for LicenseService", e);
@@ -336,7 +339,7 @@ public class XPackPlugin extends XPackClientPlugin
     }
 
     public List<Class<?>> getSPIInterfaces() {
-        return Collections.singletonList(LicenseService.class);
+        return Collections.singletonList(LicenseServiceFactory.class);
     }
 
     @Override

@@ -98,12 +98,6 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
     private static final String ACKNOWLEDGEMENT_HEADER = "This license update requires acknowledgement. To acknowledge the license, "
         + "please read the following messages and update the license again, this time with the \"acknowledge=true\" parameter:";
 
-    public ClusterStateLicenseService() {
-        // Exists to pacify the reuse of the SPI definition file with module-info.
-        // See {@link LicenseServiceFactory}
-        throw new IllegalStateException("Use of the default constructor is not supported.");
-    }
-
     public ClusterStateLicenseService(
         Settings settings,
         ThreadPool threadPool,
@@ -599,4 +593,5 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         }
         return null;
     }
+
 }

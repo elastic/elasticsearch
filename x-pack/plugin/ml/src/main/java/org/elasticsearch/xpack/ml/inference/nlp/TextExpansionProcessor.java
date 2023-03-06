@@ -45,10 +45,12 @@ public class TextExpansionProcessor extends NlpTask.Processor {
     static InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult, String resultsField) {
         List<TextExpansionResults.WeightedToken> weightedTokens;
         if (pyTorchResult.getInferenceResult()[0].length == 1) {
-            weightedTokens = sparseVectorToTokenWeights(pyTorchResult.getInferenceResult()[0][0]);
+            weightedTokens = sparseVectorToTokenWeights(pyTorchResult.getInferenceResult()[0][0], tokenization);
         } else {
-            weightedTokens = multipleSparseVectorsToTokenWeights(pyTorchResult.getInferenceResult()[0]);
+            weightedTokens = multipleSparseVectorsToTokenWeights(pyTorchResult.getInferenceResult()[0], tokenization);
         }
+
+        weightedTokens.sort((t1, t2) -> Float.compare(t2.weight(), t1.weight()));
 
         return new TextExpansionResults(
             Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),
@@ -57,7 +59,10 @@ public class TextExpansionProcessor extends NlpTask.Processor {
         );
     }
 
-    static List<TextExpansionResults.WeightedToken> multipleSparseVectorsToTokenWeights(double[][] vector) {
+    static List<TextExpansionResults.WeightedToken> multipleSparseVectorsToTokenWeights(
+        double[][] vector,
+        TokenizationResult tokenization
+    ) {
         // reduce to a single 1d array choosing the max value
         // in each column and placing that in the first row
         for (int i = 1; i < vector.length; i++) {
@@ -67,15 +72,15 @@ public class TextExpansionProcessor extends NlpTask.Processor {
                 }
             }
         }
-        return sparseVectorToTokenWeights(vector[0]);
+        return sparseVectorToTokenWeights(vector[0], tokenization);
     }
 
-    static List<TextExpansionResults.WeightedToken> sparseVectorToTokenWeights(double[] vector) {
+    static List<TextExpansionResults.WeightedToken> sparseVectorToTokenWeights(double[] vector, TokenizationResult tokenization) {
         // Anything with a score > 0.0 is retained.
         List<TextExpansionResults.WeightedToken> weightedTokens = new ArrayList<>();
         for (int i = 0; i < vector.length; i++) {
             if (vector[i] > 0.0) {
-                weightedTokens.add(new TextExpansionResults.WeightedToken(i, (float) vector[i]));
+                weightedTokens.add(new TextExpansionResults.WeightedToken(tokenization.getFromVocab(i), (float) vector[i]));
             }
         }
         return weightedTokens;

@@ -23,7 +23,7 @@ public class TextExpansionProcessorTests extends ESTestCase {
     public void testProcessResult() {
         double[][][] pytorchResult = new double[][][] { { { 0.0, 1.0, 0.0, 3.0, 4.0, 0.0, 0.0 } } };
 
-        TokenizationResult tokenizationResult = new BertTokenizationResult(List.of(), List.of(), 0);
+        TokenizationResult tokenizationResult = new BertTokenizationResult(List.of("a", "b", "c", "d", "e", "f", "g"), List.of(), 0);
 
         var inferenceResult = TextExpansionProcessor.processResult(tokenizationResult, new PyTorchInferenceResult(pytorchResult), "foo");
         assertThat(inferenceResult, instanceOf(TextExpansionResults.class));
@@ -32,15 +32,15 @@ public class TextExpansionProcessorTests extends ESTestCase {
 
         var weightedTokens = results.getWeightedTokens();
         assertThat(weightedTokens, hasSize(3));
-        assertEquals(new TextExpansionResults.WeightedToken(1, 1.0f), weightedTokens.get(0));
-        assertEquals(new TextExpansionResults.WeightedToken(3, 3.0f), weightedTokens.get(1));
-        assertEquals(new TextExpansionResults.WeightedToken(4, 4.0f), weightedTokens.get(2));
+        assertEquals(new TextExpansionResults.WeightedToken("e", 4.0f), weightedTokens.get(0));
+        assertEquals(new TextExpansionResults.WeightedToken("d", 3.0f), weightedTokens.get(1));
+        assertEquals(new TextExpansionResults.WeightedToken("b", 1.0f), weightedTokens.get(2));
     }
 
     public void testProcessResultMultipleVectors() {
         double[][][] pytorchResult = new double[][][] { { { 0.0, 1.0, 0.0, 1.0, 4.0, 0.0, 0.0 }, { 1.0, 2.0, 0.0, 3.0, 4.0, 0.0, 0.1 } } };
 
-        TokenizationResult tokenizationResult = new BertTokenizationResult(List.of(), List.of(), 0);
+        TokenizationResult tokenizationResult = new BertTokenizationResult(List.of("a", "b", "c", "d", "e", "f", "g"), List.of(), 0);
 
         var inferenceResult = TextExpansionProcessor.processResult(tokenizationResult, new PyTorchInferenceResult(pytorchResult), "foo");
         assertThat(inferenceResult, instanceOf(TextExpansionResults.class));
@@ -49,10 +49,10 @@ public class TextExpansionProcessorTests extends ESTestCase {
 
         var weightedTokens = results.getWeightedTokens();
         assertThat(weightedTokens, hasSize(5));
-        assertEquals(new TextExpansionResults.WeightedToken(0, 1.0f), weightedTokens.get(0));
-        assertEquals(new TextExpansionResults.WeightedToken(1, 2.0f), weightedTokens.get(1));
-        assertEquals(new TextExpansionResults.WeightedToken(3, 3.0f), weightedTokens.get(2));
-        assertEquals(new TextExpansionResults.WeightedToken(4, 4.0f), weightedTokens.get(3));
-        assertEquals(new TextExpansionResults.WeightedToken(6, 0.1f), weightedTokens.get(4));
+        assertEquals(new TextExpansionResults.WeightedToken("e", 4.0f), weightedTokens.get(0));
+        assertEquals(new TextExpansionResults.WeightedToken("d", 3.0f), weightedTokens.get(1));
+        assertEquals(new TextExpansionResults.WeightedToken("b", 2.0f), weightedTokens.get(2));
+        assertEquals(new TextExpansionResults.WeightedToken("a", 1.0f), weightedTokens.get(3));
+        assertEquals(new TextExpansionResults.WeightedToken("g", 0.1f), weightedTokens.get(4));
     }
 }

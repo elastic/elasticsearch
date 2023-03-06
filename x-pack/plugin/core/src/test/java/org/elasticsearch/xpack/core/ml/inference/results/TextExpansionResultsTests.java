@@ -25,7 +25,7 @@ public class TextExpansionResultsTests extends InferenceResultsTestCase<TextExpa
         int numTokens = randomIntBetween(0, 20);
         List<TextExpansionResults.WeightedToken> tokenList = new ArrayList<>();
         for (int i = 0; i < numTokens; i++) {
-            tokenList.add(new TextExpansionResults.WeightedToken(i, (float) randomDoubleBetween(0.0, 5.0, false)));
+            tokenList.add(new TextExpansionResults.WeightedToken(Integer.toString(i), (float) randomDoubleBetween(0.0, 5.0, false)));
         }
         return new TextExpansionResults(randomAlphaOfLength(4), tokenList, randomBoolean());
     }
@@ -45,11 +45,7 @@ public class TextExpansionResultsTests extends InferenceResultsTestCase<TextExpa
         var originalTokens = createdInstance.getWeightedTokens();
         assertEquals(originalTokens.size(), ingestedTokens.size());
         for (int i = 0; i < createdInstance.getWeightedTokens().size(); i++) {
-            assertEquals(
-                originalTokens.get(i).weight(),
-                (float) ingestedTokens.get(i).get(Integer.toString(originalTokens.get(i).token())),
-                0.0001
-            );
+            assertEquals(originalTokens.get(i).weight(), (float) ingestedTokens.get(i).get(originalTokens.get(i).token()), 0.0001);
         }
     }
 }

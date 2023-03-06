@@ -7613,6 +7613,34 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testConcurrentRefreshResult() throws Exception {
+        try (Store store = createStore(); InternalEngine engine = createEngine(store, createTempDir())) {
+            AtomicBoolean stopped = new AtomicBoolean();
+            CountDownLatch latch = new CountDownLatch(1);
+            Thread refreshThread = new Thread(() -> {
+                latch.countDown();
+                while (stopped.get() == false) {
+                    long beforeGen = engine.commitStats().getGeneration();
+                    var refreshResult = engine.refresh("warm_up");
+                    assertTrue(refreshResult.refreshed());
+                    assertThat(refreshResult.generation(), greaterThanOrEqualTo(beforeGen));
+                }
+            });
+            refreshThread.start();
+            try {
+                latch.await();
+                int numFlushes = randomIntBetween(1, 100);
+                for (int i = 0; i < numFlushes; i++) {
+                    engine.index(indexForDoc(createParsedDoc(String.valueOf(i), EngineTestCase.randomIdFieldType(), null)));
+                    engine.flush(true, true);
+                }
+            } finally {
+                stopped.set(true);
+                refreshThread.join();
+            }
+        }
+    }
+
     public void testFlushListener() throws Exception {
         try (
             Store store = createStore();

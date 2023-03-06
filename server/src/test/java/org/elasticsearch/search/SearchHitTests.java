@@ -76,6 +76,8 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         if (frequently()) {
             if (rarely()) {
                 hit.score(Float.NaN);
+            } else if (rarely()) {
+                hit.setRank(randomInt());
             } else {
                 hit.score(randomFloat());
             }
@@ -223,6 +225,15 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         searchHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("""
             {"_id":"id1","_score":1.5}""", Strings.toString(builder));
+    }
+
+    public void testRankToXContent() throws IOException {
+        SearchHit searchHit = new SearchHit(1, "id1");
+        searchHit.setRank(1);
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        searchHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertEquals("""
+            {"_id":"id1","_score":null,"_rank":1}""", Strings.toString(builder));
     }
 
     public void testSerializeShardTarget() throws Exception {

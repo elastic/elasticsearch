@@ -307,8 +307,8 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         List<NodeAllocationResult> nodeDecisions = augmentExplanationsWithStoreInfo(result.nodes(), matchingNodes.nodeDecisions);
         if (allocateDecision.type() != Decision.Type.YES) {
             return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), nodeDecisions);
-        } else if (matchingNodes.getNodeWithHighestMatch() != null) {
-            RoutingNode nodeWithHighestMatch = allocation.routingNodes().node(matchingNodes.getNodeWithHighestMatch().getId());
+        } else if (matchingNodes.nodeWithHighestMatch() != null) {
+            RoutingNode nodeWithHighestMatch = allocation.routingNodes().node(matchingNodes.nodeWithHighestMatch().getId());
             // we only check on THROTTLE since we checked before on NO
             Decision decision = allocation.deciders().canAllocate(shardRouting, nodeWithHighestMatch, allocation);
             if (decision.type() == Decision.Type.THROTTLE) {
@@ -492,7 +492,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
             }
         }
 
-        return new MatchingNodes(matchingNodesCacheSizes, nodeDecisionsDebug);
+        return MatchingNodes.create(matchingNodesCacheSizes, nodeDecisionsDebug);
     }
 
     private static final class AsyncCacheStatusFetch {
@@ -528,27 +528,24 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         }
     }
 
-    private static final class MatchingNodes {
-        private final DiscoveryNode nodeWithHighestMatch;
-        @Nullable
-        private final Map<String, NodeAllocationResult> nodeDecisions;
+    /**
+     * {@param nodeWithHighestMatch} the node with the highest number of bytes cached for the shard or {@code null} if no node with any bytes matched exists
+     */
+    private record MatchingNodes(DiscoveryNode nodeWithHighestMatch, @Nullable Map<String, NodeAllocationResult> nodeDecisions) {
 
-        MatchingNodes(Map<DiscoveryNode, Long> matchingNodes, @Nullable Map<String, NodeAllocationResult> nodeDecisions) {
-            this.nodeDecisions = nodeDecisions;
-            this.nodeWithHighestMatch = matchingNodes.entrySet()
-                .stream()
-                .filter(entry -> entry.getValue() > 0L)
-                .max(Map.Entry.comparingByValue())
-                .map(Map.Entry::getKey)
-                .orElse(null);
-        }
-
-        /**
-         * Returns the node with the highest number of bytes cached for the shard or {@code null} if no node with any bytes matched exists.
-         */
-        @Nullable
-        public DiscoveryNode getNodeWithHighestMatch() {
-            return this.nodeWithHighestMatch;
+        private static MatchingNodes create(
+            Map<DiscoveryNode, Long> matchingNodes,
+            @Nullable Map<String, NodeAllocationResult> nodeDecisions
+        ) {
+            return new MatchingNodes(
+                matchingNodes.entrySet()
+                    .stream()
+                    .filter(entry -> entry.getValue() > 0L)
+                    .max(Map.Entry.comparingByValue())
+                    .map(Map.Entry::getKey)
+                    .orElse(null),
+                nodeDecisions
+            );
         }
     }
 }

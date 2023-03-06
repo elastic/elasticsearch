@@ -37,7 +37,6 @@ configure(allprojects) {
         } else {
             test.dependsOn(project.jdks.provisioned_runtime)
             test.executable = rootProject.jdks.provisioned_runtime.getBinJavaPath()
-
         }
     }
     project.plugins.withId("elasticsearch.testclusters") { testClustersPlugin ->

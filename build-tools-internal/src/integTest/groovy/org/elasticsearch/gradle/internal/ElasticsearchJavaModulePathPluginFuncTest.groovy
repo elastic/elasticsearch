@@ -76,7 +76,6 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
         """
     }
 
-    @IgnoreRest
     def "non module projects with non module dependencies"() {
         when:
         def result = gradleRunner('compileJava').build()

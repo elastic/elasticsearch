@@ -14,6 +14,7 @@ import org.gradle.testkit.runner.TaskOutcome
 class ElasticsearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
+        // see https://github.com/gradle/gradle/issues/24172
         configurationCacheCompatible = false
     }
 

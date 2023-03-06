@@ -42,6 +42,7 @@ def runTaskCluster = testClusters.register('runTask') {
 
 tasks.named('javaRestTest').configure {
   onlyIf { serviceAccountFile && BuildParams.inFipsJvm == false }
+
   testLogging {
     showStandardStreams = true
   }

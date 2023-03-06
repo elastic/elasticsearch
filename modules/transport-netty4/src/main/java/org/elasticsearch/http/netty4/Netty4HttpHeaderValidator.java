@@ -155,15 +155,13 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
 
         assert fullRequestConsumed || pending.isEmpty();
 
-        if (pending.isEmpty()) {
-            if (fullRequestConsumed) {
-                state = STATE.WAITING_TO_START;
-            } else {
-                state = STATE.DROPPING_DATA_UNTIL_NEXT_REQUEST;
+        if (fullRequestConsumed) {
+            state = STATE.WAITING_TO_START;
+            if (pending.isEmpty() == false) {
+                requestStart(ctx);
             }
         } else {
-            state = STATE.WAITING_TO_START;
-            requestStart(ctx);
+            state = STATE.DROPPING_DATA_PERMANENTLY;
         }
 
         ctx.channel().config().setAutoRead(shouldRead());

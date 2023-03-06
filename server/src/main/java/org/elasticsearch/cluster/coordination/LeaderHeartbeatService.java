@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 public interface LeaderHeartbeatService {
     LeaderHeartbeatService NO_OP = new LeaderHeartbeatService() {
         @Override
-        public void start(DiscoveryNode currentLeader) {
+        public void start(DiscoveryNode currentLeader, long term) {
 
         }
 
@@ -23,7 +23,7 @@ public interface LeaderHeartbeatService {
         }
     };
 
-    void start(DiscoveryNode currentLeader);
+    void start(DiscoveryNode currentLeader, long term);
 
     void stop();
 }

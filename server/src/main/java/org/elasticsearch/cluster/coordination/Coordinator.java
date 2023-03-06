@@ -873,7 +873,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         clusterFormationFailureHelper.stop();
         closePrevotingAndElectionScheduler();
         preVoteCollector.update(getPreVoteResponse(), getLocalNode());
-        leaderHeartbeatService.start(getLocalNode());
+        leaderHeartbeatService.start(getLocalNode(), getCurrentTerm());
 
         assert leaderChecker.leader() == null : leaderChecker.leader();
         followersChecker.updateFastResponseState(getCurrentTerm(), mode);

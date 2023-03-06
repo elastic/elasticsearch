@@ -45,6 +45,10 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
     private final RerouteService rerouteService;
     private final Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection;
 
+    public NodeJoinExecutor(AllocationService allocationService, RerouteService rerouteService) {
+        this(allocationService, rerouteService, Function.identity());
+    }
+
     public NodeJoinExecutor(
         AllocationService allocationService,
         RerouteService rerouteService,

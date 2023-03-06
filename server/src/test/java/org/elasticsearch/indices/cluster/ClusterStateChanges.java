@@ -403,7 +403,7 @@ public class ClusterStateChanges {
 
     public ClusterState addNode(ClusterState clusterState, DiscoveryNode discoveryNode) {
         return runTasks(
-            new NodeJoinExecutor(allocationService, (s, p, r) -> {}, Function.identity()),
+            new NodeJoinExecutor(allocationService, (s, p, r) -> {}),
             clusterState,
             List.of(
                 JoinTask.singleNode(
@@ -418,7 +418,7 @@ public class ClusterStateChanges {
 
     public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes) {
         return runTasks(
-            new NodeJoinExecutor(allocationService, (s, p, r) -> {}, Function.identity()),
+            new NodeJoinExecutor(allocationService, (s, p, r) -> {}),
             clusterState,
             List.of(
                 JoinTask.completingElection(

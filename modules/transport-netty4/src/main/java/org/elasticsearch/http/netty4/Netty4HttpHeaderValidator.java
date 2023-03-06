@@ -161,7 +161,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
                 requestStart(ctx);
             }
         } else {
-            state = STATE.DROPPING_DATA_PERMANENTLY;
+            state = STATE.DROPPING_DATA_UNTIL_NEXT_REQUEST;
         }
 
         ctx.channel().config().setAutoRead(shouldRead());

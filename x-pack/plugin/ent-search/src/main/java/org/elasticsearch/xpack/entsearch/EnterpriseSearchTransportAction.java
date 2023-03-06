@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.entsearch.engine.action;
+package org.elasticsearch.xpack.entsearch;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
@@ -21,9 +21,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-abstract class EngineTransportAction<Request extends ActionRequest, Response extends ActionResponse> extends HandledTransportAction<
-    Request,
-    Response> {
+public abstract class EnterpriseSearchTransportAction<Request extends ActionRequest, Response extends ActionResponse> extends
+    HandledTransportAction<Request, Response> {
 
     protected final XPackLicenseState licenseState;
 
@@ -33,7 +32,7 @@ abstract class EngineTransportAction<Request extends ActionRequest, Response ext
         License.OperationMode.PLATINUM
     );
 
-    EngineTransportAction(
+    public EnterpriseSearchTransportAction(
         String actionName,
         TransportService transportService,
         ActionFilters actionFilters,

@@ -13,9 +13,10 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.entsearch.EnterpriseSearchTransportAction;
 import org.elasticsearch.xpack.entsearch.engine.EngineIndexService;
 
-public class TransportDeleteEngineAction extends EngineTransportAction<DeleteEngineAction.Request, AcknowledgedResponse> {
+public class TransportDeleteEngineAction extends EnterpriseSearchTransportAction<DeleteEngineAction.Request, AcknowledgedResponse> {
 
     private final EngineIndexService engineIndexService;
 

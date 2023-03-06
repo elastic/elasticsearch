@@ -331,17 +331,7 @@ public class EngineIndexService {
      *
      */
     public void deleteEngineAndAlias(String engineName, ActionListener<DeleteResponse> listener) {
-        removeAlias(Engine.getEngineAliasName(engineName), new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                deleteEngine(engineName, listener);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        removeAlias(Engine.getEngineAliasName(engineName), listener.delegateFailure((l, r) -> deleteEngine(engineName, l)));
     }
 
     /**

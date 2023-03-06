@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
 import org.elasticsearch.test.disruption.IntermittentLongGCDisruption;
@@ -47,6 +48,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
      * Test that cluster recovers from a long GC on master that causes other nodes to elect a new one
      */
     public void testMasterNodeGCs() throws Exception {
+        assumeFalse("jdk20 removed thread suspend/resume", JavaVersion.current().compareTo(JavaVersion.parse("20")) >= 0);
         List<String> nodes = startCluster(3);
 
         String oldMasterNode = internalCluster().getMasterName();

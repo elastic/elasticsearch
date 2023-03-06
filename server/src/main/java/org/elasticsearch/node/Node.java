@@ -1070,8 +1070,9 @@ public class Node implements Closeable {
                 pluginComponents.forEach(p -> {
                     if (p instanceof PluginComponentInterface<?, ?> pci) {
                         @SuppressWarnings("unchecked")
-                        Class<Object> clazz = (Class<Object>) pci.inter();
-                        b.bind(clazz).to((Class<?>) pci.impl());
+                        Class<Object> clazz = (Class<Object>) pci.clazz();
+                        b.bind(clazz).toProvider(pci.provider());
+
                     } else {
                         @SuppressWarnings("unchecked")
                         Class<Object> clazz = (Class<Object>) p.getClass();
@@ -1121,7 +1122,7 @@ public class Node implements Closeable {
 
             List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream().map(p -> {
                 if (p instanceof PluginComponentInterface<?, ?> pci) {
-                    return pci.impl();
+                    return pci.provider().get();
                 }
                 return p;
             }).filter(p -> p instanceof LifecycleComponent).map(p -> (LifecycleComponent) p).toList();

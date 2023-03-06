@@ -42,7 +42,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.IntFunction;
 
 import static java.util.Map.entry;
@@ -967,10 +966,6 @@ public abstract class StreamOutput extends OutputStream {
 
     public void writeException(Throwable throwable) throws IOException {
         ElasticsearchException.writeException(throwable, this);
-    }
-
-    void writeException(Throwable throwable, Consumer<Throwable> nestedExceptionLimitCallback) throws IOException {
-        ElasticsearchException.writeException(throwable, this, nestedExceptionLimitCallback);
     }
 
     /**

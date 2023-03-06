@@ -56,7 +56,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -738,40 +737,28 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         return throwable;
     }
 
-    private static final int MAX_NESTED_EXCEPTION_LEVEL = 100;
-
-    private static void defaultNestedLimitCallback(Throwable t) {
-        if (Assertions.ENABLED) {
-            throw new AssertionError("too many nested exceptions", t);
-        }
-    }
-
     /**
      * Writes the specified {@code throwable} to {@link StreamOutput} {@code output}.
      */
     public static void writeException(Throwable throwable, StreamOutput output) throws IOException {
-        writeException(throwable, output, ElasticsearchException::defaultNestedLimitCallback);
+        writeException(throwable, output, () -> {});
     }
 
-    public static void writeException(Throwable throwable, StreamOutput output, Consumer<Throwable> nestedExceptionLimitCallback)
+    static void writeException(Throwable throwable, StreamOutput output, Runnable nestedExceptionLimitCallback) throws IOException {
+        writeException(throwable, output, 0, nestedExceptionLimitCallback);
+    }
+
+    private static final int MAX_NESTED_EXCEPTION_LEVEL = 100;
+
+    private static void writeException(Throwable throwable, StreamOutput output, int nestedLevel, Runnable nestedExceptionLimitCallback)
         throws IOException {
-        writeException(throwable, throwable, output, 0, nestedExceptionLimitCallback);
-    }
-
-    private static void writeException(
-        Throwable rootException,
-        Throwable throwable,
-        StreamOutput output,
-        int nestedLevel,
-        Consumer<Throwable> nestedExceptionLimitCallback
-    ) throws IOException {
         if (throwable == null) {
             output.writeBoolean(false);
             return;
         }
 
         if (nestedLevel > MAX_NESTED_EXCEPTION_LEVEL) {
-            nestedExceptionLimitCallback.accept(rootException);
+            nestedExceptionLimitCallback.run();
             writeException(new IllegalStateException("too many nested exceptions"), output);
             return;
         }
@@ -886,23 +873,15 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             output.writeOptionalString(throwable.getMessage());
         }
         if (writeCause) {
-            writeException(rootException, throwable.getCause(), output, nestedLevel + 1, nestedExceptionLimitCallback);
+            writeException(throwable.getCause(), output, nestedLevel + 1, nestedExceptionLimitCallback);
         }
 
         if (esException != null) {
-            writeStackTraces(
-                esException,
-                output,
-                (o, t) -> writeException(rootException, t, o, nestedLevel + 1, nestedExceptionLimitCallback)
-            );
+            writeStackTraces(esException, output, (o, t) -> writeException(t, o, nestedLevel + 1, nestedExceptionLimitCallback));
             output.writeMapOfLists(esException.headers, StreamOutput::writeString, StreamOutput::writeString);
             output.writeMapOfLists(esException.metadata, StreamOutput::writeString, StreamOutput::writeString);
         } else {
-            writeStackTraces(
-                throwable,
-                output,
-                (o, t) -> writeException(rootException, t, o, nestedLevel + 1, nestedExceptionLimitCallback)
-            );
+            writeStackTraces(throwable, output, (o, t) -> writeException(t, o, nestedLevel + 1, nestedExceptionLimitCallback));
         }
     }
 

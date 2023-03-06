@@ -191,11 +191,9 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         }
         List<List<T>> slicedList = new ArrayList<>();
         int batchSize = c.size() / slices;
-        if (c.size() % slices != 0) {
-            batchSize += 1;
-        }
         for (int slice = 0; slice < slices; slice++) {
-            List<T> ids = c.subList(slice * batchSize, Math.min((slice + 1) * batchSize, c.size()));
+            int upperIndex = (slice + 1 < slices) ? (slice + 1) * batchSize : c.size();
+            List<T> ids = c.subList(slice * batchSize, upperIndex);
             slicedList.add(ids);
         }
         return Collections.unmodifiableList(slicedList);

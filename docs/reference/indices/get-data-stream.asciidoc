@@ -100,9 +100,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
 Defaults to `open`.
 +
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-defaults]
-+
-experimental:[]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-defaults] experimental:[]
 
 [role="child_attributes"]
 [[get-data-stream-api-response-body]]

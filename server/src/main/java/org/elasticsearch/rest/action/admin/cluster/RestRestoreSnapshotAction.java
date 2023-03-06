@@ -17,7 +17,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.client.internal.Requests.restoreSnapshotRequest;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
@@ -37,7 +36,9 @@ public class RestRestoreSnapshotAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        RestoreSnapshotRequest restoreSnapshotRequest = restoreSnapshotRequest(request.param("repository"), request.param("snapshot"));
+        String repository = request.param("repository");
+        String snapshot = request.param("snapshot");
+        RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest(repository, snapshot);
         restoreSnapshotRequest.masterNodeTimeout(request.paramAsTime("master_timeout", restoreSnapshotRequest.masterNodeTimeout()));
         restoreSnapshotRequest.waitForCompletion(request.paramAsBoolean("wait_for_completion", false));
         request.applyContentParser(p -> restoreSnapshotRequest.source(p.mapOrdered()));

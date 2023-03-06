@@ -804,14 +804,19 @@ public class AzureBlobStore implements BlobStore {
 
     OptionalLong getRegister(String blobPath, String containerPath, String blobKey) {
         try {
-            return SocketAccess.doPrivilegedException(() -> {
-                final var blobClient = getAzureBlobServiceClientClient().getSyncClient()
-                    .getBlobContainerClient(container)
-                    .getBlobClient(blobPath);
-                return OptionalLong.of(
-                    BlobContainerUtils.getRegisterUsingConsistentRead(blobClient.downloadContent().toStream(), containerPath, blobKey)
-                );
-            });
+            return SocketAccess.doPrivilegedException(
+                () -> OptionalLong.of(
+                    BlobContainerUtils.getRegisterUsingConsistentRead(
+                        getAzureBlobServiceClientClient().getSyncClient()
+                            .getBlobContainerClient(container)
+                            .getBlobClient(blobPath)
+                            .downloadContent()
+                            .toStream(),
+                        containerPath,
+                        blobKey
+                    )
+                )
+            );
         } catch (Exception e) {
             if (Throwables.getRootCause(e)instanceof BlobStorageException blobStorageException
                 && blobStorageException.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
@@ -823,41 +828,9 @@ public class AzureBlobStore implements BlobStore {
 
     OptionalLong compareAndExchangeRegister(String blobPath, String containerPath, String blobKey, long expected, long updated) {
         try {
-            return SocketAccess.doPrivilegedException(() -> {
-
-                final var blobClient = getAzureBlobServiceClientClient().getSyncClient()
-                    .getBlobContainerClient(container)
-                    .getBlobClient(blobPath);
-
-                if (blobClient.exists()) {
-                    final var leaseClient = new BlobLeaseClientBuilder().blobClient(blobClient).buildClient();
-                    final var leaseId = leaseClient.acquireLease(60);
-                    try {
-                        final var currentValue = getRegister(blobPath, containerPath, blobKey);
-                        if (currentValue.equals(OptionalLong.of(expected))) {
-                            blobClient.uploadWithResponse(
-                                new BlobParallelUploadOptions(BlobContainerUtils.getRegisterBlobContents(updated).streamInput())
-                                    .setRequestConditions(new BlobRequestConditions().setLeaseId(leaseId)),
-                                null,
-                                null
-                            );
-                        }
-                        return currentValue;
-                    } finally {
-                        leaseClient.releaseLease();
-                    }
-                } else {
-                    if (expected == 0L) {
-                        blobClient.uploadWithResponse(
-                            new BlobParallelUploadOptions(BlobContainerUtils.getRegisterBlobContents(updated).streamInput())
-                                .setRequestConditions(new BlobRequestConditions().setIfNoneMatch("*")),
-                            null,
-                            null
-                        );
-                    }
-                    return OptionalLong.of(0L);
-                }
-            });
+            return SocketAccess.doPrivilegedException(
+                () -> OptionalLong.of(innerCompareAndExchangeRegister(blobPath, containerPath, blobKey, expected, updated))
+            );
         } catch (Exception e) {
             if (Throwables.getRootCause(e)instanceof BlobStorageException blobStorageException) {
                 if (blobStorageException.getStatusCode() == RestStatus.PRECONDITION_FAILED.getStatus()
@@ -866,6 +839,47 @@ public class AzureBlobStore implements BlobStore {
                 }
             }
             throw e;
+        }
+    }
+
+    private long innerCompareAndExchangeRegister(String blobPath, String containerPath, String blobKey, long expected, long updated)
+        throws IOException {
+        final var blobClient = getAzureBlobServiceClientClient().getSyncClient().getBlobContainerClient(container).getBlobClient(blobPath);
+
+        if (blobClient.exists()) {
+            final var leaseClient = new BlobLeaseClientBuilder().blobClient(blobClient).buildClient();
+            final var leaseId = leaseClient.acquireLease(60);
+            try {
+                final var currentValue = BlobContainerUtils.getRegisterUsingConsistentRead(
+                    blobClient.downloadContentWithResponse(null, new BlobRequestConditions().setLeaseId(leaseId), null, null)
+                        .getValue()
+                        .toStream(),
+                    containerPath,
+                    blobKey
+                );
+                if (currentValue == expected) {
+                    blobClient.uploadWithResponse(
+                        new BlobParallelUploadOptions(BlobContainerUtils.getRegisterBlobContents(updated).streamInput())
+                            .setRequestConditions(new BlobRequestConditions().setLeaseId(leaseId)),
+                        null,
+                        null
+                    );
+                }
+                return currentValue;
+            } finally {
+                leaseClient.releaseLease();
+            }
+        } else {
+            if (expected == 0L) {
+                blobClient.uploadWithResponse(
+                    new BlobParallelUploadOptions(BlobContainerUtils.getRegisterBlobContents(updated).streamInput()).setRequestConditions(
+                        new BlobRequestConditions().setIfNoneMatch("*")
+                    ),
+                    null,
+                    null
+                );
+            }
+            return 0L;
         }
     }
 

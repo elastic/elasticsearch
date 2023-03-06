@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -145,7 +146,21 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
     public void clusterChanged(ClusterChangedEvent event) {
         super.clusterChanged(event);
 
+        ClusterState state = event.state();
+        if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            return;
+        }
+
+        // no master node, exit immediately
         DiscoveryNode masterNode = event.state().getNodes().getMasterNode();
+        if (masterNode == null) {
+            return;
+        }
+
+        if (requiresMasterNode() && state.nodes().isLocalNodeElectedMaster() == false) {
+            return;
+        }
+
         DiscoveryNode localNode = event.state().getNodes().getLocalNode();
         boolean localNodeVersionAfterMaster = localNode.getVersion().after(masterNode.getVersion());
 

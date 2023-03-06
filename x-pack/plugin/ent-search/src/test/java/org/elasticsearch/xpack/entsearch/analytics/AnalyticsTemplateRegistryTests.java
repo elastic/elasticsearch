@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -160,6 +161,9 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
             } else if (action instanceof PutComposableIndexTemplateAction) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
+            } else if (action instanceof PutPipelineAction) {
+                // Ignore this, it's verified in another test
+                return AcknowledgedResponse.TRUE;
             } else {
                 fail("client called with unexpected request: " + request.toString());
                 return null;
@@ -182,6 +186,9 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
 
         client.setVerifier((action, request, listener) -> {
             if (action instanceof PutComponentTemplateAction) {
+                // Ignore this, it's verified in another test
+                return AcknowledgedResponse.TRUE;
+            } else if (action instanceof PutPipelineAction) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutLifecycleAction) {
@@ -208,6 +215,9 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
 
         client.setVerifier((action, request, listener) -> {
             if (action instanceof PutComponentTemplateAction) {
+                // Ignore this, it's verified in another test
+                return AcknowledgedResponse.TRUE;
+            } else if (action instanceof PutPipelineAction) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutLifecycleAction) {
@@ -292,6 +302,9 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutComposableIndexTemplateAction) {
+                // Ignore this, it's verified in another test
+                return AcknowledgedResponse.TRUE;
+            } else if (action instanceof PutPipelineAction) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
             } else {
@@ -379,6 +392,9 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         } else if (action instanceof PutLifecycleAction) {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;
+        } else if (action instanceof PutPipelineAction) {
+            // Ignore this, it's verified in another test
+            return AcknowledgedResponse.TRUE;
         } else if (action instanceof PutComposableIndexTemplateAction) {
             calledTimes.incrementAndGet();
             assertThat(action, instanceOf(PutComposableIndexTemplateAction.class));
@@ -414,6 +430,9 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;
         } else if (action instanceof PutComposableIndexTemplateAction) {
+            // Ignore this, it's verified in another test
+            return AcknowledgedResponse.TRUE;
+        } else if (action instanceof PutPipelineAction) {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;
         } else {

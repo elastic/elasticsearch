@@ -75,7 +75,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
             throw new AssertionError("Unknown state: " + state);
         }
 
-        ctx.channel().config().setAutoRead(shouldRead());
+        setAutoReadForState(ctx, state);
     }
 
     private void requestStart(ChannelHandlerContext ctx) {
@@ -120,7 +120,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         assert state == STATE.QUEUEING_DATA;
 
         state = STATE.HANDLING_QUEUED_DATA;
-        boolean fullRequestForwarded = forwardData(ctx);
+        boolean fullRequestForwarded = forwardData(ctx, pending);
 
         if (fullRequestForwarded) {
             state = STATE.WAITING_TO_START;
@@ -131,7 +131,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
             state = STATE.FORWARDING_DATA;
         }
 
-        ctx.channel().config().setAutoRead(shouldRead());
+        setAutoReadForState(ctx, state);
     }
 
     private void validationFailure(ChannelHandlerContext ctx, Exception e) {
@@ -148,7 +148,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
             messageToForward = (HttpMessage) toRelease.replace(Unpooled.EMPTY_BUFFER);
             fullRequestConsumed = true;
         } else {
-            fullRequestConsumed = dropData();
+            fullRequestConsumed = dropData(pending);
         }
         messageToForward.setDecoderResult(DecoderResult.failure(e));
         ctx.fireChannelRead(messageToForward);
@@ -164,21 +164,25 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
             state = STATE.DROPPING_DATA_UNTIL_NEXT_REQUEST;
         }
 
-        ctx.channel().config().setAutoRead(shouldRead());
+        setAutoReadForState(ctx, state);
     }
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         state = STATE.DROPPING_DATA_PERMANENTLY;
         while (true) {
-            if (dropData() == false) {
+            if (dropData(pending) == false) {
                 break;
             }
         }
         super.channelInactive(ctx);
     }
 
-    private boolean forwardData(ChannelHandlerContext ctx) {
+    private static void setAutoReadForState(ChannelHandlerContext ctx, STATE state) {
+        ctx.channel().config().setAutoRead((state == STATE.QUEUEING_DATA || state == STATE.DROPPING_DATA_PERMANENTLY) == false);
+    }
+
+    private static boolean forwardData(ChannelHandlerContext ctx, ArrayDeque<HttpObject> pending) {
         final int pendingMessages = pending.size();
         try {
             HttpObject toForward;
@@ -191,11 +195,11 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
             }
             return false;
         } finally {
-            maybeResizePendingDown(pendingMessages);
+            maybeResizePendingDown(pendingMessages, pending);
         }
     }
 
-    private boolean dropData() {
+    private static boolean dropData(ArrayDeque<HttpObject> pending) {
         final int pendingMessages = pending.size();
         try {
             HttpObject toDrop;
@@ -207,15 +211,11 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
             }
             return false;
         } finally {
-            maybeResizePendingDown(pendingMessages);
+            maybeResizePendingDown(pendingMessages, pending);
         }
     }
 
-    private boolean shouldRead() {
-        return (state == STATE.QUEUEING_DATA || state == STATE.DROPPING_DATA_PERMANENTLY) == false;
-    }
-
-    private void maybeResizePendingDown(int largeSize) {
+    private static void maybeResizePendingDown(int largeSize, ArrayDeque<HttpObject> pending) {
         if (pending.size() <= 4 && largeSize > 32) {
             // Prevent the ArrayDeque from becoming forever large due to a single large message.
             ArrayDeque<HttpObject> old = pending;

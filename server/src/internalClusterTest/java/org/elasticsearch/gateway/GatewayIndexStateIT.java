@@ -12,12 +12,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
@@ -368,7 +368,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         logger.info("--> wait until all nodes are back online");
         client().admin()
             .cluster()
-            .health(Requests.clusterHealthRequest().waitForEvents(Priority.LANGUID).waitForNodes(Integer.toString(numNodes)))
+            .health(new ClusterHealthRequest(new String[] {}).waitForEvents(Priority.LANGUID).waitForNodes(Integer.toString(numNodes)))
             .actionGet();
 
         logger.info("--> waiting for green status");
@@ -405,8 +405,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             client().admin()
                 .cluster()
                 .health(
-                    Requests.clusterHealthRequest()
-                        .waitForGreenStatus()
+                    new ClusterHealthRequest(new String[] {}).waitForGreenStatus()
                         .waitForEvents(Priority.LANGUID)
                         .waitForNoRelocatingShards(true)
                         .waitForNodes("2")
@@ -486,8 +485,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             client().admin()
                 .cluster()
                 .health(
-                    Requests.clusterHealthRequest()
-                        .waitForGreenStatus()
+                    new ClusterHealthRequest(new String[] {}).waitForGreenStatus()
                         .waitForEvents(Priority.LANGUID)
                         .waitForNoRelocatingShards(true)
                         .waitForNodes("2")
@@ -538,8 +536,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             client().admin()
                 .cluster()
                 .health(
-                    Requests.clusterHealthRequest()
-                        .waitForGreenStatus()
+                    new ClusterHealthRequest(new String[] {}).waitForGreenStatus()
                         .waitForEvents(Priority.LANGUID)
                         .waitForNoRelocatingShards(true)
                         .waitForNodes("2")

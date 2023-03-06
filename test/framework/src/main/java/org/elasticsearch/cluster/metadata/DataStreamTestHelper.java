@@ -20,6 +20,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
@@ -100,7 +101,18 @@ public final class DataStreamTestHelper {
         Map<String, Object> metadata,
         boolean replicated
     ) {
-        return new DataStream(name, indices, generation, metadata, false, replicated, false, false, null, null);
+        return newInstance(name, indices, generation, metadata, replicated, null);
+    }
+
+    public static DataStream newInstance(
+        String name,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata,
+        boolean replicated,
+        @Nullable DataLifecycle lifecycle
+    ) {
+        return new DataStream(name, indices, generation, metadata, false, replicated, false, false, null, lifecycle);
     }
 
     public static String getLegacyDefaultBackingIndexName(

@@ -10,7 +10,15 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.xcontent.XContentParser;
+
+import java.util.Collections;
+import java.util.Map;
+
+import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_ANALYZER_NAME;
 
 /**
  * Simplified version of {@link DocumentParserContext} to be used in tests.
@@ -22,6 +30,7 @@ import org.elasticsearch.xcontent.XContentParser;
 public class TestDocumentParserContext extends DocumentParserContext {
     private final LuceneDocument document = new LuceneDocument();
     private final ContentPath contentPath = new ContentPath(0);
+    private final XContentParser parser;
 
     /**
      * The shortest and easiest way to create a context, to be used when none of the constructor arguments are needed.
@@ -31,11 +40,19 @@ public class TestDocumentParserContext extends DocumentParserContext {
         this(MappingLookup.EMPTY, null);
     }
 
+    public TestDocumentParserContext(XContentParser parser) {
+        this(MappingLookup.EMPTY, null, parser);
+    }
+
     /**
      * More verbose way to create a context, to be used when one or more constructor arguments are needed as final methods
      * that depend on them are called while executing tests.
      */
     public TestDocumentParserContext(MappingLookup mappingLookup, SourceToParse source) {
+        this(mappingLookup, source, null);
+    }
+
+    private TestDocumentParserContext(MappingLookup mappingLookup, SourceToParse source, XContentParser parser) {
         super(
             mappingLookup,
             new MappingParserContext(
@@ -45,12 +62,17 @@ public class TestDocumentParserContext extends DocumentParserContext {
                 Version.CURRENT,
                 () -> null,
                 null,
-                null,
+                new IndexAnalyzers(
+                    Map.of(DEFAULT_ANALYZER_NAME, new NamedAnalyzer("default", AnalyzerScope.INDEX, null)),
+                    Collections.emptyMap(),
+                    Collections.emptyMap()
+                ),
                 MapperTestCase.createIndexSettings(Version.CURRENT, Settings.EMPTY),
                 null
             ),
             source
         );
+        this.parser = parser;
     }
 
     @Override
@@ -70,7 +92,7 @@ public class TestDocumentParserContext extends DocumentParserContext {
 
     @Override
     public XContentParser parser() {
-        throw new UnsupportedOperationException();
+        return parser;
     }
 
     @Override

@@ -213,8 +213,8 @@ public class GatewayAllocator implements ExistingShardsAllocator {
 
     abstract class InternalAsyncFetch<T extends BaseNodeResponse> extends AsyncShardFetch<T> {
 
-        InternalAsyncFetch(Logger logger, String type, ShardId shardId, String customDataPath) {
-            super(logger, type, shardId, customDataPath);
+        InternalAsyncFetch(Logger logger, String type, ShardId shardId, String customDataPath, int expectedSize) {
+            super(logger, type, shardId, customDataPath, expectedSize);
         }
 
         @Override
@@ -249,7 +249,8 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                     logger,
                     "shard_started",
                     shardId,
-                    IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(shard.index()).getSettings())
+                    IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(shard.index()).getSettings()),
+                    allocation.routingNodes().size()
                 ) {
                     @Override
                     protected void list(
@@ -295,7 +296,8 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                     logger,
                     "shard_store",
                     shard.shardId(),
-                    IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(shard.index()).getSettings())
+                    IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(shard.index()).getSettings()),
+                    allocation.routingNodes().size()
                 ) {
                     @Override
                     protected void list(

@@ -83,11 +83,7 @@ public class SearchableSnapshotsRecoverFromSnapshotIntegTests extends BaseSearch
         Loggers.addAppender(logger, mockAppender);
 
         // Relocate the searchable snapshot shard to the new node
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(restoredIndexName)
-            .setSettings(Settings.builder().put("index.routing.allocation.require._name", newNode).build())
-            .get();
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", newNode), restoredIndexName);
 
         ensureGreen(restoredIndexName);
 

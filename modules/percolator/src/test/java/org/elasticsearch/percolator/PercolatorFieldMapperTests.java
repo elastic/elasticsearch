@@ -77,7 +77,9 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
@@ -762,34 +764,56 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(e.getCause().getMessage(), equalTo("a document can only contain one percolator query"));
     }
 
-    public void testUnsupportedQueries() {
+    public void testUnsupportedQueries() throws IOException {
         RangeQueryBuilder rangeQuery1 = new RangeQueryBuilder("field").from("2016-01-01||/D").to("2017-01-01||/D");
+        assertNotNull(PercolatorFieldMapper.parseQueryBuilder(createParserContext(new ConstantScoreQueryBuilder(rangeQuery1))));
+
         RangeQueryBuilder rangeQuery2 = new RangeQueryBuilder("field").from("2016-01-01||/D").to("now");
-        PercolatorFieldMapper.verifyQuery(rangeQuery1);
-        PercolatorFieldMapper.verifyQuery(rangeQuery2);
+        assertNotNull(PercolatorFieldMapper.parseQueryBuilder(createParserContext(rangeQuery2)));
 
         HasChildQueryBuilder hasChildQuery = new HasChildQueryBuilder("parent", new MatchAllQueryBuilder(), ScoreMode.None);
-        expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.verifyQuery(new BoolQueryBuilder().must(hasChildQuery)));
-        expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.verifyQuery(new DisMaxQueryBuilder().add(hasChildQuery)));
-        PercolatorFieldMapper.verifyQuery(new ConstantScoreQueryBuilder((rangeQuery1)));
-        expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.verifyQuery(new ConstantScoreQueryBuilder(hasChildQuery)));
-        PercolatorFieldMapper.verifyQuery(new BoostingQueryBuilder(rangeQuery1, new MatchAllQueryBuilder()));
+        expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.parseQueryBuilder(createParserContext(hasChildQuery)));
+
+        BoolQueryBuilder boolQuery1 = new BoolQueryBuilder().must(hasChildQuery);
+        expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.parseQueryBuilder(createParserContext(boolQuery1)));
+
+        DisMaxQueryBuilder disMaxQuery = new DisMaxQueryBuilder().add(hasChildQuery);
+        expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.parseQueryBuilder(createParserContext(disMaxQuery)));
+
+        ConstantScoreQueryBuilder constantScoreQuery = new ConstantScoreQueryBuilder(hasChildQuery);
         expectThrows(
             IllegalArgumentException.class,
-            () -> PercolatorFieldMapper.verifyQuery(new BoostingQueryBuilder(hasChildQuery, new MatchAllQueryBuilder()))
-        );
-        PercolatorFieldMapper.verifyQuery(new FunctionScoreQueryBuilder(rangeQuery1, new RandomScoreFunctionBuilder()));
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> PercolatorFieldMapper.verifyQuery(new FunctionScoreQueryBuilder(hasChildQuery, new RandomScoreFunctionBuilder()))
+            () -> PercolatorFieldMapper.parseQueryBuilder(createParserContext(constantScoreQuery))
         );
 
-        expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.verifyQuery(hasChildQuery));
-        expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.verifyQuery(new BoolQueryBuilder().must(hasChildQuery)));
+        BoostingQueryBuilder boostingQuery1 = new BoostingQueryBuilder(rangeQuery1, new MatchAllQueryBuilder()).negativeBoost(1f);
+        assertNotNull(PercolatorFieldMapper.parseQueryBuilder(createParserContext(boostingQuery1)));
+
+        BoostingQueryBuilder boostingQuery2 = new BoostingQueryBuilder(hasChildQuery, new MatchAllQueryBuilder()).negativeBoost(1f);
+        expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.parseQueryBuilder(createParserContext(boostingQuery2)));
+
+        FunctionScoreQueryBuilder functionScoreQuery = new FunctionScoreQueryBuilder(rangeQuery1, new RandomScoreFunctionBuilder());
+        assertNotNull(PercolatorFieldMapper.parseQueryBuilder(createParserContext(functionScoreQuery)));
+
+        FunctionScoreQueryBuilder functionScoreQuery2 = new FunctionScoreQueryBuilder(hasChildQuery, new RandomScoreFunctionBuilder());
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> PercolatorFieldMapper.parseQueryBuilder(createParserContext(functionScoreQuery2))
+        );
+
+        BoolQueryBuilder boolQuery2 = new BoolQueryBuilder().must(hasChildQuery);
+        expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.parseQueryBuilder(createParserContext(boolQuery2)));
 
         HasParentQueryBuilder hasParentQuery = new HasParentQueryBuilder("parent", new MatchAllQueryBuilder(), false);
-        expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.verifyQuery(hasParentQuery));
-        expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.verifyQuery(new BoolQueryBuilder().must(hasParentQuery)));
+        expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.parseQueryBuilder(createParserContext(hasParentQuery)));
+
+        BoolQueryBuilder boolQuery3 = new BoolQueryBuilder().must(hasParentQuery);
+        expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.parseQueryBuilder(createParserContext(boolQuery3)));
+    }
+
+    private DocumentParserContext createParserContext(QueryBuilder queryBuilder) throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(queryBuilder));
+        return new TestDocumentParserContext(parser);
     }
 
     private void assertQueryBuilder(BytesRef actual, QueryBuilder expected) throws IOException {

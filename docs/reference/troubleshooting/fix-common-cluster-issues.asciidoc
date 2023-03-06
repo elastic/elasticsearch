@@ -3,9 +3,9 @@
 
 This guide describes how to fix common errors and problems with {es} clusters.
 
-<<disk-usage-exceeded,Error: disk usage exceeded flood-stage watermark, index has read-only-allow-delete block>>::
-This error indicates a data node is critically low on disk space and has reached
-the flood-stage disk usage watermark.
+<<fix-watermark-errors,Watermark errors>>::
+Fix watermark errors that occur when a data node is critically low on disk space
+and has reached the flood-stage disk usage watermark.
 
 <<circuit-breaker-errors,Circuit breaker errors>>::
 {es} uses circuit breakers to prevent nodes from running out of JVM heap memory.

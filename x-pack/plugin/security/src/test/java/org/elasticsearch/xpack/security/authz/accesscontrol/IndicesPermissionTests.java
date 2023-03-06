@@ -682,7 +682,7 @@ public class IndicesPermissionTests extends ESTestCase {
                 1
             ).getMetadata()
         );
-        IndexAbstraction.DataStream dataStream = new IndexAbstraction.DataStream(mb.dataStream(dataStreamName));
+        DataStream dataStream = mb.dataStream(dataStreamName);
         IndexAbstraction backingIndex = new IndexAbstraction.ConcreteIndex(
             DataStreamTestHelper.createBackingIndex(dataStreamName, 1).build(),
             dataStream
@@ -744,10 +744,10 @@ public class IndicesPermissionTests extends ESTestCase {
                 1
             ).getMetadata()
         );
-        IndexAbstraction.DataStream dataStreamA = new IndexAbstraction.DataStream(mb.dataStream("a"));
-        IndexAbstraction.DataStream dataStreamB = new IndexAbstraction.DataStream(mb.dataStream("b"));
-        IndexAbstraction.DataStream dataStreamC = new IndexAbstraction.DataStream(mb.dataStream("c"));
-        IndexAbstraction.DataStream dataStreamD = new IndexAbstraction.DataStream(mb.dataStream("d"));
+        DataStream dataStreamA = mb.dataStream("a");
+        DataStream dataStreamB = mb.dataStream("b");
+        DataStream dataStreamC = mb.dataStream("c");
+        DataStream dataStreamD = mb.dataStream("d");
         IndexAbstraction concreteIndexA = concreteIndexAbstraction("a");
         IndexAbstraction concreteIndexB = concreteIndexAbstraction("b");
         IndexAbstraction concreteIndexC = concreteIndexAbstraction("c");

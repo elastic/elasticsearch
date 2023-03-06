@@ -944,4 +944,29 @@ public class NodeDeprecationChecks {
             null
         );
     }
+
+    static DeprecationIssue checkWatcherBulkConcurrentRequestsSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Integer> deprecatedSetting = Setting.intSetting(
+            "xpack.watcher.bulk.concurrent_requests",
+            0,
+            0,
+            20,
+            Setting.Property.NodeScope,
+            Setting.Property.Deprecated
+        );
+        String url = "https://ela.st/es-deprecation-8-watcher-bulk-concurrency-setting";
+        return checkRemovedSetting(
+            clusterState.metadata().settings(),
+            settings,
+            deprecatedSetting,
+            url,
+            "As of 8.8.0 this setting is ignored.",
+            DeprecationIssue.Level.WARNING
+        );
+    }
 }

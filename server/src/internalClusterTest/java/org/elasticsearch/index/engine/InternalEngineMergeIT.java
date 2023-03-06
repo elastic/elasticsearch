@@ -10,7 +10,7 @@ package org.elasticsearch.index.engine;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -46,8 +46,7 @@ public class InternalEngineMergeIT extends ESIntegTestCase {
             BulkRequestBuilder request = client().prepareBulk();
             for (int j = 0; j < numDocs; ++j) {
                 request.add(
-                    Requests.indexRequest("test")
-                        .id(Long.toString(id++))
+                    new IndexRequest("test").id(Long.toString(id++))
                         .source(jsonBuilder().startObject().field("l", randomLong()).endObject())
                 );
             }

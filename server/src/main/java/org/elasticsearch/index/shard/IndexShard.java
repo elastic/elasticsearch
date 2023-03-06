@@ -3901,7 +3901,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         markSearcherAccessed(); // move the shard into non-search idle
         final Translog.Location location = pendingRefreshLocation.get();
         if (location != null) {
-            addRefreshListener(location, (b) -> {
+            addRefreshListener(location, (result) -> {
                 pendingRefreshLocation.compareAndSet(location, null);
                 listener.accept(true);
             });

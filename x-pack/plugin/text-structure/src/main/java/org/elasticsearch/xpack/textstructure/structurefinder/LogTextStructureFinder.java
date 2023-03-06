@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.grok.Grok;
+import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.FieldStats;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
@@ -69,7 +69,7 @@ public class LogTextStructureFinder implements TextStructureFinder {
             fieldStats,
             customGrokPatternDefinitions,
             timeoutChecker,
-            Grok.ECS_COMPATIBILITY_MODES[1].equals(overrides.getEcsCompatibility())
+            GrokBuiltinPatterns.ECS_COMPATIBILITY_MODES[1].equals(overrides.getEcsCompatibility())
         );
 
         String grokPattern = overrides.getGrokPattern();
@@ -237,7 +237,7 @@ public class LogTextStructureFinder implements TextStructureFinder {
             fieldStats,
             customGrokPatternDefinitions,
             timeoutChecker,
-            Grok.ECS_COMPATIBILITY_MODES[1].equals(overrides.getEcsCompatibility())
+            GrokBuiltinPatterns.ECS_COMPATIBILITY_MODES[1].equals(overrides.getEcsCompatibility())
         );
 
         // We can't parse directly into @timestamp using Grok, so parse to some other time field, which the date filter will then remove
@@ -360,7 +360,7 @@ public class LogTextStructureFinder implements TextStructureFinder {
             false,
             false,
             timeoutChecker,
-            Grok.ECS_COMPATIBILITY_MODES[1].equals(overrides.getEcsCompatibility())
+            GrokBuiltinPatterns.ECS_COMPATIBILITY_MODES[1].equals(overrides.getEcsCompatibility())
         );
 
         for (String sampleLine : sampleLines) {

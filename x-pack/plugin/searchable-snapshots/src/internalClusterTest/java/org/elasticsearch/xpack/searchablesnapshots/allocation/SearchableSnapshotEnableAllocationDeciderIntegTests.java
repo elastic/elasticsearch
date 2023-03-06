@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.allocation;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -39,7 +39,7 @@ public class SearchableSnapshotEnableAllocationDeciderIntegTests extends BaseSea
             internalCluster().restartNode(indexNode);
         }
 
-        ClusterHealthResponse response = client().admin().cluster().health(Requests.clusterHealthRequest(restoredIndexName)).actionGet();
+        ClusterHealthResponse response = client().admin().cluster().health(new ClusterHealthRequest(restoredIndexName)).actionGet();
         assertThat(response.getUnassignedShards(), Matchers.equalTo(numPrimaries));
 
         setAllocateOnRollingRestart(true);

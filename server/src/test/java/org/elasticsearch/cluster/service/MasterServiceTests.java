@@ -36,10 +36,10 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.StoppableExecutorServiceWrapper;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -66,6 +66,7 @@ import java.util.Map;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -133,7 +134,7 @@ public class MasterServiceTests extends ESTestCase {
         boolean makeMaster,
         TaskManager taskManager,
         ThreadPool threadPool,
-        PrioritizedEsThreadPoolExecutor threadPoolExecutor
+        ExecutorService threadPoolExecutor
     ) {
         final DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         final Settings settings = Settings.builder()
@@ -152,7 +153,7 @@ public class MasterServiceTests extends ESTestCase {
             taskManager
         ) {
             @Override
-            protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
+            protected ExecutorService createThreadPoolExecutor() {
                 if (threadPoolExecutor == null) {
                     return super.createThreadPoolExecutor();
                 } else {
@@ -1119,7 +1120,7 @@ public class MasterServiceTests extends ESTestCase {
                 return ClusterState.builder(batchExecutionContext.initialState()).build();
             }).submitTask("testBlockingCallInClusterStateTaskListenerFails", new ExpectSuccessTask(), null);
 
-            latch.await();
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
             assertNotNull(assertionRef.get());
             assertThat(assertionRef.get().getMessage(), containsString("Reason: [Blocking operation]"));
         }
@@ -1923,9 +1924,7 @@ public class MasterServiceTests extends ESTestCase {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
 
         final var threadPool = deterministicTaskQueue.getThreadPool();
-        final var threadPoolExecutor = deterministicTaskQueue.getPrioritizedEsThreadPoolExecutor();
-
-        try (var masterService = createMasterService(true, null, threadPool, threadPoolExecutor)) {
+        try (var masterService = createMasterService(true, null, threadPool, new StoppableExecutorServiceWrapper(threadPool.generic()))) {
 
             final var actionCount = new AtomicInteger();
 
@@ -2101,32 +2100,18 @@ public class MasterServiceTests extends ESTestCase {
     public void testRejectionBehaviour() {
 
         final var deterministicTaskQueue = new DeterministicTaskQueue();
-
         final var threadPool = deterministicTaskQueue.getThreadPool();
-        final var threadPoolExecutor = new PrioritizedEsThreadPoolExecutor(
+        final var threadPoolExecutor = EsExecutors.newScaling(
             "Rejecting",
             1,
             1,
             1,
             TimeUnit.SECONDS,
+            true,
             r -> { throw new AssertionError("should not create new threads"); },
-            null,
-            null
-        ) {
-            @Override
-            public void execute(Runnable command, final TimeValue timeout, final Runnable timeoutCallback) {
-                throw new AssertionError("not implemented");
-            }
-
-            @Override
-            public void execute(Runnable command) {
-                if (command instanceof AbstractRunnable) {
-                    throw new AssertionError("unexpected abstract runnable: " + command);
-                } else {
-                    throw new EsRejectedExecutionException("test", true);
-                }
-            }
-        };
+            threadPool.getThreadContext()
+        );
+        threadPoolExecutor.shutdown();
 
         try (var masterService = createMasterService(true, null, threadPool, threadPoolExecutor)) {
 
@@ -2174,9 +2159,8 @@ public class MasterServiceTests extends ESTestCase {
                     }
                 });
             }
-            threadPool.getThreadContext().markAsSystemContext();
-            deterministicTaskQueue.runAllTasks();
-
+            assertFalse(deterministicTaskQueue.hasRunnableTasks());
+            assertFalse(deterministicTaskQueue.hasDeferredTasks());
             assertEquals(2, actionCount.get());
         }
     }
@@ -2186,9 +2170,7 @@ public class MasterServiceTests extends ESTestCase {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
 
         final var threadPool = deterministicTaskQueue.getThreadPool();
-        final var threadPoolExecutor = deterministicTaskQueue.getPrioritizedEsThreadPoolExecutor();
-
-        try (var masterService = createMasterService(true, null, threadPool, threadPoolExecutor)) {
+        try (var masterService = createMasterService(true, null, threadPool, new StoppableExecutorServiceWrapper(threadPool.generic()))) {
 
             final var actionCount = new AtomicInteger();
             final var testHeader = "test-header";
@@ -2254,9 +2236,7 @@ public class MasterServiceTests extends ESTestCase {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
 
         final var threadPool = deterministicTaskQueue.getThreadPool();
-        final var threadPoolExecutor = deterministicTaskQueue.getPrioritizedEsThreadPoolExecutor();
-
-        try (var masterService = createMasterService(true, null, threadPool, threadPoolExecutor)) {
+        try (var masterService = createMasterService(true, null, threadPool, new StoppableExecutorServiceWrapper(threadPool.generic()))) {
 
             final var actionCount = new AtomicInteger();
             final var testHeader = "test-header";

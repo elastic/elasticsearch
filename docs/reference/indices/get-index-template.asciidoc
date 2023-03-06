@@ -65,7 +65,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=include-defaults]
 +
-experimental:[]
+In experimental:[].
 
 [[get-template-api-example]]
 ==== {api-examples-title}

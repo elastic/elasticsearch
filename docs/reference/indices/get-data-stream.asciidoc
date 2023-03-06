@@ -101,7 +101,7 @@ Defaults to `open`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-defaults]
 +
-experimental:[]
+In experimental:[].
 
 [role="child_attributes"]
 [[get-data-stream-api-response-body]]
@@ -223,7 +223,7 @@ cluster can not write into this data stream or change its mappings.
 
 `lifecycle`::
 (object)
-experimental:[] Contains the configuration for the data lifecycle management of this data stream.
+Contains the configuration for the data lifecycle management of this data stream, in experimental:[].
 +
 .Properties of `lifecycle`
 [%collapsible%open]

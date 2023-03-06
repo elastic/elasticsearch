@@ -51,6 +51,10 @@ public class TransportVersionUtils {
         @Nullable TransportVersion minVersion,
         @Nullable TransportVersion maxVersion
     ) {
+        if (minVersion != null && maxVersion != null && maxVersion.before(minVersion)) {
+            throw new IllegalArgumentException("maxVersion [" + maxVersion + "] cannot be less than minVersion [" + minVersion + "]");
+        }
+
         int minVersionIndex = 0;
         if (minVersion != null) {
             minVersionIndex = Collections.binarySearch(ALL_VERSIONS, minVersion);
@@ -63,8 +67,6 @@ public class TransportVersionUtils {
             throw new IllegalArgumentException("minVersion [" + minVersion + "] does not exist.");
         } else if (maxVersionIndex < 0) {
             throw new IllegalArgumentException("maxVersion [" + maxVersion + "] does not exist.");
-        } else if (minVersionIndex > maxVersionIndex) {
-            throw new IllegalArgumentException("maxVersion [" + maxVersion + "] cannot be less than minVersion [" + minVersion + "]");
         } else {
             // minVersionIndex is inclusive so need to add 1 to this index
             int range = maxVersionIndex + 1 - minVersionIndex;

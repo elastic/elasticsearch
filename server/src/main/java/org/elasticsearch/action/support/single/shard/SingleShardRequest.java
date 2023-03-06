@@ -32,7 +32,7 @@ public abstract class SingleShardRequest<Request extends SingleShardRequest<Requ
      */
     @Nullable
     protected String index;
-    ShardId internalShardId;
+    protected ShardId internalShardId;
 
     public SingleShardRequest() {}
 

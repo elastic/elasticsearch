@@ -32,6 +32,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -43,6 +45,8 @@ import java.io.IOException;
  * Performs the get operation.
  */
 public class TransportGetAction extends TransportSingleShardAction<GetRequest, GetResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportGetAction.class);
 
     private final IndicesService indicesService;
     private final ExecutorSelector executorSelector;
@@ -135,10 +139,13 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             .nodes()
             .get(clusterService.state().routingTable().shardRoutingTable(shardId).primaryShard().currentNodeId());
         if (request.refresh()) {
+            logger.trace("send refresh action for shard {} to node {}", shardId, node.getId());
+            var refreshRequest = new BasicReplicationRequest(shardId);
+            refreshRequest.setParentTask(request.getParentTask());
             transportService.sendRequest(
                 node,
                 TransportShardRefreshAction.NAME,
-                new BasicReplicationRequest(shardId),
+                refreshRequest,
                 new ActionListenerResponseHandler<>(listener.map(t -> shardOperation(request, shardId)), ReplicationResponse::new)
             );
         } else if (request.realtime()) {
@@ -150,9 +157,15 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                     @Override
                     public void handleResponse(TransportGetFromTranslogAction.Response response) {
                         if (response.getResult() != null) {
+                            logger.trace("received result for real-time get for id '{}' from promotable shard", request.id());
                             listener.onResponse(new GetResponse(response.getResult()));
                         } else {
                             assert response.segmentGeneration() > -1L;
+                            logger.trace(
+                                "no result for real-time get for id '{}' from promotable shard (segment generation to wait for: {})",
+                                request.id(),
+                                response.segmentGeneration()
+                            );
                             indexShard.waitForSegmentGeneration(
                                 response.segmentGeneration(),
                                 listener.map(aLong -> shardOperation(request, shardId))

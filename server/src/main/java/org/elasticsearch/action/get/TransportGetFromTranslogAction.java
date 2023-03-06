@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -51,7 +50,7 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<GetRe
         final ShardId shardId = request.getInternalShardId();
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
-        assert indexShard.routingEntry().role().equals(ShardRouting.Role.INDEX_ONLY);
+        assert indexShard.routingEntry().isPromotableToPrimary();
         assert request.realtime();
         Engine engine = indexShard.getEngineOrNull();
         if (engine == null) {
@@ -89,7 +88,7 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<GetRe
             this.segmentGeneration = segmentGeneration;
         }
 
-        Response(StreamInput in) throws IOException {
+        public Response(StreamInput in) throws IOException {
             super(in);
             segmentGeneration = in.readZLong();
             if (in.readBoolean()) {
@@ -114,6 +113,19 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<GetRe
 
         public long segmentGeneration() {
             return segmentGeneration;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o instanceof Response == false) return false;
+            Response other = (Response) o;
+            return Objects.equals(getResult, other.getResult) && segmentGeneration == other.segmentGeneration;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(segmentGeneration, getResult);
         }
     }
 }

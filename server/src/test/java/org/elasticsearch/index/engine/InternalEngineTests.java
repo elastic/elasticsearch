@@ -230,6 +230,7 @@ public class InternalEngineTests extends EngineTestCase {
             : appendOnlyReplica(doc, false, 1, randomIntBetween(0, 5));
         engine.index(operation);
         assertFalse(engine.isSafeAccessRequired());
+        assertFalse(engine.isInVersionMap(operation.uid().bytes()));
         doc = testParsedDocument(
             "1",
             null,
@@ -241,6 +242,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.index(update);
         assertTrue(engine.isSafeAccessRequired());
         assertThat(engine.getVersionMap().values(), hasSize(1));
+        assertTrue(engine.isInVersionMap(operation.uid().bytes()));
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             assertEquals(0, searcher.getIndexReader().numDocs());
         }
@@ -276,7 +278,9 @@ public class InternalEngineTests extends EngineTestCase {
         engine.index(operation);
         assertTrue("safe access should be required", engine.isSafeAccessRequired());
         assertThat(engine.getVersionMap().values(), hasSize(1)); // now we add this to the map
+        assertTrue(engine.isInVersionMap(operation.uid().bytes()));
         engine.refresh("test");
+        assertFalse(engine.isInVersionMap(operation.uid().bytes()));
         if (randomBoolean()) { // randomly refresh here again
             engine.refresh("test");
         }
@@ -288,11 +292,14 @@ public class InternalEngineTests extends EngineTestCase {
         }
         engine.delete(new Engine.Delete(operation.id(), operation.uid(), primaryTerm.get()));
         assertTrue("safe access should be required", engine.isSafeAccessRequired());
+        assertTrue(engine.isInVersionMap(operation.uid().bytes()));
         engine.refresh("test");
         assertTrue("safe access should be required", engine.isSafeAccessRequired());
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             assertEquals(1, searcher.getIndexReader().numDocs());
         }
+        engine.clearDeletedTombstones();
+        assertFalse(engine.isInVersionMap(operation.uid().bytes()));
     }
 
     public void testVerboseSegments() throws Exception {

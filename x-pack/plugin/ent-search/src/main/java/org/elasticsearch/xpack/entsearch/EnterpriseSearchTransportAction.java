@@ -20,15 +20,16 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackField;
 
 public abstract class EnterpriseSearchTransportAction<Request extends ActionRequest, Response extends ActionResponse> extends
     HandledTransportAction<Request, Response> {
 
     protected final XPackLicenseState licenseState;
 
-    private static final LicensedFeature.Momentary LICENSED_ENGINE_FEATURE = LicensedFeature.momentary(
+    public static final LicensedFeature.Momentary LICENSED_ENGINE_FEATURE = LicensedFeature.momentary(
         null,
-        "engine",
+        XPackField.ENTEPRISE_SEARCH,
         License.OperationMode.PLATINUM
     );
 
@@ -44,7 +45,7 @@ public abstract class EnterpriseSearchTransportAction<Request extends ActionRequ
     }
 
     @Override
-    protected final void doExecute(Task task, final Request request, ActionListener<Response> listener) {
+    public final void doExecute(Task task, final Request request, ActionListener<Response> listener) {
         if (LICENSED_ENGINE_FEATURE.check(licenseState)) {
             doExecute(request, listener);
         } else {
@@ -55,14 +56,12 @@ public abstract class EnterpriseSearchTransportAction<Request extends ActionRequ
     protected abstract void doExecute(Request request, ActionListener<Response> listener);
 
     private static ElasticsearchSecurityException newComplianceException(XPackLicenseState licenseState) {
-        String licenseName = licenseState.getOperationMode().description();
-        String licenseStatus = licenseState.isActive() ? "active" : "expired";
+        String licenseStatus = licenseState.statusDescription();
 
         ElasticsearchSecurityException e = new ElasticsearchSecurityException(
-            "Current license is non-compliant for engines. Current license is [{}] and [{}]. "
+            "Current license is non-compliant for engines. Current license is {}. "
                 + "Engines require an active trial or platinum license.",
             RestStatus.FORBIDDEN,
-            licenseName,
             licenseStatus
         );
         return e;

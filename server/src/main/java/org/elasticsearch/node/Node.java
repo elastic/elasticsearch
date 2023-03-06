@@ -718,8 +718,6 @@ public class Node implements Closeable {
                 threadPool
             );
 
-            pluginsService.findServiceProvidersImplementations();
-
             Collection<Object> pluginComponents = pluginsService.flatMap(
                 p -> p.createComponents(
                     client,

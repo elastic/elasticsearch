@@ -338,10 +338,6 @@ public class XPackPlugin extends XPackClientPlugin
         return components;
     }
 
-    public List<Class<?>> getSPIInterfaces() {
-        return Collections.singletonList(LicenseServiceFactory.class);
-    }
-
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();

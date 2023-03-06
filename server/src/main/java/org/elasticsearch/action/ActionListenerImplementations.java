@@ -54,7 +54,7 @@ class ActionListenerImplementations {
     }
 
     static void safeAcceptException(Consumer<Exception> consumer, Exception e) {
-        assert e != null;
+        assert e != null : "listener.onFailure needs an exception instance";
         try {
             consumer.accept(e);
         } catch (RuntimeException ex) {

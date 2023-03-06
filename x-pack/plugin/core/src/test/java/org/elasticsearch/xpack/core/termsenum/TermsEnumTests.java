@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.termsenum;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -134,7 +135,7 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
             randomIps[i] = randomIp(randomBoolean());
             bulkRequestBuilder.add(
                 client().prepareIndex(indexName)
-                    .setSource(jsonBuilder().startObject().field("ip_addr", randomIps[i].getHostAddress()).endObject())
+                    .setSource(jsonBuilder().startObject().field("ip_addr", NetworkAddress.format(randomIps[i])).endObject())
             );
         }
         bulkRequestBuilder.get();
@@ -142,10 +143,12 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
 
         // test for short random prefixes, max length 7 should at least include some separators but not be too long for short ipv4
         for (int prefixLength = 1; prefixLength < 7; prefixLength++) {
-            String randomPrefix = randomIps[randomIntBetween(0, numDocs)].getHostAddress().substring(0, prefixLength).replaceAll("^0*", "");
+            String randomPrefix = NetworkAddress.format(randomIps[randomIntBetween(0, numDocs)])
+                .substring(0, prefixLength)
+                .replaceAll("^0*", "");
             int expectedResults = 0;
             for (int i = 0; i < numDocs; i++) {
-                if (randomIps[i].getHostAddress().startsWith(randomPrefix)) {
+                if (NetworkAddress.format(randomIps[i]).startsWith(randomPrefix)) {
                     expectedResults++;
                 }
             }

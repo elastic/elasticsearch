@@ -62,6 +62,13 @@ teardown:
 
   - match: { result: "created" }
 
+  - do:
+      indices.exists_alias:
+        name: engine-test-engine
+
+  - is_true: ''
+
+  - match: { "foo" }
 ---
 "Update Engine":
   - do:

@@ -18,6 +18,8 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -45,6 +47,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.indices.ExecutorNames;
@@ -233,10 +236,7 @@ public class EngineIndexService {
 
         IndicesAliasesRequestBuilder requestBuilder = null;
         if (metadata.hasAlias(engineAliasName)) {
-            Set<String> currentAliases = metadata.aliasedIndices(engineAliasName)
-                .stream()
-                .map(index -> index.getName())
-                .collect(Collectors.toSet());
+            Set<String> currentAliases = metadata.aliasedIndices(engineAliasName).stream().map(Index::getName).collect(Collectors.toSet());
             Set<String> targetAliases = Set.of(engine.indices());
 
             requestBuilder = updateAliasIndices(currentAliases, targetAliases, engineAliasName);
@@ -266,12 +266,6 @@ public class EngineIndexService {
         return aliasesRequestBuilder;
     }
 
-    private IndicesAliasesRequestBuilder removeAllAliasIndices(String engineAliasName) {
-        IndicesAliasesRequestBuilder aliasesRequestBuilder = clientWithOrigin.admin().indices().prepareAliases();
-        aliasesRequestBuilder.addAliasAction(IndicesAliasesRequest.AliasActions.remove().alias(engineAliasName));
-        return aliasesRequestBuilder;
-    }
-
     private void updateEngine(Engine engine, boolean create, ActionListener<IndexResponse> listener) {
         try (ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())) {
             try (XContentBuilder source = XContentFactory.jsonBuilder(buffer)) {
@@ -297,18 +291,9 @@ public class EngineIndexService {
         }
     }
 
-    /**
-     * Deletes the provided {@param engineName} in the underlying index, or delegate a failure to the provided
-     * listener if the resource does not exist or failed to delete.
-     *
-     * @param engineName The name of the {@link Engine} to delete.
-     * @param listener The action listener to invoke on response/failure.
-     *
-     */
-    public void deleteEngine(String engineName, ActionListener<DeleteResponse> listener) {
+    private void deleteEngine(String engineName, ActionListener<DeleteResponse> listener) {
 
         try {
-            // TODO Delete alias when Engine is deleted
             final DeleteRequest deleteRequest = new DeleteRequest(ENGINE_ALIAS_NAME).id(engineName)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
@@ -322,7 +307,31 @@ public class EngineIndexService {
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
 
+    GetAliasesResponse getAlias(String engineAliasName) {
+        return clientWithOrigin.admin().indices().getAliases(new GetAliasesRequest(engineAliasName)).actionGet();
+    }
+
+    private void removeAlias(String engineAliasName, ActionListener<AcknowledgedResponse> listener) {
+        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest().addAliasAction(
+            IndicesAliasesRequest.AliasActions.remove().aliases(engineAliasName).indices("*")
+        );
+        clientWithOrigin.admin()
+            .indices()
+            .aliases(aliasesRequest, listener.delegateFailure((l, r) -> l.onResponse(AcknowledgedResponse.TRUE)));
+    }
+
+    /**
+     * Deletes both the provided {@param engineName} in the underlying index as well as the associated alias,
+     * or delegate a failure to the provided listener if the resource does not exist or failed to delete.
+     *
+     * @param engineName The name of the {@link Engine} to delete.
+     * @param listener The action listener to invoke on response/failure.
+     *
+     */
+    public void deleteEngineAndAlias(String engineName, ActionListener<DeleteResponse> listener) {
+        removeAlias(Engine.getEngineAliasName(engineName), listener.delegateFailure((l, r) -> deleteEngine(engineName, l)));
     }
 
     /**

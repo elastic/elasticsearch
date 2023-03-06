@@ -220,18 +220,25 @@ public class ActionListenerTests extends ESTestCase {
             refList.add(reference);
             excList.add(exReference);
             boolean fail = i == listenerToFail;
-            CheckedConsumer<Boolean, ? extends Exception> handler = (o) -> { reference.set(o); };
-            listeners.add(ActionListener.wrap(handler, (e) -> {
-                exReference.set(e);
-                if (fail) {
-                    throw new RuntimeException("double boom");
+            listeners.add(new ActionListener<>() {
+                @Override
+                public void onResponse(Boolean result) {
+                    reference.set(result);
                 }
-            }));
+
+                @Override
+                public void onFailure(Exception e) {
+                    exReference.set(e);
+                    if (fail) {
+                        throw new RuntimeException("double boom");
+                    }
+                }
+            });
         }
 
         try {
             ActionListener.onFailure(listeners, new Exception("booom"));
-            assertTrue("unexpected succces listener to fail: " + listenerToFail, listenerToFail == -1);
+            assertEquals("unexpected succces listener to fail: " + listenerToFail, -1, listenerToFail);
         } catch (RuntimeException ex) {
             assertTrue("listener to fail: " + listenerToFail, listenerToFail >= 0);
             assertNotNull(ex.getCause());
@@ -257,7 +264,7 @@ public class ActionListenerTests extends ESTestCase {
         {
             AtomicBoolean afterFailure = new AtomicBoolean();
             ActionListener<Object> listener = ActionListener.runAfter(ActionListener.noop(), () -> afterFailure.set(true));
-            listener.onFailure(null);
+            listener.onFailure(new RuntimeException("test"));
             assertThat(afterFailure.get(), equalTo(true));
         }
     }
@@ -272,7 +279,7 @@ public class ActionListenerTests extends ESTestCase {
         {
             AtomicBoolean afterFailure = new AtomicBoolean();
             ActionListener<Object> listener = ActionListener.runBefore(ActionListener.noop(), () -> afterFailure.set(true));
-            listener.onFailure(null);
+            listener.onFailure(new RuntimeException("test"));
             assertThat(afterFailure.get(), equalTo(true));
         }
     }
@@ -392,8 +399,8 @@ public class ActionListenerTests extends ESTestCase {
             @Override
             public void onFailure(Exception e) {
                 exReference.set(e);
-                if (e instanceof IllegalArgumentException) {
-                    throw (IllegalArgumentException) e;
+                if (e instanceof IllegalArgumentException iae) {
+                    throw iae;
                 }
             }
         };
@@ -406,7 +413,8 @@ public class ActionListenerTests extends ESTestCase {
             AssertionError.class,
             () -> ActionListener.completeWith(listener, () -> { throw new IllegalArgumentException(); })
         );
-        assertThat(assertionError.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(assertionError.getCause(), instanceOf(AssertionError.class));
+        assertThat(assertionError.getCause().getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(exReference.get(), instanceOf(IllegalArgumentException.class));
     }
 

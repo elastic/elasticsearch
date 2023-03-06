@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
@@ -18,12 +21,14 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 
-public class StartsWith extends ScalarFunction {
+public class StartsWith extends ScalarFunction implements Mappable {
 
     private final Expression str;
     private final Expression prefix;
@@ -87,11 +92,21 @@ public class StartsWith extends ScalarFunction {
         throw new UnsupportedOperationException();
     }
 
-    public Expression str() {
-        return str;
+    @Override
+    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
+        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
+    ) {
+        Supplier<EvalOperator.ExpressionEvaluator> strEval = toEvaluator.apply(str);
+        Supplier<EvalOperator.ExpressionEvaluator> prefixEval = toEvaluator.apply(prefix);
+        return () -> new StartsWithEvaluator(strEval.get(), prefixEval.get());
     }
 
-    public Expression prefix() {
-        return prefix;
+    record StartsWithEvaluator(EvalOperator.ExpressionEvaluator str, EvalOperator.ExpressionEvaluator prefix)
+        implements
+            EvalOperator.ExpressionEvaluator {
+        @Override
+        public Object computeRow(Page page, int pos) {
+            return StartsWith.process((BytesRef) str.computeRow(page, pos), (BytesRef) prefix.computeRow(page, pos));
+        }
     }
 }

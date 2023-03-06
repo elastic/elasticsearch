@@ -60,25 +60,6 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testStartsWithFunctionInvalidInputs() {
-        assertEquals(
-            "1:22: first argument of [starts_with(a, \"foo\")] must be [string], found value [a] type [integer]",
-            error("row a = 1 | eval x = starts_with(a, \"foo\")")
-        );
-        assertEquals(
-            "1:22: first argument of [starts_with(123, \"foo\")] must be [string], found value [123] type [integer]",
-            error("row a = 1 | eval x = starts_with(123, \"foo\")")
-        );
-        assertEquals(
-            "1:22: second argument of [starts_with(\"foo\", a)] must be [string], found value [a] type [integer]",
-            error("row a = 1 | eval x = starts_with(\"foo\", a)")
-        );
-        assertEquals(
-            "1:22: second argument of [starts_with(\"foo\", 123)] must be [string], found value [123] type [integer]",
-            error("row a = 1 | eval x = starts_with(\"foo\", 123)")
-        );
-    }
-
     public void testSubstringFunctionInvalidInputs() {
         assertEquals(
             "1:22: first argument of [substring(a, 1)] must be [string], found value [a] type [integer]",

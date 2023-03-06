@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.FoldNull;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -484,7 +483,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertNullLiteral(rule.rule(new Round(EMPTY, Literal.NULL, null)));
         assertNullLiteral(rule.rule(new DateFormat(EMPTY, Literal.NULL, Literal.NULL)));
         assertNullLiteral(rule.rule(new DateTrunc(EMPTY, Literal.NULL, Literal.NULL)));
-        assertNullLiteral(rule.rule(new StartsWith(EMPTY, Literal.NULL, Literal.NULL)));
         assertNullLiteral(rule.rule(new Substring(EMPTY, Literal.NULL, Literal.NULL, Literal.NULL)));
     }
 

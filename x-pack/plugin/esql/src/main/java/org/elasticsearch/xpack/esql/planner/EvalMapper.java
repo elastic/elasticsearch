@@ -16,7 +16,6 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -57,7 +56,6 @@ public final class EvalMapper {
         new Attributes(),
         new Literals(),
         new RoundFunction(),
-        new StartsWithFunction(),
         new SubstringFunction()
     );
 
@@ -280,22 +278,6 @@ public final class EvalMapper {
             } else {
                 return fieldEvaluator;
             }
-        }
-    }
-
-    public static class StartsWithFunction extends ExpressionMapper<StartsWith> {
-        @Override
-        public Supplier<ExpressionEvaluator> map(StartsWith sw, Layout layout) {
-            record StartsWithEvaluator(ExpressionEvaluator str, ExpressionEvaluator prefix) implements ExpressionEvaluator {
-                @Override
-                public Object computeRow(Page page, int pos) {
-                    return StartsWith.process((BytesRef) str.computeRow(page, pos), (BytesRef) prefix.computeRow(page, pos));
-                }
-            }
-
-            Supplier<ExpressionEvaluator> input = toEvaluator(sw.str(), layout);
-            Supplier<ExpressionEvaluator> pattern = toEvaluator(sw.prefix(), layout);
-            return () -> new StartsWithEvaluator(input.get(), pattern.get());
         }
     }
 

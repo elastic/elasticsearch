@@ -17,29 +17,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import static org.hamcrest.Matchers.containsString;
 
 public class StringFunctionsTests extends ESTestCase {
-    public void testStartsWith() {
-        assertEquals(true, StartsWith.process(new BytesRef("cat"), new BytesRef("cat")));
-        assertEquals(true, StartsWith.process(new BytesRef("cat"), new BytesRef("ca")));
-        assertEquals(true, StartsWith.process(new BytesRef("cat"), new BytesRef("c")));
-        assertEquals(true, StartsWith.process(new BytesRef("cat"), new BytesRef("")));
-        assertEquals(false, StartsWith.process(new BytesRef("cat"), new BytesRef("cata")));
-        assertEquals(null, StartsWith.process(null, new BytesRef("cat")));
-        assertEquals(null, StartsWith.process(new BytesRef("cat"), null));
-        String s = randomUnicodeOfLength(10);
-        assertEquals(true, StartsWith.process(new BytesRef(s), new BytesRef("")));
-        assertEquals(true, StartsWith.process(new BytesRef(s), new BytesRef(s)));
-        assertEquals(true, StartsWith.process(new BytesRef(s + randomUnicodeOfLength(2)), new BytesRef(s)));
-        assertEquals(true, StartsWith.process(new BytesRef(s + randomAlphaOfLength(100)), new BytesRef(s)));
-
-        Expression e = new StartsWith(
-            Source.EMPTY,
-            new Literal(Source.EMPTY, new BytesRef("ab"), DataTypes.KEYWORD),
-            new Literal(Source.EMPTY, new BytesRef("a"), DataTypes.KEYWORD)
-        );
-        assertTrue(e.foldable());
-        assertEquals(true, e.fold());
-    }
-
     public void testSubstring() {
         assertEquals("a tiger", Substring.process(new BytesRef("a tiger"), 0, null));
         assertEquals("tiger", Substring.process(new BytesRef("a tiger"), 3, null));

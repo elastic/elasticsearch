@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -166,14 +165,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         assertThat(capacity().results().get("warm").requiredCapacity().total().storage().getBytes(), equalTo(0L));
         assertThat(capacity().results().get("warm").requiredCapacity().node().storage().getBytes(), equalTo(0L));
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .updateSettings(
-                    new UpdateSettingsRequest(indexName).settings(Settings.builder().put(DataTier.TIER_PREFERENCE, "data_warm,data_hot"))
-                )
-                .actionGet()
-        );
+        updateIndexSettings(Settings.builder().put(DataTier.TIER_PREFERENCE, "data_warm,data_hot"), indexName);
         if (allocatable == false) {
             refresh();
         }
@@ -226,7 +218,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         );
 
         // the tier preference will have defaulted to data_content, set it back to null
-        updateIndexSettings(indexName, Settings.builder().putNull(DataTier.TIER_PREFERENCE));
+        updateIndexSettings(Settings.builder().putNull(DataTier.TIER_PREFERENCE), indexName);
 
         refresh(indexName);
         assertThat(capacity().results().get("warm").requiredCapacity().total().storage().getBytes(), equalTo(0L));
@@ -234,15 +226,9 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         assertThat(capacity().results().get("cold").requiredCapacity().total().storage().getBytes(), equalTo(0L));
         assertThat(capacity().results().get("cold").requiredCapacity().node().storage().getBytes(), equalTo(0L));
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .updateSettings(
-                    new UpdateSettingsRequest(indexName).settings(
-                        Settings.builder().put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "data_tier", "warm")
-                    )
-                )
-                .actionGet()
+        updateIndexSettings(
+            Settings.builder().put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "data_tier", "warm"),
+            indexName
         );
 
         assertThat(capacity().results().get("warm").requiredCapacity().total().storage().getBytes(), Matchers.greaterThan(0L));
@@ -324,16 +310,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         String filterKey = randomFrom(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING, IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING)
             .getKey() + filter.v1();
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .updateSettings(
-                    new UpdateSettingsRequest(indexName).settings(
-                        Settings.builder().put(filterKey, filter.v2()).put("index.blocks.write", true)
-                    )
-                )
-                .actionGet()
-        );
+        updateIndexSettings(Settings.builder().put(filterKey, filter.v2()).put("index.blocks.write", true), indexName);
 
         long shrinkSpace = used + LOW_WATERMARK_BYTES;
 
@@ -472,13 +449,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
             equalTo(used + LOW_WATERMARK_BYTES + ReactiveStorageDeciderService.NODE_DISK_OVERHEAD)
         );
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .updateSettings(new UpdateSettingsRequest(indexName).settings(Settings.builder().put("index.blocks.write", true)))
-                .actionGet()
-        );
-
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), indexName);
         ResizeType resizeType = randomFrom(ResizeType.CLONE, ResizeType.SPLIT);
         String cloneName = "clone-" + indexName;
         int resizedShardCount = resizeType == ResizeType.CLONE ? 1 : between(2, 10);

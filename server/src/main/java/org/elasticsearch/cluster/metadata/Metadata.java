@@ -2435,38 +2435,25 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             DataStreamMetadata dataStreamMetadata,
             ImmutableOpenMap<String, IndexMetadata> indices
         ) {
+            if (indices.isEmpty()) {
+                return Collections.emptySortedMap();
+            }
             SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
             Map<String, IndexAbstraction.DataStream> indexToDataStreamLookup = new HashMap<>();
-            // If there are no indices, then skip data streams. This happens only when metadata is read from disk
-            if (indices.size() > 0) {
-                Map<String, List<String>> dataStreamToAliasLookup = new HashMap<>();
-                for (DataStreamAlias alias : dataStreamMetadata.getDataStreamAliases().values()) {
-                    List<Index> allIndicesOfAllDataStreams = alias.getDataStreams().stream().map(name -> {
-                        List<String> aliases = dataStreamToAliasLookup.computeIfAbsent(name, k -> new LinkedList<>());
-                        aliases.add(alias.getName());
-                        return dataStreamMetadata.dataStreams().get(name);
-                    }).flatMap(ds -> ds.getIndices().stream()).toList();
-                    Index writeIndexOfWriteDataStream = null;
-                    if (alias.getWriteDataStream() != null) {
-                        DataStream writeDataStream = dataStreamMetadata.dataStreams().get(alias.getWriteDataStream());
-                        writeIndexOfWriteDataStream = writeDataStream.getWriteIndex();
-                    }
-                    IndexAbstraction existing = indicesLookup.put(
-                        alias.getName(),
-                        new IndexAbstraction.Alias(alias, allIndicesOfAllDataStreams, writeIndexOfWriteDataStream)
-                    );
-                    assert existing == null : "duplicate data stream alias for " + alias.getName();
-                }
-                for (DataStream dataStream : dataStreamMetadata.dataStreams().values()) {
-                    assert dataStream.getIndices().isEmpty() == false;
+            final var dataStreams = dataStreamMetadata.dataStreams();
+            for (DataStreamAlias alias : dataStreamMetadata.getDataStreamAliases().values()) {
+                IndexAbstraction existing = indicesLookup.put(alias.getName(), makeDsAliasAbstraction(dataStreams, alias));
+                assert existing == null : "duplicate data stream alias for " + alias.getName();
+            }
+            for (DataStream dataStream : dataStreams.values()) {
+                assert dataStream.getIndices().isEmpty() == false;
 
-                    final IndexAbstraction.DataStream dsAbstraction = new IndexAbstraction.DataStream(dataStream);
-                    IndexAbstraction existing = indicesLookup.put(dataStream.getName(), dsAbstraction);
-                    assert existing == null : "duplicate data stream for " + dataStream.getName();
+                final IndexAbstraction.DataStream dsAbstraction = new IndexAbstraction.DataStream(dataStream);
+                IndexAbstraction existing = indicesLookup.put(dataStream.getName(), dsAbstraction);
+                assert existing == null : "duplicate data stream for " + dataStream.getName();
 
-                    for (Index i : dataStream.getIndices()) {
-                        indexToDataStreamLookup.put(i.getName(), dsAbstraction);
-                    }
+                for (Index i : dataStream.getIndices()) {
+                    indexToDataStreamLookup.put(i.getName(), dsAbstraction);
                 }
             }
 
@@ -2493,6 +2480,19 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             }
 
             return Collections.unmodifiableSortedMap(indicesLookup);
+        }
+
+        private static IndexAbstraction.Alias makeDsAliasAbstraction(Map<String, DataStream> dataStreams, DataStreamAlias alias) {
+            Index writeIndexOfWriteDataStream = null;
+            if (alias.getWriteDataStream() != null) {
+                DataStream writeDataStream = dataStreams.get(alias.getWriteDataStream());
+                writeIndexOfWriteDataStream = writeDataStream.getWriteIndex();
+            }
+            return new IndexAbstraction.Alias(
+                alias,
+                alias.getDataStreams().stream().flatMap(name -> dataStreams.get(name).getIndices().stream()).toList(),
+                writeIndexOfWriteDataStream
+            );
         }
 
         private static boolean isNonEmpty(List<IndexMetadata> idxMetas) {

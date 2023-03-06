@@ -123,11 +123,11 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
     // Ingest pipeline configuration.
     protected final ConcurrentMap<String, AtomicBoolean> pipelineCreationsInProgress = new ConcurrentHashMap<>();
 
-    public static final String EVENT_DATA_STREAM_PIPELINE_NAME = "behavioral_analytics-events-final_pipeline";
+    public static final String EVENT_DATA_STREAM_INGEST_PIPELINE_NAME = "behavioral_analytics-events-final_pipeline";
     private static final List<PipelineConfigurationTemplate> INGEST_PIPELINES = Collections.singletonList(
         new PipelineConfigurationTemplate(
-            EVENT_DATA_STREAM_PIPELINE_NAME,
-            ROOT_RESOURCE_PATH + EVENT_DATA_STREAM_PIPELINE_NAME + ".json",
+            EVENT_DATA_STREAM_INGEST_PIPELINE_NAME,
+            ROOT_RESOURCE_PATH + EVENT_DATA_STREAM_INGEST_PIPELINE_NAME + ".json",
             Map.of(TEMPLATE_VERSION_VARIABLE, String.valueOf(REGISTRY_VERSION))
         )
     );
@@ -215,8 +215,10 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
                         IngestMetadata ingestMetadata = state.metadata().custom(IngestMetadata.TYPE);
                         PipelineConfiguration existingPipeline = ingestMetadata.getPipelines().get(pipelineConfigurationTemplate.id());
                         PipelineConfiguration newPipeline = pipelineConfigurationTemplate.loadPipelineConfiguration();
-
-                        if (Objects.isNull(existingPipeline.getVersion()) || existingPipeline.getVersion() < newPipeline.getVersion()) {
+                        boolean newPipelineHasVersion = Objects.isNull(newPipeline.getVersion()) == false;
+                        boolean oldPipelineHasVersion = Objects.isNull(existingPipeline.getVersion()) == false;
+                        if (newPipelineHasVersion
+                            && (oldPipelineHasVersion == false || existingPipeline.getVersion() < newPipeline.getVersion())) {
                             logger.info(
                                 "upgrading ingest pipeline [{}] for [{}] from version [{}] to version [{}]",
                                 pipelineConfigurationTemplate.id(),
@@ -268,7 +270,8 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
                 PutPipelineRequest request = new PutPipelineRequest(
                     pipelineConfiguration.id(),
                     pipelineConfiguration.parsedSource(),
-                    pipelineConfiguration.xContentType()
+                    pipelineConfiguration.xContentType(),
+                    pipelineConfiguration.loadPipelineConfiguration().getVersion()
                 );
 
                 request.masterNodeTimeout(TimeValue.timeValueMinutes(1));

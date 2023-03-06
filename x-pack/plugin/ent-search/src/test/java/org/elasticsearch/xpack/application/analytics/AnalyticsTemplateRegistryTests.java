@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.ingest.PutPipelineAction;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -27,7 +28,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.ingest.IngestMetadata;
+import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -50,10 +55,12 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -344,6 +351,89 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         registry.clusterChanged(event);
     }
 
+    public void testThatNonExistingIngestPipelinesAreCreated() throws Exception {
+        DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), nodes);
+
+        AtomicInteger calledTimes = new AtomicInteger(0);
+        client.setVerifier((action, request, listener) -> verifyIngestPipelineInstalled(calledTimes, action, request, listener));
+        registry.clusterChanged(event);
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getIngestPipelineConfigs().size())));
+
+        calledTimes.set(0);
+
+        // attempting to register the event multiple times as a race condition can yield this test flaky, namely:
+        // when calling registry.clusterChanged(newEvent) the templateCreationsInProgress state that the IndexTemplateRegistry maintains
+        // might've not yet been updated to reflect that the first template registration was complete, so a second template registration
+        // will not be issued anymore, leaving calledTimes to 0
+        assertBusy(() -> {
+            // now delete one template from the cluster state and let's retry
+            ClusterChangedEvent newEvent = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), nodes);
+            registry.clusterChanged(newEvent);
+            assertThat(calledTimes.get(), greaterThan(1));
+        });
+    }
+
+    public void testThatVersionedIngestPipelinesAreUpgraded() throws Exception {
+        DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        ClusterChangedEvent event = createClusterChangedEvent(
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            Collections.singletonMap(
+                AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INGEST_PIPELINE_NAME,
+                AnalyticsTemplateRegistry.REGISTRY_VERSION - 1
+            ),
+            nodes
+        );
+        AtomicInteger calledTimes = new AtomicInteger(0);
+        client.setVerifier((action, request, listener) -> verifyIngestPipelineInstalled(calledTimes, action, request, listener));
+        registry.clusterChanged(event);
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getIngestPipelineConfigs().size())));
+    }
+
+    public void testThatUnversionedOldIngestPipelinesAreUpgraded() throws Exception {
+        DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        ClusterChangedEvent event = createClusterChangedEvent(
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            Collections.singletonMap(AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INGEST_PIPELINE_NAME, null),
+            nodes
+        );
+        AtomicInteger calledTimes = new AtomicInteger(0);
+        client.setVerifier((action, request, listener) -> verifyIngestPipelineInstalled(calledTimes, action, request, listener));
+        registry.clusterChanged(event);
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getIngestPipelineConfigs().size())));
+    }
+
+    public void testSameOrHigherVersionIngestPipelinesAreNotUpgraded() throws Exception {
+        DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        ClusterChangedEvent event = createClusterChangedEvent(
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            Collections.singletonMap(
+                AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INGEST_PIPELINE_NAME,
+                AnalyticsTemplateRegistry.REGISTRY_VERSION
+            ),
+            nodes
+        );
+
+        AtomicInteger calledTimes = new AtomicInteger(0);
+        client.setVerifier((action, request, listener) -> verifyIngestPipelineInstalled(calledTimes, action, request, listener));
+        registry.clusterChanged(event);
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(0)));
+    }
+
     // -------------
 
     /**
@@ -441,6 +531,35 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         }
     }
 
+    private ActionResponse verifyIngestPipelineInstalled(
+        AtomicInteger calledTimes,
+        ActionType<?> action,
+        ActionRequest request,
+        ActionListener<?> listener
+    ) {
+        if (action instanceof PutPipelineAction) {
+            calledTimes.incrementAndGet();
+            assertThat(action, instanceOf(PutPipelineAction.class));
+            assertThat(request, instanceOf(PutPipelineRequest.class));
+            final PutPipelineRequest putRequest = (PutPipelineRequest) request;
+            assertThat(putRequest.getVersion(), equalTo(AnalyticsTemplateRegistry.REGISTRY_VERSION));
+            assertNotNull(listener);
+            return AcknowledgedResponse.TRUE;
+        } else if (action instanceof PutLifecycleAction) {
+            // Ignore this, it's verified in another test
+            return AcknowledgedResponse.TRUE;
+        } else if (action instanceof PutComposableIndexTemplateAction) {
+            // Ignore this, it's verified in another test
+            return AcknowledgedResponse.TRUE;
+        } else if (action instanceof PutComponentTemplateAction) {
+            // Ignore this, it's verified in another test
+            return new TestPutIndexTemplateResponse(true);
+        } else {
+            fail("client called with unexpected request:" + request.toString());
+            return null;
+        }
+    }
+
     private ClusterChangedEvent createClusterChangedEvent(
         Map<String, Integer> existingComposableTemplates,
         Map<String, Integer> existingComponentTemplates,
@@ -455,7 +574,29 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         Map<String, LifecyclePolicy> existingPolicies,
         DiscoveryNodes nodes
     ) {
-        ClusterState cs = createClusterState(existingComposableTemplates, existingComponentTemplates, existingPolicies, nodes);
+        return createClusterChangedEvent(
+            existingComposableTemplates,
+            existingComponentTemplates,
+            existingPolicies,
+            Collections.emptyMap(),
+            nodes
+        );
+    }
+
+    private ClusterChangedEvent createClusterChangedEvent(
+        Map<String, Integer> existingComposableTemplates,
+        Map<String, Integer> existingComponentTemplates,
+        Map<String, LifecyclePolicy> existingPolicies,
+        Map<String, Integer> existingPipelineConfiguration,
+        DiscoveryNodes nodes
+    ) {
+        ClusterState cs = createClusterState(
+            existingComposableTemplates,
+            existingComponentTemplates,
+            existingPolicies,
+            existingPipelineConfiguration,
+            nodes
+        );
         ClusterChangedEvent realEvent = new ClusterChangedEvent(
             "created-from-test",
             cs,
@@ -471,6 +612,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         Map<String, Integer> existingComposableTemplates,
         Map<String, Integer> existingComponentTemplates,
         Map<String, LifecyclePolicy> existingPolicies,
+        Map<String, Integer> existingPipelineConfiguration,
         DiscoveryNodes nodes
     ) {
         Map<String, ComposableIndexTemplate> composableTemplates = new HashMap<>();
@@ -492,6 +634,19 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
             .collect(Collectors.toMap(Map.Entry::getKey, e -> new LifecyclePolicyMetadata(e.getValue(), Collections.emptyMap(), 1, 1)));
         IndexLifecycleMetadata ilmMeta = new IndexLifecycleMetadata(existingILMMeta, OperationMode.RUNNING);
 
+        Map<String, PipelineConfiguration> pipelines = new HashMap<>();
+        for (Map.Entry<String, Integer> pipeline : existingPipelineConfiguration.entrySet()) {
+            BytesArray pipelineConfigJson = new BytesArray("{}".getBytes(StandardCharsets.UTF_8));
+            if (Objects.isNull(pipeline.getValue()) == false) {
+                pipelineConfigJson = new BytesArray(
+                    Strings.format(" {\"version\": %d}", pipeline.getValue()).getBytes(StandardCharsets.UTF_8)
+                );
+            }
+            PipelineConfiguration pipelineConfig = new PipelineConfiguration(pipeline.getKey(), pipelineConfigJson, XContentType.JSON);
+            pipelines.put(pipeline.getKey(), pipelineConfig);
+        }
+        IngestMetadata ingestMetadata = new IngestMetadata(pipelines);
+
         return ClusterState.builder(new ClusterName("test"))
             .metadata(
                 Metadata.builder()
@@ -499,6 +654,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
                     .componentTemplates(componentTemplates)
                     .transientSettings(Settings.EMPTY)
                     .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
+                    .putCustom(IngestMetadata.TYPE, ingestMetadata)
                     .build()
             )
             .blocks(new ClusterBlocks.Builder().build())

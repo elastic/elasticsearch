@@ -318,35 +318,6 @@ public class Lucene {
         }
     }
 
-    public static TopDocs readOnlyTopDocs(StreamInput in) throws IOException {
-        byte type = in.readByte();
-        if (type == 0) {
-            TotalHits totalHits = readTotalHits(in);
-
-            final int scoreDocCount = in.readVInt();
-            final ScoreDoc[] scoreDocs;
-            if (scoreDocCount == 0) {
-                scoreDocs = EMPTY_SCORE_DOCS;
-            } else {
-                scoreDocs = new ScoreDoc[scoreDocCount];
-                for (int i = 0; i < scoreDocs.length; i++) {
-                    scoreDocs[i] = new ScoreDoc(in.readVInt(), in.readFloat());
-                }
-            }
-            return new TopDocs(totalHits, scoreDocs);
-        } else if (type == 1) {
-            TotalHits totalHits = readTotalHits(in);
-            SortField[] fields = in.readArray(Lucene::readSortField, SortField[]::new);
-            FieldDoc[] fieldDocs = new FieldDoc[in.readVInt()];
-            for (int i = 0; i < fieldDocs.length; i++) {
-                fieldDocs[i] = readFieldDoc(in);
-            }
-            return new TopFieldDocs(totalHits, fieldDocs, fields);
-        } else {
-            throw new IllegalStateException("Unknown type " + type);
-        }
-    }
-
     public static FieldDoc readFieldDoc(StreamInput in) throws IOException {
         Comparable<?>[] cFields = new Comparable<?>[in.readVInt()];
         for (int j = 0; j < cFields.length; j++) {
@@ -449,19 +420,6 @@ public class Lucene {
             writeTotalHits(out, topDocs.topDocs.totalHits);
             out.writeFloat(topDocs.maxScore);
             out.writeArray(Lucene::writeScoreDoc, topDocs.topDocs.scoreDocs);
-        }
-    }
-
-    public static void writeOnlyTopDocs(StreamOutput out, TopDocs topDocs) throws IOException {
-        if (topDocs instanceof TopFieldDocs topFieldDocs) {
-            out.writeByte((byte) 1);
-            writeTotalHits(out, topDocs.totalHits);
-            out.writeArray(Lucene::writeSortField, topFieldDocs.fields);
-            out.writeArray((o, doc) -> writeFieldDoc(o, (FieldDoc) doc), topFieldDocs.scoreDocs);
-        } else {
-            out.writeByte((byte) 0);
-            writeTotalHits(out, topDocs.totalHits);
-            out.writeArray(Lucene::writeScoreDoc, topDocs.scoreDocs);
         }
     }
 

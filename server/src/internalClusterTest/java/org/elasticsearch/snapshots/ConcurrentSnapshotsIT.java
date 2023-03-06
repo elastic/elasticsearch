@@ -1303,15 +1303,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final int limitToTest = randomIntBetween(1, 3);
         final List<String> snapshotNames = createNSnapshots(repoName, limitToTest + 1);
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(SnapshotsService.MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING.getKey(), limitToTest).build()
-                )
-                .get()
-        );
+        updateClusterSettings(Settings.builder().put(SnapshotsService.MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING.getKey(), limitToTest));
 
         blockNodeOnAnyFiles(repoName, masterName);
         int blockedSnapshots = 0;

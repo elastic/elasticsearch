@@ -243,12 +243,9 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
 
         final DiscoveryNode excludedDataNode = randomFrom(dataNodes);
         logger.info("--> relocating mounted index {} away from {}", mountedIndex, excludedDataNode);
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(mountedIndexName)
-                .setSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._id", excludedDataNode.getId()))
-                .get()
+        updateIndexSettings(
+            Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._id", excludedDataNode.getId()),
+            mountedIndexName
         );
 
         ensureGreen(mountedIndexName);

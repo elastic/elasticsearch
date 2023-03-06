@@ -9,6 +9,7 @@ package org.elasticsearch.dlm;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -74,7 +75,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         for (DataLifecycleService dataLifecycleService : dataLifecycleServices) {
             dataLifecycleService.setDefaultRolloverRequestSupplier((target) -> {
                 RolloverRequest rolloverRequest = new RolloverRequest(target, null);
-                rolloverRequest.addMaxIndexDocsCondition(1);
+                rolloverRequest.setConditions(RolloverConditions.newBuilder().addMaxIndexDocsCondition(1L).build());
                 return rolloverRequest;
             });
         }
@@ -108,7 +109,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         for (DataLifecycleService dataLifecycleService : dataLifecycleServices) {
             dataLifecycleService.setDefaultRolloverRequestSupplier((target) -> {
                 RolloverRequest rolloverRequest = new RolloverRequest(target, null);
-                rolloverRequest.addMaxIndexDocsCondition(1);
+                rolloverRequest.setConditions(RolloverConditions.newBuilder().addMaxIndexDocsCondition(1L).build());
                 return rolloverRequest;
             });
         }

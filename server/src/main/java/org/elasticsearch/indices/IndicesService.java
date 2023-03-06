@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -1651,7 +1652,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
         Metadata metadata = state.metadata();
         IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
-        IndexAbstraction.DataStream dataStream = ia.getParentDataStream();
+        DataStream dataStream = ia.getParentDataStream();
         if (dataStream != null) {
             String dataStreamName = dataStream.getName();
             List<QueryBuilder> filters = Arrays.stream(aliases)

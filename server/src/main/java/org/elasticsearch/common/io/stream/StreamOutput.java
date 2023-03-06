@@ -8,11 +8,6 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.IndexFormatTooNewException;
-import org.apache.lucene.index.IndexFormatTooOldException;
-import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -25,25 +20,14 @@ import org.elasticsearch.common.io.stream.Writeable.Writer;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.ByteUtils;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.io.EOFException;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.math.BigInteger;
-import java.nio.file.AccessDeniedException;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.DirectoryNotEmptyException;
-import java.nio.file.FileAlreadyExistsException;
-import java.nio.file.FileSystemException;
-import java.nio.file.FileSystemLoopException;
-import java.nio.file.NoSuchFileException;
-import java.nio.file.NotDirectoryException;
 import java.time.Instant;
 import java.time.OffsetTime;
 import java.time.ZoneId;
@@ -987,127 +971,6 @@ public abstract class StreamOutput extends OutputStream {
 
     void writeException(Throwable throwable, Consumer<Throwable> nestedExceptionLimitCallback) throws IOException {
         ElasticsearchException.writeException(throwable, this, nestedExceptionLimitCallback);
-    }
-
-    public record ExceptionSerialization(boolean writeCause, @Nullable Throwable cause, @Nullable ElasticsearchException esException) {}
-
-    /**
-     * Writes the details of {@code throwable} to this stream. Returns an {@link ExceptionSerialization} object indicating
-     * what needs to be serialized next.
-     */
-    public ExceptionSerialization writeExceptionDetails(@Nullable Throwable throwable) throws IOException {
-        if (throwable == null) {
-            writeBoolean(false);
-            return new ExceptionSerialization(false, null, null);
-        }
-
-        writeBoolean(true);
-        boolean writeCause = true;
-        boolean writeMessage = true;
-        ElasticsearchException esException = null;
-        if (throwable instanceof CorruptIndexException cie) {
-            writeVInt(1);
-            writeOptionalString(cie.getOriginalMessage());
-            writeOptionalString(cie.getResourceDescription());
-            writeMessage = false;
-        } else if (throwable instanceof IndexFormatTooNewException iftne) {
-            writeVInt(2);
-            writeOptionalString(iftne.getResourceDescription());
-            writeInt(iftne.getVersion());
-            writeInt(iftne.getMinVersion());
-            writeInt(iftne.getMaxVersion());
-            writeMessage = false;
-            writeCause = false;
-        } else if (throwable instanceof IndexFormatTooOldException t) {
-            writeVInt(3);
-            writeOptionalString(t.getResourceDescription());
-            if (t.getVersion() == null) {
-                writeBoolean(false);
-                writeOptionalString(t.getReason());
-            } else {
-                writeBoolean(true);
-                writeInt(t.getVersion());
-                writeInt(t.getMinVersion());
-                writeInt(t.getMaxVersion());
-            }
-            writeMessage = false;
-            writeCause = false;
-        } else if (throwable instanceof NullPointerException) {
-            writeVInt(4);
-            writeCause = false;
-        } else if (throwable instanceof NumberFormatException) {
-            writeVInt(5);
-            writeCause = false;
-        } else if (throwable instanceof IllegalArgumentException) {
-            writeVInt(6);
-        } else if (throwable instanceof AlreadyClosedException) {
-            writeVInt(7);
-        } else if (throwable instanceof EOFException) {
-            writeVInt(8);
-            writeCause = false;
-        } else if (throwable instanceof SecurityException) {
-            writeVInt(9);
-        } else if (throwable instanceof StringIndexOutOfBoundsException) {
-            writeVInt(10);
-            writeCause = false;
-        } else if (throwable instanceof ArrayIndexOutOfBoundsException) {
-            writeVInt(11);
-            writeCause = false;
-        } else if (throwable instanceof FileNotFoundException) {
-            writeVInt(12);
-            writeCause = false;
-        } else if (throwable instanceof FileSystemException fse) {
-            writeVInt(13);
-            if (throwable instanceof NoSuchFileException) {
-                writeVInt(0);
-            } else if (throwable instanceof NotDirectoryException) {
-                writeVInt(1);
-            } else if (throwable instanceof DirectoryNotEmptyException) {
-                writeVInt(2);
-            } else if (throwable instanceof AtomicMoveNotSupportedException) {
-                writeVInt(3);
-            } else if (throwable instanceof FileAlreadyExistsException) {
-                writeVInt(4);
-            } else if (throwable instanceof AccessDeniedException) {
-                writeVInt(5);
-            } else if (throwable instanceof FileSystemLoopException) {
-                writeVInt(6);
-            } else {
-                writeVInt(7);
-            }
-            writeOptionalString(fse.getFile());
-            writeOptionalString(fse.getOtherFile());
-            writeOptionalString(fse.getReason());
-            writeCause = false;
-        } else if (throwable instanceof IllegalStateException) {
-            writeVInt(14);
-        } else if (throwable instanceof LockObtainFailedException) {
-            writeVInt(15);
-        } else if (throwable instanceof InterruptedException) {
-            writeVInt(16);
-            writeCause = false;
-        } else if (throwable instanceof IOException) {
-            writeVInt(17);
-        } else if (throwable instanceof EsRejectedExecutionException eree) {
-            writeVInt(18);
-            writeBoolean(eree.isExecutorShutdown());
-            writeCause = false;
-        } else {
-            final ElasticsearchException ex;
-            if (throwable instanceof ElasticsearchException && ElasticsearchException.isRegistered(throwable.getClass(), version)) {
-                ex = (ElasticsearchException) throwable;
-            } else {
-                ex = new NotSerializableExceptionWrapper(throwable);
-            }
-            writeVInt(0);
-            writeVInt(ElasticsearchException.getId(ex.getClass()));
-            throwable = ex;
-            esException = ex;
-        }
-        if (writeMessage) {
-            writeOptionalString(throwable.getMessage());
-        }
-        return new ExceptionSerialization(writeCause, throwable.getCause(), esException);
     }
 
     /**

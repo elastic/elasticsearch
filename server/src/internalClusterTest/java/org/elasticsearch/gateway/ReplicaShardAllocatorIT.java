@@ -71,13 +71,8 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         String indexName = "test";
         String nodeWithPrimary = internalCluster().startNode();
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
-                )
+        updateClusterSettings(
+            Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
         );
 
         assertAcked(
@@ -283,20 +278,10 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         if (randomBoolean()) {
             assertAcked(client().admin().indices().prepareClose(indexName));
         }
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.enable", "primaries").build())
-        );
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.enable", "primaries"));
         internalCluster().fullRestart();
         ensureYellow(indexName);
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull("cluster.routing.allocation.enable").build())
-        );
+        updateClusterSettings(Settings.builder().putNull("cluster.routing.allocation.enable"));
         ensureGreen(indexName);
         assertNoOpRecoveries(indexName);
     }
@@ -352,24 +337,13 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             );
         }
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.enable", "primaries").build())
-        );
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.enable", "primaries"));
         nodeWithLowerMatching = internalCluster().startNode(nodeWithLowerMatchingSettings);
         nodeWithHigherMatching = internalCluster().startNode(nodeWithHigherMatchingSettings);
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        .put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
-                        .putNull(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey())
-                        .build()
-                )
+        updateClusterSettings(
+            Settings.builder()
+                .put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+                .putNull(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey())
         );
         ensureGreen(indexName);
         assertThat(internalCluster().nodesInclude(indexName), allOf(hasItem(nodeWithHigherMatching), not(hasItem(nodeWithLowerMatching))));
@@ -463,16 +437,10 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         setReplicaCount(numberOfReplicas, indexName);
         ensureGreen(indexName);
         ensureActivePeerRecoveryRetentionLeasesAdvanced(indexName);
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        .put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.PRIMARIES)
-                        .put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.PRIMARIES)
-                        .build()
-                )
+        updateClusterSettings(
+            Settings.builder()
+                .put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.PRIMARIES)
+                .put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.PRIMARIES)
         );
         internalCluster().fullRestart();
         ensureYellow(indexName);
@@ -480,12 +448,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             assertAcked(client().admin().indices().prepareOpen(indexName));
             client().admin().indices().prepareForceMerge(indexName).get();
         }
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()).build())
-        );
+        updateClusterSettings(Settings.builder().putNull(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()));
         ensureGreen(indexName);
         assertNoOpRecoveries(indexName);
     }

@@ -19,7 +19,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -71,8 +70,7 @@ public class AnnotationIndex {
     ) {
 
         final ActionListener<Boolean> annotationsIndexCreatedListener = ActionListener.wrap(success -> {
-            final ClusterHealthRequest request = Requests.clusterHealthRequest(READ_ALIAS_NAME)
-                .waitForYellowStatus()
+            final ClusterHealthRequest request = new ClusterHealthRequest(READ_ALIAS_NAME).waitForYellowStatus()
                 .masterNodeTimeout(masterNodeTimeout);
             executeAsyncWithOrigin(
                 client,

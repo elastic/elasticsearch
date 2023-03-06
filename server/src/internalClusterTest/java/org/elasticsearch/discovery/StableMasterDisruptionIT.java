@@ -226,6 +226,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
      * following another elected master node. These nodes should reject this cluster state and prevent them from following the stale master.
      */
     public void testStaleMasterNotHijackingMajority() throws Exception {
+        assumeFalse("jdk20 removed thread suspend/resume", Runtime.version().feature() >= 20);
         final List<String> nodes = internalCluster().startNodes(
             3,
             Settings.builder()
@@ -333,6 +334,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
      * @throws Exception
      */
     public void testRepeatedMasterChanges(String expectedMasterStabilitySymptomSubstring) throws Exception {
+        assumeFalse("jdk20 removed thread suspend/resume", Runtime.version().feature() >= 20);
         final List<String> nodes = internalCluster().startNodes(
             3,
             Settings.builder()
@@ -422,6 +424,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
     }
 
     public void testRepeatedNullMasterRecognizedAsGreenIfMasterDoesNotKnowItIsUnstable() throws Exception {
+        assumeFalse("jdk20 removed thread suspend/resume", Runtime.version().feature() >= 20);
         /*
          * In this test we have a single master-eligible node. We pause it repeatedly (simulating a long GC pause for example) so that
          * other nodes decide it is no longer the master. However since there is no other master-eligible node, another node is never

@@ -68,6 +68,18 @@ setup:
   - gte: { 'cluster_balance_stats.nodes.$node_name.actual_disk_usage_bytes' : 0 }
 
 ---
+"Test cluster_info":
+
+  - skip:
+      version: " - 8.7.99"
+      reason: "Field added in in 8.8.0"
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - is_true: 'cluster_info'
+
+---
 "Test cluster_balance_stats contains node ID":
 
   - skip:

@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -48,7 +49,7 @@ public class DeleteAnalyticsCollectionAction extends ActionType<AcknowledgedResp
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
 
-            if (this.collectionName == null || this.collectionName.isEmpty()) {
+            if (Strings.isNullOrEmpty(collectionName)) {
                 validationException = addValidationError("collection name missing", validationException);
             }
 

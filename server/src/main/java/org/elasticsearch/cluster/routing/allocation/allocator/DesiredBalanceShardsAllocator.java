@@ -62,7 +62,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private final AtomicLong indexGenerator = new AtomicLong(-1);
     private final ConcurrentLinkedQueue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves = new ConcurrentLinkedQueue<>();
     private final MasterServiceTaskQueue<ReconcileDesiredBalanceTask> masterServiceTaskQueue;
-    private final ReconcileDesiredBalanceExecutor executor = new ReconcileDesiredBalanceExecutor();
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
     private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
 

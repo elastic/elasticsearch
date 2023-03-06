@@ -90,7 +90,14 @@ public class LicenseServiceTests extends ESTestCase {
     public void testLogExpirationWarning() {
         long time = LocalDate.of(2018, 11, 15).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
         final boolean expired = randomBoolean();
-        final String message = LicenseService.buildExpirationMessage(time, expired).toString();
+        final LicenseService service = new LicenseService(
+            Settings.EMPTY,
+            mock(ThreadPool.class),
+            mockDefaultClusterService(),
+            mock(Clock.class),
+            mock(XPackLicenseState.class)
+        );
+        final String message = service.buildExpirationMessage(time, expired).toString();
         if (expired) {
             assertThat(message, startsWith("LICENSE [EXPIRED] ON [THURSDAY, NOVEMBER 15, 2018].\n"));
         } else {
@@ -148,7 +155,7 @@ public class LicenseServiceTests extends ESTestCase {
         License.LicenseType type = randomFrom(License.LicenseType.values());
         License testLicense = buildLicense(licenseId, type, TimeValue.timeValueDays(randomIntBetween(1, 100)).millis());
 
-        assertThat(LicenseService.getExpiryDate(testLicense), equalTo(new Date(42000L).getTime()));
+        assertThat(LicenseUtils.getExpiryDate(testLicense), equalTo(new Date(42000L).getTime()));
     }
 
     /**
@@ -346,7 +353,14 @@ public class LicenseServiceTests extends ESTestCase {
     private void assertExpiryWarning(long adjustment, String msg) {
         long now = System.currentTimeMillis();
         long expiration = now + adjustment;
-        String warning = LicenseService.getExpiryWarning(expiration, now);
+        final LicenseService service = new LicenseService(
+            Settings.EMPTY,
+            mock(ThreadPool.class),
+            mockDefaultClusterService(),
+            mock(Clock.class),
+            mock(XPackLicenseState.class)
+        );
+        String warning = service.getExpiryWarning(expiration, now);
         if (msg == null) {
             assertThat(warning, is(nullValue()));
         } else {

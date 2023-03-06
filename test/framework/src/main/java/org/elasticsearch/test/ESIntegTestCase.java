@@ -58,7 +58,6 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ClusterAdminClient;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterModule;
@@ -821,10 +820,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * updates the settings for an index
      */
-    public void updateIndexSettings(String index, Settings.Builder settingsBuilder) {
+    public static void updateIndexSettings(Settings.Builder settingsBuilder, String... index) {
         UpdateSettingsRequestBuilder settingsRequest = client().admin().indices().prepareUpdateSettings(index);
         settingsRequest.setSettings(settingsBuilder);
         assertAcked(settingsRequest.execute().actionGet());
+    }
+
+    public static void setReplicaCount(int replicas, String index) {
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas), index);
     }
 
     private Settings.Builder getExcludeSettings(int num, Settings.Builder builder) {
@@ -886,7 +889,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         Settings build = builder.build();
         if (build.isEmpty() == false) {
             logger.debug("allowNodes: updating [{}]'s setting to [{}]", index, build.toDelimitedString(';'));
-            client().admin().indices().prepareUpdateSettings(index).setSettings(build).execute().actionGet();
+            updateIndexSettings(builder, index);
         }
     }
 
@@ -934,8 +937,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         String color = clusterHealthStatus.name().toLowerCase(Locale.ROOT);
         String method = "ensure" + Strings.capitalize(color);
 
-        ClusterHealthRequest healthRequest = Requests.clusterHealthRequest(indices)
-            .timeout(timeout)
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(indices).timeout(timeout)
             .waitForStatus(clusterHealthStatus)
             .waitForEvents(Priority.LANGUID)
             .waitForNoRelocatingShards(true)
@@ -991,7 +993,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * using the cluster health API.
      */
     public ClusterHealthStatus waitForRelocation(ClusterHealthStatus status) {
-        ClusterHealthRequest request = Requests.clusterHealthRequest().waitForNoRelocatingShards(true).waitForEvents(Priority.LANGUID);
+        ClusterHealthRequest request = new ClusterHealthRequest(new String[] {}).waitForNoRelocatingShards(true)
+            .waitForEvents(Priority.LANGUID);
         if (status != null) {
             request.waitForStatus(status);
         }
@@ -1449,22 +1452,20 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Syntactic sugar for enabling allocation for <code>indices</code>
      */
     protected final void enableAllocation(String... indices) {
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(indices)
-            .setSettings(Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all"))
-            .get();
+        updateIndexSettings(
+            Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all"),
+            indices
+        );
     }
 
     /**
      * Syntactic sugar for disabling allocation for <code>indices</code>
      */
     protected final void disableAllocation(String... indices) {
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(indices)
-            .setSettings(Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"))
-            .get();
+        updateIndexSettings(
+            Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"),
+            indices
+        );
     }
 
     /**
@@ -1641,16 +1642,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     /** Disables an index block for the specified index */
     public static void disableIndexBlock(String index, String block) {
-        Settings settings = Settings.builder().put(block, false).build();
-        client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
+        updateIndexSettings(Settings.builder().put(block, false), index);
     }
 
     /** Enables an index block for the specified index */
     public static void enableIndexBlock(String index, String block) {
         if (IndexMetadata.APIBlock.fromSetting(block) == IndexMetadata.APIBlock.READ_ONLY_ALLOW_DELETE || randomBoolean()) {
             // the read-only-allow-delete block isn't supported by the add block API so we must use the update settings API here.
-            Settings settings = Settings.builder().put(block, true).build();
-            client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
+            updateIndexSettings(Settings.builder().put(block, true), index);
         } else {
             client().admin().indices().prepareAddBlock(IndexMetadata.APIBlock.fromSetting(block), index).get();
         }
@@ -1658,14 +1657,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     /** Sets or unsets the cluster read_only mode **/
     public static void setClusterReadOnly(boolean value) {
-        Settings settings = value
-            ? Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), value).build()
-            : Settings.builder().putNull(Metadata.SETTING_READ_ONLY_SETTING.getKey()).build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get());
+        updateClusterSettings(
+            value
+                ? Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), value)
+                : Settings.builder().putNull(Metadata.SETTING_READ_ONLY_SETTING.getKey())
+        );
     }
 
     /** Sets cluster persistent settings **/
-    public void updateClusterSettings(Settings.Builder persistentSettings) {
+    public static void updateClusterSettings(Settings.Builder persistentSettings) {
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(persistentSettings).get());
     }
 

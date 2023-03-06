@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.get.GetResult;
@@ -35,8 +34,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -157,41 +154,20 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                 node,
                 TransportGetFromTranslogAction.NAME,
                 request,
-                new TransportResponseHandler<TransportGetFromTranslogAction.Response>() {
-                    @Override
-                    public void handleResponse(TransportGetFromTranslogAction.Response response) {
-                        if (response.getResult() != null) {
-                            logger.trace("received result for real-time get for id '{}' from promotable shard", request.id());
-                            listener.onResponse(new GetResponse(response.getResult()));
-                        } else {
-                            assert response.segmentGeneration() > -1L;
-                            logger.trace(
-                                "no result for real-time get for id '{}' from promotable shard (segment generation to wait for: {})",
-                                request.id(),
-                                response.segmentGeneration()
-                            );
-                            indexShard.waitForSegmentGeneration(
-                                response.segmentGeneration(),
-                                listener.map(aLong -> shardOperation(request, shardId))
-                            );
-                        }
+                new ActionListenerResponseHandler<>(listener.delegateFailure((l, r) -> {
+                    if (r.getResult() != null) {
+                        logger.trace("received result for real-time get for id '{}' from promotable shard", request.id());
+                        l.onResponse(new GetResponse(r.getResult()));
+                    } else {
+                        assert r.segmentGeneration() > -1L;
+                        logger.trace(
+                            "no result for real-time get for id '{}' from promotable shard (segment generation to wait for: {})",
+                            request.id(),
+                            r.segmentGeneration()
+                        );
+                        indexShard.waitForSegmentGeneration(r.segmentGeneration(), l.map(aLong -> shardOperation(request, shardId)));
                     }
-
-                    @Override
-                    public String executor() {
-                        return ThreadPool.Names.GET;
-                    }
-
-                    @Override
-                    public void handleException(TransportException e) {
-                        listener.onFailure(e);
-                    }
-
-                    @Override
-                    public TransportGetFromTranslogAction.Response read(StreamInput in) throws IOException {
-                        return new TransportGetFromTranslogAction.Response(in);
-                    }
-                }
+                }), TransportGetFromTranslogAction.Response::new, ThreadPool.Names.GET)
             );
         } else {
             super.asyncShardOperation(request, shardId, listener);

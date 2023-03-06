@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
@@ -176,8 +177,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     }
 
     private void maybeExecuteRollover(ClusterState state, DataStream dataStream) {
-        IndexMetadata writeIndex = state.metadata().index(dataStream.getWriteIndex());
-        if (writeIndex != null && isManagedByDLM(dataStream, writeIndex)) {
+        if (dataStream.isIndexManagedByDLM(dataStream.getWriteIndex(), state.metadata()::index)) {
             RolloverRequest rolloverRequest = defaultRolloverRequestSupplier.apply(dataStream.getName());
             transportActionsDeduplicator.executeOnce(
                 rolloverRequest,
@@ -190,45 +190,27 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     private void maybeExecuteRetention(ClusterState state, DataStream dataStream) {
         TimeValue retention = getRetentionConfiguration(dataStream);
         if (retention != null) {
-            List<Index> backingIndices = dataStream.getIndices();
-            // we'll look at the current write index in the next run if it's rolled over (and not the write index anymore)
-            for (int i = 0; i < backingIndices.size() - 1; i++) {
-                IndexMetadata backingIndex = state.metadata().index(backingIndices.get(i));
-                if (backingIndex == null || isManagedByDLM(dataStream, backingIndex) == false) {
-                    continue;
-                }
+            Metadata metadata = state.metadata();
+            List<Index> backingIndicesOlderThanRetention = dataStream.getIndicesPastRetention(metadata::index, nowSupplier);
 
-                if (isTimeToBeDeleted(dataStream.getName(), backingIndex, nowSupplier, retention)) {
-                    // there's an opportunity here to batch the delete requests (i.e. delete 100 indices / request)
-                    // let's start simple and reevaluate
-                    DeleteIndexRequest deleteRequest = new DeleteIndexRequest(backingIndex.getIndex().getName()).masterNodeTimeout(
-                        TimeValue.MAX_VALUE
-                    );
+            for (Index index : backingIndicesOlderThanRetention) {
+                IndexMetadata backingIndex = metadata.index(index);
+                assert backingIndex != null : "the data stream backing indices must exist";
 
-                    // time to delete the index
-                    transportActionsDeduplicator.executeOnce(
-                        deleteRequest,
-                        ActionListener.noop(),
-                        (req, reqListener) -> deleteIndex(deleteRequest, retention, reqListener)
-                    );
-                }
+                // there's an opportunity here to batch the delete requests (i.e. delete 100 indices / request)
+                // let's start simple and reevaluate
+                DeleteIndexRequest deleteRequest = new DeleteIndexRequest(backingIndex.getIndex().getName()).masterNodeTimeout(
+                    TimeValue.MAX_VALUE
+                );
+
+                // time to delete the index
+                transportActionsDeduplicator.executeOnce(
+                    deleteRequest,
+                    ActionListener.noop(),
+                    (req, reqListener) -> deleteIndex(deleteRequest, retention, reqListener)
+                );
             }
         }
-    }
-
-    /**
-     * Checks if the provided index is ready to be deleted according to the configured retention.
-     */
-    static boolean isTimeToBeDeleted(
-        String dataStreamName,
-        IndexMetadata backingIndex,
-        LongSupplier nowSupplier,
-        TimeValue configuredRetention
-    ) {
-        TimeValue indexLifecycleDate = getCreationOrRolloverDate(dataStreamName, backingIndex);
-
-        long nowMillis = nowSupplier.getAsLong();
-        return nowMillis >= indexLifecycleDate.getMillis() + configuredRetention.getMillis();
     }
 
     private void rolloverDataStream(RolloverRequest rolloverRequest, ActionListener<Void> listener) {
@@ -304,15 +286,6 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         } else {
             return TimeValue.timeValueMillis(index.getCreationDate());
         }
-    }
-
-    /**
-     * This is quite a shallow method but the purpose of its existence is to have only one place to modify once we
-     * introduce the index.lifecycle.prefer_ilm setting. Once the prefer_ilm setting exists the method will also
-     * make more sense as it will encapsulate a bit more logic.
-     */
-    private static boolean isManagedByDLM(DataStream parentDataStream, IndexMetadata indexMetadata) {
-        return indexMetadata.getLifecyclePolicyName() == null && parentDataStream.getLifecycle() != null;
     }
 
     private RolloverRequest getDefaultRolloverRequest(String dataStream) {

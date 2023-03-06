@@ -228,11 +228,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         String requestPipeline = indexRequest.getPipeline();
 
-        Pipelines pipelines = resolvePipelinesFromMetadata(originalRequest, indexRequest, metadata, epochMillis).or(
-            () -> resolvePipelinesFromIndexTemplates(indexRequest, metadata)
-        ).orElse(Pipelines.NO_PIPELINES_DEFINED);
+        Pipelines pipelines = resolvePipelinesFromMetadata(originalRequest, indexRequest, metadata, epochMillis) //
+            .or(() -> resolvePipelinesFromIndexTemplates(indexRequest, metadata))
+            .orElse(Pipelines.NO_PIPELINES_DEFINED);
 
-        // The pipeline coming as part the requests always has priority over the derived one
+        // The pipeline coming as part of the request always has priority over the resolved one from metadata or templates
         if (requestPipeline != null) {
             indexRequest.setPipeline(requestPipeline);
         } else {

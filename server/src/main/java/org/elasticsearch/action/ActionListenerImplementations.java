@@ -54,10 +54,11 @@ class ActionListenerImplementations {
     }
 
     static void safeAcceptException(Consumer<Exception> consumer, Exception e) {
-        // TODO assert e != null always once #94328 is done
+        assert e != null;
         try {
             consumer.accept(e);
         } catch (RuntimeException ex) {
+            // noinspection ConstantConditions
             if (e != null && ex != e) {
                 ex.addSuppressed(e);
             }

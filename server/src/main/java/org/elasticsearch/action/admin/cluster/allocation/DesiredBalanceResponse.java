@@ -188,7 +188,9 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
                 in.readOptionalString(),
                 in.readBoolean(),
                 in.readOptionalString(),
-                in.readOptionalBoolean(), // not checking NULLABLE_RELOCATING_NODE_IS_DESIRED as readOptionalBoolean also reads readBoolean
+                in.getTransportVersion().onOrAfter(NULLABLE_RELOCATING_NODE_IS_DESIRED)
+                    ? in.readOptionalBoolean()
+                    : (Boolean) in.readBoolean(), // need to cast to Boolean otherwise above is cast to boolean that may cause NPE
                 in.readVInt(),
                 in.readString(),
                 in.getTransportVersion().onOrAfter(ADD_FORECASTS_VERSION) ? in.readOptionalDouble() : null,

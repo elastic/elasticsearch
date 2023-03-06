@@ -54,11 +54,11 @@ class ActionListenerImplementations {
     }
 
     static void safeAcceptException(Consumer<Exception> consumer, Exception e) {
-        assert e != null : "listener.onFailure needs an exception instance";
+        // TODO assert e != null always once #94328 is done
         try {
             consumer.accept(e);
         } catch (RuntimeException ex) {
-            if (ex != e) {
+            if (e != null && ex != e) {
                 ex.addSuppressed(e);
             }
             assert false : new AssertionError("listener.onFailure failed", ex);

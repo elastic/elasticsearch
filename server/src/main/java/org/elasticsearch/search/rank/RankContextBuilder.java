@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.rank;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
@@ -16,7 +17,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.ParseField;
@@ -25,7 +25,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -47,26 +46,14 @@ public abstract class RankContextBuilder<RCB extends RankContextBuilder<RCB>> im
 
     protected int windowSize = DEFAULT_WINDOW_SIZE;
 
-    protected final List<QueryBuilder> queryBuilders;
-    protected int size = SearchService.DEFAULT_SIZE;
-    protected int from = SearchService.DEFAULT_FROM;
-
-    public RankContextBuilder() {
-        queryBuilders = new ArrayList<>();
-    }
+    public RankContextBuilder() {}
 
     public RankContextBuilder(StreamInput in) throws IOException {
         windowSize = in.readVInt();
-        queryBuilders = in.readNamedWriteableList(QueryBuilder.class);
-        size = in.readVInt();
-        from = in.readVInt();
     }
 
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(windowSize);
-        out.writeNamedWriteableList(queryBuilders);
-        out.writeVInt(size);
-        out.writeVInt(from);
         doWriteTo(out);
     }
 
@@ -103,60 +90,20 @@ public abstract class RankContextBuilder<RCB extends RankContextBuilder<RCB>> im
         return windowSize;
     }
 
-    public List<QueryBuilder> queryBuilders() {
-        return queryBuilders;
-    }
-
-    @SuppressWarnings("unchecked")
-    public RCB size(int size) {
-        this.size = size == -1 ? SearchService.DEFAULT_SIZE : size;
-        return (RCB) this;
-    }
-
-    public int size() {
-        return size;
-    }
-
-    @SuppressWarnings("unchecked")
-    public RCB from(int from) {
-        this.from = from == -1 ? SearchService.DEFAULT_FROM : from;
-        return (RCB) this;
-    }
-
-    public int from() {
-        return from;
-    }
-
-    /**
-     * Generates a shallow copy for creating a new {@link SearchSourceBuilder}
-     * after kNN queries are executed during the DFS phase. This allows us
-     * to create kNN queries that are only relevant to a single shard.
-     */
-    public RCB shallowCopy() {
-        RCB rankContextBuilder = subShallowCopy();
-        rankContextBuilder.windowSize = this.windowSize;
-        rankContextBuilder.queryBuilders.addAll(this.queryBuilders);
-        rankContextBuilder.size = this.size;
-        rankContextBuilder.from = this.from;
-        return rankContextBuilder;
-    }
-
-    public abstract RCB subShallowCopy();
-
     /**
      * Generates the query used for aggregations and suggesters.
      */
-    public abstract QueryBuilder searchQuery();
+    public abstract QueryBuilder searchQuery(List<QueryBuilder> queryBuilders);
 
     /**
      * Generates a context used to execute required searches on the shard.
      */
-    public abstract RankShardContext build(SearchExecutionContext searchExecutionContext) throws IOException;
+    public abstract RankShardContext build(List<Query> queries, int size, int from);
 
     /**
      * Generates a context used to perform global ranking on the coordinator.
      */
-    public abstract RankContext build();
+    public abstract RankContext build(int size, int from);
 
     @Override
     public final boolean equals(Object obj) {
@@ -168,11 +115,7 @@ public abstract class RankContextBuilder<RCB extends RankContextBuilder<RCB>> im
         }
         @SuppressWarnings("unchecked")
         RCB other = (RCB) obj;
-        return Objects.equals(windowSize, other.windowSize)
-            && Objects.equals(queryBuilders, other.queryBuilders)
-            && Objects.equals(size, other.size)
-            && Objects.equals(from, other.from)
-            && doEquals(other);
+        return Objects.equals(windowSize, other.windowSize) && doEquals(other);
     }
 
     /**
@@ -182,7 +125,7 @@ public abstract class RankContextBuilder<RCB extends RankContextBuilder<RCB>> im
 
     @Override
     public final int hashCode() {
-        return Objects.hash(getClass(), windowSize, queryBuilders, size, from, doHashCode());
+        return Objects.hash(getClass(), windowSize, doHashCode());
     }
 
     protected abstract int doHashCode();

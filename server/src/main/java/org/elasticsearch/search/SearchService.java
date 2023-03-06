@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
@@ -992,6 +993,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (context.size() == -1) {
                 context.size(DEFAULT_SIZE);
             }
+            if (request.rankContextInternal() != null) {
+                List<Query> rankQueries = request.rankContextInternal().queries(context.getSearchExecutionContext());
+                context.rankShardContext(request.source().rankContextBuilder().build(rankQueries, context.size(), context.from()));
+            }
             context.setTask(task);
 
             context.preProcess();
@@ -1168,13 +1173,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
         context.from(source.from());
         context.size(source.size());
-        if (source.rankContextBuilder() != null) {
-            try {
-                context.rankShardContext(source.rankContextBuilder().build(searchExecutionContext));
-            } catch (IOException e) {
-                throw new SearchException(shardTarget, "failed to create rank queries", e);
-            }
-        }
         Map<String, InnerHitContextBuilder> innerHitBuilders = new HashMap<>();
         if (source.query() != null) {
             InnerHitContextBuilder.extractInnerHits(source.query(), innerHitBuilders);

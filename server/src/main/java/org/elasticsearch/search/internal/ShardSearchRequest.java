@@ -46,6 +46,7 @@ import org.elasticsearch.search.SearchSortValuesAndFormats;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rank.RankContextInternal;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -85,6 +86,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     // these are the only mutable fields, as they are subject to rewriting
     private AliasFilter aliasFilter;
     private SearchSourceBuilder source;
+    private RankContextInternal rankContextInternal;
     private final ShardSearchContextId readerId;
     private final TimeValue keepAlive;
 
@@ -144,6 +146,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             numberOfShards,
             searchRequest.searchType(),
             searchRequest.source(),
+            null,
             searchRequest.requestCache(),
             aliasFilter,
             indexBoost,
@@ -186,6 +189,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             SearchType.QUERY_THEN_FETCH,
             null,
             null,
+            null,
             aliasFilter,
             1.0f,
             true,
@@ -207,6 +211,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         int numberOfShards,
         SearchType searchType,
         SearchSourceBuilder source,
+        RankContextInternal rankContextInternal,
         Boolean requestCache,
         AliasFilter aliasFilter,
         float indexBoost,
@@ -225,6 +230,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.numberOfShards = numberOfShards;
         this.searchType = searchType;
         this.source(source);
+        this.rankContextInternal = rankContextInternal;
         this.requestCache = requestCache;
         this.aliasFilter = aliasFilter;
         this.indexBoost = indexBoost;
@@ -249,6 +255,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.numberOfShards = clone.numberOfShards;
         this.scroll = clone.scroll;
         this.source(clone.source);
+        this.rankContextInternal = clone.rankContextInternal;
         this.aliasFilter = clone.aliasFilter;
         this.indexBoost = clone.indexBoost;
         this.nowInMillis = clone.nowInMillis;
@@ -274,6 +281,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         numberOfShards = in.readVInt();
         scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            rankContextInternal = in.readOptionalWriteable(RankContextInternal::new);
+        }
         if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // types no longer relevant so ignore
             String[] types = in.readStringArray();
@@ -344,6 +354,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         }
         out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            out.writeOptionalWriteable(rankContextInternal);
+        }
         if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // types not supported so send an empty array to previous versions
             out.writeStringArray(Strings.EMPTY_ARRAY);
@@ -412,6 +425,14 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     public SearchSourceBuilder source() {
         return source;
+    }
+
+    public RankContextInternal rankContextInternal() {
+        return rankContextInternal;
+    }
+
+    public void rankContextInternal(RankContextInternal rankContextInternal) {
+        this.rankContextInternal = rankContextInternal;
     }
 
     public AliasFilter getAliasFilter() {
@@ -574,6 +595,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         public Rewriteable rewrite(QueryRewriteContext ctx) throws IOException {
             SearchSourceBuilder newSource = request.source() == null ? null : Rewriteable.rewrite(request.source(), ctx);
             AliasFilter newAliasFilter = Rewriteable.rewrite(request.getAliasFilter(), ctx);
+            RankContextInternal rankContextInternal = request.rankContextInternal() == null
+                ? null
+                : Rewriteable.rewrite(request.rankContextInternal(), ctx);
 
             SearchExecutionContext searchExecutionContext = ctx.convertToSearchExecutionContext();
 
@@ -593,11 +617,14 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                 request.setBottomSortValues(null);
             }
 
-            if (newSource == request.source() && newAliasFilter == request.getAliasFilter()) {
+            if (newSource == request.source()
+                && newAliasFilter == request.getAliasFilter()
+                && rankContextInternal == request.rankContextInternal()) {
                 return this;
             } else {
                 request.source(newSource);
                 request.setAliasFilter(newAliasFilter);
+                request.rankContextInternal(rankContextInternal);
                 return new RequestRewritable(request);
             }
         }

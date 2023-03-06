@@ -12,7 +12,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.action.search.SearchPhaseController.SortedTopDocs;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankContext;
@@ -33,8 +32,8 @@ public class RRFRankContext extends RankContext {
     private final int windowSize;
     private final int rankConstant;
 
-    public RRFRankContext(List<QueryBuilder> queryBuilders, int size, int from, int windowSize, int rankConstant) {
-        super(queryBuilders, size, from);
+    public RRFRankContext(int size, int from, int windowSize, int rankConstant) {
+        super(size, from);
         this.windowSize = windowSize;
         this.rankConstant = rankConstant;
     }

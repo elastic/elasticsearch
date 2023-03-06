@@ -11,7 +11,6 @@ package org.elasticsearch.search.rank;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.search.SearchPhaseController.SortedTopDocs;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.query.QuerySearchResult;
 
@@ -24,12 +23,10 @@ import java.util.List;
  */
 public abstract class RankContext {
 
-    protected final List<QueryBuilder> queryBuilders;
     protected final int size;
     protected final int from;
 
-    public RankContext(List<QueryBuilder> queryBuilders, int size, int from) {
-        this.queryBuilders = queryBuilders;
+    public RankContext(int size, int from) {
         this.size = size;
         this.from = from;
     }

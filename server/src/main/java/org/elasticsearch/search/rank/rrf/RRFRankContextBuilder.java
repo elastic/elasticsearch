@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankContext;
 import org.elasticsearch.search.rank.RankContextBuilder;
@@ -26,7 +25,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -119,19 +117,12 @@ public class RRFRankContextBuilder extends RankContextBuilder<RRFRankContextBuil
         return rankConstant;
     }
 
-    @Override
-    public RRFRankContextBuilder subShallowCopy() {
-        RRFRankContextBuilder rrfRankContextBuilder = new RRFRankContextBuilder();
-        rrfRankContextBuilder.rankConstant = rankConstant;
-        return rrfRankContextBuilder;
-    }
-
     /**
      * RRF builds a simple boolean disjunction for all queries when
      * building aggregations and suggesters.
      */
     @Override
-    public QueryBuilder searchQuery() {
+    public QueryBuilder searchQuery(List<QueryBuilder> queryBuilders) {
         BoolQueryBuilder searchQuery = new BoolQueryBuilder();
         for (QueryBuilder queryBuilder : queryBuilders) {
             searchQuery.should(queryBuilder);
@@ -141,18 +132,13 @@ public class RRFRankContextBuilder extends RankContextBuilder<RRFRankContextBuil
     }
 
     @Override
-    public RankShardContext build(SearchExecutionContext searchExecutionContext) throws IOException {
-        List<Query> queries = new ArrayList<>();
-        for (QueryBuilder queryBuilder : queryBuilders) {
-            queries.add(queryBuilder.toQuery(searchExecutionContext));
-        }
-
+    public RankShardContext build(List<Query> queries, int size, int from) {
         return new RRFRankShardContext(queries, size, from, windowSize, rankConstant);
     }
 
     @Override
-    public RankContext build() {
-        return new RRFRankContext(queryBuilders, size, from, windowSize, rankConstant);
+    public RankContext build(int size, int from) {
+        return new RRFRankContext(size, from, windowSize, rankConstant);
     }
 
     @Override

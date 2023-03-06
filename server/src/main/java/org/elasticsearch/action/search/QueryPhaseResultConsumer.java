@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -92,8 +93,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.onPartialMergeFailure = onPartialMergeFailure;
 
         SearchSourceBuilder source = request.source();
-        this.rankContext = source == null || source.rankContextBuilder() == null ? null : source.rankContextBuilder().build();
-        this.hasTopDocs = (source == null || source.size() != 0) && rankContext == null;
+        int size = source == null || source.size() == -1 ? SearchService.DEFAULT_SIZE : source.size();
+        int from = source == null || source.from() == -1 ? SearchService.DEFAULT_FROM : source.from();
+        this.rankContext = source == null || source.rankContextBuilder() == null ? null : source.rankContextBuilder().build(size, from);
+        this.hasTopDocs = (source == null || size != 0) && rankContext == null;
         this.hasAggs = source != null && source.aggregations() != null;
         int batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize) : expectedResultSize;
         this.pendingMerges = new PendingMerges(batchReduceSize, request.resolveTrackTotalHitsUpTo());

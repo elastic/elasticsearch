@@ -9,24 +9,29 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.IntStream;
 
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class EsqlQueryResponse extends ActionResponse implements ToXContentObject {
+public class EsqlQueryResponse extends ActionResponse implements ChunkedToXContent {
 
     private final List<ColumnInfo> columns;
     private final List<List<Object>> values;
@@ -93,35 +98,47 @@ public class EsqlQueryResponse extends ActionResponse implements ToXContentObjec
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.startArray("columns");
-        for (ColumnInfo col : columns) {
-            col.toXContent(builder, params);
-        }
-        builder.endArray();
-        builder.startArray("values");
-        if (columnar) {
-            if (values.size() > 0) {
-                for (int c = 0; c < values.get(0).size(); c++) {
-                    builder.startArray();
-                    for (List<Object> value : values) {
-                        builder.value(value.get(c));
-                    }
-                    builder.endArray();
-                }
-            }
-        } else {
-            for (List<Object> rows : values) {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params unused) {
+        final Iterator<ToXContent> valuesIt;
+        if (values.isEmpty()) {
+            valuesIt = Collections.emptyIterator();
+        } else if (columnar) {
+            valuesIt = IntStream.range(0, columns().size()).mapToObj(c -> (ToXContent) (builder, params) -> {
                 builder.startArray();
-                for (Object value : rows) {
+                for (List<Object> value : values) {
+                    builder.value(value.get(c));
+                }
+                builder.endArray();
+                return builder;
+            }).iterator();
+        } else {
+            valuesIt = values.stream().map(row -> (ToXContent) (builder, params) -> {
+                builder.startArray();
+                for (Object value : row) {
                     builder.value(value);
                 }
                 builder.endArray();
-            }
+                return builder;
+            }).iterator();
         }
-        builder.endArray();
-        return builder.endObject();
+        return Iterators.concat(
+            ChunkedToXContentHelper.startObject(), //
+            ChunkedToXContentHelper.singleChunk((builder, params) -> {
+                builder.startArray("columns");
+                for (ColumnInfo col : columns) {
+                    col.toXContent(builder, params);
+                }
+                builder.endArray();
+                return builder;
+            }),//
+            ChunkedToXContentHelper.array("values", valuesIt),//
+            ChunkedToXContentHelper.endObject()
+        );
+    }
+
+    @Override
+    public boolean isFragment() {
+        return false;
     }
 
     @Override
@@ -162,6 +179,6 @@ public class EsqlQueryResponse extends ActionResponse implements ToXContentObjec
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(ChunkedToXContent.wrapAsToXContent(this));
     }
 }

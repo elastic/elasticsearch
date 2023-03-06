@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -16,17 +16,21 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class EsqlQueryResponseTests extends AbstractXContentSerializingTestCase<EsqlQueryResponse> {
+public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<EsqlQueryResponse> {
 
     @Override
     protected EsqlQueryResponse createTestInstance() {
+        // columnar param can't be different from the default value (false) since the EsqlQueryResponse will be serialized (by some random
+        // XContentType, not to a StreamOutput) and parsed back, which doesn't preserve columnar field's value.
+        return randomResponse(false);
+    }
+
+    EsqlQueryResponse randomResponse(boolean columnar) {
         int noCols = randomIntBetween(1, 10);
         List<ColumnInfo> columns = randomList(noCols, noCols, this::randomColumnInfo);
         int noRows = randomIntBetween(1, 20);
         List<List<Object>> values = randomList(noRows, noRows, () -> randomRow(noCols));
-        // columnar param can't be different from the default value (false) since the EsqlQueryResponse will be serialized (by some random
-        // XContentType, not to a StreamOutput) and parsed back, which doesn't preserve columnar field's value.
-        return new EsqlQueryResponse(columns, values, false);
+        return new EsqlQueryResponse(columns, values, columnar);
     }
 
     private List<Object> randomRow(int noCols) {
@@ -62,5 +66,10 @@ public class EsqlQueryResponseTests extends AbstractXContentSerializingTestCase<
     @Override
     protected EsqlQueryResponse doParseInstance(XContentParser parser) throws IOException {
         return EsqlQueryResponse.fromXContent(parser);
+    }
+
+    public void testChunkResponseByRow() {
+        EsqlQueryResponse resp = randomResponse(randomBoolean());
+        assertChunkCount(resp, r -> 5 + (resp.columnar() ? resp.columns().size() : resp.values().size()));
     }
 }

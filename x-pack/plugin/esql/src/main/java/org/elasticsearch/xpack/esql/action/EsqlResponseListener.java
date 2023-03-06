@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.xcontent.MediaType;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.formatter.TextFormat;
 import org.elasticsearch.xpack.esql.plugin.EsqlMediaTypeParser;
 
@@ -61,11 +61,8 @@ public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse
         if (mediaType instanceof TextFormat format) {
             restResponse = new RestResponse(RestStatus.OK, format.contentType(restRequest), format.format(restRequest, esqlResponse));
         } else {
-            XContentBuilder builder = channel.newBuilder(restRequest.getXContentType(), null, true);
-            esqlResponse.toXContent(builder, restRequest);
-            restResponse = new RestResponse(RestStatus.OK, builder);
+            restResponse = new RestResponse(RestStatus.OK, ChunkedRestResponseBody.fromXContent(esqlResponse, channel.request(), channel));
         }
-
         restResponse.addHeader(HEADER_NAME_TOOK_NANOS, Long.toString(System.nanoTime() - startNanos));
 
         return restResponse;

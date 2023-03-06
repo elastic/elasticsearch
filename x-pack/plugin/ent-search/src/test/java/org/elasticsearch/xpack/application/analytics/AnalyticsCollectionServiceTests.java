@@ -12,9 +12,12 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.xpack.application.analytics.action.DeleteAnalyticsCollectionAction;
+import org.elasticsearch.xpack.application.analytics.action.GetAnalyticsCollectionAction;
+import org.elasticsearch.xpack.application.analytics.action.PutAnalyticsCollectionAction;
 import org.junit.Before;
 
-import java.util.Locale;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -23,6 +26,7 @@ import java.util.function.BiConsumer;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 public class AnalyticsCollectionServiceTests extends AnalyticsTestCase {
@@ -37,30 +41,35 @@ public class AnalyticsCollectionServiceTests extends AnalyticsTestCase {
 
     public void testGetExistingAnalyticsCollection() throws Exception {
         String collectionName = "collection_" + random().nextInt(NUM_COLLECTIONS);
-        AnalyticsCollection analyticsCollection = awaitGetAnalyticsCollection(collectionName);
-        assertThat(analyticsCollection.getName(), equalTo(collectionName));
+        List<AnalyticsCollection> collections = awaitGetAnalyticsCollections(collectionName);
+        assertThat(collections, hasSize(1));
+        assertThat(collections.get(0).getName(), equalTo(collectionName));
     }
 
     public void testGetMissingAnalyticsCollection() throws Exception {
         ResourceNotFoundException e = expectThrows(
             ResourceNotFoundException.class,
-            () -> { awaitGetAnalyticsCollection("not-a-collection-name"); }
+            () -> awaitGetAnalyticsCollections("not-a-collection-name")
         );
 
         assertThat(e.getMessage(), equalTo("not-a-collection-name"));
     }
 
     public void testCreateAnalyticsCollection() throws Exception {
-        String collectionName = randomAlphaOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
+        String collectionName = randomIdentifier();
 
-        AnalyticsCollection analyticsCollection = awaitCreateAnalyticsCollection(new AnalyticsCollection(collectionName));
-        assertThat(analyticsCollection.getName(), equalTo(collectionName));
+        PutAnalyticsCollectionAction.Response response = awaitPutAnalyticsCollection(collectionName);
+        assertThat(response.isAcknowledged(), equalTo(true));
+        assertThat(response.getName(), equalTo(collectionName));
 
         // Checking a data stream has been created for the analytics collection.
-        assertThat(clusterService().state().metadata().dataStreams(), hasKey(analyticsCollection.getEventDataStream()));
+        assertThat(
+            clusterService().state().metadata().dataStreams(),
+            hasKey(new AnalyticsCollection(response.getName()).getEventDataStream())
+        );
 
         // Checking we can get the collection we have just created.
-        assertThat(awaitGetAnalyticsCollection(collectionName).getName(), equalTo(collectionName));
+        assertThat(awaitGetAnalyticsCollections(collectionName), hasSize(1));
     }
 
     public void testCreateAlreadyExistingAnalyticsCollection() throws Exception {
@@ -68,7 +77,7 @@ public class AnalyticsCollectionServiceTests extends AnalyticsTestCase {
 
         ResourceAlreadyExistsException e = expectThrows(
             ResourceAlreadyExistsException.class,
-            () -> { awaitCreateAnalyticsCollection(new AnalyticsCollection(collectionName)); }
+            () -> awaitPutAnalyticsCollection(collectionName)
         );
 
         assertThat(e.getMessage(), equalTo(collectionName));
@@ -76,7 +85,7 @@ public class AnalyticsCollectionServiceTests extends AnalyticsTestCase {
 
     public void testDeleteAnalyticsCollection() throws Exception {
         String collectionName = "collection_" + random().nextInt(NUM_COLLECTIONS);
-        String dataStreamName = awaitGetAnalyticsCollection(collectionName).getEventDataStream();
+        String dataStreamName = new AnalyticsCollection(collectionName).getEventDataStream();
 
         AcknowledgedResponse response = awaitDeleteAnalyticsCollection(collectionName);
         assertThat(response.isAcknowledged(), equalTo(true));
@@ -85,7 +94,7 @@ public class AnalyticsCollectionServiceTests extends AnalyticsTestCase {
         assertThat(clusterService().state().metadata().dataStreams(), not(hasKey(dataStreamName)));
 
         // Checking that the analytics collection is not accessible anymore.
-        expectThrows(ResourceNotFoundException.class, () -> awaitGetAnalyticsCollection(collectionName));
+        expectThrows(ResourceNotFoundException.class, () -> awaitGetAnalyticsCollections(collectionName));
     }
 
     public void testDeleteMissingAnalyticsCollection() throws Exception {
@@ -101,21 +110,19 @@ public class AnalyticsCollectionServiceTests extends AnalyticsTestCase {
         client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).get();
     }
 
-    private AnalyticsCollection awaitGetAnalyticsCollection(String collectionName) throws Exception {
-        Executor<String, AnalyticsCollection> executor = new Executor<>(analyticsCollectionService()::getAnalyticsCollection);
-        return executor.execute(collectionName);
+    private List<AnalyticsCollection> awaitGetAnalyticsCollections(String collectionName) throws Exception {
+        GetAnalyticsCollectionAction.Request request = new GetAnalyticsCollectionAction.Request(collectionName);
+        return new Executor<>(analyticsCollectionService()::getAnalyticsCollection).execute(request).getAnalyticsCollections();
     }
 
-    private AnalyticsCollection awaitCreateAnalyticsCollection(AnalyticsCollection collection) throws Exception {
-        Executor<AnalyticsCollection, AnalyticsCollection> executor = new Executor<>(
-            analyticsCollectionService()::createAnalyticsCollection
-        );
-        return executor.execute(collection);
+    private PutAnalyticsCollectionAction.Response awaitPutAnalyticsCollection(String collectionName) throws Exception {
+        PutAnalyticsCollectionAction.Request request = new PutAnalyticsCollectionAction.Request(collectionName);
+        return new Executor<>(analyticsCollectionService()::putAnalyticsCollection).execute(request);
     }
 
     private AcknowledgedResponse awaitDeleteAnalyticsCollection(String collectionName) throws Exception {
-        Executor<String, AcknowledgedResponse> executor = new Executor<>(analyticsCollectionService()::deleteAnalyticsCollection);
-        return executor.execute(collectionName);
+        DeleteAnalyticsCollectionAction.Request request = new DeleteAnalyticsCollectionAction.Request(collectionName);
+        return new Executor<>(analyticsCollectionService()::deleteAnalyticsCollection).execute(request);
     }
 
     private static class Executor<T, R> {

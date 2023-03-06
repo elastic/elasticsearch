@@ -8,18 +8,20 @@
 package org.elasticsearch.xpack.application.analytics.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.application.analytics.AnalyticsCollection;
-import org.elasticsearch.xpack.application.analytics.action.support.BaseAnalyticsCollectionResponse;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -80,25 +82,58 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
         }
     }
 
-    public static class Response extends BaseAnalyticsCollectionResponse implements ToXContentObject {
+    public static class Response extends ActionResponse implements ToXContentObject {
+        private final List<AnalyticsCollection> collections;
+
+        public static final ParseField EVENT_DATA_STREAM_FIELD = new ParseField("event_data_stream");
+        public static final ParseField EVENT_DATA_STREAM_NAME_FIELD = new ParseField("name");
 
         public Response(StreamInput in) throws IOException {
             super(in);
+            this.collections = in.readList(AnalyticsCollection::new);
         }
 
-        public Response(AnalyticsCollection analyticsCollection) {
-            super(analyticsCollection);
-        }
-
-        public Response(String collectionName) {
-            super(new AnalyticsCollection(collectionName));
+        public Response(List<AnalyticsCollection> collections) {
+            this.collections = collections;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-            return toXContentCommon(builder, params);
+            builder.startObject();
+            for (AnalyticsCollection collection : collections) {
+                builder.startObject(collection.getName());
+                {
+                    builder.startObject(EVENT_DATA_STREAM_FIELD.getPreferredName());
+                    builder.field(EVENT_DATA_STREAM_NAME_FIELD.getPreferredName(), collection.getEventDataStream());
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            return builder;
         }
 
-    }
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeList(collections);
+        }
 
+        public List<AnalyticsCollection> getAnalyticsCollections() {
+            return collections;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(this.collections);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Response response = (Response) o;
+
+            return Objects.equals(this.collections, response.collections);
+        }
+    }
 }

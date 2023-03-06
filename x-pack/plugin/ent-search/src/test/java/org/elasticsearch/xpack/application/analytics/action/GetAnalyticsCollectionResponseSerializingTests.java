@@ -9,9 +9,10 @@ package org.elasticsearch.xpack.application.analytics.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.application.analytics.AnalyticsCollectionTests;
+import org.elasticsearch.xpack.application.analytics.AnalyticsCollection;
 
 import java.io.IOException;
+import java.util.List;
 
 public class GetAnalyticsCollectionResponseSerializingTests extends AbstractWireSerializingTestCase<GetAnalyticsCollectionAction.Response> {
 
@@ -22,7 +23,8 @@ public class GetAnalyticsCollectionResponseSerializingTests extends AbstractWire
 
     @Override
     protected GetAnalyticsCollectionAction.Response createTestInstance() {
-        return new GetAnalyticsCollectionAction.Response(AnalyticsCollectionTests.randomAnalyticsCollection());
+        List<AnalyticsCollection> collections = randomList(randomIntBetween(1, 10), () -> new AnalyticsCollection(randomIdentifier()));
+        return new GetAnalyticsCollectionAction.Response(collections);
     }
 
     @Override

@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -57,15 +56,12 @@ public class TransportGetAnalyticsCollectionAction extends TransportMasterNodeRe
         ClusterState state,
         ActionListener<GetAnalyticsCollectionAction.Response> listener
     ) {
-        analyticsCollectionService.getAnalyticsCollection(
-            request.getCollectionName(),
-            listener.map(GetAnalyticsCollectionAction.Response::new)
-        );
+        analyticsCollectionService.getAnalyticsCollection(request, listener);
     }
 
     @Override
     protected ClusterBlockException checkBlock(GetAnalyticsCollectionAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return null;
     }
 
 }

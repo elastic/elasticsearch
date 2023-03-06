@@ -61,6 +61,6 @@ public class TransportDeleteAnalyticsCollectionAction extends AcknowledgedTransp
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        analyticsCollectionService.deleteAnalyticsCollection(request.getCollectionName(), listener.map(v -> AcknowledgedResponse.TRUE));
+        analyticsCollectionService.deleteAnalyticsCollection(request, listener.map(v -> AcknowledgedResponse.TRUE));
     }
 }

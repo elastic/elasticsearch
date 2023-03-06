@@ -20,6 +20,9 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.xpack.application.analytics.action.DeleteAnalyticsCollectionAction;
+import org.elasticsearch.xpack.application.analytics.action.GetAnalyticsCollectionAction;
+import org.elasticsearch.xpack.application.analytics.action.PutAnalyticsCollectionAction;
 
 import java.util.Collections;
 import java.util.List;
@@ -58,38 +61,47 @@ public class AnalyticsCollectionService implements ClusterStateListener {
     /**
      * Retrieve an analytics collection by name {@link AnalyticsCollection}
      *
-     * @param collectionName {@link AnalyticsCollection} name.
+     * @param request  {@link PutAnalyticsCollectionAction.Request} The request.
      * @param listener The action listener to invoke on response/failure.
      */
-    public void getAnalyticsCollection(String collectionName, ActionListener<AnalyticsCollection> listener) {
+    public void getAnalyticsCollection(
+        GetAnalyticsCollectionAction.Request request,
+        ActionListener<GetAnalyticsCollectionAction.Response> listener
+    ) {
         Map<String, AnalyticsCollection> collections = analyticsCollections;
 
-        if (collections.containsKey(collectionName) == false) {
-            listener.onFailure(new ResourceNotFoundException(collectionName));
+        if (collections.containsKey(request.getCollectionName()) == false) {
+            listener.onFailure(new ResourceNotFoundException(request.getCollectionName()));
             return;
         }
 
-        listener.onResponse(collections.get(collectionName));
+        listener.onResponse(
+            new GetAnalyticsCollectionAction.Response(Collections.singletonList(collections.get(request.getCollectionName())))
+        );
     }
 
     /**
      * Create a new {@link AnalyticsCollection}
      *
-     * @param analyticsCollection {@link AnalyticsCollection} to be created.
+     * @param request  {@link PutAnalyticsCollectionAction.Request} The request.
      * @param listener The action listener to invoke on response/failure.
      */
-    public void createAnalyticsCollection(AnalyticsCollection analyticsCollection, ActionListener<AnalyticsCollection> listener) {
-        if (analyticsCollections.containsKey(analyticsCollection.getName())) {
-            listener.onFailure(new ResourceAlreadyExistsException(analyticsCollection.getName()));
+    public void putAnalyticsCollection(
+        PutAnalyticsCollectionAction.Request request,
+        ActionListener<PutAnalyticsCollectionAction.Response> listener
+    ) {
+        if (analyticsCollections.containsKey(request.getName())) {
+            listener.onFailure(new ResourceAlreadyExistsException(request.getName()));
             return;
         }
 
+        AnalyticsCollection analyticsCollection = new AnalyticsCollection(request.getName());
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
             analyticsCollection.getEventDataStream()
         );
 
         ActionListener<AcknowledgedResponse> createDataStreamListener = ActionListener.wrap(
-            resp -> listener.onResponse(analyticsCollection),
+            resp -> listener.onResponse(new PutAnalyticsCollectionAction.Response(resp.isAcknowledged(), request.getName())),
             listener::onFailure
         );
 
@@ -99,19 +111,19 @@ public class AnalyticsCollectionService implements ClusterStateListener {
     /**
      * Delete an analytics collection by name {@link AnalyticsCollection}
      *
-     * @param collectionName {@link AnalyticsCollection} name.
+     * @param request  {@link AnalyticsCollection} name.
      * @param listener The action listener to invoke on response/failure.
      */
-    public void deleteAnalyticsCollection(String collectionName, ActionListener<AcknowledgedResponse> listener) {
+    public void deleteAnalyticsCollection(DeleteAnalyticsCollectionAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         Map<String, AnalyticsCollection> collections = analyticsCollections;
 
-        if (collections.containsKey(collectionName) == false) {
-            listener.onFailure(new ResourceNotFoundException(collectionName));
+        if (collections.containsKey(request.getCollectionName()) == false) {
+            listener.onFailure(new ResourceNotFoundException(request.getCollectionName()));
             return;
         }
 
         DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(
-            collections.get(collectionName).getEventDataStream()
+            collections.get(request.getCollectionName()).getEventDataStream()
         );
 
         clientWithOrigin.execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamRequest, listener);

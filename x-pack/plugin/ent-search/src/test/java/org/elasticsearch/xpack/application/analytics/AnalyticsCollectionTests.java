@@ -89,8 +89,7 @@ public class AnalyticsCollectionTests extends ESTestCase {
         return copyWriteable(instance, namedWriteableRegistry, AnalyticsCollection::new, version.transportVersion);
     }
 
-    public static AnalyticsCollection randomAnalyticsCollection() {
-        String name = randomAlphaOfLengthBetween(5, 10);
-        return new AnalyticsCollection(name);
+    private static AnalyticsCollection randomAnalyticsCollection() {
+        return new AnalyticsCollection(randomIdentifier());
     }
 }

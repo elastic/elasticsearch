@@ -11,7 +11,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
 
@@ -34,17 +33,8 @@ public class RestPutAnalyticsCollectionAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        PutAnalyticsCollectionAction.Request request = new PutAnalyticsCollectionAction.Request(
-            restRequest.param("collection_name"),
-            restRequest.content(),
-            restRequest.getXContentType()
-        );
-        return channel -> client.execute(PutAnalyticsCollectionAction.INSTANCE, request, new RestToXContentListener<>(channel) {
-            @Override
-            protected RestStatus getStatus(PutAnalyticsCollectionAction.Response response) {
-                return response.status();
-            }
-        });
-    }
+        PutAnalyticsCollectionAction.Request request = new PutAnalyticsCollectionAction.Request(restRequest.param("collection_name"));
 
+        return channel -> client.execute(PutAnalyticsCollectionAction.INSTANCE, request, new RestToXContentListener<>(channel));
+    }
 }

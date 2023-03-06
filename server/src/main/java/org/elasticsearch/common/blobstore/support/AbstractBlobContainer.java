@@ -12,8 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 
-import java.util.OptionalLong;
-
 /**
  * A base abstract blob container that implements higher level container methods.
  */
@@ -28,7 +26,7 @@ public abstract class AbstractBlobContainer implements BlobContainer {
     /**
      * Temporary check that permits disabling CAS operations at runtime; TODO remove this when no longer needed
      */
-    protected static boolean skipCas(ActionListener<OptionalLong> listener) {
+    protected static boolean skipCas(ActionListener<?> listener) {
         if ("true".equals(System.getProperty("test.repository_test_kit.skip_cas"))) {
             listener.onFailure(new UnsupportedOperationException());
             return true;

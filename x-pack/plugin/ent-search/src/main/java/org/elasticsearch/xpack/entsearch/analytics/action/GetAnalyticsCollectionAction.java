@@ -48,7 +48,7 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
 
-            if (collectionName == null || collectionName.isEmpty()) {
+            if (Strings.isNullOrEmpty(collectionName)) {
                 validationException = addValidationError("collection name missing", validationException);
             }
 

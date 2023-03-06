@@ -256,6 +256,17 @@ public class BulkProcessor2 {
     }
 
     /**
+     * This method flushes any requests, prevents any future retries, closes this processor, and returns once any pending requests complete.
+     */
+    public void close() {
+        try {
+            awaitClose(30, TimeUnit.SECONDS);
+        } catch (InterruptedException exc) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
      * Adds an {@link IndexRequest} to the list of actions to execute. Follows the same behavior of {@link IndexRequest}
      * (for example, if no id is provided, one will be generated, or usage of the create flag).
      * @throws EsRejectedExecutionException if adding the approximate size in bytes of the request to totalBytesInFlight would exceed

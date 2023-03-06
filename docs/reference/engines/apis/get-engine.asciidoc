@@ -1,0 +1,57 @@
+[role="xpack"]
+[[get-engine]]
+= Get Engine API
+[subs="attributes"]
+++++
+<titleabbrev>Get engine</titleabbrev>
+++++
+
+Retrieves information for a search engine.
+
+
+[[get-engine-request]]
+== {api-request-title}
+
+`GET _engine/<engine_id>`
+
+[[get-engine-prereq]]
+== {api-prereq-title}
+
+Requires the `manage_engine` cluster privilege.
+Also requires manage `manage_index` privileges on all indices that are added to the search engine.
+
+
+//[[get-engine-desc]]
+//== {api-description-title}
+
+[[get-engine-path-params]]
+== {api-path-parms-title}
+
+`<engine_id>`::
+(Required, string)
++
+You can get information for multiple trained models in a single API request by
+using a comma-separated list of engine IDs or a wildcard expression.
+
+=======
+
+[[get-engines-response-codes]]
+== {api-response-codes-title}
+
+`400`::
+  The `engine_id` was not provided.
+
+`404` (Missing resources)::
+  No engine matching `engine_id` could be found.
+
+
+[[get-engine-example]]
+== {api-examples-title}
+
+The following example gets configuration information for all the trained models:
+
+[source,console]
+--------------------------------------------------
+GET _engine/my-engine/
+--------------------------------------------------
+// TEST[skip:TBD]

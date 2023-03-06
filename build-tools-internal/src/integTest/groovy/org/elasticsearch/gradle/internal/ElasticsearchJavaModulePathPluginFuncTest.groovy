@@ -16,7 +16,6 @@ import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.tree.ClassNode
-import spock.lang.IgnoreRest
 
 import java.nio.file.Files
 

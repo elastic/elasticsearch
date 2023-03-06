@@ -36,6 +36,23 @@ setup:
               number_of_replicas: 0
 
 ---
+teardown:
+  - do:
+      engine.delete:
+        engine_id: test-engine
+        ignore: 404
+
+  - do:
+      engine.delete:
+        engine_id: test-updated-engine
+        ignore: 404
+
+  - do:
+      engine.delete:
+        engine_id: test-re-creating-engine
+        ignore: 404
+
+---
 "Create Engine":
   - do:
       engine.put:
@@ -69,4 +86,25 @@ setup:
         engine_id: test-error-engine
         body:
           indices: [ "test-index1", "index-does-not-exist" ]
+
+---
+"Create Engine - Engine already exists":
+  - do:
+      engine.put:
+        engine_id: test-re-creating-engine
+        create: true
+        body:
+          indices: [ "test-index1" ]
+
+  - match: { result: "created" }
+
+  - do:
+      catch: conflict
+      engine.put:
+        engine_id: test-re-creating-engine
+        create: true
+        body:
+          indices: [ "test-index1" ]
+
+  - match: { error.type: "version_conflict_engine_exception" }
 

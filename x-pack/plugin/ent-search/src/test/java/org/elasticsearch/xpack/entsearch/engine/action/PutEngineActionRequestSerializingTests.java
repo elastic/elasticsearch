@@ -9,18 +9,9 @@ package org.elasticsearch.xpack.entsearch.engine.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.entsearch.engine.Engine;
+import org.elasticsearch.xpack.entsearch.engine.EngineTestUtils;
 
 public class PutEngineActionRequestSerializingTests extends AbstractWireSerializingTestCase<PutEngineAction.Request> {
-
-    private static Engine randomEngine() {
-        return new Engine(
-            ESTestCase.randomAlphaOfLengthBetween(1, 10),
-            generateRandomStringArray(10, 10, false, false),
-            randomFrom(new String[] { null, randomAlphaOfLengthBetween(1, 10) })
-        );
-    }
 
     @Override
     protected Writeable.Reader<PutEngineAction.Request> instanceReader() {
@@ -29,7 +20,7 @@ public class PutEngineActionRequestSerializingTests extends AbstractWireSerializ
 
     @Override
     protected PutEngineAction.Request createTestInstance() {
-        return new PutEngineAction.Request(randomEngine());
+        return new PutEngineAction.Request(EngineTestUtils.randomEngine(), randomBoolean());
     }
 
     @Override

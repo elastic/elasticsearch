@@ -1,0 +1,43 @@
+{
+  "engine.list": {
+    "documentation": {
+      "url": "http://todo.com/tbd",
+      "description": "Returns the existing engines."
+    },
+    "stability": "experimental",
+    "visibility": "feature_flag",
+    "feature_flag": "xpack.ent-search.enabled",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_engine",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params": {
+      "q": {
+        "type": "string",
+        "description": "Query in the Lucene query string syntax"
+      },
+      "from": {
+        "type": "int",
+        "description": "Starting offset (default: 0)"
+      },
+      "size": {
+        "type": "int",
+        "description": "specifies a max number of engines to get"
+      }
+    }
+  }
+}

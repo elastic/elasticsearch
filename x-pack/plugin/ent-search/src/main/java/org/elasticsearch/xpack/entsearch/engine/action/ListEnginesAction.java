@@ -11,75 +11,72 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.entsearch.engine.Engine;
+import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
+import org.elasticsearch.xpack.entsearch.engine.EngineListItem;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
+public class ListEnginesAction extends ActionType<ListEnginesAction.Response> {
 
-public class PutEngineAction extends ActionType<PutEngineAction.Response> {
+    public static final ListEnginesAction INSTANCE = new ListEnginesAction();
+    public static final String NAME = "cluster:admin/engine/list";
 
-    public static final PutEngineAction INSTANCE = new PutEngineAction();
-    public static final String NAME = "cluster:admin/engine/put";
-
-    public PutEngineAction() {
-        super(NAME, PutEngineAction.Response::new);
+    public ListEnginesAction() {
+        super(NAME, ListEnginesAction.Response::new);
     }
 
     public static class Request extends ActionRequest {
 
-        private final Engine engine;
-        private final boolean create;
+        private static final String DEFAULT_QUERY = "*";
+        private final String query;
+        private final PageParams pageParams;
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.engine = new Engine(in);
-            this.create = in.readBoolean();
+            this.query = in.readString();
+            this.pageParams = new PageParams(in);
         }
 
-        public Request(String engineId, boolean create, BytesReference content, XContentType contentType) {
-            this.engine = Engine.fromXContentBytes(engineId, content, contentType);
-            this.create = create;
+        public Request(@Nullable String query, PageParams pageParams) {
+            this.query = Objects.requireNonNullElse(query, DEFAULT_QUERY);
+            this.pageParams = pageParams;
         }
 
-        public Request(Engine engine, boolean create) {
-            this.engine = engine;
-            this.create = create;
+        public String query() {
+            return query;
+        }
+
+        public PageParams pageParams() {
+            return pageParams;
         }
 
         @Override
         public ActionRequestValidationException validate() {
+            // Pagination validation is done as part of PageParams constructor
             ActionRequestValidationException validationException = null;
-
-            if (engine.indices().length == 0) {
-                validationException = addValidationError("indices are missing", validationException);
+            if (Strings.isEmpty(query())) {
+                validationException = ValidateActions.addValidationError("Engine query is missing", validationException);
             }
-
             return validationException;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            engine.writeTo(out);
-            out.writeBoolean(create);
-        }
-
-        public Engine getEngine() {
-            return engine;
-        }
-
-        public boolean create() {
-            return create;
+            out.writeString(query);
+            pageParams.writeTo(out);
         }
 
         @Override
@@ -87,48 +84,43 @@ public class PutEngineAction extends ActionType<PutEngineAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request that = (Request) o;
-            return Objects.equals(engine, that.engine) && create == that.create;
+            return Objects.equals(query, that.query) && Objects.equals(pageParams, that.pageParams);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(engine, create);
+            return Objects.hash(query, pageParams);
         }
     }
 
     public static class Response extends ActionResponse implements StatusToXContentObject {
 
-        final DocWriteResponse.Result result;
+        public static final ParseField ENGINES_RESULT_FIELD = new ParseField("results");
+
+        final QueryPage<EngineListItem> queryPage;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            result = DocWriteResponse.Result.readFrom(in);
+            this.queryPage = new QueryPage<>(in, EngineListItem::new);
         }
 
-        public Response(DocWriteResponse.Result result) {
-            this.result = result;
+        public Response(List<EngineListItem> engines, Long totalResults) {
+            this.queryPage = new QueryPage<>(engines, totalResults, ENGINES_RESULT_FIELD);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            this.result.writeTo(out);
+            queryPage.writeTo(out);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("result", this.result.getLowercase());
-            builder.endObject();
-            return builder;
+            return queryPage.toXContent(builder, params);
         }
 
         @Override
         public RestStatus status() {
-            return switch (result) {
-                case CREATED -> RestStatus.CREATED;
-                case NOT_FOUND -> RestStatus.NOT_FOUND;
-                default -> RestStatus.OK;
-            };
+            return RestStatus.OK;
         }
 
         @Override
@@ -136,14 +128,12 @@ public class PutEngineAction extends ActionType<PutEngineAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response that = (Response) o;
-            return Objects.equals(result, that.result);
+            return queryPage.equals(that.queryPage);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(result);
+            return queryPage.hashCode();
         }
-
     }
-
 }

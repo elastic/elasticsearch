@@ -11,22 +11,19 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -65,13 +62,15 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
     public void testCreateEngine() throws Exception {
         final Engine engine = new Engine("my_engine", new String[] { "index_1" }, null);
 
-        IndexResponse resp = awaitPutEngine(engine);
+        IndexResponse resp = awaitPutEngine(engine, true);
         assertThat(resp.status(), equalTo(RestStatus.CREATED));
         assertThat(resp.getIndex(), equalTo(ENGINE_CONCRETE_INDEX_NAME));
 
         Engine getEngine = awaitGetEngine(engine.name());
         assertThat(getEngine, equalTo(engine));
         checkAliases(engine);
+
+        expectThrows(VersionConflictEngineException.class, () -> awaitPutEngine(engine, true));
     }
 
     private void checkAliases(Engine engine) {
@@ -88,7 +87,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
     public void testUpdateEngine() throws Exception {
         {
             final Engine engine = new Engine("my_engine", new String[] { "index_1", "index_2" }, null);
-            IndexResponse resp = awaitPutEngine(engine);
+            IndexResponse resp = awaitPutEngine(engine, false);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
             assertThat(resp.getIndex(), equalTo(ENGINE_CONCRETE_INDEX_NAME));
 
@@ -97,7 +96,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
         }
 
         final Engine engine = new Engine("my_engine", new String[] { "index_3", "index_4" }, "my_engine_analytics_collection");
-        IndexResponse newResp = awaitPutEngine(engine);
+        IndexResponse newResp = awaitPutEngine(engine, false);
         assertThat(newResp.status(), equalTo(RestStatus.OK));
         assertThat(newResp.getIndex(), equalTo(ENGINE_CONCRETE_INDEX_NAME));
         Engine getNewEngine = awaitGetEngine(engine.name());
@@ -108,41 +107,37 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
     public void testListEngine() throws Exception {
         for (int i = 0; i < NUM_INDICES; i++) {
             final Engine engine = new Engine("my_engine_" + i, new String[] { "index_" + i }, null);
-            IndexResponse resp = awaitPutEngine(engine);
+            IndexResponse resp = awaitPutEngine(engine, false);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
             assertThat(resp.getIndex(), equalTo(ENGINE_CONCRETE_INDEX_NAME));
         }
 
         {
-            SearchResponse resp = awaitListEngine("*:*", 0, 10);
-            assertNotNull(resp.getHits());
-            assertThat(resp.getHits().getHits().length, equalTo(10));
-            assertThat(resp.getHits().getTotalHits().value, equalTo(10L));
+            EngineIndexService.SearchEnginesResult searchResponse = awaitListEngine("*:*", 0, 10);
+            final List<EngineListItem> engines = searchResponse.engineListItems();
+            assertNotNull(engines);
+            assertThat(engines.size(), equalTo(10));
+            assertThat(searchResponse.totalResults(), equalTo(10L));
 
-            SearchHits searchHits = resp.getHits();
             for (int i = 0; i < NUM_INDICES; i++) {
-                SearchHit hit = searchHits.getAt(i);
-                assertNotNull(hit.getFields().get("name"));
-                assertThat(hit.getFields().get("name").getValues(), equalTo(Arrays.asList("my_engine_" + i)));
-                assertNotNull(hit.getFields().get("indices"));
-                assertThat(hit.getFields().get("indices").getValues(), equalTo(Arrays.asList("index_" + i)));
+                EngineListItem engine = engines.get(i);
+                assertThat(engine.name(), equalTo("my_engine_" + i));
+                assertThat(engine.indices(), equalTo(new String[] { "index_" + i }));
             }
         }
 
         {
-            SearchResponse resp = awaitListEngine("*:*", 5, 10);
-            assertNotNull(resp.getHits());
-            assertThat(resp.getHits().getHits().length, equalTo(5));
-            assertThat(resp.getHits().getTotalHits().value, equalTo(10L));
+            EngineIndexService.SearchEnginesResult searchResponse = awaitListEngine("*:*", 5, 10);
+            final List<EngineListItem> engines = searchResponse.engineListItems();
+            assertNotNull(engines);
+            assertThat(engines.size(), equalTo(5));
+            assertThat(searchResponse.totalResults(), equalTo(10L));
 
-            SearchHits searchHits = resp.getHits();
             for (int i = 0; i < 5; i++) {
                 int index = i + 5;
-                SearchHit hit = searchHits.getAt(i);
-                assertNotNull(hit.getFields().get("name"));
-                assertThat(hit.getFields().get("name").getValues(), equalTo(Arrays.asList("my_engine_" + index)));
-                assertNotNull(hit.getFields().get("indices"));
-                assertThat(hit.getFields().get("indices").getValues(), equalTo(Arrays.asList("index_" + index)));
+                EngineListItem engine = engines.get(i);
+                assertThat(engine.name(), equalTo("my_engine_" + index));
+                assertThat(engine.indices(), equalTo(new String[] { "index_" + index }));
             }
         }
     }
@@ -150,7 +145,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
     public void testListEngineWithQuery() throws Exception {
         for (int i = 0; i < 10; i++) {
             final Engine engine = new Engine("my_engine_" + i, new String[] { "index_" + i }, null);
-            IndexResponse resp = awaitPutEngine(engine);
+            IndexResponse resp = awaitPutEngine(engine, false);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
             assertThat(resp.getIndex(), equalTo(ENGINE_CONCRETE_INDEX_NAME));
         }
@@ -164,17 +159,14 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
                 "indices:index_4",
                 "index_4",
                 "*_4" }) {
-                SearchResponse resp = awaitListEngine(queryString, 0, 10);
-                assertNotNull(resp.getHits());
-                assertThat(resp.getHits().getHits().length, equalTo(1));
-                assertThat(resp.getHits().getTotalHits().value, equalTo(1L));
 
-                SearchHits searchHits = resp.getHits();
-                SearchHit hit = searchHits.getAt(0);
-                assertNotNull(hit.getFields().get("name"));
-                assertThat(hit.getFields().get("name").getValues(), equalTo(Arrays.asList("my_engine_4")));
-                assertNotNull(hit.getFields().get("indices"));
-                assertThat(hit.getFields().get("indices").getValues(), equalTo(Arrays.asList("index_4")));
+                EngineIndexService.SearchEnginesResult searchResponse = awaitListEngine(queryString, 0, 10);
+                final List<EngineListItem> engines = searchResponse.engineListItems();
+                assertNotNull(engines);
+                assertThat(engines.size(), equalTo(1));
+                assertThat(searchResponse.totalResults(), equalTo(1L));
+                assertThat(engines.get(0).name(), equalTo("my_engine_4"));
+                assertThat(engines.get(0).indices(), equalTo(new String[] { "index_4" }));
             }
         }
     }
@@ -182,7 +174,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
     public void testDeleteEngine() throws Exception {
         for (int i = 0; i < 5; i++) {
             final Engine engine = new Engine("my_engine_" + i, new String[] { "index_" + i }, null);
-            IndexResponse resp = awaitPutEngine(engine);
+            IndexResponse resp = awaitPutEngine(engine, false);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
             assertThat(resp.getIndex(), equalTo(ENGINE_CONCRETE_INDEX_NAME));
 
@@ -195,27 +187,25 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
         expectThrows(ResourceNotFoundException.class, () -> awaitGetEngine("my_engine_4"));
 
         {
-            SearchResponse searchResponse = awaitListEngine("*:*", 0, 10);
-            assertNotNull(searchResponse.getHits());
-            assertThat(searchResponse.getHits().getHits().length, equalTo(4));
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(4L));
+            EngineIndexService.SearchEnginesResult searchResponse = awaitListEngine("*:*", 0, 10);
+            final List<EngineListItem> engines = searchResponse.engineListItems();
+            assertNotNull(engines);
+            assertThat(engines.size(), equalTo(4));
+            assertThat(searchResponse.totalResults(), equalTo(4L));
 
-            SearchHits searchHits = searchResponse.getHits();
             for (int i = 0; i < 4; i++) {
-                SearchHit hit = searchHits.getAt(i);
-                assertNotNull(hit.getFields().get("name"));
-                assertThat(hit.getFields().get("name").getValues(), equalTo(Arrays.asList("my_engine_" + i)));
-                assertNotNull(hit.getFields().get("indices"));
-                assertThat(hit.getFields().get("indices").getValues(), equalTo(Arrays.asList("index_" + i)));
+                EngineListItem engine = engines.get(i);
+                assertThat(engine.name(), equalTo("my_engine_" + i));
+                assertThat(engine.indices(), equalTo(new String[] { "index_" + i }));
             }
         }
     }
 
-    private IndexResponse awaitPutEngine(Engine engine) throws Exception {
+    private IndexResponse awaitPutEngine(Engine engine, boolean create) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<IndexResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        engineService.putEngine(engine, new ActionListener<>() {
+        engineService.putEngine(engine, create, new ActionListener<>() {
             @Override
             public void onResponse(IndexResponse indexResponse) {
                 resp.set(indexResponse);
@@ -286,14 +276,14 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
         return resp.get();
     }
 
-    private SearchResponse awaitListEngine(String queryString, int from, int size) throws Exception {
+    private EngineIndexService.SearchEnginesResult awaitListEngine(String queryString, int from, int size) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<SearchResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<EngineIndexService.SearchEnginesResult> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        engineService.listEngine(queryString, from, size, new ActionListener<>() {
+        engineService.listEngines(queryString, from, size, new ActionListener<>() {
             @Override
-            public void onResponse(SearchResponse searchResponse) {
-                resp.set(searchResponse);
+            public void onResponse(EngineIndexService.SearchEnginesResult searchEnginesResult) {
+                resp.set(searchEnginesResult);
                 latch.countDown();
             }
 

@@ -25,6 +25,7 @@ public class Constants {
         "cluster:admin/deprecation/cache/reset",
         "cluster:admin/engine/delete",
         "cluster:admin/engine/get",
+        "cluster:admin/engine/list",
         "cluster:admin/engine/put",
         "cluster:admin/ilm/_move/post",
         "cluster:admin/ilm/delete",

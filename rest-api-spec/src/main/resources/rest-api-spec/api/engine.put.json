@@ -31,6 +31,12 @@
         }
       ]
     },
+    "params": {
+      "create": {
+        "type": "boolean",
+        "description": "If true, requires that an engine with the specified engine_id does not already exist. (default: false)"
+      }
+    },
     "body": {
       "description": "The engine configuration, including `indices`",
       "required": true

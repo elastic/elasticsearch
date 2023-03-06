@@ -18,6 +18,8 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -381,26 +383,60 @@ public class NodeTests extends ESTestCase {
 
     public static class MockPluginWithAltImpl extends Plugin {
         private final boolean randomBool;
+        private static boolean startCalled = false;
+        private static boolean stopCalled = false;
+        private static boolean closeCalled = false;
 
         public MockPluginWithAltImpl() {
             this.randomBool = randomBoolean();
         }
 
-        interface MyInterface {
+        interface MyInterface extends LifecycleComponent {
             String get();
+
         }
 
-        static class Foo implements MyInterface {
+        static class Foo extends AbstractLifecycleComponent implements MyInterface {
             @Override
             public String get() {
                 return "foo";
             }
+
+            @Override
+            protected void doStart() {
+                startCalled = true;
+            }
+
+            @Override
+            protected void doStop() {
+                stopCalled = true;
+            }
+
+            @Override
+            protected void doClose() throws IOException {
+                closeCalled = true;
+            }
         }
 
-        static class Bar implements MyInterface {
+        static class Bar extends AbstractLifecycleComponent implements MyInterface {
             @Override
             public String get() {
                 return "bar";
+            }
+
+            @Override
+            protected void doStart() {
+                startCalled = true;
+            }
+
+            @Override
+            protected void doStop() {
+                stopCalled = true;
+            }
+
+            @Override
+            protected void doClose() throws IOException {
+                closeCalled = true;
             }
         }
 
@@ -568,7 +604,7 @@ public class NodeTests extends ESTestCase {
         assertTrue(msg, msg.contains("plugin [" + AdditionalSettingsPlugin2.class.getName()));
     }
 
-    public void testPluginComponentInterfaceBinding() throws IOException {
+    public void testPluginComponentInterfaceBinding() throws IOException, NodeValidationException {
         List<Class<? extends Plugin>> plugins = basePlugins();
         plugins.add(MockPluginWithAltImpl.class);
         try (Node node = new MockNode(baseSettings().build(), plugins)) {
@@ -581,7 +617,11 @@ public class NodeTests extends ESTestCase {
                 assertTrue(myInterface instanceof MockPluginWithAltImpl.Bar);
                 assertTrue(myInterface.get().equalsIgnoreCase("bar"));
             }
+            node.start();
+            assertTrue(MockPluginWithAltImpl.startCalled);
         }
+        assertTrue(MockPluginWithAltImpl.stopCalled);
+        assertTrue(MockPluginWithAltImpl.closeCalled);
     }
 
     private RestRequest request(NamedXContentRegistry namedXContentRegistry, RestApiVersion restApiVersion) throws IOException {

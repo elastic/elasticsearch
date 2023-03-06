@@ -231,6 +231,7 @@ public class RemoteAccessAuthenticationServiceTests extends ESTestCase {
         final AuthenticationService.AuditableRequest auditableRequest = mock(AuthenticationService.AuditableRequest.class);
         final Authenticator.Context authcContext = mock(Authenticator.Context.class, Mockito.RETURNS_DEEP_STUBS);
         when(authcContext.getThreadContext()).thenReturn(threadContext);
+        when(authcContext.getRequest()).thenReturn(auditableRequest);
         when(authenticationService.newContext(anyString(), any(), anyBoolean())).thenReturn(authcContext);
         @SuppressWarnings("unchecked")
         final ArgumentCaptor<ActionListener<Authentication>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);

@@ -111,7 +111,7 @@ public class RemoteAccessAuthenticationService {
                     assert authentication.isApiKey() : "initial authentication for remote access must be by API key";
                     assert false == authentication.isRunAs() : "initial authentication for remote access cannot be run-as";
                     // try-catch so any failure here is wrapped by `withRequestProcessingFailure`, whereas `authenticate` failures are not
-                    // we should _not_ wrap `authenticate` failures since this produces duplicates audit events
+                    // we should _not_ wrap `authenticate` failures since this produces duplicate audit events
                     try {
                         final RemoteAccessAuthentication remoteAccessAuthentication = remoteAccessHeaders.remoteAccessAuthentication();
                         validate(remoteAccessAuthentication);
@@ -194,6 +194,7 @@ public class RemoteAccessAuthenticationService {
         final Exception ex,
         final ActionListener<Authentication> listener
     ) {
+        logger.debug(() -> format("Failed to authenticate remote access for request [%s]", context.getRequest()), ex);
         final ElasticsearchSecurityException ese = context.getRequest()
             .exceptionProcessingRequest(ex, context.getMostRecentAuthenticationToken());
         context.addUnsuccessfulMessageToMetadata(ese);

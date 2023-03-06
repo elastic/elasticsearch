@@ -171,7 +171,7 @@ public class IndexShardSnapshotStatus {
     }
 
     public void ensureNotAborted() {
-        if (stage.get() == Stage.ABORTED) {
+        if (isAborted()) {
             throw new AbortedSnapshotException();
         }
     }

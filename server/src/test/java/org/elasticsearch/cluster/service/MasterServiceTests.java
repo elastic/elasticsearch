@@ -176,7 +176,15 @@ public class MasterServiceTests extends ESTestCase {
         masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
             clusterStateRef.set(clusterStatePublicationEvent.getNewState());
             ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);
-            publishListener.onResponse(null);
+            threadPool.executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC)).execute(() -> {
+                final var threadName = Thread.currentThread().getName();
+                try {
+                    Thread.currentThread().setName("[" + MasterService.MASTER_UPDATE_THREAD_NAME + "]");
+                    publishListener.onResponse(null);
+                } finally {
+                    Thread.currentThread().setName(threadName);
+                }
+            });
         });
         masterService.setClusterStateSupplier(clusterStateRef::get);
         masterService.start();
@@ -2369,7 +2377,7 @@ public class MasterServiceTests extends ESTestCase {
                     public ClusterState execute(ClusterState currentState) {
                         assertEquals(priority, prioritiesQueue.poll());
                         assertEquals(priority, priority());
-                        return currentState;
+                        return randomBoolean() ? currentState : ClusterState.builder(currentState).build();
                     }
 
                     @Override

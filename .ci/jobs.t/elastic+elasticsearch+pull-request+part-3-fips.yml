@@ -33,7 +33,6 @@
           properties-file: '.ci/java-versions-fips.properties'
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
-            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
             JAVA16_HOME=$HOME/.java/openjdk16
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr

@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -597,7 +596,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 .keySet()
                 .stream()
                 .map(state.metadata().getIndicesLookup()::get)
-                .map(IndexAbstraction.DataStream.class::cast)
+                .map(DataStream.class::cast)
                 .map(ds -> forecast(state.metadata(), ds, forecastWindow, now))
                 .filter(Objects::nonNull)
                 .toList();
@@ -626,7 +625,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             );
         }
 
-        private SingleForecast forecast(Metadata metadata, IndexAbstraction.DataStream stream, long forecastWindow, long now) {
+        private SingleForecast forecast(Metadata metadata, DataStream stream, long forecastWindow, long now) {
             List<Index> indices = stream.getIndices();
             if (dataStreamAllocatedToNodes(metadata, indices) == false) return null;
             long minCreationDate = Long.MAX_VALUE;
@@ -680,11 +679,10 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             IndexMetadata writeIndex = metadata.index(stream.getWriteIndex());
 
             Map<IndexMetadata, Long> newIndices = new HashMap<>();
-            DataStream dataStream = stream.getDataStream();
             for (int i = 0; i < numberNewIndices; ++i) {
                 final String uuid = UUIDs.randomBase64UUID();
-                final Tuple<String, Long> rolledDataStreamInfo = dataStream.unsafeNextWriteIndexAndGeneration(state.metadata());
-                dataStream = dataStream.unsafeRollover(new Index(rolledDataStreamInfo.v1(), uuid), rolledDataStreamInfo.v2(), false);
+                final Tuple<String, Long> rolledDataStreamInfo = stream.unsafeNextWriteIndexAndGeneration(state.metadata());
+                stream = stream.unsafeRollover(new Index(rolledDataStreamInfo.v1(), uuid), rolledDataStreamInfo.v2(), false);
 
                 // this unintentionally copies the in-sync allocation ids too. This has the fortunate effect of these indices
                 // not being regarded new by the disk threshold decider, thereby respecting the low watermark threshold even for primaries.
@@ -692,7 +690,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 // ensuring at least that when replicas are involved, we still respect the low watermark. This is therefore left as is
                 // for now with the intention to fix in a follow-up.
                 IndexMetadata newIndex = IndexMetadata.builder(writeIndex)
-                    .index(dataStream.getWriteIndex().getName())
+                    .index(stream.getWriteIndex().getName())
                     .settings(Settings.builder().put(writeIndex.getSettings()).put(IndexMetadata.SETTING_INDEX_UUID, uuid))
                     .build();
                 long size = Math.min(avgSizeCeil, scaledTotalSize - (avgSizeCeil * i));
@@ -700,7 +698,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 newIndices.put(newIndex, size);
             }
 
-            return new SingleForecast(newIndices, dataStream);
+            return new SingleForecast(newIndices, stream);
         }
 
         /**

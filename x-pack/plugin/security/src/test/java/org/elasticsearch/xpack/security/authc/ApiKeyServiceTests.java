@@ -2033,7 +2033,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     public void testMaybeRemoveRemoteIndicesPrivilegesWithUnsupportedVersion() {
         final String apiKeyId = randomAlphaOfLengthBetween(5, 8);
         final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(
-            randomList(1, 3, () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean()))
+            randomList(2, 5, () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean()))
         );
 
         // Selecting random unsupported version.
@@ -2050,16 +2050,17 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(result.size(), equalTo(userRoleDescriptors.size()));
 
         // Roles for which warning headers are added.
-        final String[] userRoleNamesWithRemoteIndicesPrivileges = userRoleDescriptors.stream()
+        final List<String> userRoleNamesWithRemoteIndicesPrivileges = userRoleDescriptors.stream()
             .filter(RoleDescriptor::hasRemoteIndicesPrivileges)
             .map(RoleDescriptor::getName)
-            .toArray(String[]::new);
+            .sorted()
+            .toList();
 
-        if (userRoleNamesWithRemoteIndicesPrivileges.length > 0) {
+        if (false == userRoleNamesWithRemoteIndicesPrivileges.isEmpty()) {
             assertWarnings(
-                "Removed API key's remote indices privileges from role(s) ["
-                    + Arrays.stream(userRoleNamesWithRemoteIndicesPrivileges).collect(Collectors.toSet())
-                    + "]. Remote indices are not supported by all nodes in the cluster. "
+                "Removed API key's remote indices privileges from role(s) "
+                    + userRoleNamesWithRemoteIndicesPrivileges
+                    + ". Remote indices are not supported by all nodes in the cluster. "
                     + "Use the update API Key API to re-assign remote indices to the API key(s), after the cluster upgrade is complete."
             );
         }

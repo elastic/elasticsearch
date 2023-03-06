@@ -122,11 +122,11 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -527,7 +527,7 @@ public class ApiKeyService {
         final String... apiKeyIds
     ) {
         if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES)) {
-            final Set<String> affectedRoles = new LinkedHashSet<>();
+            final Set<String> affectedRoles = new TreeSet<>();
             final Set<RoleDescriptor> result = userRoleDescriptors.stream().map(roleDescriptor -> {
                 if (roleDescriptor.hasRemoteIndicesPrivileges()) {
                     affectedRoles.add(roleDescriptor.getName());
@@ -548,15 +548,14 @@ public class ApiKeyService {
 
             if (false == affectedRoles.isEmpty()) {
                 logger.info(
-                    "removed remote indices privileges from role(s) [{}] for API key(s) [{}]",
+                    "removed remote indices privileges from role(s) {} for API key(s) [{}]",
                     affectedRoles,
                     buildDelimitedStringWithLimit(10, apiKeyIds)
                 );
-
                 HeaderWarning.addWarning(
-                    "Removed API key's remote indices privileges from role(s) ["
+                    "Removed API key's remote indices privileges from role(s) "
                         + affectedRoles
-                        + "]. Remote indices are not supported by all nodes in the cluster. "
+                        + ". Remote indices are not supported by all nodes in the cluster. "
                         + "Use the update API Key API to re-assign remote indices to the API key(s), after the cluster upgrade is complete."
                 );
             }

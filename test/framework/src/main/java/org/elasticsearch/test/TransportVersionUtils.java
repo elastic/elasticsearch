@@ -120,7 +120,9 @@ public class TransportVersionUtils {
         return randomVersionBetween(random, minimumCompatibilityVersion(version), getPreviousVersion(version));
     }
 
-    /** returns the first future compatible version */
+    private static final int MINIMUM_COMPAT_INDEX = Collections.binarySearch(ALL_VERSIONS, TransportVersion.MINIMUM_COMPATIBLE);
+
+    /** returns the first compatible future version */
     public static TransportVersion compatibleFutureVersion(TransportVersion version) {
         int versionIdx = Collections.binarySearch(ALL_VERSIONS, version);
         if (versionIdx < 0) {
@@ -128,7 +130,6 @@ public class TransportVersionUtils {
         } else {
             versionIdx++;
         }
-        int minCompatIdx = Collections.binarySearch(ALL_VERSIONS, TransportVersion.MINIMUM_COMPATIBLE);
-        return ALL_VERSIONS.get(Math.max(versionIdx, minCompatIdx));
+        return ALL_VERSIONS.get(Math.max(versionIdx, MINIMUM_COMPAT_INDEX));
     }
 }

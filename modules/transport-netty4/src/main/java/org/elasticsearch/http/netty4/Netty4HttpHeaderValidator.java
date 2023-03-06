@@ -122,6 +122,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         state = STATE.HANDLING_QUEUED_DATA;
         boolean fullRequestForwarded = forwardData(ctx, pending);
 
+        assert fullRequestForwarded || pending.isEmpty();
         if (fullRequestForwarded) {
             state = STATE.WAITING_TO_START;
             if (pending.isEmpty() == false) {
@@ -154,7 +155,6 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         ctx.fireChannelRead(messageToForward);
 
         assert fullRequestConsumed || pending.isEmpty();
-
         if (fullRequestConsumed) {
             state = STATE.WAITING_TO_START;
             if (pending.isEmpty() == false) {

@@ -793,6 +793,13 @@ public final class Authentication implements ToXContentObject {
                     "Remote access authentication requires metadata to contain a non-null serialized remote access authentication"
                 );
             }
+            final Authentication innerAuthentication = (Authentication) authenticatingSubject.getMetadata()
+                .get(REMOTE_ACCESS_AUTHENTICATION_KEY);
+            if (innerAuthentication.isRemoteAccess()) {
+                throw new IllegalArgumentException(
+                    "Remote access authentication cannot contain another remote access authentication in its metadata"
+                );
+            }
             if (authenticatingSubject.getMetadata().get(REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY) == null) {
                 throw new IllegalArgumentException(
                     "Remote access authentication requires metadata to contain a non-null serialized remote access role descriptors"

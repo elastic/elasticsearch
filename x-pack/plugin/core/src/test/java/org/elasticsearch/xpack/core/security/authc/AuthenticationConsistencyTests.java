@@ -182,6 +182,23 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                 )
             ),
             entry(
+                "Remote access authentication cannot contain another remote access authentication in its metadata",
+                encodeAuthentication(
+                    new Subject(
+                        userFoo,
+                        Authentication.RealmRef.newRemoteAccessRealmRef("node"),
+                        TransportVersion.CURRENT,
+                        Map.of(
+                            AuthenticationField.API_KEY_ID_KEY,
+                            "abc",
+                            AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY,
+                            AuthenticationTestHelper.builder().remoteAccess().build()
+                        )
+                    ),
+                    Authentication.AuthenticationType.API_KEY
+                )
+            ),
+            entry(
                 "Remote access authentication requires metadata to contain a non-null serialized remote access role descriptors",
                 encodeAuthentication(
                     new Subject(

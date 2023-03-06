@@ -379,7 +379,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return;
         }
 
-        DataStream dataStream = indexAbstraction.getParentDataStream().getDataStream();
+        DataStream dataStream = indexAbstraction.getParentDataStream();
 
         // At this point with write op is targeting a backing index of a data stream directly,
         // so checking if write op is append-only and if so fail.
@@ -419,8 +419,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         if (writeRequest.routing() != null) {
-            IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) indexAbstraction;
-            if (dataStream.getDataStream().isAllowCustomRouting() == false) {
+            DataStream dataStream = (DataStream) indexAbstraction;
+            if (dataStream.isAllowCustomRouting() == false) {
                 throw new IllegalArgumentException(
                     "index request targeting data stream ["
                         + dataStream.getName()

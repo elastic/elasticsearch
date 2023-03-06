@@ -39,7 +39,6 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -62,6 +61,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -108,7 +108,7 @@ public class MasterService extends AbstractLifecycleComponent {
     protected final ThreadPool threadPool;
     private final TaskManager taskManager;
 
-    private volatile PrioritizedEsThreadPoolExecutor threadPoolExecutor;
+    private volatile ExecutorService threadPoolExecutor;
     private final AtomicInteger totalQueueSize = new AtomicInteger();
     private volatile Batch currentlyExecutingBatch;
     private final Map<Priority, PerPriorityQueue> queuesByPriority;
@@ -155,12 +155,16 @@ public class MasterService extends AbstractLifecycleComponent {
         threadPoolExecutor = createThreadPoolExecutor();
     }
 
-    protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
-        return EsExecutors.newSinglePrioritizing(
+    protected ExecutorService createThreadPoolExecutor() {
+        return EsExecutors.newScaling(
             nodeName + "/" + MASTER_UPDATE_THREAD_NAME,
+            0,
+            1,
+            60,
+            TimeUnit.SECONDS,
+            true,
             daemonThreadFactory(nodeName, MASTER_UPDATE_THREAD_NAME),
-            threadPool.getThreadContext(),
-            threadPool.scheduler()
+            threadPool.getThreadContext()
         );
     }
 
@@ -1137,24 +1141,30 @@ public class MasterService extends AbstractLifecycleComponent {
         return e instanceof NotMasterException || e instanceof FailedToCommitClusterStateException;
     }
 
-    private final Runnable queuesProcessor = new Runnable() {
+    private final Runnable queuesProcessor = new AbstractRunnable() {
         @Override
-        public void run() {
+        public void doRun() {
             assert threadPool.getThreadContext().isSystemContext();
             assert totalQueueSize.get() > 0;
             assert currentlyExecutingBatch == null;
-            try {
-                final var nextBatch = takeNextBatch();
-                assert currentlyExecutingBatch == nextBatch;
-                if (lifecycle.started()) {
-                    nextBatch.run();
-                } else {
-                    nextBatch.onRejection(new FailedToCommitClusterStateException("node closed", getRejectionException()));
-                }
-            } catch (Exception e) {
-                logger.error("unexpected exception executing queue entry", e);
-                assert false : e;
-            } finally {
+            final var nextBatch = takeNextBatch();
+            assert currentlyExecutingBatch == nextBatch;
+            if (lifecycle.started()) {
+                nextBatch.run();
+            } else {
+                nextBatch.onRejection(new FailedToCommitClusterStateException("node closed", getRejectionException()));
+            }
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            logger.error("unexpected exception executing queue entry", e);
+            assert false : e;
+        }
+
+        @Override
+        public void onAfter() {
+            if (currentlyExecutingBatch != null) {
                 currentlyExecutingBatch = null;
                 if (totalQueueSize.decrementAndGet() > 0) {
                     starvationWatcher.onNonemptyQueue();
@@ -1163,6 +1173,12 @@ public class MasterService extends AbstractLifecycleComponent {
                     starvationWatcher.onEmptyQueue();
                 }
             }
+        }
+
+        @Override
+        public void onRejection(Exception e) {
+            assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
+            drainQueueOnRejection(new FailedToCommitClusterStateException("node closed", e));
         }
 
         @Override
@@ -1193,16 +1209,11 @@ public class MasterService extends AbstractLifecycleComponent {
             return;
         }
 
-        try {
-            assert totalQueueSize.get() > 0;
-            final var threadContext = threadPool.getThreadContext();
-            try (var ignored = threadContext.stashContext()) {
-                threadContext.markAsSystemContext();
-                threadPoolExecutor.execute(queuesProcessor);
-            }
-        } catch (Exception e) {
-            assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
-            drainQueueOnRejection(new FailedToCommitClusterStateException("node closed", e));
+        assert totalQueueSize.get() > 0;
+        final var threadContext = threadPool.getThreadContext();
+        try (var ignored = threadContext.stashContext()) {
+            threadContext.markAsSystemContext();
+            threadPoolExecutor.execute(queuesProcessor);
         }
     }
 

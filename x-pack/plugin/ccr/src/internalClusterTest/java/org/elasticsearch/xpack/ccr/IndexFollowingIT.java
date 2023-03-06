@@ -35,7 +35,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
-import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -495,7 +495,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         int numberOfShards = between(1, 5);
         String leaderIndexSettings = getIndexSettings(numberOfShards, between(0, 1));
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
-        BulkProcessor.Listener listener = new BulkProcessor.Listener() {
+        BulkProcessor2.Listener listener = new BulkProcessor2.Listener() {
             @Override
             public void beforeBulk(long executionId, BulkRequest request) {}
 
@@ -503,12 +503,11 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {}
 
             @Override
-            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {}
+            public void afterBulk(long executionId, BulkRequest request, Exception failure) {}
         };
         int bulkSize = between(1, 20);
-        BulkProcessor bulkProcessor = BulkProcessor.builder(leaderClient()::bulk, listener, "IndexFollowingIT")
+        BulkProcessor2 bulkProcessor = BulkProcessor2.builder(leaderClient()::bulk, listener, leaderClient().threadPool())
             .setBulkActions(bulkSize)
-            .setConcurrentRequests(4)
             .build();
         AtomicBoolean run = new AtomicBoolean(true);
         Semaphore availableDocs = new Semaphore(0);

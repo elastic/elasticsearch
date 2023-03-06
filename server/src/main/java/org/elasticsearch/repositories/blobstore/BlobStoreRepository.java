@@ -2652,6 +2652,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             logger.debug("[{}][{}] snapshot to [{}][{}][{}] ...", shardId, snapshotId, metadata.name(), context.indexId(), generation);
             final Set<String> blobs;
             if (generation == null) {
+                snapshotStatus.ensureNotAborted();
                 try {
                     blobs = shardContainer.listBlobsByPrefix(INDEX_FILE_PREFIX).keySet();
                 } catch (IOException e) {
@@ -2661,6 +2662,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 blobs = Collections.singleton(INDEX_FILE_PREFIX + generation);
             }
 
+            snapshotStatus.ensureNotAborted();
             Tuple<BlobStoreIndexShardSnapshots, ShardGeneration> tuple = buildBlobStoreIndexShardSnapshots(
                 blobs,
                 shardContainer,
@@ -2920,12 +2922,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private static Releasable incrementStoreRef(Store store, IndexShardSnapshotStatus snapshotStatus, ShardId shardId) {
         if (store.tryIncRef() == false) {
-            if (snapshotStatus.isAborted()) {
-                throw new AbortedSnapshotException();
-            } else {
-                assert false : "Store should not be closed concurrently unless snapshot is aborted";
-                throw new IndexShardSnapshotFailedException(shardId, "Store got closed concurrently");
-            }
+            snapshotStatus.ensureNotAborted();
+            assert false : "Store should not be closed concurrently unless snapshot is aborted";
+            throw new IndexShardSnapshotFailedException(shardId, "Store got closed concurrently");
         }
         return store::decRef;
     }

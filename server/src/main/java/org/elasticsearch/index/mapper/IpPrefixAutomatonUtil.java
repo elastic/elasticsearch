@@ -179,7 +179,7 @@ public class IpPrefixAutomatonUtil {
                     }
                 } else {
                     // if present, this is the last group
-                        int numberPrefix = Integer.parseInt(group);
+                    int numberPrefix = Integer.parseInt(group);
                     if (numberPrefix < 255) {
                         incompleteGroupAutomaton = INCOMPLETE_IP4_GROUP_AUTOMATON_LOOKUP.get(numberPrefix);
                         prefixBytes++;

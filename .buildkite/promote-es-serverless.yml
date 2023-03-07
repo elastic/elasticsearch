@@ -1,16 +1,9 @@
 steps:
   - trigger: elasticsearch-serverless
     label: ":elasticsearch: Run serverless tests"
-    branches: override_submodule_commit
-#    build:
-#      message: "Elasticsearch submodule promotion build"
-#      env:
-#        ELASTICSEARCH_SUBMODULE_COMMIT: "${BUILDKITE_COMMIT}"
-
-#  - wait:
-#
-#  - label: ":git: Update elasticsearch submodule commit"
-#    commands:
-#      - "git commit -m 'Update elasticsearch submodule'"
-#      - "git push origin"
+    build:
+      branch: override_submodule_commit
+      message: "Elasticsearch submodule promotion build"
+      env:
+        ELASTICSEARCH_SUBMODULE_COMMIT: "${BUILDKITE_COMMIT}"
 

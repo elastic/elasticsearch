@@ -921,7 +921,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         List<String> indexRoute = new ArrayList<>(indexRecursionDetection);
                         indexRoute.add(newIndex);
                         listener.onFailure(
-                            new IllegalStateException(format("index cycle detected while processing pipelines: %s", indexRoute))
+                            new IllegalStateException(
+                                format(
+                                    "index cycle detected while processing pipeline [%s] for document [%s]: %s",
+                                    pipelineId,
+                                    indexRequest.id(),
+                                    indexRoute
+                                )
+                            )
                         );
                         return; // document failed!
                     }

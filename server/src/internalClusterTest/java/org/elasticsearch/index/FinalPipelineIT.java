@@ -270,7 +270,10 @@ public class FinalPipelineIT extends ESIntegTestCase {
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get()
         );
-        assertThat(exception.getMessage(), containsString("index cycle detected while processing pipelines: [index, target, index]"));
+        assertThat(
+            exception.getMessage(),
+            equalTo("index cycle detected while processing pipeline [target_default_pipeline] for document [1]: [index, target, index]")
+        );
     }
 
     public void testFinalPipeline() {

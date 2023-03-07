@@ -72,13 +72,14 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
                 ctx.fireChannelRead(httpObject);
                 break;
             case DROPPING_DATA_UNTIL_NEXT_REQUEST:
+                assert pending.isEmpty();
                 if (httpObject instanceof LastHttpContent) {
                     state = WAITING_TO_START;
                 }
                 // fallthrough
             case DROPPING_DATA_PERMANENTLY:
                 assert pending.isEmpty();
-                ReferenceCountUtil.release(httpObject); // consume
+                ReferenceCountUtil.release(httpObject); // consume without enqueuing
                 break;
         }
 
@@ -149,9 +150,9 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         state = HANDLING_QUEUED_DATA;
         HttpObject messageToForward = pending.getFirst();
         boolean fullRequestDropped = dropData(pending);
-        if (messageToForward instanceof HttpContent toRelease) {
+        if (messageToForward instanceof HttpContent toReplace) {
             // if the request to forward contained data (which got dropped), replace with empty data
-            messageToForward = toRelease.replace(Unpooled.EMPTY_BUFFER);
+            messageToForward = toReplace.replace(Unpooled.EMPTY_BUFFER);
         }
         messageToForward.setDecoderResult(DecoderResult.failure(e));
         ctx.fireChannelRead(messageToForward);

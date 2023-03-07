@@ -1,19 +1,19 @@
 [role="xpack"]
-[[get-engine]]
-= Get Engine API
+[[delete-engine]]
+= Delete Engine API
 [subs="attributes"]
 ++++
-<titleabbrev>Get engine</titleabbrev>
+<titleabbrev>Delete engine</titleabbrev>
 
-Retrieves information about a search engine.
+Removes a search engine and its associated alias. Indices attached to the engine are not removed.
 
 
-[[get-engine-request]]
+[[delete-engine-request]]
 == {api-request-title}
 
-`GET _engine/<engine_id>`
+`DELETE _engine/<engine_id>`
 
-[[get-engine-prereq]]
+[[delete-engine-prereq]]
 == {api-prereq-title}
 
 Requires the `manage_engine` cluster privilege.
@@ -23,33 +23,33 @@ Also requires manage `manage_index` privileges on all indices that are added to 
 //[[get-engine-desc]]
 //== {api-description-title}
 
-[[get-engine-path-params]]
+[[delete-engine-path-params]]
 == {api-path-parms-title}
 
 `<engine_id>`::
 (Required, string)
 
 
-[[get-engines-response-codes]]
+[[delete-engines-response-codes]]
 == {api-response-codes-title}
 
 `400`::
-The `engine_id` was not provided.
+  The `engine_id` was not provided.
 
 `403`::
-Insufficient privileges
+  Insufficient privileges
 
 `404` (Missing resources)::
-No engine matching `engine_id` could be found.
+  No engine matching `engine_id` could be found.
 
 
-[[get-engine-example]]
+[[delete-engine-example]]
 == {api-examples-title}
 
-The following example gets the search engine named `my-engine`:
+The following example deletes the search engine named `my-engine`:
 
 [source,console]
 --------------------------------------------------
-GET _engine/my-engine/
+DELETE _engine/my-engine/
 --------------------------------------------------
 // TEST[skip:TBD]

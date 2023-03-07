@@ -1,17 +1,17 @@
 [role="xpack"]
-[[get-engine]]
-= Get Engine API
+[[list-engines]]
+= List Engines API
 [subs="attributes"]
 ++++
-<titleabbrev>Get engine</titleabbrev>
+<titleabbrev>List engines</titleabbrev>
 
-Retrieves information about a search engine.
+Returns information about search engines.
 
 
 [[get-engine-request]]
 == {api-request-title}
 
-`GET _engine/<engine_id>`
+`GET _engine/`
 
 [[get-engine-prereq]]
 == {api-prereq-title}
@@ -20,36 +20,42 @@ Requires the `manage_engine` cluster privilege.
 Also requires manage `manage_index` privileges on all indices that are added to the search engine.
 
 
-//[[get-engine-desc]]
+//[[list-engines-desc]]
 //== {api-description-title}
 
 [[get-engine-path-params]]
 == {api-path-parms-title}
 
-`<engine_id>`::
-(Required, string)
+`q`::
+(Optional, string)
+Query in the Lucene query string syntax, to return only search engines matching the query.
 
+`size`::
+(Optional, indeger)
+
+`from`::
+(Optional, indeger)
 
 [[get-engines-response-codes]]
 == {api-response-codes-title}
 
-`400`::
-The `engine_id` was not provided.
-
 `403`::
 Insufficient privileges
-
-`404` (Missing resources)::
-No engine matching `engine_id` could be found.
-
 
 [[get-engine-example]]
 == {api-examples-title}
 
-The following example gets the search engine named `my-engine`:
+The following example lists all configured search engines:
 
 [source,console]
 --------------------------------------------------
-GET _engine/my-engine/
+GET _engine
+--------------------------------------------------
+
+The following example lists the first three search engines matching `foo`:
+
+[source,console]
+--------------------------------------------------
+GET _engine?from=0&size=3&q=foo
 --------------------------------------------------
 // TEST[skip:TBD]

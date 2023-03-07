@@ -14,30 +14,30 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class SlimResultsTests extends InferenceResultsTestCase<SlimResults> {
+public class TextExpansionResultsTests extends InferenceResultsTestCase<TextExpansionResults> {
     @Override
-    protected Writeable.Reader<SlimResults> instanceReader() {
-        return SlimResults::new;
+    protected Writeable.Reader<TextExpansionResults> instanceReader() {
+        return TextExpansionResults::new;
     }
 
     @Override
-    protected SlimResults createTestInstance() {
+    protected TextExpansionResults createTestInstance() {
         int numTokens = randomIntBetween(0, 20);
-        List<SlimResults.WeightedToken> tokenList = new ArrayList<>();
+        List<TextExpansionResults.WeightedToken> tokenList = new ArrayList<>();
         for (int i = 0; i < numTokens; i++) {
-            tokenList.add(new SlimResults.WeightedToken(i, (float) randomDoubleBetween(0.0, 5.0, false)));
+            tokenList.add(new TextExpansionResults.WeightedToken(i, (float) randomDoubleBetween(0.0, 5.0, false)));
         }
-        return new SlimResults(randomAlphaOfLength(4), tokenList, randomBoolean());
+        return new TextExpansionResults(randomAlphaOfLength(4), tokenList, randomBoolean());
     }
 
     @Override
-    protected SlimResults mutateInstance(SlimResults instance) {
-        return new SlimResults(instance.getResultsField() + "-FOO", instance.getWeightedTokens(), instance.isTruncated() == false);
+    protected TextExpansionResults mutateInstance(TextExpansionResults instance) {
+        return new TextExpansionResults(instance.getResultsField() + "-FOO", instance.getWeightedTokens(), instance.isTruncated() == false);
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    void assertFieldValues(SlimResults createdInstance, IngestDocument document, String resultsField) {
+    void assertFieldValues(TextExpansionResults createdInstance, IngestDocument document, String resultsField) {
         var ingestedTokens = (List<Map<String, Object>>) document.getFieldValue(
             resultsField + '.' + createdInstance.getResultsField(),
             List.class

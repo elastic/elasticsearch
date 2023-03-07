@@ -13,7 +13,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -301,7 +300,7 @@ public class ApiKeyService {
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else {
-            final TransportVersion version = getMinNodeTransportVersion();
+            final Version version = getMinNodeVersion();
             if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES) && hasRemoteIndices(request.getRoleDescriptors())) {
                 // Creating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
                 listener.onFailure(
@@ -324,9 +323,8 @@ public class ApiKeyService {
         }
     }
 
-    private TransportVersion getMinNodeTransportVersion() {
-        // TODO here a node version is mixed with a transportVersion. We should look into this once Node's Version is refactored
-        return clusterService.state().nodes().getMinNodeVersion().transportVersion;
+    private Version getMinNodeVersion() {
+        return clusterService.state().nodes().getMinNodeVersion();
     }
 
     private static boolean hasRemoteIndices(Collection<RoleDescriptor> roleDescriptors) {
@@ -412,7 +410,7 @@ public class ApiKeyService {
             return;
         }
 
-        final TransportVersion version = getMinNodeTransportVersion();
+        final Version version = getMinNodeVersion();
         if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES) && hasRemoteIndices(request.getRoleDescriptors())) {
             // Updating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
             listener.onFailure(
@@ -523,7 +521,7 @@ public class ApiKeyService {
      */
     static Set<RoleDescriptor> maybeRemoveRemoteIndicesPrivileges(
         final Set<RoleDescriptor> userRoleDescriptors,
-        final TransportVersion version,
+        final Version version,
         final String... apiKeyIds
     ) {
         if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES)) {

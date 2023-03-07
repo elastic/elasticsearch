@@ -58,7 +58,6 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ClusterAdminClient;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterModule;
@@ -938,8 +937,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         String color = clusterHealthStatus.name().toLowerCase(Locale.ROOT);
         String method = "ensure" + Strings.capitalize(color);
 
-        ClusterHealthRequest healthRequest = Requests.clusterHealthRequest(indices)
-            .timeout(timeout)
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(indices).timeout(timeout)
             .waitForStatus(clusterHealthStatus)
             .waitForEvents(Priority.LANGUID)
             .waitForNoRelocatingShards(true)
@@ -995,7 +993,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * using the cluster health API.
      */
     public ClusterHealthStatus waitForRelocation(ClusterHealthStatus status) {
-        ClusterHealthRequest request = Requests.clusterHealthRequest().waitForNoRelocatingShards(true).waitForEvents(Priority.LANGUID);
+        ClusterHealthRequest request = new ClusterHealthRequest(new String[] {}).waitForNoRelocatingShards(true)
+            .waitForEvents(Priority.LANGUID);
         if (status != null) {
             request.waitForStatus(status);
         }

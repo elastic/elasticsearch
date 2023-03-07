@@ -38,13 +38,11 @@ import java.util.Set;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * Puts mapping definition into one or more indices. Best created with
- * {@link org.elasticsearch.client.internal.Requests#putMappingRequest(String...)}.
+ * Puts mapping definition into one or more indices.
  * <p>
  * If the mappings already exists, the new mappings will be merged with the new one. If there are elements
  * that can't be merged are detected, the request will be rejected.
  *
- * @see org.elasticsearch.client.internal.Requests#putMappingRequest(String...)
  * @see org.elasticsearch.client.internal.IndicesAdminClient#putMapping(PutMappingRequest)
  * @see AcknowledgedResponse
  */

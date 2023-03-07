@@ -67,5 +67,4 @@ PUT _engine/my-engine
   "analytics_collection_name": "my-analytics-collection"
 }
 --------------------------------------------------
-
 // TEST[skip:TBD]

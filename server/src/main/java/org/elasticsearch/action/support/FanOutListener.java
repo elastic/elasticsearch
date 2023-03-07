@@ -111,10 +111,9 @@ public final class FanOutListener<T> implements ActionListener<T> {
      * @param executor      If not {@link EsExecutors#DIRECT_EXECUTOR_SERVICE}, and the subscribing listener is not completed immediately,
      *                      then it will be completed using the given executor.
      */
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @SuppressWarnings({ "rawtypes" })
     public void addListener(@Nullable ThreadContext threadContext, ExecutorService executor, ActionListener<T> listener) {
-        if (ref.get()instanceof Result result) {
-            result.complete(listener);
+        if (tryComplete(ref.get(), listener)) {
             return;
         }
 
@@ -125,8 +124,7 @@ public final class FanOutListener<T> implements ActionListener<T> {
         }
         Cell newCell = null;
         while (true) {
-            if (currentValue instanceof Result result) {
-                result.complete(listener);
+            if (tryComplete(currentValue, listener)) {
                 return;
             }
             if (currentValue instanceof ActionListener firstListener) {
@@ -155,7 +153,7 @@ public final class FanOutListener<T> implements ActionListener<T> {
 
     @Override
     public void onResponse(T result) {
-        setResult(new SuccessResult(result));
+        setResult(new SuccessResult<T>(result));
     }
 
     @Override
@@ -167,7 +165,7 @@ public final class FanOutListener<T> implements ActionListener<T> {
      * @return {@code true} if and only if this listener has been completed (either successfully or exceptionally).
      */
     public boolean isDone() {
-        return ref.get() instanceof Result;
+        return isDone(ref.get());
     }
 
     /**
@@ -178,8 +176,11 @@ public final class FanOutListener<T> implements ActionListener<T> {
      */
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public T result() throws Exception {
-        if (ref.get()instanceof Result result) {
-            return (T) result.get();
+        final var refValue = ref.get();
+        if (refValue instanceof SuccessResult result) {
+            return (T) result.result();
+        } else if (refValue instanceof FailureResult result) {
+            throw result.exception();
         } else {
             assert false : "not done";
             throw new IllegalStateException("listener is not done, cannot get result yet");
@@ -194,14 +195,29 @@ public final class FanOutListener<T> implements ActionListener<T> {
         return executor == EsExecutors.DIRECT_EXECUTOR_SERVICE ? listener : new ThreadedActionListener<>(executor, listener);
     }
 
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private static <T> boolean tryComplete(Object refValue, ActionListener<T> listener) {
+        if (refValue instanceof SuccessResult result) {
+            result.complete(listener);
+            return true;
+        }
+        if (refValue instanceof FailureResult result) {
+            result.complete(listener);
+            return true;
+        }
+        return false;
+    }
+
     /**
-     * If incomplete, atomically update {@link #ref} with the given {@link Result} and use it to complete any pending listeners.
+     * If incomplete, atomically update {@link #ref} with the given result and use it to complete any pending listeners.
      */
     @SuppressWarnings("unchecked")
-    private void setResult(Result<T> result) {
+    private void setResult(Object result) {
+        assert isDone(result);
+
         var currentValue = ref.get();
         while (true) {
-            if (currentValue instanceof Result) {
+            if (isDone(currentValue)) {
                 // already complete - nothing to do
                 return;
             }
@@ -211,8 +227,8 @@ public final class FanOutListener<T> implements ActionListener<T> {
                 // we won the race to complete the listener
                 if (currentValue instanceof ActionListener<?> listener) {
                     // unique subscriber - complete it
-                    // noinspection unchecked
-                    result.complete((ActionListener<T>) listener);
+                    var completed = tryComplete(result, listener);
+                    assert completed;
                 } else if (currentValue instanceof Cell currCell) {
                     // multiple subscribers, but they are currently in reverse order of subscription so reverse them back
                     Cell prevCell = null;
@@ -228,7 +244,8 @@ public final class FanOutListener<T> implements ActionListener<T> {
                     // now they are in subscription order, complete them
                     while (currCell != null) {
                         // noinspection unchecked
-                        result.complete((ActionListener<T>) currCell.listener);
+                        var completed = tryComplete(result, (ActionListener<T>) currCell.listener);
+                        assert completed;
                         currCell = currCell.next;
                     }
                 } else {
@@ -240,6 +257,10 @@ public final class FanOutListener<T> implements ActionListener<T> {
             // we lost a race with another setResult or addListener call - retry
             currentValue = witness;
         }
+    }
+
+    private static boolean isDone(Object refValue) {
+        return refValue instanceof FanOutListener.SuccessResult<?> || refValue instanceof FanOutListener.FailureResult;
     }
 
     /**
@@ -255,25 +276,7 @@ public final class FanOutListener<T> implements ActionListener<T> {
         }
     }
 
-    private interface Result<T> {
-        T get() throws Exception;
-
-        void complete(ActionListener<T> listener);
-    }
-
-    private class SuccessResult implements Result<T> {
-        private final T result;
-
-        SuccessResult(T result) {
-            this.result = result;
-        }
-
-        @Override
-        public T get() {
-            return result;
-        }
-
-        @Override
+    private record SuccessResult<T> (T result) {
         public void complete(ActionListener<T> listener) {
             try {
                 listener.onResponse(result);
@@ -285,20 +288,8 @@ public final class FanOutListener<T> implements ActionListener<T> {
         }
     }
 
-    private class FailureResult implements Result<T> {
-        private final Exception exception;
-
-        private FailureResult(Exception exception) {
-            this.exception = exception;
-        }
-
-        @Override
-        public T get() throws Exception {
-            throw exception;
-        }
-
-        @Override
-        public void complete(ActionListener<T> listener) {
+    private record FailureResult(Exception exception) {
+        public void complete(ActionListener<?> listener) {
             try {
                 listener.onFailure(exception);
             } catch (Exception innerException) {

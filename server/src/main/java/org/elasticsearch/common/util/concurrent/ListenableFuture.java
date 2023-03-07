@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * An {@link ActionListener} which allows for the result to fan out to a (dynamic) collection of other listeners, added using {@link
@@ -42,8 +43,14 @@ import java.util.concurrent.TimeUnit;
 // The name {@link ListenableFuture} dates back a long way and could be improved - TODO find a better name
 public final class ListenableFuture<V> extends PlainActionFuture<V> {
 
-    private volatile boolean done = false;
-    private List<ActionListener<V>> listeners;
+    private record Node<V>(ActionListener<V> listener, Node<V> next) {}
+
+    /**
+     * Marker to indicate the future is complete
+     */
+    private static final Node DONE = new Node(null, null);
+
+    private final AtomicReference<Node<V>> listeners = new AtomicReference<>();
 
     /**
      * Adds a listener to this future. If the future has not yet completed, the listener will be notified of a response or exception on the
@@ -62,51 +69,44 @@ public final class ListenableFuture<V> extends PlainActionFuture<V> {
      * It will restore the provided {@link ThreadContext} (if not null) when completing the listener.
      */
     public void addListener(ActionListener<V> listener, Executor executor, @Nullable ThreadContext threadContext) {
-        if (done || addListenerIfIncomplete(listener, executor, threadContext) == false) {
-            // run the callback directly, we don't hold the lock and don't need to fork!
+        if (listeners.get() == DONE || addListenerIfIncomplete(listener, executor, threadContext) == false) {
+            // run the callback directly, we don't need to fork!
             notifyListener(listener);
         }
     }
 
     @Override
     protected void done(boolean ignored) {
-        final var existingListeners = acquireExistingListeners();
-        if (existingListeners != null) {
-            for (final var listener : existingListeners) {
-                notifyListener(listener);
-            }
+        @SuppressWarnings("unchecked")
+        Node<V> notify = listeners.getAndSet(DONE);
+        while (notify != null) {
+            notifyListener(notify.listener());
+            notify = notify.next();
         }
     }
 
-    private synchronized boolean addListenerIfIncomplete(ActionListener<V> listener, Executor executor, ThreadContext threadContext) {
-        // check done under lock since it could have been modified; also protect modifications to the list under lock
-        if (done) {
-            return false;
-        }
+    private boolean addListenerIfIncomplete(ActionListener<V> listener, Executor executor, ThreadContext threadContext) {
         if (threadContext != null) {
             listener = ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
         }
         if (executor != EsExecutors.DIRECT_EXECUTOR_SERVICE) {
             listener = new ThreadedActionListener<>(executor, listener);
         }
-        if (listeners == null) {
-            listeners = new ArrayList<>();
-        }
-        listeners.add(listener);
+
+        Node<V> current, next;
+        do {
+            current = listeners.get();
+            if (current == DONE) {
+                return false;
+            }
+            next = new Node<>(listener, current);
+        } while (listeners.compareAndSet(current, next) == false);
+
         return true;
     }
 
-    private synchronized List<ActionListener<V>> acquireExistingListeners() {
-        try {
-            done = true;
-            return listeners;
-        } finally {
-            listeners = null;
-        }
-    }
-
     private void notifyListener(ActionListener<V> listener) {
-        assert done;
+        assert listeners.get() == DONE;
         // call get() in a non-blocking fashion as we could be on a network or scheduler thread which we must not block
         ActionListener.completeWith(listener, () -> FutureUtils.get(ListenableFuture.this, 0L, TimeUnit.NANOSECONDS));
     }

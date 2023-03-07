@@ -13,6 +13,7 @@ package org.elasticsearch.reservedstate.service;
  * notified when the settings have been updated, or if there are no settings
  * on initial start.
  */
+// TODO[wrb]: rename for any watched file?
 public interface FileSettingsChangedListener {
     void settingsChanged();
 }

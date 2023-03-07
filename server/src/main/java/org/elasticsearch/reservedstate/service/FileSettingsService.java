@@ -11,31 +11,19 @@ package org.elasticsearch.reservedstate.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
-import java.nio.file.ClosedWatchServiceException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardWatchEventKinds;
-import java.nio.file.WatchKey;
-import java.nio.file.WatchService;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.xcontent.XContentType.JSON;
 
@@ -50,39 +38,13 @@ import static org.elasticsearch.xcontent.XContentType.JSON;
  * the service as a listener to cluster state changes, so that we can enable the file watcher thread when this
  * node becomes a master node.
  */
-public class FileSettingsService extends AbstractFileWatchingService implements ClusterStateListener {
-    // TODO[wrb]: getLogger in superclass?
+public class FileSettingsService extends AbstractFileWatchingService {
+
     private static final Logger logger = LogManager.getLogger(FileSettingsService.class);
 
     public static final String SETTINGS_FILE_NAME = "settings.json";
     public static final String NAMESPACE = "file_settings";
-    // TODO[wrb]: to superclass
-    private static final int REGISTER_RETRY_COUNT = 5;
-
-    // TODO[wrb]: to superclass
-    private final ClusterService clusterService;
-    // TODO[wrb]: to superclass
-    private final ReservedClusterStateService stateService;
-    private final Path operatorSettingsDir;
-
-    // TODO[wrb]: to superclass
-    private WatchService watchService; // null;
-    // TODO[wrb]: to superclass
-    private Thread watcherThread;
-    // TODO[wrb]: to superclass
-    private FileUpdateState fileUpdateState;
-    // TODO[wrb]: to superclass
-    private WatchKey settingsDirWatchKey;
-    // TODO[wrb]: to superclass
-    // TODO[wrb]: to superclass
-    private WatchKey configDirWatchKey;
-
-    // TODO[wrb]: to superclass
-    private volatile boolean active = false;
-
     public static final String OPERATOR_DIRECTORY = "operator";
-
-    private final List<FileSettingsChangedListener> eventListeners;
 
     /**
      * Constructs the {@link FileSettingsService}
@@ -93,85 +55,7 @@ public class FileSettingsService extends AbstractFileWatchingService implements 
      */
     // TODO[wrb]: constructor to superclass
     public FileSettingsService(ClusterService clusterService, ReservedClusterStateService stateService, Environment environment) {
-        this.clusterService = clusterService;
-        this.stateService = stateService;
-        this.operatorSettingsDir = environment.configFile().toAbsolutePath().resolve(OPERATOR_DIRECTORY);
-        this.eventListeners = new CopyOnWriteArrayList<>();
-    }
-
-    // TODO[wrb]: rename, to superclass
-    public Path operatorSettingsDir() {
-        return operatorSettingsDir;
-    }
-
-    // TODO[wrb]: rename, to superclass
-    public Path operatorSettingsFile() {
-        return operatorSettingsDir.resolve(SETTINGS_FILE_NAME);
-    }
-
-    // TODO[wrb]: to superclass
-    // platform independent way to tell if a file changed
-    // we compare the file modified timestamp, the absolute path (symlinks), and file id on the system
-    boolean watchedFileChanged(Path path) throws IOException {
-        if (Files.exists(path) == false) {
-            return false;
-        }
-
-        FileUpdateState previousUpdateState = fileUpdateState;
-
-        BasicFileAttributes attr = Files.readAttributes(path, BasicFileAttributes.class);
-        fileUpdateState = new FileUpdateState(attr.lastModifiedTime().toMillis(), path.toRealPath().toString(), attr.fileKey());
-
-        return (previousUpdateState == null || previousUpdateState.equals(fileUpdateState) == false);
-    }
-
-    // TODO[wrb]: to superclass
-    @Override
-    protected void doStart() {
-        // We start the file watcher when we know we are master from a cluster state change notification.
-        // We need the additional active flag, since cluster state can change after we've shutdown the service
-        // causing the watcher to start again.
-        this.active = Files.exists(operatorSettingsDir().getParent());
-        if (active == false) {
-            // we don't have a config directory, we can't possibly launch the file settings service
-            return;
-        }
-        if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
-            clusterService.addListener(this);
-        }
-    }
-
-    // TODO[wrb]: to superclass
-    @Override
-    protected void doStop() {
-        this.active = false;
-        logger.debug("Stopping file settings service");
-        stopWatcher();
-    }
-
-    // TODO[wrb]: to superclass
-    @Override
-    protected void doClose() {}
-
-    // TODO[wrb]: to superclass
-    private boolean currentNodeMaster(ClusterState clusterState) {
-        return clusterState.nodes().getLocalNodeId().equals(clusterState.nodes().getMasterNodeId());
-    }
-
-    // TODO[wrb]: to superclass
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        ClusterState clusterState = event.state();
-        startIfMaster(clusterState);
-    }
-
-    // TODO[wrb]: to superclass
-    private void startIfMaster(ClusterState clusterState) {
-        if (currentNodeMaster(clusterState)) {
-            startWatcher(clusterState);
-        } else {
-            stopWatcher();
-        }
+        super(clusterService, stateService, environment, OPERATOR_DIRECTORY, SETTINGS_FILE_NAME);
     }
 
     /**
@@ -195,7 +79,7 @@ public class FileSettingsService extends AbstractFileWatchingService implements 
         // since we don't know the current operator configuration, e.g. file settings could be disabled
         // on the target cluster. If file settings exist and the cluster state has lost it's reserved
         // state for the "file_settings" namespace, we touch our file settings file to cause it to re-process the file.
-        if (watching() && Files.exists(operatorSettingsFile())) {
+        if (watching() && Files.exists(watchedFile())) {
             if (fileSettingsMetadata != null) {
                 ReservedStateMetadata withResetVersion = new ReservedStateMetadata.Builder(fileSettingsMetadata).version(0L).build();
                 mdBuilder.put(withResetVersion);
@@ -205,7 +89,6 @@ public class FileSettingsService extends AbstractFileWatchingService implements 
         }
     }
 
-    // TODO[wrb]: to superclass
     /**
      * 'Touches' the settings file so the file watcher will re-processes it.
      * <p>
@@ -216,14 +99,15 @@ public class FileSettingsService extends AbstractFileWatchingService implements 
      * For snapshot restores we first must restore the snapshot and then force a refresh, since the cluster state
      * metadata version must be reset to 0 and saved in the cluster state.
      */
-    private void refreshExistingFileStateIfNeeded(ClusterState clusterState) {
+    @Override
+    protected void refreshExistingFileStateIfNeeded(ClusterState clusterState) {
         if (watching()) {
             ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);
             // We check if the version was reset to 0, and force an update if a file exists. This can happen in situations
             // like snapshot restores.
-            if (fileSettingsMetadata != null && fileSettingsMetadata.version() == 0L && Files.exists(operatorSettingsFile())) {
+            if (fileSettingsMetadata != null && fileSettingsMetadata.version() == 0L && Files.exists(watchedFile())) {
                 try {
-                    Files.setLastModifiedTime(operatorSettingsFile(), FileTime.from(Instant.now()));
+                    Files.setLastModifiedTime(watchedFile(), FileTime.from(Instant.now()));
                 } catch (IOException e) {
                     logger.warn("encountered I/O error trying to update file settings timestamp", e);
                 }
@@ -231,203 +115,7 @@ public class FileSettingsService extends AbstractFileWatchingService implements 
         }
     }
 
-    // TODO[wrb]: to superclass
-    public boolean watching() {
-        return watcherThread != null;
-    }
-
-    // TODO[wrb]: to superclass, update logging
-    synchronized void startWatcher(ClusterState clusterState) {
-        if (watching() || active == false) {
-            refreshExistingFileStateIfNeeded(clusterState);
-
-            return;
-        }
-
-        logger.info("starting file settings watcher ...");
-
-        /*
-         * We essentially watch for two things:
-         *  - the creation of the operator directory (if it doesn't exist), symlink changes to the operator directory
-         *  - any changes to files inside the operator directory if it exists, filtering for settings.json
-         */
-        try {
-            Path settingsDirPath = operatorSettingsDir();
-            this.watchService = settingsDirPath.getParent().getFileSystem().newWatchService();
-            if (Files.exists(settingsDirPath)) {
-                settingsDirWatchKey = enableSettingsWatcher(settingsDirWatchKey, settingsDirPath);
-            } else {
-                logger.debug("operator settings directory [{}] not found, will watch for its creation...", settingsDirPath);
-            }
-            // We watch the config directory always, even if initially we had an operator directory
-            // it can be deleted and created later. The config directory never goes away, we only
-            // register it once for watching.
-            configDirWatchKey = enableSettingsWatcher(configDirWatchKey, settingsDirPath.getParent());
-        } catch (Exception e) {
-            if (watchService != null) {
-                try {
-                    // this will also close any keys
-                    this.watchService.close();
-                } catch (Exception ce) {
-                    e.addSuppressed(ce);
-                } finally {
-                    this.watchService = null;
-                }
-            }
-
-            throw new IllegalStateException("unable to launch a new watch service", e);
-        }
-
-        watcherThread = new Thread(this::watcherThread, "elasticsearch[file-settings-watcher]");
-        watcherThread.start();
-    }
-
-    // TODO[wrb]: how much to refactor? Or can it just go to superclass?
-    private void watcherThread() {
-        try {
-            logger.info("file settings service up and running [tid={}]", Thread.currentThread().getId());
-
-            Path path = operatorSettingsFile();
-
-            if (Files.exists(path)) {
-                logger.debug("found initial operator settings file [{}], applying...", path);
-                processSettingsAndNotifyListeners();
-            } else {
-                // Notify everyone we don't have any initial file settings
-                for (var listener : eventListeners) {
-                    listener.settingsChanged();
-                }
-            }
-
-            WatchKey key;
-            while ((key = watchService.take()) != null) {
-                /*
-                 * Reading and interpreting watch service events can vary from platform to platform. E.g:
-                 * MacOS symlink delete and set (rm -rf operator && ln -s <path to>/file_settings/ operator):
-                 *     ENTRY_MODIFY:operator
-                 *     ENTRY_CREATE:settings.json
-                 *     ENTRY_MODIFY:settings.json
-                 * Linux in Docker symlink delete and set (rm -rf operator && ln -s <path to>/file_settings/ operator):
-                 *     ENTRY_CREATE:operator
-                 * Windows
-                 *     ENTRY_CREATE:operator
-                 *     ENTRY_MODIFY:operator
-                 * After we get an indication that something has changed, we check the timestamp, file id,
-                 * real path of our desired file. We don't actually care what changed, we just re-check ourselves.
-                 */
-                Path settingsPath = operatorSettingsDir();
-                if (Files.exists(settingsPath)) {
-                    try {
-                        if (logger.isDebugEnabled()) {
-                            key.pollEvents().forEach(e -> logger.debug("{}:{}", e.kind().toString(), e.context().toString()));
-                        } else {
-                            key.pollEvents();
-                        }
-                        key.reset();
-
-                        // We re-register the settings directory watch key, because we don't know
-                        // if the file name maps to the same native file system file id. Symlinks
-                        // are one potential cause of inconsistency here, since their handling by
-                        // the WatchService is platform dependent.
-                        settingsDirWatchKey = enableSettingsWatcher(settingsDirWatchKey, settingsPath);
-
-                        if (watchedFileChanged(path)) {
-                            processSettingsAndNotifyListeners();
-                        }
-                    } catch (IOException e) {
-                        logger.warn("encountered I/O error while watching file settings", e);
-                    }
-                } else {
-                    key.pollEvents();
-                    key.reset();
-                }
-            }
-        } catch (ClosedWatchServiceException | InterruptedException expected) {
-            logger.info("shutting down watcher thread");
-        } catch (Exception e) {
-            logger.error("shutting down watcher thread with exception", e);
-        }
-    }
-
-    // TODO[wrb]: to superclass, update logging
-    // package private for testing
-    void processSettingsAndNotifyListeners() throws InterruptedException {
-        try {
-            processFileSettings(operatorSettingsFile()).get();
-            for (var listener : eventListeners) {
-                listener.settingsChanged();
-            }
-        } catch (ExecutionException e) {
-            logger.error("Error processing operator settings json file", e.getCause());
-        }
-    }
-
-    // TODO[wrb]: to superclass, update logging
-    synchronized void stopWatcher() {
-        if (watching()) {
-            logger.debug("stopping watcher ...");
-            // make sure watch service is closed whatever
-            // this will also close any outstanding keys
-            try (var ws = watchService) {
-                watcherThread.interrupt();
-                watcherThread.join();
-
-                // make sure any keys are closed - if watchService.close() throws, it may not close the keys first
-                if (configDirWatchKey != null) {
-                    configDirWatchKey.cancel();
-                }
-                if (settingsDirWatchKey != null) {
-                    settingsDirWatchKey.cancel();
-                }
-            } catch (IOException e) {
-                logger.warn("encountered exception while closing watch service", e);
-            } catch (InterruptedException interruptedException) {
-                logger.info("interrupted while closing the watch service", interruptedException);
-            } finally {
-                watcherThread = null;
-                settingsDirWatchKey = null;
-                configDirWatchKey = null;
-                watchService = null;
-                logger.info("watcher service stopped");
-            }
-        } else {
-            logger.trace("file settings service already stopped");
-        }
-    }
-
-    // TODO[wrb]: to superclass
-    // package private for testing
-    long retryDelayMillis(int failedCount) {
-        assert failedCount < 31; // don't let the count overflow
-        return 100 * (1 << failedCount) + Randomness.get().nextInt(10); // add a bit of jitter to avoid two processes in lockstep
-    }
-
-    // TODO[wrb]: to superclass, rename
-    // package private for testing
-    WatchKey enableSettingsWatcher(WatchKey previousKey, Path settingsDir) throws IOException, InterruptedException {
-        if (previousKey != null) {
-            previousKey.cancel();
-        }
-        int retryCount = 0;
-
-        do {
-            try {
-                return settingsDir.register(
-                    watchService,
-                    StandardWatchEventKinds.ENTRY_MODIFY,
-                    StandardWatchEventKinds.ENTRY_CREATE,
-                    StandardWatchEventKinds.ENTRY_DELETE
-                );
-            } catch (IOException e) {
-                if (retryCount == REGISTER_RETRY_COUNT - 1) {
-                    throw e;
-                }
-                Thread.sleep(retryDelayMillis(retryCount));
-                retryCount++;
-            }
-        } while (true);
-    }
-
+    @Override
     PlainActionFuture<Void> processFileSettings(Path path) {
         PlainActionFuture<Void> completion = PlainActionFuture.newFuture();
         logger.info("processing path [{}] for [{}]", path, NAMESPACE);
@@ -452,15 +140,4 @@ public class FileSettingsService extends AbstractFileWatchingService implements 
         }
     }
 
-    /**
-     * Holds information about the last known state of the file we watched. We use this
-     * class to determine if a file has been changed.
-     */
-    // TODO[wrb]: to superclass
-    record FileUpdateState(long timestamp, String path, Object fileKey) {}
-
-    // TODO[wrb]: rename and move?
-    public void addFileSettingsChangedListener(FileSettingsChangedListener listener) {
-        eventListeners.add(listener);
-    }
 }

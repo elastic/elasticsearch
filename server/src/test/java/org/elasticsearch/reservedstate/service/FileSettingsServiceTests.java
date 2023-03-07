@@ -124,11 +124,11 @@ public class FileSettingsServiceTests extends ESTestCase {
     }
 
     public void testOperatorDirName() {
-        Path operatorPath = fileSettingsService.operatorSettingsDir();
+        Path operatorPath = fileSettingsService.watchedFileDir();
         assertTrue(operatorPath.startsWith(env.configFile()));
         assertTrue(operatorPath.endsWith("operator"));
 
-        Path operatorSettingsFile = fileSettingsService.operatorSettingsFile();
+        Path operatorSettingsFile = fileSettingsService.watchedFile();
         assertTrue(operatorSettingsFile.startsWith(operatorPath));
         assertTrue(operatorSettingsFile.endsWith("settings.json"));
     }
@@ -178,9 +178,9 @@ public class FileSettingsServiceTests extends ESTestCase {
         service.startWatcher(clusterService.state());
         assertTrue(service.watching());
 
-        Files.createDirectories(service.operatorSettingsDir());
+        Files.createDirectories(service.watchedFileDir());
 
-        writeTestFile(service.operatorSettingsFile(), "{}");
+        writeTestFile(service.watchedFile(), "{}");
 
         // we need to wait a bit, on MacOS it may take up to 10 seconds for the Java watcher service to notice the file,
         // on Linux is instantaneous. Windows is instantaneous too.
@@ -216,9 +216,9 @@ public class FileSettingsServiceTests extends ESTestCase {
             return null;
         }).when(service).processSettingsAndNotifyListeners();
 
-        Files.createDirectories(service.operatorSettingsDir());
+        Files.createDirectories(service.watchedFileDir());
         // contents of the JSON don't matter, we just need a file to exist
-        writeTestFile(service.operatorSettingsFile(), "{}");
+        writeTestFile(service.watchedFile(), "{}");
 
         service.start();
         service.startWatcher(clusterService.state());
@@ -257,9 +257,9 @@ public class FileSettingsServiceTests extends ESTestCase {
             return null;
         }).when(service).processSettingsAndNotifyListeners();
 
-        Files.createDirectories(service.operatorSettingsDir());
+        Files.createDirectories(service.watchedFileDir());
         // contents of the JSON don't matter, we just need a file to exist
-        writeTestFile(service.operatorSettingsFile(), "{}");
+        writeTestFile(service.watchedFile(), "{}");
 
         service.start();
         service.startWatcher(clusterService.state());
@@ -302,10 +302,10 @@ public class FileSettingsServiceTests extends ESTestCase {
         service.startWatcher(clusterService.state());
         assertTrue(service.watching());
 
-        Files.createDirectories(service.operatorSettingsDir());
+        Files.createDirectories(service.watchedFileDir());
 
         // Make some fake settings file to cause the file settings service to process it
-        writeTestFile(service.operatorSettingsFile(), "{}");
+        writeTestFile(service.watchedFile(), "{}");
 
         // we need to wait a bit, on MacOS it may take up to 10 seconds for the Java watcher service to notice the file,
         // on Linux is instantaneous. Windows is instantaneous too.
@@ -347,10 +347,10 @@ public class FileSettingsServiceTests extends ESTestCase {
         service.startWatcher(clusterService.state());
         assertTrue(service.watching());
 
-        Files.createDirectories(service.operatorSettingsDir());
+        Files.createDirectories(service.watchedFileDir());
 
         // Make some fake settings file to cause the file settings service to process it
-        writeTestFile(service.operatorSettingsFile(), "{}");
+        writeTestFile(service.watchedFile(), "{}");
 
         // we need to wait a bit, on MacOS it may take up to 10 seconds for the Java watcher service to notice the file,
         // on Linux is instantaneous. Windows is instantaneous too.
@@ -368,9 +368,9 @@ public class FileSettingsServiceTests extends ESTestCase {
         var service = spy(fileSettingsService);
         doAnswer(i -> 0L).when(service).retryDelayMillis(anyInt());
 
-        Files.createDirectories(service.operatorSettingsDir());
+        Files.createDirectories(service.watchedFileDir());
 
-        var mockedPath = spy(service.operatorSettingsDir());
+        var mockedPath = spy(service.watchedFileDir());
         var prevWatchKey = mock(WatchKey.class);
         var newWatchKey = mock(WatchKey.class);
 
@@ -384,7 +384,7 @@ public class FileSettingsServiceTests extends ESTestCase {
                 eq(StandardWatchEventKinds.ENTRY_DELETE)
             );
 
-        var result = service.enableSettingsWatcher(prevWatchKey, mockedPath);
+        var result = service.enableDirectoryWatcher(prevWatchKey, mockedPath);
         assertThat(result, sameInstance(newWatchKey));
         assertTrue(result != prevWatchKey);
 

@@ -51,8 +51,7 @@ public final class NotSerializableExceptionWrapper extends ElasticsearchExceptio
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+    protected void writeExceptionDataTo(StreamOutput out) throws IOException {
         out.writeString(name);
         RestStatus.writeTo(out, status);
     }

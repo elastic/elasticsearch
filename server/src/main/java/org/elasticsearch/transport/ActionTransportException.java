@@ -43,8 +43,7 @@ public class ActionTransportException extends TransportException {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+    protected void writeExceptionDataTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().before(TransportVersion.V_8_1_0)) {
             out.writeMissingWriteable(TransportAddress.class);
             out.writeMissingString(); // action

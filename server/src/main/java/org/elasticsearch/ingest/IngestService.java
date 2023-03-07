@@ -900,6 +900,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 final String newIndex = indexRequest.indices()[0];
 
                 if (Objects.equals(originalIndex, newIndex) == false) {
+                    // final pipelines cannot change the target index (either directly or by way of a reroute)
                     if (pipelines.isCurrentPipelineFinalPipeline()) {
                         listener.onFailure(
                             new IllegalStateException(
@@ -915,6 +916,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         return; // document failed!
                     }
 
+                    // check for cycles in the visited indices
                     if (indexRecursionDetection.add(newIndex) == false) {
                         List<String> indexRoute = new ArrayList<>(indexRecursionDetection);
                         indexRoute.add(newIndex);
@@ -924,11 +926,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         return; // document failed!
                     }
 
-                    // reset request pipeline that is set to _none which would take precedence over the default pipeline
+                    // clear the current pipeline, then re-resolve the pipelines for this request
                     indexRequest.setPipeline(null);
                     indexRequest.isPipelineResolved(false);
                     resolvePipelines(null, indexRequest, state.metadata());
                     newPipelines = getPipelines(indexRequest);
+
+                    // for backwards compatibility, when a pipeline changes the target index for a document without using the reroute
+                    // mechanism, do not invoke the default pipeline of the new target index
                     if (ingestDocument.isReroute() == false) {
                         newPipelines = newPipelines.withoutDefaultPipeline();
                     }

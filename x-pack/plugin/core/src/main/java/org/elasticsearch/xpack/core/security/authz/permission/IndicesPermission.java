@@ -10,6 +10,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -372,7 +373,7 @@ public final class IndicesPermission {
          * In all other cases, it checks the name of this object only.
          */
         public boolean checkIndex(Group group) {
-            final IndexAbstraction.DataStream ds = indexAbstraction == null ? null : indexAbstraction.getParentDataStream();
+            final DataStream ds = indexAbstraction == null ? null : indexAbstraction.getParentDataStream();
             if (ds != null) {
                 if (group.checkIndex(ds.getName())) {
                     return true;

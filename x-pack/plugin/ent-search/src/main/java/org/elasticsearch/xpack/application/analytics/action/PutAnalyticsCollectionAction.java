@@ -13,9 +13,9 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -79,7 +79,7 @@ public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollect
         }
     }
 
-    public static class Response extends AcknowledgedResponse implements ToXContentObject {
+    public static class Response extends AcknowledgedResponse implements StatusToXContentObject {
 
         public static final ParseField COLLECTION_NAME_FIELD = new ParseField("name");
 
@@ -95,6 +95,7 @@ public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollect
             this.name = name;
         }
 
+        @Override
         public RestStatus status() {
             return RestStatus.CREATED;
         }

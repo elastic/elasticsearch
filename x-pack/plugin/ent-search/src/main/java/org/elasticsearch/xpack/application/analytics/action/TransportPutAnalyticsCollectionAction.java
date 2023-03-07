@@ -61,7 +61,7 @@ public class TransportPutAnalyticsCollectionAction extends TransportMasterNodeAc
         ClusterState state,
         ActionListener<PutAnalyticsCollectionAction.Response> listener
     ) {
-        analyticsCollectionService.putAnalyticsCollection(request, listener);
+        analyticsCollectionService.putAnalyticsCollection(state, request, listener);
     }
 
 }

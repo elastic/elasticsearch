@@ -56,7 +56,7 @@ public class TransportGetAnalyticsCollectionAction extends TransportMasterNodeRe
         ClusterState state,
         ActionListener<GetAnalyticsCollectionAction.Response> listener
     ) {
-        analyticsCollectionService.getAnalyticsCollection(request, listener);
+        analyticsCollectionService.getAnalyticsCollection(state, request, listener);
     }
 
     @Override

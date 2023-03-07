@@ -64,10 +64,10 @@ public class RankContextInternalTests extends AbstractWireSerializingTestCase<Ra
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-          List.of(
-              new NamedWriteableRegistry.Entry(QueryBuilder.class, TermQueryBuilder.NAME, TermQueryBuilder::new),
-              new NamedWriteableRegistry.Entry(QueryBuilder.class, KnnScoreDocQueryBuilder.NAME, KnnScoreDocQueryBuilder::new)
-          )
+            List.of(
+                new NamedWriteableRegistry.Entry(QueryBuilder.class, TermQueryBuilder.NAME, TermQueryBuilder::new),
+                new NamedWriteableRegistry.Entry(QueryBuilder.class, KnnScoreDocQueryBuilder.NAME, KnnScoreDocQueryBuilder::new)
+            )
         );
     }
 }

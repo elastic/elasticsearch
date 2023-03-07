@@ -20,7 +20,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -38,7 +38,7 @@ import java.util.Objects;
  * of ranking input, but instead generated from their respective values within a search
  * query. We cannot generate the list of queries until after any kNN queries are executed.
  */
-public abstract class RankContextBuilder<RCB extends RankContextBuilder<RCB>> implements VersionedNamedWriteable, ToXContent {
+public abstract class RankContextBuilder<RCB extends RankContextBuilder<RCB>> implements VersionedNamedWriteable, ToXContentObject {
 
     public static final ParseField WINDOW_SIZE_FIELD = new ParseField("window_size");
 

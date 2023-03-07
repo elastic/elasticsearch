@@ -152,6 +152,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     private final Set<String> roleNames;
     private final String externalId;
 
+    private final int streamSize;
+
     /**
      * Creates a new {@link DiscoveryNode}
      * <p>
@@ -363,6 +365,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         this.roles = Collections.unmodifiableSortedSet(sortedRoles);
         this.roleNames = Set.of(roleNames);
         this.externalId = Objects.requireNonNullElse(externalId, this.nodeName);
+        this.streamSize = 0;
     }
 
     /** Creates a DiscoveryNode representing the local node. */
@@ -393,6 +396,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @throws IOException if there is an error while reading from the stream
      */
     public DiscoveryNode(StreamInput in) throws IOException {
+        final int available = in.available();
         this.nodeName = readStringLiteral.read(in);
         this.nodeId = readStringLiteral.read(in);
         this.ephemeralId = readStringLiteral.read(in);
@@ -428,6 +432,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             this.externalId = nodeName;
         }
         this.roleNames = Set.of(roleNames);
+        this.streamSize = available - in.available();
     }
 
     /**
@@ -472,6 +477,13 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      */
     public String getId() {
         return nodeId;
+    }
+
+    /**
+     * the node's size in network
+     */
+    public int getStreamSize() {
+        return this.streamSize;
     }
 
     /**

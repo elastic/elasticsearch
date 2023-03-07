@@ -34,11 +34,11 @@ public abstract class BaseNodeResponse extends TransportResponse {
      */
     protected BaseNodeResponse(StreamInput in, @Nullable DiscoveryNode node) throws IOException {
         super(in);
-        final DiscoveryNode remoteNode = new DiscoveryNode(in);
         if (node == null) {
-            this.node = remoteNode;
+            this.node = new DiscoveryNode(in);
         } else {
-            assert remoteNode.equals(node) : remoteNode + " vs " + node;
+            assert node.getStreamSize() != 0 : "the stream size of node is zero";
+            in.skip(node.getStreamSize());
             this.node = node;
         }
     }

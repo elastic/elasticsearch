@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
 import java.nio.file.ClosedWatchServiceException;
@@ -68,15 +67,10 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     private WatchKey configDirWatchKey;
     private volatile boolean active = false;
 
-    public AbstractFileWatchingService(
-        ClusterService clusterService,
-        Environment environment,
-        String watchedDirName,
-        String watchedFileName
-    ) {
+    public AbstractFileWatchingService(ClusterService clusterService, Path watchedFile) {
         this.clusterService = clusterService;
-        this.watchedFileDir = environment.configFile().toAbsolutePath().resolve(watchedDirName);
-        this.watchedFile = watchedFileDir.resolve(watchedFileName);
+        this.watchedFile = watchedFile;
+        this.watchedFileDir = watchedFile.getParent();
         this.eventListeners = new CopyOnWriteArrayList<>();
     }
 
@@ -367,7 +361,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     }
 
     // package private for testing
-    final void processSettingsAndNotifyListeners() throws InterruptedException {
+    void processSettingsAndNotifyListeners() throws InterruptedException {
         try {
             processFileChanges(watchedFile()).get();
             for (var listener : eventListeners) {
@@ -379,7 +373,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     }
 
     // package private for testing
-    final long retryDelayMillis(int failedCount) {
+    long retryDelayMillis(int failedCount) {
         assert failedCount < 31; // don't let the count overflow
         return 100 * (1 << failedCount) + Randomness.get().nextInt(10); // add a bit of jitter to avoid two processes in lockstep
     }

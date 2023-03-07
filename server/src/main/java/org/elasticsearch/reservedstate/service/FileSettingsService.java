@@ -52,7 +52,7 @@ public class FileSettingsService extends AbstractFileWatchingService {
      * @param environment we need the environment to pull the location of the config and operator directories
      */
     public FileSettingsService(ClusterService clusterService, ReservedClusterStateService stateService, Environment environment) {
-        super(clusterService, environment, OPERATOR_DIRECTORY, SETTINGS_FILE_NAME);
+        super(clusterService, environment.configFile().toAbsolutePath().resolve(OPERATOR_DIRECTORY).resolve(SETTINGS_FILE_NAME));
         this.stateService = stateService;
     }
 

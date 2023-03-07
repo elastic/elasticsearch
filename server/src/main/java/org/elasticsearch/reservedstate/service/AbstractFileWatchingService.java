@@ -55,7 +55,7 @@ import java.util.concurrent.ExecutionException;
  */
 public abstract class AbstractFileWatchingService extends AbstractLifecycleComponent implements ClusterStateListener {
 
-    private static final Logger logger = LogManager.getLogger(FileSettingsService.class);
+    private static final Logger logger = LogManager.getLogger(AbstractFileWatchingService.class);
     private static final int REGISTER_RETRY_COUNT = 5;
     private final ClusterService clusterService;
     private final Path watchedFileDir;

@@ -93,15 +93,23 @@ public abstract class AbstractScalarFunctionTestCase extends ESTestCase {
         EvalOperator.ExpressionEvaluator eval = evaluator(expressionForSimpleData()).get();
         Block[] orig = BlockUtils.fromListRow(simpleData);
         for (int i = 0; i < orig.length; i++) {
+            List<Object> data = new ArrayList<>();
             Block[] blocks = new Block[orig.length];
             for (int b = 0; b < blocks.length; b++) {
-                blocks[b] = orig[b];
                 if (b == i) {
-                    blocks[b] = blocks[b].elementType().newBlockBuilder(1).appendNull().build();
+                    blocks[b] = orig[b].elementType().newBlockBuilder(1).appendNull().build();
+                    data.add(null);
+                } else {
+                    blocks[b] = orig[b];
+                    data.add(simpleData.get(b));
                 }
             }
-            assertThat(eval.computeRow(new Page(blocks), 0), nullValue());
+            assertSimpleWithNulls(data, eval.computeRow(new Page(blocks), 0), i);
         }
+    }
+
+    protected void assertSimpleWithNulls(List<Object> data, Object value, int nullBlock) {
+        assertThat(value, nullValue());
     }
 
     public final void testSimpleInManyThreads() throws ExecutionException, InterruptedException {

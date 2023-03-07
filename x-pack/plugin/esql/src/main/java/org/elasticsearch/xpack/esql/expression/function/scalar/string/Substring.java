@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -20,6 +23,8 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -27,7 +32,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 
-public class Substring extends ScalarFunction implements OptionalArgument {
+public class Substring extends ScalarFunction implements OptionalArgument, Mappable {
 
     private final Expression str, start, length;
 
@@ -76,7 +81,7 @@ public class Substring extends ScalarFunction implements OptionalArgument {
         return process(source, startPos, runFor);
     }
 
-    public static Object process(BytesRef str, Integer start, Integer length) {
+    public static BytesRef process(BytesRef str, Integer start, Integer length) {
         if (str == null || str.length == 0 || start == null) {
             return null;
         }
@@ -101,7 +106,7 @@ public class Substring extends ScalarFunction implements OptionalArgument {
         int indexEnd = Math.min(codePointCount, length == null ? indexStart + codePointCount : indexStart + length);
 
         final String s = str.utf8ToString();
-        return s.substring(s.offsetByCodePoints(0, indexStart), s.offsetByCodePoints(0, indexEnd));
+        return new BytesRef(s.substring(s.offsetByCodePoints(0, indexStart), s.offsetByCodePoints(0, indexEnd)));
     }
 
     @Override
@@ -111,7 +116,7 @@ public class Substring extends ScalarFunction implements OptionalArgument {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Substring::new, str(), start(), length());
+        return NodeInfo.create(this, Substring::new, str, start, length);
     }
 
     @Override
@@ -119,15 +124,28 @@ public class Substring extends ScalarFunction implements OptionalArgument {
         throw new UnsupportedOperationException();
     }
 
-    public Expression str() {
-        return str;
+    @Override
+    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
+        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
+    ) {
+        Supplier<EvalOperator.ExpressionEvaluator> strSupplier = toEvaluator.apply(str);
+        Supplier<EvalOperator.ExpressionEvaluator> startSupplier = toEvaluator.apply(start);
+        Supplier<EvalOperator.ExpressionEvaluator> lengthSupplier = length == null ? () -> null : toEvaluator.apply(length);
+        return () -> new SubstringEvaluator(strSupplier.get(), startSupplier.get(), lengthSupplier.get());
     }
 
-    public Expression start() {
-        return start;
-    }
-
-    public Expression length() {
-        return length;
+    record SubstringEvaluator(
+        EvalOperator.ExpressionEvaluator str,
+        EvalOperator.ExpressionEvaluator start,
+        EvalOperator.ExpressionEvaluator length
+    ) implements EvalOperator.ExpressionEvaluator {
+        @Override
+        public Object computeRow(Page page, int pos) {
+            return Substring.process(
+                (BytesRef) str.computeRow(page, pos),
+                (Integer) start.computeRow(page, pos),
+                length == null ? null : (Integer) length.computeRow(page, pos)
+            );
+        }
     }
 }

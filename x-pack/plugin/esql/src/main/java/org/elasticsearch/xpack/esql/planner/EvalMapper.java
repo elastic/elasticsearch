@@ -16,7 +16,6 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -55,8 +54,7 @@ public final class EvalMapper {
         new Nots(),
         new Attributes(),
         new Literals(),
-        new RoundFunction(),
-        new SubstringFunction()
+        new RoundFunction()
     );
 
     private EvalMapper() {}
@@ -278,32 +276,6 @@ public final class EvalMapper {
             } else {
                 return fieldEvaluator;
             }
-        }
-    }
-
-    public static class SubstringFunction extends ExpressionMapper<Substring> {
-        @Override
-        public Supplier<ExpressionEvaluator> map(Substring sub, Layout layout) {
-            record SubstringEvaluator(ExpressionEvaluator str, ExpressionEvaluator start, ExpressionEvaluator length)
-                implements
-                    ExpressionEvaluator {
-                @Override
-                public Object computeRow(Page page, int pos) {
-                    final String s = (String) Substring.process(
-                        (BytesRef) str.computeRow(page, pos),
-                        (Integer) start.computeRow(page, pos),
-                        length == null ? null : (Integer) length.computeRow(page, pos)
-                    );
-                    return new BytesRef(new StringBuilder(s));
-                }
-            }
-
-            return () -> {
-                ExpressionEvaluator input = toEvaluator(sub.str(), layout).get();
-                ExpressionEvaluator start = toEvaluator(sub.start(), layout).get();
-                ExpressionEvaluator length = sub.length() == null ? null : toEvaluator(sub.length(), layout).get();
-                return new SubstringEvaluator(input, start, length);
-            };
         }
     }
 }

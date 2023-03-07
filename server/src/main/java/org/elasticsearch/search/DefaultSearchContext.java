@@ -158,7 +158,6 @@ final class DefaultSearchContext extends SearchContext {
             lowLevelCancellation
         );
         releasables.addAll(List.of(engineSearcher, searcher));
-        releasables.add(() -> queryResult.decRef());
 
         this.relativeTimeSupplier = relativeTimeSupplier;
         this.timeout = timeout;

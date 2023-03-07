@@ -67,9 +67,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     private final RefCounted refCounted;
 
-    // Flag for if we've been decRef'd to 0; for testing, we can assert on this.
-    private boolean isAlive = true;
-
     private List<Releasable> toRelease;
 
     public QuerySearchResult() {
@@ -131,38 +128,31 @@ public final class QuerySearchResult extends SearchPhaseResult {
      *       in order to allow building empty responses directly from the coordinating node.
      */
     public boolean isNull() {
-        assert isAlive;
         return isNull;
     }
 
     @Override
     public QuerySearchResult queryResult() {
-        assert isAlive;
         return this;
     }
 
     public void searchTimedOut(boolean searchTimedOut) {
-        assert isAlive;
         this.searchTimedOut = searchTimedOut;
     }
 
     public boolean searchTimedOut() {
-        assert isAlive;
         return searchTimedOut;
     }
 
     public void terminatedEarly(boolean terminatedEarly) {
-        assert isAlive;
         this.terminatedEarly = terminatedEarly;
     }
 
     public Boolean terminatedEarly() {
-        assert isAlive;
         return this.terminatedEarly;
     }
 
     public TopDocsAndMaxScore topDocs() {
-        assert isAlive;
         if (topDocsAndMaxScore == null) {
             throw new IllegalStateException("topDocs already consumed");
         }
@@ -173,7 +163,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * Returns <code>true</code> iff the top docs have already been consumed.
      */
     public boolean hasConsumedTopDocs() {
-        assert isAlive;
         return topDocsAndMaxScore == null;
     }
 
@@ -182,7 +171,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * @throws IllegalStateException if the top docs have already been consumed.
      */
     public TopDocsAndMaxScore consumeTopDocs() {
-        assert isAlive;
         TopDocsAndMaxScore topDocsAndMaxScore = this.topDocsAndMaxScore;
         if (topDocsAndMaxScore == null) {
             throw new IllegalStateException("topDocs already consumed");
@@ -192,7 +180,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public void topDocs(TopDocsAndMaxScore topDocs, DocValueFormat[] sortValueFormats) {
-        assert isAlive;
         setTopDocs(topDocs);
         if (topDocs.topDocs.scoreDocs.length > 0 && topDocs.topDocs.scoreDocs[0] instanceof FieldDoc) {
             int numFields = ((FieldDoc) topDocs.topDocs.scoreDocs[0]).fields.length;
@@ -206,7 +193,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     private void setTopDocs(TopDocsAndMaxScore topDocsAndMaxScore) {
-        assert isAlive;
         this.topDocsAndMaxScore = topDocsAndMaxScore;
         this.totalHits = topDocsAndMaxScore.topDocs.totalHits;
         this.maxScore = topDocsAndMaxScore.maxScore;
@@ -214,7 +200,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public DocValueFormat[] sortValueFormats() {
-        assert isAlive;
         return sortValueFormats;
     }
 
@@ -222,7 +207,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * Returns <code>true</code> if this query result has unconsumed aggregations
      */
     public boolean hasAggs() {
-        assert isAlive;
         return hasAggs;
     }
 
@@ -231,7 +215,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * @throws IllegalStateException if the aggregations have already been consumed.
      */
     public InternalAggregations consumeAggs() {
-        assert isAlive;
         if (aggregations == null) {
             throw new IllegalStateException("aggs already consumed");
         }
@@ -244,7 +227,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public void releaseAggs() {
-        assert isAlive;
         if (aggregations != null) {
             aggregations.close();
             aggregations = null;
@@ -252,29 +234,24 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public void releaseAggregationContext() {
-        assert isAlive;
         Releasables.close(toRelease);
     }
 
     public void addReleasable(Releasable releasable) {
-        assert isAlive;
         toRelease.add(releasable);
     }
 
     public void aggregations(InternalAggregations aggregations) {
-        assert isAlive;
         assert this.aggregations == null : "aggregations already set to [" + this.aggregations + "]";
         this.aggregations = aggregations == null ? null : DelayableWriteable.referencing(aggregations);
         hasAggs = aggregations != null;
     }
 
     public DelayableWriteable<InternalAggregations> aggregations() {
-        assert isAlive;
         return aggregations;
     }
 
     public void setSearchProfileDfsPhaseResult(SearchProfileDfsPhaseResult searchProfileDfsPhaseResult) {
-        assert isAlive;
         if (profileShardResults == null) {
             return;
         }
@@ -287,7 +264,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * @throws IllegalStateException if the profiled result has already been consumed.
      */
     public SearchProfileQueryPhaseResult consumeProfileResult() {
-        assert isAlive;
         if (profileShardResults == null) {
             throw new IllegalStateException("profile results already consumed");
         }
@@ -297,12 +273,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public boolean hasProfileResults() {
-        assert isAlive;
         return hasProfileResults;
     }
 
     public void consumeAll() {
-        assert isAlive;
         if (hasProfileResults()) {
             consumeProfileResult();
         }
@@ -317,28 +291,23 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * @param shardResults The finalized profile
      */
     public void profileResults(SearchProfileQueryPhaseResult shardResults) {
-        assert isAlive;
         this.profileShardResults = shardResults;
         hasProfileResults = shardResults != null;
     }
 
     public Suggest suggest() {
-        assert isAlive;
         return suggest;
     }
 
     public void suggest(Suggest suggest) {
-        assert isAlive;
         this.suggest = suggest;
     }
 
     public int from() {
-        assert isAlive;
         return from;
     }
 
     public QuerySearchResult from(int from) {
-        assert isAlive;
         this.from = from;
         return this;
     }
@@ -347,34 +316,28 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * Returns the maximum size of this results top docs.
      */
     public int size() {
-        assert isAlive;
         return size;
     }
 
     public QuerySearchResult size(int size) {
-        assert isAlive;
         this.size = size;
         return this;
     }
 
     public long serviceTimeEWMA() {
-        assert isAlive;
         return this.serviceTimeEWMA;
     }
 
     public QuerySearchResult serviceTimeEWMA(long serviceTimeEWMA) {
-        assert isAlive;
         this.serviceTimeEWMA = serviceTimeEWMA;
         return this;
     }
 
     public int nodeQueueSize() {
-        assert isAlive;
         return this.nodeQueueSize;
     }
 
     public QuerySearchResult nodeQueueSize(int nodeQueueSize) {
-        assert isAlive;
         this.nodeQueueSize = nodeQueueSize;
         return this;
     }
@@ -383,12 +346,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * Returns <code>true</code> if this result has any suggest score docs
      */
     public boolean hasSuggestHits() {
-        assert isAlive;
         return (suggest != null && suggest.hasScoreDocs());
     }
 
     public boolean hasSearchContext() {
-        assert isAlive;
         return hasScoreDocs || hasSuggestHits();
     }
 
@@ -397,10 +358,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     private void readFromWithId(ShardSearchContextId id, StreamInput in, boolean delayedAggregations) throws IOException {
-        assert isAlive; // Maybe?
-        // Before we overwrite a bunch of stuff, make sure we're not holding resources
-        assert this.toRelease.isEmpty();
-
         this.contextId = id;
         from = in.readVInt();
         size = in.readVInt();
@@ -448,7 +405,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        assert isAlive;
         // we do not know that it is being sent over transport, but this at least protects all writes from happening, including sending.
         if (aggregations != null && aggregations.isSerialized()) {
             throw new IllegalStateException("cannot send serialized version since it will leak");
@@ -463,7 +419,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public void writeToNoId(StreamOutput out) throws IOException {
-        assert isAlive;
         out.writeVInt(from);
         out.writeVInt(size);
         if (sortValueFormats == null) {
@@ -494,12 +449,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public TotalHits getTotalHits() {
-        assert isAlive;
         return totalHits;
     }
 
     public float getMaxScore() {
-        assert isAlive;
         return maxScore;
     }
 
@@ -523,11 +476,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
     @Override
     public boolean decRef() {
         if (refCounted != null) {
-            boolean toReturn = refCounted.decRef();
-            if (refCounted.hasReferences() == false) {
-                isAlive = false;
-            }
-            return toReturn;
+            return refCounted.decRef();
         }
         return super.decRef();
     }

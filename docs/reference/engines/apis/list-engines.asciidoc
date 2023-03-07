@@ -49,13 +49,14 @@ The following example lists all configured search engines:
 
 [source,console]
 --------------------------------------------------
-GET _engine
+GET _engine/
 --------------------------------------------------
+// TEST[skip:TBD]
 
 The following example lists the first three search engines matching `foo`:
 
 [source,console]
 --------------------------------------------------
-GET _engine?from=0&size=3&q=foo
+GET _engine/?from=0&size=3&q=foo
 --------------------------------------------------
 // TEST[skip:TBD]

@@ -24,8 +24,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.coordination.Coordinator.REGISTER_COORDINATION_MODE_ENABLED;
-
 /**
  * The core class of the cluster state coordination algorithm, directly implementing the
  * <a href="https://github.com/elastic/elasticsearch-formal-models/blob/master/ZenWithTerms/tla/ZenWithTerms.tla">formal model</a>
@@ -270,7 +268,7 @@ public class CoordinationState {
         boolean added = joinVotes.addJoinVote(join);
         boolean prevElectionWon = electionWon;
         electionWon = isElectionQuorum(joinVotes);
-        assert prevElectionWon == false || electionWon || REGISTER_COORDINATION_MODE_ENABLED : // we cannot go from won to not won
+        assert prevElectionWon == false || electionWon : // we cannot go from won to not won
             "locaNode= " + localNode + ", join=" + join + ", joinVotes=" + joinVotes;
         logger.debug(
             "handleJoin: added join {} from [{}] for election, electionWon={} lastAcceptedTerm={} lastAcceptedVersion={}",
@@ -344,7 +342,7 @@ public class CoordinationState {
             throw new CoordinationStateRejectedException("only allow reconfiguration if joinVotes have quorum for new config");
         }
 
-        assert clusterState.getLastCommittedConfiguration().equals(getLastCommittedConfiguration()) || REGISTER_COORDINATION_MODE_ENABLED
+        assert clusterState.getLastCommittedConfiguration().equals(getLastCommittedConfiguration())
             : "last committed configuration should not change";
 
         lastPublishedVersion = clusterState.version();

@@ -129,8 +129,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
     public static final String COMMIT_STATE_ACTION_NAME = "internal:cluster/coordination/commit_state";
 
-    static volatile boolean REGISTER_COORDINATION_MODE_ENABLED = false;
-
     private final Settings settings;
     private final boolean singleNodeDiscovery;
     private final ElectionStrategy electionStrategy;

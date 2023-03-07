@@ -24,7 +24,6 @@ import org.elasticsearch.gateway.ClusterStateUpdaters;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.After;
 import org.junit.Before;
 
 import java.util.HashMap;
@@ -46,18 +45,9 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
     @Before
     public void setUpNewRegister() {
+        // TODO: Move this into the cluster instance
         atomicRegister = new AtomicRegister();
         sharedStore = new SharedStore(atomicRegister);
-    }
-
-    @Before
-    public void enableCoordinatorRegisterMode() {
-        Coordinator.REGISTER_COORDINATION_MODE_ENABLED = true;
-    }
-
-    @After
-    public void disableCoordinatorRegisterMode() {
-        Coordinator.REGISTER_COORDINATION_MODE_ENABLED = false;
     }
 
     @Override
@@ -189,6 +179,13 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     @AwaitsFix(bugUrl = "ES-5645")
     public void testClusterCannotFormWithFailingJoinValidation() {
         // A single node can form a cluster in this case
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "ES-5645")
+    public void testReportsConnectBackProblemsDuringJoining() {
+        // If the partitioned node is the leader, it still has access
+        // to the store, therefore the test fail
     }
 
     @Override
@@ -404,21 +401,19 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
         @Override
         public ClusterState maybeReconfigureAfterNewMasterIsElected(ClusterState clusterState) {
-            Metadata metadata = Metadata.builder(clusterState.metadata())
-                .coordinationMetadata(
-                    CoordinationMetadata.builder(clusterState.coordinationMetadata())
-                        .lastAcceptedConfiguration(
-                            new CoordinationMetadata.VotingConfiguration(Set.of(clusterState.nodes().getMasterNodeId()))
-                        )
-                        .lastCommittedConfiguration(
-                            new CoordinationMetadata.VotingConfiguration(Set.of(clusterState.nodes().getMasterNodeId()))
+            return ClusterState.builder(clusterState)
+                .metadata(
+                    Metadata.builder(clusterState.metadata())
+                        .coordinationMetadata(
+                            CoordinationMetadata.builder(clusterState.coordinationMetadata())
+                                .lastAcceptedConfiguration(
+                                    new CoordinationMetadata.VotingConfiguration(Set.of(clusterState.nodes().getMasterNodeId()))
+                                )
+                                .build()
                         )
                         .build()
                 )
                 .build();
-            // Since we're storing the cluster state in the register, mark the state as committed as soon as the node becomes master
-            metadata = metadata.withLastCommittedValues(true, metadata.coordinationMetadata().getLastCommittedConfiguration());
-            return ClusterState.builder(clusterState).metadata(metadata).build();
         }
     }
 
@@ -426,6 +421,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         private final Function<Long, Optional<DiscoveryNode>> getLeaderForTermIfAlive;
         private final AtomicRegister register;
         private final SharedStore sharedStore;
+        private long lastWonTerm = -1;
 
         AtomicRegisterElectionStrategy(
             AtomicRegister register,
@@ -460,6 +456,9 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             CoordinationMetadata.VotingConfiguration lastAcceptedConfiguration,
             CoordinationState.VoteCollection joinVotes
         ) {
+            if (lastWonTerm == localCurrentTerm && joinVotes.containsVoteFor(localNode)) {
+                return true;
+            }
             // Safety is guaranteed by the blob store CAS, elect the current node immediately as
             // master and let the blob store decide whether this node should be the master.
             return lastCommittedConfiguration.isEmpty() == false
@@ -510,6 +509,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             if (register.claimTerm(sourceNode, proposedTerm) == false) {
                 throw new CoordinationStateRejectedException("Term " + proposedTerm + " already claimed by another node");
             }
+            lastWonTerm = proposedTerm;
         }
     }
 
@@ -538,13 +538,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         private PersistentClusterState getLatestClusterState() {
             final var termOwner = register.getTermOwner();
 
-            for (long term = termOwner.term(); term > 0; term--) {
-                var persistedState = clusterStateByTerm.get(term);
-                if (persistedState != null) {
-                    return persistedState;
-                }
-            }
-            return null;
+            return getClusterStateForTerm(termOwner.term());
         }
 
         private PersistentClusterState getClusterStateForTerm(long termGoal) {
@@ -648,6 +642,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         @Override
         public void markLastAcceptedStateAsCommitted(DiscoveryNode sourceNode, long term, long version) {
             assert latestAcceptedState.term() == term && latestAcceptedState.version() == version;
+            CoordinationState.PersistedState.super.markLastAcceptedStateAsCommitted(sourceNode, term, version);
         }
 
         void writeClusterState(ClusterState state) {

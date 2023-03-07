@@ -193,12 +193,16 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
             .put("cluster.routing.allocation.node_concurrent_recoveries", 5)
             .put("cluster.routing.allocation.node_initial_primaries_recoveries", 5)
             .put("cluster.routing.allocation.cluster_concurrent_rebalance", 5)
+            .put("cluster.routing.allocation.type", "balanced") // TODO fix for desired_balance
             .build();
         AllocationService strategy = createAllocationService(
             settings,
             gatewayAllocator,
             EmptyClusterInfoService.INSTANCE,
             snapshotsInfoService
+        );
+        assertCriticalWarnings(
+            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release."
         );
         logger.info("Building initial routing table");
 

@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -52,7 +53,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newAnonymousRealmRef;
@@ -108,7 +108,8 @@ public final class Authentication implements ToXContentObject {
     public static final TransportVersion VERSION_API_KEY_ROLES_AS_BYTES = TransportVersion.V_7_9_0;
     public static final TransportVersion VERSION_REALM_DOMAINS = TransportVersion.V_8_2_0;
     public static final TransportVersion VERSION_METADATA_BEYOND_GENERIC_MAP = TransportVersion.V_8_8_0;
-    public static final TransportVersion VERSION_API_KEYS_WITH_REMOTE_INDICES = TransportVersion.V_8_8_0;
+    public static final Version VERSION_API_KEYS_WITH_REMOTE_INDICES = Version.V_8_8_0;
+    public static final TransportVersion TRANSPORT_VERSION_API_KEYS_WITH_REMOTE_INDICES = TransportVersion.V_8_8_0;
     private final AuthenticationType type;
     private final Subject authenticatingSubject;
     private final Subject effectiveSubject;
@@ -1021,21 +1022,13 @@ public final class Authentication implements ToXContentObject {
     public Authentication toRemoteAccess(RemoteAccessAuthentication remoteAccessAuthentication) {
         assert isApiKey() : "can only convert API key authentication to remote access";
         assert false == isRunAs() : "remote access does not support authentication with run-as";
+        assert getEffectiveSubject().getUser().roles().length == 0
+            : "the user associated with a remote access authentication must have no role";
         final Map<String, Object> metadata = new HashMap<>(getAuthenticatingSubject().getMetadata());
         final Authentication.RealmRef authenticatedBy = newRemoteAccessRealmRef(getAuthenticatingSubject().getRealm().getNodeName());
-        final User userFromRemoteCluster = remoteAccessAuthentication.getAuthentication().getEffectiveSubject().getUser();
-        assert userFromRemoteCluster.enabled() : "the user received from a remote cluster must be enabled";
-        final User userWithoutRoles = new User(
-            userFromRemoteCluster.principal(),
-            EMPTY_ARRAY,
-            userFromRemoteCluster.fullName(),
-            userFromRemoteCluster.email(),
-            userFromRemoteCluster.metadata(),
-            userFromRemoteCluster.enabled()
-        );
         final Authentication authentication = new Authentication(
             new Subject(
-                userWithoutRoles,
+                getEffectiveSubject().getUser(),
                 authenticatedBy,
                 TransportVersion.CURRENT,
                 remoteAccessAuthentication.copyWithRemoteAccessEntries(metadata)
@@ -1069,8 +1062,8 @@ public final class Authentication implements ToXContentObject {
                 : "metadata must contain role descriptor for API key authentication";
             assert metadata.containsKey(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
                 : "metadata must contain limited role descriptor for API key authentication";
-            if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(VERSION_API_KEYS_WITH_REMOTE_INDICES)
-                && streamVersion.before(VERSION_API_KEYS_WITH_REMOTE_INDICES)) {
+            if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(TRANSPORT_VERSION_API_KEYS_WITH_REMOTE_INDICES)
+                && streamVersion.before(TRANSPORT_VERSION_API_KEYS_WITH_REMOTE_INDICES)) {
                 metadata = new HashMap<>(metadata);
                 metadata.put(
                     AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
@@ -1087,7 +1080,7 @@ public final class Authentication implements ToXContentObject {
             }
             if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)
                 && streamVersion.before(VERSION_API_KEY_ROLES_AS_BYTES)) {
-                metadata = metadata instanceof HashMap ? metadata : new HashMap<>(metadata);
+                metadata = new HashMap<>(metadata);
                 metadata.put(
                     AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
                     convertRoleDescriptorsBytesToMap((BytesReference) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY))

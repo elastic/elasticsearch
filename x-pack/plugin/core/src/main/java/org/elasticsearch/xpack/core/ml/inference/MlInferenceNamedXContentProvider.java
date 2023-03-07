@@ -27,8 +27,8 @@ import org.elasticsearch.xpack.core.ml.inference.results.NlpClassificationInfere
 import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;
 import org.elasticsearch.xpack.core.ml.inference.results.QuestionAnsweringInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.SlimResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextSimilarityInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
@@ -57,8 +57,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUp
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ResultsFieldUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RobertaTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RobertaTokenizationUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SlimConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SlimConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModelLocation;
@@ -66,6 +64,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassification
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
@@ -321,15 +321,15 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedXContent.add(
             new NamedXContentRegistry.Entry(
                 LenientlyParsedInferenceConfig.class,
-                new ParseField(SlimConfig.NAME),
-                SlimConfig::fromXContentLenient
+                new ParseField(TextExpansionConfig.NAME),
+                TextExpansionConfig::fromXContentLenient
             )
         );
         namedXContent.add(
             new NamedXContentRegistry.Entry(
                 StrictlyParsedInferenceConfig.class,
-                new ParseField(SlimConfig.NAME),
-                SlimConfig::fromXContentStrict
+                new ParseField(TextExpansionConfig.NAME),
+                TextExpansionConfig::fromXContentStrict
             )
         );
         namedXContent.add(
@@ -456,8 +456,8 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedXContent.add(
             new NamedXContentRegistry.Entry(
                 InferenceConfigUpdate.class,
-                new ParseField(SlimConfigUpdate.NAME),
-                SlimConfigUpdate::fromXContentStrict
+                new ParseField(TextExpansionConfigUpdate.NAME),
+                TextExpansionConfigUpdate::fromXContentStrict
             )
         );
         namedXContent.add(
@@ -612,7 +612,7 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceResults.class, PyTorchPassThroughResults.NAME, PyTorchPassThroughResults::new)
         );
-        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class, SlimResults.NAME, SlimResults::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class, TextExpansionResults.NAME, TextExpansionResults::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class, TextEmbeddingResults.NAME, TextEmbeddingResults::new));
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
@@ -644,7 +644,7 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         );
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class, NerConfig.NAME, NerConfig::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class, FillMaskConfig.NAME, FillMaskConfig::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class, SlimConfig.NAME, SlimConfig::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class, TextExpansionConfig.NAME, TextExpansionConfig::new));
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceConfig.class, TextClassificationConfig.NAME, TextClassificationConfig::new)
         );
@@ -684,7 +684,9 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class, ResultsFieldUpdate.NAME, ResultsFieldUpdate::new)
         );
-        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class, SlimConfigUpdate.NAME, SlimConfigUpdate::new));
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class, TextExpansionConfigUpdate.NAME, TextExpansionConfigUpdate::new)
+        );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 InferenceConfigUpdate.class,

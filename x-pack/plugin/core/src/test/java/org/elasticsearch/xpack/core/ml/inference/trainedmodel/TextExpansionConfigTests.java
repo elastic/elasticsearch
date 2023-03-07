@@ -16,9 +16,9 @@ import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
 
 import java.io.IOException;
 
-public class SlimConfigTests extends InferenceConfigItemTestCase<SlimConfig> {
+public class TextExpansionConfigTests extends InferenceConfigItemTestCase<TextExpansionConfig> {
 
-    public static SlimConfig createRandom() {
+    public static TextExpansionConfig createRandom() {
         // create a tokenization config with a no span setting.
         var tokenization = new BertTokenization(
             randomBoolean() ? null : randomBoolean(),
@@ -28,7 +28,7 @@ public class SlimConfigTests extends InferenceConfigItemTestCase<SlimConfig> {
             null
         );
 
-        return new SlimConfig(
+        return new TextExpansionConfig(
             randomBoolean() ? null : VocabularyConfigTests.createRandom(),
             randomBoolean() ? null : tokenization,
             randomBoolean() ? null : randomAlphaOfLength(5)
@@ -36,36 +36,36 @@ public class SlimConfigTests extends InferenceConfigItemTestCase<SlimConfig> {
     }
 
     @Override
-    protected Writeable.Reader<SlimConfig> instanceReader() {
-        return SlimConfig::new;
+    protected Writeable.Reader<TextExpansionConfig> instanceReader() {
+        return TextExpansionConfig::new;
     }
 
     @Override
-    protected SlimConfig createTestInstance() {
+    protected TextExpansionConfig createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected SlimConfig mutateInstance(SlimConfig instance) {
+    protected TextExpansionConfig mutateInstance(TextExpansionConfig instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
-    protected SlimConfig doParseInstance(XContentParser parser) throws IOException {
-        return SlimConfig.fromXContentLenient(parser);
+    protected TextExpansionConfig doParseInstance(XContentParser parser) throws IOException {
+        return TextExpansionConfig.fromXContentLenient(parser);
     }
 
     @Override
-    protected SlimConfig mutateInstanceForVersion(SlimConfig instance, TransportVersion version) {
+    protected TextExpansionConfig mutateInstanceForVersion(TextExpansionConfig instance, TransportVersion version) {
         return instance;
     }
 
     public void testBertTokenizationOnly() {
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
-            () -> new SlimConfig(null, RobertaTokenizationTests.createRandom(), null)
+            () -> new TextExpansionConfig(null, RobertaTokenizationTests.createRandom(), null)
         );
         assertEquals(RestStatus.BAD_REQUEST, e.status());
-        assertEquals("SLIM must be configured with BERT tokenizer, [roberta] given", e.getMessage());
+        assertEquals("text expansion models must be configured with BERT tokenizer, [roberta] given", e.getMessage());
     }
 }

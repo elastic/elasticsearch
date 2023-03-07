@@ -20,7 +20,6 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -36,11 +35,11 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
     private static final class WrappingParser extends FilterXContentParser {
 
-        private final BooleanSupplier isWithinLeafObject;
+        private final ContentPath contentPath;
         final Deque<XContentParser> parsers = new ArrayDeque<>();
 
-        WrappingParser(XContentParser in, BooleanSupplier isWithinLeafObject) throws IOException {
-            this.isWithinLeafObject = isWithinLeafObject;
+        WrappingParser(XContentParser in, ContentPath contentPath) throws IOException {
+            this.contentPath = contentPath;
             parsers.push(in);
             if (in.currentToken() == Token.FIELD_NAME) {
                 expandDots(in);
@@ -68,7 +67,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             // this handles fields that belong to objects that can't hold subobjects, where the document specifies
             // the object holding the flat fields
             // e.g. { "metrics.service": { "time.max" : 10 } } with service having subobjects set to false
-            if (isWithinLeafObject.getAsBoolean()) {
+            if (contentPath.isWithinLeafObject()) {
                 return;
             }
             String field = delegate.currentName();
@@ -139,7 +138,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
                 }
                 subParser = new SingletonValueXContentParser(delegate);
             }
-            parsers.push(new DotExpandingXContentParser(subParser, subpaths, location, isWithinLeafObject));
+            parsers.push(new DotExpandingXContentParser(subParser, subpaths, location, contentPath));
         }
 
         private static void throwExpectedOpen(Token token) {
@@ -205,8 +204,13 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         }
     }
 
-    static XContentParser expandDots(XContentParser in, BooleanSupplier isWithinLeafObject) throws IOException {
-        return new WrappingParser(in, isWithinLeafObject);
+    /**
+     * Wraps an XContentParser such that it re-interprets dots in field names as an object structure
+     * @param in    the parser to wrap
+     * @return  the wrapped XContentParser
+     */
+    static XContentParser expandDots(XContentParser in, ContentPath contentPath) throws IOException {
+        return new WrappingParser(in, contentPath);
     }
 
     private enum State {
@@ -215,7 +219,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         ENDING_EXPANDED_OBJECT
     }
 
-    private final BooleanSupplier isWithinLeafObject;
+    private final ContentPath contentPath;
 
     private String[] subPaths;
     private XContentLocation currentLocation;
@@ -227,12 +231,12 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         XContentParser subparser,
         String[] subPaths,
         XContentLocation startLocation,
-        BooleanSupplier isWithinLeafObject
+        ContentPath contentPath
     ) {
         super(subparser);
         this.subPaths = subPaths;
         this.currentLocation = startLocation;
-        this.isWithinLeafObject = isWithinLeafObject;
+        this.contentPath = contentPath;
     }
 
     @Override
@@ -253,7 +257,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
                 int currentIndex = expandedTokens / 2;
                 // if there's more than one element left to expand and the parent can't hold subobjects, we replace the array
                 // e.g. metrics.service.time.max -> ["metrics", "service", "time.max"]
-                if (currentIndex < subPaths.length - 1 && isWithinLeafObject.getAsBoolean()) {
+                if (currentIndex < subPaths.length - 1 && contentPath.isWithinLeafObject()) {
                     String[] newSubPaths = new String[currentIndex + 1];
                     StringBuilder collapsedPath = new StringBuilder();
                     for (int i = 0; i < subPaths.length; i++) {

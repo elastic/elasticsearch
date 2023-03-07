@@ -15,6 +15,7 @@ import org.elasticsearch.search.rank.RankDoc;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * {@code RRFRankDoc} supports additional ranking information
@@ -77,5 +78,33 @@ public class RRFRankDoc extends RankDoc {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.V_8_8_0;
+    }
+
+    @Override
+    public boolean doEquals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RRFRankDoc that = (RRFRankDoc) o;
+        return rank == that.rank && Arrays.equals(positions, that.positions) && Arrays.equals(scores, that.scores);
+    }
+
+    @Override
+    public int doHashCode() {
+        int result = Objects.hash(rank);
+        result = 31 * result + Arrays.hashCode(positions);
+        result = 31 * result + Arrays.hashCode(scores);
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return "RRFRankDoc{" +
+            "rank=" + rank +
+            ", positions=" + Arrays.toString(positions) +
+            ", scores=" + Arrays.toString(scores) +
+            ", score=" + score +
+            ", doc=" + doc +
+            ", shardIndex=" + shardIndex +
+            '}';
     }
 }

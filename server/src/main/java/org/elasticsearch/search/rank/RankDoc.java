@@ -12,8 +12,11 @@ import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.search.rank.rrf.RRFRankDoc;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * {@code RankDoc} is the base class for all ranked results.
@@ -39,4 +42,30 @@ public abstract class RankDoc extends ScoreDoc implements VersionedNamedWriteabl
     }
 
     public abstract void doWriteTo(StreamOutput out) throws IOException;
+
+    @Override
+    public final boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RRFRankDoc that = (RRFRankDoc) o;
+        return doc == that.doc && score == that.score && shardIndex == that.shardIndex && doEquals(o);
+    }
+
+    public abstract boolean doEquals(Object o);
+
+    @Override
+    public final int hashCode() {
+        return Objects.hash(doc, score, shardIndex, doHashCode());
+    }
+
+    public abstract int doHashCode();
+
+    @Override
+    public String toString() {
+        return "RankDoc{" +
+            "score=" + score +
+            ", doc=" + doc +
+            ", shardIndex=" + shardIndex +
+            '}';
+    }
 }

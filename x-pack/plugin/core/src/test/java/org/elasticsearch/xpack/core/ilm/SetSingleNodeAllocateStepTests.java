@@ -584,7 +584,10 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         var validAttrs = Maps.<String, String>newMapWithExpectedSize(numAttrs);
         for (int i = 0; i < numAttrs; i++) {
             validAttrs.put(
-                randomValueOtherThanMany(attr -> reservedNames.contains(attr) || validAttrs.containsKey(attr), () -> prefix + randomAlphaOfLengthBetween(1, 20)),
+                randomValueOtherThanMany(
+                    attr -> reservedNames.contains(attr) || validAttrs.containsKey(attr),
+                    () -> prefix + randomAlphaOfLengthBetween(1, 20)
+                ),
                 randomAlphaOfLengthBetween(1, 20)
             );
         }

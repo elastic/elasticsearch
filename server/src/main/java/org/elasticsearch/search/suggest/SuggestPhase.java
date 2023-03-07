@@ -48,7 +48,6 @@ public class SuggestPhase {
                     suggestions.add(result);
                 }
             }
-            // Non-acquiring access to queryResult, doesn't need to incRef
             context.queryResult().suggest(new Suggest(suggestions));
         } catch (IOException e) {
             throw new ElasticsearchException("I/O exception during suggest phase", e);

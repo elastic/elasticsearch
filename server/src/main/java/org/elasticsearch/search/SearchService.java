@@ -679,8 +679,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             executor.success();
         }
-        // incRef here as we are going to hold onto the query result past the life of search context
-        context.queryResult().incRef();
         return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
     }
 
@@ -709,9 +707,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 QueryPhase.execute(searchContext);
                 executor.success();
                 readerContext.setRescoreDocIds(searchContext.rescoreDocIds());
-
-                // incRef here as we are going to hold onto the query result past the life of search context
-                searchContext.queryResult().incRef();
                 return new ScrollQuerySearchResult(searchContext.queryResult(), searchContext.shardTarget());
             } catch (Exception e) {
                 logger.trace("Query phase failed", e);
@@ -743,8 +738,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final RescoreDocIds rescoreDocIds = searchContext.rescoreDocIds();
                 searchContext.queryResult().setRescoreDocIds(rescoreDocIds);
                 readerContext.setRescoreDocIds(rescoreDocIds);
-                // incRef here as we are going to hold onto the query result past the life of search context
-                searchContext.queryResult().incRef();
                 return searchContext.queryResult();
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);

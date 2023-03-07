@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -261,8 +260,12 @@ public class RolloverConditions implements Writeable, ToXContentObject {
     /**
      * Parses a cluster setting configuration, it expects it to have the following format: "condition1=value1,condition2=value2"
      * @throws SettingsException if the input is invalid, if there are unknown conditions or invalid format values.
+     * @throws IllegalArgumentException if the input is null or blank.
      */
     public static RolloverConditions parseSetting(String input, String setting) {
+        if (Strings.isNullOrBlank(input)) {
+            throw new IllegalArgumentException("The rollover conditions cannot be null or blank");
+        }
         String[] sConditions = input.split(",");
         RolloverConditions.Builder builder = newBuilder();
         for (String sCondition : sConditions) {

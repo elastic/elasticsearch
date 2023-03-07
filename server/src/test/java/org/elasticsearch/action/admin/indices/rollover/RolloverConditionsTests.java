@@ -240,8 +240,11 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
         assertThat(randomSetting.getMinDocs(), equalTo(minDocs));
         assertThat(randomSetting.getMinSize(), equalTo(minSize));
 
-        SettingsException invalid = expectThrows(SettingsException.class, () -> RolloverConditions.parseSetting("", "empty-setting"));
-        assertEquals("Invalid condition: '', format must be 'condition=value'", invalid.getMessage());
+        IllegalArgumentException invalid = expectThrows(
+            IllegalArgumentException.class,
+            () -> RolloverConditions.parseSetting("", "empty-setting")
+        );
+        assertEquals("The rollover conditions cannot be null or blank", invalid.getMessage());
         SettingsException unknown = expectThrows(
             SettingsException.class,
             () -> RolloverConditions.parseSetting("unknown_condition=?", "unknown-setting")

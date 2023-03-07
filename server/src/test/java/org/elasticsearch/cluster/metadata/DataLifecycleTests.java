@@ -92,10 +92,10 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
                 () -> DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING.get(
-                    Settings.builder().put(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING.getKey(), "max_docs=1").build()
+                    Settings.builder().put(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING.getKey(), "").build()
                 )
             );
-            assertThat(exception.getMessage(), equalTo("The min_docs rollover condition should be set and greater than 0."));
+            assertThat(exception.getMessage(), equalTo("The rollover conditions cannot be null or blank"));
         }
         {
             IllegalArgumentException exception = expectThrows(
@@ -105,20 +105,6 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
                 )
             );
             assertThat(exception.getMessage(), equalTo("At least one max_* rollover condition must be set."));
-        }
-        {
-            IllegalArgumentException exception = expectThrows(
-                IllegalArgumentException.class,
-                () -> DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING.get(
-                    Settings.builder().put(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING.getKey(), "min_age=1d").build()
-                )
-            );
-            assertThat(
-                exception.getMessage(),
-                equalTo(
-                    "The min_docs rollover condition should be set and greater than 0. At least one max_* rollover condition must be set."
-                )
-            );
         }
     }
 }

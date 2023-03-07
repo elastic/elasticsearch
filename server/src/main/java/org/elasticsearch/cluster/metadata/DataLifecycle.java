@@ -54,8 +54,8 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         @Override
         public void validate(RolloverConditions value) {
             List<String> errors = new ArrayList<>(2);
-            if (value.getMinDocs() == null) {
-                errors.add("The min_docs rollover condition should be set and greater than 0.");
+            if (value.getMinDocs() == null && value.getMinPrimaryShardDocs() == null) {
+                errors.add("Either min_docs or min_primary_shard_docs rollover conditions should be set and greater than 0.");
             }
             if (value.hasMaxConditions() == false) {
                 errors.add("At least one max_* rollover condition must be set.");

@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.DesiredNodeWithStatus;
@@ -614,12 +613,8 @@ public class NodeJoinExecutorTests extends ESTestCase {
             assertNull(
                 PlainActionFuture.<Void, RuntimeException>get(
                     future -> clusterService.getMasterService()
-                        .submitStateUpdateTask(
-                            "test",
-                            JoinTask.singleNode(node1, TEST_REASON, future, 0L),
-                            ClusterStateTaskConfig.build(Priority.NORMAL),
-                            executor
-                        ),
+                        .createTaskQueue("test", Priority.NORMAL, executor)
+                        .submitTask("test", JoinTask.singleNode(node1, TEST_REASON, future, 0L), null),
                     10,
                     TimeUnit.SECONDS
                 )
@@ -643,12 +638,8 @@ public class NodeJoinExecutorTests extends ESTestCase {
             assertNull(
                 PlainActionFuture.<Void, RuntimeException>get(
                     future -> clusterService.getMasterService()
-                        .submitStateUpdateTask(
-                            "test",
-                            JoinTask.singleNode(node2, testReasonWithLink, future, 0L),
-                            ClusterStateTaskConfig.build(Priority.NORMAL),
-                            executor
-                        ),
+                        .createTaskQueue("test", Priority.NORMAL, executor)
+                        .submitTask("test", JoinTask.singleNode(node2, testReasonWithLink, future, 0L), null),
                     10,
                     TimeUnit.SECONDS
                 )

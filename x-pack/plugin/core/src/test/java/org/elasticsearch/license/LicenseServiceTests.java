@@ -11,9 +11,11 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -55,6 +57,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -87,7 +90,14 @@ public class LicenseServiceTests extends ESTestCase {
     public void testLogExpirationWarning() {
         long time = LocalDate.of(2018, 11, 15).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
         final boolean expired = randomBoolean();
-        final String message = LicenseService.buildExpirationMessage(time, expired).toString();
+        final LicenseService service = new LicenseService(
+            Settings.EMPTY,
+            mock(ThreadPool.class),
+            mockDefaultClusterService(),
+            mock(Clock.class),
+            mock(XPackLicenseState.class)
+        );
+        final String message = service.buildExpirationMessage(time, expired).toString();
         if (expired) {
             assertThat(message, startsWith("LICENSE [EXPIRED] ON [THURSDAY, NOVEMBER 15, 2018].\n"));
         } else {
@@ -145,7 +155,7 @@ public class LicenseServiceTests extends ESTestCase {
         License.LicenseType type = randomFrom(License.LicenseType.values());
         License testLicense = buildLicense(licenseId, type, TimeValue.timeValueDays(randomIntBetween(1, 100)).millis());
 
-        assertThat(LicenseService.getExpiryDate(testLicense), equalTo(new Date(42000L).getTime()));
+        assertThat(LicenseUtils.getExpiryDate(testLicense), equalTo(new Date(42000L).getTime()));
     }
 
     /**
@@ -169,7 +179,12 @@ public class LicenseServiceTests extends ESTestCase {
             .build();
 
         final ClusterService clusterService = mockDefaultClusterService();
+        @SuppressWarnings("unchecked")
+        final var taskQueue = (MasterServiceTaskQueue<ClusterStateTaskListener>) mock(MasterServiceTaskQueue.class);
+        Mockito.when(clusterService.createTaskQueue(eq("license-service-start-basic"), any(), any())).thenReturn(taskQueue);
+
         final Clock clock = randomBoolean() ? Clock.systemUTC() : Clock.systemDefaultZone();
+        final var taskExecutorCaptor = ArgumentCaptor.forClass(StartBasicClusterTask.Executor.class);
         final LicenseService service = new LicenseService(
             settings,
             mock(ThreadPool.class),
@@ -177,6 +192,7 @@ public class LicenseServiceTests extends ESTestCase {
             clock,
             mock(XPackLicenseState.class)
         );
+        verify(clusterService).createTaskQueue(eq("license-service-start-basic"), any(), taskExecutorCaptor.capture());
 
         final Consumer<PlainActionFuture<PostStartBasicResponse>> assertion = future -> {
             PostStartBasicResponse response = future.actionGet();
@@ -190,11 +206,10 @@ public class LicenseServiceTests extends ESTestCase {
             assertion.accept(future);
         } else {
             final var taskCaptor = ArgumentCaptor.forClass(StartBasicClusterTask.class);
-            final var taskExecutorCaptor = ArgumentCaptor.forClass(StartBasicClusterTask.Executor.class);
             @SuppressWarnings("unchecked")
             final ArgumentCaptor<Runnable> listenerCaptor = ArgumentCaptor.forClass(Runnable.class);
+            verify(taskQueue).submitTask(any(), taskCaptor.capture(), any());
             doNothing().when(taskContext).success(listenerCaptor.capture());
-            verify(clusterService).submitStateUpdateTask(any(), taskCaptor.capture(), any(), taskExecutorCaptor.capture());
             when(taskContext.getTask()).thenReturn(taskCaptor.getValue());
 
             int maxNodes = randomValueOtherThan(
@@ -223,6 +238,11 @@ public class LicenseServiceTests extends ESTestCase {
         Mockito.when(clusterService.state()).thenReturn(clusterState);
         Mockito.when(clusterService.getClusterName()).thenReturn(ClusterName.DEFAULT);
         return clusterService;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T extends ClusterStateTaskListener> MasterServiceTaskQueue<T> newMockTaskQueue() {
+        return mock(MasterServiceTaskQueue.class);
     }
 
     private void assertRegisterValidLicense(Settings baseSettings, License.LicenseType licenseType) throws IOException {
@@ -333,7 +353,14 @@ public class LicenseServiceTests extends ESTestCase {
     private void assertExpiryWarning(long adjustment, String msg) {
         long now = System.currentTimeMillis();
         long expiration = now + adjustment;
-        String warning = LicenseService.getExpiryWarning(expiration, now);
+        final LicenseService service = new LicenseService(
+            Settings.EMPTY,
+            mock(ThreadPool.class),
+            mockDefaultClusterService(),
+            mock(Clock.class),
+            mock(XPackLicenseState.class)
+        );
+        String warning = service.getExpiryWarning(expiration, now);
         if (msg == null) {
             assertThat(warning, is(nullValue()));
         } else {

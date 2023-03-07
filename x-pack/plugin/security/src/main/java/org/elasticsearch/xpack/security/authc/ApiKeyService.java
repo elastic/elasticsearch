@@ -13,7 +13,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -122,11 +121,11 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -301,7 +300,7 @@ public class ApiKeyService {
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else {
-            final TransportVersion version = getMinNodeTransportVersion();
+            final Version version = getMinNodeVersion();
             if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES) && hasRemoteIndices(request.getRoleDescriptors())) {
                 // Creating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
                 listener.onFailure(
@@ -324,9 +323,8 @@ public class ApiKeyService {
         }
     }
 
-    private TransportVersion getMinNodeTransportVersion() {
-        // TODO here a node version is mixed with a transportVersion. We should look into this once Node's Version is refactored
-        return clusterService.state().nodes().getMinNodeVersion().transportVersion;
+    private Version getMinNodeVersion() {
+        return clusterService.state().nodes().getMinNodeVersion();
     }
 
     private static boolean hasRemoteIndices(Collection<RoleDescriptor> roleDescriptors) {
@@ -412,7 +410,7 @@ public class ApiKeyService {
             return;
         }
 
-        final TransportVersion version = getMinNodeTransportVersion();
+        final Version version = getMinNodeVersion();
         if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES) && hasRemoteIndices(request.getRoleDescriptors())) {
             // Updating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
             listener.onFailure(
@@ -523,11 +521,11 @@ public class ApiKeyService {
      */
     static Set<RoleDescriptor> maybeRemoveRemoteIndicesPrivileges(
         final Set<RoleDescriptor> userRoleDescriptors,
-        final TransportVersion version,
+        final Version version,
         final String... apiKeyIds
     ) {
         if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES)) {
-            final Set<String> affectedRoles = new LinkedHashSet<>();
+            final Set<String> affectedRoles = new TreeSet<>();
             final Set<RoleDescriptor> result = userRoleDescriptors.stream().map(roleDescriptor -> {
                 if (roleDescriptor.hasRemoteIndicesPrivileges()) {
                     affectedRoles.add(roleDescriptor.getName());
@@ -548,15 +546,14 @@ public class ApiKeyService {
 
             if (false == affectedRoles.isEmpty()) {
                 logger.info(
-                    "removed remote indices privileges from role(s) [{}] for API key(s) [{}]",
+                    "removed remote indices privileges from role(s) {} for API key(s) [{}]",
                     affectedRoles,
                     buildDelimitedStringWithLimit(10, apiKeyIds)
                 );
-
                 HeaderWarning.addWarning(
-                    "Removed API key's remote indices privileges from role(s) ["
+                    "Removed API key's remote indices privileges from role(s) "
                         + affectedRoles
-                        + "]. Remote indices are not supported by all nodes in the cluster. "
+                        + ". Remote indices are not supported by all nodes in the cluster. "
                         + "Use the update API Key API to re-assign remote indices to the API key(s), after the cluster upgrade is complete."
                 );
             }

@@ -8,7 +8,6 @@
 package org.elasticsearch.integration;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -138,12 +137,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
 
     @After
     public void cleanUp() {
-        ClusterUpdateSettingsResponse settingsResponse = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().putNull("indices.recovery.max_bytes_per_sec"))
-            .get();
-        assertTrue(settingsResponse.isAcknowledged());
+        updateClusterSettings(Settings.builder().putNull("indices.recovery.max_bytes_per_sec"));
     }
 
     private void writeJSONFile(String node, String json) throws Exception {

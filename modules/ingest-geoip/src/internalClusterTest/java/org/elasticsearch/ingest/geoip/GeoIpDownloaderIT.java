@@ -11,7 +11,6 @@ package org.elasticsearch.ingest.geoip;
 import com.maxmind.geoip2.DatabaseReader;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
@@ -83,8 +82,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
-    protected static final String ENDPOINT = System.getProperty("geoip_endpoint");
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(
@@ -98,8 +95,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        if (ENDPOINT != null) {
-            settings.put(GeoIpDownloader.ENDPOINT_SETTING.getKey(), ENDPOINT);
+        if (getEndpoint() != null) {
+            settings.put(GeoIpDownloader.ENDPOINT_SETTING.getKey(), getEndpoint());
         }
         return settings.build();
     }
@@ -108,18 +105,12 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     public void cleanUp() throws Exception {
         deleteDatabasesInConfigDirectory();
 
-        ClusterUpdateSettingsResponse settingsResponse = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder()
-                    .putNull(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey())
-                    .putNull(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getKey())
-                    .putNull("ingest.geoip.database_validity")
-            )
-            .get();
-        assertTrue(settingsResponse.isAcknowledged());
-
+        updateClusterSettings(
+            Settings.builder()
+                .putNull(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey())
+                .putNull(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getKey())
+                .putNull("ingest.geoip.database_validity")
+        );
         assertBusy(() -> {
             PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> task = getTask();
             if (task != null) {
@@ -158,14 +149,9 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/75221")
     public void testInvalidTimestamp() throws Exception {
-        assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         putGeoIpPipeline();
-        ClusterUpdateSettingsResponse settingsResponse = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true))
-            .get();
-        assertTrue(settingsResponse.isAcknowledged());
+        updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
         assertBusy(() -> {
             GeoIpTaskState state = getGeoIpTaskState();
             assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
@@ -174,20 +160,10 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         putGeoIpPipeline();
         verifyUpdatedDatabase();
 
-        settingsResponse = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put("ingest.geoip.database_validity", TimeValue.timeValueMillis(1)))
-            .get();
-        assertTrue(settingsResponse.isAcknowledged());
-        settingsResponse = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder().put(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(2))
-            )
-            .get();
-        assertTrue(settingsResponse.isAcknowledged());
+        updateClusterSettings(Settings.builder().put("ingest.geoip.database_validity", TimeValue.timeValueMillis(1)));
+        updateClusterSettings(
+            Settings.builder().put(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(2))
+        );
         List<Path> geoIpTmpDirs = getGeoIpTmpDirs();
         assertBusy(() -> {
             for (Path geoIpTmpDir : geoIpTmpDirs) {
@@ -211,12 +187,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             assertFalse(result.getIngestDocument().hasField("ip-asn"));
             assertFalse(result.getIngestDocument().hasField("ip-country"));
         });
-        settingsResponse = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().putNull("ingest.geoip.database_validity"))
-            .get();
-        assertTrue(settingsResponse.isAcknowledged());
+        updateClusterSettings(Settings.builder().putNull("ingest.geoip.database_validity"));
         assertBusy(() -> {
             for (Path geoIpTmpDir : geoIpTmpDirs) {
                 try (Stream<Path> files = Files.list(geoIpTmpDir)) {
@@ -228,29 +199,19 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     public void testUpdatedTimestamp() throws Exception {
-        assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         testGeoIpDatabasesDownload();
         long lastCheck = getGeoIpTaskState().getDatabases().get("GeoLite2-ASN.mmdb").lastCheck();
-        ClusterUpdateSettingsResponse settingsResponse = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder().put(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(2))
-            )
-            .get();
-        assertTrue(settingsResponse.isAcknowledged());
+        updateClusterSettings(
+            Settings.builder().put(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(2))
+        );
         assertBusy(() -> assertNotEquals(lastCheck, getGeoIpTaskState().getDatabases().get("GeoLite2-ASN.mmdb").lastCheck()));
         testGeoIpDatabasesDownload();
     }
 
     public void testGeoIpDatabasesDownload() throws Exception {
         putGeoIpPipeline();
-        ClusterUpdateSettingsResponse settingsResponse = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true))
-            .get();
-        assertTrue(settingsResponse.isAcknowledged());
+        updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
         assertBusy(() -> {
             GeoIpTaskState state = getGeoIpTaskState();
             assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
@@ -301,15 +262,10 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     public void testGeoIpDatabasesDownloadNoGeoipProcessors() throws Exception {
-        assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         String pipelineId = randomAlphaOfLength(10);
         putGeoIpPipeline(pipelineId);
-        ClusterUpdateSettingsResponse settingsResponse = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true))
-            .get();
-        assertTrue(settingsResponse.isAcknowledged());
+        updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
         assertBusy(() -> {
             PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> task = getTask();
             assertNotNull(task);
@@ -329,7 +285,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/69972")
     public void testUseGeoIpProcessorWithDownloadedDBs() throws Exception {
-        assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         setupDatabasesInConfigDirectory();
         // setup:
         putGeoIpPipeline();
@@ -353,8 +309,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         }
 
         // Enable downloader:
-        Settings.Builder settings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true);
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+        updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
 
         final List<Path> geoipTmpDirs = getGeoIpTmpDirs();
         assertBusy(() -> {
@@ -383,8 +338,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         verifyUpdatedDatabase();
 
         // Disable downloader:
-        settings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false);
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+        updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false));
 
         assertBusy(() -> {
             for (Path geoipTmpDir : geoipTmpDirs) {
@@ -398,7 +352,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/79074")
     public void testStartWithNoDatabases() throws Exception {
-        assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         putGeoIpPipeline();
 
         // Behaviour without any databases loaded:
@@ -421,8 +375,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         }
 
         // Enable downloader:
-        Settings.Builder settings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true);
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+        updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
         verifyUpdatedDatabase();
     }
 

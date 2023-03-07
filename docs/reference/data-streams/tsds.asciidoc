@@ -26,7 +26,7 @@ logs or traces, use a regular data stream.
 A TSDS works like a regular data stream with some key differences:
 
 * The matching index template for a TSDS requires a `data_stream` object with
-the <<time-series-mode,`index_mode: time_series`>> option. This option enables
+the <<time-series-mode,`index.mode: time_series`>> option. This option enables
 most TSDS-related functionality.
 
 * In addition to a `@timestamp`, each document in a TSDS must contain one or

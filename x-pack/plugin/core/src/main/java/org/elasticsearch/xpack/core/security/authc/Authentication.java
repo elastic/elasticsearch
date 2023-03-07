@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
@@ -49,8 +51,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newAnonymousRealmRef;
@@ -106,6 +108,8 @@ public final class Authentication implements ToXContentObject {
     public static final TransportVersion VERSION_API_KEY_ROLES_AS_BYTES = TransportVersion.V_7_9_0;
     public static final TransportVersion VERSION_REALM_DOMAINS = TransportVersion.V_8_2_0;
     public static final TransportVersion VERSION_METADATA_BEYOND_GENERIC_MAP = TransportVersion.V_8_8_0;
+    public static final Version VERSION_API_KEYS_WITH_REMOTE_INDICES = Version.V_8_8_0;
+    public static final TransportVersion TRANSPORT_VERSION_API_KEYS_WITH_REMOTE_INDICES = TransportVersion.V_8_8_0;
     private final AuthenticationType type;
     private final Subject authenticatingSubject;
     private final Subject effectiveSubject;
@@ -1018,21 +1022,13 @@ public final class Authentication implements ToXContentObject {
     public Authentication toRemoteAccess(RemoteAccessAuthentication remoteAccessAuthentication) {
         assert isApiKey() : "can only convert API key authentication to remote access";
         assert false == isRunAs() : "remote access does not support authentication with run-as";
+        assert getEffectiveSubject().getUser().roles().length == 0
+            : "the user associated with a remote access authentication must have no role";
         final Map<String, Object> metadata = new HashMap<>(getAuthenticatingSubject().getMetadata());
         final Authentication.RealmRef authenticatedBy = newRemoteAccessRealmRef(getAuthenticatingSubject().getRealm().getNodeName());
-        final User userFromRemoteCluster = remoteAccessAuthentication.getAuthentication().getEffectiveSubject().getUser();
-        assert userFromRemoteCluster.enabled() : "the user received from a remote cluster must be enabled";
-        final User userWithoutRoles = new User(
-            userFromRemoteCluster.principal(),
-            EMPTY_ARRAY,
-            userFromRemoteCluster.fullName(),
-            userFromRemoteCluster.email(),
-            userFromRemoteCluster.metadata(),
-            userFromRemoteCluster.enabled()
-        );
         final Authentication authentication = new Authentication(
             new Subject(
-                userWithoutRoles,
+                getEffectiveSubject().getUser(),
                 authenticatedBy,
                 TransportVersion.CURRENT,
                 remoteAccessAuthentication.copyWithRemoteAccessEntries(metadata)
@@ -1066,6 +1062,22 @@ public final class Authentication implements ToXContentObject {
                 : "metadata must contain role descriptor for API key authentication";
             assert metadata.containsKey(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
                 : "metadata must contain limited role descriptor for API key authentication";
+            if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(TRANSPORT_VERSION_API_KEYS_WITH_REMOTE_INDICES)
+                && streamVersion.before(TRANSPORT_VERSION_API_KEYS_WITH_REMOTE_INDICES)) {
+                metadata = new HashMap<>(metadata);
+                metadata.put(
+                    AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                    maybeRemoveRemoteIndicesFromRoleDescriptors(
+                        (BytesReference) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)
+                    )
+                );
+                metadata.put(
+                    AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                    maybeRemoveRemoteIndicesFromRoleDescriptors(
+                        (BytesReference) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
+                    )
+                );
+            }
             if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)
                 && streamVersion.before(VERSION_API_KEY_ROLES_AS_BYTES)) {
                 metadata = new HashMap<>(metadata);
@@ -1128,6 +1140,32 @@ public final class Authentication implements ToXContentObject {
             return BytesReference.bytes(builder);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    static BytesReference maybeRemoveRemoteIndicesFromRoleDescriptors(BytesReference roleDescriptorsBytes) {
+        if (roleDescriptorsBytes == null || roleDescriptorsBytes.length() == 0) {
+            return roleDescriptorsBytes;
+        }
+
+        final Map<String, Object> roleDescriptorsMap = convertRoleDescriptorsBytesToMap(roleDescriptorsBytes);
+        final AtomicBoolean removedAtLeastOne = new AtomicBoolean(false);
+        roleDescriptorsMap.entrySet().stream().forEach(entry -> {
+            if (entry.getValue() instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> roleDescriptor = (Map<String, Object>) entry.getValue();
+                boolean removed = roleDescriptor.remove(RoleDescriptor.Fields.REMOTE_INDICES.getPreferredName()) != null;
+                if (removed) {
+                    removedAtLeastOne.set(true);
+                }
+            }
+        });
+
+        if (removedAtLeastOne.get()) {
+            return convertRoleDescriptorsMapToBytes(roleDescriptorsMap);
+        } else {
+            // No need to serialize if we did not remove anything.
+            return roleDescriptorsBytes;
         }
     }
 

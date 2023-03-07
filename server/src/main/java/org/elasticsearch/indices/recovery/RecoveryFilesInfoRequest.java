@@ -18,8 +18,8 @@ import java.util.List;
 
 public class RecoveryFilesInfoRequest extends RecoveryTransportRequest {
 
-    private long recoveryId;
-    private ShardId shardId;
+    private final long recoveryId;
+    private final ShardId shardId;
 
     List<String> phase1FileNames;
     List<Long> phase1FileSizes;

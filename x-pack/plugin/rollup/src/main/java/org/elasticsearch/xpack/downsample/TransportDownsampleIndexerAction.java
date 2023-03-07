@@ -142,7 +142,6 @@ public class TransportDownsampleIndexerAction extends TransportBroadcastAction<
             request.shardId(),
             request.getRollupIndex(),
             request.getRollupConfig(),
-            request.getDimensionFields(),
             request.getMetricFields(),
             request.getLabelFields()
         );

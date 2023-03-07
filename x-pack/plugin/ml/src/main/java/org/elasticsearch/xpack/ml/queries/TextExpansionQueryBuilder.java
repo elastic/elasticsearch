@@ -24,9 +24,9 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
-import org.elasticsearch.xpack.core.ml.inference.results.SlimResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SlimConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,7 +46,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     private final String fieldName;
     private final String modelText;
     private final String modelId;
-    private SetOnce<SlimResults> weightedTokensSupplier;
+    private SetOnce<TextExpansionResults> weightedTokensSupplier;
 
     public TextExpansionQueryBuilder(String fieldName, String modelText, String modelId) {
         if (fieldName == null) {
@@ -68,7 +68,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         this.modelId = in.readString();
     }
 
-    private TextExpansionQueryBuilder(TextExpansionQueryBuilder other, SetOnce<SlimResults> weightedTokensSupplier) {
+    private TextExpansionQueryBuilder(TextExpansionQueryBuilder other, SetOnce<TextExpansionResults> weightedTokensSupplier) {
         this.fieldName = other.fieldName;
         this.modelText = other.modelText;
         this.modelId = other.modelId;
@@ -123,12 +123,12 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
 
         InferModelAction.Request inferRequest = InferModelAction.Request.forTextInput(
             modelId,
-            SlimConfigUpdate.EMPTY_UPDATE,
+            TextExpansionConfigUpdate.EMPTY_UPDATE,
             List.of(modelText)
         );
         inferRequest.setHighPriority(true);
 
-        SetOnce<SlimResults> slimResultsSupplier = new SetOnce<>();
+        SetOnce<TextExpansionResults> textExpansionResultsSupplier = new SetOnce<>();
         queryRewriteContext.registerAsyncAction((client, listener) -> {
             executeAsyncWithOrigin(client, ML_ORIGIN, InferModelAction.INSTANCE, inferRequest, ActionListener.wrap(inferenceResponse -> {
 
@@ -137,8 +137,8 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
                     return;
                 }
 
-                if (inferenceResponse.getInferenceResults().get(0)instanceof SlimResults slimResults) {
-                    slimResultsSupplier.set(slimResults);
+                if (inferenceResponse.getInferenceResults().get(0)instanceof TextExpansionResults textExpansionResults) {
+                    textExpansionResultsSupplier.set(textExpansionResults);
                     listener.onResponse(null);
                 } else if (inferenceResponse.getInferenceResults().get(0)instanceof WarningInferenceResults warning) {
                     listener.onFailure(new IllegalStateException(warning.getWarning()));
@@ -146,7 +146,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
                     listener.onFailure(
                         new IllegalStateException(
                             "expected a result of type ["
-                                + SlimResults.NAME
+                                + TextExpansionResults.NAME
                                 + "] received ["
                                 + inferenceResponse.getInferenceResults().get(0).getWriteableName()
                                 + "]. Is ["
@@ -158,13 +158,16 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
             }, listener::onFailure));
         });
 
-        return new TextExpansionQueryBuilder(this, slimResultsSupplier);
+        return new TextExpansionQueryBuilder(this, textExpansionResultsSupplier);
     }
 
-    static BoolQueryBuilder weightedTokensToQuery(String fieldName, SlimResults slimResults, QueryRewriteContext queryRewriteContext)
-        throws IOException {
+    static BoolQueryBuilder weightedTokensToQuery(
+        String fieldName,
+        TextExpansionResults textExpansionResults,
+        QueryRewriteContext queryRewriteContext
+    ) throws IOException {
         var boolQuery = QueryBuilders.boolQuery();
-        for (var weightedToken : slimResults.getWeightedTokens()) {
+        for (var weightedToken : textExpansionResults.getWeightedTokens()) {
             boolQuery.should(QueryBuilders.termQuery(fieldName, Integer.toString(weightedToken.token())).boost(weightedToken.weight()));
         }
         boolQuery.minimumShouldMatch(1);

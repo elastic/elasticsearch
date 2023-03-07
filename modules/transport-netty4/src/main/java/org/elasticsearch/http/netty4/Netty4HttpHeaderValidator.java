@@ -18,13 +18,16 @@ import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.util.ReferenceCountUtil;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.TriConsumer;
 
 import java.util.ArrayDeque;
 
-import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidator.State.*;
+import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidator.State.DROPPING_DATA_PERMANENTLY;
+import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidator.State.DROPPING_DATA_UNTIL_NEXT_REQUEST;
+import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidator.State.FORWARDING_DATA;
+import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidator.State.QUEUEING_DATA;
+import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidator.State.WAITING_TO_START;
 
 public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
 
@@ -55,6 +58,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
                 assert pending.isEmpty();
                 pending.add(ReferenceCountUtil.retain(httpObject));
                 requestStart(ctx);
+                assert state == QUEUEING_DATA;
                 break;
             case QUEUEING_DATA:
                 pending.add(ReferenceCountUtil.retain(httpObject));
@@ -122,6 +126,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
 
     private void forwardFullRequest(ChannelHandlerContext ctx) {
         assert ctx.channel().eventLoop().inEventLoop();
+        assert ctx.channel().config().isAutoRead() == false;
         assert state == QUEUEING_DATA;
 
         boolean fullRequestForwarded = forwardData(ctx, pending);
@@ -134,11 +139,13 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
             state = FORWARDING_DATA;
         }
 
+        assert state == WAITING_TO_START || state == QUEUEING_DATA || state == FORWARDING_DATA;
         setAutoReadForState(ctx, state);
     }
 
     private void forwardRequestWithDecoderExceptionAndNoContent(ChannelHandlerContext ctx, Exception e) {
         assert ctx.channel().eventLoop().inEventLoop();
+        assert ctx.channel().config().isAutoRead() == false;
         assert state == QUEUEING_DATA;
 
         HttpObject messageToForward = pending.getFirst();
@@ -158,6 +165,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
             state = DROPPING_DATA_UNTIL_NEXT_REQUEST;
         }
 
+        assert state == WAITING_TO_START || state == QUEUEING_DATA || state == DROPPING_DATA_UNTIL_NEXT_REQUEST;
         setAutoReadForState(ctx, state);
     }
 

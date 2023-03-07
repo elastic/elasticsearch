@@ -109,11 +109,7 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
         // this term should be a length that can be rewriteable to a term query on the prefix field
         final String withinBoundsTerm = "foo";
         assertThat(
-            fieldType.prefixQuery(withinBoundsTerm, CONSTANT_SCORE_REWRITE, randomMockContext()),
-            equalTo(new ConstantScoreQuery(new TermQuery(new Term(NAME + "._index_prefix", withinBoundsTerm))))
-        );
-        assertThat(
-            fieldType.prefixQuery(withinBoundsTerm, null, randomMockContext()),
+            fieldType.prefixQuery(withinBoundsTerm, randomBoolean() ? CONSTANT_SCORE_REWRITE : null, randomMockContext()),
             equalTo(new ConstantScoreQuery(new TermQuery(new Term(NAME + "._index_prefix", withinBoundsTerm))))
         );
 
@@ -122,10 +118,9 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
         // this term should be too long to be rewriteable to a term query on the prefix field
         final String longTerm = "toolongforourprefixfieldthistermis";
         assertThat(
-            fieldType.prefixQuery(longTerm, CONSTANT_SCORE_REWRITE, MOCK_CONTEXT),
+            fieldType.prefixQuery(longTerm, randomBoolean() ? null : CONSTANT_SCORE_REWRITE, MOCK_CONTEXT),
             equalTo(new PrefixQuery(new Term(NAME, longTerm)))
         );
-        assertThat(fieldType.prefixQuery(longTerm, null, MOCK_CONTEXT), equalTo(new PrefixQuery(new Term(NAME, longTerm))));
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,

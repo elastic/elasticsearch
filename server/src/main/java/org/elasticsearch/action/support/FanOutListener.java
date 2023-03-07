@@ -111,7 +111,7 @@ public final class FanOutListener<T> implements ActionListener<T> {
      * @param executor      If not {@link EsExecutors#DIRECT_EXECUTOR_SERVICE}, and the subscribing listener is not completed immediately,
      *                      then it will be completed using the given executor.
      */
-    @SuppressWarnings({ "unchecked" })
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void addListener(@Nullable ThreadContext threadContext, ExecutorService executor, ActionListener<T> listener) {
         final var wrappedListener = fork(executor, preserveContext(threadContext, listener));
         var currentValue = ref.compareAndExchange(EMPTY, wrappedListener);
@@ -171,7 +171,7 @@ public final class FanOutListener<T> implements ActionListener<T> {
      * @throws AssertionError if this listener is not complete yet and assertions are enabled.
      * @throws IllegalStateException if this listener is not complete yet and assertions are disabled.
      */
-    @SuppressWarnings({ "unchecked" })
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public T result() throws Exception {
         if (ref.get()instanceof Result result) {
             return (T) result.get();

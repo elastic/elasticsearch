@@ -8,27 +8,22 @@
 Returns information about search engines.
 
 
-[[get-engine-request]]
+[[list-engines-request]]
 == {api-request-title}
 
 `GET _engine/`
 
-[[get-engine-prereq]]
+[[list-engines-prereq]]
 == {api-prereq-title}
 
 Requires the `manage_engine` cluster privilege.
 Also requires manage `manage_index` privileges on all indices that are added to the search engine.
 
-
-//[[list-engines-desc]]
-//== {api-description-title}
-
-[[get-engine-path-params]]
+[[list-engines-path-params]]
 == {api-path-parms-title}
 
 `q`::
-(Optional, string)
-Query in the Lucene query string syntax, to return only search engines matching the query.
+(Optional, string) Query in the Lucene query string syntax, to return only search engines matching the query.
 
 `size`::
 (Optional, indeger)
@@ -36,13 +31,13 @@ Query in the Lucene query string syntax, to return only search engines matching 
 `from`::
 (Optional, indeger)
 
-[[get-engines-response-codes]]
+[[list-engines-response-codes]]
 == {api-response-codes-title}
 
 `403`::
 Insufficient privileges
 
-[[get-engine-example]]
+[[list-engines-example]]
 == {api-examples-title}
 
 The following example lists all configured search engines:

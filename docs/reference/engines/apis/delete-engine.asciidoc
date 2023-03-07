@@ -20,9 +20,6 @@ Requires the `manage_engine` cluster privilege.
 Also requires manage `manage_index` privileges on all indices that are added to the search engine.
 
 
-//[[get-engine-desc]]
-//== {api-description-title}
-
 [[delete-engine-path-params]]
 == {api-path-parms-title}
 

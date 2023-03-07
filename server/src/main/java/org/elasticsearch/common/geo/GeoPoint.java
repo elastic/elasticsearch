@@ -201,7 +201,7 @@ public class GeoPoint implements SpatialPoint, ToXContentFragment {
     }
 
     /** reset the point using Lucene encoded format for lat and lon */
-    public GeoPoint resetFromEncoded(int encodedLat, int encodedLon) {
+    private GeoPoint resetFromEncoded(int encodedLat, int encodedLon) {
         return reset(GeoEncodingUtils.decodeLatitude(encodedLat), GeoEncodingUtils.decodeLongitude(encodedLon));
     }
 

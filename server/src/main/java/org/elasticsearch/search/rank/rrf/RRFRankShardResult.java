@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.rank.RankShardResult;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -55,5 +56,25 @@ public class RRFRankShardResult implements RankShardResult {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(queryCount);
         out.writeArray(rrfRankDocs);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RRFRankShardResult that = (RRFRankShardResult) o;
+        return queryCount == that.queryCount && Arrays.equals(rrfRankDocs, that.rrfRankDocs);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(queryCount);
+        result = 31 * result + Arrays.hashCode(rrfRankDocs);
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return "RRFRankShardResult{" + "queryCount=" + queryCount + ", rrfRankDocs=" + Arrays.toString(rrfRankDocs) + '}';
     }
 }

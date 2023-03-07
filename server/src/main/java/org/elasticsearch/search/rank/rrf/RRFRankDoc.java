@@ -98,13 +98,19 @@ public class RRFRankDoc extends RankDoc {
 
     @Override
     public String toString() {
-        return "RRFRankDoc{" +
-            "rank=" + rank +
-            ", positions=" + Arrays.toString(positions) +
-            ", scores=" + Arrays.toString(scores) +
-            ", score=" + score +
-            ", doc=" + doc +
-            ", shardIndex=" + shardIndex +
-            '}';
+        return "RRFRankDoc{"
+            + "rank="
+            + rank
+            + ", positions="
+            + Arrays.toString(positions)
+            + ", scores="
+            + Arrays.toString(scores)
+            + ", score="
+            + score
+            + ", doc="
+            + doc
+            + ", shardIndex="
+            + shardIndex
+            + '}';
     }
 }

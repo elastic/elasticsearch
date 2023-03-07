@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.search.rank.rrf.RRFRankDoc;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -62,10 +61,6 @@ public abstract class RankDoc extends ScoreDoc implements VersionedNamedWriteabl
 
     @Override
     public String toString() {
-        return "RankDoc{" +
-            "score=" + score +
-            ", doc=" + doc +
-            ", shardIndex=" + shardIndex +
-            '}';
+        return "RankDoc{" + "score=" + score + ", doc=" + doc + ", shardIndex=" + shardIndex + '}';
     }
 }

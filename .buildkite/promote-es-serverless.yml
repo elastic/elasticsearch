@@ -7,10 +7,10 @@ steps:
       env:
         ELASTICSEARCH_SUBMODULE_COMMIT: "${BUILDKITE_COMMIT}"
 
-  - wait:
-
-  - label: ":git: Update elasticsearch submodule commit"
-    commands:
-      - "git commit -m 'Update elasticsearch submodule'"
-      - "git push origin"
+#  - wait:
+#
+#  - label: ":git: Update elasticsearch submodule commit"
+#    commands:
+#      - "git commit -m 'Update elasticsearch submodule'"
+#      - "git push origin"
 

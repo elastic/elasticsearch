@@ -172,7 +172,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         doAnswer((Answer<CompletableFuture<Void>>) invocation -> {
             processFileLatch.countDown();
             return CompletableFuture.completedFuture(null);
-        }).when(service).processFileSettings(any());
+        }).when(service).processFileChanges(any());
 
         service.start();
         service.startWatcher(clusterService.state());
@@ -187,7 +187,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         processFileLatch.await(30, TimeUnit.SECONDS);
 
         verify(service, Mockito.atLeast(1)).processSettingsAndNotifyListeners();
-        verify(service, Mockito.atLeast(1)).processFileSettings(any());
+        verify(service, Mockito.atLeast(1)).processFileChanges(any());
 
         service.stop();
         assertFalse(service.watching());
@@ -208,7 +208,7 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         final FileSettingsService service = spy(new FileSettingsService(clusterService, stateService, env));
 
-        service.addFileSettingsChangedListener(() -> settingsChanged.set(true));
+        service.addFileChangedListener(() -> settingsChanged.set(true));
 
         doAnswer((Answer<Void>) invocation -> {
             invocation.callRealMethod();
@@ -226,7 +226,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         // wait until the watcher thread has started, and it has discovered the file
         assertTrue(latch.await(20, TimeUnit.SECONDS));
 
-        verify(service, times(1)).processFileSettings(any());
+        verify(service, times(1)).processFileChanges(any());
         // assert we never notified any listeners of successful application of file based settings
         assertFalse(settingsChanged.get());
 
@@ -249,7 +249,7 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         final FileSettingsService service = spy(new FileSettingsService(clusterService, stateService, env));
 
-        service.addFileSettingsChangedListener(() -> settingsChanged.set(true));
+        service.addFileChangedListener(() -> settingsChanged.set(true));
 
         doAnswer((Answer<Void>) invocation -> {
             invocation.callRealMethod();
@@ -267,7 +267,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         // wait until the watcher thread has started, and it has discovered the file
         assertTrue(latch.await(20, TimeUnit.SECONDS));
 
-        verify(service, times(1)).processFileSettings(any());
+        verify(service, times(1)).processFileChanges(any());
         // assert we notified the listeners the file settings have changed, they were successfully applied
         assertTrue(settingsChanged.get());
 

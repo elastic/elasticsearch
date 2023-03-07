@@ -19,11 +19,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.BufferedInputStream;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.FileTime;
-import java.time.Instant;
 
 import static org.elasticsearch.xcontent.XContentType.JSON;
 
@@ -89,33 +86,21 @@ public class FileSettingsService extends AbstractFileWatchingService {
     }
 
     /**
-     * 'Touches' the settings file so the file watcher will re-processes it.
-     * <p>
-     * The file processing is asynchronous, the cluster state or the file must be already updated such that
-     * the version information in the file is newer than what's already saved as processed in the
-     * cluster state.
-     *
-     * For snapshot restores we first must restore the snapshot and then force a refresh, since the cluster state
-     * metadata version must be reset to 0 and saved in the cluster state.
+     * If the file settings metadata version is set to zero, then we have restored from
+     * a snapshot and must reprocess the file.
+     * @param clusterState State of the cluster
+     * @return true if file settings metadata version is exactly 0, false otherwise.
      */
     @Override
-    protected void refreshExistingFileStateIfNeeded(ClusterState clusterState) {
-        if (watching()) {
-            ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);
-            // We check if the version was reset to 0, and force an update if a file exists. This can happen in situations
-            // like snapshot restores.
-            if (fileSettingsMetadata != null && fileSettingsMetadata.version() == 0L && Files.exists(watchedFile())) {
-                try {
-                    Files.setLastModifiedTime(watchedFile(), FileTime.from(Instant.now()));
-                } catch (IOException e) {
-                    logger.warn("encountered I/O error trying to update file settings timestamp", e);
-                }
-            }
-        }
+    protected boolean shouldRefreshFileState(ClusterState clusterState) {
+        // We check if the version was reset to 0, and force an update if a file exists. This can happen in situations
+        // like snapshot restores.
+        ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);
+        return fileSettingsMetadata != null && fileSettingsMetadata.version() == 0L;
     }
 
     @Override
-    PlainActionFuture<Void> processFileSettings(Path path) {
+    PlainActionFuture<Void> processFileChanges(Path path) {
         PlainActionFuture<Void> completion = PlainActionFuture.newFuture();
         logger.info("processing path [{}] for [{}]", path, NAMESPACE);
         try (

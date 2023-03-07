@@ -28,6 +28,8 @@ import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
@@ -40,7 +42,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     protected final ReservedClusterStateService stateService;
     protected final Path watchedFileDir;
     protected final Path watchedFile;
-    protected final List<FileSettingsChangedListener> eventListeners;
+    protected final List<FileChangedListener> eventListeners;
     protected WatchService watchService; // null;
     protected Thread watcherThread;
     protected FileSettingsService.FileUpdateState fileUpdateState;
@@ -62,14 +64,47 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         this.eventListeners = new CopyOnWriteArrayList<>();
     }
 
-    // TODO[wrb]: javadoc
-    abstract PlainActionFuture<Void> processFileSettings(Path path);
+    /**
+     * Any implementation of this class must implement this method in order
+     * to define what happens once the watched file changes.
+     */
+    abstract PlainActionFuture<Void> processFileChanges(Path path);
 
-    // TODO[wrb]: javadoc
-    protected abstract void refreshExistingFileStateIfNeeded(ClusterState clusterState);
+    /**
+     * There may be an indication in cluster state that the file we are watching
+     * should be re-processed: for example, after cluster state has been restored
+     * from a snapshot. By default, we do nothing, but this method should be overridden
+     * if different behavior is desired.
+     * @param clusterState State of the cluster
+     * @return false, by default
+     */
+    protected boolean shouldRefreshFileState(ClusterState clusterState) {
+        return false;
+    }
 
-    // TODO[wrb]: rename
-    public void addFileSettingsChangedListener(FileSettingsChangedListener listener) {
+    /**
+     * 'Touches' the settings file so the file watcher will re-processes it.
+     * <p>
+     * The file processing is asynchronous, the cluster state or the file must be already updated such that
+     * the version information in the file is newer than what's already saved as processed in the
+     * cluster state.
+     *
+     * For snapshot restores we first must restore the snapshot and then force a refresh, since the cluster state
+     * metadata version must be reset to 0 and saved in the cluster state.
+     */
+    protected void refreshExistingFileStateIfNeeded(ClusterState clusterState) {
+        if (watching()) {
+            if (shouldRefreshFileState(clusterState) && Files.exists(watchedFile())) {
+                try {
+                    Files.setLastModifiedTime(watchedFile(), FileTime.from(Instant.now()));
+                } catch (IOException e) {
+                    logger.warn("encountered I/O error trying to update file settings timestamp", e);
+                }
+            }
+        }
+    }
+
+    public void addFileChangedListener(FileChangedListener listener) {
         eventListeners.add(listener);
     }
 
@@ -102,11 +137,10 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         }
     }
 
-    // TODO[wrb]: update logging
     @Override
     protected void doStop() {
         this.active = false;
-        logger.debug("Stopping file settings service");
+        logger.debug("Stopping file watching service");
         stopWatcher();
     }
 
@@ -148,7 +182,6 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         }
     }
 
-    // TODO[wrb]: update logging
     synchronized void startWatcher(ClusterState clusterState) {
         if (watching() || active == false) {
             refreshExistingFileStateIfNeeded(clusterState);
@@ -156,7 +189,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
             return;
         }
 
-        logger.info("starting file settings watcher ...");
+        logger.info("starting file watcher ...");
 
         /*
          * We essentially watch for two things:
@@ -169,7 +202,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
             if (Files.exists(settingsDirPath)) {
                 settingsDirWatchKey = enableDirectoryWatcher(settingsDirWatchKey, settingsDirPath);
             } else {
-                logger.debug("operator settings directory [{}] not found, will watch for its creation...", settingsDirPath);
+                logger.debug("watched directory [{}] not found, will watch for its creation...", settingsDirPath);
             }
             // We watch the config directory always, even if initially we had an operator directory
             // it can be deleted and created later. The config directory never goes away, we only
@@ -190,6 +223,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
             throw new IllegalStateException("unable to launch a new watch service", e);
         }
 
+        // TODO[wrb]: update thread name
         watcherThread = new Thread(this::watcherThread, "elasticsearch[file-settings-watcher]");
         watcherThread.start();
     }
@@ -206,7 +240,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
             } else {
                 // Notify everyone we don't have any initial file settings
                 for (var listener : eventListeners) {
-                    listener.settingsChanged();
+                    listener.watchedFileChanged();
                 }
             }
 
@@ -260,7 +294,6 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         }
     }
 
-    // TODO[wrb]: update logging
     synchronized void stopWatcher() {
         if (watching()) {
             logger.debug("stopping watcher ...");
@@ -289,7 +322,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
                 logger.info("watcher service stopped");
             }
         } else {
-            logger.trace("file settings service already stopped");
+            logger.trace("file watch service already stopped");
         }
     }
 
@@ -322,12 +355,12 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     // package private for testing
     void processSettingsAndNotifyListeners() throws InterruptedException {
         try {
-            processFileSettings(watchedFile()).get();
+            processFileChanges(watchedFile()).get();
             for (var listener : eventListeners) {
-                listener.settingsChanged();
+                listener.watchedFileChanged();
             }
         } catch (ExecutionException e) {
-            logger.error("Error processing operator settings json file", e.getCause());
+            logger.error("Error processing watched file: {}", watchedFile(), e.getCause());
         }
     }
 

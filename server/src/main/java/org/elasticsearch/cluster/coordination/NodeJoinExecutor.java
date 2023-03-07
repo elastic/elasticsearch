@@ -24,12 +24,14 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -102,6 +104,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         }
 
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(newState.nodes());
+        ImmutableOpenMap.Builder<String, TransportVersion> transportVersions = ImmutableOpenMap.builder(newState.transportVersions());
 
         assert nodesBuilder.isLocalNodeElectedMaster();
 
@@ -120,18 +123,17 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     logger.debug("received a join request for an existing node [{}]", node);
                 } else {
                     try {
+                        TransportVersion transportVersion = transportService.getConnection(node).getTransportVersion();
                         if (enforceVersionBarrier) {
                             ensureVersionBarrier(node.getVersion(), minClusterNodeVersion);
-                            ensureTransportVersionBarrier(
-                                transportService.getConnection(node).getTransportVersion(),
-                                transportService.getMinTransportVersion(n -> n.equals(node) == false)
-                            );
+                            ensureTransportVersionBarrier(transportVersion, transportVersions.build().values());
                         }
                         ensureNodesCompatibility(node.getVersion(), minClusterNodeVersion, maxClusterNodeVersion);
                         // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
                         // we have to reject nodes that don't support all indices we have in this cluster
                         ensureIndexCompatibility(node.getVersion(), initialState.getMetadata());
                         nodesBuilder.add(node);
+                        transportVersions.put(node.getId(), transportVersion);
                         nodesChanged = true;
                         minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
                         maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
@@ -346,8 +348,11 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
      **/
     private static void ensureTransportVersionBarrier(
         TransportVersion joiningTransportVersion,
-        TransportVersion minClusterTransportVersion
+        Collection<TransportVersion> existingTransportVersions
     ) {
+        TransportVersion minClusterTransportVersion = existingTransportVersions.stream()
+            .min(Comparator.naturalOrder())
+            .orElse(TransportVersion.CURRENT);
         if (joiningTransportVersion.before(minClusterTransportVersion)) {
             throw new IllegalStateException(
                 "node with transport version ["

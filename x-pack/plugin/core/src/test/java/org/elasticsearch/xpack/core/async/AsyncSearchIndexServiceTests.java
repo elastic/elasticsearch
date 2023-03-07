@@ -121,8 +121,7 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
         TransportService transportService = getInstanceFromNode(TransportService.class);
         indexService = new AsyncTaskIndexService<>(
             "test",
-            transportService,
-            clusterService,
+                clusterService,
             transportService.getThreadPool().getThreadContext(),
             client(),
             ASYNC_SEARCH_ORIGIN,
@@ -247,8 +246,7 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
         TransportService transportService = getInstanceFromNode(TransportService.class);
         indexService = new AsyncTaskIndexService<>(
             "test",
-            transportService,
-            clusterService,
+                clusterService,
             transportService.getThreadPool().getThreadContext(),
             client(),
             ASYNC_SEARCH_ORIGIN,

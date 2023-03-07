@@ -51,8 +51,7 @@ public class TransportGetAsyncStatusAction extends HandledTransportAction<GetAsy
         this.clusterService = clusterService;
         this.store = new AsyncTaskIndexService<>(
             XPackPlugin.ASYNC_RESULTS_INDEX,
-            transportService,
-            clusterService,
+                clusterService,
             threadPool.getThreadContext(),
             client,
             ASYNC_SEARCH_ORIGIN,

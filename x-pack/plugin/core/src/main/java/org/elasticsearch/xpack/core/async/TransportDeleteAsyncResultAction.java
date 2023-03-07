@@ -44,8 +44,7 @@ public class TransportDeleteAsyncResultAction extends HandledTransportAction<Del
         this.clusterService = clusterService;
         AsyncTaskIndexService<?> store = new AsyncTaskIndexService<>(
             XPackPlugin.ASYNC_RESULTS_INDEX,
-            transportService,
-            clusterService,
+                clusterService,
             threadPool.getThreadContext(),
             client,
             ASYNC_SEARCH_ORIGIN,

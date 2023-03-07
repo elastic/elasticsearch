@@ -158,12 +158,11 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private final Writeable.Reader<R> reader;
     private final BigArrays bigArrays;
     private volatile long maxResponseSize;
-    private final TransportService transportService;
+    private final ClusterService clusterService;
     private final CircuitBreaker circuitBreaker;
 
     public AsyncTaskIndexService(
         String index,
-        TransportService transportService,
         ClusterService clusterService,
         ThreadContext threadContext,
         Client client,
@@ -182,7 +181,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         this.maxResponseSize = MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.get(clusterService.getSettings()).getBytes();
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING, (v) -> maxResponseSize = v.getBytes());
-        this.transportService = transportService;
+        this.clusterService = clusterService;
         this.circuitBreaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
     }
 
@@ -571,7 +570,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private void writeResponse(R response, OutputStream os) throws IOException {
         // do not close the output
         os = Streams.noCloseStream(os);
-        TransportVersion minNodeVersion = transportService.getMinTransportVersion();
+        TransportVersion minNodeVersion = clusterService.state().getMinTransportVersion();
         TransportVersion.writeVersion(minNodeVersion, new OutputStreamStreamOutput(os));
         if (minNodeVersion.onOrAfter(TransportVersion.V_7_15_0)) {
             os = CompressorFactory.COMPRESSOR.threadLocalOutputStream(os);

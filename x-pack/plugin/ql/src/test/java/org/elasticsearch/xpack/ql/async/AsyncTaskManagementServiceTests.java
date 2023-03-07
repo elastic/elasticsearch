@@ -161,8 +161,7 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
         BigArrays bigArrays = getInstanceFromNode(BigArrays.class);
         AsyncTaskIndexService<StoredAsyncResponse<TestResponse>> store = new AsyncTaskIndexService<>(
             index,
-            transportService,
-            clusterService,
+                clusterService,
             transportService.getThreadPool().getThreadContext(),
             client(),
             "test",
@@ -201,8 +200,7 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
             "test_action",
             operation,
             TestTask.class,
-            transportService,
-            clusterService,
+                clusterService,
             transportService.getThreadPool(),
             bigArrays
         );

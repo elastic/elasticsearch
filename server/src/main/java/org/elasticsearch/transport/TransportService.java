@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
@@ -49,13 +48,11 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.UnknownHostException;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -89,7 +86,6 @@ public class TransportService extends AbstractLifecycleComponent
     private final boolean remoteClusterClient;
     private final Transport.ResponseHandlers responseHandlers;
     private final TransportInterceptor interceptor;
-    private final ConcurrentMap<DiscoveryNode, TransportVersion> transportVersions = ConcurrentCollections.newConcurrentMap();
 
     private final PendingDirectHandlers pendingDirectHandlers = new PendingDirectHandlers();
 
@@ -579,19 +575,6 @@ public class TransportService extends AbstractLifecycleComponent
 
     public ConnectionManager getConnectionManager() {
         return connectionManager;
-    }
-
-    public TransportVersion getMinTransportVersion() {
-        return transportVersions.values().stream().min(Comparator.naturalOrder()).orElse(transport.getVersion());
-    }
-
-    public TransportVersion getMinTransportVersion(Predicate<DiscoveryNode> filter) {
-        return transportVersions.entrySet()
-            .stream()
-            .filter(e -> filter.test(e.getKey()))
-            .map(Map.Entry::getValue)
-            .min(Comparator.naturalOrder())
-            .orElse(transport.getVersion());
     }
 
     public RecyclerBytesStreamOutput newNetworkBytesStream() {
@@ -1263,14 +1246,7 @@ public class TransportService extends AbstractLifecycleComponent
     }
 
     @Override
-    public void onConnectionOpened(Transport.Connection connection) {
-        transportVersions.put(connection.getNode(), connection.getTransportVersion());
-    }
-
-    @Override
     public void onConnectionClosed(Transport.Connection connection) {
-        transportVersions.remove(connection.getNode());
-
         List<Transport.ResponseContext<? extends TransportResponse>> pruned = responseHandlers.prune(
             h -> h.connection().getCacheKey().equals(connection.getCacheKey())
         );

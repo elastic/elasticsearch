@@ -34,6 +34,23 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 
+/**
+ * <p>A file watching service watches for changes in a particular file on disk. There
+ * are three assumptions about the file structure:</p>
+ * <ol>
+ *     <li>The file itself may or may not exist.</li>
+ *     <li>The file's parent directory may or may not exist.</li>
+ *     <li>The directory above the file's parent directory must always exist.</li>
+ * </ol>
+ *
+ * <p>For example, if the watched file is under /usr/elastic/elasticsearch/conf/special/settings.yml,
+ * then /usr/elastic/elasticsearch/conf/ must exist, but special/ and special/settings.yml may
+ * be created, updated, or deleted during runtime.</p>
+ *
+ * <p>What this class does not do is define what should happen after the file changes.
+ * An implementation class should override {@link #processFileChanges(Path)} to define
+ * the correct behavior.</p>
+ */
 public abstract class AbstractFileWatchingService extends AbstractLifecycleComponent implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(FileSettingsService.class);

@@ -113,7 +113,7 @@ public final class FanOutListener<T> implements ActionListener<T> {
      */
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void addListener(@Nullable ThreadContext threadContext, ExecutorService executor, ActionListener<T> listener) {
-        if (ref.get() instanceof Result result) {
+        if (ref.get()instanceof Result result) {
             result.complete(listener);
             return;
         }

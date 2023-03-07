@@ -234,7 +234,7 @@ class GeoHexVisitor extends TriangleTreeVisitor.TriangleTreeDecodedVisitor {
             return GeoRelation.QUERY_CONTAINS;
         }
         // 2. check crossings
-        if (edgeIntersectsQuery(aX, aY, bX, bY, true)) {
+        if (edgeIntersectsQuery(aX, aY, bX, bY)) {
             return GeoRelation.QUERY_CROSSES;
         }
         return GeoRelation.QUERY_DISJOINT;
@@ -297,21 +297,21 @@ class GeoHexVisitor extends TriangleTreeVisitor.TriangleTreeDecodedVisitor {
         }
 
         boolean within = false;
-        if (edgeIntersectsQuery(aX, aY, bX, bY, false)) {
+        if (edgeIntersectsQuery(aX, aY, bX, bY)) {
             if (ab) {
                 return GeoRelation.QUERY_CROSSES;
             }
             within = true;
         }
 
-        if (edgeIntersectsQuery(bX, bY, cX, cY, false)) {
+        if (edgeIntersectsQuery(bX, bY, cX, cY)) {
             if (bc) {
                 return GeoRelation.QUERY_CROSSES;
             }
             within = true;
         }
 
-        if (edgeIntersectsQuery(cX, cY, aX, aY, false)) {
+        if (edgeIntersectsQuery(cX, cY, aX, aY)) {
             if (ca) {
                 return GeoRelation.QUERY_CROSSES;
             }
@@ -328,13 +328,13 @@ class GeoHexVisitor extends TriangleTreeVisitor.TriangleTreeDecodedVisitor {
     /**
      * returns true if the edge (defined by (ax, ay) (bx, by)) intersects the query
      */
-    private boolean edgeIntersectsQuery(double ax, double ay, double bx, double by, boolean includeBoundary) {
+    private boolean edgeIntersectsQuery(double ax, double ay, double bx, double by) {
         final double minX = Math.min(ax, bx);
         final double maxX = Math.max(ax, bx);
         final double minY = Math.min(ay, by);
         final double maxY = Math.max(ay, by);
         return boxesAreDisjoint(minX, maxX, minY, maxY) == false
-            && H3CartesianUtil.crossesLine(xs, ys, numPoints, crossesDateline, minX, maxX, minY, maxY, ax, ay, bx, by, includeBoundary);
+            && H3CartesianUtil.crossesLine(xs, ys, numPoints, crossesDateline, minX, maxX, minY, maxY, ax, ay, bx, by, true);
     }
 
     /**

@@ -36,4 +36,9 @@ class ShardCountStatsTest extends AbstractWireSerializingTestCase<ShardCountStat
     protected ShardCountStats createTestInstance() {
         return new ShardCountStats(randomIntBetween(0, Integer.MAX_VALUE));
     }
+
+    @Override
+    protected ShardCountStats mutateInstance(ShardCountStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

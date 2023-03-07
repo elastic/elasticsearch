@@ -28,6 +28,11 @@ public class DeleteActionTests extends AbstractActionTestCase<DeleteAction> {
     }
 
     @Override
+    protected DeleteAction mutateInstance(DeleteAction instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<DeleteAction> instanceReader() {
         return DeleteAction::readFrom;
     }

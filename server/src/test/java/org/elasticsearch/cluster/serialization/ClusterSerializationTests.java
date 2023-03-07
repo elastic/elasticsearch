@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.serialization;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -36,7 +38,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -57,7 +59,9 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1))
             .build();
 
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
+            .build();
 
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(newNode("node1"))
@@ -94,7 +98,9 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1))
             .build();
 
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
+            .build();
 
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")).build();
 
@@ -156,12 +162,16 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
         // serialize with current version
         BytesStreamOutput outStream = new BytesStreamOutput();
-        Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
-        outStream.setVersion(version);
+        TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersion.CURRENT
+        );
+        outStream.setTransportVersion(version);
         diffs.writeTo(outStream);
         StreamInput inStream = outStream.bytes().streamInput();
         inStream = new NamedWriteableAwareStreamInput(inStream, new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
-        inStream.setVersion(version);
+        inStream.setTransportVersion(version);
         Diff<ClusterState> serializedDiffs = ClusterState.readDiffFrom(inStream, clusterState.nodes().getLocalNode());
         ClusterState stateAfterDiffs = serializedDiffs.apply(ClusterState.EMPTY_STATE);
         assertThat(stateAfterDiffs.custom(RestoreInProgress.TYPE), includeRestore ? notNullValue() : nullValue());
@@ -170,11 +180,11 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         // remove the custom and try serializing again
         clusterState = ClusterState.builder(clusterState).removeCustom(SnapshotDeletionsInProgress.TYPE).incrementVersion().build();
         outStream = new BytesStreamOutput();
-        outStream.setVersion(version);
+        outStream.setTransportVersion(version);
         diffs.writeTo(outStream);
         inStream = outStream.bytes().streamInput();
         inStream = new NamedWriteableAwareStreamInput(inStream, new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
-        inStream.setVersion(version);
+        inStream.setTransportVersion(version);
         serializedDiffs = ClusterState.readDiffFrom(inStream, clusterState.nodes().getLocalNode());
         stateAfterDiffs = serializedDiffs.apply(stateAfterDiffs);
         assertThat(stateAfterDiffs.custom(RestoreInProgress.TYPE), includeRestore ? notNullValue() : nullValue());
@@ -183,7 +193,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
     private ClusterState updateUsingSerialisedDiff(ClusterState original, Diff<ClusterState> diff) throws IOException {
         BytesStreamOutput outStream = new BytesStreamOutput();
-        outStream.setVersion(Version.CURRENT);
+        outStream.setTransportVersion(TransportVersion.CURRENT);
         diff.writeTo(outStream);
         StreamInput inStream = new NamedWriteableAwareStreamInput(
             outStream.bytes().streamInput(),
@@ -204,14 +214,16 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             .build();
         Metadata metadata = Metadata.builder().put(indexMetadata, true).put(indexTemplateMetadata).build();
 
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
+            .build();
 
         ClusterState clusterState1 = ClusterState.builder(new ClusterName("clusterName1"))
             .metadata(metadata)
             .routingTable(routingTable)
             .build();
         BytesStreamOutput outStream = new BytesStreamOutput();
-        outStream.setVersion(Version.CURRENT);
+        outStream.setTransportVersion(TransportVersion.CURRENT);
         clusterState1.writeTo(outStream);
         StreamInput inStream = new NamedWriteableAwareStreamInput(
             outStream.bytes().streamInput(),
@@ -305,8 +317,8 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.CURRENT;
         }
 
     }
@@ -348,8 +360,8 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT.minimumCompatibilityVersion();
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.MINIMUM_COMPATIBLE;
         }
 
     }
@@ -372,13 +384,13 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
         // serialize with current version
         BytesStreamOutput outStream = new BytesStreamOutput();
-        Version version = Version.CURRENT;
-        outStream.setVersion(version);
+        TransportVersion version = TransportVersion.CURRENT;
+        outStream.setTransportVersion(version);
         diffs.writeTo(outStream);
         StreamInput inStream = outStream.bytes().streamInput();
 
         inStream = new NamedWriteableAwareStreamInput(inStream, new NamedWriteableRegistry(entries));
-        inStream.setVersion(version);
+        inStream.setTransportVersion(version);
         Diff<ClusterState> serializedDiffs = ClusterState.readDiffFrom(inStream, clusterState.nodes().getLocalNode());
         ClusterState stateAfterDiffs = serializedDiffs.apply(ClusterState.EMPTY_STATE);
 
@@ -388,13 +400,13 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
         // serialize with minimum compatibile version
         outStream = new BytesStreamOutput();
-        version = Version.CURRENT.minimumCompatibilityVersion();
-        outStream.setVersion(version);
+        version = TransportVersion.MINIMUM_COMPATIBLE;
+        outStream.setTransportVersion(version);
         diffs.writeTo(outStream);
         inStream = outStream.bytes().streamInput();
 
         inStream = new NamedWriteableAwareStreamInput(inStream, new NamedWriteableRegistry(entries));
-        inStream.setVersion(version);
+        inStream.setTransportVersion(version);
         serializedDiffs = ClusterState.readDiffFrom(inStream, clusterState.nodes().getLocalNode());
         stateAfterDiffs = serializedDiffs.apply(ClusterState.EMPTY_STATE);
 

@@ -12,6 +12,7 @@ import org.elasticsearch.test.cluster.EnvironmentProvider;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.SettingsProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 
 import java.util.ArrayList;
@@ -20,6 +21,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> implements LocalSpecBuilder<T> {
@@ -31,9 +33,14 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     private final Set<String> modules = new HashSet<>();
     private final Set<String> plugins = new HashSet<>();
     private final Set<FeatureFlag> features = new HashSet<>();
+    private final List<SettingsProvider> keystoreProviders = new ArrayList<>();
     private final Map<String, String> keystoreSettings = new HashMap<>();
+    private final Map<String, Resource> keystoreFiles = new HashMap<>();
     private final Map<String, Resource> extraConfigFiles = new HashMap<>();
+    private final Map<String, String> systemProperties = new HashMap<>();
     private DistributionType distributionType;
+    private Version version;
+    private String keystorePassword;
 
     protected AbstractLocalSpecBuilder(AbstractLocalSpecBuilder<?> parent) {
         this.parent = parent;
@@ -58,6 +65,12 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     @Override
     public T setting(String setting, Supplier<String> value) {
         this.settingsProviders.add(s -> Map.of(setting, value.get()));
+        return cast(this);
+    }
+
+    @Override
+    public T setting(String setting, Supplier<String> value, Predicate<LocalClusterSpec.LocalNodeSpec> predicate) {
+        this.settingsProviders.add(s -> predicate.test(s) ? Map.of(setting, value.get()) : Map.of());
         return cast(this);
     }
 
@@ -137,6 +150,26 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     }
 
     @Override
+    public T keystore(String key, Resource file) {
+        this.keystoreFiles.put(key, file);
+        return cast(this);
+    }
+
+    public Map<String, Resource> getKeystoreFiles() {
+        return inherit(() -> parent.getKeystoreFiles(), keystoreFiles);
+    }
+
+    @Override
+    public T keystore(String key, Supplier<String> supplier) {
+        this.keystoreProviders.add(s -> Map.of(key, supplier.get()));
+        return cast(this);
+    }
+
+    public List<SettingsProvider> getKeystoreProviders() {
+        return inherit(() -> parent.getKeystoreProviders(), keystoreProviders);
+    }
+
+    @Override
     public T configFile(String fileName, Resource configFile) {
         this.extraConfigFiles.put(fileName, configFile);
         return cast(this);
@@ -144,6 +177,36 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
 
     public Map<String, Resource> getExtraConfigFiles() {
         return inherit(() -> parent.getExtraConfigFiles(), extraConfigFiles);
+    }
+
+    @Override
+    public T systemProperty(String property, String value) {
+        this.systemProperties.put(property, value);
+        return cast(this);
+    }
+
+    public Map<String, String> getSystemProperties() {
+        return inherit(() -> parent.getSystemProperties(), systemProperties);
+    }
+
+    @Override
+    public T keystorePassword(String password) {
+        this.keystorePassword = password;
+        return cast(this);
+    }
+
+    public String getKeystorePassword() {
+        return inherit(() -> parent.getKeystorePassword(), keystorePassword);
+    }
+
+    @Override
+    public T version(Version version) {
+        this.version = version;
+        return cast(this);
+    }
+
+    public Version getVersion() {
+        return inherit(() -> parent.getVersion(), version);
     }
 
     private <T> List<T> inherit(Supplier<List<T>> parent, List<T> child) {

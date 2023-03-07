@@ -917,4 +917,11 @@ public class Strings {
             .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
             .toString();
     }
+
+    /**
+     * Alias for {@link org.elasticsearch.core.Strings#format}
+     */
+    public static String format(String format, Object... args) {
+        return org.elasticsearch.core.Strings.format(format, args);
+    }
 }

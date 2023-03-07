@@ -12,7 +12,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -30,6 +29,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -520,13 +520,13 @@ public class NestedAggregatorTests extends AggregatorTestCase {
             for (int j = 0; j < numChapters; j++) {
                 chapters[j] = randomIntBetween(2, 64);
             }
-            books.add(Tuple.tuple(formatted("%03d", i), chapters));
+            books.add(Tuple.tuple(Strings.format("%03d", i), chapters));
         }
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
                 int id = 0;
                 for (Tuple<String, int[]> book : books) {
-                    iw.addDocuments(generateBook(formatted("%03d", id), new String[] { book.v1() }, book.v2()));
+                    iw.addDocuments(generateBook(Strings.format("%03d", id), new String[] { book.v1() }, book.v2()));
                     id++;
                 }
             }
@@ -900,8 +900,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         document.add(new Field(NestedPathFieldMapper.NAME, "book", NestedPathFieldMapper.Defaults.FIELD_TYPE));
         sequenceIDFields.addFields(document);
         for (String author : authors) {
-            document.add(new Field("author", author, KeywordFieldMapper.Defaults.FIELD_TYPE));
-            document.add(new SortedSetDocValuesField("author", new BytesRef(author)));
+            document.add(new Field("author", new BytesRef(author), KeywordFieldMapper.Defaults.FIELD_TYPE));
         }
         documents.add(document);
 

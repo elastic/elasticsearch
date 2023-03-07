@@ -35,7 +35,6 @@ import org.hamcrest.Matchers;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -155,12 +154,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
                     }
                 });
         }
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("index1")
-                .setSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", node1))
-        );
+        updateIndexSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", node1), "index1");
         ensureGreen("index1");
     }
 
@@ -201,27 +195,13 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
 
         // add a node: 3 out of the 6 shards will be relocated to it
         // disable allocation before starting a new node, as we need to register the listener first
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
-                )
-        );
+        updateClusterSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"));
         String node2 = internalCluster().startNode();
         IndexShardStateChangeListener stateChangeListenerNode2 = new IndexShardStateChangeListener();
         // add a listener that keeps track of the shard state changes
         internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, node2).setNewDelegate(stateChangeListenerNode2);
         // re-enable allocation
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all")
-                )
-        );
+        updateClusterSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all"));
         ensureGreen();
 
         // the 3 relocated shards get closed on the first node
@@ -230,9 +210,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         assertShardStatesMatch(stateChangeListenerNode2, 3, CREATED, RECOVERING, POST_RECOVERY, STARTED);
 
         // increase replicas from 0 to 1
-        assertAcked(
-            client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 1))
-        );
+        setReplicaCount(1, "test");
         ensureGreen();
 
         // 3 replicas are allocated to the first node
@@ -272,7 +250,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         try {
             assertBusy(waitPredicate, 1, TimeUnit.MINUTES);
         } catch (AssertionError ae) {
-            fail(String.format(Locale.ROOT, """
+            fail(Strings.format("""
                 failed to observe expect shard states
                 expected: [%d] shards with states: %s
                 observed:

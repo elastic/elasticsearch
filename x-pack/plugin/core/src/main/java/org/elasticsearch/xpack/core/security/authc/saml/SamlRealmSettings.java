@@ -47,6 +47,18 @@ public class SamlRealmSettings {
         key -> Setting.timeSetting(key, TimeValue.timeValueHours(1), Setting.Property.NodeScope)
     );
 
+    public static final Setting.AffixSetting<TimeValue> IDP_METADATA_HTTP_MIN_REFRESH = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        IDP_METADATA_SETTING_PREFIX + "http.minimum_refresh",
+        key -> Setting.timeSetting(key, TimeValue.timeValueMinutes(5), TimeValue.timeValueMillis(500), Setting.Property.NodeScope)
+    );
+
+    public static final Setting.AffixSetting<Boolean> IDP_METADATA_HTTP_FAIL_ON_ERROR = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        IDP_METADATA_SETTING_PREFIX + "http.fail_on_error",
+        key -> Setting.boolSetting(key, false, Setting.Property.NodeScope)
+    );
+
     public static final Setting.AffixSetting<Boolean> IDP_SINGLE_LOGOUT = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "idp.use_single_logout",
@@ -141,6 +153,8 @@ public class SamlRealmSettings {
             IDP_ENTITY_ID,
             IDP_METADATA_PATH,
             IDP_METADATA_HTTP_REFRESH,
+            IDP_METADATA_HTTP_MIN_REFRESH,
+            IDP_METADATA_HTTP_FAIL_ON_ERROR,
             IDP_SINGLE_LOGOUT,
             SP_ENTITY_ID,
             SP_ACS,

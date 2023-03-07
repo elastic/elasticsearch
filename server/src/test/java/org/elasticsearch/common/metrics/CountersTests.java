@@ -32,7 +32,7 @@ public class CountersTests extends ESTestCase {
         assertThat(counters.get("foo.bar"), equalTo(1L));
         assertThat(counters.get("foo.baz"), equalTo(2L));
         expectThrows(IllegalArgumentException.class, () -> counters.get("foo"));
-        Map<String, Object> map = counters.toNestedMap();
+        Map<String, Object> map = counters.toMutableNestedMap();
         assertThat(map, hasEntry("f", 200L));
         assertThat(map, hasKey("foo"));
         assertThat(map.get("foo"), instanceOf(Map.class));
@@ -58,6 +58,19 @@ public class CountersTests extends ESTestCase {
         assertThat(mergedCounters.get("bar.foo"), equalTo(1L));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testNestedMapMutability() {
+        Counters counters = new Counters();
+        counters.inc("foo.baz");
+        Map<String, Object> map = counters.toMutableNestedMap();
+        try {
+            map.put("test", 1);
+            ((Map<String, Object>) map.get("foo")).put("nested-test", 2);
+        } catch (Exception e) {
+            fail("The map of the counters should be mutable.");
+        }
+    }
+
     public void testPathConflictNestedMapConversion() {
         Counters counters = new Counters();
         counters.inc("foo.bar");
@@ -67,7 +80,7 @@ public class CountersTests extends ESTestCase {
         assertThat(counters.get("foo"), equalTo(1L));
 
         try {
-            counters.toNestedMap();
+            counters.toMutableNestedMap();
             fail("Expected an IllegalStateException but got no exception");
         } catch (IllegalStateException e) {
             assertThat(e.getMessage(), containsString("Failed to convert counter 'foo"));

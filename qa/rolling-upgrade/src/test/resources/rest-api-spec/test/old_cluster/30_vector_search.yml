@@ -1,0 +1,228 @@
+---
+"Create indexed float vectors and search":
+  - do:
+      indices.create:
+        index: test-float-index
+        body:
+          settings:
+            number_of_shards: "1"
+          mappings:
+            properties:
+              bdv:
+                type: dense_vector
+                dims: 3
+              knn:
+                type: dense_vector
+                dims: 3
+                index: true
+                similarity: l2_norm
+  - do:
+      bulk:
+        index: test-float-index
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"bdv": [1, 1, 1], "knn": [1, 1, 1]}'
+          - '{"index": {"_id": "2"}}'
+          - '{"bdv": [1, 1, 2], "knn": [1, 1, 2]}'
+          - '{"index": {"_id": "3"}}'
+          - '{"bdv": [1, 1, 3], "knn": [1, 1, 3]}'
+          - '{"index": {"_id": "4"}}'
+          - '{"knn": [1, 2, 1]}'
+          - '{"index": {"_id": "5"}}'
+          - '{"knn": [1, 3, 1]}'
+          - '{"index": {"_id": "6"}}'
+          - '{"knn": [2, 1, 1]}'
+          - '{"index": {"_id": "7"}}'
+          - '{"knn": [3, 1, 1]}'
+          - '{"index": {"_id": "missing_vector"}}'
+          - '{}'
+  - do:
+      indices.forcemerge:
+        index: test-float-index
+        max_num_segments: 1
+  - do:
+      search:
+        index: test-float-index
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
+                  field(params.field).get().dotProduct(params.query)
+                params:
+                  query: [4, 5, 6]
+                  field: bdv
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0._score: 27 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 21 }
+  - match: { hits.hits.2._id: "1" }
+  - match: { hits.hits.2._score: 15 }
+
+  - do:
+      search:
+        index: test-float-index
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "knn" } }
+              script:
+                source: |
+                  field(params.field).get().dotProduct(params.query)
+                params:
+                  query: [4, 5, 6]
+                  field: knn
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0._score: 27 }
+  - match: { hits.hits.1._id: "5" }
+  - match: { hits.hits.1._score: 25 }
+  - match: { hits.hits.2._id: "7" }
+  - match: { hits.hits.2._score: 23 }
+
+  - do:
+      search:
+        index: test-float-index
+        body:
+          knn:
+            field: "knn"
+            query_vector: [4, 5, 6]
+            k: 3
+            num_candidates: 7
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "5" }
+  - match: { hits.hits.2._id: "2" }
+
+  - do:
+      search:
+        index: test-float-index
+        body:
+          knn:
+            field: "knn"
+            query_vector: [ 4, 5, 6 ]
+            k: 3
+            num_candidates: 6
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "5" }
+  - match: { hits.hits.2._id: "2" }
+
+
+---
+"Create indexed byte vectors and search":
+  - do:
+      indices.create:
+        index: test-byte-index
+        body:
+          settings:
+            number_of_shards: "1"
+          mappings:
+            properties:
+              bdv:
+                type: dense_vector
+                element_type: byte
+                dims: 3
+              knn:
+                type: dense_vector
+                element_type: byte
+                dims: 3
+                index: true
+                similarity: l2_norm
+  - do:
+      bulk:
+        index: test-byte-index
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"bdv": [1, 1, 1], "knn": [1, 1, 1]}'
+          - '{"index": {"_id": "2"}}'
+          - '{"bdv": [1, 1, 2], "knn": [1, 1, 2]}'
+          - '{"index": {"_id": "3"}}'
+          - '{"bdv": [1, 1, 3], "knn": [1, 1, 3]}'
+          - '{"index": {"_id": "4"}}'
+          - '{"knn": [1, 2, 1]}'
+          - '{"index": {"_id": "5"}}'
+          - '{"knn": [1, 3, 1]}'
+          - '{"index": {"_id": "6"}}'
+          - '{"knn": [2, 1, 1]}'
+          - '{"index": {"_id": "7"}}'
+          - '{"knn": [3, 1, 1]}'
+          - '{"index": {"_id": "missing_vector"}}'
+          - '{}'
+  - do:
+      indices.forcemerge:
+        index: test-byte-index
+        max_num_segments: 1
+  - do:
+      search:
+        index: test-byte-index
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
+                  field(params.field).get().dotProduct(params.query)
+                params:
+                  query: [4, 5, 6]
+                  field: bdv
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0._score: 27 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 21 }
+  - match: { hits.hits.2._id: "1" }
+  - match: { hits.hits.2._score: 15 }
+
+  - do:
+      search:
+        index: test-byte-index
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "knn" } }
+              script:
+                source: |
+                  field(params.field).get().dotProduct(params.query)
+                params:
+                  query: [4, 5, 6]
+                  field: knn
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0._score: 27 }
+  - match: { hits.hits.1._id: "5" }
+  - match: { hits.hits.1._score: 25 }
+  - match: { hits.hits.2._id: "7" }
+  - match: { hits.hits.2._score: 23 }
+
+  - do:
+      search:
+        index: test-byte-index
+        body:
+          knn:
+            field: "knn"
+            query_vector: [4, 5, 6]
+            k: 3
+            num_candidates: 6
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "5" }
+  - match: { hits.hits.2._id: "2" }
+
+  - do:
+      search:
+        index: test-byte-index
+        body:
+          knn:
+            field: "knn"
+            query_vector: [4, 5, 6]
+            k: 3
+            num_candidates: 7
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "5" }
+  - match: { hits.hits.2._id: "2" }

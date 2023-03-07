@@ -1,0 +1,5 @@
+pr: 92204
+summary: Free resources correctly when model loading is cancelled
+area: Machine Learning
+type: bug
+issues: []

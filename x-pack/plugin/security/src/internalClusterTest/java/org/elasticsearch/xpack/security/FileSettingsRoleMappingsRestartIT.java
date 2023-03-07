@@ -38,6 +38,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
+
     private static AtomicLong versionCounter = new AtomicLong(1);
 
     private static String testJSONOnlyRoleMappings = """
@@ -108,7 +109,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         return new Tuple<>(savedClusterState, metadataVersion);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/92454")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93048")
     public void testReservedStatePersistsOnRestart() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
 
@@ -126,6 +127,8 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
 
         logger.info("--> restart master");
         internalCluster().restartNode(masterNode);
+
+        ensureGreen();
 
         var clusterStateResponse = client().admin().cluster().state(new ClusterStateRequest()).actionGet();
         assertThat(

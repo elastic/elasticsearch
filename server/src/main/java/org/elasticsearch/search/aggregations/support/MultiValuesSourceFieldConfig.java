@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -161,7 +161,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
     }
 
     public MultiValuesSourceFieldConfig(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {
             this.fieldName = in.readOptionalString();
         } else {
             this.fieldName = in.readString();
@@ -169,19 +169,19 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         this.missing = in.readGenericValue();
         this.script = in.readOptionalWriteable(Script::new);
         this.timeZone = in.readOptionalZoneId();
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_8_0)) {
             this.filter = in.readOptionalNamedWriteable(QueryBuilder.class);
         } else {
             this.filter = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_12_0)) {
             this.userValueTypeHint = in.readOptionalWriteable(ValueType::readFromStream);
             this.format = in.readOptionalString();
         } else {
             this.userValueTypeHint = null;
             this.format = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
             this.includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         } else {
             this.includeExclude = null;
@@ -222,7 +222,7 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {
             out.writeOptionalString(fieldName);
         } else {
             out.writeString(fieldName);
@@ -230,14 +230,14 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         out.writeGenericValue(missing);
         out.writeOptionalWriteable(script);
         out.writeOptionalZoneId(timeZone);
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_8_0)) {
             out.writeOptionalNamedWriteable(filter);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_12_0)) {
             out.writeOptionalWriteable(userValueTypeHint);
             out.writeOptionalString(format);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
             out.writeOptionalWriteable(includeExclude);
         }
     }

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -16,21 +17,46 @@ import java.io.IOException;
 import java.util.Iterator;
 
 /**
- * An extension of {@link ToXContent} that can be serialized in chunks by creating an {@link Iterator<ToXContent>}.
- * This is used by the REST layer to implement flow control that does not rely on blocking the serializing thread when writing the
- * serialized bytes to a non-blocking channel.
+ * An alternative to {@link ToXContent} allowing for progressive serialization by creating an {@link Iterator} of {@link ToXContent} chunks.
+ * <p>
+ * The REST layer only serializes enough chunks at once to keep an outbound buffer full, rather than consuming all the time and memory
+ * needed to serialize the entire response as must be done with the regular {@link ToXContent} responses.
  */
 public interface ChunkedToXContent {
 
     /**
-     * Create an iterator of {@link ToXContent} chunks, that must be serialized individually with the same {@link XContentBuilder} and
-     * {@link ToXContent.Params} for each call until it is fully drained.
+     * Create an iterator of {@link ToXContent} chunks for a REST response. Each chunk is serialized with the same {@link XContentBuilder}
+     * and {@link ToXContent.Params}, which is also the same as the {@link ToXContent.Params} passed as the {@code params} argument. For
+     * best results, all chunks should be {@code O(1)} size. See also {@link ChunkedToXContentHelper} for some handy utilities.
+     * <p>
+     * Note that chunked response bodies cannot send deprecation warning headers once transmission has started, so implementations must
+     * check for deprecated feature use before returning.
+     *
      * @return iterator over chunks of {@link ToXContent}
      */
     Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params);
 
     /**
+     * Create an iterator of {@link ToXContent} chunks for a response to the {@link RestApiVersion#V_7} API. Each chunk is serialized with
+     * the same {@link XContentBuilder} and {@link ToXContent.Params}, which is also the same as the {@link ToXContent.Params} passed as the
+     * {@code params} argument. For best results, all chunks should be {@code O(1)} size. See also {@link ChunkedToXContentHelper} for some
+     * handy utilities.
+     * <p>
+     * Similar to {@link #toXContentChunked} but for the {@link RestApiVersion#V_7} API. By default this method delegates to {@link
+     * #toXContentChunked}.
+     * <p>
+     * Note that chunked response bodies cannot send deprecation warning headers once transmission has started, so implementations must
+     * check for deprecated feature use before returning.
+     *
+     * @return iterator over chunks of {@link ToXContent}
+     */
+    default Iterator<? extends ToXContent> toXContentChunkedV7(ToXContent.Params params) {
+        return toXContentChunked(params);
+    }
+
+    /**
      * Wraps the given instance in a {@link ToXContent} that will fully serialize the instance when serialized.
+     *
      * @param chunkedToXContent instance to wrap
      * @return x-content instance
      */
@@ -53,7 +79,7 @@ public interface ChunkedToXContent {
     }
 
     /**
-     * @return true if this instances serializes as an x-content fragment. See {@link ToXContentObject} for additional details.
+     * @return true iff this instance serializes as a fragment. See {@link ToXContentObject} for additional details.
      */
     default boolean isFragment() {
         return true;

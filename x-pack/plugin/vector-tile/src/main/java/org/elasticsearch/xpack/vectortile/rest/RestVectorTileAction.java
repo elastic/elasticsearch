@@ -215,11 +215,17 @@ public class RestVectorTileAction extends BaseRestHandler {
         }
         searchRequestBuilder.setQuery(qBuilder);
         if (request.getGridPrecision() > 0) {
-            final Rectangle rectangle = request.getBoundingBox();
-            final GeoBoundingBox boundingBox = new GeoBoundingBox(
-                new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
-                new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
-            );
+            final GeoBoundingBox boundingBox;
+            if (request.getGridAgg().needsBounding(request.getZ(), request.getGridPrecision())) {
+                final Rectangle rectangle = request.getBoundingBox();
+                boundingBox = new GeoBoundingBox(
+                    new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
+                    new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
+                );
+            } else {
+                // unbounded
+                boundingBox = new GeoBoundingBox(new GeoPoint(Double.NaN, Double.NaN), new GeoPoint(Double.NaN, Double.NaN));
+            }
             final GeoGridAggregationBuilder tileAggBuilder = request.getGridAgg()
                 .newAgg(GRID_FIELD)
                 .field(request.getField())

@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -41,7 +40,7 @@ public class SetBackedScalingCuckooFilterTests extends AbstractWireSerializingTe
     }
 
     @Override
-    protected SetBackedScalingCuckooFilter mutateInstance(SetBackedScalingCuckooFilter instance) throws IOException {
+    protected SetBackedScalingCuckooFilter mutateInstance(SetBackedScalingCuckooFilter instance) {
         SetBackedScalingCuckooFilter newInstance = new SetBackedScalingCuckooFilter(
             instance.getThreshold(),
             instance.getRng(),

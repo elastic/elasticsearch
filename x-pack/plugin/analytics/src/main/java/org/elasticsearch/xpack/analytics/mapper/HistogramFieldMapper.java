@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -49,6 +50,7 @@ import org.elasticsearch.xcontent.XContentSubParser;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -194,6 +196,33 @@ public class HistogramFieldMapper extends FieldMapper {
                         @Override
                         public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
                             throw new UnsupportedOperationException("The [" + CONTENT_TYPE + "] field does not " + "support scripts");
+                        }
+
+                        @Override
+                        public FormattedDocValues getFormattedValues(DocValueFormat format) {
+                            try {
+                                final BinaryDocValues values = DocValues.getBinary(context.reader(), fieldName);
+                                final InternalHistogramValue value = new InternalHistogramValue();
+                                return new FormattedDocValues() {
+                                    @Override
+                                    public boolean advanceExact(int docId) throws IOException {
+                                        return values.advanceExact(docId);
+                                    }
+
+                                    @Override
+                                    public int docValueCount() {
+                                        return 1;
+                                    }
+
+                                    @Override
+                                    public Object nextValue() throws IOException {
+                                        value.reset(values.binaryValue());
+                                        return value;
+                                    }
+                                };
+                            } catch (IOException e) {
+                                throw new UncheckedIOException("Unable to loead histogram doc values", e);
+                            }
                         }
 
                         @Override

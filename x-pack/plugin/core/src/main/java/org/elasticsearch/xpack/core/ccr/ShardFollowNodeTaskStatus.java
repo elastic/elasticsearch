@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.ccr;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -413,7 +413,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         this.writeBufferSizeInBytes = in.readVLong();
         this.followerMappingVersion = in.readVLong();
         this.followerSettingsVersion = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_3_0)) {
             this.followerAliasesVersion = in.readVLong();
         } else {
             this.followerAliasesVersion = 0L;
@@ -457,7 +457,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         out.writeVLong(writeBufferSizeInBytes);
         out.writeVLong(followerMappingVersion);
         out.writeVLong(followerSettingsVersion);
-        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_3_0)) {
             out.writeVLong(followerAliasesVersion);
         }
         out.writeVLong(totalReadTimeMillis);

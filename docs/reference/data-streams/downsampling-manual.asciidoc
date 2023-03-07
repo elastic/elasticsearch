@@ -4,8 +4,6 @@
 <titleabbrev>Run downsampling manually</titleabbrev>
 ++++
 
-preview::[]
-
 This is a simplified example that allows you to see quickly how
 <<downsampling,downsampling>> works to reduce the storage size of a time series
 index. The example uses typical Kubernetes cluster monitoring data. To test out
@@ -200,7 +198,6 @@ PUT /sample-01
 }
 
 ----
-// TEST
 
 [discrete]
 [[downsampling-manual-ingest-data]]
@@ -209,14 +206,13 @@ PUT /sample-01
 In a terminal window with {es} running, run the following curl command to load
 the documents from the downloaded sample data file:
 
-//[source,console]
-//----
-```
+[source,sh]
+----
 curl -s -H "Content-Type: application/json" \
    -XPOST http://<elasticsearch-node>/sample-01/_bulk?pretty \
    --data-binary @sample-k8s-metrics.json
-```
-//----
+----
+// NOTCONSOLE
 
 Approximately 18,000 documents are added. Check the search results for the newly
 ingested data:
@@ -227,11 +223,12 @@ GET /sample-01*/_search
 ----
 // TEST[continued]
 
-The query should return the first 10,000 hits. In each document you can see the
-time series dimensions (`host`, `node`, `pod` and `container`) as well as the
-various CPU and memory time series metrics.
+The query has at least 10,000 hits and returns the first 10. In each document
+you can see the time series dimensions (`host`, `node`, `pod` and `container`)
+as well as the various CPU and memory time series metrics.
 
-```
+[source,console-result]
+----
   "hits": {
     "total": {
       "value": 10000,
@@ -294,7 +291,9 @@ various CPU and memory time series metrics.
         }
       }
 ...
-```
+----
+// TEST[skip:todo]
+// TEST[continued]
 
 Next, run a terms aggregation on the set of time series dimensions (`_tsid`) to
 create a date histogram on a fixed interval of one day.
@@ -393,11 +392,12 @@ GET /sample-01*/_search
 ----
 // TEST[continued]
 
-In the query results, notice that the numer of hits has been reduced to only 288
+In the query results, notice that the number of hits has been reduced to only 288
 documents. As well, for each time series metric statistical representations have
 been calculated: `min`, `max`, `sum`, and `value_count`.
 
-```
+[source,console-result]
+----
   "hits": {
     "total": {
       "value": 288,
@@ -455,7 +455,8 @@ been calculated: `min`, `max`, `sum`, and `value_count`.
         }
       },
 ...
-```
+----
+// TEST[skip:todo]
 
 This example demonstrates how downsampling can dramatically reduce the number of
 records stored for time series data, within whatever time boundaries you choose.

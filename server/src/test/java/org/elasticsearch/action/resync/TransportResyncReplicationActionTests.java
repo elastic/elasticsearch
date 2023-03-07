@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.action.resync;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -102,7 +102,7 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
             try (
                 TcpTransport transport = new Netty4Transport(
                     Settings.EMPTY,
-                    Version.CURRENT,
+                    TransportVersion.CURRENT,
                     threadPool,
                     new NetworkService(emptyList()),
                     PageCacheRecycler.NON_RECYCLING_INSTANCE,
@@ -152,7 +152,7 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                     new ReplicationGroup(
                         shardRoutingTable,
                         clusterService.state().metadata().index(index).inSyncAllocationIds(shardId.id()),
-                        shardRoutingTable.getAllAllocationIds(),
+                        shardRoutingTable.getPromotableAllocationIds(),
                         0
                     )
                 );

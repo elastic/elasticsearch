@@ -11,6 +11,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -273,6 +274,18 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         ActionFuture<AcknowledgedResponse> future = client().admin().cluster().prepareDeleteSnapshot(repo, snapshot1).execute();
         logger.info("--> waiting for block to kick in on node [{}]", blockedNode);
         waitForBlock(blockedNode, repo);
+
+        assertTrue(
+            client().admin()
+                .cluster()
+                .prepareListTasks()
+                .setActions(DeleteSnapshotAction.NAME)
+                .setDetailed(true)
+                .get()
+                .getTasks()
+                .stream()
+                .anyMatch(ti -> ("[" + repo + "][" + snapshot1 + "]").equals(ti.description()))
+        );
 
         logger.info("--> try deleting the repository, should fail because the deletion of the snapshot is in progress");
         RepositoryConflictException e1 = expectThrows(

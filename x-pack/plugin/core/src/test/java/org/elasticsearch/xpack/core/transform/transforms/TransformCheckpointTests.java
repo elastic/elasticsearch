@@ -54,6 +54,11 @@ public class TransformCheckpointTests extends AbstractSerializingTransformTestCa
     }
 
     @Override
+    protected TransformCheckpoint mutateInstance(TransformCheckpoint instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<TransformCheckpoint> instanceReader() {
         return TransformCheckpoint::new;
     }
@@ -112,7 +117,18 @@ public class TransformCheckpointTests extends AbstractSerializingTransformTestCa
 
     public void testEmpty() {
         assertTrue(TransformCheckpoint.EMPTY.isEmpty());
+        assertTrue(new TransformCheckpoint("_empty", 123L, -1, Collections.emptyMap(), 456L).isEmpty());
         assertFalse(new TransformCheckpoint("some_id", 0L, -1, Collections.emptyMap(), 0L).isEmpty());
+        assertFalse(new TransformCheckpoint("some_id", 0L, 0, Collections.emptyMap(), 0L).isEmpty());
+        assertFalse(new TransformCheckpoint("some_id", 0L, 1, Collections.emptyMap(), 0L).isEmpty());
+    }
+
+    public void testTransient() {
+        assertTrue(TransformCheckpoint.EMPTY.isTransient());
+        assertTrue(new TransformCheckpoint("_empty", 123L, -1, Collections.emptyMap(), 456L).isTransient());
+        assertTrue(new TransformCheckpoint("some_id", 0L, -1, Collections.emptyMap(), 0L).isTransient());
+        assertFalse(new TransformCheckpoint("some_id", 0L, 0, Collections.emptyMap(), 0L).isTransient());
+        assertFalse(new TransformCheckpoint("some_id", 0L, 1, Collections.emptyMap(), 0L).isTransient());
     }
 
     public void testGetBehind() {

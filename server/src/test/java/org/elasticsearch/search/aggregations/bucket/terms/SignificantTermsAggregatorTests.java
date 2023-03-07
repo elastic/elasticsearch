@@ -708,7 +708,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
             }
 
             doc.add(new Field("text", text.toString(), TextFieldMapper.Defaults.FIELD_TYPE));
-            String json = formatted("""
+            String json = Strings.format("""
                 { "text" : "%s" }""", text.toString());
             doc.add(new StoredField("_source", new BytesRef(json)));
 
@@ -727,7 +727,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
             }
 
             doc.add(new Field("text", text.toString(), TextFieldMapper.Defaults.FIELD_TYPE));
-            String json = formatted("""
+            String json = Strings.format("""
                 { "text" : "%s" }""", text.toString());
             doc.add(new StoredField("_source", new BytesRef(json)));
 

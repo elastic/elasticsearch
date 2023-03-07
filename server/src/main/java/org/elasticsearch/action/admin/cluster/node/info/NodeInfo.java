@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.node.info;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -72,7 +73,7 @@ public class NodeInfo extends BaseNodeResponse {
         addInfoIfNonNull(HttpInfo.class, in.readOptionalWriteable(HttpInfo::new));
         addInfoIfNonNull(PluginsAndModules.class, in.readOptionalWriteable(PluginsAndModules::new));
         addInfoIfNonNull(IngestInfo.class, in.readOptionalWriteable(IngestInfo::new));
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             addInfoIfNonNull(AggregationInfo.class, in.readOptionalWriteable(AggregationInfo::new));
         }
     }
@@ -193,7 +194,7 @@ public class NodeInfo extends BaseNodeResponse {
         out.writeOptionalWriteable(getInfo(HttpInfo.class));
         out.writeOptionalWriteable(getInfo(PluginsAndModules.class));
         out.writeOptionalWriteable(getInfo(IngestInfo.class));
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             out.writeOptionalWriteable(getInfo(AggregationInfo.class));
         }
     }

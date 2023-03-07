@@ -23,7 +23,6 @@ import org.elasticsearch.aggregations.pipeline.Derivative;
 import org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.aggregations.pipeline.MovFnPipelineAggregationBuilder;
 import org.elasticsearch.aggregations.pipeline.MovingFunctionScript;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -55,15 +54,10 @@ public class AggregationsPlugin extends Plugin implements SearchPlugin, ScriptPl
             new AggregationSpec(MatrixStatsAggregationBuilder.NAME, MatrixStatsAggregationBuilder::new, new MatrixStatsParser())
                 .addResultReader(InternalMatrixStats::new)
         );
-        if (IndexSettings.isTimeSeriesModeEnabled()) {
-            specs.add(
-                new AggregationSpec(
-                    TimeSeriesAggregationBuilder.NAME,
-                    TimeSeriesAggregationBuilder::new,
-                    TimeSeriesAggregationBuilder.PARSER
-                ).addResultReader(InternalTimeSeries::new)
-            );
-        }
+        specs.add(
+            new AggregationSpec(TimeSeriesAggregationBuilder.NAME, TimeSeriesAggregationBuilder::new, TimeSeriesAggregationBuilder.PARSER)
+                .addResultReader(InternalTimeSeries::new)
+        );
         return List.copyOf(specs);
     }
 

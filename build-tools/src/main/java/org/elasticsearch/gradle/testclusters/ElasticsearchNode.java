@@ -164,6 +164,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final Path transportPortFile;
     private final Path httpPortsFile;
     private final Path readinessPortsFile;
+    private final Path remoteAccessPortsFile;
     private final Path esOutputFile;
     private final Path esInputFile;
     private final Path tmpDir;
@@ -215,6 +216,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         transportPortFile = confPathLogs.resolve("transport.ports");
         httpPortsFile = confPathLogs.resolve("http.ports");
         readinessPortsFile = confPathLogs.resolve("readiness.ports");
+        remoteAccessPortsFile = confPathLogs.resolve("remote_cluster.ports");
         esOutputFile = confPathLogs.resolve("es.out");
         esInputFile = workingDir.resolve("es.in");
         tmpDir = workingDir.resolve("tmp");
@@ -999,6 +1001,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         return getReadinessPortInternal();
     }
 
+    @Override
+    @Internal
+    public List<String> getAllRemoteAccessPortURI() {
+        waitForAllConditions();
+        return getRemoteAccessPortInternal();
+    }
+
     @Internal
     public File getServerLog() {
         return confPathLogs.resolve(defaultConfig.get("cluster.name") + "_server.json").toFile();
@@ -1021,6 +1030,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             }
             if (Files.exists(readinessPortsFile)) {
                 Files.delete(readinessPortsFile);
+            }
+            if (Files.exists(remoteAccessPortsFile)) {
+                Files.delete(remoteAccessPortsFile);
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -1046,6 +1058,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             }
             if (Files.exists(readinessPortsFile)) {
                 Files.delete(readinessPortsFile);
+            }
+            if (Files.exists(remoteAccessPortsFile)) {
+                Files.delete(remoteAccessPortsFile);
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -1519,6 +1534,14 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
+    private List<String> getRemoteAccessPortInternal() {
+        try {
+            return readPortsFile(remoteAccessPortsFile);
+        } catch (IOException e) {
+            return new ArrayList<>();
+        }
+    }
+
     private List<String> readPortsFile(Path file) throws IOException {
         try (Stream<String> lines = Files.lines(file, StandardCharsets.UTF_8)) {
             return lines.map(String::trim).collect(Collectors.toList());
@@ -1673,20 +1696,17 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     void configureHttpWait(WaitForHttpResource wait) {
-        if (settings.containsKey("xpack.security.http.ssl.certificate_authorities")) {
-            wait.setCertificateAuthorities(
-                getConfigDir().resolve(settings.get("xpack.security.http.ssl.certificate_authorities").toString()).toFile()
-            );
-        }
         if (settings.containsKey("xpack.security.http.ssl.certificate")) {
-            wait.setCertificateAuthorities(getConfigDir().resolve(settings.get("xpack.security.http.ssl.certificate").toString()).toFile());
-        }
-        if (settings.containsKey("xpack.security.http.ssl.keystore.path")
-            && settings.containsKey("xpack.security.http.ssl.certificate_authorities") == false) { // Can not set both trust stores and CA
-            wait.setTrustStoreFile(getConfigDir().resolve(settings.get("xpack.security.http.ssl.keystore.path").toString()).toFile());
-        }
-        if (keystoreSettings.containsKey("xpack.security.http.ssl.keystore.secure_password")) {
-            wait.setTrustStorePassword(keystoreSettings.get("xpack.security.http.ssl.keystore.secure_password").toString());
+            wait.setServerCertificate(getConfigDir().resolve(settings.get("xpack.security.http.ssl.certificate").toString()).toFile());
+        } else {
+            if (settings.containsKey("xpack.security.http.ssl.keystore.path")) {
+                wait.setServerKeystoreFile(
+                    getConfigDir().resolve(settings.get("xpack.security.http.ssl.keystore.path").toString()).toFile()
+                );
+            }
+            if (keystoreSettings.containsKey("xpack.security.http.ssl.keystore.secure_password")) {
+                wait.setServerKeystorePassword(keystoreSettings.get("xpack.security.http.ssl.keystore.secure_password").toString());
+            }
         }
     }
 

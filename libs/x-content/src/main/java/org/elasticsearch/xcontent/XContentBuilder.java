@@ -435,6 +435,22 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
+    public XContentBuilder array(String name, byte[] values) throws IOException {
+        return field(name).values(values);
+    }
+
+    private XContentBuilder values(byte[] values) throws IOException {
+        if (values == null) {
+            return nullValue();
+        }
+        startArray();
+        for (byte b : values) {
+            value(b);
+        }
+        endArray();
+        return this;
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     // Double
     //////////////////////////////////

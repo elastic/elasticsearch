@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -97,17 +98,19 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
         if (logger.isTraceEnabled()) {
             logger.trace("index [{}] on the following primary shard {}", request.getOperations(), primary.routingEntry());
         }
-        ActionListener.completeWith(
-            listener,
-            () -> shardOperationOnPrimary(
+        ActionListener.completeWith(listener, () -> {
+            final var result = shardOperationOnPrimary(
                 request.shardId(),
                 request.getHistoryUUID(),
                 request.getOperations(),
                 request.getMaxSeqNoOfUpdatesOrDeletes(),
                 primary,
-                logger
-            )
-        );
+                logger,
+                postWriteRefresh
+            );
+            result.replicaRequest().setParentTask(request.getParentTask());
+            return result;
+        });
     }
 
     @Override
@@ -155,7 +158,8 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
         final List<Translog.Operation> sourceOperations,
         final long maxSeqNoOfUpdatesOrDeletes,
         final IndexShard primary,
-        final Logger logger
+        final Logger logger,
+        final PostWriteRefresh postWriteRefresh
     ) throws IOException {
         if (historyUUID.equalsIgnoreCase(primary.getHistoryUUID()) == false) {
             throw new IllegalStateException(
@@ -219,7 +223,7 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
             appliedOperations,
             maxSeqNoOfUpdatesOrDeletes
         );
-        return new WritePrimaryResult<>(replicaRequest, new BulkShardOperationsResponse(), location, null, primary, logger);
+        return new WritePrimaryResult<>(replicaRequest, new BulkShardOperationsResponse(), location, primary, logger, postWriteRefresh);
     }
 
     @Override

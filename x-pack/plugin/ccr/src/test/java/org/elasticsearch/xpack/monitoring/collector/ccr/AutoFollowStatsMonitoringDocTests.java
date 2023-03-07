@@ -108,7 +108,7 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
             xContent.utf8ToString(),
             equalTo(
                 XContentHelper.stripWhitespace(
-                    formatted(
+                    Strings.format(
                         """
                             {
                               "cluster_uuid": "_cluster",

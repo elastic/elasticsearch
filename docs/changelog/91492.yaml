@@ -1,5 +1,0 @@
-pr: 91492
-summary: Reduce number of object allocations in H3#geoToH3 and speed up computations
-area: Geo
-type: enhancement
-issues: []

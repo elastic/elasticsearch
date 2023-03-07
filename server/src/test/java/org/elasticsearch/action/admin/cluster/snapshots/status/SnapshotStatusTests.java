@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -55,7 +56,7 @@ public class SnapshotStatusTests extends AbstractChunkedSerializingTestCase<Snap
             case FAILURE -> failedShards++;
         }
 
-        String expected = formatted(
+        String expected = Strings.format(
             """
                 {
                   "snapshot" : "test-snap",
@@ -164,6 +165,11 @@ public class SnapshotStatusTests extends AbstractChunkedSerializingTestCase<Snap
         }
         boolean includeGlobalState = randomBoolean();
         return new SnapshotStatus(snapshot, state, snapshotIndexShardStatuses, includeGlobalState, 0L, 0L);
+    }
+
+    @Override
+    protected SnapshotStatus mutateInstance(SnapshotStatus instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

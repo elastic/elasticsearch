@@ -213,12 +213,12 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 // since at least 1 item passed, the tran log location should exist,
                 assertThat(((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location, notNullValue());
                 // and the response should exist and match the item count
-                assertThat(result.finalResponseIfSuccessful, notNullValue());
-                assertThat(result.finalResponseIfSuccessful.getResponses(), arrayWithSize(items.length));
+                assertThat(result.replicationResponse, notNullValue());
+                assertThat(result.replicationResponse.getResponses(), arrayWithSize(items.length));
 
                 // check each response matches the input item, including the rejection
                 for (int i = 0; i < items.length; i++) {
-                    BulkItemResponse response = result.finalResponseIfSuccessful.getResponses()[i];
+                    BulkItemResponse response = result.replicationResponse.getResponses()[i];
                     assertThat(response.getItemId(), equalTo(i));
                     assertThat(response.getIndex(), equalTo("index"));
                     assertThat(response.getId(), equalTo("id_" + i));

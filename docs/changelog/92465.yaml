@@ -1,5 +1,0 @@
-pr: 92465
-summary: Reject connection attempts while closing
-area: Network
-type: bug
-issues: []

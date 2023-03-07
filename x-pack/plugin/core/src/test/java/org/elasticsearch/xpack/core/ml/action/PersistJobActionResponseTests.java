@@ -19,4 +19,9 @@ public class PersistJobActionResponseTests extends AbstractWireSerializingTestCa
     protected PersistJobAction.Response createTestInstance() {
         return new PersistJobAction.Response(randomBoolean());
     }
+
+    @Override
+    protected PersistJobAction.Response mutateInstance(PersistJobAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

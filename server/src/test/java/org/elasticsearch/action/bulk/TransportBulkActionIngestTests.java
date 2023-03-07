@@ -188,6 +188,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         DiscoveryNode localNode = mock(DiscoveryNode.class);
         when(localNode.isIngestNode()).thenAnswer(stub -> localIngest);
         when(clusterService.localNode()).thenReturn(localNode);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         remoteNode1 = mock(DiscoveryNode.class);
         remoteNode2 = mock(DiscoveryNode.class);
         nodes = mock(DiscoveryNodes.class);

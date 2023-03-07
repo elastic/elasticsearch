@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.search.lookup;
 
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -22,8 +23,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.security.AccessControlContext;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.security.ProtectionDomain;
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.index.mapper.MappedFieldType.FielddataOperation.SCRIPT;
 import static org.elasticsearch.index.mapper.MappedFieldType.FielddataOperation.SEARCH;
@@ -36,6 +42,7 @@ import static org.mockito.Mockito.when;
 public class LeafDocLookupTests extends ESTestCase {
     private ScriptDocValues<?> docValues;
     private LeafDocLookup docLookup;
+    private Consumer<Integer> nextDocCallback;
 
     @Override
     @Before
@@ -43,6 +50,7 @@ public class LeafDocLookupTests extends ESTestCase {
         super.setUp();
 
         docValues = mock(ScriptDocValues.class);
+        nextDocCallback = i -> {}; // do nothing by default
 
         MappedFieldType fieldType1 = mock(MappedFieldType.class);
         when(fieldType1.name()).thenReturn("field");
@@ -106,7 +114,7 @@ public class LeafDocLookupTests extends ESTestCase {
         DelegateDocValuesField delegateDocValuesField = new DelegateDocValuesField(scriptDocValues, name) {
             @Override
             public void setNextDocId(int id) {
-                // do nothing
+                nextDocCallback.accept(id);
             }
         };
         LeafFieldData leafFieldData = mock(LeafFieldData.class);
@@ -413,5 +421,17 @@ public class LeafDocLookupTests extends ESTestCase {
         assertEquals(2, leafDocLookup.docFactoryCache.size());
         assertEquals(docFactory, leafDocLookup.docFactoryCache.get(nameDoc));
         assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource));
+    }
+
+    public void testLookupPrivilegesAdvanceDoc() {
+        nextDocCallback = i -> SpecialPermission.check();
+
+        // mimic the untrusted codebase, which gets no permissions
+        var restrictedContext = new AccessControlContext(new ProtectionDomain[] { new ProtectionDomain(null, null) });
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            ScriptDocValues<?> fetchedDocValues = docLookup.get("field");
+            assertEquals(docValues, fetchedDocValues);
+            return null;
+        }, restrictedContext);
     }
 }

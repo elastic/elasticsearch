@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
@@ -45,6 +46,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
      * Test that cluster recovers from a long GC on master that causes other nodes to elect a new one
      */
     public void testMasterNodeGCs() throws Exception {
+        assumeFalse("jdk20 removed thread suspend/resume", Runtime.version().feature() >= 20);
         List<String> nodes = startCluster(3);
 
         String oldMasterNode = internalCluster().getMasterName();
@@ -142,7 +144,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
                     assertEquals("different meta data version", state.metadata().version(), nodeState.metadata().version());
                     assertEquals("different routing", state.routingTable().toString(), nodeState.routingTable().toString());
                 } catch (AssertionError t) {
-                    fail(formatted("""
+                    fail(Strings.format("""
                         failed comparing cluster state: %s
                         --- cluster state of node [%s]: ---
                         %s
@@ -202,7 +204,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
                 success = false;
             }
             if (success == false) {
-                fail(formatted("""
+                fail(Strings.format("""
                     node [%s] has no master or has blocks, despite of being on the right side of the partition. State dump:
                     %s""", node, nodeState));
             }
@@ -214,11 +216,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + networkDisruption.expectedTimeToHeal().millis()));
 
         logger.info("Verify no master block with {} set to {}", NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), "all");
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), "all"))
-            .get();
+        updateClusterSettings(Settings.builder().put(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), "all"));
 
         networkDisruption.startDisrupting();
 
@@ -251,12 +249,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
         ensureGreen();
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("indices.mapping.dynamic_timeout", "1ms"))
-        );
+        updateClusterSettings(Settings.builder().put("indices.mapping.dynamic_timeout", "1ms"));
 
         ServiceDisruptionScheme disruption = new BlockMasterServiceOnMaster(random());
         setDisruptionScheme(disruption);

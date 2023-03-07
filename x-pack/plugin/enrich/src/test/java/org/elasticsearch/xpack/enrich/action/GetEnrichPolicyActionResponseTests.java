@@ -56,6 +56,11 @@ public class GetEnrichPolicyActionResponseTests extends AbstractXContentSerializ
     }
 
     @Override
+    protected GetEnrichPolicyAction.Response mutateInstance(GetEnrichPolicyAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<GetEnrichPolicyAction.Response> instanceReader() {
         return GetEnrichPolicyAction.Response::new;
     }

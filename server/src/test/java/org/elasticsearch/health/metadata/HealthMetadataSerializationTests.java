@@ -15,14 +15,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.SimpleDiffableWireSerializationTestCase;
-import org.elasticsearch.xcontent.ToXContent;
 
-import java.io.IOException;
 import java.util.List;
-
-import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializationTestCase<ClusterState.Custom> {
 
@@ -56,8 +52,17 @@ public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializ
         return randomHealthMetadata();
     }
 
+    @Override
+    protected ClusterState.Custom mutateInstance(ClusterState.Custom instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     private static HealthMetadata randomHealthMetadata() {
-        return new HealthMetadata(randomDiskMetadata());
+        return new HealthMetadata(randomDiskMetadata(), randomShardLimitsMetadata());
+    }
+
+    private static HealthMetadata.ShardLimits randomShardLimitsMetadata() {
+        return randomBoolean() ? new HealthMetadata.ShardLimits(randomIntBetween(1, 10000), randomIntBetween(1, 10000)) : null;
     }
 
     private static HealthMetadata.Disk randomDiskMetadata() {
@@ -79,7 +84,7 @@ public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializ
         }
     }
 
-    static HealthMetadata.Disk mutateDiskMetadata(HealthMetadata.Disk base) {
+    static HealthMetadata.Disk mutate(HealthMetadata.Disk base) {
         RelativeByteSizeValue highWatermark = base.highWatermark();
         ByteSizeValue highWatermarkMaxHeadRoom = base.highMaxHeadroom();
         RelativeByteSizeValue floodStageWatermark = base.floodStageWatermark();
@@ -104,24 +109,22 @@ public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializ
         );
     }
 
-    private HealthMetadata mutate(HealthMetadata base) {
-        return new HealthMetadata(mutateDiskMetadata(base.getDiskMetadata()));
+    static HealthMetadata.ShardLimits mutate(HealthMetadata.ShardLimits base) {
+        if (base == null) {
+            return null;
+        }
+        if (randomBoolean()) {
+            return HealthMetadata.ShardLimits.newBuilder(base).maxShardsPerNode(randomIntBetween(1, 10000)).build();
+        } else {
+            return HealthMetadata.ShardLimits.newBuilder(base).maxShardsPerNodeFrozen(randomIntBetween(1, 10000)).build();
+        }
     }
 
-    public void testToXContentChunking() throws IOException {
-        final var instance = createTestInstance();
+    private HealthMetadata mutate(HealthMetadata base) {
+        return new HealthMetadata(mutate(base.getDiskMetadata()), mutate(base.getShardLimitsMetadata()));
+    }
 
-        int chunkCount = 0;
-        try (var builder = jsonBuilder()) {
-            builder.startObject();
-            final var iterator = instance.toXContentChunked(EMPTY_PARAMS);
-            while (iterator.hasNext()) {
-                iterator.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
-                chunkCount += 1;
-            }
-            builder.endObject();
-        } // closing the builder verifies that the XContent is well-formed
-
-        assertEquals(1, chunkCount);
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), ignored -> 1);
     }
 }

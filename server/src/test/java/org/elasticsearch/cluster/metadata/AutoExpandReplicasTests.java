@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.indices.cluster.ClusterStateChanges;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -100,7 +101,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
     protected DiscoveryNode createNode(Version version, DiscoveryNodeRole... mustHaveRoles) {
         Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()));
         Collections.addAll(roles, mustHaveRoles);
-        final String id = formatted("node_%03d", nodeIdGenerator.incrementAndGet());
+        final String id = Strings.format("node_%03d", nodeIdGenerator.incrementAndGet());
         return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), roles, version);
     }
 
@@ -161,7 +162,11 @@ public class AutoExpandReplicasTests extends ESTestCase {
                 postTable = state.routingTable().index("index").shard(0);
 
                 assertTrue("not all shards started in " + state.toString(), postTable.allShardsStarted());
-                assertThat(postTable.toString(), postTable.getAllAllocationIds(), everyItem(is(in(preTable.getAllAllocationIds()))));
+                assertThat(
+                    postTable.toString(),
+                    postTable.getPromotableAllocationIds(),
+                    everyItem(is(in(preTable.getPromotableAllocationIds())))
+                );
             } else {
                 // fake an election where conflicting nodes are removed and readded
                 state = ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).masterNodeId(null).build()).build();
@@ -198,7 +203,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                 .map(shr -> shr.allocationId().getId())
                 .collect(Collectors.toSet());
 
-            assertThat(postTable.toString(), unchangedAllocationIds, everyItem(is(in(postTable.getAllAllocationIds()))));
+            assertThat(postTable.toString(), unchangedAllocationIds, everyItem(is(in(postTable.getPromotableAllocationIds()))));
 
             RoutingNodesHelper.asStream(postTable).forEach(shardRouting -> {
                 if (shardRouting.assignedToNode() && unchangedAllocationIds.contains(shardRouting.allocationId().getId())) {

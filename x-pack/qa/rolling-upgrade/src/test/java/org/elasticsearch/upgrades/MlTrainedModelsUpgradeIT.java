@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.junit.BeforeClass;
 
@@ -61,7 +62,7 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
             case OLD -> {
                 createIndexWithName(INDEX_NAME);
                 indexData(INDEX_NAME, 1000);
-                createAndRunClassificationJob();
+                createAndRunClassificationJob("classification-upgrade-job");
                 createAndRunRegressionJob();
                 List<String> oldModels = getTrainedModels();
                 createPipelines(oldModels);
@@ -153,7 +154,7 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     void createAndRunRegressionJob() throws Exception {
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": [ "%s" ]
@@ -171,8 +172,8 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
         putAndStartDFAAndWaitForFinish(config, "regression");
     }
 
-    void createAndRunClassificationJob() throws Exception {
-        String config = formatted("""
+    void createAndRunClassificationJob(String jobName) throws Exception {
+        String config = Strings.format("""
             {
               "source": {
                 "index": [ "%s" ]
@@ -187,7 +188,7 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
               },
               "model_memory_limit": "18mb"
             }""", INDEX_NAME, KEYWORD_FIELD);
-        putAndStartDFAAndWaitForFinish(config, "classification");
+        putAndStartDFAAndWaitForFinish(config, jobName);
     }
 
     @SuppressWarnings("unchecked")
@@ -201,11 +202,11 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
                 client().performRequest(new Request("GET", "_ml/data_frame/analytics/" + id + "/_stats"))
             ).get("data_frame_analytics")).get(0);
             assertThat(state.get("state"), equalTo("stopped"));
-        }, 1, TimeUnit.MINUTES);
+        }, 2, TimeUnit.MINUTES);
     }
 
     void createPipeline(String id, String modelType, String modelId) throws Exception {
-        String body = formatted("""
+        String body = Strings.format("""
             {
               "processors": [
                 {
@@ -225,7 +226,7 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     void createIndexWithName(String index) throws IOException {
-        String mapping = formatted("""
+        String mapping = Strings.format("""
             "properties": {
                 "%s": {
                   "type": "boolean"

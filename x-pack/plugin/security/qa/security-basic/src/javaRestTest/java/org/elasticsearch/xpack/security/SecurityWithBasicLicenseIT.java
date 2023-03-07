@@ -13,6 +13,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
@@ -512,7 +513,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         // Profile hasPrivileges
         final Request hasPrivilegesRequest = new Request("POST", "_security/profile/_has_privileges");
         hasPrivilegesRequest.setOptions(requestOptions);
-        hasPrivilegesRequest.setJsonEntity(formatted("""
+        hasPrivilegesRequest.setJsonEntity(Strings.format("""
             {
               "uids": [
                 "%s"

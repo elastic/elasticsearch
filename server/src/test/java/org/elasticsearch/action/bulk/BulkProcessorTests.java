@@ -22,6 +22,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -289,7 +290,7 @@ public class BulkProcessorTests extends ESTestCase {
                     Concurrent Bulk Requests: %s
                     """;
                 fail(
-                    formatted(
+                    Strings.format(
                         message,
                         expectedExecutions,
                         requestCount.get(),
@@ -420,7 +421,7 @@ public class BulkProcessorTests extends ESTestCase {
                 Concurrent Bulk Requests: %d
                 """;
             fail(
-                formatted(
+                Strings.format(
                     message,
                     requestCount.get(),
                     successCount.get(),

@@ -23,4 +23,9 @@ public class GetAutoscalingCapacityActionRequestWireSerializingTests extends Abs
         return new GetAutoscalingCapacityAction.Request();
     }
 
+    @Override
+    protected GetAutoscalingCapacityAction.Request mutateInstance(GetAutoscalingCapacityAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
 }

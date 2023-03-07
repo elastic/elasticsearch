@@ -225,7 +225,10 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             Objects::toString
         ).setSerializerCheck((id, ic, v) -> ic);
 
-        private final FieldMapper.Parameter<String> onScriptError = FieldMapper.Parameter.onScriptErrorParam(m -> m.onScriptError, script);
+        private final FieldMapper.Parameter<OnScriptError> onScriptError = FieldMapper.Parameter.onScriptErrorParam(
+            m -> m.onScriptError,
+            script
+        );
 
         Builder(String name, ScriptContext<Factory> scriptContext) {
             super(name);
@@ -270,14 +273,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         }
 
         final RuntimeField createRuntimeField(Factory scriptFactory, Version indexVersion) {
-            var fieldType = createFieldType(
-                name,
-                scriptFactory,
-                getScript(),
-                meta(),
-                indexVersion,
-                OnScriptError.fromString(onScriptError.get())
-            );
+            var fieldType = createFieldType(name, scriptFactory, getScript(), meta(), indexVersion, onScriptError.get());
             return new LeafRuntimeField(name, fieldType, getParameters());
         }
 

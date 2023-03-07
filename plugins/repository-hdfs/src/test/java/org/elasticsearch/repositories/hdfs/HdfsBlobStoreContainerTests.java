@@ -18,7 +18,7 @@ import org.apache.hadoop.fs.UnsupportedFileSystemException;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.CoreMatchers;

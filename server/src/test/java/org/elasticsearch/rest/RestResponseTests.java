@@ -19,11 +19,13 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -31,11 +33,13 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.ElasticsearchExceptionTests.assertDeepEquals;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -355,6 +359,21 @@ public class RestResponseTests extends ESTestCase {
             }
         });
         assertEquals("Failed to parse elasticsearch status exception: no exception was found", e.getMessage());
+    }
+
+    public void testResponseContentTypeUponException() throws Exception {
+        String mediaType = XContentType.VND_JSON.toParsedMediaType()
+            .responseContentTypeHeader(
+                Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, String.valueOf(RestApiVersion.minimumSupported().major))
+            );
+        List<String> mediaTypeList = Collections.singletonList(mediaType);
+
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(Map.of("Accept", mediaTypeList)).build();
+        RestChannel channel = new SimpleExceptionRestChannel(request);
+
+        Exception t = new ElasticsearchException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
+        RestResponse response = new RestResponse(channel, t);
+        assertThat(response.contentType(), equalTo(mediaType));
     }
 
     public static class WithHeadersException extends ElasticsearchException {

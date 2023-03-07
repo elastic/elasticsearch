@@ -8,6 +8,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -53,6 +54,11 @@ public interface Transport extends LifecycleComponent {
      * The address the transport is bound on.
      */
     BoundTransportAddress boundAddress();
+
+    /**
+     * The address the Remote Access port is bound on, or <code>null</code> if it is not bound.
+     */
+    BoundTransportAddress boundRemoteIngressAddress();
 
     /**
      * Further profile bound addresses
@@ -118,11 +124,16 @@ public interface Transport extends LifecycleComponent {
         boolean isClosed();
 
         /**
-         * Returns the version of the node this connection was established with.
+         * Returns the version of the node on the other side of this channel.
          */
         default Version getVersion() {
             return getNode().getVersion();
         }
+
+        /**
+         * Returns the version of the data to communicate in this channel.
+         */
+        TransportVersion getTransportVersion();
 
         /**
          * Returns a key that this connection can be cached on. Delegating subclasses must delegate method call to

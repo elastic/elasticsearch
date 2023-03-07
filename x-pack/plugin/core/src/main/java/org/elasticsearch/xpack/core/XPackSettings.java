@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
@@ -235,6 +236,7 @@ public class XPackSettings {
 
     public static final SslClientAuthenticationMode CLIENT_AUTH_DEFAULT = SslClientAuthenticationMode.REQUIRED;
     public static final SslClientAuthenticationMode HTTP_CLIENT_AUTH_DEFAULT = SslClientAuthenticationMode.NONE;
+    public static final SslClientAuthenticationMode REMOTE_CLUSTER_CLIENT_AUTH_DEFAULT = SslClientAuthenticationMode.NONE;
     public static final SslVerificationMode VERIFICATION_MODE_DEFAULT = SslVerificationMode.FULL;
 
     // http specific settings
@@ -245,11 +247,45 @@ public class XPackSettings {
     public static final String TRANSPORT_SSL_PREFIX = SecurityField.setting("transport.ssl.");
     private static final SSLConfigurationSettings TRANSPORT_SSL = SSLConfigurationSettings.withPrefix(TRANSPORT_SSL_PREFIX, true);
 
+    // remote cluster specific settings
+    public static final String REMOTE_CLUSTER_SERVER_SSL_PREFIX = SecurityField.setting("remote_cluster_server.ssl.");
+    public static final String REMOTE_CLUSTER_CLIENT_SSL_PREFIX = SecurityField.setting("remote_cluster_client.ssl.");
+
+    private static final SSLConfigurationSettings REMOTE_CLUSTER_SERVER_SSL = SSLConfigurationSettings.withPrefix(
+        REMOTE_CLUSTER_SERVER_SSL_PREFIX,
+        false,
+        SSLConfigurationSettings.IntendedUse.SERVER
+    );
+
+    private static final SSLConfigurationSettings REMOTE_CLUSTER_CLIENT_SSL = SSLConfigurationSettings.withPrefix(
+        REMOTE_CLUSTER_CLIENT_SSL_PREFIX,
+        false,
+        SSLConfigurationSettings.IntendedUse.CLIENT
+    );
+
+    /** Setting for enabling or disabling remote cluster server TLS. Defaults to true. */
+    public static final Setting<Boolean> REMOTE_CLUSTER_SERVER_SSL_ENABLED = Setting.boolSetting(
+        REMOTE_CLUSTER_SERVER_SSL_PREFIX + "enabled",
+        true,
+        Property.NodeScope
+    );
+
+    /** Setting for enabling or disabling remote cluster client TLS. Defaults to true. */
+    public static final Setting<Boolean> REMOTE_CLUSTER_CLIENT_SSL_ENABLED = Setting.boolSetting(
+        REMOTE_CLUSTER_CLIENT_SSL_PREFIX + "enabled",
+        true,
+        Property.NodeScope
+    );
+
     /** Returns all settings created in {@link XPackSettings}. */
     public static List<Setting<?>> getAllSettings() {
         ArrayList<Setting<?>> settings = new ArrayList<>();
         settings.addAll(HTTP_SSL.getEnabledSettings());
         settings.addAll(TRANSPORT_SSL.getEnabledSettings());
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            settings.addAll(REMOTE_CLUSTER_SERVER_SSL.getEnabledSettings());
+            settings.addAll(REMOTE_CLUSTER_CLIENT_SSL.getEnabledSettings());
+        }
         settings.add(SECURITY_ENABLED);
         settings.add(GRAPH_ENABLED);
         settings.add(MACHINE_LEARNING_ENABLED);
@@ -258,6 +294,10 @@ public class XPackSettings {
         settings.add(DLS_FLS_ENABLED);
         settings.add(TRANSPORT_SSL_ENABLED);
         settings.add(HTTP_SSL_ENABLED);
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            settings.add(REMOTE_CLUSTER_SERVER_SSL_ENABLED);
+            settings.add(REMOTE_CLUSTER_CLIENT_SSL_ENABLED);
+        }
         settings.add(RESERVED_REALM_ENABLED_SETTING);
         settings.add(TOKEN_SERVICE_ENABLED_SETTING);
         settings.add(API_KEY_SERVICE_ENABLED_SETTING);

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
@@ -17,7 +17,7 @@ import java.util.function.Predicate;
 
 public class TextEmbeddingConfigTests extends InferenceConfigItemTestCase<TextEmbeddingConfig> {
 
-    public static TextEmbeddingConfig mutateForVersion(TextEmbeddingConfig instance, Version version) {
+    public static TextEmbeddingConfig mutateForVersion(TextEmbeddingConfig instance, TransportVersion version) {
         return new TextEmbeddingConfig(
             instance.getVocabularyConfig(),
             InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
@@ -51,7 +51,12 @@ public class TextEmbeddingConfigTests extends InferenceConfigItemTestCase<TextEm
     }
 
     @Override
-    protected TextEmbeddingConfig mutateInstanceForVersion(TextEmbeddingConfig instance, Version version) {
+    protected TextEmbeddingConfig mutateInstance(TextEmbeddingConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected TextEmbeddingConfig mutateInstanceForVersion(TextEmbeddingConfig instance, TransportVersion version) {
         return mutateForVersion(instance, version);
     }
 

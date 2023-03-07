@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ccr.action.bulk;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -20,6 +21,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngineFactory;
 
@@ -34,6 +36,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.xpack.ccr.action.bulk.TransportBulkShardOperationsAction.rewriteOperationWithPrimaryTerm;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class BulkShardOperationsTests extends IndexShardTestCase {
 
@@ -71,7 +74,8 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
                 operations,
                 numOps - 1,
                 followerPrimary,
-                logger
+                logger,
+                new PostWriteRefresh(mock(TransportService.class))
             );
 
         boolean accessStats = randomBoolean();
@@ -133,7 +137,8 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
                 firstBulk,
                 seqno,
                 oldPrimary,
-                logger
+                logger,
+                new PostWriteRefresh(mock(TransportService.class))
             );
         assertThat(
             fullResult.replicaRequest().getOperations(),
@@ -159,7 +164,8 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
                 Stream.concat(secondBulk.stream(), existingOps.stream()).collect(Collectors.toList()),
                 seqno,
                 newPrimary,
-                logger
+                logger,
+                new PostWriteRefresh(mock(TransportService.class))
             );
         final long newPrimaryTerm = newPrimary.getOperationPrimaryTerm();
         final long globalCheckpoint = newPrimary.getLastKnownGlobalCheckpoint();

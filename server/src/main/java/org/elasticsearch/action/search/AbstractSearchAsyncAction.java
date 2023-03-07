@@ -544,7 +544,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (TransportActions.isShardNotAvailableException(e)) {
             // Groups shard not available exceptions under a generic exception that returns a SERVICE_UNAVAILABLE(503)
             // temporary error.
-            e = new NoShardAvailableActionException(shardTarget.getShardId(), e.getMessage());
+            e = NoShardAvailableActionException.forOnShardFailureWrapper(e.getMessage());
         }
         // we don't aggregate shard on failures due to the internal cancellation,
         // but do keep the header counts right
@@ -711,7 +711,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             final String scrollId = request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
             final String searchContextId;
             if (buildPointInTimeFromSearchResults()) {
-                searchContextId = SearchContextId.encode(queryResults.asList(), aliasFilter, minNodeVersion);
+                searchContextId = SearchContextId.encode(queryResults.asList(), aliasFilter, minNodeVersion.transportVersion);
             } else {
                 if (request.source() != null && request.source().pointInTimeBuilder() != null) {
                     searchContextId = request.source().pointInTimeBuilder().getEncodedId();

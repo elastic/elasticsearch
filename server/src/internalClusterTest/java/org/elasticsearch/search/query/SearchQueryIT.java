@@ -1797,7 +1797,6 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testSearchEmptyDoc() {
-        assertAcked(prepareCreate("test").setSettings("{\"index.analysis.analyzer.default.type\":\"keyword\"}", XContentType.JSON));
         client().prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).get();
 
         refresh();
@@ -1925,11 +1924,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         IndexRequestBuilder indexRequest = client().prepareIndex("test").setId("1").setRouting("custom").setSource("field", "value");
         indexRandom(true, false, indexRequest);
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey(), true))
-            .get();
+        updateClusterSettings(Settings.builder().put(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey(), true));
         try {
             SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(termQuery("routing-alias", "custom"))
@@ -1945,11 +1940,7 @@ public class SearchQueryIT extends ESIntegTestCase {
             assertThat(field.getValue().toString(), equalTo("1"));
         } finally {
             // unset cluster setting
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()))
-                .get();
+            updateClusterSettings(Settings.builder().putNull(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()));
         }
 
     }

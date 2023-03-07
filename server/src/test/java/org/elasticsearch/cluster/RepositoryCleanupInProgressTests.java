@@ -8,31 +8,16 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.ToXContent;
-
-import java.io.IOException;
-
-import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class RepositoryCleanupInProgressTests extends ESTestCase {
-    public void testChunking() throws IOException {
-        final var instance = new RepositoryCleanupInProgress(
-            randomList(10, () -> new RepositoryCleanupInProgress.Entry(randomAlphaOfLength(10), randomNonNegativeLong()))
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            new RepositoryCleanupInProgress(
+                randomList(10, () -> new RepositoryCleanupInProgress.Entry(randomAlphaOfLength(10), randomNonNegativeLong()))
+            ),
+            i -> i.entries().size() + 2
         );
-
-        int chunkCount = 0;
-        try (var builder = jsonBuilder()) {
-            builder.startObject();
-            final var iterator = instance.toXContentChunked(EMPTY_PARAMS);
-            while (iterator.hasNext()) {
-                iterator.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
-                chunkCount += 1;
-            }
-            builder.endObject();
-        } // closing the builder verifies that the XContent is well-formed
-
-        assertEquals(instance.entries().size() + 2, chunkCount);
     }
 }

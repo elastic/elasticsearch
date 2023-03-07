@@ -316,7 +316,8 @@ public class SystemIndexManagerTests extends ESTestCase {
                                     new ShardId(prevIndex, 0),
                                     true,
                                     RecoverySource.ExistingStoreRecoverySource.INSTANCE,
-                                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
+                                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
+                                    ShardRouting.Role.DEFAULT
                                 )
                                     .initialize(UUIDs.randomBase64UUID(random()), null, 0L)
                                     .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""))
@@ -375,7 +376,8 @@ public class SystemIndexManagerTests extends ESTestCase {
             new ShardId(index, 0),
             true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
+            ShardRouting.Role.DEFAULT
         );
         String nodeId = ESTestCase.randomAlphaOfLength(8);
         return RoutingTable.builder()

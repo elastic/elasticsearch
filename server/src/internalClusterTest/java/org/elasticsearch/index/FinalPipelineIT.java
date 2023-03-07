@@ -13,14 +13,13 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -53,6 +52,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasToString;
@@ -70,8 +70,8 @@ public class FinalPipelineIT extends ESIntegTestCase {
 
         final GetPipelineResponse response = client().admin()
             .cluster()
-            .getPipeline(new GetPipelineRequest("default_pipeline", "final_pipeline", "request_pipeline"))
-            .actionGet();
+            .prepareGetPipeline("default_pipeline", "final_pipeline", "request_pipeline")
+            .get();
         for (final PipelineConfiguration pipeline : response.pipelines()) {
             client().admin().cluster().deletePipeline(new DeletePipelineRequest(pipeline.getId())).actionGet();
         }
@@ -89,7 +89,12 @@ public class FinalPipelineIT extends ESIntegTestCase {
             IllegalStateException.class,
             () -> client().prepareIndex("index").setId("1").setSource(Map.of("field", "value")).get()
         );
-        assertThat(e, hasToString(containsString("final pipeline [final_pipeline] can't change the target index")));
+        assertThat(
+            e,
+            hasToString(
+                endsWith("final pipeline [final_pipeline] can't change the target index (from [index] to [target]) for document [1]")
+            )
+        );
     }
 
     public void testFinalPipelineOfOldDestinationIsNotInvoked() {
@@ -350,7 +355,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
             final IndexNameExpressionResolver expressionResolver,
             final Supplier<RepositoriesService> repositoriesServiceSupplier,
             Tracer tracer,
-            AllocationDeciders allocationDeciders
+            AllocationService allocationService
         ) {
             return List.of();
         }

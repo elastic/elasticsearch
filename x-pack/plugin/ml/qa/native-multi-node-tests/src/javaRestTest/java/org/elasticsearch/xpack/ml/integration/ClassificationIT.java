@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
@@ -1101,7 +1102,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     }
 
     static void createIndex(String index, boolean isDatastream) {
-        String mapping = formatted(
+        String mapping = Strings.format(
             """
                 {
                   "properties": {

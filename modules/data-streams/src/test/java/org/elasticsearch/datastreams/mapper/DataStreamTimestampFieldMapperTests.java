@@ -79,7 +79,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         }));
 
         ParsedDocument doc = docMapper.parse(source(b -> b.field("@timestamp", "2020-12-12")));
-        assertThat(doc.rootDoc().getFields("@timestamp").length, equalTo(2));
+        assertThat(doc.rootDoc().getFields("@timestamp").length, equalTo(1));
 
         Exception e = expectThrows(MapperException.class, () -> docMapper.parse(source(b -> b.field("@timestamp1", "2020-12-12"))));
         assertThat(e.getCause().getMessage(), equalTo("data stream timestamp field [@timestamp] is missing"));

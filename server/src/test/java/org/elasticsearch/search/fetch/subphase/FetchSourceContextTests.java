@@ -39,6 +39,11 @@ public class FetchSourceContextTests extends AbstractXContentSerializingTestCase
         );
     }
 
+    @Override
+    protected FetchSourceContext mutateInstance(FetchSourceContext instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testFromXContentException() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         int value = randomInt();

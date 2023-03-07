@@ -14,7 +14,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction.Request;
 
-import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -39,7 +38,7 @@ public class GetCheckpointNodeActionRequestTests extends AbstractWireSerializing
     }
 
     @Override
-    protected Request mutateInstance(Request instance) throws IOException {
+    protected Request mutateInstance(Request instance) {
 
         switch (random().nextInt(1)) {
             case 0 -> {

@@ -9,13 +9,20 @@
 package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 
 /**
  * Abstraction of an array of byte values.
  */
-public interface ByteArray extends BigArray {
+public interface ByteArray extends BigArray, Writeable {
+
+    static ByteArray readFrom(StreamInput in) throws IOException {
+        return new ReleasableByteArray(in);
+    }
 
     /**
      * Get an element given its index.

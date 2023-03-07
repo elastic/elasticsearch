@@ -218,11 +218,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             );
             assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
 
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull("cluster.acc.test.pw").putNull("cluster.acc.test.user"))
-                .get();
+            updateClusterSettings(Settings.builder().putNull("cluster.acc.test.pw").putNull("cluster.acc.test.user"));
         }
     }
 

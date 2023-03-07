@@ -9,7 +9,7 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -125,6 +125,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private final String translogUUID;
     private final TranslogDeletionPolicy deletionPolicy;
     private final LongConsumer persistedSequenceNumberConsumer;
+    private final OperationListener operationListener;
 
     /**
      * Creates a new Translog instance. This method will create a new transaction log unless the given {@link TranslogGeneration} is
@@ -158,6 +159,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.primaryTermSupplier = primaryTermSupplier;
         this.persistedSequenceNumberConsumer = persistedSequenceNumberConsumer;
+        this.operationListener = config.getOperationListener();
         this.deletionPolicy = deletionPolicy;
         this.translogUUID = translogUUID;
         bigArrays = config.getBigArrays();
@@ -555,7 +557,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 tragedy,
                 persistedSequenceNumberConsumer,
                 bigArrays,
-                diskIoBufferPool
+                diskIoBufferPool,
+                operationListener
             );
         } catch (final IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
@@ -1237,7 +1240,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         private void write(final StreamOutput out) throws IOException {
-            final int format = out.getVersion().onOrAfter(Version.V_8_0_0) ? SERIALIZATION_FORMAT : FORMAT_NO_VERSION_TYPE;
+            final int format = out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)
+                ? SERIALIZATION_FORMAT
+                : FORMAT_NO_VERSION_TYPE;
             out.writeVInt(format);
             out.writeString(id);
             if (format < FORMAT_NO_DOC_TYPE) {
@@ -1398,7 +1403,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         private void write(final StreamOutput out) throws IOException {
-            final int format = out.getVersion().onOrAfter(Version.V_8_0_0) ? SERIALIZATION_FORMAT : FORMAT_NO_VERSION_TYPE;
+            final int format = out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)
+                ? SERIALIZATION_FORMAT
+                : FORMAT_NO_VERSION_TYPE;
             out.writeVInt(format);
             if (format < FORMAT_NO_DOC_TYPE) {
                 out.writeString(MapperService.SINGLE_MAPPING_NAME);
@@ -1948,7 +1955,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             new TragicExceptionHolder(),
             seqNo -> { throw new UnsupportedOperationException(); },
             BigArrays.NON_RECYCLING_INSTANCE,
-            DiskIoBufferPool.INSTANCE
+            DiskIoBufferPool.INSTANCE,
+            (d, s, l) -> {}
         );
         writer.close();
         return uuid;

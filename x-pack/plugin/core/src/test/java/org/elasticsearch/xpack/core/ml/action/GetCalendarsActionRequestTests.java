@@ -26,6 +26,11 @@ public class GetCalendarsActionRequestTests extends AbstractXContentSerializingT
     }
 
     @Override
+    protected GetCalendarsAction.Request mutateInstance(GetCalendarsAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<GetCalendarsAction.Request> instanceReader() {
         return GetCalendarsAction.Request::new;
     }

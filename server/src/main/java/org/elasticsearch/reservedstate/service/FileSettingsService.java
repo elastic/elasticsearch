@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.BufferedInputStream;
 import java.nio.file.Files;
-import java.nio.file.Path;
 
 import static org.elasticsearch.xcontent.XContentType.JSON;
 
@@ -102,11 +101,11 @@ public class FileSettingsService extends AbstractFileWatchingService {
     }
 
     @Override
-    PlainActionFuture<Void> processFileChanges(Path path) {
+    PlainActionFuture<Void> processFileChanges() {
         PlainActionFuture<Void> completion = PlainActionFuture.newFuture();
-        logger.info("processing path [{}] for [{}]", path, NAMESPACE);
+        logger.info("processing path [{}] for [{}]", watchedFile(), NAMESPACE);
         try (
-            var fis = Files.newInputStream(path);
+            var fis = Files.newInputStream(watchedFile());
             var bis = new BufferedInputStream(fis);
             var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
         ) {

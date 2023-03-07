@@ -49,7 +49,7 @@ import java.util.concurrent.ExecutionException;
  * be created, updated, or deleted during runtime.</p>
  *
  * <p>What this class does not do is define what should happen after the file changes.
- * An implementation class should override {@link #processFileChanges(Path)} to define
+ * An implementation class should override {@link #processFileChanges()} to define
  * the correct behavior.</p>
  */
 public abstract class AbstractFileWatchingService extends AbstractLifecycleComponent implements ClusterStateListener {
@@ -78,7 +78,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
      * Any implementation of this class must implement this method in order
      * to define what happens once the watched file changes.
      */
-    abstract PlainActionFuture<Void> processFileChanges(Path path);
+    abstract PlainActionFuture<Void> processFileChanges();
 
     /**
      * There may be an indication in cluster state that the file we are watching
@@ -363,7 +363,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     // package private for testing
     void processSettingsAndNotifyListeners() throws InterruptedException {
         try {
-            processFileChanges(watchedFile()).get();
+            processFileChanges().get();
             for (var listener : eventListeners) {
                 listener.watchedFileChanged();
             }

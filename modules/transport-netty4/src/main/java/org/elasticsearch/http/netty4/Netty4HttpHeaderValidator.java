@@ -18,6 +18,7 @@ import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.util.ReferenceCountUtil;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.TriConsumer;
 
@@ -25,7 +26,7 @@ import java.util.ArrayDeque;
 
 import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidator.State.DROPPING_DATA_PERMANENTLY;
 import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidator.State.DROPPING_DATA_UNTIL_NEXT_REQUEST;
-import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidator.State.FORWARDING_DATA;
+import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidator.State.FORWARDING_DATA_UNTIL_NEXT_REQUEST;
 import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidator.State.QUEUEING_DATA;
 import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidator.State.WAITING_TO_START;
 
@@ -63,7 +64,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
             case QUEUEING_DATA:
                 pending.add(ReferenceCountUtil.retain(httpObject));
                 break;
-            case FORWARDING_DATA:
+            case FORWARDING_DATA_UNTIL_NEXT_REQUEST:
                 assert pending.isEmpty();
                 if (httpObject instanceof LastHttpContent) {
                     state = WAITING_TO_START;
@@ -136,10 +137,10 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
             state = WAITING_TO_START;
             requestStart(ctx);
         } else {
-            state = FORWARDING_DATA;
+            state = FORWARDING_DATA_UNTIL_NEXT_REQUEST;
         }
 
-        assert state == WAITING_TO_START || state == QUEUEING_DATA || state == FORWARDING_DATA;
+        assert state == WAITING_TO_START || state == QUEUEING_DATA || state == FORWARDING_DATA_UNTIL_NEXT_REQUEST;
         setAutoReadForState(ctx, state);
     }
 
@@ -229,7 +230,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
     enum State {
         WAITING_TO_START,
         QUEUEING_DATA,
-        FORWARDING_DATA,
+        FORWARDING_DATA_UNTIL_NEXT_REQUEST,
         DROPPING_DATA_UNTIL_NEXT_REQUEST,
         DROPPING_DATA_PERMANENTLY
     }

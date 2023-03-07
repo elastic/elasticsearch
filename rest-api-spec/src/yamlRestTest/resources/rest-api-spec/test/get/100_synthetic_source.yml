@@ -595,7 +595,7 @@ _doc_count:
         index: test
         body:
           settings:
-            number_of_replicas: 0
+            number_of_replicas: 1
           mappings:
             _source:
               mode: synthetic

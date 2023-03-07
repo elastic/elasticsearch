@@ -53,7 +53,7 @@ setup:
         master_timeout: 10s
         body:
           settings:
-            index.number_of_replicas: 0
+            index.number_of_replicas: 1
             index.number_of_shards: 2
 
   - do:

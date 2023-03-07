@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -51,23 +50,34 @@ import static org.elasticsearch.xcontent.XContentType.JSON;
  * the service as a listener to cluster state changes, so that we can enable the file watcher thread when this
  * node becomes a master node.
  */
-public class FileSettingsService extends AbstractLifecycleComponent implements ClusterStateListener {
+public class FileSettingsService extends AbstractFileWatchingService implements ClusterStateListener {
+    // TODO[wrb]: getLogger in superclass?
     private static final Logger logger = LogManager.getLogger(FileSettingsService.class);
 
     public static final String SETTINGS_FILE_NAME = "settings.json";
     public static final String NAMESPACE = "file_settings";
+    // TODO[wrb]: to superclass
     private static final int REGISTER_RETRY_COUNT = 5;
 
+    // TODO[wrb]: to superclass
     private final ClusterService clusterService;
+    // TODO[wrb]: to superclass
     private final ReservedClusterStateService stateService;
     private final Path operatorSettingsDir;
 
+    // TODO[wrb]: to superclass
     private WatchService watchService; // null;
+    // TODO[wrb]: to superclass
     private Thread watcherThread;
+    // TODO[wrb]: to superclass
     private FileUpdateState fileUpdateState;
+    // TODO[wrb]: to superclass
     private WatchKey settingsDirWatchKey;
+    // TODO[wrb]: to superclass
+    // TODO[wrb]: to superclass
     private WatchKey configDirWatchKey;
 
+    // TODO[wrb]: to superclass
     private volatile boolean active = false;
 
     public static final String OPERATOR_DIRECTORY = "operator";
@@ -81,6 +91,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
      * @param stateService an instance of the immutable cluster state controller, so we can perform the cluster state changes
      * @param environment we need the environment to pull the location of the config and operator directories
      */
+    // TODO[wrb]: constructor to superclass
     public FileSettingsService(ClusterService clusterService, ReservedClusterStateService stateService, Environment environment) {
         this.clusterService = clusterService;
         this.stateService = stateService;
@@ -88,14 +99,17 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         this.eventListeners = new CopyOnWriteArrayList<>();
     }
 
+    // TODO[wrb]: rename, to superclass
     public Path operatorSettingsDir() {
         return operatorSettingsDir;
     }
 
+    // TODO[wrb]: rename, to superclass
     public Path operatorSettingsFile() {
         return operatorSettingsDir.resolve(SETTINGS_FILE_NAME);
     }
 
+    // TODO[wrb]: to superclass
     // platform independent way to tell if a file changed
     // we compare the file modified timestamp, the absolute path (symlinks), and file id on the system
     boolean watchedFileChanged(Path path) throws IOException {
@@ -111,6 +125,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         return (previousUpdateState == null || previousUpdateState.equals(fileUpdateState) == false);
     }
 
+    // TODO[wrb]: to superclass
     @Override
     protected void doStart() {
         // We start the file watcher when we know we are master from a cluster state change notification.
@@ -126,6 +141,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         }
     }
 
+    // TODO[wrb]: to superclass
     @Override
     protected void doStop() {
         this.active = false;
@@ -133,19 +149,23 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         stopWatcher();
     }
 
+    // TODO[wrb]: to superclass
     @Override
     protected void doClose() {}
 
+    // TODO[wrb]: to superclass
     private boolean currentNodeMaster(ClusterState clusterState) {
         return clusterState.nodes().getLocalNodeId().equals(clusterState.nodes().getMasterNodeId());
     }
 
+    // TODO[wrb]: to superclass
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         ClusterState clusterState = event.state();
         startIfMaster(clusterState);
     }
 
+    // TODO[wrb]: to superclass
     private void startIfMaster(ClusterState clusterState) {
         if (currentNodeMaster(clusterState)) {
             startWatcher(clusterState);
@@ -185,6 +205,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         }
     }
 
+    // TODO[wrb]: to superclass
     /**
      * 'Touches' the settings file so the file watcher will re-processes it.
      * <p>
@@ -210,10 +231,12 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         }
     }
 
+    // TODO[wrb]: to superclass
     public boolean watching() {
         return watcherThread != null;
     }
 
+    // TODO[wrb]: to superclass, update logging
     synchronized void startWatcher(ClusterState clusterState) {
         if (watching() || active == false) {
             refreshExistingFileStateIfNeeded(clusterState);
@@ -259,6 +282,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         watcherThread.start();
     }
 
+    // TODO[wrb]: how much to refactor? Or can it just go to superclass?
     private void watcherThread() {
         try {
             logger.info("file settings service up and running [tid={}]", Thread.currentThread().getId());
@@ -325,6 +349,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         }
     }
 
+    // TODO[wrb]: to superclass, update logging
     // package private for testing
     void processSettingsAndNotifyListeners() throws InterruptedException {
         try {
@@ -337,6 +362,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         }
     }
 
+    // TODO[wrb]: to superclass, update logging
     synchronized void stopWatcher() {
         if (watching()) {
             logger.debug("stopping watcher ...");
@@ -369,12 +395,14 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         }
     }
 
+    // TODO[wrb]: to superclass
     // package private for testing
     long retryDelayMillis(int failedCount) {
         assert failedCount < 31; // don't let the count overflow
         return 100 * (1 << failedCount) + Randomness.get().nextInt(10); // add a bit of jitter to avoid two processes in lockstep
     }
 
+    // TODO[wrb]: to superclass, rename
     // package private for testing
     WatchKey enableSettingsWatcher(WatchKey previousKey, Path settingsDir) throws IOException, InterruptedException {
         if (previousKey != null) {
@@ -428,8 +456,10 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
      * Holds information about the last known state of the file we watched. We use this
      * class to determine if a file has been changed.
      */
+    // TODO[wrb]: to superclass
     record FileUpdateState(long timestamp, String path, Object fileKey) {}
 
+    // TODO[wrb]: rename and move?
     public void addFileSettingsChangedListener(FileSettingsChangedListener listener) {
         eventListeners.add(listener);
     }

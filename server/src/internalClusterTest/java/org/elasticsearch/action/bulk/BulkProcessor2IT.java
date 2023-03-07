@@ -137,7 +137,7 @@ public class BulkProcessor2IT extends ESIntegTestCase {
             .build();
 
         MultiGetRequestBuilder multiGetRequestBuilder = indexDocs(client(), processor, numDocs);
-        processor.awaitClose(1, TimeUnit.MINUTES);
+        processor.close();
         assertThat(listener.beforeCounts.get(), greaterThanOrEqualTo(1));
         assertThat(listener.afterCounts.get(), greaterThanOrEqualTo(1));
         assertThat(listener.bulkFailures.size(), equalTo(0));

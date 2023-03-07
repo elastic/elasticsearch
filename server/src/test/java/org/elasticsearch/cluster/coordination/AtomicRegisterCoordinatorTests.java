@@ -361,11 +361,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
 
         @Override
-        public CoordinationState.PersistedState createFreshPersistedState(
-            DiscoveryNode localNode,
-            BooleanSupplier disruptStorage,
-            Settings settings
-        ) {
+        public CoordinationState.PersistedState createFreshPersistedState(DiscoveryNode localNode, BooleanSupplier disruptStorage) {
             return new AtomicRegisterPersistedState(localNode, atomicRegister, sharedStore);
         }
 
@@ -377,8 +373,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             Function<Long, Long> adaptCurrentTerm,
             LongSupplier currentTimeInMillisSupplier,
             NamedWriteableRegistry namedWriteableRegistry,
-            BooleanSupplier disruptStorage,
-            Settings settings
+            BooleanSupplier disruptStorage
         ) {
             return new AtomicRegisterPersistedState(newLocalNode, atomicRegister, sharedStore);
         }

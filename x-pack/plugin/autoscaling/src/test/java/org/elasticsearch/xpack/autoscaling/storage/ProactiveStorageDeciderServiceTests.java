@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -78,7 +77,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         applyCreatedDates(
             originalState,
             stateBuilder,
-            (IndexAbstraction.DataStream) originalState.metadata().getIndicesLookup().get("test"),
+            (DataStream) originalState.metadata().getIndicesLookup().get("test"),
             lastCreated,
             1
         );
@@ -209,7 +208,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         applyCreatedDates(
             originalState,
             stateBuilder,
-            (IndexAbstraction.DataStream) originalState.metadata().getIndicesLookup().get("test"),
+            (DataStream) originalState.metadata().getIndicesLookup().get("test"),
             lastCreated,
             1
         );
@@ -250,7 +249,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         applyCreatedDates(
             originalState,
             stateBuilder,
-            (IndexAbstraction.DataStream) originalState.metadata().getIndicesLookup().get("test"),
+            (DataStream) originalState.metadata().getIndicesLookup().get("test"),
             lastCreated,
             1
         );
@@ -394,7 +393,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     private ClusterState.Builder applyCreatedDates(
         ClusterState state,
         ClusterState.Builder builder,
-        IndexAbstraction.DataStream ds,
+        DataStream ds,
         long last,
         long decrement
     ) {

@@ -25,7 +25,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
-import org.elasticsearch.xpack.core.ml.inference.results.SlimResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
@@ -84,14 +84,14 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
 
         // Randomisation cannot be used here as {@code #doAssertLuceneQuery}
         // asserts that 2 rewritten queries are the same
-        var tokens = new ArrayList<SlimResults.WeightedToken>();
+        var tokens = new ArrayList<TextExpansionResults.WeightedToken>();
         for (int i = 0; i < NUM_TOKENS; i++) {
-            tokens.add(new SlimResults.WeightedToken(i, (i + 1) * 1.0f));
+            tokens.add(new TextExpansionResults.WeightedToken(i, (i + 1) * 1.0f));
         }
 
         var response = InferModelAction.Response.builder()
             .setModelId(request.getModelId())
-            .addInferenceResults(List.of(new SlimResults("foo", tokens, randomBoolean())))
+            .addInferenceResults(List.of(new TextExpansionResults("foo", tokens, randomBoolean())))
             .build();
         @SuppressWarnings("unchecked")  // We matched the method above.
         ActionListener<InferModelAction.Response> listener = (ActionListener<InferModelAction.Response>) args[2];

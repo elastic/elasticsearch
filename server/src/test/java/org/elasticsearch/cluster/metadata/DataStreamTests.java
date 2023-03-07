@@ -8,11 +8,15 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
+import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -31,6 +35,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.hamcrest.Matchers.equalTo;
@@ -38,6 +43,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -803,4 +809,320 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         }
     }
 
+    public void testGetCreationOrRolloverDate() {
+        String dataStreamName = "metrics-foo";
+        long now = System.currentTimeMillis();
+        long creationTimeMillis = now - 3000L;
+        long rolloverTimeMills = now - 2000L;
+
+        {
+            // for non rolled indices we get the index creation date
+            IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .creationDate(creationTimeMillis);
+
+            assertThat(DataStream.getCreationOrRolloverDate(dataStreamName, indexMetaBuilder.build()).millis(), is(creationTimeMillis));
+        }
+
+        {
+            // for rolled indices we get the rollover info for the specified data stream
+            IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .creationDate(now - 3000L);
+
+            MaxAgeCondition rolloverCondition = new MaxAgeCondition(TimeValue.timeValueMillis(rolloverTimeMills));
+            indexMetaBuilder.putRolloverInfo(new RolloverInfo(dataStreamName, List.of(rolloverCondition), now - 2000L));
+
+            assertThat(DataStream.getCreationOrRolloverDate(dataStreamName, indexMetaBuilder.build()).millis(), is(rolloverTimeMills));
+        }
+
+        {
+            // for rolled indices on other targets than the data stream name we get the creation date
+            IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .creationDate(creationTimeMillis);
+
+            MaxAgeCondition rolloverCondition = new MaxAgeCondition(TimeValue.timeValueMillis(rolloverTimeMills));
+            indexMetaBuilder.putRolloverInfo(new RolloverInfo("some-alias-name", List.of(rolloverCondition), now - 2000L));
+
+            assertThat(DataStream.getCreationOrRolloverDate(dataStreamName, indexMetaBuilder.build()).millis(), is(creationTimeMillis));
+        }
+    }
+
+    public void testGetIndicesOlderThan() {
+        String dataStreamName = "metrics-foo";
+        long now = System.currentTimeMillis();
+
+        List<Tuple<Long, Long>> creationAndRolloverTimes = List.of(
+            Tuple.tuple(now - 5000, now - 4000),
+            Tuple.tuple(now - 4000, now - 3000),
+            Tuple.tuple(now - 3000, now - 2000),
+            Tuple.tuple(now - 2000, now - 1000),
+            Tuple.tuple(now, null)
+        );
+
+        Metadata.Builder builder = Metadata.builder();
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            creationAndRolloverTimes,
+            settings(Version.CURRENT),
+            new DataLifecycle()
+        );
+        Metadata metadata = builder.build();
+        {
+            List<Index> backingIndices = dataStream.getIndicesOlderThan(TimeValue.timeValueMillis(2500), metadata::index, null, () -> now);
+            assertThat(backingIndices.size(), is(2));
+            assertThat(backingIndices.get(0).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 1)));
+            assertThat(backingIndices.get(1).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 2)));
+        }
+
+        {
+            List<Index> backingIndices = dataStream.getIndicesOlderThan(TimeValue.timeValueMillis(0), metadata::index, null, () -> now);
+            assertThat(backingIndices.size(), is(5));
+            assertThat(backingIndices.get(0).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 1)));
+            assertThat(backingIndices.get(1).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 2)));
+            assertThat(backingIndices.get(2).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 3)));
+            assertThat(backingIndices.get(3).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 4)));
+            assertThat(backingIndices.get(4).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 5)));
+        }
+
+        {
+            List<Index> backingIndices = dataStream.getIndicesOlderThan(TimeValue.timeValueMillis(6000), metadata::index, null, () -> now);
+            assertThat(backingIndices.isEmpty(), is(true));
+        }
+
+        {
+            Predicate<IndexMetadata> genThreeAndFivePredicate = indexMetadata -> indexMetadata.getIndex().getName().endsWith("00003")
+                || indexMetadata.getIndex().getName().endsWith("00005");
+
+            List<Index> backingIndices = dataStream.getIndicesOlderThan(
+                TimeValue.timeValueMillis(0),
+                metadata::index,
+                genThreeAndFivePredicate,
+                () -> now
+            );
+            assertThat(backingIndices.size(), is(2));
+            assertThat(backingIndices.get(0).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 3)));
+            assertThat(backingIndices.get(1).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 5)));
+        }
+
+    }
+
+    public void testGetIndicesPastRetention() {
+        String dataStreamName = "metrics-foo";
+        long now = System.currentTimeMillis();
+
+        List<Tuple<Long, Long>> creationAndRolloverTimes = List.of(
+            Tuple.tuple(now - 5000, now - 4000),
+            Tuple.tuple(now - 4000, now - 3000),
+            Tuple.tuple(now - 3000, now - 2000),
+            Tuple.tuple(now - 2000, now - 1000),
+            Tuple.tuple(now, null)
+        );
+
+        {
+            // no lifecycle configured so we expect an empty list
+            Metadata.Builder builder = Metadata.builder();
+            DataStream dataStream = createDataStream(builder, dataStreamName, creationAndRolloverTimes, settings(Version.CURRENT), null);
+            Metadata metadata = builder.build();
+
+            assertThat(dataStream.getIndicesPastRetention(metadata::index, () -> now).isEmpty(), is(true));
+        }
+
+        {
+            // no retention configured so we expect an empty list
+            Metadata.Builder builder = Metadata.builder();
+            DataStream dataStream = createDataStream(
+                builder,
+                dataStreamName,
+                creationAndRolloverTimes,
+                settings(Version.CURRENT),
+                new DataLifecycle()
+            );
+            Metadata metadata = builder.build();
+
+            assertThat(dataStream.getIndicesPastRetention(metadata::index, () -> now).isEmpty(), is(true));
+        }
+
+        {
+            Metadata.Builder builder = Metadata.builder();
+            DataStream dataStream = createDataStream(
+                builder,
+                dataStreamName,
+                creationAndRolloverTimes,
+                settings(Version.CURRENT),
+                new DataLifecycle(TimeValue.timeValueMillis(2500))
+            );
+            Metadata metadata = builder.build();
+
+            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now);
+            assertThat(backingIndices.size(), is(2));
+            assertThat(backingIndices.get(0).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 1)));
+            assertThat(backingIndices.get(1).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 2)));
+        }
+
+        {
+            // even though all indices match the write index should not be returned
+            Metadata.Builder builder = Metadata.builder();
+            DataStream dataStream = createDataStream(
+                builder,
+                dataStreamName,
+                creationAndRolloverTimes,
+                settings(Version.CURRENT),
+                new DataLifecycle(TimeValue.timeValueMillis(0))
+            );
+            Metadata metadata = builder.build();
+
+            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now);
+
+            assertThat(backingIndices.size(), is(4));
+            assertThat(backingIndices.get(0).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 1)));
+            assertThat(backingIndices.get(1).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 2)));
+            assertThat(backingIndices.get(2).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 3)));
+            assertThat(backingIndices.get(3).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 4)));
+        }
+
+        {
+            // no index matches the retention age
+            Metadata.Builder builder = Metadata.builder();
+            DataStream dataStream = createDataStream(
+                builder,
+                dataStreamName,
+                creationAndRolloverTimes,
+                settings(Version.CURRENT),
+                new DataLifecycle(TimeValue.timeValueMillis(6000))
+            );
+            Metadata metadata = builder.build();
+
+            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now);
+            assertThat(backingIndices.isEmpty(), is(true));
+        }
+
+        {
+            // no indices are returned as even though all pass retention age none are managed by DLM
+            Metadata.Builder builder = Metadata.builder();
+            DataStream dataStream = createDataStream(
+                builder,
+                dataStreamName,
+                creationAndRolloverTimes,
+                Settings.builder()
+                    .put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy")
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT),
+                new DataLifecycle(TimeValue.timeValueMillis(0))
+            );
+            Metadata metadata = builder.build();
+
+            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now);
+            assertThat(backingIndices.isEmpty(), is(true));
+        }
+    }
+
+    public void testIsIndexManagedByDLM() {
+        String dataStreamName = "metrics-foo";
+        long now = System.currentTimeMillis();
+
+        List<Tuple<Long, Long>> creationAndRolloverTimes = List.of(
+            Tuple.tuple(now - 5000, now - 4000),
+            Tuple.tuple(now - 4000, now - 3000),
+            Tuple.tuple(now - 3000, now - 2000),
+            Tuple.tuple(now - 2000, now - 1000),
+            Tuple.tuple(now, null)
+        );
+        Metadata.Builder builder = Metadata.builder();
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            creationAndRolloverTimes,
+            settings(Version.CURRENT),
+            new DataLifecycle(TimeValue.timeValueMillis(0))
+        );
+        Metadata metadata = builder.build();
+
+        {
+            // false for indices not part of the data stream
+            assertThat(dataStream.isIndexManagedByDLM(new Index("standalone_index", "uuid"), metadata::index), is(false));
+        }
+
+        {
+            // false for indices that were deleted
+            assertThat(dataStream.isIndexManagedByDLM(dataStream.getIndices().get(1), (index) -> null), is(false));
+        }
+
+        {
+            // false if data stream doesn't have a lifecycle
+            Metadata.Builder newBuilder = Metadata.builder();
+            DataStream unmanagedDataStream = createDataStream(
+                newBuilder,
+                dataStreamName,
+                creationAndRolloverTimes,
+                settings(Version.CURRENT),
+                null
+            );
+            Metadata newMetadata = newBuilder.build();
+            assertThat(unmanagedDataStream.isIndexManagedByDLM(unmanagedDataStream.getIndices().get(1), newMetadata::index), is(false));
+        }
+
+        {
+            // false for indices that have an ILM policy configured
+            Metadata.Builder builderWithIlm = Metadata.builder();
+            DataStream ds = createDataStream(
+                builderWithIlm,
+                dataStreamName,
+                creationAndRolloverTimes,
+                Settings.builder()
+                    .put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy")
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT),
+                new DataLifecycle()
+            );
+            Metadata metadataIlm = builderWithIlm.build();
+            for (Index index : ds.getIndices()) {
+                assertThat(ds.isIndexManagedByDLM(index, metadataIlm::index), is(false));
+            }
+        }
+
+        {
+            // true otherwise
+            for (Index index : dataStream.getIndices()) {
+                assertThat(dataStream.isIndexManagedByDLM(index, metadata::index), is(true));
+            }
+        }
+    }
+
+    private DataStream createDataStream(
+        Metadata.Builder builder,
+        String dataStreamName,
+        List<Tuple<Long, Long>> creationAndRolloverTimes,
+        Settings.Builder backingIndicesSettings,
+        @Nullable DataLifecycle lifecycle
+    ) {
+        int backingIndicesCount = creationAndRolloverTimes.size();
+        final List<Index> backingIndices = new ArrayList<>();
+        for (int k = 1; k <= backingIndicesCount; k++) {
+            Tuple<Long, Long> creationRolloverTime = creationAndRolloverTimes.get(k - 1);
+            IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, k))
+                .settings(backingIndicesSettings)
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .creationDate(creationRolloverTime.v1());
+            if (k < backingIndicesCount) {
+                // add rollover info only for non-write indices
+                Long rolloverTimeMillis = creationRolloverTime.v2();
+                if (rolloverTimeMillis != null) {
+                    MaxAgeCondition rolloverCondition = new MaxAgeCondition(TimeValue.timeValueMillis(rolloverTimeMillis));
+                    indexMetaBuilder.putRolloverInfo(new RolloverInfo(dataStreamName, List.of(rolloverCondition), rolloverTimeMillis));
+                }
+            }
+            IndexMetadata indexMetadata = indexMetaBuilder.build();
+            builder.put(indexMetadata, false);
+            backingIndices.add(indexMetadata.getIndex());
+        }
+        return newInstance(dataStreamName, backingIndices, backingIndicesCount, null, false, lifecycle);
+    }
 }

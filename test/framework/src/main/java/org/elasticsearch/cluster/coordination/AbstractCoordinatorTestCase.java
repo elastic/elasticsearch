@@ -106,7 +106,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -903,16 +902,15 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             return coordinatorStrategy.getInitialConfigurationForNode(localNode, initialConfiguration);
         }
 
-        CoordinationState.PersistedState createFreshPersistedState(DiscoveryNode localNode, Settings settings) {
-            return coordinatorStrategy.createFreshPersistedState(localNode, () -> disruptStorage, settings);
+        CoordinationState.PersistedState createFreshPersistedState(DiscoveryNode localNode) {
+            return coordinatorStrategy.createFreshPersistedState(localNode, () -> disruptStorage);
         }
 
         CoordinationState.PersistedState createPersistedStateFromExistingState(
             DiscoveryNode newLocalNode,
             CoordinationState.PersistedState oldState,
             Function<Metadata, Metadata> adaptGlobalMetadata,
-            Function<Long, Long> adaptCurrentTerm,
-            Settings settings
+            Function<Long, Long> adaptCurrentTerm
         ) {
             return coordinatorStrategy.createPersistedStateFromExistingState(
                 newLocalNode,
@@ -921,8 +919,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 adaptCurrentTerm,
                 deterministicTaskQueue::getCurrentTimeMillis,
                 getNamedWriteableRegistry(),
-                () -> disruptStorage,
-                settings
+                () -> disruptStorage
             );
         }
 
@@ -959,7 +956,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             ClusterNode(
                 int nodeIndex,
                 DiscoveryNode localNode,
-                BiFunction<DiscoveryNode, Settings, CoordinationState.PersistedState> persistedStateSupplier,
+                Function<DiscoveryNode, CoordinationState.PersistedState> persistedStateSupplier,
                 Settings nodeSettings,
                 NodeHealthService nodeHealthService
             ) {
@@ -967,7 +964,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 this.nodeIndex = nodeIndex;
                 this.localNode = localNode;
                 this.nodeSettings = nodeSettings;
-                persistedState = persistedStateSupplier.apply(localNode, nodeSettings);
+                persistedState = persistedStateSupplier.apply(localNode);
                 assertTrue("must use a fresh PersistedState", openPersistedStates.add(persistedState));
                 boolean success = false;
                 try {
@@ -1192,13 +1189,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     return new ClusterNode(
                         nodeIndex,
                         newLocalNode,
-                        (node, nodeSettings) -> createPersistedStateFromExistingState(
-                            newLocalNode,
-                            persistedState,
-                            adaptGlobalMetadata,
-                            adaptCurrentTerm,
-                            nodeSettings
-                        ),
+                        node -> createPersistedStateFromExistingState(newLocalNode, persistedState, adaptGlobalMetadata, adaptCurrentTerm),
                         settings,
                         nodeHealthService
                     );
@@ -1466,11 +1457,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     protected interface CoordinatorStrategy {
         CoordinationServices getCoordinationServices(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings);
 
-        CoordinationState.PersistedState createFreshPersistedState(
-            DiscoveryNode localNode,
-            BooleanSupplier disruptStorage,
-            Settings settings
-        );
+        CoordinationState.PersistedState createFreshPersistedState(DiscoveryNode localNode, BooleanSupplier disruptStorage);
 
         CoordinationState.PersistedState createPersistedStateFromExistingState(
             DiscoveryNode newLocalNode,
@@ -1479,8 +1466,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             Function<Long, Long> adaptCurrentTerm,
             LongSupplier currentTimeInMillisSupplier,
             NamedWriteableRegistry namedWriteableRegistry,
-            BooleanSupplier disruptStorage,
-            Settings settings
+            BooleanSupplier disruptStorage
         );
 
         VotingConfiguration getInitialConfigurationForNode(DiscoveryNode localNode, VotingConfiguration initialConfiguration);
@@ -1526,11 +1512,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         }
 
         @Override
-        public CoordinationState.PersistedState createFreshPersistedState(
-            DiscoveryNode localNode,
-            BooleanSupplier disruptStorage,
-            Settings settings
-        ) {
+        public CoordinationState.PersistedState createFreshPersistedState(DiscoveryNode localNode, BooleanSupplier disruptStorage) {
             return new MockPersistedState(localNode, disruptStorage);
         }
 
@@ -1542,10 +1524,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             Function<Long, Long> adaptCurrentTerm,
             LongSupplier currentTimeInMillisSupplier,
             NamedWriteableRegistry namedWriteableRegistry,
-            BooleanSupplier disruptStorage,
-            Settings settings
+            BooleanSupplier disruptStorage
         ) {
-            assert oldState instanceof MockPersistedState;
+            assert oldState instanceof MockPersistedState : oldState.getClass();
             return new MockPersistedState(
                 newLocalNode,
                 (MockPersistedState) oldState,
@@ -1925,8 +1906,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         private final BooleanSupplier disruptStorage;
 
         MockPersistedState(DiscoveryNode localNode, BooleanSupplier disruptStorage) {
+            this.disruptStorage = disruptStorage;
             try {
-                this.disruptStorage = disruptStorage;
                 if (rarely()) {
                     nodeEnvironment = newNodeEnvironment();
                     nodeEnvironments.add(nodeEnvironment);

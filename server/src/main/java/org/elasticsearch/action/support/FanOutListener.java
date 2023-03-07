@@ -113,6 +113,11 @@ public final class FanOutListener<T> implements ActionListener<T> {
      */
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void addListener(@Nullable ThreadContext threadContext, ExecutorService executor, ActionListener<T> listener) {
+        if (ref.get() instanceof Result result) {
+            result.complete(listener);
+            return;
+        }
+
         final var wrappedListener = fork(executor, preserveContext(threadContext, listener));
         var currentValue = ref.compareAndExchange(EMPTY, wrappedListener);
         if (currentValue == EMPTY) {

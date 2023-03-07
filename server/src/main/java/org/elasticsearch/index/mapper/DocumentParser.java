@@ -69,9 +69,7 @@ public final class DocumentParser {
         } catch (Exception e) {
             throw wrapInMapperParsingException(source, e);
         }
-        if (context.path.atRoot() == false) {
-            throwOnLeftoverPathElements(context.path);
-        }
+        assert context.path.atRoot() : "found leftover path elements: " + context.path.pathAsText("");
 
         return new ParsedDocument(
             context.version(),
@@ -89,10 +87,6 @@ public final class DocumentParser {
                 return idMapper.documentDescription(this);
             }
         };
-    }
-
-    private static void throwOnLeftoverPathElements(ContentPath path) {
-        throw new IllegalStateException("found leftover path elements: " + path.pathAsText(""));
     }
 
     private static void internalParseDocument(

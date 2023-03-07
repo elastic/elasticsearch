@@ -252,10 +252,13 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             int prefixLength,
             int maxExpansions,
             boolean transpositions,
-            SearchExecutionContext context
+            SearchExecutionContext context,
+            MultiTermQuery.RewriteMethod rewriteMethod
         ) {
             // Disable scoring
-            return new ConstantScoreQuery(super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context));
+            return new ConstantScoreQuery(
+                super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context, rewriteMethod)
+            );
         }
 
         @Override

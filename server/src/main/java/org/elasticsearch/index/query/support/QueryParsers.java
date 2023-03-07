@@ -26,14 +26,6 @@ public final class QueryParsers {
 
     }
 
-    @Deprecated
-    public static void setRewriteMethod(MultiTermQuery query, @Nullable MultiTermQuery.RewriteMethod rewriteMethod) {
-        if (rewriteMethod == null) {
-            return;
-        }
-        query.setRewriteMethod(rewriteMethod);
-    }
-
     public static MultiTermQuery.RewriteMethod parseRewriteMethod(@Nullable String rewriteMethod, DeprecationHandler deprecationHandler) {
         return parseRewriteMethod(rewriteMethod, MultiTermQuery.CONSTANT_SCORE_REWRITE, deprecationHandler);
     }

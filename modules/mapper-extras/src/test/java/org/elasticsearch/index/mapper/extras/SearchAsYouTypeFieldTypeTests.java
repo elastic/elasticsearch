@@ -112,6 +112,10 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
             fieldType.prefixQuery(withinBoundsTerm, CONSTANT_SCORE_REWRITE, randomMockContext()),
             equalTo(new ConstantScoreQuery(new TermQuery(new Term(NAME + "._index_prefix", withinBoundsTerm))))
         );
+        assertThat(
+            fieldType.prefixQuery(withinBoundsTerm, null, randomMockContext()),
+            equalTo(new ConstantScoreQuery(new TermQuery(new Term(NAME + "._index_prefix", withinBoundsTerm))))
+        );
 
         // our defaults don't allow a situation where a term can be too small
 
@@ -121,10 +125,11 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
             fieldType.prefixQuery(longTerm, CONSTANT_SCORE_REWRITE, MOCK_CONTEXT),
             equalTo(new PrefixQuery(new Term(NAME, longTerm)))
         );
+        assertThat(fieldType.prefixQuery(longTerm, null, MOCK_CONTEXT), equalTo(new PrefixQuery(new Term(NAME, longTerm))));
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
-            () -> fieldType.prefixQuery(longTerm, CONSTANT_SCORE_REWRITE, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+            () -> fieldType.prefixQuery(longTerm, randomBoolean() ? null : CONSTANT_SCORE_REWRITE, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
         );
         assertEquals(
             "[prefix] queries cannot be executed when 'search.allow_expensive_queries' is set to false. "

@@ -413,7 +413,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 SpanMultiTermQueryWrapper<?> spanMulti = new SpanMultiTermQueryWrapper<>(
                     new PrefixQuery(new Term(name(), indexedValueForSearch(value)))
                 );
-                spanMulti.setRewriteMethod(method);
+                if (method != null) {
+                    spanMulti.setRewriteMethod(method);
+                }
                 return spanMulti;
             }
         }
@@ -650,7 +652,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 SpanMultiTermQueryWrapper<?> spanMulti = new SpanMultiTermQueryWrapper<>(
                     new PrefixQuery(new Term(name(), indexedValueForSearch(value)))
                 );
-                spanMulti.setRewriteMethod(method);
+                if (method != null) {
+                    spanMulti.setRewriteMethod(method);
+                }
                 return spanMulti;
             }
         }

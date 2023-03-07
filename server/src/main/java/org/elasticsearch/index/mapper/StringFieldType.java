@@ -24,6 +24,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Map;
@@ -60,7 +61,8 @@ public abstract class StringFieldType extends TermBasedFieldType {
         int prefixLength,
         int maxExpansions,
         boolean transpositions,
-        SearchExecutionContext context
+        SearchExecutionContext context,
+        @Nullable MultiTermQuery.RewriteMethod rewriteMethod
     ) {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException(

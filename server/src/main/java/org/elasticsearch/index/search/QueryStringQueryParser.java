@@ -489,7 +489,8 @@ public class QueryStringQueryParser extends QueryParser {
                 getFuzzyPrefixLength(),
                 fuzzyMaxExpansions,
                 fuzzyTranspositions,
-                context
+                context,
+                null
             );
         } catch (RuntimeException e) {
             if (lenient) {

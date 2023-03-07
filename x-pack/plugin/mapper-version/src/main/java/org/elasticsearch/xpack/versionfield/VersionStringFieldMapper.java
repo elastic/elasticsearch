@@ -65,6 +65,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import static org.apache.lucene.search.FuzzyQuery.defaultRewriteMethod;
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
 import static org.apache.lucene.search.RegexpQuery.DEFAULT_PROVIDER;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -220,7 +221,8 @@ public class VersionStringFieldMapper extends FieldMapper {
             int prefixLength,
             int maxExpansions,
             boolean transpositions,
-            SearchExecutionContext context
+            SearchExecutionContext context,
+            @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
             if (context.allowExpensiveQueries() == false) {
                 throw new ElasticsearchException(
@@ -232,7 +234,8 @@ public class VersionStringFieldMapper extends FieldMapper {
                 fuzziness.asDistance(BytesRefs.toString(value)),
                 prefixLength,
                 maxExpansions,
-                transpositions
+                transpositions,
+                rewriteMethod == null ? defaultRewriteMethod(maxExpansions) : rewriteMethod
             ) {
                 @Override
                 protected TermsEnum getTermsEnum(Terms terms, AttributeSource atts) throws IOException {

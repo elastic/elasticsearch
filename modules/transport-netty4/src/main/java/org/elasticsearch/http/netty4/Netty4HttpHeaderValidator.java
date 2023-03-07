@@ -48,31 +48,36 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         assert msg instanceof HttpObject;
         final HttpObject httpObject = (HttpObject) msg;
 
-        if (state == STATE.WAITING_TO_START) {
-            assert pending.isEmpty();
-            pending.add(ReferenceCountUtil.retain(httpObject));
-            requestStart(ctx);
-        } else if (state == STATE.QUEUEING_DATA) {
-            pending.add(ReferenceCountUtil.retain(httpObject));
-        } else if (state == STATE.HANDLING_QUEUED_DATA) {
-            pending.add(ReferenceCountUtil.retain(httpObject));
-            // Immediately return as this can only happen from a reentrant read(). We do not want to change
-            // autoread in this case.
-            return;
-        } else if (state == STATE.FORWARDING_DATA) {
-            assert pending.isEmpty();
-            if (httpObject instanceof LastHttpContent) {
-                state = STATE.WAITING_TO_START;
-            }
-            ctx.fireChannelRead(httpObject);
-        } else if (state == STATE.DROPPING_DATA_PERMANENTLY || state == STATE.DROPPING_DATA_UNTIL_NEXT_REQUEST) {
-            assert pending.isEmpty();
-            ReferenceCountUtil.release(httpObject); // consume
-            if (state == STATE.DROPPING_DATA_UNTIL_NEXT_REQUEST && httpObject instanceof LastHttpContent) {
-                state = STATE.WAITING_TO_START;
-            }
-        } else {
-            throw new AssertionError("Unknown state: " + state);
+        switch (state) {
+            case WAITING_TO_START:
+                assert pending.isEmpty();
+                pending.add(ReferenceCountUtil.retain(httpObject));
+                requestStart(ctx);
+                break;
+            case QUEUEING_DATA:
+                pending.add(ReferenceCountUtil.retain(httpObject));
+                break;
+            case HANDLING_QUEUED_DATA:
+                pending.add(ReferenceCountUtil.retain(httpObject));
+                // Immediately return as this can only happen from a reentrant read(). We do not want to change
+                // autoread in this case.
+                return;
+            case FORWARDING_DATA:
+                assert pending.isEmpty();
+                if (httpObject instanceof LastHttpContent) {
+                    state = STATE.WAITING_TO_START;
+                }
+                ctx.fireChannelRead(httpObject);
+                break;
+            case DROPPING_DATA_UNTIL_NEXT_REQUEST:
+                if (httpObject instanceof LastHttpContent) {
+                    state = STATE.WAITING_TO_START;
+                }
+                // fallthrough
+            case DROPPING_DATA_PERMANENTLY:
+                assert pending.isEmpty();
+                ReferenceCountUtil.release(httpObject); // consume
+                break;
         }
 
         setAutoReadForState(ctx, state);

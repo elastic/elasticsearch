@@ -105,6 +105,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
 
     private void validationSuccess(ChannelHandlerContext ctx) {
         assert ctx.channel().eventLoop().inEventLoop();
+        assert pending.getFirst() instanceof HttpRequest;
         assert state == STATE.QUEUEING_DATA;
 
         state = STATE.HANDLING_QUEUED_DATA;
@@ -123,25 +124,21 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
 
     private void validationFailure(ChannelHandlerContext ctx, Exception e) {
         assert ctx.channel().eventLoop().inEventLoop();
+        assert pending.getFirst() instanceof HttpRequest;
         assert state == STATE.QUEUEING_DATA;
 
         state = STATE.HANDLING_QUEUED_DATA;
-        HttpMessage messageToForward = (HttpMessage) pending.remove();
-        boolean fullRequestConsumed = messageToForward instanceof LastHttpContent;
-        if (fullRequestConsumed == false) {
-            fullRequestConsumed = dropData(pending);
-        }
+        HttpMessage messageToForward = (HttpMessage) pending.getFirst();
+        boolean fullRequestDropped = dropData(pending);
         if (messageToForward instanceof HttpContent toRelease) {
-            // drop the original content
-            toRelease.release(2); // 1 for enqueuing, 1 for consuming
-            // replace with empty content
+            // if the request to forward contained data (which got dropped), replace with empty data
             messageToForward = (HttpMessage) toRelease.replace(Unpooled.EMPTY_BUFFER);
         }
         messageToForward.setDecoderResult(DecoderResult.failure(e));
         ctx.fireChannelRead(messageToForward);
 
-        assert fullRequestConsumed || pending.isEmpty();
-        if (fullRequestConsumed) {
+        assert fullRequestDropped || pending.isEmpty();
+        if (fullRequestDropped) {
             state = STATE.WAITING_TO_START;
             requestStart(ctx);
         } else {

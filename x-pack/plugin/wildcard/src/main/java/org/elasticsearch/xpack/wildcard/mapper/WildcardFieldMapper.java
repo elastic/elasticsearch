@@ -628,8 +628,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 TermQuery tq = new TermQuery(new Term(name(), token));
                 bqBuilder.add(new BooleanClause(tq, occur));
             } else {
-                PrefixQuery wq = new PrefixQuery(new Term(name(), token));
-                wq.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+                PrefixQuery wq = new PrefixQuery(new Term(name(), token), MultiTermQuery.CONSTANT_SCORE_REWRITE);
                 bqBuilder.add(new BooleanClause(wq, occur));
             }
         }
@@ -680,8 +679,7 @@ public class WildcardFieldMapper extends FieldMapper {
                             TermQuery tq = new TermQuery(new Term(name(), token));
                             bqBuilder.add(new BooleanClause(tq, Occur.FILTER));
                         } else {
-                            PrefixQuery wq = new PrefixQuery(new Term(name(), token));
-                            wq.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+                            PrefixQuery wq = new PrefixQuery(new Term(name(), token), MultiTermQuery.CONSTANT_SCORE_REWRITE);
                             bqBuilder.add(new BooleanClause(wq, Occur.FILTER));
                         }
                     }

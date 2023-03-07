@@ -26,6 +26,7 @@ public final class QueryParsers {
 
     }
 
+    @Deprecated
     public static void setRewriteMethod(MultiTermQuery query, @Nullable MultiTermQuery.RewriteMethod rewriteMethod) {
         if (rewriteMethod == null) {
             return;

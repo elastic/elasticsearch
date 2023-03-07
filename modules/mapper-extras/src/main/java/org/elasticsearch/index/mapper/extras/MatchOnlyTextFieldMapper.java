@@ -276,8 +276,14 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             boolean transpositions,
             SearchExecutionContext context
         ) {
-            FuzzyQuery fuzzyQuery = new FuzzyQuery(new Term(name(), term), maxDistance, prefixLength, 128, transpositions);
-            fuzzyQuery.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+            FuzzyQuery fuzzyQuery = new FuzzyQuery(
+                new Term(name(), term),
+                maxDistance,
+                prefixLength,
+                128,
+                transpositions,
+                MultiTermQuery.CONSTANT_SCORE_REWRITE
+            );
             IntervalsSource fuzzyIntervals = Intervals.multiterm(fuzzyQuery.getAutomata(), term);
             return toIntervalsSource(fuzzyIntervals, fuzzyQuery, context);
         }

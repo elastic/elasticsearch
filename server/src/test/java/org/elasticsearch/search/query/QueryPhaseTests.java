@@ -925,14 +925,13 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
             try (IndexReader reader = DirectoryReader.open(dir)) {
                 TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader));
-                PrefixQuery prefixQuery = new PrefixQuery(new Term("foo", "a"));
-                prefixQuery.setRewriteMethod(MultiTermQuery.SCORING_BOOLEAN_REWRITE);
+                PrefixQuery prefixQuery = new PrefixQuery(new Term("foo", "a"), MultiTermQuery.SCORING_BOOLEAN_REWRITE);
                 context.parsedQuery(new ParsedQuery(prefixQuery));
                 SearchShardTask task = new SearchShardTask(randomLong(), "transport", "", "", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
                 TaskCancelHelper.cancel(task, "simulated");
                 context.setTask(task);
                 context.searcher().addQueryCancellation(task::ensureNotCancelled);
-                expectThrows(TaskCancelledException.class, () -> context.rewrittenQuery());
+                expectThrows(TaskCancelledException.class, context::rewrittenQuery);
             }
         }
     }

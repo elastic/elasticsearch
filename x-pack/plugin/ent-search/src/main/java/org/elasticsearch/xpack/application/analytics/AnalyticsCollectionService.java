@@ -60,6 +60,9 @@ public class AnalyticsCollectionService {
         GetAnalyticsCollectionAction.Request request,
         ActionListener<GetAnalyticsCollectionAction.Response> listener
     ) {
+        // This operation is supposed to be executed on the master node only.
+        assert (state.nodes().isLocalNodeElectedMaster());
+
         List<AnalyticsCollection> collections = analyticsCollections(state, request.getCollectionName());
 
         if (collections.isEmpty()) {
@@ -82,6 +85,9 @@ public class AnalyticsCollectionService {
         PutAnalyticsCollectionAction.Request request,
         ActionListener<PutAnalyticsCollectionAction.Response> listener
     ) {
+        // This operation is supposed to be executed on the master node only.
+        assert (state.nodes().isLocalNodeElectedMaster());
+
         if (analyticsCollections(state, request.getName()).isEmpty() == false) {
             listener.onFailure(new ResourceAlreadyExistsException(request.getName()));
             return;
@@ -112,6 +118,9 @@ public class AnalyticsCollectionService {
         DeleteAnalyticsCollectionAction.Request request,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        // This operation is supposed to be executed on the master node.
+        assert (state.nodes().isLocalNodeElectedMaster());
+
         List<AnalyticsCollection> collections = analyticsCollections(state, request.getCollectionName());
 
         if (collections.isEmpty()) {

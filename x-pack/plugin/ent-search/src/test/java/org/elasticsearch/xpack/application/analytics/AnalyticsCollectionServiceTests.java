@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -66,7 +67,7 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
         String collectionName = randomIdentifier();
         String dataStreamName = AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INDEX_PREFIX + collectionName;
 
-        ClusterState clusterState = mock(ClusterState.class);
+        ClusterState clusterState = createClusterState();
 
         IndexNameExpressionResolver indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
         when(indexNameExpressionResolver.dataStreamNames(eq(clusterState), any(), any())).thenReturn(
@@ -81,7 +82,7 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
     }
 
     public void testGetMissingAnalyticsCollection() {
-        ClusterState clusterState = mock(ClusterState.class);
+        ClusterState clusterState = createClusterState();
 
         IndexNameExpressionResolver indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
         when(indexNameExpressionResolver.dataStreamNames(eq(clusterState), any(), any())).thenReturn(Collections.emptyList());
@@ -96,9 +97,21 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("not-a-collection-name"));
     }
 
+    public void testGetAnalyticsCollectionOnNonMasterNode() {
+        String collectionName = randomIdentifier();
+        ClusterState clusterState = createClusterState(false);
+
+        IndexNameExpressionResolver indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
+        when(indexNameExpressionResolver.dataStreamNames(eq(clusterState), any(), any())).thenReturn(Collections.emptyList());
+
+        AnalyticsCollectionService analyticsService = new AnalyticsCollectionService(mock(Client.class), indexNameExpressionResolver);
+
+        expectThrows(AssertionError.class, () -> awaitGetAnalyticsCollections(analyticsService, clusterState, collectionName));
+    }
+
     public void testCreateAnalyticsCollection() throws Exception {
         String collectionName = randomIdentifier();
-        ClusterState clusterState = mock(ClusterState.class);
+        ClusterState clusterState = createClusterState();
 
         IndexNameExpressionResolver indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
         when(indexNameExpressionResolver.dataStreamNames(eq(clusterState), any(), any())).thenReturn(Collections.emptyList());
@@ -132,7 +145,7 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
 
     public void testCreateAlreadyExistingAnalyticsCollection() {
         String collectionName = randomIdentifier();
-        ClusterState clusterState = mock(ClusterState.class);
+        ClusterState clusterState = createClusterState();
 
         IndexNameExpressionResolver indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
         when(indexNameExpressionResolver.dataStreamNames(eq(clusterState), any(), any())).thenReturn(
@@ -155,10 +168,22 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
         assertEquals(calledTimes.get(), 0);
     }
 
+    public void testCreateAnalyticsCollectionOnNonMasterNode() {
+        String collectionName = randomIdentifier();
+        ClusterState clusterState = createClusterState(false);
+
+        IndexNameExpressionResolver indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
+        when(indexNameExpressionResolver.dataStreamNames(eq(clusterState), any(), any())).thenReturn(Collections.emptyList());
+
+        AnalyticsCollectionService analyticsService = new AnalyticsCollectionService(mock(Client.class), indexNameExpressionResolver);
+
+        expectThrows(AssertionError.class, () -> awaitPutAnalyticsCollection(analyticsService, clusterState, collectionName));
+    }
+
     public void testDeleteAnalyticsCollection() throws Exception {
         String collectionName = randomIdentifier();
         String dataStreamName = AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INDEX_PREFIX + collectionName;
-        ClusterState clusterState = mock(ClusterState.class);
+        ClusterState clusterState = createClusterState();
 
         IndexNameExpressionResolver indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
         when(indexNameExpressionResolver.dataStreamNames(eq(clusterState), any(), any())).thenReturn(
@@ -192,7 +217,7 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
     }
 
     public void testDeleteMissingAnalyticsCollection() {
-        ClusterState clusterState = mock(ClusterState.class);
+        ClusterState clusterState = createClusterState();
 
         IndexNameExpressionResolver indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
         when(indexNameExpressionResolver.dataStreamNames(eq(clusterState), any(), any())).thenReturn(Collections.emptyList());
@@ -205,6 +230,18 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
         );
 
         assertThat(e.getMessage(), equalTo("not-a-collection-name"));
+    }
+
+    public void testDeleteAnalyticsCollectionOnNonMasterNode() {
+        String collectionName = randomIdentifier();
+        ClusterState clusterState = createClusterState(false);
+
+        IndexNameExpressionResolver indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
+        when(indexNameExpressionResolver.dataStreamNames(eq(clusterState), any(), any())).thenReturn(Collections.emptyList());
+
+        AnalyticsCollectionService analyticsService = new AnalyticsCollectionService(mock(Client.class), indexNameExpressionResolver);
+
+        expectThrows(AssertionError.class, () -> awaitDeleteAnalyticsCollection(analyticsService, clusterState, collectionName));
     }
 
     public static class VerifyingClient extends NoOpClient {
@@ -294,5 +331,17 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
 
             return resp.get();
         }
+    }
+
+    private ClusterState createClusterState() {
+        return createClusterState(true);
+    }
+
+    private ClusterState createClusterState(boolean isLocaleNodeMaster) {
+        ClusterState clusterState = mock(ClusterState.class);
+        DiscoveryNodes nodes = mock(DiscoveryNodes.class);
+        when(nodes.isLocalNodeElectedMaster()).thenReturn(isLocaleNodeMaster);
+        when(clusterState.nodes()).thenReturn(nodes);
+        return clusterState;
     }
 }

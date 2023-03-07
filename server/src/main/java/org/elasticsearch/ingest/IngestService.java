@@ -900,14 +900,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 final String newIndex = indexRequest.indices()[0];
 
                 if (Objects.equals(originalIndex, newIndex) == false) {
-                    if (indexRecursionDetection.add(newIndex) == false) {
-                        List<String> indexRoute = new ArrayList<>(indexRecursionDetection);
-                        indexRoute.add(newIndex);
-                        listener.onFailure(
-                            new IllegalStateException(format("index cycle detected while processing pipelines: %s", indexRoute))
-                        );
-                        return; // document failed!
-                    }
                     if (pipelines.isCurrentPipelineFinalPipeline()) {
                         listener.onFailure(
                             new IllegalStateException(
@@ -919,6 +911,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                                     indexRequest.id()
                                 )
                             )
+                        );
+                        return; // document failed!
+                    }
+
+                    if (indexRecursionDetection.add(newIndex) == false) {
+                        List<String> indexRoute = new ArrayList<>(indexRecursionDetection);
+                        indexRoute.add(newIndex);
+                        listener.onFailure(
+                            new IllegalStateException(format("index cycle detected while processing pipelines: %s", indexRoute))
                         );
                         return; // document failed!
                     }

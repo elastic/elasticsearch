@@ -1,6 +1,7 @@
 steps:
   - trigger: elasticsearch-serverless
     label: ":elasticsearch: Run serverless tests"
+    message: "Elasticsearch submodule promotion build"
     branches: override_submodule_commit
     build:
       env:

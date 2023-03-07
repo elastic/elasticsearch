@@ -9,14 +9,13 @@ package org.elasticsearch.xpack.entsearch.engine.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.entsearch.engine.EngineIndexService;
 
-public class TransportDeleteEngineAction extends HandledTransportAction<DeleteEngineAction.Request, AcknowledgedResponse> {
+public class TransportDeleteEngineAction extends EngineTransportAction<DeleteEngineAction.Request, AcknowledgedResponse> {
 
     private final EngineIndexService engineIndexService;
 
@@ -24,15 +23,16 @@ public class TransportDeleteEngineAction extends HandledTransportAction<DeleteEn
     public TransportDeleteEngineAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        EngineIndexService engineIndexService
+        EngineIndexService engineIndexService,
+        XPackLicenseState licenseState
     ) {
-        super(DeleteEngineAction.NAME, transportService, actionFilters, DeleteEngineAction.Request::new);
+        super(DeleteEngineAction.NAME, transportService, actionFilters, DeleteEngineAction.Request::new, licenseState);
         this.engineIndexService = engineIndexService;
     }
 
     @Override
-    protected void doExecute(Task task, DeleteEngineAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+    protected void doExecute(DeleteEngineAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         String engineId = request.getEngineId();
-        engineIndexService.deleteEngine(engineId, listener.map(v -> AcknowledgedResponse.TRUE));
+        engineIndexService.deleteEngineAndAlias(engineId, listener.map(v -> AcknowledgedResponse.TRUE));
     }
 }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.entsearch.engine;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -185,6 +186,8 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
         DeleteResponse resp = awaitDeleteEngine("my_engine_4");
         assertThat(resp.status(), equalTo(RestStatus.OK));
         expectThrows(ResourceNotFoundException.class, () -> awaitGetEngine("my_engine_4"));
+        GetAliasesResponse response = engineService.getAlias(Engine.getEngineAliasName("my_engine_4"));
+        assertTrue(response.getAliases().isEmpty());
 
         {
             EngineIndexService.SearchEnginesResult searchResponse = awaitListEngine("*:*", 0, 10);
@@ -255,7 +258,7 @@ public class EngineIndexServiceTests extends ESSingleNodeTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<DeleteResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        engineService.deleteEngine(name, new ActionListener<>() {
+        engineService.deleteEngineAndAlias(name, new ActionListener<>() {
             @Override
             public void onResponse(DeleteResponse deleteResponse) {
                 resp.set(deleteResponse);

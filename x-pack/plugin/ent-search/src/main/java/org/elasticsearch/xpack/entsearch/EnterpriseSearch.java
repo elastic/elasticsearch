@@ -72,7 +72,6 @@ import java.util.function.Supplier;
 
 public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemIndexPlugin {
     public static final String ENGINE_API_ENDPOINT = "_engine";
-    public static final String BEHAVIORAL_ANALYTICS_API_ENDPOINT = "_behavioral_analytics";
 
     private static final Logger logger = LogManager.getLogger(EnterpriseSearch.class);
 
@@ -97,10 +96,10 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             new ActionHandler<>(PutAnalyticsCollectionAction.INSTANCE, TransportPutAnalyticsCollectionAction.class),
             new ActionHandler<>(GetAnalyticsCollectionAction.INSTANCE, TransportGetAnalyticsCollectionAction.class),
             new ActionHandler<>(DeleteAnalyticsCollectionAction.INSTANCE, TransportDeleteAnalyticsCollectionAction.class),
-            new ActionPlugin.ActionHandler<>(GetEngineAction.INSTANCE, TransportGetEngineAction.class),
+            new ActionHandler<>(DeleteEngineAction.INSTANCE, TransportDeleteEngineAction.class),
+            new ActionHandler<>(GetEngineAction.INSTANCE, TransportGetEngineAction.class),
             new ActionHandler<>(ListEnginesAction.INSTANCE, TransportListEnginesAction.class),
-            new ActionHandler<>(PutEngineAction.INSTANCE, TransportPutEngineAction.class),
-            new ActionHandler<>(DeleteEngineAction.INSTANCE, TransportDeleteEngineAction.class)
+            new ActionHandler<>(PutEngineAction.INSTANCE, TransportPutEngineAction.class)
         );
     }
 

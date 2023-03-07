@@ -53,7 +53,6 @@ public class FileSettingsService extends AbstractFileWatchingService {
      * @param stateService an instance of the immutable cluster state controller, so we can perform the cluster state changes
      * @param environment we need the environment to pull the location of the config and operator directories
      */
-    // TODO[wrb]: constructor to superclass
     public FileSettingsService(ClusterService clusterService, ReservedClusterStateService stateService, Environment environment) {
         super(clusterService, stateService, environment, OPERATOR_DIRECTORY, SETTINGS_FILE_NAME);
     }

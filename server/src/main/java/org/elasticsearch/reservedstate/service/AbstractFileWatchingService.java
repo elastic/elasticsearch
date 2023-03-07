@@ -62,23 +62,15 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         this.eventListeners = new CopyOnWriteArrayList<>();
     }
 
-    // platform independent way to tell if a file changed
-    // we compare the file modified timestamp, the absolute path (symlinks), and file id on the system
-    boolean watchedFileChanged(Path path) throws IOException {
-        if (Files.exists(path) == false) {
-            return false;
-        }
+    // TODO[wrb]: javadoc
+    abstract PlainActionFuture<Void> processFileSettings(Path path);
 
-        FileSettingsService.FileUpdateState previousUpdateState = fileUpdateState;
+    // TODO[wrb]: javadoc
+    protected abstract void refreshExistingFileStateIfNeeded(ClusterState clusterState);
 
-        BasicFileAttributes attr = Files.readAttributes(path, BasicFileAttributes.class);
-        fileUpdateState = new FileSettingsService.FileUpdateState(
-            attr.lastModifiedTime().toMillis(),
-            path.toRealPath().toString(),
-            attr.fileKey()
-        );
-
-        return (previousUpdateState == null || previousUpdateState.equals(fileUpdateState) == false);
+    // TODO[wrb]: rename
+    public void addFileSettingsChangedListener(FileSettingsChangedListener listener) {
+        eventListeners.add(listener);
     }
 
     public Path watchedFileDir() {
@@ -87,6 +79,12 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
 
     public Path watchedFile() {
         return this.watchedFile;
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        ClusterState clusterState = event.state();
+        startIfMaster(clusterState);
     }
 
     @Override
@@ -119,90 +117,81 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         return watcherThread != null;
     }
 
-    // TODO[wrb]: update logging
-    synchronized void stopWatcher() {
-        if (watching()) {
-            logger.debug("stopping watcher ...");
-            // make sure watch service is closed whatever
-            // this will also close any outstanding keys
-            try (var ws = watchService) {
-                watcherThread.interrupt();
-                watcherThread.join();
-
-                // make sure any keys are closed - if watchService.close() throws, it may not close the keys first
-                if (configDirWatchKey != null) {
-                    configDirWatchKey.cancel();
-                }
-                if (settingsDirWatchKey != null) {
-                    settingsDirWatchKey.cancel();
-                }
-            } catch (IOException e) {
-                logger.warn("encountered exception while closing watch service", e);
-            } catch (InterruptedException interruptedException) {
-                logger.info("interrupted while closing the watch service", interruptedException);
-            } finally {
-                watcherThread = null;
-                settingsDirWatchKey = null;
-                configDirWatchKey = null;
-                watchService = null;
-                logger.info("watcher service stopped");
-            }
-        } else {
-            logger.trace("file settings service already stopped");
+    // platform independent way to tell if a file changed
+    // we compare the file modified timestamp, the absolute path (symlinks), and file id on the system
+    boolean watchedFileChanged(Path path) throws IOException {
+        if (Files.exists(path) == false) {
+            return false;
         }
+
+        FileSettingsService.FileUpdateState previousUpdateState = fileUpdateState;
+
+        BasicFileAttributes attr = Files.readAttributes(path, BasicFileAttributes.class);
+        fileUpdateState = new FileSettingsService.FileUpdateState(
+            attr.lastModifiedTime().toMillis(),
+            path.toRealPath().toString(),
+            attr.fileKey()
+        );
+
+        return (previousUpdateState == null || previousUpdateState.equals(fileUpdateState) == false);
     }
 
     protected boolean currentNodeMaster(ClusterState clusterState) {
         return clusterState.nodes().getLocalNodeId().equals(clusterState.nodes().getMasterNodeId());
     }
 
-    // package private for testing
-    long retryDelayMillis(int failedCount) {
-        assert failedCount < 31; // don't let the count overflow
-        return 100 * (1 << failedCount) + Randomness.get().nextInt(10); // add a bit of jitter to avoid two processes in lockstep
-    }
-
-    // package private for testing
-    WatchKey enableDirectoryWatcher(WatchKey previousKey, Path settingsDir) throws IOException, InterruptedException {
-        if (previousKey != null) {
-            previousKey.cancel();
+    private void startIfMaster(ClusterState clusterState) {
+        if (currentNodeMaster(clusterState)) {
+            startWatcher(clusterState);
+        } else {
+            stopWatcher();
         }
-        int retryCount = 0;
-
-        do {
-            try {
-                return settingsDir.register(
-                    watchService,
-                    StandardWatchEventKinds.ENTRY_MODIFY,
-                    StandardWatchEventKinds.ENTRY_CREATE,
-                    StandardWatchEventKinds.ENTRY_DELETE
-                );
-            } catch (IOException e) {
-                if (retryCount == REGISTER_RETRY_COUNT - 1) {
-                    throw e;
-                }
-                Thread.sleep(retryDelayMillis(retryCount));
-                retryCount++;
-            }
-        } while (true);
-    }
-
-    // TODO[wrb]: rename
-    public void addFileSettingsChangedListener(FileSettingsChangedListener listener) {
-        eventListeners.add(listener);
     }
 
     // TODO[wrb]: update logging
-    // package private for testing
-    void processSettingsAndNotifyListeners() throws InterruptedException {
-        try {
-            processFileSettings(watchedFile()).get();
-            for (var listener : eventListeners) {
-                listener.settingsChanged();
-            }
-        } catch (ExecutionException e) {
-            logger.error("Error processing operator settings json file", e.getCause());
+    synchronized void startWatcher(ClusterState clusterState) {
+        if (watching() || active == false) {
+            refreshExistingFileStateIfNeeded(clusterState);
+
+            return;
         }
+
+        logger.info("starting file settings watcher ...");
+
+        /*
+         * We essentially watch for two things:
+         *  - the creation of the operator directory (if it doesn't exist), symlink changes to the operator directory
+         *  - any changes to files inside the operator directory if it exists, filtering for settings.json
+         */
+        try {
+            Path settingsDirPath = watchedFileDir();
+            this.watchService = settingsDirPath.getParent().getFileSystem().newWatchService();
+            if (Files.exists(settingsDirPath)) {
+                settingsDirWatchKey = enableDirectoryWatcher(settingsDirWatchKey, settingsDirPath);
+            } else {
+                logger.debug("operator settings directory [{}] not found, will watch for its creation...", settingsDirPath);
+            }
+            // We watch the config directory always, even if initially we had an operator directory
+            // it can be deleted and created later. The config directory never goes away, we only
+            // register it once for watching.
+            configDirWatchKey = enableDirectoryWatcher(configDirWatchKey, settingsDirPath.getParent());
+        } catch (Exception e) {
+            if (watchService != null) {
+                try {
+                    // this will also close any keys
+                    this.watchService.close();
+                } catch (Exception ce) {
+                    e.addSuppressed(ce);
+                } finally {
+                    this.watchService = null;
+                }
+            }
+
+            throw new IllegalStateException("unable to launch a new watch service", e);
+        }
+
+        watcherThread = new Thread(this::watcherThread, "elasticsearch[file-settings-watcher]");
+        watcherThread.start();
     }
 
     protected void watcherThread() {
@@ -271,71 +260,82 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         }
     }
 
-    // TODO[wrb]: to superclass
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        ClusterState clusterState = event.state();
-        startIfMaster(clusterState);
-    }
+    // TODO[wrb]: update logging
+    synchronized void stopWatcher() {
+        if (watching()) {
+            logger.debug("stopping watcher ...");
+            // make sure watch service is closed whatever
+            // this will also close any outstanding keys
+            try (var ws = watchService) {
+                watcherThread.interrupt();
+                watcherThread.join();
 
-    // TODO[wrb]: to superclass
-    private void startIfMaster(ClusterState clusterState) {
-        if (currentNodeMaster(clusterState)) {
-            startWatcher(clusterState);
+                // make sure any keys are closed - if watchService.close() throws, it may not close the keys first
+                if (configDirWatchKey != null) {
+                    configDirWatchKey.cancel();
+                }
+                if (settingsDirWatchKey != null) {
+                    settingsDirWatchKey.cancel();
+                }
+            } catch (IOException e) {
+                logger.warn("encountered exception while closing watch service", e);
+            } catch (InterruptedException interruptedException) {
+                logger.info("interrupted while closing the watch service", interruptedException);
+            } finally {
+                watcherThread = null;
+                settingsDirWatchKey = null;
+                configDirWatchKey = null;
+                watchService = null;
+                logger.info("watcher service stopped");
+            }
         } else {
-            stopWatcher();
+            logger.trace("file settings service already stopped");
         }
     }
 
-    protected abstract void refreshExistingFileStateIfNeeded(ClusterState clusterState);
+    // package private for testing
+    WatchKey enableDirectoryWatcher(WatchKey previousKey, Path settingsDir) throws IOException, InterruptedException {
+        if (previousKey != null) {
+            previousKey.cancel();
+        }
+        int retryCount = 0;
+
+        do {
+            try {
+                return settingsDir.register(
+                    watchService,
+                    StandardWatchEventKinds.ENTRY_MODIFY,
+                    StandardWatchEventKinds.ENTRY_CREATE,
+                    StandardWatchEventKinds.ENTRY_DELETE
+                );
+            } catch (IOException e) {
+                if (retryCount == REGISTER_RETRY_COUNT - 1) {
+                    throw e;
+                }
+                Thread.sleep(retryDelayMillis(retryCount));
+                retryCount++;
+            }
+        } while (true);
+    }
 
     // TODO[wrb]: update logging
-    synchronized void startWatcher(ClusterState clusterState) {
-        if (watching() || active == false) {
-            refreshExistingFileStateIfNeeded(clusterState);
-
-            return;
-        }
-
-        logger.info("starting file settings watcher ...");
-
-        /*
-         * We essentially watch for two things:
-         *  - the creation of the operator directory (if it doesn't exist), symlink changes to the operator directory
-         *  - any changes to files inside the operator directory if it exists, filtering for settings.json
-         */
+    // package private for testing
+    void processSettingsAndNotifyListeners() throws InterruptedException {
         try {
-            Path settingsDirPath = watchedFileDir();
-            this.watchService = settingsDirPath.getParent().getFileSystem().newWatchService();
-            if (Files.exists(settingsDirPath)) {
-                settingsDirWatchKey = enableDirectoryWatcher(settingsDirWatchKey, settingsDirPath);
-            } else {
-                logger.debug("operator settings directory [{}] not found, will watch for its creation...", settingsDirPath);
+            processFileSettings(watchedFile()).get();
+            for (var listener : eventListeners) {
+                listener.settingsChanged();
             }
-            // We watch the config directory always, even if initially we had an operator directory
-            // it can be deleted and created later. The config directory never goes away, we only
-            // register it once for watching.
-            configDirWatchKey = enableDirectoryWatcher(configDirWatchKey, settingsDirPath.getParent());
-        } catch (Exception e) {
-            if (watchService != null) {
-                try {
-                    // this will also close any keys
-                    this.watchService.close();
-                } catch (Exception ce) {
-                    e.addSuppressed(ce);
-                } finally {
-                    this.watchService = null;
-                }
-            }
-
-            throw new IllegalStateException("unable to launch a new watch service", e);
+        } catch (ExecutionException e) {
+            logger.error("Error processing operator settings json file", e.getCause());
         }
-
-        watcherThread = new Thread(this::watcherThread, "elasticsearch[file-settings-watcher]");
-        watcherThread.start();
     }
 
-    abstract PlainActionFuture<Void> processFileSettings(Path path);
+    // package private for testing
+    long retryDelayMillis(int failedCount) {
+        assert failedCount < 31; // don't let the count overflow
+        return 100 * (1 << failedCount) + Randomness.get().nextInt(10); // add a bit of jitter to avoid two processes in lockstep
+    }
 
     /**
      * Holds information about the last known state of the file we watched. We use this

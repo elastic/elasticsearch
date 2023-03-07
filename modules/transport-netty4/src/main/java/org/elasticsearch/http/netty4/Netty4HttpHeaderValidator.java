@@ -14,7 +14,6 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.DecoderResult;
 import io.netty.handler.codec.http.HttpContent;
-import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.LastHttpContent;
@@ -82,30 +81,44 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
     private void requestStart(ChannelHandlerContext ctx) {
         assert state == STATE.WAITING_TO_START;
 
-        HttpRequest httpRequest = forwardUntilFirstProperRequestStart(ctx, pending);
-        if (httpRequest == null) {
+        if (pending.isEmpty()) {
             return;
         }
 
-        state = STATE.QUEUEING_DATA;
-        validator.apply(httpRequest, ctx.channel(), new ActionListener<>() {
-            @Override
-            public void onResponse(Void unused) {
-                // Always use "Submit" to prevent reentrancy concerns if we are still on event loop
-                ctx.channel().eventLoop().submit(() -> validationSuccess(ctx));
-            }
+        final HttpObject httpObject = pending.getFirst();
+        final HttpRequest httpRequest;
+        if (httpObject instanceof HttpRequest && httpObject.decoderResult().isSuccess()) {
+            // a properly decoded HTTP start message is expected to begin validation
+            // anything else is probably an error that the downstream HTTP message aggregator will have to handle
+            httpRequest = (HttpRequest) httpObject;
+        } else {
+            httpRequest = null;
+        }
 
-            @Override
-            public void onFailure(Exception e) {
-                // Always use "Submit" to prevent reentrancy concerns if we are still on event loop
-                ctx.channel().eventLoop().submit(() -> validationFailure(ctx, e));
-            }
-        });
+        state = STATE.QUEUEING_DATA;
+
+        if (httpRequest == null) {
+            // this looks like a malformed request and will forward without validation
+            ctx.channel().eventLoop().submit(() -> forwardFullRequest(ctx));
+        } else {
+            validator.apply(httpRequest, ctx.channel(), new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    // Always use "Submit" to prevent reentrancy concerns if we are still on event loop
+                    ctx.channel().eventLoop().submit(() -> forwardFullRequest(ctx));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // Always use "Submit" to prevent reentrancy concerns if we are still on event loop
+                    ctx.channel().eventLoop().submit(() -> forwardRequestWithDecoderExceptionAndNoContent(ctx, e));
+                }
+            });
+        }
     }
 
-    private void validationSuccess(ChannelHandlerContext ctx) {
+    private void forwardFullRequest(ChannelHandlerContext ctx) {
         assert ctx.channel().eventLoop().inEventLoop();
-        assert pending.getFirst() instanceof HttpRequest;
         assert state == STATE.QUEUEING_DATA;
 
         state = STATE.HANDLING_QUEUED_DATA;
@@ -122,17 +135,16 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         setAutoReadForState(ctx, state);
     }
 
-    private void validationFailure(ChannelHandlerContext ctx, Exception e) {
+    private void forwardRequestWithDecoderExceptionAndNoContent(ChannelHandlerContext ctx, Exception e) {
         assert ctx.channel().eventLoop().inEventLoop();
-        assert pending.getFirst() instanceof HttpRequest;
         assert state == STATE.QUEUEING_DATA;
 
         state = STATE.HANDLING_QUEUED_DATA;
-        HttpMessage messageToForward = (HttpMessage) pending.getFirst();
+        HttpObject messageToForward = pending.getFirst();
         boolean fullRequestDropped = dropData(pending);
         if (messageToForward instanceof HttpContent toRelease) {
             // if the request to forward contained data (which got dropped), replace with empty data
-            messageToForward = (HttpMessage) toRelease.replace(Unpooled.EMPTY_BUFFER);
+            messageToForward = toRelease.replace(Unpooled.EMPTY_BUFFER);
         }
         messageToForward.setDecoderResult(DecoderResult.failure(e));
         ctx.fireChannelRead(messageToForward);
@@ -157,23 +169,6 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
             }
         }
         super.channelInactive(ctx);
-    }
-
-    private static HttpRequest forwardUntilFirstProperRequestStart(ChannelHandlerContext ctx, ArrayDeque<HttpObject> pending) {
-        boolean isStartMessage;
-        HttpObject httpObject;
-        while (pending.isEmpty() == false) {
-            httpObject = pending.getFirst();
-            isStartMessage = httpObject instanceof HttpRequest;
-            if (isStartMessage && httpObject.decoderResult().isSuccess()) {
-                return (HttpRequest) httpObject;
-            }
-            // a properly decoded HTTP start message is expected to begin validation
-            // anything else is probably an error that the downstream HTTP message aggregator will have to handle
-            ctx.fireChannelRead(pending.pollFirst());
-            ReferenceCountUtil.release(httpObject); // reference count was increased when enqueued
-        }
-        return null;
     }
 
     private static boolean forwardData(ChannelHandlerContext ctx, ArrayDeque<HttpObject> pending) {

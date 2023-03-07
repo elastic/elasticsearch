@@ -55,9 +55,9 @@ import static org.elasticsearch.test.TransportVersionUtils.getFirstVersion;
 import static org.elasticsearch.test.TransportVersionUtils.getNextVersion;
 import static org.elasticsearch.test.TransportVersionUtils.getPreviousVersion;
 import static org.elasticsearch.test.TransportVersionUtils.randomVersionBetween;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.hamcrest.Matchers.contains;
 
 public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffableSerializationTestCase<Custom> {
 

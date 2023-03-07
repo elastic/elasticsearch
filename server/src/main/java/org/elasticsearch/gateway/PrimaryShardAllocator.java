@@ -292,7 +292,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
      * inSyncAllocationIds are added to the list. Otherwise, any node that has a shard is added to the list, but
      * entries with matching allocation id are always at the front of the list.
      */
-    protected static NodeShardsResult buildNodeShardsResult(
+    private static NodeShardsResult buildNodeShardsResult(
         ShardRouting shard,
         boolean matchAnyShard,
         Set<String> ignoreNodes,
@@ -418,39 +418,13 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
 
     protected abstract FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation);
 
-    private static class NodeShardsResult {
-        final List<NodeGatewayStartedShards> orderedAllocationCandidates;
-        final int allocationsFound;
+    private record NodeShardsResult(List<NodeGatewayStartedShards> orderedAllocationCandidates, int allocationsFound) {}
 
-        NodeShardsResult(List<NodeGatewayStartedShards> orderedAllocationCandidates, int allocationsFound) {
-            this.orderedAllocationCandidates = orderedAllocationCandidates;
-            this.allocationsFound = allocationsFound;
-        }
-    }
-
-    static class NodesToAllocate {
-        final List<DecidedNode> yesNodeShards;
-        final List<DecidedNode> throttleNodeShards;
-        final List<DecidedNode> noNodeShards;
-
-        NodesToAllocate(List<DecidedNode> yesNodeShards, List<DecidedNode> throttleNodeShards, List<DecidedNode> noNodeShards) {
-            this.yesNodeShards = yesNodeShards;
-            this.throttleNodeShards = throttleNodeShards;
-            this.noNodeShards = noNodeShards;
-        }
-    }
+    private record NodesToAllocate(List<DecidedNode> yesNodeShards, List<DecidedNode> throttleNodeShards, List<DecidedNode> noNodeShards) {}
 
     /**
      * This class encapsulates the shard state retrieved from a node and the decision that was made
      * by the allocator for allocating to the node that holds the shard copy.
      */
-    private static class DecidedNode {
-        final NodeGatewayStartedShards nodeShardState;
-        final Decision decision;
-
-        private DecidedNode(NodeGatewayStartedShards nodeShardState, Decision decision) {
-            this.nodeShardState = nodeShardState;
-            this.decision = decision;
-        }
-    }
+    private record DecidedNode(NodeGatewayStartedShards nodeShardState, Decision decision) {}
 }

@@ -41,7 +41,7 @@ setup:
             "description": "simple model for testing",
             "model_type": "pytorch",
             "inference_config": {
-              "slim": {
+              "text_expansion": {
                 "tokenization": {
                   "bert": {
                     "with_special_tokens": false

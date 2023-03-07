@@ -190,7 +190,7 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
                "description": "a text expansion model",
                "model_type": "pytorch",
                "inference_config": {
-                 "slim": {
+                 "text_expansion": {
                    "tokenization": {
                      "bert": {
                        "with_special_tokens": false

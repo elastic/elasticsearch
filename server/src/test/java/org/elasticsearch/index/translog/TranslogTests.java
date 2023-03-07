@@ -3354,7 +3354,7 @@ public class TranslogTests extends ESTestCase {
 
         TransportVersion wireVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.CURRENT.minimumCompatibilityVersion(),
+            TransportVersion.MINIMUM_COMPATIBLE,
             TransportVersion.CURRENT
         );
         BytesStreamOutput out = new BytesStreamOutput();

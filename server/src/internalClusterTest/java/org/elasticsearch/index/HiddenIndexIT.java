@@ -77,13 +77,7 @@ public class HiddenIndexIT extends ESIntegTestCase {
         assertTrue(matchedHidden);
 
         // make index not hidden
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("hidden-index")
-                .setSettings(Settings.builder().put("index.hidden", false).build())
-                .get()
-        );
+        updateIndexSettings(Settings.builder().put("index.hidden", false), "hidden-index");
         searchResponse = client().prepareSearch(randomFrom("*", "_all", "h*", "*index"))
             .setSize(1000)
             .setQuery(QueryBuilders.matchAllQuery())

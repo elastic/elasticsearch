@@ -22,7 +22,9 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
+import org.elasticsearch.action.support.FanOutListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -401,9 +403,12 @@ public class RecoverySourceHandler {
         CancellableThreads cancellableThreads
     ) {
         cancellableThreads.execute(() -> {
-            final var permit = new ListenableActionFuture<Releasable>();
-            primary.acquirePrimaryOperationPermit(permit, ThreadPool.Names.SAME, reason);
-            try (var ignored = FutureUtils.get(permit)) {
+            final var listener = new FanOutListener<Releasable>();
+            final var future = new PlainActionFuture<Releasable>();
+            listener.addListener(future);
+
+            primary.acquirePrimaryOperationPermit(listener, ThreadPool.Names.SAME, reason);
+            try (var ignored = FutureUtils.get(future)) {
                 // check that the IndexShard still has the primary authority. This needs to be checked under operation permit to prevent
                 // races, as IndexShard will switch its authority only when it holds all operation permits, see IndexShard.relocated()
                 if (primary.isRelocatedPrimary()) {
@@ -412,7 +417,7 @@ public class RecoverySourceHandler {
                 runnable.run();
             } finally {
                 // add a listener to release the permit because we might have been interrupted while waiting (double-releasing is ok)
-                permit.addListener(ActionListener.wrap(Releasable::close, e -> {}));
+                listener.addListener(ActionListener.wrap(Releasable::close, e -> {}));
             }
         });
     }

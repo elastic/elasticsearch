@@ -151,6 +151,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1939,5 +1940,13 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         secureRandomFips.setSeed(seed); // DEFAULT/BCFIPS setSeed() is non-deterministic
         return secureRandomFips;
+    }
+
+    public static void safeAwait(CyclicBarrier barrier) {
+        try {
+            barrier.await(10, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            throw new AssertionError("unexpected", e);
+        }
     }
 }

@@ -920,7 +920,8 @@ public final class IngestDocument {
     }
 
     /**
-     * Invoked after the pipeline for the initial target has been skipped to avoid that the pipeline of the new target is skipped as well.
+     * Set the {@link #reroute} flag to false so that subsequent calls to {@link #isReroute()} will return false until/unless
+     * {@link #reroute(String)} is called.
      */
     void resetReroute() {
         reroute = false;

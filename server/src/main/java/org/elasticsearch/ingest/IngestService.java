@@ -842,6 +842,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     ) {
         assert pipelines.hasNext();
         final String pipelineId = pipelines.next();
+
+        // reset the reroute flag, at the start of a new pipeline execution this document hasn't been rerouted yet
+        ingestDocument.resetReroute();
+
         try {
             final Pipeline pipeline = pipelines.currentPipeline();
             final String originalIndex = indexRequest.indices()[0];
@@ -930,7 +934,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
 
                 if (newPipelines.hasNext()) {
-                    ingestDocument.resetReroute();
                     executePipelines(newPipelines, indexRequest, ingestDocument, listener, indexRecursionDetection);
                 } else {
                     // update the index request's source and (potentially) cache the timestamp for TSDB

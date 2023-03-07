@@ -80,7 +80,6 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
     }
 
     private void requestStart(ChannelHandlerContext ctx) {
-        assert pending.isEmpty() == false;
         assert state == STATE.WAITING_TO_START;
 
         HttpRequest httpRequest = forwardUntilFirstProperRequestStart(ctx, pending);
@@ -114,9 +113,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         assert fullRequestForwarded || pending.isEmpty();
         if (fullRequestForwarded) {
             state = STATE.WAITING_TO_START;
-            if (pending.isEmpty() == false) {
-                requestStart(ctx);
-            }
+            requestStart(ctx);
         } else {
             state = STATE.FORWARDING_DATA;
         }
@@ -146,9 +143,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         assert fullRequestConsumed || pending.isEmpty();
         if (fullRequestConsumed) {
             state = STATE.WAITING_TO_START;
-            if (pending.isEmpty() == false) {
-                requestStart(ctx);
-            }
+            requestStart(ctx);
         } else {
             state = STATE.DROPPING_DATA_UNTIL_NEXT_REQUEST;
         }
@@ -168,10 +163,9 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
     }
 
     private static HttpRequest forwardUntilFirstProperRequestStart(ChannelHandlerContext ctx, ArrayDeque<HttpObject> pending) {
-        assert pending.isEmpty() == false;
         boolean isStartMessage;
         HttpObject httpObject;
-        do {
+        while (pending.isEmpty() == false) {
             httpObject = pending.getFirst();
             isStartMessage = httpObject instanceof HttpRequest;
             if (isStartMessage && httpObject.decoderResult().isSuccess()) {
@@ -181,7 +175,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
             // anything else is probably an error that the downstream HTTP message aggregator will have to handle
             ctx.fireChannelRead(pending.pollFirst());
             ReferenceCountUtil.release(httpObject); // reference count was increased when enqueued
-        } while (pending.isEmpty() == false);
+        }
         return null;
     }
 

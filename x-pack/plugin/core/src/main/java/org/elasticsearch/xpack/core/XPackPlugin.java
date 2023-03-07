@@ -159,7 +159,7 @@ public class XPackPlugin extends XPackClientPlugin
     protected final Settings settings;
     // private final Environment env;
     protected final Licensing licensing;
-    private LicenseServiceFactory licenseServiceFactory;
+    private LicenseServiceFactory licenseServiceFactory = new StandardLicenseFactory();
     // These should not be directly accessed as they cannot be overridden in tests. Please use the getters so they can be overridden.
     private static final SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
     private static final SetOnce<SSLService> sslService = new SetOnce<>();
@@ -497,8 +497,6 @@ public class XPackPlugin extends XPackClientPlugin
             throw new IllegalStateException(LicenseServiceFactory.class + " may not have multiple extensions");
         } else if (licenseServiceFactories.size() == 1) {
             licenseServiceFactory = licenseServiceFactories.get(0);
-        } else {
-            licenseServiceFactory = new StandardLicenseFactory();
         }
     }
 }

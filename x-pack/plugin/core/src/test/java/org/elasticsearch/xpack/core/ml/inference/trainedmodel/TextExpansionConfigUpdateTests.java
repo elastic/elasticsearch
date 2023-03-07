@@ -16,10 +16,10 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class SlimConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<SlimConfigUpdate> {
+public class TextExpansionConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<TextExpansionConfigUpdate> {
 
-    public static SlimConfigUpdate randomUpdate() {
-        SlimConfigUpdate.Builder builder = new SlimConfigUpdate.Builder();
+    public static TextExpansionConfigUpdate randomUpdate() {
+        TextExpansionConfigUpdate.Builder builder = new TextExpansionConfigUpdate.Builder();
         if (randomBoolean()) {
             builder.setResultsField(randomAlphaOfLength(8));
         }
@@ -29,41 +29,41 @@ public class SlimConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<SlimC
         return builder.build();
     }
 
-    public static SlimConfigUpdate mutateForVersion(SlimConfigUpdate instance, TransportVersion version) {
+    public static TextExpansionConfigUpdate mutateForVersion(TextExpansionConfigUpdate instance, TransportVersion version) {
         if (version.before(TransportVersion.V_8_1_0)) {
-            return new SlimConfigUpdate(instance.getResultsField(), null);
+            return new TextExpansionConfigUpdate(instance.getResultsField(), null);
         }
         return instance;
     }
 
     @Override
-    protected Writeable.Reader<SlimConfigUpdate> instanceReader() {
-        return SlimConfigUpdate::new;
+    protected Writeable.Reader<TextExpansionConfigUpdate> instanceReader() {
+        return TextExpansionConfigUpdate::new;
     }
 
     @Override
-    protected SlimConfigUpdate createTestInstance() {
+    protected TextExpansionConfigUpdate createTestInstance() {
         return randomUpdate();
     }
 
     @Override
-    protected SlimConfigUpdate mutateInstance(SlimConfigUpdate instance) {
+    protected TextExpansionConfigUpdate mutateInstance(TextExpansionConfigUpdate instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
-    protected SlimConfigUpdate doParseInstance(XContentParser parser) throws IOException {
-        return SlimConfigUpdate.fromXContentStrict(parser);
+    protected TextExpansionConfigUpdate doParseInstance(XContentParser parser) throws IOException {
+        return TextExpansionConfigUpdate.fromXContentStrict(parser);
     }
 
     @Override
-    protected SlimConfigUpdate mutateInstanceForVersion(SlimConfigUpdate instance, TransportVersion version) {
+    protected TextExpansionConfigUpdate mutateInstanceForVersion(TextExpansionConfigUpdate instance, TransportVersion version) {
         return mutateForVersion(instance, version);
     }
 
     @Override
-    Tuple<Map<String, Object>, SlimConfigUpdate> fromMapTestInstances(TokenizationUpdate expectedTokenization) {
-        SlimConfigUpdate expected = new SlimConfigUpdate("ml-results", expectedTokenization);
+    Tuple<Map<String, Object>, TextExpansionConfigUpdate> fromMapTestInstances(TokenizationUpdate expectedTokenization) {
+        TextExpansionConfigUpdate expected = new TextExpansionConfigUpdate("ml-results", expectedTokenization);
         Map<String, Object> config = new HashMap<>() {
             {
                 put(NlpConfig.RESULTS_FIELD.getPreferredName(), "ml-results");
@@ -73,7 +73,7 @@ public class SlimConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<SlimC
     }
 
     @Override
-    SlimConfigUpdate fromMap(Map<String, Object> map) {
-        return SlimConfigUpdate.fromMap(map);
+    TextExpansionConfigUpdate fromMap(Map<String, Object> map) {
+        return TextExpansionConfigUpdate.fromMap(map);
     }
 }

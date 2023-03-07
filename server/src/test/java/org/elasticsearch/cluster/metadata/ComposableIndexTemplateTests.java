@@ -8,19 +8,26 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditionsTests;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTestCase<ComposableIndexTemplate> {
@@ -98,6 +105,10 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             .writeIndex(randomBoolean() ? null : randomBoolean())
             .build();
         return Collections.singletonMap(aliasName, aliasMeta);
+    }
+
+    private static DataLifecycle randomLifecycle() {
+        return new DataLifecycle(randomMillisUpToYear9999());
     }
 
     private static CompressedXContent randomMappings(ComposableIndexTemplate.DataStreamTemplate dataStreamTemplate) {
@@ -271,5 +282,43 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
         assertThat(ComposableIndexTemplate.componentTemplatesEquals(List.of(), List.of()), equalTo(true));
         assertThat(ComposableIndexTemplate.componentTemplatesEquals(List.of(randomAlphaOfLength(5)), List.of()), equalTo(false));
         assertThat(ComposableIndexTemplate.componentTemplatesEquals(List.of(), List.of(randomAlphaOfLength(5))), equalTo(false));
+    }
+
+    public void testXContentSerializationWithRollover() throws IOException {
+        Settings settings = null;
+        CompressedXContent mappings = null;
+        Map<String, AliasMetadata> aliases = null;
+        ComposableIndexTemplate.DataStreamTemplate dataStreamTemplate = randomDataStreamTemplate();
+        if (randomBoolean()) {
+            settings = randomSettings();
+        }
+        if (randomBoolean()) {
+            mappings = randomMappings(dataStreamTemplate);
+        }
+        if (randomBoolean()) {
+            aliases = randomAliases();
+        }
+        DataLifecycle lifecycle = randomLifecycle();
+        Template template = new Template(settings, mappings, aliases, lifecycle);
+        new ComposableIndexTemplate(
+            List.of(randomAlphaOfLength(4)),
+            template,
+            List.of(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            null,
+            dataStreamTemplate
+        );
+
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.humanReadable(true);
+            RolloverConditions rolloverConditions = RolloverConditionsTests.randomRolloverConditions();
+            template.toXContent(builder, ToXContent.EMPTY_PARAMS, rolloverConditions);
+            String serialized = Strings.toString(builder);
+            assertThat(serialized, containsString("rollover"));
+            for (String label : rolloverConditions.getConditions().keySet()) {
+                assertThat(serialized, containsString(label));
+            }
+        }
     }
 }

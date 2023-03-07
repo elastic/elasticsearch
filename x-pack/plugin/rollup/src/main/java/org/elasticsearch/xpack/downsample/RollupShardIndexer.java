@@ -23,6 +23,7 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -74,6 +75,7 @@ class RollupShardIndexer {
     private static final Logger logger = LogManager.getLogger(RollupShardIndexer.class);
     public static final int ROLLUP_BULK_ACTIONS = 10000;
     public static final ByteSizeValue ROLLUP_BULK_SIZE = new ByteSizeValue(1, ByteSizeUnit.MB);
+    public static final ByteSizeValue ROLLUP_MAX_BYTES_IN_FLIGHT = new ByteSizeValue(50, ByteSizeUnit.MB);
 
     private final IndexShard indexShard;
     private final Client client;
@@ -86,6 +88,8 @@ class RollupShardIndexer {
     private final List<FieldValueFetcher> fieldValueFetchers;
     private final RollupShardTask task;
     private volatile boolean abort = false;
+    ByteSizeValue rollupBulkSize = ROLLUP_BULK_SIZE;
+    ByteSizeValue rollupMaxBytesInFlight = ROLLUP_MAX_BYTES_IN_FLIGHT;
 
     RollupShardIndexer(
         RollupShardTask task,
@@ -196,6 +200,9 @@ class RollupShardIndexer {
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+                synchronized (RollupShardIndexer.this) {
+                    RollupShardIndexer.this.notifyAll();
+                }
                 task.addNumIndexed(request.numberOfActions());
                 if (response.hasFailures()) {
                     List<BulkItemResponse> failedItems = Arrays.stream(response.getItems()).filter(BulkItemResponse::isFailed).toList();
@@ -218,6 +225,9 @@ class RollupShardIndexer {
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, Exception failure) {
+                synchronized (RollupShardIndexer.this) {
+                    RollupShardIndexer.this.notifyAll();
+                }
                 if (failure != null) {
                     long items = request.numberOfActions();
                     task.addNumFailed(items);
@@ -231,7 +241,8 @@ class RollupShardIndexer {
 
         return BulkProcessor2.builder(client::bulk, listener, client.threadPool())
             .setBulkActions(ROLLUP_BULK_ACTIONS)
-            .setBulkSize(ROLLUP_BULK_SIZE)
+            .setBulkSize(rollupBulkSize)
+            .setMaxBytesInFlight(rollupMaxBytesInFlight)
             .setMaxNumberOfRetries(3)
             .build();
     }
@@ -345,7 +356,23 @@ class RollupShardIndexer {
             if (logger.isTraceEnabled()) {
                 logger.trace("Indexing rollup doc: [{}]", Strings.toString(doc));
             }
-            bulkProcessor.add(request.request());
+            boolean successfullyAdded = false;
+            while (successfullyAdded == false && abort == false) {
+                try {
+                    bulkProcessor.add(request.request());
+                    successfullyAdded = true;
+                } catch (EsRejectedExecutionException e) {
+                    logger.info("Rollup doc rejected, and will try again");
+                    synchronized (RollupShardIndexer.this) {
+                        try {
+                            RollupShardIndexer.this.wait(500);
+                        } catch (InterruptedException ex) {
+                            Thread.currentThread().interrupt();
+                            throw new RuntimeException(ex);
+                        }
+                    }
+                }
+            }
         }
 
         @Override

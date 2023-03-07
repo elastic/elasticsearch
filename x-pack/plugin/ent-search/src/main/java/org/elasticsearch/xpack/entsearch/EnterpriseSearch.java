@@ -72,6 +72,7 @@ import java.util.function.Supplier;
 
 public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemIndexPlugin {
     public static final String ENGINE_API_ENDPOINT = "_engine";
+    public static final String BEHAVIORAL_ANALYTICS_API_ENDPOINT = "_behavioral_analytics";
 
     private static final Logger logger = LogManager.getLogger(EnterpriseSearch.class);
 

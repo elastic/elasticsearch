@@ -179,8 +179,14 @@ public class IpPrefixAutomatonUtil {
                     }
                 } else {
                     // if present, this is the last group
-                    incompleteGroupAutomaton = INCOMPLETE_IP4_GROUP_AUTOMATON_LOOKUP.get(Integer.parseInt(group));
-                    prefixBytes++;
+                        int numberPrefix = Integer.parseInt(group);
+                    if (numberPrefix < 255) {
+                        incompleteGroupAutomaton = INCOMPLETE_IP4_GROUP_AUTOMATON_LOOKUP.get(numberPrefix);
+                        prefixBytes++;
+                    } else {
+                        // this cannot be a valid ip4 groups
+                        return EMPTY_AUTOMATON;
+                    }
                 }
             }
         }

@@ -159,6 +159,11 @@ public class IpPrefixAutomatonUtilTests extends ESTestCase {
             byte[] encode = InetAddressPoint.encode(InetAddress.getByName("c935:1902::643f:9e65:0:0"));
             assertFalse(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
         }
+        {
+            CompiledAutomaton compiledAutomaton = IpPrefixAutomatonUtil.buildIpPrefixAutomaton("935");
+            byte[] encode = InetAddressPoint.encode(InetAddress.getByName("0935:1902::643f:9e65:0:0"));
+            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
+        }
     }
 
     public void testParseIp6Prefix() {

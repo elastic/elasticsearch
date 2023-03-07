@@ -921,15 +921,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             )
                         );
                         return; // document failed!
-                    } else {
-                        // reset request pipeline that is set to _none which would take precedence over the default pipeline
-                        indexRequest.setPipeline(null);
-                        indexRequest.isPipelineResolved(false);
-                        resolvePipelines(null, indexRequest, state.metadata());
-                        newPipelines = getPipelines(indexRequest);
-                        if (ingestDocument.isReroute() == false) {
-                            newPipelines = newPipelines.withoutDefaultPipeline();
-                        }
+                    }
+
+                    // reset request pipeline that is set to _none which would take precedence over the default pipeline
+                    indexRequest.setPipeline(null);
+                    indexRequest.isPipelineResolved(false);
+                    resolvePipelines(null, indexRequest, state.metadata());
+                    newPipelines = getPipelines(indexRequest);
+                    if (ingestDocument.isReroute() == false) {
+                        newPipelines = newPipelines.withoutDefaultPipeline();
                     }
                 }
 

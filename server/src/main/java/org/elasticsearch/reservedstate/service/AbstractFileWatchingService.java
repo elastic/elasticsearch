@@ -368,7 +368,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
                 listener.watchedFileChanged();
             }
         } catch (ExecutionException e) {
-            logger.error("Error processing watched file: {}", watchedFile(), e.getCause());
+            logger.error(() -> "Error processing watched file: " + watchedFile(), e.getCause());
         }
     }
 

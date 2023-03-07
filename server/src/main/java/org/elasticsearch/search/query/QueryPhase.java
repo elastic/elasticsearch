@@ -213,7 +213,7 @@ public class QueryPhase {
         } else {
             queryCollector = QueryCollectorContext.createQueryCollector(collectors);
         }
-        // I don't think we need to incRef here? Not totally clear. I think this is just populating the QuerySearchResult object.
+        // I don't think we need to incRef here?  Not totally clear. I think this is just populating the QuerySearchResult object.
         QuerySearchResult queryResult = searchContext.queryResult();
         try {
             searcher.search(query, queryCollector);

@@ -34,7 +34,7 @@ public class RescorePhase {
                 // here we only assert that this condition is met.
                 assert context.sort() == null && topDocsSortedByScore(topDocs) : "topdocs should be sorted after rescore";
             }
-            // Non-acquiring access to queryResult, just adding data. Doesn't need to incRef
+            // Non-acquiring access to queryResult, just adding data.  Doesn't need to incRef
             context.queryResult()
                 .topDocs(new TopDocsAndMaxScore(topDocs, topDocs.scoreDocs[0].score), context.queryResult().sortValueFormats());
         } catch (IOException e) {

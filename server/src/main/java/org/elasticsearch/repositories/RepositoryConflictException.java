@@ -41,6 +41,7 @@ public class RepositoryConflictException extends RepositoryException {
 
     @Override
     protected void writeExceptionDataTo(StreamOutput out) throws IOException {
+        super.writeExceptionDataTo(out);
         out.writeString(backwardCompatibleMessage);
     }
 }

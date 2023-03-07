@@ -35,6 +35,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 
 /**
+ * A skeleton service for watching and reacting to a single file changing on disk
+ *
  * <p>A file watching service watches for changes in a particular file on disk. There
  * are three assumptions about the file structure:</p>
  * <ol>
@@ -54,28 +56,25 @@ import java.util.concurrent.ExecutionException;
 public abstract class AbstractFileWatchingService extends AbstractLifecycleComponent implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(FileSettingsService.class);
-    protected static final int REGISTER_RETRY_COUNT = 5;
-    protected final ClusterService clusterService;
-    protected final ReservedClusterStateService stateService;
-    protected final Path watchedFileDir;
-    protected final Path watchedFile;
-    protected final List<FileChangedListener> eventListeners;
-    protected WatchService watchService; // null;
-    protected Thread watcherThread;
-    protected FileSettingsService.FileUpdateState fileUpdateState;
-    protected WatchKey settingsDirWatchKey;
-    protected WatchKey configDirWatchKey;
-    protected volatile boolean active = false;
+    private static final int REGISTER_RETRY_COUNT = 5;
+    private final ClusterService clusterService;
+    private final Path watchedFileDir;
+    private final Path watchedFile;
+    private final List<FileChangedListener> eventListeners;
+    private WatchService watchService; // null;
+    private Thread watcherThread;
+    private FileUpdateState fileUpdateState;
+    private WatchKey settingsDirWatchKey;
+    private WatchKey configDirWatchKey;
+    private volatile boolean active = false;
 
     public AbstractFileWatchingService(
         ClusterService clusterService,
-        ReservedClusterStateService stateService,
         Environment environment,
         String watchedDirName,
         String watchedFileName
     ) {
         this.clusterService = clusterService;
-        this.stateService = stateService;
         this.watchedFileDir = environment.configFile().toAbsolutePath().resolve(watchedDirName);
         this.watchedFile = watchedFileDir.resolve(watchedFileName);
         this.eventListeners = new CopyOnWriteArrayList<>();
@@ -109,7 +108,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
      * For snapshot restores we first must restore the snapshot and then force a refresh, since the cluster state
      * metadata version must be reset to 0 and saved in the cluster state.
      */
-    protected void refreshExistingFileStateIfNeeded(ClusterState clusterState) {
+    private void refreshExistingFileStateIfNeeded(ClusterState clusterState) {
         if (watching()) {
             if (shouldRefreshFileState(clusterState) && Files.exists(watchedFile())) {
                 try {
@@ -121,26 +120,26 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         }
     }
 
-    public void addFileChangedListener(FileChangedListener listener) {
+    public final void addFileChangedListener(FileChangedListener listener) {
         eventListeners.add(listener);
     }
 
-    public Path watchedFileDir() {
+    public final Path watchedFileDir() {
         return this.watchedFileDir;
     }
 
-    public Path watchedFile() {
+    public final Path watchedFile() {
         return this.watchedFile;
     }
 
     @Override
-    public void clusterChanged(ClusterChangedEvent event) {
+    public final void clusterChanged(ClusterChangedEvent event) {
         ClusterState clusterState = event.state();
         startIfMaster(clusterState);
     }
 
     @Override
-    protected void doStart() {
+    protected final void doStart() {
         // We start the file watcher when we know we are master from a cluster state change notification.
         // We need the additional active flag, since cluster state can change after we've shutdown the service
         // causing the watcher to start again.
@@ -155,22 +154,22 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     }
 
     @Override
-    protected void doStop() {
+    protected final void doStop() {
         this.active = false;
         logger.debug("Stopping file watching service");
         stopWatcher();
     }
 
     @Override
-    protected void doClose() {}
+    protected final void doClose() {}
 
-    public boolean watching() {
+    public final boolean watching() {
         return watcherThread != null;
     }
 
     // platform independent way to tell if a file changed
     // we compare the file modified timestamp, the absolute path (symlinks), and file id on the system
-    boolean watchedFileChanged(Path path) throws IOException {
+    final boolean watchedFileChanged(Path path) throws IOException {
         if (Files.exists(path) == false) {
             return false;
         }
@@ -187,7 +186,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         return (previousUpdateState == null || previousUpdateState.equals(fileUpdateState) == false);
     }
 
-    protected boolean currentNodeMaster(ClusterState clusterState) {
+    protected final boolean currentNodeMaster(ClusterState clusterState) {
         return clusterState.nodes().getLocalNodeId().equals(clusterState.nodes().getMasterNodeId());
     }
 
@@ -199,7 +198,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         }
     }
 
-    synchronized void startWatcher(ClusterState clusterState) {
+    final synchronized void startWatcher(ClusterState clusterState) {
         if (watching() || active == false) {
             refreshExistingFileStateIfNeeded(clusterState);
 
@@ -244,7 +243,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         watcherThread.start();
     }
 
-    protected void watcherThread() {
+    protected final void watcherThread() {
         try {
             logger.info("file settings service up and running [tid={}]", Thread.currentThread().getId());
 
@@ -310,7 +309,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         }
     }
 
-    synchronized void stopWatcher() {
+    final synchronized void stopWatcher() {
         if (watching()) {
             logger.debug("stopping watcher ...");
             // make sure watch service is closed whatever
@@ -343,7 +342,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     }
 
     // package private for testing
-    WatchKey enableDirectoryWatcher(WatchKey previousKey, Path settingsDir) throws IOException, InterruptedException {
+    final WatchKey enableDirectoryWatcher(WatchKey previousKey, Path settingsDir) throws IOException, InterruptedException {
         if (previousKey != null) {
             previousKey.cancel();
         }
@@ -367,9 +366,8 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         } while (true);
     }
 
-    // TODO[wrb]: update logging
     // package private for testing
-    void processSettingsAndNotifyListeners() throws InterruptedException {
+    final void processSettingsAndNotifyListeners() throws InterruptedException {
         try {
             processFileChanges(watchedFile()).get();
             for (var listener : eventListeners) {
@@ -381,7 +379,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     }
 
     // package private for testing
-    long retryDelayMillis(int failedCount) {
+    final long retryDelayMillis(int failedCount) {
         assert failedCount < 31; // don't let the count overflow
         return 100 * (1 << failedCount) + Randomness.get().nextInt(10); // add a bit of jitter to avoid two processes in lockstep
     }

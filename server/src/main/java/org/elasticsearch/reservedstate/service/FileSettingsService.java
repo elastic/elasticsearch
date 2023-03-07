@@ -42,6 +42,7 @@ public class FileSettingsService extends AbstractFileWatchingService {
     public static final String SETTINGS_FILE_NAME = "settings.json";
     public static final String NAMESPACE = "file_settings";
     public static final String OPERATOR_DIRECTORY = "operator";
+    private final ReservedClusterStateService stateService;
 
     /**
      * Constructs the {@link FileSettingsService}
@@ -51,7 +52,8 @@ public class FileSettingsService extends AbstractFileWatchingService {
      * @param environment we need the environment to pull the location of the config and operator directories
      */
     public FileSettingsService(ClusterService clusterService, ReservedClusterStateService stateService, Environment environment) {
-        super(clusterService, stateService, environment, OPERATOR_DIRECTORY, SETTINGS_FILE_NAME);
+        super(clusterService, environment, OPERATOR_DIRECTORY, SETTINGS_FILE_NAME);
+        this.stateService = stateService;
     }
 
     /**
@@ -123,5 +125,4 @@ public class FileSettingsService extends AbstractFileWatchingService {
             completion.onResponse(null);
         }
     }
-
 }

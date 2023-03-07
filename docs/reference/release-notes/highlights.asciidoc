@@ -150,11 +150,22 @@ image::images/spatial/geogrid_h3_children.png[Kibana map with three H3 layers: c
 {es-pull}93370[#93370]
 
 [discrete]
+[[make_nlp_ga]]
+=== Make natural language processing GA
+From 8.7, NLP model management, model allocation, and support for inference 
+against third party models are generally available. (The new `text_embedding` 
+extension to `knn` search is still in technical preview.)
+
+{es-pull}92213[#92213]
+
+
+[discrete]
 [[make_frequent_item_sets_aggregation_ga]]
 === Make `frequent_item_sets` aggregation GA
 The `frequent_item_sets` aggregation has been moved from technical preview to general availability.
 
 {es-pull}93421[#93421]
+
 
 [discrete]
 [[release_time_series_rate_on_counter_fields_aggegations_as_tech_preview]]

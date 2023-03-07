@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.is;
 public class ListenableFutureTests extends ESTestCase {
 
     private ExecutorService executorService;
-    private ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+    private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
     @After
     public void stopExecutorService() throws InterruptedException {

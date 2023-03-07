@@ -13,11 +13,11 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
-import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -43,100 +43,72 @@ import java.util.concurrent.TimeUnit;
 public final class ListenableFuture<V> extends PlainActionFuture<V> {
 
     private volatile boolean done = false;
-    private List<Tuple<ActionListener<V>, ExecutorService>> listeners;
+    private List<ActionListener<V>> listeners;
 
     /**
-     * Adds a listener to this future. If the future has not yet completed, the listener will be
-     * notified of a response or exception on the thread completing this future.
-     * If the future has completed, the listener will be notified immediately without forking to
-     * a different thread.
+     * Adds a listener to this future. If the future has not yet completed, the listener will be notified of a response or exception on the
+     * thread completing this future. If the future has completed, the listener will be notified immediately without forking to a different
+     * thread.
      */
     public void addListener(ActionListener<V> listener) {
         addListener(listener, EsExecutors.DIRECT_EXECUTOR_SERVICE, null);
     }
 
     /**
-     * Adds a listener to this future. If the future has not yet completed, the listener will be
-     * notified of a response or exception in a runnable submitted to the ExecutorService provided.
-     * If the future has completed, the listener will be notified immediately without forking to
-     * a different thread.
+     * Adds a listener to this future. If the future has not yet completed, the listener will be notified of a response or exception in a
+     * runnable submitted to the {@link Executor} provided. If the future has completed, the listener will be notified immediately without
+     * forking to a different thread.
      *
-     * It will apply the provided ThreadContext (if not null) when executing the listening.
+     * It will restore the provided {@link ThreadContext} (if not null) when completing the listener.
      */
-    public void addListener(ActionListener<V> listener, ExecutorService executor, ThreadContext threadContext) {
-        if (done) {
+    public void addListener(ActionListener<V> listener, Executor executor, @Nullable ThreadContext threadContext) {
+        if (done || addListenerIfIncomplete(listener, executor, threadContext) == false) {
             // run the callback directly, we don't hold the lock and don't need to fork!
-            notifyListenerDirectly(listener);
-        } else {
-            final boolean run;
-            // check done under lock since it could have been modified and protect modifications
-            // to the list under lock
-            synchronized (this) {
-                if (done) {
-                    run = true;
-                } else {
-                    final ActionListener<V> wrappedListener;
-                    if (threadContext == null) {
-                        wrappedListener = listener;
-                    } else {
-                        wrappedListener = ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
-                    }
-                    if (listeners == null) {
-                        listeners = new ArrayList<>();
-                    }
-                    listeners.add(new Tuple<>(wrappedListener, executor));
-                    run = false;
-                }
-            }
-
-            if (run) {
-                // run the callback directly, we don't hold the lock and don't need to fork!
-                notifyListenerDirectly(listener);
-            }
+            notifyListener(listener);
         }
     }
 
     @Override
     protected void done(boolean ignored) {
-        final List<Tuple<ActionListener<V>, ExecutorService>> existingListeners;
-        synchronized (this) {
-            done = true;
-            existingListeners = listeners;
-            if (existingListeners == null) {
-                return;
+        final var existingListeners = acquireExistingListeners();
+        if (existingListeners != null) {
+            for (final var listener : existingListeners) {
+                notifyListener(listener);
             }
+        }
+    }
+
+    private synchronized boolean addListenerIfIncomplete(ActionListener<V> listener, Executor executor, ThreadContext threadContext) {
+        // check done under lock since it could have been modified; also protect modifications to the list under lock
+        if (done) {
+            return false;
+        }
+        if (threadContext != null) {
+            listener = ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
+        }
+        if (executor != EsExecutors.DIRECT_EXECUTOR_SERVICE) {
+            listener = new ThreadedActionListener<>(executor, listener);
+        }
+        if (listeners == null) {
+            listeners = new ArrayList<>();
+        }
+        listeners.add(listener);
+        return true;
+    }
+
+    private synchronized List<ActionListener<V>> acquireExistingListeners() {
+        try {
+            done = true;
+            return listeners;
+        } finally {
             listeners = null;
         }
-        for (Tuple<ActionListener<V>, ExecutorService> t : existingListeners) {
-            final ExecutorService executorService = t.v2();
-            final ActionListener<V> listener = t.v1();
-            if (executorService == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
-                notifyListenerDirectly(listener);
-            } else {
-                notifyListener(listener, executorService);
-            }
-        }
     }
 
-    private void notifyListenerDirectly(ActionListener<V> listener) {
-        // call get in a non-blocking fashion as we could be on a network thread
-        // or another thread like the scheduler, which we should never block!
+    private void notifyListener(ActionListener<V> listener) {
         assert done;
+        // call get() in a non-blocking fashion as we could be on a network or scheduler thread which we must not block
         ActionListener.completeWith(listener, () -> FutureUtils.get(ListenableFuture.this, 0L, TimeUnit.NANOSECONDS));
-    }
-
-    private void notifyListener(ActionListener<V> listener, ExecutorService executorService) {
-        ActionListener.run(listener, l -> executorService.execute(new Runnable() {
-            @Override
-            public void run() {
-                notifyListenerDirectly(l);
-            }
-
-            @Override
-            public String toString() {
-                return "ListenableFuture notification";
-            }
-        }));
     }
 
     @Override

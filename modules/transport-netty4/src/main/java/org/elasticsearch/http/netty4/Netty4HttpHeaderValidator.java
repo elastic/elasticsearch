@@ -59,11 +59,6 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
             case QUEUEING_DATA:
                 pending.add(ReferenceCountUtil.retain(httpObject));
                 break;
-            case HANDLING_QUEUED_DATA:
-                pending.add(ReferenceCountUtil.retain(httpObject));
-                // Immediately return as this can only happen from a reentrant read(). We do not want to change
-                // autoread in this case.
-                return;
             case FORWARDING_DATA:
                 assert pending.isEmpty();
                 if (httpObject instanceof LastHttpContent) {
@@ -129,7 +124,6 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         assert ctx.channel().eventLoop().inEventLoop();
         assert state == QUEUEING_DATA;
 
-        state = HANDLING_QUEUED_DATA;
         boolean fullRequestForwarded = forwardData(ctx, pending);
 
         assert fullRequestForwarded || pending.isEmpty();
@@ -147,7 +141,6 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         assert ctx.channel().eventLoop().inEventLoop();
         assert state == QUEUEING_DATA;
 
-        state = HANDLING_QUEUED_DATA;
         HttpObject messageToForward = pending.getFirst();
         boolean fullRequestDropped = dropData(pending);
         if (messageToForward instanceof HttpContent toReplace) {
@@ -228,9 +221,6 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
     enum State {
         WAITING_TO_START,
         QUEUEING_DATA,
-        // This is an intermediate state in case an event handler down the line triggers a reentrant read().
-        // Data will be intermittently queued for later handling while in this state.
-        HANDLING_QUEUED_DATA,
         FORWARDING_DATA,
         DROPPING_DATA_UNTIL_NEXT_REQUEST,
         DROPPING_DATA_PERMANENTLY

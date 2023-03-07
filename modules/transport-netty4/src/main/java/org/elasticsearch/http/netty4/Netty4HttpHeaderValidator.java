@@ -49,6 +49,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         return state;
     }
 
+    @SuppressWarnings("fallthrough")
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         assert msg instanceof HttpObject;

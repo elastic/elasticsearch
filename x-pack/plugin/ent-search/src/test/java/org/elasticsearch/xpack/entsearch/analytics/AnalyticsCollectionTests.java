@@ -56,7 +56,8 @@ public class AnalyticsCollectionTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
         String content = XContentHelper.stripWhitespace("""
-            { }""");
+            { }
+            """);
         AnalyticsCollection collection = AnalyticsCollection.fromXContentBytes("my_collection", new BytesArray(content), XContentType.JSON);
         boolean humanReadable = true;
         BytesReference originalBytes = toShuffledXContent(collection, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
@@ -88,7 +89,7 @@ public class AnalyticsCollectionTests extends ESTestCase {
         return copyWriteable(instance, namedWriteableRegistry, AnalyticsCollection::new, version.transportVersion);
     }
 
-    private static AnalyticsCollection randomAnalyticsCollection() {
+    public static AnalyticsCollection randomAnalyticsCollection() {
         String name = randomAlphaOfLengthBetween(5, 10);
         return new AnalyticsCollection(name);
     }

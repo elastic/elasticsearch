@@ -1,6 +1,7 @@
 entsearch:
   cluster:
     - manage_engine
+    - manage_behavioral_analytics
     - monitor
   indices:
     - names: [ "*" ]

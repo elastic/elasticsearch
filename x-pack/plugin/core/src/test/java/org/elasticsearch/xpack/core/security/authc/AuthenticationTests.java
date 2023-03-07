@@ -915,7 +915,7 @@ public class AuthenticationTests extends ESTestCase {
         final Authentication original = AuthenticationTestHelper.builder()
             .apiKey()
             .metadata(metadata)
-            .transportVersion(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES)
+            .transportVersion(Authentication.TRANSPORT_VERSION_API_KEYS_WITH_REMOTE_INDICES)
             .build();
 
         // pick a version before that of the authentication instance to force a rewrite

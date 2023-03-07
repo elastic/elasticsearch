@@ -360,13 +360,8 @@ public class RetentionLeaseIT extends ESIntegTestCase {
         logger.info("finished adding [{}] retention leases", length);
 
         // cause some recoveries to fail to ensure that retention leases are handled properly when retrying a recovery
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), TimeValue.timeValueMillis(100))
-                )
+        updateClusterSettings(
+            Settings.builder().put(INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), TimeValue.timeValueMillis(100))
         );
         final Semaphore recoveriesToDisrupt = new Semaphore(scaledRandomIntBetween(0, 4));
         final MockTransportService primaryTransportService = (MockTransportService) internalCluster().getInstance(

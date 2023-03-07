@@ -877,7 +877,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .privileges("read", "view_index_metadata")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("logs-cloud_security_posture.findings_latest-default*", "logs-cloud_security_posture.scores-default*", "logs-cloud_security_posture.vulnerabilities_latest-default*")
+                    .indices(
+                        "logs-cloud_security_posture.findings_latest-default*",
+                        "logs-cloud_security_posture.scores-default*",
+                        "logs-cloud_security_posture.vulnerabilities_latest-default*"
+                    )
                     .privileges("create_index", "read", "index", "delete", IndicesAliasesAction.NAME, UpdateSettingsAction.NAME)
                     .build() },
             null,

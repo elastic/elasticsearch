@@ -12,7 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.common.SparseFileTracker;
@@ -50,6 +51,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongConsumer;
@@ -703,26 +705,31 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             throw new AlreadyClosedException("File chunk is evicted");
         }
 
-        StepListener<Integer> populateAndRead(
+        void populateAndRead(
             final ByteRange rangeToWrite,
             final ByteRange rangeToRead,
             final RangeAvailableHandler reader,
             final RangeMissingHandler writer,
-            final Executor executor
+            final Executor executor,
+            final ActionListener<Integer> listener
         ) {
             assert rangeToRead.length() > 0;
-            final StepListener<Integer> listener = new StepListener<>();
-            Releasable decrementRef = null;
+            final Releasable[] resources = new Releasable[2];
             try {
                 ensureOpen();
                 incRef();
-                decrementRef = Releasables.releaseOnce(this::decRef);
+                resources[1] = Releasables.releaseOnce(this::decRef);
+
                 ensureOpen();
-                Releasable finalDecrementRef = decrementRef;
-                listener.whenComplete(integer -> finalDecrementRef.close(), throwable -> finalDecrementRef.close());
                 final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
-                listener.whenComplete(integer -> fileChannel.decRef(), e -> fileChannel.decRef());
-                final ActionListener<Void> rangeListener = rangeListener(rangeToRead, reader, listener, fileChannel);
+                resources[0] = Releasables.releaseOnce(fileChannel::decRef);
+
+                final ActionListener<Void> rangeListener = rangeListener(
+                    rangeToRead,
+                    reader,
+                    ActionListener.runBefore(listener, () -> Releasables.close(resources)),
+                    fileChannel
+                );
                 final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(rangeToWrite, rangeToRead, rangeListener);
 
                 for (SparseFileTracker.Gap gap : gaps) {
@@ -758,9 +765,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     });
                 }
             } catch (Exception e) {
-                releaseAndFail(listener, decrementRef, e);
+                releaseAndFail(listener, Releasables.wrap(resources), e);
             }
-            return listener;
         }
 
         private ActionListener<Void> rangeListener(
@@ -831,48 +837,35 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final RangeMissingHandler writer,
             final String executor
         ) throws Exception {
-            StepListener<Integer> stepListener = null;
-            final long writeStart = rangeToWrite.start();
-            final long readStart = rangeToRead.start();
-            for (int region = getRegion(rangeToWrite.start()); region <= getEndingRegion(rangeToWrite.end()); region++) {
-                final ByteRange subRangeToWrite = mapSubRangeToRegion(rangeToWrite, region);
-                final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region);
-                if (subRangeToRead.length() == 0L) {
-                    // nothing to read, skip
-                    if (stepListener == null) {
-                        stepListener = new StepListener<>();
-                        stepListener.onResponse(0);
+            final PlainActionFuture<Void> readsComplete = new PlainActionFuture<>();
+            final AtomicInteger bytesRead = new AtomicInteger();
+            try (var listeners = new RefCountingListener(1, readsComplete)) {
+                final long writeStart = rangeToWrite.start();
+                final long readStart = rangeToRead.start();
+                for (int region = getRegion(rangeToWrite.start()); region <= getEndingRegion(rangeToWrite.end()); region++) {
+                    final ByteRange subRangeToWrite = mapSubRangeToRegion(rangeToWrite, region);
+                    final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region);
+                    if (subRangeToRead.length() == 0L) {
+                        // nothing to read, skip
+                        continue;
                     }
-                    continue;
-                }
-                final CacheFileRegion fileRegion = get(cacheKey, length, region);
-                final long regionStart = getRegionStart(region);
-                final long writeOffset = writeStart - regionStart;
-                final long readOffset = readStart - regionStart;
-                final StepListener<Integer> lis = fileRegion.populateAndRead(
-                    subRangeToWrite,
-                    subRangeToRead,
-                    (channel, channelPos, relativePos, len) -> {
+                    final CacheFileRegion fileRegion = get(cacheKey, length, region);
+                    final long regionStart = getRegionStart(region);
+                    final long writeOffset = writeStart - regionStart;
+                    final long readOffset = readStart - regionStart;
+                    fileRegion.populateAndRead(subRangeToWrite, subRangeToRead, (channel, channelPos, relativePos, len) -> {
                         assert regionOwners[fileRegion.sharedBytesPos].get() == fileRegion;
                         assert channelPos >= fileRegion.physicalStartOffset() && channelPos + len <= fileRegion.physicalEndOffset();
                         return reader.onRangeAvailable(channel, channelPos, relativePos - readOffset, len);
-                    },
-                    (channel, channelPos, relativePos, len, progressUpdater) -> {
+                    }, (channel, channelPos, relativePos, len, progressUpdater) -> {
                         assert regionOwners[fileRegion.sharedBytesPos].get() == fileRegion;
                         assert channelPos >= fileRegion.physicalStartOffset() && channelPos + len <= fileRegion.physicalEndOffset();
                         writer.fillCacheRange(channel, channelPos, relativePos - writeOffset, len, progressUpdater);
-                    },
-                    threadPool.executor(executor)
-                );
-                assert lis != null;
-                if (stepListener == null) {
-                    stepListener = lis;
-                } else {
-                    stepListener = stepListener.thenCombine(lis, Math::addExact);
+                    }, threadPool.executor(executor), listeners.acquire(i -> bytesRead.updateAndGet(j -> Math.addExact(i, j))));
                 }
-
             }
-            return stepListener.asFuture().get();
+            readsComplete.get();
+            return bytesRead.get();
         }
 
         @Override

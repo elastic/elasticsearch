@@ -51,3 +51,24 @@ The following example lists the first three Search Applications matching `foo`:
 GET _application/search_application/?from=0&size=3&q=foo
 --------------------------------------------------
 // TEST[skip:TBD]
+
+As sample response:
+
+[source,console]
+--------------------------------------------------
+{
+  "count": 2,
+  "results": [
+    {
+      "name": "app-1",
+      "indices": [ "index1", "index2" ],
+      "search_alias": "app-1"
+    },
+    {
+      "name": "app-2",
+      "indices": [ "index3", "index4" ],
+      "search_alias": "app-2"
+    }
+  ]
+}
+--------------------------------------------------

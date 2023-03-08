@@ -20,9 +20,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-public class SlimResults extends NlpInferenceResults {
+public class TextExpansionResults extends NlpInferenceResults {
 
-    public static final String NAME = "slim_result";
+    public static final String NAME = "text_expansion_result";
 
     public record WeightedToken(int token, float weight) implements Writeable, ToXContentObject {
 
@@ -57,13 +57,13 @@ public class SlimResults extends NlpInferenceResults {
     private final String resultsField;
     private final List<WeightedToken> weightedTokens;
 
-    public SlimResults(String resultField, List<WeightedToken> weightedTokens, boolean isTruncated) {
+    public TextExpansionResults(String resultField, List<WeightedToken> weightedTokens, boolean isTruncated) {
         super(isTruncated);
         this.resultsField = resultField;
         this.weightedTokens = weightedTokens;
     }
 
-    public SlimResults(StreamInput in) throws IOException {
+    public TextExpansionResults(StreamInput in) throws IOException {
         super(in);
         this.resultsField = in.readString();
         this.weightedTokens = in.readList(WeightedToken::new);
@@ -102,7 +102,7 @@ public class SlimResults extends NlpInferenceResults {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
-        SlimResults that = (SlimResults) o;
+        TextExpansionResults that = (TextExpansionResults) o;
         return Objects.equals(resultsField, that.resultsField) && Objects.equals(weightedTokens, that.weightedTokens);
     }
 

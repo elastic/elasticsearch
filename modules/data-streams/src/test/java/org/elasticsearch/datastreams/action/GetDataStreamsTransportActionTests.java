@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndices;
@@ -149,7 +150,13 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
         }
 
         var req = new GetDataStreamAction.Request(new String[] {});
-        var response = GetDataStreamsTransportAction.innerOperation(state, req, resolver, systemIndices);
+        var response = GetDataStreamsTransportAction.innerOperation(
+            state,
+            req,
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings()
+        );
         assertThat(response.getDataStreams(), hasSize(2));
         assertThat(response.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStream1));
         assertThat(response.getDataStreams().get(0).getTimeSeries().temporalRanges(), contains(new Tuple<>(sixHoursAgo, twoHoursAhead)));
@@ -164,7 +171,13 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
             mBuilder.remove(dataStream.getIndices().get(1).getName());
             state = ClusterState.builder(state).metadata(mBuilder).build();
         }
-        response = GetDataStreamsTransportAction.innerOperation(state, req, resolver, systemIndices);
+        response = GetDataStreamsTransportAction.innerOperation(
+            state,
+            req,
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings()
+        );
         assertThat(response.getDataStreams(), hasSize(2));
         assertThat(response.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStream1));
         assertThat(

@@ -20,7 +20,6 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
@@ -203,8 +202,7 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
             BulkRequestBuilder request = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             for (int j = 0; j < numDocs; ++j) {
                 request.add(
-                    Requests.indexRequest(indexName)
-                        .id(Long.toString(id++))
+                    new IndexRequest(indexName).id(Long.toString(id++))
                         .source(jsonBuilder().startObject().field("l", randomLong()).endObject())
                 );
             }

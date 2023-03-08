@@ -9,8 +9,6 @@ package org.elasticsearch.dlm;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
-import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -62,6 +60,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         settings.put(DataLifecycleService.DLM_POLL_INTERVAL, "1s");
+        settings.put(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1,max_docs=1");
         return settings.build();
     }
 
@@ -70,15 +69,6 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         DataLifecycle lifecycle = new DataLifecycle();
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
-        Iterable<DataLifecycleService> dataLifecycleServices = internalCluster().getInstances(DataLifecycleService.class);
-
-        for (DataLifecycleService dataLifecycleService : dataLifecycleServices) {
-            dataLifecycleService.setDefaultRolloverRequestSupplier((target) -> {
-                RolloverRequest rolloverRequest = new RolloverRequest(target, null);
-                rolloverRequest.setConditions(RolloverConditions.newBuilder().addMaxIndexDocsCondition(1L).build());
-                return rolloverRequest;
-            });
-        }
         String dataStreamName = "metrics-foo";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
@@ -104,15 +94,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         DataLifecycle lifecycle = new DataLifecycle(TimeValue.timeValueMillis(0));
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
-        Iterable<DataLifecycleService> dataLifecycleServices = internalCluster().getInstances(DataLifecycleService.class);
 
-        for (DataLifecycleService dataLifecycleService : dataLifecycleServices) {
-            dataLifecycleService.setDefaultRolloverRequestSupplier((target) -> {
-                RolloverRequest rolloverRequest = new RolloverRequest(target, null);
-                rolloverRequest.setConditions(RolloverConditions.newBuilder().addMaxIndexDocsCondition(1L).build());
-                return rolloverRequest;
-            });
-        }
         String dataStreamName = "metrics-foo";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();

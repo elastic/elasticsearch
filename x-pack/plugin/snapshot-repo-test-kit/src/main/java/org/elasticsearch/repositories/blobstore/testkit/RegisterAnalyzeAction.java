@@ -85,7 +85,7 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
             assert task instanceof CancellableTask;
 
             final String registerName = request.getRegisterName();
-            blobContainer.getRegister(registerName, new ActionListener<>() {
+            final ActionListener<OptionalLong> initialValueListener = new ActionListener<>() {
                 @Override
                 public void onResponse(OptionalLong initialValueOrNull) {
                     final long initialValue = initialValueOrNull.orElse(0L);
@@ -150,7 +150,18 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
                         outerListener.onFailure(e);
                     }
                 }
-            });
+            };
+
+            if (request.getInitialRead() > request.getRequestCount()) {
+                blobContainer.getRegister(registerName, initialValueListener);
+            } else {
+                blobContainer.compareAndExchangeRegister(
+                    registerName,
+                    request.getInitialRead(),
+                    request.getInitialRead() == request.getRequestCount() ? request.getRequestCount() + 1 : request.getInitialRead(),
+                    initialValueListener
+                );
+            }
         }
     }
 
@@ -158,13 +169,15 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
         private final String repositoryName;
         private final String containerPath;
         private final String registerName;
-        private final long requestCount;
+        private final int requestCount;
+        private final int initialRead;
 
-        public Request(String repositoryName, String containerPath, String registerName, long requestCount) {
+        public Request(String repositoryName, String containerPath, String registerName, int requestCount, int initialRead) {
             this.repositoryName = repositoryName;
             this.containerPath = containerPath;
             this.registerName = registerName;
             this.requestCount = requestCount;
+            this.initialRead = initialRead;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -173,7 +186,8 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
             repositoryName = in.readString();
             containerPath = in.readString();
             registerName = in.readString();
-            requestCount = in.readVLong();
+            requestCount = in.readVInt();
+            initialRead = in.readVInt();
         }
 
         @Override
@@ -183,7 +197,8 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
             out.writeString(repositoryName);
             out.writeString(containerPath);
             out.writeString(registerName);
-            out.writeVLong(requestCount);
+            out.writeVInt(requestCount);
+            out.writeVInt(initialRead);
         }
 
         @Override
@@ -203,8 +218,12 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
             return registerName;
         }
 
-        public long getRequestCount() {
+        public int getRequestCount() {
             return requestCount;
+        }
+
+        public int getInitialRead() {
+            return initialRead;
         }
 
         @Override
@@ -220,11 +239,14 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
         @Override
         public String getDescription() {
             return Strings.format(
-                "RegisterAnalyzeAction.Request{repositoryName='%s', containerPath='%s', registerName='%s', requestCount='%d'}",
+                """
+                    RegisterAnalyzeAction.Request{\
+                    repositoryName='%s', containerPath='%s', registerName='%s', requestCount='%d', initialRead='%d'}""",
                 repositoryName,
                 containerPath,
                 registerName,
-                requestCount
+                requestCount,
+                initialRead
             );
         }
     }

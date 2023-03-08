@@ -158,7 +158,8 @@ public class RemoteAccessAuthenticationService {
         final Authentication authentication = remoteAccessAuthentication.getAuthentication();
         authentication.checkConsistency();
         final Subject effectiveSubject = authentication.getEffectiveSubject();
-        if (false == effectiveSubject.getType().equals(Subject.Type.USER)) {
+        if (false == effectiveSubject.getType().equals(Subject.Type.USER)
+            && false == effectiveSubject.getType().equals(Subject.Type.SERVICE_ACCOUNT)) {
             throw new IllegalArgumentException(
                 "subject ["
                     + effectiveSubject.getUser().principal()

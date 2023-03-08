@@ -533,12 +533,12 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
 
         @Override
-        public boolean isReconfigurationAllowed(
+        public boolean isInvalidReconfiguration(
             ClusterState clusterState,
             CoordinationMetadata.VotingConfiguration lastAcceptedConfiguration,
             CoordinationMetadata.VotingConfiguration lastCommittedConfiguration
         ) {
-            return true;
+            return false;
         }
     }
 

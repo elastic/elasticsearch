@@ -332,11 +332,7 @@ public class CoordinationState {
             );
         }
 
-        if (electionStrategy.isReconfigurationAllowed(
-            clusterState,
-            getLastAcceptedConfiguration(),
-            getLastCommittedConfiguration()
-        ) == false) {
+        if (electionStrategy.isInvalidReconfiguration(clusterState, getLastAcceptedConfiguration(), getLastCommittedConfiguration())) {
             logger.debug("handleClientValue: only allow reconfiguration while not already reconfiguring");
             throw new CoordinationStateRejectedException("only allow reconfiguration while not already reconfiguring");
         }

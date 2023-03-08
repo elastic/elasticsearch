@@ -18,6 +18,11 @@ import java.util.Map;
 import java.util.Objects;
 
 final class StackFrame implements ToXContentObject {
+    private static final String[] PATH_FILE_NAME = new String[] { "Stackframe", "file", "name" };
+    private static final String[] PATH_FUNCTION_NAME = new String[] { "Stackframe", "function", "name" };
+    private static final String[] PATH_FUNCTION_OFFSET = new String[] { "Stackframe", "function", "offset" };
+    private static final String[] PATH_LINE_NUMBER = new String[] { "Stackframe", "line", "number" };
+    private static final String[] PATH_SOURCE_TYPE = new String[] { "Stackframe", "source", "type" };
     List<String> fileName;
     List<String> functionName;
     List<Integer> functionOffset;
@@ -50,11 +55,11 @@ final class StackFrame implements ToXContentObject {
         if (source.containsKey("Stackframe")) {
             // synthetic source
             return new StackFrame(
-                ObjectPath.eval("Stackframe.file.name", source),
-                ObjectPath.eval("Stackframe.function.name", source),
-                ObjectPath.eval("Stackframe.function.offset", source),
-                ObjectPath.eval("Stackframe.line.number", source),
-                ObjectPath.eval("Stackframe.source.type", source)
+                ObjectPath.eval(PATH_FILE_NAME, source),
+                ObjectPath.eval(PATH_FUNCTION_NAME, source),
+                ObjectPath.eval(PATH_FUNCTION_OFFSET, source),
+                ObjectPath.eval(PATH_LINE_NUMBER, source),
+                ObjectPath.eval(PATH_SOURCE_TYPE, source)
             );
         } else {
             // regular source

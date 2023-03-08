@@ -46,6 +46,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
      * Test that cluster recovers from a long GC on master that causes other nodes to elect a new one
      */
     public void testMasterNodeGCs() throws Exception {
+        assumeFalse("jdk20 removed thread suspend/resume", Runtime.version().feature() >= 20);
         List<String> nodes = startCluster(3);
 
         String oldMasterNode = internalCluster().getMasterName();

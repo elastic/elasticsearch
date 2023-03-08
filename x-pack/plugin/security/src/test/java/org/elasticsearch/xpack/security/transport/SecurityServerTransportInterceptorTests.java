@@ -717,6 +717,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         } else {
             authentication = randomFrom(
                 builder.apiKey().build(),
+                builder.serviceAccount().build(),
                 builder.user(new User(randomAlphaOfLengthBetween(3, 10), randomRoles())).realm().build()
             );
         }

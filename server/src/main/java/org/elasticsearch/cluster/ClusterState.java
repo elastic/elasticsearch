@@ -152,6 +152,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
     private final DiscoveryNodes nodes;
 
     private final Map<String, TransportVersion> transportVersions;
+    private final TransportVersion minTransportVersion;
 
     private final Metadata metadata;
 
@@ -207,6 +208,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         this.wasReadFromDiff = wasReadFromDiff;
         this.routingNodes = routingNodes;
         assert assertConsistentRoutingNodes(routingTable, nodes, routingNodes);
+
+        this.minTransportVersion = transportVersions.values().stream().min(Comparator.naturalOrder()).orElse(TransportVersion.CURRENT);
     }
 
     private static boolean assertConsistentRoutingNodes(
@@ -267,7 +270,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
     }
 
     public TransportVersion getMinTransportVersion() {
-        return this.transportVersions.values().stream().min(Comparator.naturalOrder()).orElse(TransportVersion.CURRENT);
+        return this.minTransportVersion;
     }
 
     public Metadata metadata() {

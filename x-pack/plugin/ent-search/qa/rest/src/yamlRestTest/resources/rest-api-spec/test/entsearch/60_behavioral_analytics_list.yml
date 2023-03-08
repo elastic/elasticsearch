@@ -1,0 +1,31 @@
+setup:
+  - do:
+      behavioral_analytics.put:
+        name: my-test-analytics-collection
+
+  - do:
+      behavioral_analytics.put:
+        name: my-test-analytics-collection2
+
+---
+teardown:
+  - do:
+      behavioral_analytics.delete:
+        name: my-test-analytics-collection
+        ignore: 404
+
+---
+"Get Analytics Collection":
+  - do:
+      behavioral_analytics.get:
+        name: my-test-analytics-collection
+
+  - match: { name: "my-test-analytics-collection" }
+
+---
+"Get Analytics Collection - Resource does not exist":
+  - do:
+      catch: "missing"
+      search_application.get:
+        name: test-nonexistent-analytics-collection
+

@@ -40,7 +40,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.gateway.ReplicaShardAllocator;
 import org.elasticsearch.index.shard.ShardId;
@@ -61,10 +60,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptyList;
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.gateway.ReplicaShardAllocator.augmentExplanationsWithStoreInfo;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
@@ -119,7 +117,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         if (hasPartialIndices) {
             frozenCacheInfoService.updateNodes(
                 client,
-                StreamSupport.stream(allocation.routingNodes().spliterator(), false).map(RoutingNode::node).collect(Collectors.toSet()),
+                allocation.routingNodes().stream().map(RoutingNode::node).collect(toSet()),
                 rerouteService
             );
         } else {
@@ -286,19 +284,16 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         // TODO: in the following logic, we do not account for existing cache size when handling disk space checks, should and can we
         // reliably do this in a world of concurrent cache evictions or are we ok with the cache size just being a best effort hint
         // here?
-        Tuple<Decision, Map<String, NodeAllocationResult>> result = ReplicaShardAllocator.canBeAllocatedToAtLeastOneNode(
+        ReplicaShardAllocator.PerNodeAllocationResult result = ReplicaShardAllocator.canBeAllocatedToAtLeastOneNode(
             shardRouting,
             allocation
         );
-        Decision allocateDecision = result.v1();
+        Decision allocateDecision = result.decision();
         if (allocateDecision.type() != Decision.Type.YES && (explain == false || asyncFetchStore.get(shardRouting.shardId()) == null)) {
             // only return early if we are not in explain mode, or we are in explain mode but we have not
             // yet attempted to fetch any shard data
             logger.trace("{}: ignoring allocation, can't be allocated on any node", shardRouting);
-            return AllocateUnassignedDecision.no(
-                UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()),
-                result.v2() != null ? new ArrayList<>(result.v2().values()) : null
-            );
+            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), result.nodes());
         }
 
         final AsyncShardFetch.FetchResult<NodeCacheFilesMetadata> fetchedCacheData = fetchData(shardRouting, allocation);
@@ -309,11 +304,11 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         final MatchingNodes matchingNodes = findMatchingNodes(shardRouting, allocation, fetchedCacheData, explain);
         assert explain == false || matchingNodes.nodeDecisions != null : "in explain mode, we must have individual node decisions";
 
-        List<NodeAllocationResult> nodeDecisions = augmentExplanationsWithStoreInfo(result.v2(), matchingNodes.nodeDecisions);
+        List<NodeAllocationResult> nodeDecisions = augmentExplanationsWithStoreInfo(result.nodes(), matchingNodes.nodeDecisions);
         if (allocateDecision.type() != Decision.Type.YES) {
             return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), nodeDecisions);
-        } else if (matchingNodes.getNodeWithHighestMatch() != null) {
-            RoutingNode nodeWithHighestMatch = allocation.routingNodes().node(matchingNodes.getNodeWithHighestMatch().getId());
+        } else if (matchingNodes.nodeWithHighestMatch() != null) {
+            RoutingNode nodeWithHighestMatch = allocation.routingNodes().node(matchingNodes.nodeWithHighestMatch().getId());
             // we only check on THROTTLE since we checked before on NO
             Decision decision = allocation.deciders().canAllocate(shardRouting, nodeWithHighestMatch, allocation);
             if (decision.type() == Decision.Type.THROTTLE) {
@@ -497,7 +492,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
             }
         }
 
-        return new MatchingNodes(matchingNodesCacheSizes, nodeDecisionsDebug);
+        return MatchingNodes.create(matchingNodesCacheSizes, nodeDecisionsDebug);
     }
 
     private static final class AsyncCacheStatusFetch {
@@ -533,27 +528,26 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         }
     }
 
-    private static final class MatchingNodes {
-        private final DiscoveryNode nodeWithHighestMatch;
-        @Nullable
-        private final Map<String, NodeAllocationResult> nodeDecisions;
+    private record MatchingNodes(DiscoveryNode nodeWithHighestMatch, @Nullable Map<String, NodeAllocationResult> nodeDecisions) {
 
-        MatchingNodes(Map<DiscoveryNode, Long> matchingNodes, @Nullable Map<String, NodeAllocationResult> nodeDecisions) {
-            this.nodeDecisions = nodeDecisions;
-            this.nodeWithHighestMatch = matchingNodes.entrySet()
-                .stream()
-                .filter(entry -> entry.getValue() > 0L)
-                .max(Map.Entry.comparingByValue())
-                .map(Map.Entry::getKey)
-                .orElse(null);
+        private static MatchingNodes create(
+            Map<DiscoveryNode, Long> matchingNodes,
+            @Nullable Map<String, NodeAllocationResult> nodeDecisions
+        ) {
+            return new MatchingNodes(getNodeWithHighestMatch(matchingNodes), nodeDecisions);
         }
 
         /**
          * Returns the node with the highest number of bytes cached for the shard or {@code null} if no node with any bytes matched exists.
          */
         @Nullable
-        public DiscoveryNode getNodeWithHighestMatch() {
-            return this.nodeWithHighestMatch;
+        private static DiscoveryNode getNodeWithHighestMatch(Map<DiscoveryNode, Long> matchingNodes) {
+            return matchingNodes.entrySet()
+                .stream()
+                .filter(entry -> entry.getValue() > 0L)
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse(null);
         }
     }
 }

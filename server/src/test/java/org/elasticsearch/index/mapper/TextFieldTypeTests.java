@@ -147,13 +147,13 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         TextFieldType ft = createFieldType();
         ft.setIndexPrefixes(2, 10);
 
-        Query q = ft.prefixQuery("goin", CONSTANT_SCORE_REWRITE, false, randomMockContext());
+        Query q = ft.prefixQuery("goin", randomBoolean() ? null : CONSTANT_SCORE_REWRITE, false, randomMockContext());
         assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field._index_prefix", "goin"))), q);
 
-        q = ft.prefixQuery("internationalisatio", CONSTANT_SCORE_REWRITE, false, MOCK_CONTEXT);
+        q = ft.prefixQuery("internationalisatio", randomBoolean() ? null : CONSTANT_SCORE_REWRITE, false, MOCK_CONTEXT);
         assertEquals(new PrefixQuery(new Term("field", "internationalisatio")), q);
 
-        q = ft.prefixQuery("Internationalisatio", CONSTANT_SCORE_REWRITE, true, MOCK_CONTEXT);
+        q = ft.prefixQuery("Internationalisatio", randomBoolean() ? null : CONSTANT_SCORE_REWRITE, true, MOCK_CONTEXT);
         assertEquals(AutomatonQueries.caseInsensitivePrefixQuery(new Term("field", "Internationalisatio")), q);
 
         ElasticsearchException ee = expectThrows(
@@ -166,15 +166,13 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             ee.getMessage()
         );
 
-        q = ft.prefixQuery("g", CONSTANT_SCORE_REWRITE, false, randomMockContext());
+        q = ft.prefixQuery("g", randomBoolean() ? null : CONSTANT_SCORE_REWRITE, false, randomMockContext());
         Automaton automaton = Operations.concatenate(Arrays.asList(Automata.makeChar('g'), Automata.makeAnyChar()));
-
         Query expected = new ConstantScoreQuery(
             new BooleanQuery.Builder().add(new AutomatonQuery(new Term("field._index_prefix", "g*"), automaton), BooleanClause.Occur.SHOULD)
                 .add(new TermQuery(new Term("field", "g")), BooleanClause.Occur.SHOULD)
                 .build()
         );
-
         assertThat(q, equalTo(expected));
     }
 

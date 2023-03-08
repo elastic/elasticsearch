@@ -170,6 +170,42 @@ The API returns the following result:
         }
       }
     }
+  },
+  "cluster_info" : {
+      "nodes" : {
+        "UPYt8VwWTt-IADAEbqpLxA" : {
+          "node_name" : "node-1",
+          "least_available" : {
+            "path" : "/data",
+            "total_bytes" : 1440713945,
+            "used_bytes" : 1222486407,
+            "free_bytes" : 218227538,
+            "free_disk_percent" : 15.1,
+            "used_disk_percent" : 84.9
+          },
+          "most_available" : {
+            "path" : "/data",
+            "total_bytes" : 1440713945,
+            "used_bytes" : 1222486407,
+            "free_bytes" : 218227538,
+            "free_disk_percent" : 15.1,
+            "used_disk_percent" : 84.9
+          }
+        }
+      },
+      "shard_sizes" : {
+        "[test][0][p]_bytes" : 1720826288,
+        "[test][1][p]_bytes" : 1720826288
+      },
+      "shard_data_set_sizes" : {
+        "[test][0][p]_bytes" : 1720826288,
+        "[test][1][p]_bytes" : 1720826288
+      },
+      "shard_paths" : {
+        "NodeAndShard[nodeId=UPYt8VwWTt-IADAEbqpLxA, shardId=[test][0]]" : "/data",
+        "NodeAndShard[nodeId=bgC66tboTIeFQ0VgRGI4Gg, shardId=[test][0]]" : "/data"
+      },
+      "reserved_sizes" : []
   }
 }
 --------------------------------------------------

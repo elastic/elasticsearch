@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.tree.Location;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -60,22 +59,31 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    public void testResolveTypeInvalid() {
-        for (Concat c : new Concat[] {
-            new Concat(
-                new Source(Location.EMPTY, "foo"),
-                new Literal(new Source(Location.EMPTY, "1"), 1, DataTypes.INTEGER),
-                List.of(new Literal(Source.EMPTY, "a", DataTypes.KEYWORD))
-            ),
-            new Concat(
-                new Source(Location.EMPTY, "foo"),
-                new Literal(Source.EMPTY, "a", DataTypes.KEYWORD),
-                List.of(new Literal(new Source(Location.EMPTY, "1"), 1, DataTypes.INTEGER))
-            ) }) {
-            Expression.TypeResolution resolution = c.resolveType();
-            assertTrue(resolution.unresolved());
-            assertThat(resolution.message(), equalTo("argument of [foo] must be [string], found value [1] type [integer]"));
-        }
+    protected List<ArgumentSpec> argSpec() {
+        return List.of(
+            required(DataTypes.KEYWORD),
+            optional(DataTypes.KEYWORD),
+            optional(DataTypes.KEYWORD),
+            optional(DataTypes.KEYWORD),
+            optional(DataTypes.KEYWORD),
+            optional(DataTypes.KEYWORD),
+            optional(DataTypes.KEYWORD),
+            optional(DataTypes.KEYWORD),
+            optional(DataTypes.KEYWORD),
+            optional(DataTypes.KEYWORD),
+            optional(DataTypes.KEYWORD),
+            optional(DataTypes.KEYWORD)
+        );
+    }
+
+    @Override
+    protected Expression build(Source source, List<Literal> args) {
+        return new Concat(source, args.get(0), args.subList(1, args.size()));
+    }
+
+    @Override
+    protected Matcher<String> badTypeError(List<ArgumentSpec> specs, int badArgPosition, DataType badArgType) {
+        return equalTo("argument of [exp] must be [string], found value [arg" + badArgPosition + "] type [" + badArgType.typeName() + "]");
     }
 
     public void testMany() {

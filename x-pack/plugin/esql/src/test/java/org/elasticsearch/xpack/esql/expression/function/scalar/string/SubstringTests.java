@@ -9,10 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.tree.Location;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -82,55 +80,13 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    public void testResolveTypeInvalid() {
-        for (DataType strType : EsqlDataTypes.types()) {
-            if (strType == DataTypes.KEYWORD || strType == DataTypes.NULL) {
-                continue;
-            }
-            Expression.TypeResolution resolution = new Substring(
-                new Source(Location.EMPTY, "foo"),
-                new Literal(new Source(Location.EMPTY, "bar"), "", strType),
-                new Literal(Source.EMPTY, 1, DataTypes.INTEGER),
-                new Literal(Source.EMPTY, 3, DataTypes.INTEGER)
-            ).resolveType();
-            assertFalse(strType.toString(), resolution.resolved());
-            assertThat(
-                resolution.message(),
-                equalTo("first argument of [foo] must be [string], found value [bar] type [" + strType.typeName() + "]")
-            );
-        }
-        for (DataType startType : EsqlDataTypes.types()) {
-            if (startType.isInteger() || startType == DataTypes.NULL) {
-                continue;
-            }
-            Expression.TypeResolution resolution = new Substring(
-                new Source(Location.EMPTY, "foo"),
-                new Literal(Source.EMPTY, "str", DataTypes.KEYWORD),
-                new Literal(new Source(Location.EMPTY, "bar"), "", startType),
-                new Literal(Source.EMPTY, 3, DataTypes.INTEGER)
-            ).resolveType();
-            assertFalse(startType.toString(), resolution.resolved());
-            assertThat(
-                resolution.message(),
-                equalTo("second argument of [foo] must be [integer], found value [bar] type [" + startType.typeName() + "]")
-            );
-        }
-        for (DataType lenType : EsqlDataTypes.types()) {
-            if (lenType.isInteger() || lenType == DataTypes.NULL) {
-                continue;
-            }
-            Expression.TypeResolution resolution = new Substring(
-                new Source(Location.EMPTY, "foo"),
-                new Literal(Source.EMPTY, "str", DataTypes.KEYWORD),
-                new Literal(Source.EMPTY, 3, DataTypes.INTEGER),
-                new Literal(new Source(Location.EMPTY, "bar"), "", lenType)
-            ).resolveType();
-            assertFalse(lenType.toString(), resolution.resolved());
-            assertThat(
-                resolution.message(),
-                equalTo("third argument of [foo] must be [integer], found value [bar] type [" + lenType.typeName() + "]")
-            );
-        }
+    protected List<AbstractScalarFunctionTestCase.ArgumentSpec> argSpec() {
+        return List.of(required(DataTypes.KEYWORD), required(integers()), optional(integers()));
+    }
+
+    @Override
+    protected Expression build(Source source, List<Literal> args) {
+        return new Substring(source, args.get(0), args.get(1), args.size() < 3 ? null : args.get(2));
     }
 
     public void testWholeString() {

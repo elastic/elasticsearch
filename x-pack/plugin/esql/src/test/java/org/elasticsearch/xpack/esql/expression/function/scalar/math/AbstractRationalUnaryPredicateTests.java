@@ -8,18 +8,14 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.tree.Location;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
 import java.util.List;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractRationalUnaryPredicateTests extends AbstractScalarFunctionTestCase {
     protected abstract RationalUnaryPredicate build(Source source, Expression value);
@@ -58,18 +54,13 @@ public abstract class AbstractRationalUnaryPredicateTests extends AbstractScalar
     }
 
     @Override
-    public final void testResolveTypeInvalid() {
-        for (DataType type : EsqlDataTypes.types()) {
-            if (type.isRational() || type == DataTypes.NULL) {
-                continue;
-            }
-            Expression.TypeResolution resolution = build(
-                new Source(Location.EMPTY, "foo"),
-                new Literal(new Source(Location.EMPTY, "v"), "v", type)
-            ).resolveType();
-            assertFalse(type.typeName() + " is invalid", resolution.resolved());
-            assertThat(resolution.message(), equalTo("argument of [foo] must be [double], found value [v] type [" + type.typeName() + "]"));
-        }
+    protected final List<ArgumentSpec> argSpec() {
+        return List.of(required(rationals()));
+    }
+
+    @Override
+    protected Expression build(Source source, List<Literal> args) {
+        return build(source, args.get(0));
     }
 
     private void testCase(double d) {

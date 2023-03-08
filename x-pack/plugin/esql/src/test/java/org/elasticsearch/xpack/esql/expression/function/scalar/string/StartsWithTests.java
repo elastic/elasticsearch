@@ -9,10 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.tree.Location;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -20,7 +18,6 @@ import org.hamcrest.Matcher;
 
 import java.util.List;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class StartsWithTests extends AbstractScalarFunctionTestCase {
@@ -66,23 +63,12 @@ public class StartsWithTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    public void testResolveTypeInvalid() {
-        for (DataType t1 : EsqlDataTypes.types()) {
-            if (t1 == DataTypes.KEYWORD || t1 == DataTypes.NULL) {
-                continue;
-            }
-            for (DataType t2 : EsqlDataTypes.types()) {
-                if (t2 == DataTypes.KEYWORD || t2 == DataTypes.NULL) {
-                    continue;
-                }
-                Expression.TypeResolution resolution = new StartsWith(
-                    new Source(Location.EMPTY, "foo"),
-                    new Literal(new Source(Location.EMPTY, "str"), "str", t1),
-                    new Literal(new Source(Location.EMPTY, "str"), "str", t2)
-                ).resolveType();
-                assertFalse("resolution for [" + t1 + "/" + t2 + "]", resolution.resolved());
-                assertThat(resolution.message(), containsString("argument of [foo] must be [string], found value ["));
-            }
-        }
+    protected List<ArgumentSpec> argSpec() {
+        return List.of(required(DataTypes.KEYWORD), required(DataTypes.KEYWORD));
+    }
+
+    @Override
+    protected Expression build(Source source, List<Literal> args) {
+        return new StartsWith(source, args.get(0), args.get(1));
     }
 }

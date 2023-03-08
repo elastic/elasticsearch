@@ -23,8 +23,8 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 
 public class Length extends UnaryScalarFunction implements Mappable {
 
@@ -43,7 +43,7 @@ public class Length extends UnaryScalarFunction implements Mappable {
             return new TypeResolution("Unresolved children");
         }
 
-        return isType(field(), dt -> dt == DataTypes.KEYWORD, sourceText(), FIRST, DataTypes.KEYWORD.typeName());
+        return isStringAndExact(field(), sourceText(), DEFAULT);
     }
 
     @Override

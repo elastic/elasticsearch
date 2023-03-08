@@ -13,7 +13,6 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.tree.Location;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -55,13 +54,13 @@ public class LengthTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    public void testResolveTypeInvalid() {
-        Expression.TypeResolution resolution = new Length(
-            new Source(Location.EMPTY, "foo"),
-            new Literal(new Source(Location.EMPTY, "1"), 1, DataTypes.INTEGER)
-        ).resolveType();
-        assertTrue(resolution.unresolved());
-        assertThat(resolution.message(), equalTo("first argument of [foo] must be [keyword], found value [1] type [integer]"));
+    protected List<ArgumentSpec> argSpec() {
+        return List.of(required(DataTypes.KEYWORD));
+    }
+
+    @Override
+    protected Expression build(Source source, List<Literal> args) {
+        return new Length(source, args.get(0));
     }
 
     public void testExamples() {

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
@@ -27,12 +27,12 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringC
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ResultsFieldUpdateTests;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SlimConfigUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SlimConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdateTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdateTests;
 
@@ -152,7 +152,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
     }
 
     @Override
-    protected Request mutateInstanceForVersion(Request instance, Version version) {
+    protected Request mutateInstanceForVersion(Request instance, TransportVersion version) {
         InferenceConfigUpdate adjustedUpdate;
         InferenceConfigUpdate currentUpdate = instance.getUpdate();
         if (currentUpdate instanceof NlpConfigUpdate nlpConfigUpdate) {
@@ -170,8 +170,8 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
                 adjustedUpdate = PassThroughConfigUpdateTests.mutateForVersion(update, version);
             } else if (nlpConfigUpdate instanceof QuestionAnsweringConfigUpdate update) {
                 adjustedUpdate = QuestionAnsweringConfigUpdateTests.mutateForVersion(update, version);
-            } else if (nlpConfigUpdate instanceof SlimConfigUpdate update) {
-                adjustedUpdate = SlimConfigUpdateTests.mutateForVersion(update, version);
+            } else if (nlpConfigUpdate instanceof TextExpansionConfigUpdate update) {
+                adjustedUpdate = TextExpansionConfigUpdateTests.mutateForVersion(update, version);
             } else {
                 throw new IllegalArgumentException("Unknown update [" + currentUpdate.getName() + "]");
             }
@@ -179,7 +179,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
             adjustedUpdate = currentUpdate;
         }
 
-        if (version.before(Version.V_8_3_0)) {
+        if (version.before(TransportVersion.V_8_3_0)) {
             return new Request(
                 instance.getModelId(),
                 adjustedUpdate,
@@ -188,7 +188,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
                 TimeValue.MAX_VALUE,
                 instance.isPreviouslyLicensed()
             );
-        } else if (version.before(Version.V_8_7_0)) {
+        } else if (version.before(TransportVersion.V_8_7_0)) {
             return new Request(
                 instance.getModelId(),
                 adjustedUpdate,
@@ -197,7 +197,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
                 instance.getInferenceTimeout(),
                 instance.isPreviouslyLicensed()
             );
-        } else if (version.before(Version.V_8_8_0)) {
+        } else if (version.before(TransportVersion.V_8_8_0)) {
             var r = new Request(
                 instance.getModelId(),
                 adjustedUpdate,

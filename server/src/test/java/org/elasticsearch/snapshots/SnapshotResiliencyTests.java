@@ -99,6 +99,8 @@ import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
+import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
+import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -473,7 +475,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             testClusterNodes.randomDataNodeSafe().client.admin()
                 .cluster()
                 .prepareDeleteSnapshot(repoName, snapshotName)
-                .execute(ActionListener.wrap(() -> snapshotDeleteResponded.set(true)));
+                .execute(ActionListener.running(() -> snapshotDeleteResponded.set(true)));
         });
 
         runUntil(
@@ -1011,7 +1013,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             testClusterNodes.randomDataNodeSafe().client.admin()
                                 .cluster()
                                 .prepareCreateSnapshot(repoName, snapshotName)
-                                .execute(ActionListener.wrap(() -> {
+                                .execute(ActionListener.running(() -> {
                                     createdSnapshot.set(true);
                                     testClusterNodes.randomDataNodeSafe().client.admin()
                                         .cluster()
@@ -1748,7 +1750,16 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     () -> repositoriesService,
                     rerouteServiceSetOnce::get
                 );
-                allocationService = ESAllocationTestCase.createAllocationService(settings, snapshotsInfoService);
+                allocationService = ESAllocationTestCase.createAllocationService(
+                    Settings.builder()
+                        .put(settings)
+                        .put("cluster.routing.allocation.type", "balanced") // TODO fix for desired_balance
+                        .build(),
+                    snapshotsInfoService
+                );
+                assertCriticalWarnings(
+                    "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release."
+                );
                 rerouteService = new BatchedRerouteService(clusterService, allocationService::reroute);
                 rerouteServiceSetOnce.set(rerouteService);
                 final IndexScopedSettings indexScopedSettings = new IndexScopedSettings(
@@ -2181,7 +2192,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     rerouteService,
                     ElectionStrategy.DEFAULT_INSTANCE,
                     () -> new StatusInfo(HEALTHY, "healthy-info"),
-                    new NoneCircuitBreakerService()
+                    new NoneCircuitBreakerService(),
+                    new Reconfigurator(clusterService.getSettings(), clusterService.getClusterSettings()),
+                    LeaderHeartbeatService.NO_OP
                 );
                 masterService.setClusterStatePublisher(coordinator);
                 coordinator.start();

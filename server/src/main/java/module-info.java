@@ -206,6 +206,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.path;
     exports org.elasticsearch.common.recycler;
     exports org.elasticsearch.common.regex;
+    exports org.elasticsearch.common.scheduler;
     exports org.elasticsearch.common.settings;
     exports org.elasticsearch.common.text;
     exports org.elasticsearch.common.time;

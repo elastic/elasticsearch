@@ -46,6 +46,7 @@ import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -497,7 +498,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         } else {
             builder.put(ApiKeyService.DELETE_RETENTION_PERIOD.getKey(), TimeValue.timeValueDays(deleteRetentionPeriodDays));
         }
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).get();
+        updateClusterSettings(builder);
     }
 
     private void doTestInvalidKeysImmediatelyDeletedByRemover(String namePrefix) throws Exception {
@@ -2652,6 +2653,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     private List<RoleDescriptor> randomRoleDescriptors() {
+        boolean allowRemoteIndices = TcpTransport.isUntrustedRemoteClusterEnabled();
         int caseNo = randomIntBetween(0, 3);
         return switch (caseNo) {
             case 0 -> List.of(new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null));
@@ -2659,7 +2661,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null),
                 randomValueOtherThanMany(
                     rd -> RoleDescriptorRequestValidator.validate(rd) != null,
-                    () -> RoleDescriptorTests.randomRoleDescriptor(false, false)
+                    () -> RoleDescriptorTests.randomRoleDescriptor(false, allowRemoteIndices)
                 )
             );
             case 2 -> null;

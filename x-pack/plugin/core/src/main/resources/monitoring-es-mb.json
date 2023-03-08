@@ -2378,6 +2378,10 @@
                 "start_time_in_millis": {
                   "path": "elasticsearch.index.recovery.start_time.ms",
                   "type": "alias"
+                },
+                "total_time_in_millis": {
+                  "path": "elasticsearch.index.recovery.total_time.ms",
+                  "type": "alias"
                 }
               }
             }

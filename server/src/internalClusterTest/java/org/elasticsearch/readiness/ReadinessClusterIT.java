@@ -299,6 +299,13 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
         return new Tuple<>(savedClusterState, metadataVersion);
     }
 
+    private CountDownLatch setupReadinessProbeListener(String masterNode) {
+        ReadinessService s = internalCluster().getInstance(ReadinessService.class, masterNode);
+        CountDownLatch readinessProbeListening = new CountDownLatch(1);
+        s.addBoundAddressListener(x -> readinessProbeListening.countDown());
+        return readinessProbeListening;
+    }
+
     public void testReadyAfterCorrectFileSettings() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start data node / non master node");
@@ -314,6 +321,7 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
         logger.info("--> start master node");
         final String masterNode = internalCluster().startMasterOnlyNode();
         assertMasterNode(internalCluster().nonMasterClient(), masterNode);
+        var readinessProbeListening = setupReadinessProbeListener(masterNode);
 
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
 
@@ -324,6 +332,7 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
         assertTrue(awaitSuccessful);
 
         ReadinessService s = internalCluster().getInstance(ReadinessService.class, internalCluster().getMasterName());
+        readinessProbeListening.await(20, TimeUnit.SECONDS);
         tcpReadinessProbeTrue(s);
     }
 

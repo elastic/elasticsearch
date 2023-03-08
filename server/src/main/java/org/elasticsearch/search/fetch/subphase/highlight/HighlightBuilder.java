@@ -94,7 +94,6 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         .highlightFilter(DEFAULT_HIGHLIGHT_FILTER)
         .requireFieldMatch(DEFAULT_REQUIRE_FIELD_MATCH)
         .maxAnalyzedOffset(DEFAULT_MAX_ANALYZED_OFFSET)
-        .forceSource(DEFAULT_FORCE_SOURCE)
         .fragmentCharSize(DEFAULT_FRAGMENT_CHAR_SIZE)
         .numberOfFragments(DEFAULT_NUMBER_OF_FRAGMENTS)
         .encoder(DEFAULT_ENCODER)
@@ -365,9 +364,6 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         }
         if (highlighterBuilder.noMatchSize != null) {
             targetOptionsBuilder.noMatchSize(highlighterBuilder.noMatchSize);
-        }
-        if (highlighterBuilder.forceSource != null) {
-            targetOptionsBuilder.forceSource(highlighterBuilder.forceSource);
         }
         if (highlighterBuilder.phraseLimit != null) {
             targetOptionsBuilder.phraseLimit(highlighterBuilder.phraseLimit);

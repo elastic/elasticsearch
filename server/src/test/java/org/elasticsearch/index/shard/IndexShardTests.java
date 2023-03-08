@@ -2988,8 +2988,8 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         Consumer<IndexShard> assertListenerCalled = shard -> {
             AtomicBoolean called = new AtomicBoolean();
-            shard.addRefreshListener(null, b -> {
-                assertFalse(b);
+            shard.addRefreshListener(null, forced -> {
+                assertFalse(forced);
                 called.set(true);
             });
 
@@ -3875,7 +3875,7 @@ public class IndexShardTests extends IndexShardTestCase {
         if (randomBoolean()) {
             primary.addRefreshListener(doc.getTranslogLocation(), r -> latch1.countDown());
         } else {
-            primary.addRefreshListener(doc.getSeqNo(), ActionListener.wrap(latch1::countDown));
+            primary.addRefreshListener(doc.getSeqNo(), ActionListener.running(latch1::countDown));
         }
         assertEquals(1, latch1.getCount());
         assertTrue(primary.getEngine().refreshNeeded());

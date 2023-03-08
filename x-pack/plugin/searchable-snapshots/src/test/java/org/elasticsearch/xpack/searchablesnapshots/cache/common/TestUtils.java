@@ -41,6 +41,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
@@ -226,6 +227,11 @@ public final class TestUtils {
         @Override
         public Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) {
             throw unsupportedException();
+        }
+
+        @Override
+        public void compareAndExchangeRegister(String key, long expected, long updated, ActionListener<OptionalLong> listener) {
+            listener.onFailure(unsupportedException());
         }
 
         private UnsupportedOperationException unsupportedException() {

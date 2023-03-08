@@ -160,11 +160,11 @@ public class PutRoleRequestTests extends ESTestCase {
     public void testSerialization() throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
         if (randomBoolean()) {
-            final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT);
+            final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
             logger.info("Serializing with version {}", version);
             out.setTransportVersion(version);
         }
-        final boolean mayIncludeRemoteIndices = out.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0);
+        final boolean mayIncludeRemoteIndices = out.getTransportVersion().onOrAfter(RoleDescriptor.TRANSPORT_VERSION_REMOTE_INDICES);
         final PutRoleRequest original = buildRandomRequest(mayIncludeRemoteIndices);
         original.writeTo(out);
 
@@ -180,12 +180,10 @@ public class PutRoleRequestTests extends ESTestCase {
 
     public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
-        final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_6_0);
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            versionBeforeRemoteIndices.calculateMinimumCompatVersion(),
-            versionBeforeRemoteIndices
+        final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(
+            RoleDescriptor.TRANSPORT_VERSION_REMOTE_INDICES
         );
+        final TransportVersion version = TransportVersionUtils.randomPreviousCompatibleVersion(random(), versionBeforeRemoteIndices);
         out.setTransportVersion(version);
 
         final PutRoleRequest original = buildRandomRequest(randomBoolean());
@@ -228,7 +226,7 @@ public class PutRoleRequestTests extends ESTestCase {
             .privileges(privileges)
             .resources(resources)
             .build();
-        request.addApplicationPrivileges(new ApplicationResourcePrivileges[] { privilege });
+        request.addApplicationPrivileges(privilege);
         return request;
     }
 

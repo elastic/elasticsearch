@@ -12,8 +12,11 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.concurrent.CountDownLatch;
+
+import static org.mockito.Mockito.mock;
 
 public abstract class TransportWriteActionTestHelper {
 
@@ -35,7 +38,15 @@ public abstract class TransportWriteActionTestHelper {
                 throw new AssertionError(ex);
             }
         };
-        new TransportWriteAction.AsyncAfterWriteAction(indexShard, request, location, writerResult, logger, null).run();
+        new TransportWriteAction.AsyncAfterWriteAction(
+            indexShard,
+            request,
+            location,
+            writerResult,
+            logger,
+            new PostWriteRefresh(mock(TransportService.class)),
+            null
+        ).run();
         try {
             latch.await();
         } catch (InterruptedException e) {

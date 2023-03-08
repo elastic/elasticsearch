@@ -372,25 +372,23 @@ public class InboundDecoderTests extends ESTestCase {
     public void testCheckVersionCompatibility() {
         try {
             InboundDecoder.checkVersionCompatibility(
-                TransportVersionUtils.randomVersionBetween(
-                    random(),
-                    TransportVersion.CURRENT.minimumCompatibilityVersion(),
-                    TransportVersion.CURRENT
-                ),
-                TransportVersion.CURRENT
+                TransportVersionUtils.randomVersionBetween(random(), TransportVersion.MINIMUM_COMPATIBLE, TransportVersion.CURRENT)
             );
         } catch (IllegalStateException e) {
             throw new AssertionError(e);
         }
 
-        TransportVersion version = TransportVersion.CURRENT;
-        TransportVersion invalid = TransportVersionUtils.getPreviousVersion(version.minimumCompatibilityVersion());
+        TransportVersion invalid = TransportVersionUtils.getPreviousVersion(TransportVersion.MINIMUM_COMPATIBLE);
         try {
-            InboundDecoder.checkVersionCompatibility(invalid, version);
+            InboundDecoder.checkVersionCompatibility(invalid);
             fail();
         } catch (IllegalStateException expected) {
             assertEquals(
-                "Received message from unsupported version: [" + invalid + "] minimal compatible version is: [" + version + "]",
+                "Received message from unsupported version: ["
+                    + invalid
+                    + "] minimal compatible version is: ["
+                    + TransportVersion.MINIMUM_COMPATIBLE
+                    + "]",
                 expected.getMessage()
             );
         }

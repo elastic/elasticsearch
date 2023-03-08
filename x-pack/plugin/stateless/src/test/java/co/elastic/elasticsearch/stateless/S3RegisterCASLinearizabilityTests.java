@@ -19,8 +19,9 @@ package co.elastic.elasticsearch.stateless;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.SdkClientException;
+import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.auth.BasicSessionCredentials;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.services.s3.AbstractAmazonS3;
@@ -93,8 +94,9 @@ public class S3RegisterCASLinearizabilityTests extends ESTestCase {
         final String region = getRequiredProperty("test.s3.region");
         final String accessKey = System.getProperty("test.s3.access_key");
         final String secretKey = System.getProperty("test.s3.secret_key");
+        final String sessionToken = System.getProperty("test.s3.session_token");
         if (accessKey != null && secretKey != null) {
-            return new S3ClientRef(region, accessKey, secretKey);
+            return new S3ClientRef(region, accessKey, secretKey, sessionToken);
         } else {
             // Running the test in a development mode. Make sure you local AWS development environment is correctly configured
             // For instructions see https://github.com/elastic/elasticsearch-benchmarks/blob/master/docs/authentication.md#aws-auth
@@ -375,11 +377,11 @@ public class S3RegisterCASLinearizabilityTests extends ESTestCase {
                 .build();
         }
 
-        S3ClientRef(String region, String accessKey, String secretKey) {
-            this(region, new BasicAWSCredentials(accessKey, secretKey));
+        S3ClientRef(String region, String accessKey, String secretKey, String sessionToken) {
+            this(region, new BasicSessionCredentials(accessKey, secretKey, sessionToken));
         }
 
-        S3ClientRef(String region, @Nullable BasicAWSCredentials staticCredentials) {
+        S3ClientRef(String region, @Nullable AWSCredentials staticCredentials) {
             var credentialsProvider = staticCredentials != null
                 ? new AWSStaticCredentialsProvider(staticCredentials)
                 : DefaultAWSCredentialsProviderChain.getInstance();

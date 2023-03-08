@@ -630,7 +630,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     class RestoreFileFromSnapshotTransportRequestHandler implements TransportRequestHandler<RecoverySnapshotFileRequest> {
         @Override
         public void messageReceived(final RecoverySnapshotFileRequest request, TransportChannel channel, Task task) {
-            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.getRecoveryId(), request.getShardId())) {
+            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
                 final RecoveryTarget recoveryTarget = recoveryRef.target();
                 final ActionListener<Void> listener = createOrFinishListener(recoveryRef, channel, request);
                 if (listener == null) {

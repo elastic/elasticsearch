@@ -1912,7 +1912,9 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         protected Optional<ApplyCommitRequest> handlePublishResponse(DiscoveryNode sourceNode, PublishResponse publishResponse) {
             assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
             assert getCurrentTerm() >= publishResponse.getTerm();
-            return coordinationState.get().handlePublishResponse(sourceNode, publishResponse);
+            var applyCommit = coordinationState.get().handlePublishResponse(sourceNode, publishResponse);
+            applyCommit.ifPresent(applyCommitRequest -> beforeCommit(applyCommitRequest.getTerm(), applyCommitRequest.getVersion()));
+            return applyCommit;
         }
 
         @Override
@@ -1962,7 +1964,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         ) {
             assert transportService.getThreadPool().getThreadContext().isSystemContext();
             try {
-                beforeCommit(applyCommit.getTerm(), applyCommit.getVersion());
                 transportService.sendRequest(
                     destination,
                     COMMIT_STATE_ACTION_NAME,

@@ -24,7 +24,6 @@ import org.elasticsearch.gateway.ClusterStateUpdaters;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportException;
 import org.junit.Before;
 
 import java.util.HashMap;
@@ -539,15 +538,16 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             CoordinationMetadata.VotingConfiguration lastAcceptedConfiguration,
             CoordinationMetadata.VotingConfiguration lastCommittedConfiguration
         ) {
+            // TODO: Move into a fixed dummy VotingConfiguration
             return false;
         }
 
         @Override
         public void beforeCommit(long term, long version) {
+            // TODO: add a test to ensure that this gets called
             final var currentTermOwner = register.getTermOwner();
             if (currentTermOwner.term() > term) {
-                // TODO: The listener expects a transport exception, change it to accept this exception too
-                throw new TransportException(new CoordinationStateRejectedException("Term " + term + " already claimed by another node"));
+                throw new CoordinationStateRejectedException("Term " + term + " already claimed by another node");
             }
         }
     }

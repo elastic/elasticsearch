@@ -75,7 +75,7 @@ Fields that only have <<doc-values,`doc_values`>> enabled can still be queried, 
 | `true`
 
 |`doc_values` |Should the field be stored on disk in a column-stride fashion,
-so that it can later be used for aggregations, or scripting?
+so that it can later be used for aggregations or scripting?
 | `true`
 
 |=======================================================================

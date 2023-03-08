@@ -60,6 +60,14 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
         return plugins;
     }
 
+    public void testEmptyState() throws Exception {
+        expectThrows(ResourceNotFoundException.class, () -> awaitGetSearchApplication("i-dont-exist"));
+        expectThrows(ResourceNotFoundException.class, () -> awaitDeleteSearchApplication("i-dont-exist"));
+
+        SearchApplicationIndexService.SearchApplicationResult listResults = awaitListSearchApplication("*", 0, 10);
+        assertThat(listResults.totalResults(), equalTo(0L));
+    }
+
     public void testCreateSearchApplication() throws Exception {
         final SearchApplication searchApp = new SearchApplication("my_search_app", new String[] { "index_1" }, null);
 

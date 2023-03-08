@@ -524,6 +524,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             final var witness = register.claimTerm(proposedNewTermOwner);
             if (proposedNewTermOwner != witness) {
                 if (witness.clusterUUID().equals(latestAcceptedClusterUUID) == false) {
+                    assert latestAcceptedState.metadata().clusterUUIDCommitted() == false;
                     atomicRegisterPersistedState.changeAcceptedClusterUUID(witness.clusterUUID());
                 }
                 throw new CoordinationStateRejectedException("Term " + proposedTerm + " already claimed by another node");

@@ -24,7 +24,6 @@ import org.elasticsearch.gateway.ClusterStateUpdaters;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.After;
 import org.junit.Before;
 
 import java.util.HashMap;
@@ -49,16 +48,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         // TODO: Move this into the cluster instance
         atomicRegister = new AtomicRegister();
         sharedStore = new SharedStore(atomicRegister);
-    }
-
-    @Before
-    public void enableCoordinatorRegisterMode() {
-        CoordinationState.REGISTER_COORDINATION_MODE_ENABLED = true;
-    }
-
-    @After
-    public void disableCoordinatorRegisterMode() {
-        CoordinationState.REGISTER_COORDINATION_MODE_ENABLED = false;
     }
 
     @Override
@@ -240,7 +229,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         logger.info("First run with seed [{}]", seed);
         final long result1 = RandomizedContext.current().runWithPrivateRandomness(seed, test);
 
-        // Reset the register between runs to get repeteable results
+        // Reset the register between runs to get repeatable results
         atomicRegister = new AtomicRegister();
         sharedStore = new SharedStore(atomicRegister);
 
@@ -422,20 +411,19 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
         @Override
         public ClusterState maybeReconfigureAfterNewMasterIsElected(ClusterState clusterState) {
-            Metadata metadata = Metadata.builder(clusterState.metadata())
-                .coordinationMetadata(
-                    CoordinationMetadata.builder(clusterState.coordinationMetadata())
-                        .lastAcceptedConfiguration(
-                            new CoordinationMetadata.VotingConfiguration(Set.of(clusterState.nodes().getMasterNodeId()))
-                        )
-                        .lastCommittedConfiguration(
-                            new CoordinationMetadata.VotingConfiguration(Set.of(clusterState.nodes().getMasterNodeId()))
+            return ClusterState.builder(clusterState)
+                .metadata(
+                    Metadata.builder(clusterState.metadata())
+                        .coordinationMetadata(
+                            CoordinationMetadata.builder(clusterState.coordinationMetadata())
+                                .lastAcceptedConfiguration(
+                                    new CoordinationMetadata.VotingConfiguration(Set.of(clusterState.nodes().getMasterNodeId()))
+                                )
+                                .build()
                         )
                         .build()
                 )
                 .build();
-            metadata = metadata.withLastCommittedValues(true, metadata.coordinationMetadata().getLastCommittedConfiguration());
-            return ClusterState.builder(clusterState).metadata(metadata).build();
         }
     }
 
@@ -541,6 +529,15 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                 throw new CoordinationStateRejectedException("Term " + proposedTerm + " already claimed by another node");
             }
             lastWonTerm = proposedTerm;
+        }
+
+        @Override
+        public boolean isReconfigurationAllowed(
+            ClusterState clusterState,
+            CoordinationMetadata.VotingConfiguration lastAcceptedConfiguration,
+            CoordinationMetadata.VotingConfiguration lastCommittedConfiguration
+        ) {
+            return true;
         }
     }
 
@@ -676,23 +673,12 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             latestAcceptedState = clusterState;
         }
 
-        @Override
-        public void markLastAcceptedStateAsCommitted(DiscoveryNode sourceNode, long term, long version) {
-            assert latestAcceptedState.term() == term && latestAcceptedState.version() == version;
-            CoordinationState.PersistedState.super.markLastAcceptedStateAsCommitted(sourceNode, term, version);
-        }
-
         void writeClusterState(ClusterState state) {
             final var termOwner = atomicRegister.getTermOwner();
             if (termOwner.term() > state.term()) {
                 throw new RuntimeException("Conflicting cluster state update");
             }
             sharedStore.writeClusterState(state);
-        }
-
-        @Override
-        public void close() {
-            assertTrue(openPersistedStates.remove(this));
         }
 
         void changeAcceptedClusterUUID(String clusterUUID) {
@@ -705,6 +691,11 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
         long getInitialTermBeforeJoiningALeader() {
             return initialTermBeforeJoiningALeader;
+        }
+
+        @Override
+        public void close() {
+            assertTrue(openPersistedStates.remove(this));
         }
     }
 }

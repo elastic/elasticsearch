@@ -96,4 +96,13 @@ public abstract class ElectionStrategy {
     );
 
     public void onNewElection(DiscoveryNode sourceNode, long proposedTerm, ClusterState latestAcceptedState) {}
+
+    public boolean isReconfigurationAllowed(
+        ClusterState clusterState,
+        VotingConfiguration lastAcceptedConfiguration,
+        VotingConfiguration lastCommittedConfiguration
+    ) {
+        return clusterState.getLastAcceptedConfiguration().equals(lastAcceptedConfiguration) == false
+            && lastCommittedConfiguration.equals(lastAcceptedConfiguration) == false;
+    }
 }

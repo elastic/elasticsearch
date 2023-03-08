@@ -32,8 +32,6 @@ public class CoordinationState {
 
     private static final Logger logger = LogManager.getLogger(CoordinationState.class);
 
-    public static boolean REGISTER_COORDINATION_MODE_ENABLED = false;
-
     private final DiscoveryNode localNode;
 
     private final ElectionStrategy electionStrategy;
@@ -334,8 +332,11 @@ public class CoordinationState {
             );
         }
 
-        if (clusterState.getLastAcceptedConfiguration().equals(getLastAcceptedConfiguration()) == false
-            && getLastCommittedConfiguration().equals(getLastAcceptedConfiguration()) == false) {
+        if (electionStrategy.isReconfigurationAllowed(
+            clusterState,
+            getLastAcceptedConfiguration(),
+            getLastCommittedConfiguration()
+        ) == false) {
             logger.debug("handleClientValue: only allow reconfiguration while not already reconfiguring");
             throw new CoordinationStateRejectedException("only allow reconfiguration while not already reconfiguring");
         }
@@ -344,7 +345,7 @@ public class CoordinationState {
             throw new CoordinationStateRejectedException("only allow reconfiguration if joinVotes have quorum for new config");
         }
 
-        assert clusterState.getLastCommittedConfiguration().equals(getLastCommittedConfiguration()) || REGISTER_COORDINATION_MODE_ENABLED
+        assert clusterState.getLastCommittedConfiguration().equals(getLastCommittedConfiguration())
             : "last committed configuration should not change";
 
         lastPublishedVersion = clusterState.version();
@@ -502,7 +503,8 @@ public class CoordinationState {
             applyCommit.getVersion()
         );
 
-        persistedState.markLastAcceptedStateAsCommitted(applyCommit.getSourceNode(), applyCommit.getTerm(), applyCommit.getVersion());
+        assert getLastAcceptedTerm() == applyCommit.getTerm() && getLastAcceptedVersion() == applyCommit.getVersion();
+        persistedState.markLastAcceptedStateAsCommitted();
         assert getLastCommittedConfiguration().equals(getLastAcceptedConfiguration());
     }
 
@@ -557,7 +559,7 @@ public class CoordinationState {
          * with the last committed configuration now corresponding to the last accepted configuration, and the cluster uuid, if set,
          * marked as committed.
          */
-        default void markLastAcceptedStateAsCommitted(DiscoveryNode sourceNode, long term, long version) {
+        default void markLastAcceptedStateAsCommitted() {
             final var lastAcceptedState = getLastAcceptedState();
             assert lastAcceptedState.metadata().clusterUUID().equals(Metadata.UNKNOWN_CLUSTER_UUID) == false
                 : "received cluster state with empty cluster uuid: " + lastAcceptedState;

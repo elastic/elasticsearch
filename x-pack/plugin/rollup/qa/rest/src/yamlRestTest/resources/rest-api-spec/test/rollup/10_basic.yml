@@ -1051,3 +1051,47 @@ setup:
           sort: [ "_tsid", "@timestamp" ]
 
   - length: { hits.hits: 4 }
+
+  - match: { hits.hits.0._source._doc_count: 2 }
+  - match: { hits.hits.0._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.0._source.metricset: pod }
+  - match: { hits.hits.0._source.@timestamp: "2021-04-28T18:00:00.000Z" }
+  - match: { hits.hits.0._source.k8s.pod.name: "cat" }
+  - match: { hits.hits.0._source.k8s.pod.value.min: 10.0 }
+  - match: { hits.hits.0._source.k8s.pod.value.max: 20.0 }
+  - match: { hits.hits.0._source.k8s.pod.value.sum: 30.0 }
+  - match: { hits.hits.0._source.k8s.pod.agent.id: "first" }
+  - match: { hits.hits.0._source.k8s.pod.agent.version: "2.0.4" }
+
+  - match: { hits.hits.1._source._doc_count: 2 }
+  - match: { hits.hits.1._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.1._source.metricset: pod }
+  - match: { hits.hits.1._source.@timestamp: "2021-04-28T20:00:00.000Z" }
+  - match: { hits.hits.1._source.k8s.pod.name: "cat" }
+  - match: { hits.hits.1._source.k8s.pod.value.min: 12.0 }
+  - match: { hits.hits.1._source.k8s.pod.value.max: 15.0 }
+  - match: { hits.hits.1._source.k8s.pod.value.sum: 27.0 }
+  - match: { hits.hits.1._source.k8s.pod.agent.id: "first" }
+  - match: { hits.hits.1._source.k8s.pod.agent.version: "2.0.4" }
+
+  - match: { hits.hits.2._source._doc_count: 2 }
+  - match: { hits.hits.2._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+  - match: { hits.hits.2._source.metricset: pod }
+  - match: { hits.hits.2._source.@timestamp: "2021-04-28T18:00:00.000Z" }
+  - match: { hits.hits.2._source.k8s.pod.name: "dog" }
+  - match: { hits.hits.2._source.k8s.pod.value.min: 9.0 }
+  - match: { hits.hits.2._source.k8s.pod.value.max: 16.0 }
+  - match: { hits.hits.2._source.k8s.pod.value.sum: 25.0 }
+  - match: { hits.hits.2._source.k8s.pod.agent.id: "second" }
+  - match: { hits.hits.2._source.k8s.pod.agent.version: "2.1.7" }
+
+  - match: { hits.hits.3._source._doc_count: 2 }
+  - match: { hits.hits.3._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+  - match: { hits.hits.3._source.metricset: pod }
+  - match: { hits.hits.3._source.@timestamp: "2021-04-28T19:00:00.000Z" }
+  - match: { hits.hits.3._source.k8s.pod.name: "dog" }
+  - match: { hits.hits.3._source.k8s.pod.value.min: 17.0 }
+  - match: { hits.hits.3._source.k8s.pod.value.max: 25.0 }
+  - match: { hits.hits.3._source.k8s.pod.value.sum: 42.0 }
+  - match: { hits.hits.3._source.k8s.pod.agent.id: "second" }
+  - match: { hits.hits.3._source.k8s.pod.agent.version: "2.1.7" }

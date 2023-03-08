@@ -10,6 +10,7 @@ package org.elasticsearch.reservedstate.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -76,6 +77,10 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     /**
      * Any implementation of this class must implement this method in order
      * to define what happens once the watched file changes.
+     *
+     * @throws IOException if there is an error reading the file itself
+     * @throws ExecutionException if there is an issue while applying the changes from the file
+     * @throws InterruptedException if the file processing is interrupted by another thread.
      */
     abstract void processFileChanges() throws InterruptedException, ExecutionException, IOException;
 
@@ -360,7 +365,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     }
 
     // package private for testing
-    void processSettingsAndNotifyListeners() throws InterruptedException {
+    void processSettingsAndNotifyListeners() {
         try {
             processFileChanges();
             for (var listener : eventListeners) {
@@ -368,6 +373,8 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
             }
         } catch (IOException | ExecutionException e) {
             logger.error(() -> "Error processing watched file: " + watchedFile(), e.getCause());
+        } catch (InterruptedException e) {
+            throw new ElasticsearchException(e);
         }
     }
 

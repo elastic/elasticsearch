@@ -102,6 +102,13 @@ public class FileSettingsService extends AbstractFileWatchingService {
         return fileSettingsMetadata != null && fileSettingsMetadata.version() == 0L;
     }
 
+    /**
+     * Read settings and pass them to {@link ReservedClusterStateService} for application
+     *
+     * @throws IOException if there is an error reading the file itself
+     * @throws ExecutionException if there is an issue while applying the changes from the file
+     * @throws InterruptedException if the file processing is interrupted by another thread.
+     */
     @Override
     void processFileChanges() throws ExecutionException, InterruptedException, IOException {
         PlainActionFuture<Void> completion = PlainActionFuture.newFuture();

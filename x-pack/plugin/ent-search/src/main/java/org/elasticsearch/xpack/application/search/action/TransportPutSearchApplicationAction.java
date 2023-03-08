@@ -9,33 +9,46 @@ package org.elasticsearch.xpack.application.search.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.search.SearchApplication;
-import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 
 public class TransportPutSearchApplicationAction extends SearchApplicationTransportAction<
     PutSearchApplicationAction.Request,
     PutSearchApplicationAction.Response> {
 
-    private final SearchApplicationIndexService indexService;
-
     @Inject
     public TransportPutSearchApplicationAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        SearchApplicationIndexService indexService,
+        Client client,
+        ClusterService clusterService,
+        NamedWriteableRegistry namedWriteableRegistry,
+        BigArrays bigArrays,
         XPackLicenseState licenseState
     ) {
-        super(PutSearchApplicationAction.NAME, transportService, actionFilters, PutSearchApplicationAction.Request::new, licenseState);
-        this.indexService = indexService;
+        super(
+            PutSearchApplicationAction.NAME,
+            transportService,
+            actionFilters,
+            PutSearchApplicationAction.Request::new,
+            client,
+            clusterService,
+            namedWriteableRegistry,
+            bigArrays,
+            licenseState
+        );
     }
 
     @Override
     protected void doExecute(PutSearchApplicationAction.Request request, ActionListener<PutSearchApplicationAction.Response> listener) {
         SearchApplication app = request.getSearchApplication();
         boolean create = request.create();
-        indexService.putSearchApplication(app, create, listener.map(r -> new PutSearchApplicationAction.Response(r.getResult())));
+        systemIndexService.putSearchApplication(app, create, listener.map(r -> new PutSearchApplicationAction.Response(r.getResult())));
     }
 }

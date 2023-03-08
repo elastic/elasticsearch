@@ -21,7 +21,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -152,16 +151,6 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             return Collections.emptyList();
         }
 
-        // Search Application related components
-        // TODO Don't implement this as a component, instantiate it when needed
-        final SearchApplicationIndexService searchAppIndexService = new SearchApplicationIndexService(
-            client,
-            clusterService,
-            namedWriteableRegistry,
-            // TODO We need to use use a real BigArrays which recycles pages here
-            BigArrays.NON_RECYCLING_INSTANCE
-        );
-
         // Behavioral analytics components
         final AnalyticsTemplateRegistry analyticsTemplateRegistry = new AnalyticsTemplateRegistry(
             clusterService,
@@ -176,7 +165,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             indexNameExpressionResolver
         );
 
-        return Arrays.asList(searchAppIndexService, analyticsTemplateRegistry, analyticsCollectionService);
+        return Arrays.asList(analyticsTemplateRegistry, analyticsCollectionService);
     }
 
     @Override

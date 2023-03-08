@@ -10,11 +10,14 @@ package org.elasticsearch.xpack.application.search.action;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.search.SearchApplicationTestUtils;
 import org.elasticsearch.xpack.application.utils.LicenseUtils;
 import org.elasticsearch.xpack.core.action.util.PageParams;
@@ -39,7 +42,10 @@ public class TransportListSearchApplicationActionTests extends ESTestCase {
         TransportListSearchApplicationAction transportAction = new TransportListSearchApplicationAction(
             mock(TransportService.class),
             mock(ActionFilters.class),
-            mock(SearchApplicationIndexService.class),
+            mock(Client.class),
+            mock(ClusterService.class),
+            mock(NamedWriteableRegistry.class),
+            mock(BigArrays.class),
             licenseState
         );
 

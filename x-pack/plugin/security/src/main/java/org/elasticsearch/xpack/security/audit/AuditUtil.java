@@ -22,7 +22,7 @@ import java.util.Set;
 
 public class AuditUtil {
 
-    private static final String AUDIT_REQUEST_ID = "_xpack_audit_request_id";
+    public static final String AUDIT_REQUEST_ID = "_xpack_audit_request_id";
 
     public static String restRequestContent(RestRequest request) {
         if (request.hasContent()) {
@@ -58,6 +58,13 @@ public class AuditUtil {
         return requestId;
     }
 
+    public static ThreadContext.StoredContext stashContextWithRequestId(ThreadContext threadContext) {
+        final String requestId = getOrGenerateRequestId(threadContext);
+        final ThreadContext.StoredContext stashed = threadContext.stashContext();
+        putRequestId(threadContext, requestId);
+        return stashed;
+    }
+
     private static String generateRequestId(ThreadContext threadContext, boolean checkExisting) {
         if (checkExisting) {
             final String existing = extractRequestId(threadContext);
@@ -68,9 +75,13 @@ public class AuditUtil {
             }
         }
         final String requestId = UUIDs.randomBase64UUID(Randomness.get());
+        putRequestId(threadContext, requestId);
+        return requestId;
+    }
+
+    private static void putRequestId(ThreadContext threadContext, String requestId) {
         // Store as a header (not transient) so that it is passed over the network if this request requires execution on other nodes
         threadContext.putHeader(AUDIT_REQUEST_ID, requestId);
-        return requestId;
     }
 
     public static String extractRequestId(ThreadContext threadContext) {

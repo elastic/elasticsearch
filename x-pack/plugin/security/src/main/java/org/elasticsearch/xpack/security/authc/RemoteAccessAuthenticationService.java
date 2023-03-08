@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
@@ -24,16 +23,13 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.audit.AuditUtil;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY;
-import static org.elasticsearch.xpack.security.authc.RemoteAccessHeaders.REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY;
 
 public class RemoteAccessAuthenticationService {
 
@@ -94,16 +90,7 @@ public class RemoteAccessAuthenticationService {
             return;
         }
 
-        // This is ensured by the RemoteAccessServerTransportFilter -- validating the internal consistency here
-        assert threadContext.getHeaders().keySet().stream().noneMatch(ClientHelper.SECURITY_HEADER_FILTERS::contains);
-        try (
-            ThreadContext.StoredContext ignored = threadContext.newStoredContext(
-                Collections.emptyList(),
-                // drop remote access authentication headers since we've read their values, and we want to maintain the invariant that
-                // either the remote access authentication header is in the context, or the authentication header, but not both
-                List.of(REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY, REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY)
-            )
-        ) {
+        try (ThreadContext.StoredContext ignored = AuditUtil.stashContextWithRequestId(threadContext)) {
             final Supplier<ThreadContext.StoredContext> storedContextSupplier = threadContext.newRestorableContext(false);
             authenticationService.authenticate(
                 authcContext,

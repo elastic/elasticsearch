@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authc.RemoteAccessHeaders;
@@ -386,7 +387,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final var contextRestoreHandler = new ContextRestoreResponseHandler<>(threadContext.newRestorableContext(true), handler);
                 final User user = authentication.getEffectiveSubject().getUser();
                 if (SystemUser.is(user)) {
-                    try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                    try (ThreadContext.StoredContext ignored = AuditUtil.stashContextWithRequestId(threadContext)) {
                         new RemoteAccessHeaders(
                             remoteClusterCredentials.authorization(),
                             // Access control is handled differently for the system user. Privileges are defined by the fulfilling cluster,
@@ -410,7 +411,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                             if (roleDescriptorsIntersection.isEmpty()) {
                                 throw authzService.remoteActionDenied(authentication, action, remoteClusterAlias);
                             }
-                            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                            try (ThreadContext.StoredContext ignored = AuditUtil.stashContextWithRequestId(threadContext)) {
                                 new RemoteAccessHeaders(
                                     remoteClusterCredentials.authorization(),
                                     new RemoteAccessAuthentication(authentication, roleDescriptorsIntersection)

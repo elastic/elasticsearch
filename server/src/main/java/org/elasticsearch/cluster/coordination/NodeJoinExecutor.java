@@ -92,7 +92,6 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
 
         if (currentNodes.getMasterNode() == null && isBecomingMaster) {
             assert initialState.term() < term : "there should be at most one become master task per election (= by term)";
-
             // use these joins to try and become the master.
             // Note that we don't have to do any validation of the amount of joining nodes - the commit
             // during the cluster state publishing guarantees that we have enough

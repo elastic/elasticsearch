@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -23,14 +23,14 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 final class FieldCapabilitiesIndexResponse implements Writeable {
-    private static final Version MAPPING_HASH_VERSION = Version.V_8_2_0;
+    private static final TransportVersion MAPPING_HASH_VERSION = TransportVersion.V_8_2_0;
 
     private final String indexName;
     @Nullable
     private final String indexMappingHash;
     private final Map<String, IndexFieldCapabilities> responseMap;
     private final boolean canMatch;
-    private final transient Version originVersion;
+    private final transient TransportVersion originVersion;
 
     FieldCapabilitiesIndexResponse(
         String indexName,
@@ -42,15 +42,15 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
         this.indexMappingHash = indexMappingHash;
         this.responseMap = responseMap;
         this.canMatch = canMatch;
-        this.originVersion = Version.CURRENT;
+        this.originVersion = TransportVersion.CURRENT;
     }
 
     FieldCapabilitiesIndexResponse(StreamInput in) throws IOException {
         this.indexName = in.readString();
         this.responseMap = in.readMap(StreamInput::readString, IndexFieldCapabilities::new);
         this.canMatch = in.readBoolean();
-        this.originVersion = in.getVersion();
-        if (in.getVersion().onOrAfter(MAPPING_HASH_VERSION)) {
+        this.originVersion = in.getTransportVersion();
+        if (in.getTransportVersion().onOrAfter(MAPPING_HASH_VERSION)) {
             this.indexMappingHash = in.readOptionalString();
         } else {
             this.indexMappingHash = null;
@@ -62,7 +62,7 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
         out.writeString(indexName);
         out.writeMap(responseMap, StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));
         out.writeBoolean(canMatch);
-        if (out.getVersion().onOrAfter(MAPPING_HASH_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(MAPPING_HASH_VERSION)) {
             out.writeOptionalString(indexMappingHash);
         }
     }
@@ -87,7 +87,7 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
     }
 
     static List<FieldCapabilitiesIndexResponse> readList(StreamInput input) throws IOException {
-        if (input.getVersion().before(MAPPING_HASH_VERSION)) {
+        if (input.getTransportVersion().before(MAPPING_HASH_VERSION)) {
             return input.readList(FieldCapabilitiesIndexResponse::new);
         }
         final List<FieldCapabilitiesIndexResponse> ungroupedList = input.readList(FieldCapabilitiesIndexResponse::new);
@@ -96,7 +96,7 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
     }
 
     static void writeList(StreamOutput output, List<FieldCapabilitiesIndexResponse> responses) throws IOException {
-        if (output.getVersion().before(MAPPING_HASH_VERSION)) {
+        if (output.getTransportVersion().before(MAPPING_HASH_VERSION)) {
             output.writeCollection(responses);
             return;
         }
@@ -152,7 +152,7 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
         return responseMap.get(field);
     }
 
-    Version getOriginVersion() {
+    TransportVersion getOriginVersion() {
         return originVersion;
     }
 

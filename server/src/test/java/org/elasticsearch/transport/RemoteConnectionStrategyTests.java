@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION;
 import static org.mockito.Mockito.mock;
 
 public class RemoteConnectionStrategyTests extends ESTestCase {
@@ -116,6 +117,32 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
                 "Incorrect number of channels for " + strategy.name(),
                 strategy.getNumberOfChannels(),
                 proxyProfile.getNumConnections()
+            );
+        }
+    }
+
+    public void testTransportProfile() {
+        String clusterAlias = "cluster-alias";
+
+        // New rcs connection with credentials
+        for (RemoteConnectionStrategy.ConnectionStrategy strategy : RemoteConnectionStrategy.ConnectionStrategy.values()) {
+            String settingKey = REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(clusterAlias).getKey();
+            final Settings settings = Settings.builder().put(settingKey, randomAlphaOfLength(20)).build();
+            ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, settings);
+            assertEquals(
+                "Incorrect transport profile for " + strategy.name(),
+                RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE,
+                profile.getTransportProfile()
+            );
+        }
+
+        // Legacy ones without credentials
+        for (RemoteConnectionStrategy.ConnectionStrategy strategy : RemoteConnectionStrategy.ConnectionStrategy.values()) {
+            ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, Settings.EMPTY);
+            assertEquals(
+                "Incorrect transport profile for " + strategy.name(),
+                TransportSettings.DEFAULT_PROFILE,
+                profile.getTransportProfile()
             );
         }
     }

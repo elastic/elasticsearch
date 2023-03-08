@@ -1,0 +1,5 @@
+pr: 93755
+summary: Ingest-attachment module tika dependency versions
+area: Ingest Node
+type: bug
+issues: []

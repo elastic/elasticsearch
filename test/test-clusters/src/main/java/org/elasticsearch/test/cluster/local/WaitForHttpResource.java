@@ -90,7 +90,7 @@ public class WaitForHttpResource {
         this.password = password;
     }
 
-    public boolean wait(int durationInMs) throws GeneralSecurityException, InterruptedException, IOException {
+    public boolean waitFor(long durationInMs) throws GeneralSecurityException, InterruptedException, IOException {
         final long waitUntil = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(durationInMs);
         final long sleep = Long.max(durationInMs / 10, 100);
 

@@ -1,5 +1,0 @@
-pr: 91347
-summary: "Use an explicit null check for null receivers in painless, rather than an NPE"
-area: Infra/Scripting
-type: enhancement
-issues: [91236]

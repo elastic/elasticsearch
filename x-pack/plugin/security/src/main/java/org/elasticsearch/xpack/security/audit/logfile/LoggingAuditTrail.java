@@ -1606,6 +1606,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         LogEntryBuilder withAuthentication(Authentication authentication) {
+            // TODO auditing for remote access
+            assert false == authentication.isRemoteAccess() : "remote access authentication not supported here yet";
             logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
             logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
             if (authentication.isApiKey()) {
@@ -1651,7 +1653,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 }
             }
             // TODO: service token info is logged in a separate authentication field (#84394)
-            if (authentication.isAuthenticatedWithServiceAccount()) {
+            if (authentication.isServiceAccount()) {
                 logEntry.with(
                     SERVICE_TOKEN_NAME_FIELD_NAME,
                     (String) authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_NAME_FIELD)

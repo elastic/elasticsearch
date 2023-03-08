@@ -8,6 +8,8 @@
 
 package org.elasticsearch.reservedstate.service;
 
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
@@ -33,6 +35,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -399,13 +402,15 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
-        final var response = client().execute(
-            GetComposableIndexTemplateAction.INSTANCE,
-            new GetComposableIndexTemplateAction.Request("template*")
-        ).get();
+        final ClusterStateResponse clusterStateResponse = client().admin()
+            .cluster()
+            .state(new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get()))
+            .actionGet();
+
+        Map<String, ComposableIndexTemplate> allTemplates = clusterStateResponse.getState().metadata().templatesV2();
 
         assertThat(
-            response.indexTemplates().keySet().stream().collect(Collectors.toSet()),
+            allTemplates.keySet().stream().collect(Collectors.toSet()),
             containsInAnyOrder("template_1", "template_2", "template_other")
         );
 

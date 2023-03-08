@@ -42,6 +42,11 @@ public class EnrichPolicyTests extends AbstractXContentSerializingTestCase<Enric
     }
 
     @Override
+    protected EnrichPolicy mutateInstance(EnrichPolicy instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected EnrichPolicy createXContextTestInstance(XContentType xContentType) {
         return randomEnrichPolicy(xContentType);
     }

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.aggregatemetric;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
@@ -26,8 +26,8 @@ public class AggregateMetricFeatureSetUsage extends XPackFeatureSet.Usage {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_11_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_11_0;
     }
 
     @Override

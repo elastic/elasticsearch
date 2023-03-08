@@ -14,8 +14,6 @@ import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.hamcrest.Matchers;
 
-import java.io.IOException;
-
 import static org.elasticsearch.snapshots.ShardSnapshotResultWireSerializationTests.randomShardSnapshotResult;
 import static org.hamcrest.Matchers.containsString;
 
@@ -40,7 +38,7 @@ public class ShardSnapshotStatusWireSerializationTests extends AbstractWireSeria
     }
 
     @Override
-    protected SnapshotsInProgress.ShardSnapshotStatus mutateInstance(SnapshotsInProgress.ShardSnapshotStatus instance) throws IOException {
+    protected SnapshotsInProgress.ShardSnapshotStatus mutateInstance(SnapshotsInProgress.ShardSnapshotStatus instance) {
         if (instance.state() == SnapshotsInProgress.ShardState.QUEUED) {
             assert instance == SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED;
             return randomValueOtherThanMany(i -> i.state() == SnapshotsInProgress.ShardState.QUEUED, this::createTestInstance);

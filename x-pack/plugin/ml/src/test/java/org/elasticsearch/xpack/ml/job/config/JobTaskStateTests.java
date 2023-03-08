@@ -20,6 +20,11 @@ public class JobTaskStateTests extends AbstractXContentSerializingTestCase<JobTa
     }
 
     @Override
+    protected JobTaskState mutateInstance(JobTaskState instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<JobTaskState> instanceReader() {
         return JobTaskState::new;
     }

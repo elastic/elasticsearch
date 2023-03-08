@@ -12,6 +12,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -33,7 +34,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
-import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -68,7 +68,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             return Settings.builder()
                 .put(initialSettings)
                 // Have a shared cache of reasonable size available on each node because tests randomize over frozen and cold allocation
-                .put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(randomLongBetween(1, 10)))
+                .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(randomLongBetween(1, 10)))
                 .build();
         } else {
             return initialSettings;
@@ -100,10 +100,18 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
 
         // Either add data outside of the range, or documents that don't have timestamp data
         final boolean indexDataWithTimestamp = randomBoolean();
+        // Add enough documents to have non-metadata segment files in all shards,
+        // otherwise the mount operation might go through as the read won't be
+        // blocked
+        final int numberOfDocsInIndexOutsideSearchRange = between(350, 1000);
         if (indexDataWithTimestamp) {
-            indexDocumentsWithTimestampWithinDate(indexOutsideSearchRange, between(1, 1000), "2020-11-26T%02d:%02d:%02d.%09dZ");
+            indexDocumentsWithTimestampWithinDate(
+                indexOutsideSearchRange,
+                numberOfDocsInIndexOutsideSearchRange,
+                "2020-11-26T%02d:%02d:%02d.%09dZ"
+            );
         } else {
-            indexRandomDocs(indexOutsideSearchRange, between(0, 1000));
+            indexRandomDocs(indexOutsideSearchRange, numberOfDocsInIndexOutsideSearchRange);
         }
 
         // Index enough documents to ensure that all shards have at least some documents

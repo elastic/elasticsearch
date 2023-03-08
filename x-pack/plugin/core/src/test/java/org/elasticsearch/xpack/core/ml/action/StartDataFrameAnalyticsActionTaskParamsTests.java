@@ -29,6 +29,11 @@ public class StartDataFrameAnalyticsActionTaskParamsTests extends AbstractXConte
     }
 
     @Override
+    protected StartDataFrameAnalyticsAction.TaskParams mutateInstance(StartDataFrameAnalyticsAction.TaskParams instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<StartDataFrameAnalyticsAction.TaskParams> instanceReader() {
         return StartDataFrameAnalyticsAction.TaskParams::new;
     }

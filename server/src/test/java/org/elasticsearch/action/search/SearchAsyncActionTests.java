@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -724,7 +725,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 new ShardId(index, i),
                 true,
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar")
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
+                ShardRouting.Role.DEFAULT
             );
             if (primaryNode != null) {
                 routing = routing.initialize(primaryNode.getId(), i + "p", 0);
@@ -736,7 +738,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                     new ShardId(index, i),
                     false,
                     RecoverySource.PeerRecoverySource.INSTANCE,
-                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar")
+                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
+                    ShardRouting.Role.DEFAULT
                 );
                 if (replicaNode != null) {
                     routing = routing.initialize(replicaNode.getId(), i + "r", 0);
@@ -790,6 +793,11 @@ public class SearchAsyncActionTests extends ESTestCase {
         @Override
         public DiscoveryNode getNode() {
             return node;
+        }
+
+        @Override
+        public TransportVersion getTransportVersion() {
+            return TransportVersion.CURRENT;
         }
 
         @Override

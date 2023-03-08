@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.env;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -34,7 +35,9 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.NodeRoles;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -114,44 +117,63 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
     }
 
+    // using a literal string here because the logger is mentioned in the docs, and therefore must only be changed with care
+    private static final String NODE_ENVIRONMENT_LOGGER_NAME = "org.elasticsearch.env.NodeEnvironment";
+
+    @TestLogging(reason = "test includes assertions about DEBUG logging", value = NODE_ENVIRONMENT_LOGGER_NAME + ":DEBUG")
     public void testShardLock() throws Exception {
-        final NodeEnvironment env = newNodeEnvironment();
+        try (var env = newNodeEnvironment()) {
 
-        Index index = new Index("foo", "fooUUID");
-        ShardLock fooLock = env.shardLock(new ShardId(index, 0), "1");
-        assertEquals(new ShardId(index, 0), fooLock.getShardId());
+            Index index = new Index("foo", "fooUUID");
 
-        try {
-            env.shardLock(new ShardId(index, 0), "2");
-            fail("shard is locked");
-        } catch (ShardLockObtainFailedException ex) {
-            // expected
-        }
-        for (Path path : env.indexPaths(index)) {
-            Files.createDirectories(path.resolve("0"));
-            Files.createDirectories(path.resolve("1"));
-        }
-        try {
-            env.lockAllForIndex(index, idxSettings, "3", randomIntBetween(0, 10));
-            fail("shard 0 is locked");
-        } catch (ShardLockObtainFailedException ex) {
-            // expected
-        }
+            var appender = new MockLogAppender();
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "hot threads logging",
+                    NODE_ENVIRONMENT_LOGGER_NAME,
+                    Level.DEBUG,
+                    "hot threads while failing to obtain shard lock for [foo][0]: obtaining shard lock for [2] timed out after *"
+                )
+            );
+            appender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "second attempt should be suppressed due to throttling",
+                    NODE_ENVIRONMENT_LOGGER_NAME,
+                    Level.DEBUG,
+                    "hot threads while failing to obtain shard lock for [foo][0]: obtaining shard lock for [3] timed out after *"
+                )
+            );
 
-        fooLock.close();
-        // can lock again?
-        env.shardLock(new ShardId(index, 0), "4").close();
+            try (var ignored = appender.capturing(NodeEnvironment.class); var lock = env.shardLock(new ShardId(index, 0), "1")) {
+                assertEquals(new ShardId(index, 0), lock.getShardId());
 
-        List<ShardLock> locks = env.lockAllForIndex(index, idxSettings, "5", randomIntBetween(0, 10));
-        try {
-            env.shardLock(new ShardId(index, 0), "6");
-            fail("shard is locked");
-        } catch (ShardLockObtainFailedException ex) {
-            // expected
+                expectThrows(ShardLockObtainFailedException.class, () -> env.shardLock(new ShardId(index, 0), "2"));
+
+                for (Path path : env.indexPaths(index)) {
+                    Files.createDirectories(path.resolve("0"));
+                    Files.createDirectories(path.resolve("1"));
+                }
+                expectThrows(
+                    ShardLockObtainFailedException.class,
+                    () -> env.lockAllForIndex(index, idxSettings, "3", randomIntBetween(0, 10))
+                );
+
+                appender.assertAllExpectationsMatched();
+            }
+
+            // can lock again?
+            env.shardLock(new ShardId(index, 0), "4").close();
+
+            List<ShardLock> locks = new ArrayList<>();
+            try {
+                locks.addAll(env.lockAllForIndex(index, idxSettings, "5", randomIntBetween(0, 10)));
+                expectThrows(ShardLockObtainFailedException.class, () -> env.shardLock(new ShardId(index, 0), "6"));
+            } finally {
+                IOUtils.close(locks);
+            }
+
+            assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
         }
-        IOUtils.close(locks);
-        assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
-        env.close();
     }
 
     public void testAvailableIndexFolders() throws Exception {

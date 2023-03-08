@@ -66,6 +66,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -1550,7 +1551,7 @@ public class InternalEngineTests extends EngineTestCase {
                 writer.forceMerge(1);
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
                     assertEquals(1, reader.leaves().size());
-                    assertNull(VersionsAndSeqNoResolver.loadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "1"), false));
+                    assertNull(VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "1"), false));
                 }
             }
         }
@@ -2651,7 +2652,7 @@ public class InternalEngineTests extends EngineTestCase {
                 gcpTracker.addPeerRecoveryRetentionLease(
                     initializingReplica.currentNodeId(),
                     SequenceNumbers.NO_OPS_PERFORMED,
-                    ActionListener.wrap(countDownLatch::countDown)
+                    ActionListener.running(countDownLatch::countDown)
                 );
                 countDownLatch.await();
             }
@@ -3591,7 +3592,7 @@ public class InternalEngineTests extends EngineTestCase {
             null,
             config.getRelativeTimeInNanosSupplier(),
             null,
-            false
+            true
         );
         expectThrows(EngineCreationFailureException.class, () -> new InternalEngine(brokenConfig));
 
@@ -5429,7 +5430,9 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.index(primaryResponse);
             }
             assertTrue(engine.refreshNeeded());
-            engine.refresh("test", Engine.SearcherScope.INTERNAL, true);
+            var refreshResult = engine.refresh("test", Engine.SearcherScope.INTERNAL, true);
+            assertTrue(refreshResult.refreshed());
+            assertNotEquals(refreshResult.generation(), Engine.RefreshResult.UNKNOWN_GENERATION);
             try (
                 Engine.Searcher getSearcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
                 Engine.Searcher searchSearcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL)
@@ -7262,7 +7265,7 @@ public class InternalEngineTests extends EngineTestCase {
                 config.getLeafSorter(),
                 config.getRelativeTimeInNanosSupplier(),
                 config.getIndexCommitListener(),
-                config.isRecoveringAsPrimary()
+                config.isPromotableToPrimary()
             );
             try (InternalEngine engine = createEngine(configWithWarmer)) {
                 assertThat(warmedUpReaders, empty());
@@ -7484,7 +7487,15 @@ public class InternalEngineTests extends EngineTestCase {
 
         final Engine.IndexCommitListener indexCommitListener = new Engine.IndexCommitListener() {
             @Override
-            public void onNewCommit(ShardId shardId, long primaryTerm, Engine.IndexCommitRef indexCommitRef, Set<String> additionalFiles) {
+            public void onNewCommit(
+                ShardId shardId,
+                Store store,
+                long primaryTerm,
+                Engine.IndexCommitRef indexCommitRef,
+                Set<String> additionalFiles
+            ) {
+                assertNotNull(store);
+                assertTrue(store.hasReferences());
                 assertThat(acquiredCommits.put(indexCommitRef.getIndexCommit(), indexCommitRef), nullValue());
                 assertThat(shardId, equalTo(InternalEngineTests.this.shardId));
                 assertThat(primaryTerm, greaterThanOrEqualTo(0L));
@@ -7575,6 +7586,80 @@ public class InternalEngineTests extends EngineTestCase {
 
             final long primaryTerm = engine.config().getPrimaryTermSupplier().getAsLong();
             assertThat(acquiredPrimaryTerms.stream().allMatch(value -> value == primaryTerm), is(true));
+        }
+    }
+
+    public void testRefreshResult() throws IOException {
+        try (
+            Store store = createStore();
+            InternalEngine engine =
+                // disable merges to make sure that the reader doesn't change unexpectedly during the test
+                createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE)
+        ) {
+            var refresh1Result = engine.refresh("warm_up");
+            assertTrue(refresh1Result.refreshed());
+            assertNotEquals("when refreshed, generation must be set", refresh1Result.generation(), Engine.RefreshResult.UNKNOWN_GENERATION);
+            for (int i = 0; i < 10; i++) {
+                engine.index(indexForDoc(createParsedDoc(String.valueOf(i), EngineTestCase.randomIdFieldType(), null)));
+            }
+            assertTrue(engine.refreshNeeded());
+            var refresh2Result = engine.refresh("test", Engine.SearcherScope.INTERNAL, true);
+            assertTrue(refresh2Result.refreshed());
+            assertThat(refresh2Result.generation(), greaterThanOrEqualTo(refresh1Result.generation()));
+            engine.flush(true, true);
+            var refresh3Result = engine.refresh("test");
+            assertTrue(refresh3Result.refreshed());
+            assertThat(refresh3Result.generation(), greaterThan(refresh2Result.generation()));
+        }
+    }
+
+    public void testConcurrentRefreshResult() throws Exception {
+        try (Store store = createStore(); InternalEngine engine = createEngine(store, createTempDir())) {
+            AtomicBoolean stopped = new AtomicBoolean();
+            CountDownLatch latch = new CountDownLatch(1);
+            Thread refreshThread = new Thread(() -> {
+                latch.countDown();
+                while (stopped.get() == false) {
+                    long beforeGen = engine.commitStats().getGeneration();
+                    var refreshResult = engine.refresh("warm_up");
+                    assertTrue(refreshResult.refreshed());
+                    assertThat(refreshResult.generation(), greaterThanOrEqualTo(beforeGen));
+                }
+            });
+            refreshThread.start();
+            try {
+                latch.await();
+                int numFlushes = randomIntBetween(1, 100);
+                for (int i = 0; i < numFlushes; i++) {
+                    engine.index(indexForDoc(createParsedDoc(String.valueOf(i), EngineTestCase.randomIdFieldType(), null)));
+                    engine.flush(true, true);
+                }
+            } finally {
+                stopped.set(true);
+                refreshThread.join();
+            }
+        }
+    }
+
+    public void testFlushListener() throws Exception {
+        try (
+            Store store = createStore();
+            InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE)
+        ) {
+            Engine.IndexResult result1 = engine.index(indexForDoc(createParsedDoc("a", EngineTestCase.randomIdFieldType(), null)));
+            PlainActionFuture<Long> future1 = PlainActionFuture.newFuture();
+            engine.addFlushListener(result1.getTranslogLocation(), future1);
+            assertFalse(future1.isDone());
+            engine.flush();
+            assertThat(future1.actionGet(), equalTo(engine.getLastCommittedSegmentInfos().getGeneration()));
+
+            Engine.IndexResult result2 = engine.index(indexForDoc(createParsedDoc("a", EngineTestCase.randomIdFieldType(), null)));
+            engine.flush();
+            PlainActionFuture<Long> future2 = PlainActionFuture.newFuture();
+            engine.addFlushListener(result2.getTranslogLocation(), future2);
+            assertTrue(future2.isDone());
+            assertThat(future2.actionGet(), equalTo(engine.getLastCommittedSegmentInfos().getGeneration()));
+
         }
     }
 

@@ -77,6 +77,11 @@ public class JobTests extends AbstractXContentSerializingTestCase<Job> {
     }
 
     @Override
+    protected Job mutateInstance(Job instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedWriteableRegistry(searchModule.getNamedWriteables());

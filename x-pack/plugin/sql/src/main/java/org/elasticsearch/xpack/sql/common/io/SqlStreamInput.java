@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.sql.common.io;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -35,15 +36,15 @@ public class SqlStreamInput extends NamedWriteableAwareStreamInput {
         }
 
         InputStreamStreamInput uncompressingIn = new InputStreamStreamInput(CompressorFactory.COMPRESSOR.threadLocalInputStream(in));
-        return new SqlStreamInput(uncompressingIn, namedWriteableRegistry, inVersion);
+        return new SqlStreamInput(uncompressingIn, namedWriteableRegistry, inVersion.transportVersion);
     }
 
     private final ZoneId zoneId;
 
-    private SqlStreamInput(StreamInput input, NamedWriteableRegistry namedWriteableRegistry, Version version) throws IOException {
+    private SqlStreamInput(StreamInput input, NamedWriteableRegistry namedWriteableRegistry, TransportVersion version) throws IOException {
         super(input, namedWriteableRegistry);
 
-        delegate.setVersion(version);
+        delegate.setTransportVersion(version);
         zoneId = delegate.readZoneId();
     }
 

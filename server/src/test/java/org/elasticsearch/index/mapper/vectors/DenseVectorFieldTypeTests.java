@@ -36,7 +36,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             DenseVectorFieldMapper.ElementType.FLOAT,
             5,
             indexed,
-            VectorSimilarity.cosine,
+            VectorSimilarity.COSINE,
             Collections.emptyMap()
         );
     }
@@ -48,7 +48,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             DenseVectorFieldMapper.ElementType.BYTE,
             5,
             true,
-            VectorSimilarity.cosine,
+            VectorSimilarity.COSINE,
             Collections.emptyMap()
         );
     }
@@ -113,7 +113,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             DenseVectorFieldMapper.ElementType.FLOAT,
             3,
             false,
-            VectorSimilarity.cosine,
+            VectorSimilarity.COSINE,
             Collections.emptyMap()
         );
         IllegalArgumentException e = expectThrows(
@@ -128,7 +128,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             DenseVectorFieldMapper.ElementType.FLOAT,
             3,
             true,
-            VectorSimilarity.dot_product,
+            VectorSimilarity.DOT_PRODUCT,
             Collections.emptyMap()
         );
         e = expectThrows(IllegalArgumentException.class, () -> dotProductField.createKnnQuery(new float[] { 0.3f, 0.1f, 1.0f }, 10, null));
@@ -140,7 +140,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             DenseVectorFieldMapper.ElementType.FLOAT,
             3,
             true,
-            VectorSimilarity.cosine,
+            VectorSimilarity.COSINE,
             Collections.emptyMap()
         );
         e = expectThrows(IllegalArgumentException.class, () -> cosineField.createKnnQuery(new float[] { 0.0f, 0.0f, 0.0f }, 10, null));
@@ -154,7 +154,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             DenseVectorFieldMapper.ElementType.BYTE,
             3,
             false,
-            VectorSimilarity.cosine,
+            VectorSimilarity.COSINE,
             Collections.emptyMap()
         );
         IllegalArgumentException e = expectThrows(
@@ -169,10 +169,13 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             DenseVectorFieldMapper.ElementType.BYTE,
             3,
             true,
-            VectorSimilarity.cosine,
+            VectorSimilarity.COSINE,
             Collections.emptyMap()
         );
         e = expectThrows(IllegalArgumentException.class, () -> cosineField.createKnnQuery(new float[] { 0.0f, 0.0f, 0.0f }, 10, null));
+        assertThat(e.getMessage(), containsString("The [cosine] similarity does not support vectors with zero magnitude."));
+
+        e = expectThrows(IllegalArgumentException.class, () -> cosineField.createKnnQuery(new byte[] { 0, 0, 0 }, 10, null));
         assertThat(e.getMessage(), containsString("The [cosine] similarity does not support vectors with zero magnitude."));
     }
 }

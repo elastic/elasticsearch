@@ -123,6 +123,7 @@ public class TransformOldTransformsIT extends TransformSingleNodeTestCase {
 
         StartTransformAction.Request startTransformRequest = new StartTransformAction.Request(
             transformId,
+            null,
             AcknowledgedRequest.DEFAULT_ACK_TIMEOUT
         );
 

@@ -68,6 +68,11 @@ public class HealthStatusTests extends AbstractWireSerializingTestCase<HealthSta
     }
 
     @Override
+    protected HealthStatus mutateInstance(HealthStatus instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected void assertEqualInstances(HealthStatus expectedInstance, HealthStatus newInstance) {
         assertThat(newInstance, equalTo(expectedInstance));
         assertThat(newInstance.hashCode(), equalTo(expectedInstance.hashCode()));

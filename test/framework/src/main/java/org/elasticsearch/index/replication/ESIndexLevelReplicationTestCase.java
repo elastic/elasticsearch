@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.PendingReplicationActions;
+import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
@@ -98,6 +99,7 @@ import java.util.stream.StreamSupport;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.mockito.Mockito.mock;
 
 public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase {
 
@@ -572,7 +574,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 null,
                 currentClusterStateVersion.incrementAndGet(),
                 activeIds(),
-                routingTable(Function.identity())
+                primary.routingEntry().initializing()
+                    ? IndexShardRoutingTable.builder(primary.shardId()).addShard(primary.routingEntry()).build()
+                    : routingTable(Function.identity())
             );
         }
 
@@ -852,7 +856,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             executeShardBulkOnPrimary(
                 primary,
                 request,
-                listener.map(result -> new PrimaryResult(result.replicaRequest(), result.finalResponseIfSuccessful))
+                listener.map(result -> new PrimaryResult(result.replicaRequest(), result.replicationResponse))
             );
         }
 
@@ -1031,7 +1035,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             ActionListener.completeWith(listener, () -> {
                 final TransportWriteAction.WritePrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse> result =
                     executeResyncOnPrimary(primary, request);
-                return new PrimaryResult(result.replicaRequest(), result.finalResponseIfSuccessful);
+                return new PrimaryResult(result.replicaRequest(), result.replicationResponse);
             });
         }
 
@@ -1056,9 +1060,11 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 TransportResyncReplicationAction.performOnPrimary(request),
                 new ResyncReplicationResponse(),
                 null,
-                null,
                 primary,
-                logger
+                logger,
+                // TODO: Fix
+                new PostWriteRefresh(mock(TransportService.class))
+
             );
         TransportWriteActionTestHelper.performPostWriteActions(primary, request, result.location, logger);
         return result;

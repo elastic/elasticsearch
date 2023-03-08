@@ -69,16 +69,17 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
     public void cleanup() throws Exception {
         terminate(executorService);
 
-        Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity("""
+        Request clusterSettings = new Request("PUT", "_cluster/settings");
+        clusterSettings.setJsonEntity("""
             {"persistent" : {
                 "logger.org.elasticsearch.xpack.ml.inference.assignment": null,
                 "logger.org.elasticsearch.xpack.ml.inference.deployment" : null,
                 "logger.org.elasticsearch.xpack.ml.inference.pytorch" : null,
                 "logger.org.elasticsearch.xpack.ml.process.logging" : null,
+                "cluster.routing.allocation.awareness.attributes": null,
                 "xpack.ml.max_lazy_ml_nodes": null
             }}""");
-        client().performRequest(loggingSettings);
+        client().performRequest(clusterSettings);
 
         new MlRestTestStateCleaner(logger, adminClient()).resetFeatures();
         waitForPendingTasks(adminClient());
@@ -269,67 +270,6 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
                 }
               }
             }""", input, resultsField));
-        return client().performRequest(request);
-    }
-
-    protected Response semanticSearch(String index, String modelText, String modelId, String denseVectorFieldName) throws IOException {
-        Request request = new Request("GET", index + "/_semantic_search?error_trace=true");
-
-        request.setJsonEntity(Strings.format("""
-            {
-              "model_id": "%s",
-              "model_text": "%s",
-              "knn": {
-                  "field": "%s",
-                  "k": 5,
-                  "num_candidates": 10
-              }
-            }""", modelId, modelText, denseVectorFieldName));
-        return client().performRequest(request);
-    }
-
-    protected Response semanticSearchWithTermsFilter(
-        String index,
-        String queryText,
-        String filter,
-        String modelId,
-        String denseVectorFieldName
-    ) throws IOException {
-        Request request = new Request("GET", index + "/_semantic_search?error_trace=true");
-
-        String termsFilter = Strings.format("""
-            {"term": {"filter_field": "%s"}}
-            """, filter);
-
-        request.setJsonEntity(Strings.format("""
-            {
-              "model_id": "%s",
-              "model_text": "%s",
-              "knn": {
-                  "field": "%s",
-                  "k": 5,
-                  "num_candidates": 10,
-                  "filter": %s
-              }
-            }""", modelId, queryText, denseVectorFieldName, termsFilter));
-        return client().performRequest(request);
-    }
-
-    protected Response semanticSearchWithQuery(String index, String queryText, String query, String modelId, String denseVectorFieldName)
-        throws IOException {
-        Request request = new Request("GET", index + "/_semantic_search?error_trace=true");
-
-        request.setJsonEntity(Strings.format("""
-            {
-              "model_id": "%s",
-              "model_text": "%s",
-              "knn": {
-                  "field": "%s",
-                  "k": 5,
-                  "num_candidates": 10
-              },
-              "query": %s
-            }""", modelId, queryText, denseVectorFieldName, query));
         return client().performRequest(request);
     }
 

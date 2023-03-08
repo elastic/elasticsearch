@@ -297,12 +297,17 @@ public class AuthorizedIndicesTests extends ESTestCase {
             () -> ignore -> {}
         );
         assertThat(authorizedIndices.all().get(), containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab"));
+        for (String resource : List.of("a1", "a2", "aaaaaa", "b", "ab")) {
+            assertThat(authorizedIndices.check(resource), is(true));
+        }
         assertThat(authorizedIndices.all().get(), not(contains("bbbbb")));
         assertThat(authorizedIndices.check("bbbbb"), is(false));
         assertThat(authorizedIndices.all().get(), not(contains("ba")));
         assertThat(authorizedIndices.check("ba"), is(false));
+        // due to context, datastreams are excluded from wildcard expansion
         assertThat(authorizedIndices.all().get(), not(contains("adatastream1")));
-        assertThat(authorizedIndices.check("adatastream1"), is(false));
+        // but they are authorized when explicitly tested (they are not "unavailable" for the Security filter)
+        assertThat(authorizedIndices.check("adatastream1"), is(true));
         assertThat(authorizedIndices.all().get(), not(contains(internalSecurityIndex)));
         assertThat(authorizedIndices.check(internalSecurityIndex), is(false));
         assertThat(authorizedIndices.all().get(), not(contains(SecuritySystemIndices.SECURITY_MAIN_ALIAS)));

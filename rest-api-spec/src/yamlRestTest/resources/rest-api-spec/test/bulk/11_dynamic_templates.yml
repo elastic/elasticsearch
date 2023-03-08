@@ -173,8 +173,8 @@
 ---
 "Dynamic templates with op_type":
   - skip:
-      version: " - 8.6.99"
-      reason: "bug fixed in 8.7.0"
+      version: " - 8.6.0"
+      reason: "bug fixed in 8.6.1"
 
   - do:
       indices.create:

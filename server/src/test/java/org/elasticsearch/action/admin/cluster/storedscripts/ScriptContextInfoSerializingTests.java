@@ -42,7 +42,7 @@ public class ScriptContextInfoSerializingTests extends AbstractXContentSerializi
     }
 
     @Override
-    protected ScriptContextInfo mutateInstance(ScriptContextInfo instance) throws IOException {
+    protected ScriptContextInfo mutateInstance(ScriptContextInfo instance) {
         return mutate(instance, null);
     }
 

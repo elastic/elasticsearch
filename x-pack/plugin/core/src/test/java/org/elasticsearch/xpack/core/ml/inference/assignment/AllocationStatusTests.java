@@ -36,6 +36,11 @@ public class AllocationStatusTests extends AbstractXContentSerializingTestCase<A
         return randomInstance();
     }
 
+    @Override
+    protected AllocationStatus mutateInstance(AllocationStatus instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testCalculateState() {
         int targetAllocation = randomIntBetween(2, 10);
 

@@ -115,6 +115,12 @@ public class XContentUtils {
                 builder.endObject();
             }
             case SERVICE_ACCOUNT -> builder.field("service_account", authenticationSubject.getUser().principal());
+            case REMOTE_ACCESS -> {
+                // TODO handle remote access authentication
+                final String message = "remote access authentication is not yet supported";
+                assert false : message;
+                throw new UnsupportedOperationException(message);
+            }
         }
         builder.endObject();
     }

@@ -1,14 +1,20 @@
 ---
 "Bulk indexing of monitoring data":
-
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/30101"
+      features: ["allowed_warnings"]
+
+  - do:
+      allowed_warnings:
+        - "[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release."
+      cluster.put_settings:
+        body:
+          persistent:
+            xpack.monitoring.collection.enabled: true
 
   - do:
       monitoring.bulk:
         system_id:          "kibana"
-        system_api_version: "6"
+        system_api_version: "7"
         interval:           "10s"
         body:
           - index:
@@ -44,15 +50,14 @@
   - do:
       monitoring.bulk:
         system_id:          "kibana"
-        system_api_version: "6"
+        system_api_version: "7"
         interval:           "123456ms"
-        type:               "default_type"
         body:
-          - '{"index": {}}'
+          - '{"index": {"_type":"default_type"}}'
           - '{"field_1": "value_1"}'
           - '{"index": {"_type": "custom_type"}}'
           - '{"field_1": "value_2"}'
-          - '{"index": {}}'
+          - '{"index": {"_type":"default_type"}}'
           - '{"field_1": "value_3"}'
           - '{"index": {"_index": "_data", "_type": "kibana"}}'
           - '{"field_1": "value_4"}'
@@ -93,15 +98,14 @@
   - do:
       monitoring.bulk:
         system_id:          "kibana"
-        system_api_version: "2"
+        system_api_version: "6"
         interval:           "10000ms"
-        type:               "default_type"
         body:
-          - '{"index": {}}'
+          - '{"index": {"_type": "default_type"}}'
           - '{"field_1": "value_1"}'
           - '{"index": {"_type": "custom_type"}}'
           - '{"field_1": "value_2"}'
-          - '{"index": {}}'
+          - '{"index": {"_type": "default_type"}}'
           - '{"field_1": "value_3"}'
           - '{"index": {"_index": "_data", "_type": "kibana"}}'
           - '{"field_1": "value_4"}'
@@ -139,11 +143,10 @@
   - do:
       catch: bad_request
       monitoring.bulk:
-        system_api_version: "6"
+        system_api_version: "7"
         interval:           "10s"
-        type:               "default_type"
         body:
-          - '{"index": {}}'
+          - '{"index": {"_type": "default_type"}}'
           - '{"field_1": "value_1"}'
 
   # Missing a system_api_version causes it to fail
@@ -152,9 +155,8 @@
       monitoring.bulk:
         system_id:          "kibana"
         interval:           "10s"
-        type:               "default_type"
         body:
-          - '{"index": {}}'
+          - '{"index": {"_type": "default_type"}}'
           - '{"field_1": "value_1"}'
 
   # Missing an interval causes it to fail
@@ -162,24 +164,28 @@
       catch: bad_request
       monitoring.bulk:
         system_id:          "kibana"
-        system_api_version: "6"
-        type:               "default_type"
+        system_api_version: "7"
         body:
-          - '{"index": {}}'
+          - '{"index": {"_type": "default_type"}}'
           - '{"field_1": "value_1"}'
 
 ---
 "Bulk indexing of monitoring data on closed indices should throw an export exception":
-
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/30101"
       features: ["allowed_warnings"]
+
+  - do:
+      allowed_warnings:
+        - "[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release."
+      cluster.put_settings:
+        body:
+          persistent:
+            xpack.monitoring.collection.enabled: true
 
   - do:
       monitoring.bulk:
         system_id:          "beats"
-        system_api_version: "6"
+        system_api_version: "7"
         interval:           "5s"
         body:
           - index:
@@ -214,7 +220,7 @@
       catch: /export_exception/
       monitoring.bulk:
         system_id:          "beats"
-        system_api_version: "6"
+        system_api_version: "7"
         interval:           "5s"
         body:
           - index:

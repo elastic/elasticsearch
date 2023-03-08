@@ -9,8 +9,7 @@ esplugin {
 versions << [
   'google'              : '1.41.1',
   'google_api_client'   : '1.33.1',
-  'api_services_compute': 'v1-rev20220322-1.32.1',
-  'google_oauth_client' : '1.33.0',
+  'api_services_compute': 'v1-rev20220322-1.32.1'
 ]
 
 dependencies {

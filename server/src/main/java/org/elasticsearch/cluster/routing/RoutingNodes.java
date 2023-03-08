@@ -345,14 +345,12 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
     }
 
     /**
-     * Returns one active replica shard for the given shard id or <code>null</code> if
-     * no active replica is found.
+     * Returns one active and promotable replica shard for the given shard id or <code>null</code> if no active replica is found.
      *
-     * Since replicas could possibly be on nodes with a older version of ES than
-     * the primary is, this will return replicas on the highest version of ES.
-     *
+     * Since replicas could possibly be on nodes with a older version of ES than the primary is, this will return replicas on the highest
+     * version of ES.
      */
-    public ShardRouting activeReplicaWithHighestVersion(ShardId shardId) {
+    public ShardRouting activePromotableReplicaWithHighestVersion(ShardId shardId) {
         // It's possible for replicaNodeVersion to be null, when disassociating dead nodes
         // that have been removed, the shards are failed, and part of the shard failing
         // calls this method with an out-of-date RoutingNodes, where the version might not
@@ -361,6 +359,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         return assignedShards(shardId).stream()
             .filter(shr -> shr.primary() == false && shr.active())
             .filter(shr -> node(shr.currentNodeId()) != null)
+            .filter(ShardRouting::isPromotableToPrimary)
             .max(
                 Comparator.comparing(
                     shr -> node(shr.currentNodeId()).node(),
@@ -655,17 +654,36 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
     }
 
     private void unassignPrimaryAndPromoteActiveReplicaIfExists(
-        ShardRouting failedShard,
+        ShardRouting failedPrimary,
         UnassignedInfo unassignedInfo,
         RoutingChangesObserver routingChangesObserver
     ) {
-        assert failedShard.primary();
-        ShardRouting activeReplica = activeReplicaWithHighestVersion(failedShard.shardId());
-        if (activeReplica == null) {
-            moveToUnassigned(failedShard, unassignedInfo);
+        assert failedPrimary.primary();
+        ShardRouting replicaToPromote = activePromotableReplicaWithHighestVersion(failedPrimary.shardId());
+        if (replicaToPromote == null) {
+            moveToUnassigned(failedPrimary, unassignedInfo);
+            for (ShardRouting unpromotableReplica : List.copyOf(assignedShards(failedPrimary.shardId()))) {
+                assert unpromotableReplica.primary() == false : unpromotableReplica;
+                assert unpromotableReplica.isPromotableToPrimary() == false : unpromotableReplica;
+                moveToUnassigned(
+                    unpromotableReplica,
+                    new UnassignedInfo(
+                        UnassignedInfo.Reason.UNPROMOTABLE_REPLICA,
+                        unassignedInfo.getMessage(),
+                        unassignedInfo.getFailure(),
+                        0,
+                        unassignedInfo.getUnassignedTimeInNanos(),
+                        unassignedInfo.getUnassignedTimeInMillis(),
+                        false, // TODO debatable, but do we want to delay reassignment of unpromotable replicas tho?
+                        AllocationStatus.NO_ATTEMPT,
+                        Set.of(),
+                        unpromotableReplica.currentNodeId()
+                    )
+                );
+            }
         } else {
-            movePrimaryToUnassignedAndDemoteToReplica(failedShard, unassignedInfo);
-            promoteReplicaToPrimary(activeReplica, routingChangesObserver);
+            movePrimaryToUnassignedAndDemoteToReplica(failedPrimary, unassignedInfo);
+            promoteReplicaToPrimary(replicaToPromote, routingChangesObserver);
         }
     }
 

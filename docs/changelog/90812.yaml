@@ -1,5 +1,0 @@
-pr: 90812
-summary: Alias timestamp to @timestamp in anomaly detection results index
-area: Machine Learning
-type: enhancement
-issues: []

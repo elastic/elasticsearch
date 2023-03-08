@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.autoscaling;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -112,8 +112,8 @@ public class AutoscalingMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_8_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_8_0;
     }
 
     @Override
@@ -171,8 +171,8 @@ public class AutoscalingMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.V_7_8_0;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.V_7_8_0;
         }
     }
 }

@@ -17,7 +17,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.plugin.analysis.api.CharFilterFactory;
+import org.elasticsearch.plugin.analysis.CharFilterFactory;
 import org.elasticsearch.plugins.scanners.PluginInfo;
 import org.elasticsearch.plugins.spi.BarPlugin;
 import org.elasticsearch.plugins.spi.BarTestService;
@@ -794,8 +794,8 @@ public class PluginsServiceTests extends ESTestCase {
         JarUtils.createJarWithEntries(jar, Map.of("p/A.class", InMemoryJavaCompiler.compile("p.A", """
             package p;
             import java.util.Map;
-            import org.elasticsearch.plugin.analysis.api.CharFilterFactory;
-            import org.elasticsearch.plugin.api.NamedComponent;
+            import org.elasticsearch.plugin.analysis.CharFilterFactory;
+            import org.elasticsearch.plugin.NamedComponent;
             import java.io.Reader;
             @NamedComponent( "a_name")
             public class A  implements CharFilterFactory {
@@ -808,7 +808,7 @@ public class PluginsServiceTests extends ESTestCase {
         Path namedComponentFile = plugin.resolve("named_components.json");
         Files.writeString(namedComponentFile, """
             {
-              "org.elasticsearch.plugin.analysis.api.CharFilterFactory": {
+              "org.elasticsearch.plugin.analysis.CharFilterFactory": {
                 "a_name": "p.A"
               }
             }
@@ -827,7 +827,7 @@ public class PluginsServiceTests extends ESTestCase {
 
             // check ubermodule classloader usage
             Collection<PluginInfo> stablePluginInfos = pluginService.getStablePluginRegistry()
-                .getPluginInfosForExtensible("org.elasticsearch.plugin.analysis.api.CharFilterFactory");
+                .getPluginInfosForExtensible("org.elasticsearch.plugin.analysis.CharFilterFactory");
             assertThat(stablePluginInfos, hasSize(1));
             ClassLoader stablePluginClassLoader = stablePluginInfos.stream().findFirst().orElseThrow().loader();
             assertThat(stablePluginClassLoader, instanceOf(UberModuleClassLoader.class));

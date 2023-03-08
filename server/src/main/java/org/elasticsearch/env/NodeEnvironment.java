@@ -8,6 +8,7 @@
 
 package org.elasticsearch.env;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
@@ -25,8 +26,10 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.logging.ChunkedLoggingStream;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -49,12 +52,15 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.fs.FsProbe;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
@@ -926,6 +932,38 @@ public final class NodeEnvironment implements Closeable {
         }
     }
 
+    // throttle the hot-threads calls: no more than one per minute
+    private final Semaphore shardLockHotThreadsPermit = new Semaphore(1);
+    private long nextShardLockHotThreadsNanos = Long.MIN_VALUE;
+
+    private void maybeLogThreadDump(ShardId shardId, String message) {
+        if (logger.isDebugEnabled() == false) {
+            return;
+        }
+
+        final var prefix = format("hot threads while failing to obtain shard lock for %s: %s", shardId, message);
+        if (shardLockHotThreadsPermit.tryAcquire()) {
+            try {
+                final var now = System.nanoTime();
+                if (now <= nextShardLockHotThreadsNanos) {
+                    return;
+                }
+                nextShardLockHotThreadsNanos = now + TimeUnit.SECONDS.toNanos(60);
+                final var hotThreads = new HotThreads().busiestThreads(500).ignoreIdleThreads(false).detect();
+                try (
+                    var stream = ChunkedLoggingStream.create(logger, Level.DEBUG, prefix, ReferenceDocs.SHARD_LOCK_TROUBLESHOOTING);
+                    var writer = new OutputStreamWriter(stream, StandardCharsets.UTF_8)
+                ) {
+                    writer.write(hotThreads);
+                }
+            } catch (Exception e) {
+                logger.error(format("could not obtain %s", prefix), e);
+            } finally {
+                shardLockHotThreadsPermit.release();
+            }
+        }
+    }
+
     private final class InternalShardLock {
         /*
          * This class holds a mutex for exclusive access and timeout / wait semantics
@@ -975,18 +1013,15 @@ public final class NodeEnvironment implements Closeable {
                     setDetails(details);
                 } else {
                     final Tuple<Long, String> lockDetails = this.lockDetails; // single volatile read
-                    throw new ShardLockObtainFailedException(
-                        shardId,
-                        "obtaining shard lock for ["
-                            + details
-                            + "] timed out after ["
-                            + timeoutInMillis
-                            + "ms], lock already held for ["
-                            + lockDetails.v2()
-                            + "] with age ["
-                            + TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - lockDetails.v1())
-                            + "ms]"
+                    final var message = format(
+                        "obtaining shard lock for [%s] timed out after [%dms], lock already held for [%s] with age [%dms]",
+                        details,
+                        timeoutInMillis,
+                        lockDetails.v2(),
+                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - lockDetails.v1())
                     );
+                    maybeLogThreadDump(shardId, message);
+                    throw new ShardLockObtainFailedException(shardId, message);
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

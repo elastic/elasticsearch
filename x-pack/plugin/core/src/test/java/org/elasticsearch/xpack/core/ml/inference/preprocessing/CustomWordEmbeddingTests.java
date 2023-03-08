@@ -23,6 +23,11 @@ public class CustomWordEmbeddingTests extends PreProcessingTests<CustomWordEmbed
         return createRandom();
     }
 
+    @Override
+    protected CustomWordEmbedding mutateInstance(CustomWordEmbedding instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static CustomWordEmbedding createRandom() {
         int quantileSize = randomIntBetween(1, 10);
         int internalQuantSize = randomIntBetween(1, 10);

@@ -64,7 +64,7 @@ public class RangeAggregationBuilderTests extends AbstractXContentSerializingTes
     }
 
     @Override
-    protected RangeAggregationBuilder mutateInstance(RangeAggregationBuilder builder) throws IOException {
+    protected RangeAggregationBuilder mutateInstance(RangeAggregationBuilder builder) {
         String name = builder.getName();
         boolean keyed = builder.keyed();
         String field = builder.field();

@@ -1,7 +1,7 @@
 {
   "ml.update_trained_model_deployment":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-trained-model-deployment.html",
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/update-trained-model-deployment.html",
       "description":"Updates certain properties of trained model deployment."
     },
     "stability":"beta",

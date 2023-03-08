@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -21,7 +22,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -52,6 +52,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_START_FAILED_TRANSFORM;
 
@@ -203,7 +204,13 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
 
         // <2> run transform validations
         ActionListener<TransformConfig> getTransformListener = ActionListener.wrap(config -> {
-            ValidationException validationException = config.validate(null);
+            ActionRequestValidationException validationException = config.validate(null);
+            if (request.from() != null && config.getSyncConfig() == null) {
+                validationException = addValidationError(
+                    "[from] parameter is currently not supported for batch (non-continuous) transforms",
+                    validationException
+                );
+            }
             if (validationException != null) {
                 listener.onFailure(
                     new ElasticsearchStatusException(
@@ -221,6 +228,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 new TransformTaskParams(
                     config.getId(),
                     config.getVersion(),
+                    request.from(),
                     config.getFrequency(),
                     config.getSource().requiresRemoteCluster()
                 )

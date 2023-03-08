@@ -10,7 +10,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -928,7 +928,12 @@ public class TransportReplicationActionTests extends ESTestCase {
         Set<String> inSyncIds = randomBoolean()
             ? singleton(routingEntry.allocationId().getId())
             : clusterService.state().metadata().index(index).inSyncAllocationIds(0);
-        ReplicationGroup replicationGroup = new ReplicationGroup(shardRoutingTable, inSyncIds, shardRoutingTable.getAllAllocationIds(), 0);
+        ReplicationGroup replicationGroup = new ReplicationGroup(
+            shardRoutingTable,
+            inSyncIds,
+            shardRoutingTable.getPromotableAllocationIds(),
+            0
+        );
         when(shard.getReplicationGroup()).thenReturn(replicationGroup);
         PendingReplicationActions replicationActions = new PendingReplicationActions(shardId, threadPool);
         replicationActions.accept(replicationGroup);
@@ -1282,7 +1287,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         final Transport transport = new Netty4Transport(
             Settings.EMPTY,
-            Version.CURRENT,
+            TransportVersion.CURRENT,
             threadPool,
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,

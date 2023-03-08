@@ -213,13 +213,16 @@ public class ReadOnlyEngine extends Engine {
     }
 
     protected DirectoryReader open(IndexCommit commit) throws IOException {
-        // TODO: provide engineConfig.getLeafSorter() when opening a DirectoryReader from a commit
-        // should be available from Lucene v 8.10
         assert Transports.assertNotTransportThread("opening index commit of a read-only engine");
+        DirectoryReader directoryReader = DirectoryReader.open(
+            commit,
+            org.apache.lucene.util.Version.MIN_SUPPORTED_MAJOR,
+            engineConfig.getLeafSorter()
+        );
         if (lazilyLoadSoftDeletes) {
-            return new LazySoftDeletesDirectoryReaderWrapper(DirectoryReader.open(commit), Lucene.SOFT_DELETES_FIELD);
+            return new LazySoftDeletesDirectoryReaderWrapper(directoryReader, Lucene.SOFT_DELETES_FIELD);
         } else {
-            return new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(commit), Lucene.SOFT_DELETES_FIELD);
+            return new SoftDeletesDirectoryReaderWrapper(directoryReader, Lucene.SOFT_DELETES_FIELD);
         }
     }
 
@@ -418,14 +421,15 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void refresh(String source) {
+    public RefreshResult refresh(String source) {
         // we could allow refreshes if we want down the road the reader manager will then reflect changes to a rw-engine
         // opened side-by-side
+        return RefreshResult.NO_REFRESH;
     }
 
     @Override
-    public boolean maybeRefresh(String source) throws EngineException {
-        return false;
+    public RefreshResult maybeRefresh(String source) throws EngineException {
+        return RefreshResult.NO_REFRESH;
     }
 
     @Override

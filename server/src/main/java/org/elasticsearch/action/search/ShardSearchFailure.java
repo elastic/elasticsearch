@@ -76,6 +76,7 @@ public class ShardSearchFailure extends ShardOperationFailedException {
 
     /**
      * The search shard target the failure occurred on.
+     * @return The shardTarget, may be null
      */
     @Nullable
     public SearchShardTarget shard() {
@@ -95,7 +96,6 @@ public class ShardSearchFailure extends ShardOperationFailedException {
 
     public static ShardSearchFailure readShardSearchFailure(StreamInput in) throws IOException {
         return new ShardSearchFailure(in);
-
     }
 
     @Override

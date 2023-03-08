@@ -15,7 +15,6 @@ import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -43,7 +42,7 @@ public class GetMappingsResponseTests extends AbstractWireSerializingTestCase<Ge
     }
 
     @Override
-    protected GetMappingsResponse mutateInstance(GetMappingsResponse instance) throws IOException {
+    protected GetMappingsResponse mutateInstance(GetMappingsResponse instance) {
         return mutate(instance);
     }
 

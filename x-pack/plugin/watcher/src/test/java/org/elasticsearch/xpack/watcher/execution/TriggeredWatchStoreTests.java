@@ -15,7 +15,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexResponse;
@@ -34,9 +34,9 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -102,7 +102,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
     private TriggeredWatch.Parser parser;
     private TriggeredWatchStore triggeredWatchStore;
     private final Map<BulkRequest, BulkResponse> bulks = new LinkedHashMap<>();
-    private BulkProcessor.Listener listener = new BulkProcessor.Listener() {
+    private BulkProcessor2.Listener listener = new BulkProcessor2.Listener() {
         @Override
         public void beforeBulk(long executionId, BulkRequest request) {}
 
@@ -112,7 +112,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         }
 
         @Override
-        public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+        public void afterBulk(long executionId, BulkRequest request, Exception failure) {
             throw new ElasticsearchException(failure);
         }
     };
@@ -126,10 +126,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         when(client.settings()).thenReturn(settings);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         parser = mock(TriggeredWatch.Parser.class);
-        BulkProcessor bulkProcessor = BulkProcessor.builder(client::bulk, listener, "TriggeredWatchStoreTests")
-            .setConcurrentRequests(0)
-            .setBulkActions(1)
-            .build();
+        BulkProcessor2 bulkProcessor = BulkProcessor2.builder(client::bulk, listener, client.threadPool()).setBulkActions(1).build();
         triggeredWatchStore = new TriggeredWatchStore(settings, client, parser, bulkProcessor);
     }
 
@@ -173,17 +170,10 @@ public class TriggeredWatchStoreTests extends ESTestCase {
             ShardId shardId = new ShardId(index, 0);
             indexRoutingTableBuilder.addIndexShard(
                 new IndexShardRoutingTable.Builder(shardId).addShard(
-                    TestShardRouting.newShardRouting(
-                        shardId,
-                        currentNodeId,
-                        null,
-                        true,
-                        state,
-                        new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
-                    )
+                    TestShardRouting.newShardRouting(shardId, currentNodeId, null, true, state)
                 )
             );
-            indexRoutingTableBuilder.addReplica();
+            indexRoutingTableBuilder.addReplica(ShardRouting.Role.DEFAULT);
         }
         routingTableBuilder.add(indexRoutingTableBuilder.build());
 
@@ -208,7 +198,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
                 TestShardRouting.newShardRouting(shardId, "_node_id", null, true, ShardRoutingState.STARTED)
             )
         );
-        indexRoutingTableBuilder.addReplica();
+        indexRoutingTableBuilder.addReplica(ShardRouting.Role.DEFAULT);
         routingTableBuilder.add(indexRoutingTableBuilder.build());
         csBuilder.metadata(metadataBuilder);
         csBuilder.routingTable(routingTableBuilder.build());
@@ -340,7 +330,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
                 TestShardRouting.newShardRouting(shardId, "_node_id", null, true, ShardRoutingState.STARTED)
             )
         );
-        indexRoutingTableBuilder.addReplica();
+        indexRoutingTableBuilder.addReplica(ShardRouting.Role.DEFAULT);
         routingTableBuilder.add(indexRoutingTableBuilder.build());
         csBuilder.metadata(metadataBuilder);
         csBuilder.routingTable(routingTableBuilder.build());
@@ -374,7 +364,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
                 TestShardRouting.newShardRouting("triggered-watches-alias", 0, "_node_id", null, true, ShardRoutingState.STARTED)
             )
         );
-        indexRoutingTableBuilder.addReplica();
+        indexRoutingTableBuilder.addReplica(ShardRouting.Role.DEFAULT);
         final Index otherIndex = metadataBuilder.get("whatever").getIndex();
         IndexRoutingTable.Builder otherIndexRoutingTableBuilder = IndexRoutingTable.builder(otherIndex);
         otherIndexRoutingTableBuilder.addIndexShard(

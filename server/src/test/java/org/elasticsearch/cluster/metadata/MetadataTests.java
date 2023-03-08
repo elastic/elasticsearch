@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.cluster.ClusterModule;
@@ -171,7 +172,7 @@ public class MetadataTests extends ESTestCase {
         List<Index> allIndices = new ArrayList<>(result.indices);
         allIndices.addAll(result.backingIndices);
         String[] concreteIndices = allIndices.stream().map(Index::getName).toList().toArray(new String[] {});
-        Map<String, IndexAbstraction.DataStream> dataStreams = result.metadata.findDataStreams(concreteIndices);
+        Map<String, DataStream> dataStreams = result.metadata.findDataStreams(concreteIndices);
         assertThat(dataStreams.size(), equalTo(numBackingIndices));
         for (Index backingIndex : result.backingIndices) {
             assertThat(dataStreams.containsKey(backingIndex.getName()), is(true));
@@ -2466,7 +2467,7 @@ public class MetadataTests extends ESTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
+        public TransportVersion getMinimalSupportedVersion() {
             return null;
         }
 

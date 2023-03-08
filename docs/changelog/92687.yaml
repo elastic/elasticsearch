@@ -1,5 +1,0 @@
-pr: 92687
-summary: 'Fix `_bulk` api `dynamic_templates` and explicit `op_type`'
-area: Mapping
-type: bug
-issues: []

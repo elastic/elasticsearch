@@ -9,7 +9,7 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -75,7 +75,7 @@ public class SettingsListenerIT extends ESIntegTestCase {
             IndexNameExpressionResolver expressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier,
             Tracer tracer,
-            AllocationDeciders allocationDeciders
+            AllocationService allocationService
         ) {
             return Collections.singletonList(service);
         }
@@ -113,7 +113,7 @@ public class SettingsListenerIT extends ESIntegTestCase {
             assertEquals(21, instance.value);
         }
 
-        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.test.new.setting", 42)).get();
+        updateIndexSettings(Settings.builder().put("index.test.new.setting", 42), "test");
         for (SettingsTestingService instance : internalCluster().getDataNodeInstances(SettingsTestingService.class)) {
             assertEquals(42, instance.value);
         }
@@ -130,8 +130,7 @@ public class SettingsListenerIT extends ESIntegTestCase {
             assertEquals(42, instance.value);
         }
 
-        client().admin().indices().prepareUpdateSettings("other").setSettings(Settings.builder().put("index.test.new.setting", 84)).get();
-
+        updateIndexSettings(Settings.builder().put("index.test.new.setting", 84), "other");
         for (SettingsTestingService instance : internalCluster().getDataNodeInstances(SettingsTestingService.class)) {
             assertEquals(42, instance.value);
         }

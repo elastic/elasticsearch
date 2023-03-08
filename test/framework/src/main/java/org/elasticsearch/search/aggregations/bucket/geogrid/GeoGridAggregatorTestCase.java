@@ -9,7 +9,6 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LatLonDocValuesField;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -225,7 +224,6 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
                     }
                 }
                 if (supplier.getAsBoolean()) {
-                    fields.add(new SortedSetDocValuesField("t", new BytesRef(t)));
                     fields.add(new Field("t", new BytesRef(t), KeywordFieldMapper.Defaults.FIELD_TYPE));
                     iw.addDocument(fields);
                     fields.clear();
@@ -234,7 +232,6 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
                 }
             }
             if (fields.size() != 0) {
-                fields.add(new SortedSetDocValuesField("t", new BytesRef(t)));
                 fields.add(new Field("t", new BytesRef(t), KeywordFieldMapper.Defaults.FIELD_TYPE));
                 iw.addDocument(fields);
             }

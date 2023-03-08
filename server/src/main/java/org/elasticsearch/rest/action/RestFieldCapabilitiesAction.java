@@ -67,7 +67,10 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
             }
             fieldRequest.fields(Strings.splitStringByCommaToArray(request.param("fields")));
         }
-        return channel -> client.fieldCaps(fieldRequest, new RestChunkedToXContentListener<>(channel));
+        return channel -> {
+            RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+            cancelClient.fieldCaps(fieldRequest, new RestChunkedToXContentListener<>(channel));
+        };
     }
 
     private static final ParseField INDEX_FILTER_FIELD = new ParseField("index_filter");

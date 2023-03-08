@@ -7,13 +7,14 @@
 
 package org.elasticsearch.xpack.core.security.authc;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.bytes.AbstractBytesReference;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,7 +29,10 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -52,7 +56,11 @@ public final class RemoteAccessAuthentication {
     }
 
     public static RemoteAccessAuthentication readFromContext(final ThreadContext ctx) throws IOException {
-        return decode(ctx.getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY));
+        final String header = ctx.getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY);
+        if (header == null) {
+            throw new IllegalArgumentException("remote access header [" + REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY + "] is required");
+        }
+        return decode(header);
     }
 
     public Authentication getAuthentication() {
@@ -106,10 +114,10 @@ public final class RemoteAccessAuthentication {
 
     public String encode() throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(authentication.getEffectiveSubject().getVersion());
-        Version.writeVersion(authentication.getEffectiveSubject().getVersion(), out);
+        out.setTransportVersion(authentication.getEffectiveSubject().getTransportVersion());
+        TransportVersion.writeVersion(authentication.getEffectiveSubject().getTransportVersion(), out);
         authentication.writeTo(out);
-        out.writeCollection(roleDescriptorsBytesList, StreamOutput::writeBytesReference);
+        out.writeCollection(roleDescriptorsBytesList, (o, rdb) -> rdb.writeTo(o));
         return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
     }
 
@@ -117,14 +125,32 @@ public final class RemoteAccessAuthentication {
         Objects.requireNonNull(header);
         final byte[] bytes = Base64.getDecoder().decode(header);
         final StreamInput in = StreamInput.wrap(bytes);
-        final Version version = Version.readVersion(in);
-        in.setVersion(version);
+        final TransportVersion version = TransportVersion.readVersion(in);
+        in.setTransportVersion(version);
         final Authentication authentication = new Authentication(in);
         final List<RoleDescriptorsBytes> roleDescriptorsBytesList = in.readImmutableList(RoleDescriptorsBytes::new);
         return new RemoteAccessAuthentication(authentication, roleDescriptorsBytesList);
     }
 
-    public static final class RoleDescriptorsBytes extends AbstractBytesReference {
+    /**
+     * Returns a copy of the passed-in metadata map, with the relevant remote access fields included. Does not modify the original map.
+     */
+    public Map<String, Object> copyWithRemoteAccessEntries(final Map<String, Object> authenticationMetadata) {
+        assert false == authenticationMetadata.containsKey(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
+            : "metadata already contains [" + AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY + "] entry";
+        assert false == authenticationMetadata.containsKey(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY)
+            : "metadata already contains [" + AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY + "] entry";
+        assert false == getAuthentication().isRemoteAccess()
+            : "authentication included in remote access header cannot itself be remote access";
+        final Map<String, Object> copy = new HashMap<>(authenticationMetadata);
+        copy.put(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, getAuthentication());
+        copy.put(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY, getRoleDescriptorsBytesList());
+        return Collections.unmodifiableMap(copy);
+    }
+
+    public static final class RoleDescriptorsBytes implements Writeable {
+
+        public static final RoleDescriptorsBytes EMPTY = new RoleDescriptorsBytes(new BytesArray("{}"));
         private final BytesReference rawBytes;
 
         public RoleDescriptorsBytes(BytesReference rawBytes) {
@@ -133,6 +159,19 @@ public final class RemoteAccessAuthentication {
 
         public RoleDescriptorsBytes(StreamInput streamInput) throws IOException {
             this(streamInput.readBytesReference());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBytesReference(rawBytes);
+        }
+
+        /**
+         * Compute the sha256 digest of the bytes
+         * @return A hexadecimal representation of the sha256 digest
+         */
+        public String digest() {
+            return MessageDigests.toHexString(MessageDigests.digest(rawBytes, MessageDigests.sha256()));
         }
 
         public static RoleDescriptorsBytes fromRoleDescriptors(final Set<RoleDescriptor> roleDescriptors) throws IOException {
@@ -161,28 +200,21 @@ public final class RemoteAccessAuthentication {
         }
 
         @Override
-        public byte get(int index) {
-            return rawBytes.get(index);
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            RoleDescriptorsBytes that = (RoleDescriptorsBytes) o;
+            return Objects.equals(rawBytes, that.rawBytes);
         }
 
         @Override
-        public int length() {
-            return rawBytes.length();
+        public int hashCode() {
+            return Objects.hash(rawBytes);
         }
 
         @Override
-        public BytesReference slice(int from, int length) {
-            return rawBytes.slice(from, length);
-        }
-
-        @Override
-        public long ramBytesUsed() {
-            return rawBytes.ramBytesUsed();
-        }
-
-        @Override
-        public BytesRef toBytesRef() {
-            return rawBytes.toBytesRef();
+        public String toString() {
+            return "RoleDescriptorsBytes{" + "rawBytes=" + rawBytes + '}';
         }
     }
 }

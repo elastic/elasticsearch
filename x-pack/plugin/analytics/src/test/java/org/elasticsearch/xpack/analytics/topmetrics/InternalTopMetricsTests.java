@@ -323,7 +323,7 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
     }
 
     @Override
-    protected InternalTopMetrics mutateInstance(InternalTopMetrics instance) throws IOException {
+    protected InternalTopMetrics mutateInstance(InternalTopMetrics instance) {
         String name = instance.getName();
         SortOrder instanceSortOrder = instance.getSortOrder();
         List<String> metricNames = instance.getMetricNames();

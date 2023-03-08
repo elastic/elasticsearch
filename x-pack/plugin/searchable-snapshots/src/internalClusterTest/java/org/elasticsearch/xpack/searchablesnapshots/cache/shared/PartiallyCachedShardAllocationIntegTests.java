@@ -50,12 +50,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.TIER_PREFERENCE;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -103,6 +103,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93868")
     public void testPartialSearchableSnapshotNotAllocatedToNodesWithoutCache() throws Exception {
         final MountSearchableSnapshotRequest req = prepareMountRequest();
         final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
@@ -196,15 +197,10 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91800")
     public void testPartialSearchableSnapshotDelaysAllocationUntilNodeCacheStatesKnown() throws Exception {
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        // forbid rebalancing, we want to check that the initial allocation is balanced
-                        .put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NONE)
-                )
+        updateClusterSettings(
+            Settings.builder()
+                // forbid rebalancing, we want to check that the initial allocation is balanced
+                .put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NONE)
         );
 
         final MountSearchableSnapshotRequest req = prepareMountRequest();
@@ -334,11 +330,6 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
 
     @After
     public void cleanUpSettings() {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey()))
-        );
+        updateClusterSettings(Settings.builder().putNull(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey()));
     }
 }

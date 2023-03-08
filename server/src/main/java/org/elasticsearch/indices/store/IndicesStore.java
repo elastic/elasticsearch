@@ -184,6 +184,8 @@ public class IndicesStore implements ClusterStateListener, Closeable {
     }
 
     static boolean shardCanBeDeleted(String localNodeId, IndexShardRoutingTable indexShardRoutingTable) {
+        assert indexShardRoutingTable.size() > 0;
+
         // a shard can be deleted if all its copies are active, and its not allocated on this node
         if (indexShardRoutingTable.size() == 0) {
             // should not really happen, there should always be at least 1 (primary) shard in a
@@ -424,10 +426,10 @@ public class IndicesStore implements ClusterStateListener, Closeable {
     }
 
     private static class ShardActiveRequest extends TransportRequest {
-        protected TimeValue timeout = null;
-        private ClusterName clusterName;
-        private String indexUUID;
-        private ShardId shardId;
+        private final TimeValue timeout;
+        private final ClusterName clusterName;
+        private final String indexUUID;
+        private final ShardId shardId;
 
         ShardActiveRequest(StreamInput in) throws IOException {
             super(in);

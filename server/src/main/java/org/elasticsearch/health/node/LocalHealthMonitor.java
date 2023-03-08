@@ -160,7 +160,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 );
                 logger.debug("Local health monitoring started {}", monitoring);
             } else {
-                logger.debug("Local health monitoring already started {}, skipping", monitoring);
+                logger.trace("Local health monitoring already started {}, skipping", monitoring);
             }
         }
     }

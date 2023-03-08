@@ -53,6 +53,11 @@ public class InferModelActionResponseTests extends AbstractWireSerializingTestCa
         );
     }
 
+    @Override
+    protected Response mutateInstance(Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     private static InferenceResults randomInferenceResult(String resultType) {
         switch (resultType) {
             case ClassificationInferenceResults.NAME:

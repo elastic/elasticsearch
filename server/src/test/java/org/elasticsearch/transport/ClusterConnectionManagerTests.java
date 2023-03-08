@@ -9,14 +9,12 @@
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -177,16 +175,12 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         final Releasable localConnectionRef = toClose.getAndSet(null);
         assertThat(localConnectionRef, notNullValue());
 
-        final String loggerName = "org.elasticsearch.transport.ClusterConnectionManager";
-        final Logger logger = LogManager.getLogger(loggerName);
         final MockLogAppender appender = new MockLogAppender();
-        try {
-            appender.start();
-            Loggers.addAppender(logger, appender);
+        try (var ignored = appender.capturing(ClusterConnectionManager.class)) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "locally-triggered close message",
-                    loggerName,
+                    ClusterConnectionManager.class.getCanonicalName(),
                     Level.DEBUG,
                     "closing unused transport connection to [" + localClose + "]"
                 )
@@ -194,7 +188,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "remotely-triggered close message",
-                    loggerName,
+                    ClusterConnectionManager.class.getCanonicalName(),
                     Level.INFO,
                     "transport connection to [" + remoteClose.descriptionWithoutAttributes() + "] closed by remote"
                 )
@@ -202,7 +196,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "shutdown-triggered close message",
-                    loggerName,
+                    ClusterConnectionManager.class.getCanonicalName(),
                     Level.TRACE,
                     "connection manager shut down, closing transport connection to [" + shutdownClose + "]"
                 )
@@ -213,9 +207,6 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             connectionManager.close();
 
             appender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
         }
     }
 
@@ -287,7 +278,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                         assertThat(threadContext.getHeader(contextHeader), equalTo(contextValue));
 
                         assertTrue(pendingCloses.tryAcquire());
-                        connectionManager.getConnection(node).addRemovedListener(ActionListener.wrap(pendingCloses::release));
+                        connectionManager.getConnection(node).addRemovedListener(ActionListener.running(pendingCloses::release));
 
                         if (randomBoolean()) {
                             releasables[threadIndex] = c;
@@ -632,7 +623,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                 if (closePermits.tryAcquire() && closingRefs.tryIncRef()) {
                     try {
                         var connection = connectionManager.getConnection(node);
-                        connection.addRemovedListener(ActionListener.wrap(this::runAgain));
+                        connection.addRemovedListener(ActionListener.running(this::runAgain));
                         connection.close();
                     } catch (NodeNotConnectedException e) {
                         closePermits.release();
@@ -776,6 +767,11 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         @Override
         public Version getVersion() {
             return node.getVersion();
+        }
+
+        @Override
+        public TransportVersion getTransportVersion() {
+            return TransportVersion.CURRENT;
         }
 
         @Override

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.codec;
 
-import org.apache.lucene.codecs.lucene94.Lucene94Codec;
+import org.apache.lucene.codecs.lucene95.Lucene95Codec;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -74,7 +74,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
                 """;
             mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         }
-        return new PerFieldMapperCodec(Lucene94Codec.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE);
+        return new PerFieldMapperCodec(Lucene95Codec.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE);
     }
 
 }

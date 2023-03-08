@@ -1,5 +1,0 @@
-pr: 92207
-summary: Validate rule filters are present on open anomaly detection api
-area: Machine Learning
-type: bug
-issues: []

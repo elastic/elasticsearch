@@ -102,10 +102,18 @@ public enum Releasables {
      */
     public static Releasable releaseOnce(final Releasable releasable) {
         final var ref = new AtomicReference<>(releasable);
-        return () -> {
-            final var acquired = ref.getAndSet(null);
-            if (acquired != null) {
-                acquired.close();
+        return new Releasable() {
+            @Override
+            public void close() {
+                final var acquired = ref.getAndSet(null);
+                if (acquired != null) {
+                    acquired.close();
+                }
+            }
+
+            @Override
+            public String toString() {
+                return "releaseOnce[" + ref.get() + "]";
             }
         };
     }

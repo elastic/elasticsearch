@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.inference.assignment;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -131,8 +131,8 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_0_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_8_0_0;
     }
 
     @Override
@@ -284,8 +284,8 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.V_8_0_0;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.V_8_0_0;
         }
 
         @Override

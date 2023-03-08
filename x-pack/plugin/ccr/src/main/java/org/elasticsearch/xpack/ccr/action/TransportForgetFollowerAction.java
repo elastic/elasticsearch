@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
@@ -71,7 +72,7 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
 
     @Override
     protected EmptyResult readShardResult(final StreamInput in) {
-        return EmptyResult.readEmptyResultFrom(in);
+        return EmptyResult.INSTANCE;
     }
 
     @Override
@@ -110,7 +111,7 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
 
         final IndexShard indexShard = indicesService.indexServiceSafe(leaderIndex).getShard(shardRouting.shardId().id());
 
-        indexShard.acquirePrimaryOperationPermit(new ActionListener.Delegating<>(listener) {
+        indexShard.acquirePrimaryOperationPermit(new DelegatingActionListener<>(listener) {
             @Override
             public void onResponse(Releasable releasable) {
                 try {

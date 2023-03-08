@@ -32,6 +32,11 @@ public class EnrichMetadataTests extends AbstractChunkedSerializingTestCase<Enri
     }
 
     @Override
+    protected EnrichMetadata mutateInstance(EnrichMetadata instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected EnrichMetadata createXContextTestInstance(XContentType xContentType) {
         return randomEnrichMetadata(xContentType);
     }

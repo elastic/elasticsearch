@@ -447,8 +447,6 @@ _doc_count:
       indices.create:
         index: test
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             _source:
               mode: synthetic

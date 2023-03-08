@@ -8,15 +8,18 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.index.fielddata.FormattedDocValues;
+import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Class that produces values for a label field.
  */
-abstract class LabelFieldProducer extends AbstractRollupFieldProducer {
+abstract class LabelFieldProducer extends AbstractDownsampleFieldProducer {
 
     LabelFieldProducer(String name) {
         super(name);
@@ -85,7 +88,7 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer {
      * {@link LabelFieldProducer} implementation for a last value label
      */
     static class LabelLastValueFieldProducer extends LabelFieldProducer {
-        private final LastValueLabel label;
+        protected final LastValueLabel label;
 
         LabelLastValueFieldProducer(String name, LastValueLabel label) {
             super(name);
@@ -142,6 +145,26 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer {
 
         AggregateMetricFieldProducer(String name, Metric metric) {
             super(name, new LastValueLabel(metric.name()));
+        }
+    }
+
+    public static class HistogramLastLabelFieldProducer extends LabelLastValueFieldProducer {
+        HistogramLastLabelFieldProducer(String name) {
+            super(name);
+        }
+
+        @Override
+        public void write(XContentBuilder builder) throws IOException {
+            if (isEmpty() == false) {
+                final HistogramValue histogramValue = (HistogramValue) label.get();
+                final List<Double> values = new ArrayList<>();
+                final List<Integer> counts = new ArrayList<>();
+                while (histogramValue.next()) {
+                    values.add(histogramValue.value());
+                    counts.add(histogramValue.count());
+                }
+                builder.startObject(name()).field("counts", counts).field("values", values).endObject();
+            }
         }
     }
 }

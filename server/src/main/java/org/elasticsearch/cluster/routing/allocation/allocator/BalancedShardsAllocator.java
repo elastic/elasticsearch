@@ -53,13 +53,12 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 
 /**
  * The {@link BalancedShardsAllocator} re-balances the nodes allocations
@@ -124,23 +123,26 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     private final WriteLoadForecaster writeLoadForecaster;
 
+    public BalancedShardsAllocator() {
+        this(Settings.EMPTY);
+    }
+
     public BalancedShardsAllocator(Settings settings) {
-        this(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), WriteLoadForecaster.DEFAULT);
+        this(createBuiltInClusterSettings(settings), WriteLoadForecaster.DEFAULT);
+    }
+
+    public BalancedShardsAllocator(ClusterSettings clusterSettings) {
+        this(clusterSettings, WriteLoadForecaster.DEFAULT);
     }
 
     @Inject
-    public BalancedShardsAllocator(Settings settings, ClusterSettings clusterSettings, WriteLoadForecaster writeLoadForecaster) {
-        watchSetting(settings, clusterSettings, INDEX_BALANCE_FACTOR_SETTING, value -> this.indexBalanceFactor = value);
-        watchSetting(settings, clusterSettings, SHARD_BALANCE_FACTOR_SETTING, value -> this.shardBalanceFactor = value);
-        watchSetting(settings, clusterSettings, WRITE_LOAD_BALANCE_FACTOR_SETTING, value -> this.writeLoadBalanceFactor = value);
-        watchSetting(settings, clusterSettings, DISK_USAGE_BALANCE_FACTOR_SETTING, value -> this.diskUsageBalanceFactor = value);
-        watchSetting(settings, clusterSettings, THRESHOLD_SETTING, value -> this.threshold = ensureValidThreshold(value));
+    public BalancedShardsAllocator(ClusterSettings clusterSettings, WriteLoadForecaster writeLoadForecaster) {
+        clusterSettings.initializeAndWatch(INDEX_BALANCE_FACTOR_SETTING, value -> this.indexBalanceFactor = value);
+        clusterSettings.initializeAndWatch(SHARD_BALANCE_FACTOR_SETTING, value -> this.shardBalanceFactor = value);
+        clusterSettings.initializeAndWatch(WRITE_LOAD_BALANCE_FACTOR_SETTING, value -> this.writeLoadBalanceFactor = value);
+        clusterSettings.initializeAndWatch(DISK_USAGE_BALANCE_FACTOR_SETTING, value -> this.diskUsageBalanceFactor = value);
+        clusterSettings.initializeAndWatch(THRESHOLD_SETTING, value -> this.threshold = ensureValidThreshold(value));
         this.writeLoadForecaster = writeLoadForecaster;
-    }
-
-    private <T> void watchSetting(Settings settings, ClusterSettings clusterSettings, Setting<T> setting, Consumer<T> consumer) {
-        consumer.accept(setting.get(settings));
-        clusterSettings.addSettingsUpdateConsumer(setting, consumer);
     }
 
     /**
@@ -318,26 +320,26 @@ public class BalancedShardsAllocator implements ShardsAllocator {
      * A {@link Balancer}
      */
     public static class Balancer {
-        private final Map<String, ModelNode> nodes;
         private final WriteLoadForecaster writeLoadForecaster;
         private final RoutingAllocation allocation;
         private final RoutingNodes routingNodes;
+        private final Metadata metadata;
         private final WeightFunction weight;
 
         private final float threshold;
-        private final Metadata metadata;
         private final float avgShardsPerNode;
         private final double avgWriteLoadPerNode;
         private final double avgDiskUsageInBytesPerNode;
+        private final Map<String, ModelNode> nodes;
         private final NodeSorter sorter;
 
         public Balancer(WriteLoadForecaster writeLoadForecaster, RoutingAllocation allocation, WeightFunction weight, float threshold) {
             this.writeLoadForecaster = writeLoadForecaster;
             this.allocation = allocation;
-            this.weight = weight;
-            this.threshold = threshold;
             this.routingNodes = allocation.routingNodes();
             this.metadata = allocation.metadata();
+            this.weight = weight;
+            this.threshold = threshold;
             avgShardsPerNode = ((float) metadata.getTotalNumberOfShards()) / routingNodes.size();
             avgWriteLoadPerNode = getTotalWriteLoad(writeLoadForecaster, metadata) / routingNodes.size();
             avgDiskUsageInBytesPerNode = ((double) getTotalDiskUsageInBytes(allocation.clusterInfo(), metadata) / routingNodes.size());
@@ -368,15 +370,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         // Visible for testing
         static long getIndexDiskUsageInBytes(ClusterInfo clusterInfo, IndexMetadata indexMetadata) {
-            OptionalLong forecastedShardSizeInBytes = indexMetadata.getForecastedShardSizeInBytes();
-            final long indexDiskUsageInBytes;
-            if (forecastedShardSizeInBytes.isPresent()) {
-                int i = numberOfCopies(indexMetadata);
-                indexDiskUsageInBytes = forecastedShardSizeInBytes.getAsLong() * i;
-            } else {
-                indexDiskUsageInBytes = getIndexDiskUsageInBytesFromClusterInfo(clusterInfo, indexMetadata);
-            }
-            return indexDiskUsageInBytes;
+            var forecastedShardSizeInBytes = indexMetadata.getForecastedShardSizeInBytes();
+            return forecastedShardSizeInBytes.isPresent()
+                ? forecastedShardSizeInBytes.getAsLong() * numberOfCopies(indexMetadata)
+                : getIndexDiskUsageInBytesFromClusterInfo(clusterInfo, indexMetadata);
         }
 
         private static long getIndexDiskUsageInBytesFromClusterInfo(ClusterInfo clusterInfo, IndexMetadata indexMetadata) {
@@ -405,12 +402,24 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return shardCount == 0 ? 0 : (totalSizeInBytes / shardCount) * numberOfCopies(indexMetadata);
         }
 
+        private static long getShardDiskUsageInBytes(ShardRouting shardRouting, IndexMetadata indexMetadata, ClusterInfo clusterInfo) {
+            return indexMetadata.getForecastedShardSizeInBytes().orElseGet(() -> clusterInfo.getShardSize(shardRouting, 0L));
+        }
+
         private static int numberOfCopies(IndexMetadata indexMetadata) {
             return indexMetadata.getNumberOfShards() * (1 + indexMetadata.getNumberOfReplicas());
         }
 
         private double getShardWriteLoad(String index) {
             return writeLoadForecaster.getForecastedWriteLoad(metadata.index(index)).orElse(0.0);
+        }
+
+        private double diskUsageInBytesPerShard(String index) {
+            var indexMetadata = metadata.index(index);
+            var forecastedShardSizeInBytes = indexMetadata.getForecastedShardSizeInBytes();
+            return forecastedShardSizeInBytes.isPresent()
+                ? forecastedShardSizeInBytes.getAsLong()
+                : (double) getIndexDiskUsageInBytesFromClusterInfo(allocation.clusterInfo(), indexMetadata) / numberOfCopies(indexMetadata);
         }
 
         /**
@@ -440,10 +449,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         public double avgDiskUsageInBytesPerNode() {
             return avgDiskUsageInBytesPerNode;
-        }
-
-        public double diskUsageInBytesPerShard(String index) {
-            return metadata.index(index).getForecastedShardSizeInBytes().orElse(0);
         }
 
         /**
@@ -959,7 +964,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private Map<String, ModelNode> buildModelFromAssigned() {
             Map<String, ModelNode> nodes = Maps.newMapWithExpectedSize(routingNodes.size());
             for (RoutingNode rn : routingNodes) {
-                ModelNode node = new ModelNode(writeLoadForecaster, metadata, rn);
+                ModelNode node = new ModelNode(writeLoadForecaster, metadata, allocation.clusterInfo(), rn);
                 nodes.put(rn.nodeId(), node);
                 for (ShardRouting shard : rn) {
                     assert rn.nodeId().equals(shard.currentNodeId());
@@ -1251,12 +1256,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private double diskUsageInBytes = 0.0;
         private final WriteLoadForecaster writeLoadForecaster;
         private final Metadata metadata;
+        private final ClusterInfo clusterInfo;
         private final RoutingNode routingNode;
         private final Map<String, ModelIndex> indices;
 
-        ModelNode(WriteLoadForecaster writeLoadForecaster, Metadata metadata, RoutingNode routingNode) {
+        ModelNode(WriteLoadForecaster writeLoadForecaster, Metadata metadata, ClusterInfo clusterInfo, RoutingNode routingNode) {
             this.writeLoadForecaster = writeLoadForecaster;
             this.metadata = metadata;
+            this.clusterInfo = clusterInfo;
             this.routingNode = routingNode;
             this.indices = Maps.newMapWithExpectedSize(routingNode.size() + 10);// some extra to account for shard movements
         }
@@ -1302,7 +1309,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             indices.computeIfAbsent(shard.getIndexName(), t -> new ModelIndex()).addShard(shard);
             IndexMetadata indexMetadata = metadata.index(shard.index());
             writeLoad += writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
-            diskUsageInBytes += indexMetadata.getForecastedShardSizeInBytes().orElse(0);
+            diskUsageInBytes += Balancer.getShardDiskUsageInBytes(shard, indexMetadata, clusterInfo);
             numShards++;
         }
 
@@ -1316,7 +1323,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
             IndexMetadata indexMetadata = metadata.index(shard.index());
             writeLoad -= writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
-            diskUsageInBytes -= indexMetadata.getForecastedShardSizeInBytes().orElse(0);
+            diskUsageInBytes -= Balancer.getShardDiskUsageInBytes(shard, indexMetadata, clusterInfo);
             numShards--;
         }
 

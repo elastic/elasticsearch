@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
@@ -38,12 +38,12 @@ public final class GetApiKeyRequest extends ActionRequest {
         userName = textOrNull(in.readOptionalString());
         apiKeyId = textOrNull(in.readOptionalString());
         apiKeyName = textOrNull(in.readOptionalString());
-        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_4_0)) {
             ownedByAuthenticatedUser = in.readOptionalBoolean();
         } else {
             ownedByAuthenticatedUser = false;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             withLimitedBy = in.readBoolean();
         } else {
             withLimitedBy = false;
@@ -126,10 +126,10 @@ public final class GetApiKeyRequest extends ActionRequest {
         out.writeOptionalString(userName);
         out.writeOptionalString(apiKeyId);
         out.writeOptionalString(apiKeyName);
-        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_4_0)) {
             out.writeOptionalBoolean(ownedByAuthenticatedUser);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             out.writeBoolean(withLimitedBy);
         }
     }

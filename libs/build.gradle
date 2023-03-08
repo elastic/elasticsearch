@@ -26,6 +26,7 @@ configure(subprojects - project('elasticsearch-log4j')) {
           && false == isPluginApi(project, depProject)
           && false == depProject.path.equals(':libs:elasticsearch-x-content')
           && false == depProject.path.equals(':libs:elasticsearch-core')
+          && false == depProject.path.equals(':libs:elasticsearch-plugin-api')
           && depProject.path.startsWith(':libs')
           && depProject.name.startsWith('elasticsearch-')) {
           throw new InvalidUserDataException("projects in :libs "

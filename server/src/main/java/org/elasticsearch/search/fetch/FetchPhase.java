@@ -26,7 +26,7 @@ import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.Source;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -84,6 +84,16 @@ public class FetchPhase {
         }
     }
 
+    private static class PreloadedSourceProvider implements SourceProvider {
+
+        Source source;
+
+        @Override
+        public Source getSource(LeafReaderContext ctx, int doc) throws IOException {
+            return source;
+        }
+    }
+
     private SearchHits buildSearchHits(SearchContext context, Profiler profiler) {
 
         FetchContext fetchContext = new FetchContext(context);
@@ -101,6 +111,9 @@ public class FetchPhase {
         boolean requiresSource = storedFieldsSpec.requiresSource();
 
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
+
+        PreloadedSourceProvider sourceProvider = new PreloadedSourceProvider();
+        context.getSearchExecutionContext().setSourceProvider(sourceProvider);
 
         FetchPhaseDocsIterator docsIterator = new FetchPhaseDocsIterator() {
 
@@ -137,6 +150,7 @@ public class FetchPhase {
                     ctx,
                     leafSourceLoader
                 );
+                sourceProvider.source = hit.source();
                 for (FetchSubPhaseProcessor processor : processors) {
                     processor.process(hit);
                 }
@@ -187,15 +201,7 @@ public class FetchPhase {
         SourceLoader.Leaf sourceLoader
     ) throws IOException {
         if (nestedDocuments.advance(docId - subReaderContext.docBase) == null) {
-            return prepareNonNestedHitContext(
-                context,
-                requiresSource,
-                profiler,
-                leafStoredFieldLoader,
-                docId,
-                subReaderContext,
-                sourceLoader
-            );
+            return prepareNonNestedHitContext(requiresSource, profiler, leafStoredFieldLoader, docId, subReaderContext, sourceLoader);
         } else {
             return prepareNestedHitContext(
                 context,
@@ -217,7 +223,6 @@ public class FetchPhase {
      *     allows fetch subphases that use the hit context to access the preloaded source.
      */
     private static HitContext prepareNonNestedHitContext(
-        SearchContext context,
         boolean requiresSource,
         Profiler profiler,
         LeafStoredFieldLoader leafStoredFieldLoader,
@@ -240,9 +245,6 @@ public class FetchPhase {
                 try {
                     profiler.startLoadingSource();
                     source = sourceLoader.source(leafStoredFieldLoader, subDocId);
-                    SourceLookup scriptSourceLookup = context.getSearchExecutionContext().lookup().source();
-                    scriptSourceLookup.setSegmentAndDocument(subReaderContext, subDocId);
-                    scriptSourceLookup.setSourceProvider(new SourceLookup.BytesSourceProvider(source.internalSourceRef()));
                 } finally {
                     profiler.stopLoadingSource();
                 }
@@ -256,13 +258,13 @@ public class FetchPhase {
     private static Supplier<Source> lazyStoredSourceLoader(Profiler profiler, LeafReaderContext ctx, int doc) {
         return () -> {
             StoredFieldLoader rootLoader = profiler.storedFields(StoredFieldLoader.create(true, Collections.emptySet()));
-            LeafStoredFieldLoader leafRootLoader = rootLoader.getLoader(ctx, null);
             try {
+                LeafStoredFieldLoader leafRootLoader = rootLoader.getLoader(ctx, null);
                 leafRootLoader.advanceTo(doc);
+                return Source.fromBytes(leafRootLoader.source());
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-            return Source.fromBytes(leafRootLoader.source());
         };
     }
 

@@ -114,7 +114,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         this.initialIndexerState = initialState;
         this.initialPosition = initialPosition;
 
-        this.context = new TransformContext(initialTaskState, initialReason, initialCheckpoint, this);
+        this.context = new TransformContext(initialTaskState, initialReason, initialCheckpoint, transform.from(), this);
     }
 
     public ParentTaskAssigningClient getParentTaskClient() {

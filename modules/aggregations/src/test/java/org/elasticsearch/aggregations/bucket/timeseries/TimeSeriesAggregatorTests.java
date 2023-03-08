@@ -180,6 +180,45 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
         timeSeriesTestCase(tsBuilder, new MatchAllDocsQuery(), buildIndex, verifier);
     }
 
+    public void testAggregationSize() throws IOException {
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = multiTsWriter();
+
+        List<Consumer<InternalTimeSeries>> verifiers = new ArrayList<Consumer<InternalTimeSeries>>();
+
+        verifiers.add(ts -> assertThat(ts.getBucketByKey("{dim1=aaa, dim2=xxx}").docCount, equalTo(2L)));
+        verifiers.add(ts -> assertThat(ts.getBucketByKey("{dim1=aaa, dim2=yyy}").docCount, equalTo(2L)));
+        verifiers.add(ts -> assertThat(ts.getBucketByKey("{dim1=bbb, dim2=zzz}").docCount, equalTo(2L)));
+
+        for (int i = 1; i < 3; i++) {
+            int size = i;
+            Consumer<InternalTimeSeries> limitedVerifier = ts -> {
+                assertThat(ts.getBuckets(), hasSize(size));
+
+                for (int j = 0; j < size; j++) {
+                    verifiers.get(j).accept(ts);
+                }
+            };
+
+            TimeSeriesAggregationBuilder limitedTsBuilder = new TimeSeriesAggregationBuilder("by_tsid");
+            limitedTsBuilder.setSize(i);
+            timeSeriesTestCase(limitedTsBuilder, new MatchAllDocsQuery(), buildIndex, limitedVerifier);
+        }
+    }
+
+    private CheckedConsumer<RandomIndexWriter, IOException> multiTsWriter() {
+        long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
+        return iw -> {
+            writeTS(iw, startTime + 1, new Object[] { "dim1", "aaa", "dim2", "xxx" }, new Object[] { "val1", 1 });
+            writeTS(iw, startTime + 2, new Object[] { "dim1", "aaa", "dim2", "yyy" }, new Object[] { "val1", 2 });
+            writeTS(iw, startTime + 3, new Object[] { "dim1", "bbb", "dim2", "zzz" }, new Object[] { "val1", 3 });
+            writeTS(iw, startTime + 4, new Object[] { "dim1", "bbb", "dim2", "zzz" }, new Object[] { "val1", 4 });
+            writeTS(iw, startTime + 5, new Object[] { "dim1", "aaa", "dim2", "xxx" }, new Object[] { "val1", 5 });
+            writeTS(iw, startTime + 6, new Object[] { "dim1", "aaa", "dim2", "yyy" }, new Object[] { "val1", 6 });
+            writeTS(iw, startTime + 7, new Object[] { "dim1", "bbb", "dim2", "zzz" }, new Object[] { "val1", 7 });
+            writeTS(iw, startTime + 8, new Object[] { "dim1", "bbb", "dim2", "zzz" }, new Object[] { "val1", 8 });
+        };
+    }
+
     private void timeSeriesTestCase(
         TimeSeriesAggregationBuilder builder,
         Query query,

@@ -23,7 +23,6 @@ sudo useradd vagrant
 set -e
 
 . .ci/java-versions.properties
-RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
 BUILD_JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
 
 rm -Rfv $HOME/.gradle/init.d/ && mkdir -p $HOME/.gradle/init.d
@@ -74,9 +73,8 @@ git config --global --add safe.directory $WORKSPACE
 # be explicit about Gradle home dir so we use the same even with sudo
 sudo -E env \
   PATH=$BUILD_JAVA_HOME/bin:`sudo bash -c 'echo -n $PATH'` \
-  RUNTIME_JAVA_HOME=`readlink -f -n $RUNTIME_JAVA_HOME` \
   --unset=ES_JAVA_HOME \
   --unset=JAVA_HOME \
-  SYSTEM_JAVA_HOME=`readlink -f -n $RUNTIME_JAVA_HOME` \
+  SYSTEM_JAVA_HOME=`readlink -f -n $BUILD_JAVA_HOME` \
   ./gradlew -g $HOME/.gradle --scan --parallel --continue $@
 

@@ -139,7 +139,6 @@ public class HealthServiceTests extends ESTestCase {
         );
     }
 
-    @SuppressWarnings("unchecked")
     public void testValidateSize() {
         var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
 
@@ -147,7 +146,7 @@ public class HealthServiceTests extends ESTestCase {
         NodeClient client = getTestClient(HealthInfo.EMPTY_HEALTH_INFO);
         IllegalArgumentException illegalArgumentException = expectThrows(
             IllegalArgumentException.class,
-            () -> service.getHealth(client, null, true, -1, ActionListener.NOOP)
+            () -> service.getHealth(client, null, true, -1, ActionListener.noop())
         );
         assertThat(illegalArgumentException.getMessage(), is("The max number of resources must be a positive integer"));
     }

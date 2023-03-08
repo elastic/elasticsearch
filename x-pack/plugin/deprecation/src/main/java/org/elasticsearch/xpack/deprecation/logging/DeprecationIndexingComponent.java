@@ -13,9 +13,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configuration;
-import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -29,14 +28,13 @@ import org.elasticsearch.common.logging.ECSJsonLayout;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.RateLimitingFilter;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -51,10 +49,21 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
     private static final Logger logger = LogManager.getLogger(DeprecationIndexingComponent.class);
 
     private final DeprecationIndexingAppender appender;
-    private final BulkProcessor processor;
+    private final BulkProcessor2 processor;
+    /*
+     * We do not want to index deprecation logs on server startup before the index template and ILM policy are available. So we have
+     * processor put them in the following buffer until the server is ready. Once the template and ILM policy are available, this buffer is
+     * drained and its contents are sent to the processor. The queue is unbounded because we are first going through processor::add, which
+     * starts rejecting documents if the total number of bytes in flight gets too large.
+     */
+    private final ConcurrentLinkedQueue<Runnable> pendingRequestsBuffer = new ConcurrentLinkedQueue<>();
     private final RateLimitingFilter rateLimitingFilterForIndexing;
     private final ClusterService clusterService;
 
+    /*
+     * False until the deprecation index template and ILM policy exist (indicating that we should not flush deprecation logs to
+     * Elasticsearch yet).
+     */
     private final AtomicBoolean flushEnabled = new AtomicBoolean(false);
 
     private DeprecationIndexingComponent(
@@ -68,7 +77,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
         this.clusterService = clusterService;
 
         this.processor = getBulkProcessor(new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN), settings);
-        final Consumer<IndexRequest> consumer = this.processor::add;
+        final Consumer<IndexRequest> consumer = processor::add;
 
         final LoggerContext context = (LoggerContext) LogManager.getContext(false);
         final Configuration configuration = context.getConfiguration();
@@ -124,8 +133,21 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
             && indexLifecycleMetadata != null
             && indexLifecycleMetadata.getPolicies().containsKey(".deprecation-indexing-ilm-policy")) {
             flushEnabled.set(true);
+            flushBuffer();
             logger.debug("Deprecation log indexing started, because both template and ilm policy are loaded");
             clusterService.removeListener(this);
+        }
+    }
+
+    /**
+     * This method removes everything that is currently in the pendingRequestsBuffer and sends it to the client. This method is
+     * threadsafe. Anything added to the pendingRequestsBuffer while this method is executing might be removed and sent to the client,
+     * but there is no blocking so there is no guarantee of it.
+     */
+    private void flushBuffer() {
+        for (Runnable pendingRequest = pendingRequestsBuffer.poll(); pendingRequest != null; pendingRequest = pendingRequestsBuffer
+            .poll()) {
+            pendingRequest.run();
         }
     }
 
@@ -156,9 +178,6 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
             // previously-seen keys, otherwise we won't index anything.
             if (newEnabled) {
                 this.rateLimitingFilterForIndexing.reset();
-            } else {
-                // we have flipped from enabled to disabled. A processor could have accumulated some requests, so we have to flush it
-                this.processor.flush();
             }
         }
     }
@@ -170,23 +189,25 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
      * @param settings the settings to use
      * @return an initialised bulk processor
      */
-    private BulkProcessor getBulkProcessor(Client client, Settings settings) {
-        final BulkProcessor.Listener listener = new DeprecationBulkListener();
-
-        // This configuration disables the size count and size thresholds,
-        // and instead uses a scheduled flush only. This means that calling
-        // processor.add() will not block the calling thread.
-        return BulkProcessor.builder(client::bulk, listener, "deprecation-indexing")
-            .setBackoffPolicy(BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(1000), 3))
-            .setConcurrentRequests(Math.max(2, EsExecutors.allocatedProcessors(settings)))
-            .setBulkActions(-1)
-            .setBulkSize(ByteSizeValue.MINUS_ONE)
-            .setFlushInterval(TimeValue.timeValueSeconds(5))
-            .setFlushCondition(() -> flushEnabled.get())
-            .build();
+    private BulkProcessor2 getBulkProcessor(Client client, Settings settings) {
+        BulkProcessor2.Listener listener = new DeprecationBulkListener();
+        return BulkProcessor2.builder((bulkRequest, actionListener) -> {
+            /*
+             * If flush is enabled already, we just call client::bulk. But if it is not ready then we store the request and listener in a
+             * queue. We do this here because at this point the bulk processor will have already rejected the request if the
+             * in-flight-bytes limit has been exceeded. This means that we don't have to worry about bounding pendingRequestsBuffer.
+             */
+            if (flushEnabled.get()) {
+                client.bulk(bulkRequest, actionListener);
+                flushBuffer(); // just in case something was missed after the first flush
+            } else {
+                // this is an unbounded queue, so the entry will always be accepted
+                pendingRequestsBuffer.offer(() -> client.bulk(bulkRequest, actionListener));
+            }
+        }, listener, client.threadPool()).setMaxNumberOfRetries(3).setFlushInterval(TimeValue.timeValueSeconds(5)).build();
     }
 
-    private static class DeprecationBulkListener implements BulkProcessor.Listener {
+    private static class DeprecationBulkListener implements BulkProcessor2.Listener {
         @Override
         public void beforeBulk(long executionId, BulkRequest request) {}
 
@@ -211,7 +232,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
         }
 
         @Override
-        public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+        public void afterBulk(long executionId, BulkRequest request, Exception failure) {
             logger.error("Bulk write of " + request.numberOfActions() + " deprecation logs failed: " + failure.getMessage(), failure);
         }
     }

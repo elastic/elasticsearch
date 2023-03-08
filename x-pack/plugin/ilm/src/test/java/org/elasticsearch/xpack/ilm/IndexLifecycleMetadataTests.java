@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.UnfollowAction;
 import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -72,7 +71,7 @@ public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerial
     }
 
     @Override
-    protected IndexLifecycleMetadata doParseInstance(XContentParser parser) throws IOException {
+    protected IndexLifecycleMetadata doParseInstance(XContentParser parser) {
         return IndexLifecycleMetadata.PARSER.apply(parser, null);
     }
 
@@ -95,7 +94,7 @@ public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerial
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::readFrom),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ReadOnlyAction.NAME, ReadOnlyAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::read),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ShrinkAction.NAME, ShrinkAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, FreezeAction.NAME, in -> FreezeAction.INSTANCE),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, SetPriorityAction.NAME, SetPriorityAction::new),
@@ -178,7 +177,7 @@ public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerial
 
     public void testMinimumSupportedVersion() {
         TransportVersion min = createTestInstance().getMinimalSupportedVersion();
-        assertTrue(min.onOrBefore(TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT)));
+        assertTrue(min.onOrBefore(TransportVersionUtils.randomCompatibleVersion(random())));
     }
 
     public void testcontext() {

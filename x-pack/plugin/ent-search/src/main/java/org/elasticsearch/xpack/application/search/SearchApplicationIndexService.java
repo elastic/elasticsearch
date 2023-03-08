@@ -348,23 +348,21 @@ public class SearchApplicationIndexService {
             IndicesAliasesRequest.AliasActions.remove().aliases(searchAliasName).indices("*")
         );
 
-        clientWithOrigin.admin()
-            .indices()
-            .aliases(aliasesRequest, new ActionListener<>() {
-                @Override
-                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                    listener.onResponse(AcknowledgedResponse.TRUE);
-                }
+        clientWithOrigin.admin().indices().aliases(aliasesRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                listener.onResponse(AcknowledgedResponse.TRUE);
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    if (e instanceof IndexNotFoundException) {
-                        listener.onFailure(new ResourceNotFoundException(searchAliasName));
-                        return;
-                    }
-                    listener.onFailure(e);
+            @Override
+            public void onFailure(Exception e) {
+                if (e instanceof IndexNotFoundException) {
+                    listener.onFailure(new ResourceNotFoundException(searchAliasName));
+                    return;
                 }
-            });
+                listener.onFailure(e);
+            }
+        });
     }
 
     /**

@@ -1,6 +1,6 @@
 entsearch:
   cluster:
-    - manage_engine
+    - manage_search_application
     - manage_behavioral_analytics
     - monitor
   indices:

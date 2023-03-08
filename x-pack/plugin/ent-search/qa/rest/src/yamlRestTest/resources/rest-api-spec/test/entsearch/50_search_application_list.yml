@@ -1,0 +1,151 @@
+setup:
+  - do:
+      indices.create:
+        index: test-index1
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      indices.create:
+        index: test-index2
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      search_application.put:
+        name: test-search-application-1
+        body:
+          indices: [ "test-index1" ]
+          analytics_collection_name: "test-analytics1"
+
+  - do:
+      search_application.put:
+        name: test-search-application-2
+        body:
+          indices: [ "test-index2" ]
+          analytics_collection_name: "test-analytics2"
+
+  - do:
+      search_application.put:
+        name: another-test-search-application
+        body:
+          indices: [ "test-index1", "test-index2" ]
+          analytics_collection_name: "test-another-analytics"
+
+---
+teardown:
+  - do:
+      search_application.delete:
+        name: test-search-application-1
+        ignore: 404
+
+  - do:
+      search_application.delete:
+        name: test-search-application-2
+        ignore: 404
+
+  - do:
+      search_application.delete:
+        name: another-test-search-application
+        ignore: 404
+
+---
+"List Search Applications":
+  - do:
+      search_application.list: { }
+
+  - match: { count: 3 }
+
+  # Alphabetical order for results
+  - match: { results.0.name: "another-test-search-application" }
+  - match: { results.0.search_alias: "another-test-search-application" }
+  - match: { results.0.indices: [ "test-index1", "test-index2" ] }
+  - match: { results.0.analytics_collection_name: "test-another-analytics" }
+  - match: { results.0.updated_at_millis: null }
+
+  - match: { results.1.name: "test-search-application-1" }
+  - match: { results.1.search_alias: "test-search-application-1" }
+  - match: { results.1.indices: [ "test-index1" ] }
+  - match: { results.1.analytics_collection_name: "test-analytics1" }
+  - match: { results.1.updated_at_millis: null }
+
+  - match: { results.2.name: "test-search-application-2" }
+  - match: { results.2.search_alias: "test-search-application-2" }
+  - match: { results.2.indices: [ "test-index2" ] }
+  - match: { results.2.analytics_collection_name: "test-analytics2" }
+  - match: { results.2.updated_at_millis: null }
+
+---
+"Pagination - From":
+  - do:
+      search_application.list:
+        from: 1
+
+  - match: { count: 3 }
+
+  - match: { results.0.name: "test-search-application-1" }
+  - match: { results.0.search_alias: "test-search-application-1" }
+  - match: { results.0.indices: [ "test-index1" ] }
+  - match: { results.0.analytics_collection_name: "test-analytics1" }
+  - match: { results.0.updated_at_millis: null }
+
+  - match: { results.1.name: "test-search-application-2" }
+  - match: { results.1.search_alias: "test-search-application-2" }
+  - match: { results.1.indices: [ "test-index2" ] }
+  - match: { results.1.analytics_collection_name: "test-analytics2" }
+  - match: { results.1.updated_at_millis: null }
+
+---
+"Pagination - Size":
+  - do:
+      search_application.list:
+        size: 2
+
+  - match: { count: 3 }
+
+  - match: { results.0.name: "another-test-search-application" }
+  - match: { results.0.search_alias: "another-test-search-application" }
+  - match: { results.0.indices: [ "test-index1", "test-index2" ] }
+  - match: { results.0.analytics_collection_name: "test-another-analytics" }
+  - match: { results.0.updated_at_millis: null }
+
+  - match: { results.1.name: "test-search-application-1" }
+  - match: { results.1.search_alias: "test-search-application-1" }
+  - match: { results.1.indices: [ "test-index1" ] }
+  - match: { results.1.analytics_collection_name: "test-analytics1" }
+  - match: { results.1.updated_at_millis: null }
+
+
+---
+"Query":
+  - do:
+      search_application.list:
+        q: "test-search-application-*"
+
+  - match: { count: 2 }
+
+  - match: { results.0.name: "test-search-application-1" }
+  - match: { results.0.search_alias: "test-search-application-1" }
+  - match: { results.0.indices: [ "test-index1" ] }
+  - match: { results.0.analytics_collection_name: "test-analytics1" }
+  - match: { results.0.updated_at_millis: null }
+
+  - match: { results.1.name: "test-search-application-2" }
+  - match: { results.1.search_alias: "test-search-application-2" }
+  - match: { results.1.indices: [ "test-index2" ] }
+  - match: { results.1.analytics_collection_name: "test-analytics2" }
+  - match: { results.1.updated_at_millis: null }
+---
+"Empty query results":
+  - do:
+      search_application.list:
+        q: "non-existing-query"
+
+  - match: { count: 0 }
+  - match: { results: [] }

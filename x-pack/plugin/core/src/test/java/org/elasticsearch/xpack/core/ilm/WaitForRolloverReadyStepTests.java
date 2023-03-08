@@ -194,9 +194,16 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         if (conditions.getMaxDocs() != null) {
             expectedConditions.add(new MaxDocsCondition(conditions.getMaxDocs()));
         }
+        long maxPrimaryShardDocs;
         if (conditions.getMaxPrimaryShardDocs() != null) {
-            expectedConditions.add(new MaxPrimaryShardDocsCondition(conditions.getMaxPrimaryShardDocs()));
+            maxPrimaryShardDocs = conditions.getMaxPrimaryShardDocs();
+            if (maxPrimaryShardDocs > WaitForRolloverReadyStep.MAX_PRIMARY_SHARD_DOCS) {
+                maxPrimaryShardDocs = WaitForRolloverReadyStep.MAX_PRIMARY_SHARD_DOCS;
+            }
+        } else {
+            maxPrimaryShardDocs = WaitForRolloverReadyStep.MAX_PRIMARY_SHARD_DOCS;
         }
+        expectedConditions.add(new MaxPrimaryShardDocsCondition(maxPrimaryShardDocs));
         if (conditions.getMinSize() != null) {
             expectedConditions.add(new MinSizeCondition(conditions.getMinSize()));
         }
@@ -677,7 +684,83 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         Set<Condition<?>> expectedConditions = getExpectedConditions(step, rolloverOnlyIfHasDocuments);
         assertEquals(expectedConditions.size(), request.getConditions().getConditions().size());
         Set<Object> expectedConditionValues = expectedConditions.stream().map(Condition::value).collect(Collectors.toSet());
-        Set<Object> actualConditionValues = request.getConditionValues().stream().map(Condition::value).collect(Collectors.toSet());
+        Set<Object> actualConditionValues = request.getConditions()
+            .getConditions()
+            .values()
+            .stream()
+            .map(Condition::value)
+            .collect(Collectors.toSet());
         assertEquals(expectedConditionValues, actualConditionValues);
+    }
+
+    public void testCreateRolloverRequestRolloverBeyondMaximumPrimaryShardDocCount() {
+        WaitForRolloverReadyStep step = createRandomInstance();
+        String rolloverTarget = randomAlphaOfLength(5);
+        TimeValue masterTimeout = TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test");
+        var c = step.getConditions();
+        // If beyond MAX_PRIMARY_SHARD_DOCS_FOR_TSDB then expected is always MAX_PRIMARY_SHARD_DOCS_FOR_TSDB
+        step = new WaitForRolloverReadyStep(
+            step.getKey(),
+            step.getNextStepKey(),
+            step.getClient(),
+            c.getMaxSize(),
+            c.getMaxPrimaryShardSize(),
+            c.getMaxAge(),
+            c.getMaxDocs(),
+            randomLongBetween(WaitForRolloverReadyStep.MAX_PRIMARY_SHARD_DOCS, Long.MAX_VALUE),
+            c.getMinSize(),
+            c.getMinPrimaryShardSize(),
+            c.getMinAge(),
+            c.getMinDocs(),
+            c.getMinPrimaryShardDocs()
+        );
+        RolloverRequest request = step.createRolloverRequest(rolloverTarget, masterTimeout, true);
+        assertThat(request.getRolloverTarget(), is(rolloverTarget));
+        assertThat(request.masterNodeTimeout(), is(masterTimeout));
+        assertThat(request.isDryRun(), is(true)); // it's always a dry_run
+        assertThat(request.getConditions().getMaxPrimaryShardDocs(), equalTo(WaitForRolloverReadyStep.MAX_PRIMARY_SHARD_DOCS));
+        // If null then expected is always MAX_PRIMARY_SHARD_DOCS_FOR_TSDB
+        step = new WaitForRolloverReadyStep(
+            step.getKey(),
+            step.getNextStepKey(),
+            step.getClient(),
+            c.getMaxSize(),
+            c.getMaxPrimaryShardSize(),
+            c.getMaxAge(),
+            c.getMaxDocs(),
+            null,
+            c.getMinSize(),
+            c.getMinPrimaryShardSize(),
+            c.getMinAge(),
+            c.getMinDocs(),
+            c.getMinPrimaryShardDocs()
+        );
+        request = step.createRolloverRequest(rolloverTarget, masterTimeout, true);
+        assertThat(request.getRolloverTarget(), is(rolloverTarget));
+        assertThat(request.masterNodeTimeout(), is(masterTimeout));
+        assertThat(request.isDryRun(), is(true)); // it's always a dry_run
+        assertThat(request.getConditions().getMaxPrimaryShardDocs(), equalTo(WaitForRolloverReadyStep.MAX_PRIMARY_SHARD_DOCS));
+        // If less then WaitForRolloverReadyStep.MAX_PRIMARY_SHARD_DOCS_FOR_TSDB then expected is what has been defined
+        long maxPrimaryShardDocCount;
+        step = new WaitForRolloverReadyStep(
+            step.getKey(),
+            step.getNextStepKey(),
+            step.getClient(),
+            c.getMaxSize(),
+            c.getMaxPrimaryShardSize(),
+            c.getMaxAge(),
+            c.getMaxDocs(),
+            maxPrimaryShardDocCount = randomLongBetween(1, WaitForRolloverReadyStep.MAX_PRIMARY_SHARD_DOCS - 1),
+            c.getMinSize(),
+            c.getMinPrimaryShardSize(),
+            c.getMinAge(),
+            c.getMinDocs(),
+            c.getMinPrimaryShardDocs()
+        );
+        request = step.createRolloverRequest(rolloverTarget, masterTimeout, true);
+        assertThat(request.getRolloverTarget(), is(rolloverTarget));
+        assertThat(request.masterNodeTimeout(), is(masterTimeout));
+        assertThat(request.isDryRun(), is(true)); // it's always a dry_run
+        assertThat(request.getConditions().getMaxPrimaryShardDocs(), equalTo(maxPrimaryShardDocCount));
     }
 }

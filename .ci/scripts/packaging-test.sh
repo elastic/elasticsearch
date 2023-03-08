@@ -24,6 +24,7 @@ set -e
 
 . .ci/java-versions.properties
 BUILD_JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
+ES_RUNTIME_JAVA=$HOME/.java/java8
 
 rm -Rfv $HOME/.gradle/init.d/ && mkdir -p $HOME/.gradle/init.d
 cp -v .ci/init.gradle $HOME/.gradle/init.d
@@ -75,6 +76,6 @@ sudo -E env \
   PATH=$BUILD_JAVA_HOME/bin:`sudo bash -c 'echo -n $PATH'` \
   --unset=ES_JAVA_HOME \
   --unset=JAVA_HOME \
-  SYSTEM_JAVA_HOME=`readlink -f -n $BUILD_JAVA_HOME` \
+  SYSTEM_JAVA_HOME=`readlink -f -n $ES_RUNTIME_JAVA` \
   ./gradlew -g $HOME/.gradle --scan --parallel --continue $@
 

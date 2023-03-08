@@ -4,9 +4,9 @@
 [subs="attributes"]
 ++++
 
-<titleabbrev>Upsert search applications</titleabbrev>
+<titleabbrev>Upsert Search Applications</titleabbrev>
 
-Creates or updates a search application.
+Creates or updates a Search Application.
 
 [[put-search-application-request]]
 == {api-request-title}
@@ -17,30 +17,27 @@ Creates or updates a search application.
 == {api-prereq-title}
 
 Requires the `manage_search_application` cluster privilege.
-Also requires manage `manage_index` privileges on all indices that are added to the search application.
+Also requires manage `manage_index` privileges on all indices that are added to the Search Application.
 
 [[put-search-application-path-params]]
 == {api-path-parms-title}
 
 `create`::
-(Optional, Boolean) If true, this request will fail attempting to create a search application that already exists.
+(Optional, Boolean) If true, this request will fail attempting to create a Search Application that already exists.
 
 [[put-search-application-response-codes]]
 == {api-response-codes-title}
 
-`403`::
-Insufficient privileges
-
 `404`::
-Search application `<name>` does not exist.
+Search Application `<name>` does not exist.
 
 `409`::
-Search application `<name>` exists and `create` is `true`.
+Search Application `<name>` exists and `create` is `true`.
 
 [[put-search-application-example]]
 == {api-examples-title}
 
-The following example creates a new search application called `my-app`:
+The following example creates a new Search Application called `my-app`:
 
 [source,console]
 --------------------------------------------------
@@ -52,7 +49,7 @@ PUT _application/search_application/my-app?create
 --------------------------------------------------
 // TEST[skip:TBD]
 
-The following example creates or updates an existing search application called `my_app`:
+The following example creates or updates an existing Search Application called `my_app`:
 
 [source,console]
 --------------------------------------------------

@@ -4,10 +4,10 @@
 [subs="attributes"]
 ++++
 
-<titleabbrev>Delete search application</titleabbrev>
+<titleabbrev>Delete Search Application</titleabbrev>
 
-Removes a search application and its associated alias.
-Indices attached to the search application are not removed.
+Removes a Search Application and its associated alias.
+Indices attached to the Search Application are not removed.
 
 [[delete-search-application-request]]
 == {api-request-title}
@@ -18,7 +18,7 @@ Indices attached to the search application are not removed.
 == {api-prereq-title}
 
 Requires the `manage_search_application` cluster privilege.
-Also requires manage `manage_index` privileges on all indices that are added to the search application.
+Also requires manage `manage_index` privileges on all indices that are included in the Search Application.
 
 [[delete-search-application-path-params]]
 == {api-path-parms-title}
@@ -32,16 +32,13 @@ Also requires manage `manage_index` privileges on all indices that are added to 
 `400`::
 The `name` was not provided.
 
-`403`::
-Insufficient privileges
-
 `404` (Missing resources)::
-No search application matching `name` could be found.
+No Search Application matching `name` could be found.
 
 [[delete-search-application-example]]
 == {api-examples-title}
 
-The following example deletes the search application named `my-app`:
+The following example deletes the Search Application named `my-app`:
 
 [source,console]
 --------------------------------------------------

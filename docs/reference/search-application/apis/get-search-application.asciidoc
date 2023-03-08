@@ -4,9 +4,9 @@
 [subs="attributes"]
 ++++
 
-<titleabbrev>Get search application</titleabbrev>
+<titleabbrev>Get Search Application</titleabbrev>
 
-Retrieves information about a search application.
+Retrieves information about a Search Application.
 
 [[get-search-application-request]]
 == {api-request-title}
@@ -17,7 +17,6 @@ Retrieves information about a search application.
 == {api-prereq-title}
 
 Requires the `manage_search-application` cluster privilege.
-Also requires manage `manage_index` privileges on all indices that are added to the search application.
 
 [[get-search-application-path-params]]
 == {api-path-parms-title}
@@ -31,16 +30,13 @@ Also requires manage `manage_index` privileges on all indices that are added to 
 `400`::
 The `name` was not provided.
 
-`403`::
-Insufficient privileges
-
 `404` (Missing resources)::
-No search application matching `name` could be found.
+No Search Application matching `name` could be found.
 
 [[get-search-application-example]]
 == {api-examples-title}
 
-The following example gets the search application named `my-app`:
+The following example gets the Search Application named `my-app`:
 
 [source,console]
 --------------------------------------------------

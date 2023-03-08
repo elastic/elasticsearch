@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -52,6 +53,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -184,15 +186,27 @@ public class SearchApplicationIndexService {
      */
     public void getSearchApplication(String resourceName, ActionListener<SearchApplication> listener) {
         final GetRequest getRequest = new GetRequest(SEARCH_APPLICATION_ALIAS_NAME).id(resourceName).realtime(true);
-        clientWithOrigin.get(getRequest, listener.delegateFailure((delegate, getResponse) -> {
-            if (getResponse.isExists() == false) {
-                delegate.onFailure(new ResourceNotFoundException(resourceName));
-                return;
+        clientWithOrigin.get(getRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(GetResponse getResponse) {
+                if (getResponse.isExists() == false) {
+                    listener.onFailure(new ResourceNotFoundException(resourceName));
+                    return;
+                }
+                final BytesReference source = getResponse.getSourceInternal();
+                final SearchApplication res = parseSearchApplicationBinaryFromSource(source);
+                listener.onResponse(res);
             }
-            final BytesReference source = getResponse.getSourceInternal();
-            final SearchApplication res = parseSearchApplicationBinaryFromSource(source);
-            delegate.onResponse(res);
-        }));
+
+            @Override
+            public void onFailure(Exception e) {
+                if (e instanceof IndexNotFoundException) {
+                    listener.onFailure(new ResourceNotFoundException(resourceName));
+                    return;
+                }
+                listener.onFailure(e);
+            }
+        });
     }
 
     private static String getSearchAliasName(SearchApplication app) {
@@ -300,6 +314,26 @@ public class SearchApplicationIndexService {
                 }
                 delegate.onResponse(deleteResponse);
             }));
+
+            clientWithOrigin.delete(deleteRequest, new ActionListener<DeleteResponse>() {
+                @Override
+                public void onResponse(DeleteResponse deleteResponse) {
+                    if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                        listener.onFailure(new ResourceNotFoundException(resourceName));
+                        return;
+                    }
+                    listener.onResponse(deleteResponse);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof IndexNotFoundException) {
+                        listener.onFailure(new ResourceNotFoundException(resourceName));
+                        return;
+                    }
+                    listener.onFailure(e);
+                }
+            });
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -313,9 +347,24 @@ public class SearchApplicationIndexService {
         IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest().addAliasAction(
             IndicesAliasesRequest.AliasActions.remove().aliases(searchAliasName).indices("*")
         );
+
         clientWithOrigin.admin()
             .indices()
-            .aliases(aliasesRequest, listener.delegateFailure((l, r) -> l.onResponse(AcknowledgedResponse.TRUE)));
+            .aliases(aliasesRequest, new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    listener.onResponse(AcknowledgedResponse.TRUE);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof IndexNotFoundException) {
+                        listener.onFailure(new ResourceNotFoundException(searchAliasName));
+                        return;
+                    }
+                    listener.onFailure(e);
+                }
+            });
     }
 
     /**
@@ -327,10 +376,20 @@ public class SearchApplicationIndexService {
      *
      */
     public void deleteSearchApplicationAndAlias(String resourceName, ActionListener<DeleteResponse> listener) {
-        removeAlias(
-            SearchApplication.getSearchAliasName(resourceName),
-            listener.delegateFailure((l, r) -> deleteSearchApplication(resourceName, l))
-        );
+        removeAlias(SearchApplication.getSearchAliasName(resourceName), new ActionListener<AcknowledgedResponse>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                deleteSearchApplication(resourceName, listener);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (e instanceof AliasesNotFoundException) {
+                    listener.onFailure(new ResourceNotFoundException(resourceName));
+                }
+                listener.onFailure(e);
+            }
+        });
     }
 
     /**
@@ -362,9 +421,9 @@ public class SearchApplicationIndexService {
                 public void onFailure(Exception e) {
                     if (e instanceof IndexNotFoundException) {
                         listener.onResponse(new SearchApplicationResult(Collections.emptyList(), 0L));
-                    } else {
-                        listener.onFailure(e);
+                        return;
                     }
+                    listener.onFailure(e);
                 }
             });
         } catch (Exception e) {

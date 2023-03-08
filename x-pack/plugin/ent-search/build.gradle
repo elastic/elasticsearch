@@ -5,7 +5,7 @@ apply plugin: 'elasticsearch.legacy-java-rest-test'
 esplugin {
   name 'x-pack-ent-search'
   description 'Elasticsearch Expanded Pack Plugin - Enterprise Search'
-  classname 'org.elasticsearch.xpack.entsearch.EnterpriseSearch'
+  classname 'org.elasticsearch.xpack.application.EnterpriseSearch'
   extendedPlugins = ['x-pack-core']
 }
 

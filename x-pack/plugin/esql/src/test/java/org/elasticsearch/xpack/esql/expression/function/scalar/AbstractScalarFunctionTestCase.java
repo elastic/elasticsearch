@@ -84,6 +84,10 @@ public abstract class AbstractScalarFunctionTestCase extends ESTestCase {
         return EsqlDataTypes.types().stream().filter(DataType::isRational).toArray(DataType[]::new);
     }
 
+    protected final DataType[] numerics() {
+        return EsqlDataTypes.types().stream().filter(DataType::isNumeric).toArray(DataType[]::new);
+    }
+
     protected record ArgumentSpec(boolean optional, Set<DataType> validTypes) {}
 
     protected abstract Expression build(Source source, List<Literal> args);
@@ -118,6 +122,9 @@ public abstract class AbstractScalarFunctionTestCase extends ESTestCase {
         }
         if (withoutNull.equals(Arrays.asList(rationals()))) {
             return "double";
+        }
+        if (withoutNull.equals(Arrays.asList(numerics()))) {
+            return "numeric";
         }
         throw new IllegalArgumentException("can't guess expected type for " + validTypes);
     }

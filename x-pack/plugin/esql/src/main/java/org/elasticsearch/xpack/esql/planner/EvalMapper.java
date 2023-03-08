@@ -15,7 +15,6 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -28,7 +27,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Binar
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.ReflectionUtils;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -40,21 +38,16 @@ public final class EvalMapper {
             typeToken = ReflectionUtils.detectSuperTypeForRuleLike(getClass());
         }
 
-        protected ExpressionMapper(Class<E> typeToken) {
-            this.typeToken = typeToken;
-        }
-
         protected abstract Supplier<ExpressionEvaluator> map(E expression, Layout layout);
     }
 
-    private static final List<ExpressionMapper<?>> MAPPERS = Arrays.asList(
+    private static final List<ExpressionMapper<?>> MAPPERS = List.of(
         new Arithmetics(),
         new Comparisons(),
         new BooleanLogic(),
         new Nots(),
         new Attributes(),
-        new Literals(),
-        new RoundFunction()
+        new Literals()
     );
 
     private EvalMapper() {}
@@ -245,37 +238,6 @@ public final class EvalMapper {
                 case NULL -> true;
                 case DOC, UNKNOWN -> false;
             };
-        }
-    }
-
-    static class RoundFunction extends ExpressionMapper<Round> {
-
-        @Override
-        protected Supplier<ExpressionEvaluator> map(Round round, Layout layout) {
-            Supplier<ExpressionEvaluator> fieldEvaluator = toEvaluator(round.field(), layout);
-            // round.decimals() == null means that decimals were not provided (it's an optional parameter of the Round function)
-            Supplier<ExpressionEvaluator> decimalsEvaluatorSupplier = round.decimals() != null
-                ? toEvaluator(round.decimals(), layout)
-                : null;
-            if (round.field().dataType().isRational()) {
-                record DecimalRoundExpressionEvaluator(ExpressionEvaluator fieldEvaluator, ExpressionEvaluator decimalsEvaluator)
-                    implements
-                        ExpressionEvaluator {
-                    @Override
-                    public Object computeRow(Page page, int pos) {
-                        // decimals could be null
-                        // it's not the same null as round.decimals() being null
-                        Object decimals = decimalsEvaluator != null ? decimalsEvaluator.computeRow(page, pos) : null;
-                        return Round.process(fieldEvaluator.computeRow(page, pos), decimals);
-                    }
-                }
-                return () -> new DecimalRoundExpressionEvaluator(
-                    fieldEvaluator.get(),
-                    decimalsEvaluatorSupplier == null ? null : decimalsEvaluatorSupplier.get()
-                );
-            } else {
-                return fieldEvaluator;
-            }
         }
     }
 }

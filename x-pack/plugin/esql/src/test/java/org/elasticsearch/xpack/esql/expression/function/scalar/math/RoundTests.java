@@ -7,9 +7,20 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.math.Maths;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.hamcrest.Matcher;
 
-public class RoundFunctionTests extends ESTestCase {
+import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
+
+public class RoundTests extends AbstractScalarFunctionTestCase {
 
     public void testRoundFunction() {
         assertEquals(123, Round.process(123, null));
@@ -49,5 +60,58 @@ public class RoundFunctionTests extends ESTestCase {
         assertEquals(Long.MAX_VALUE, Round.process(Long.MAX_VALUE, 5));
         assertEquals(Long.MIN_VALUE, Round.process(Long.MIN_VALUE, null));
         assertEquals(Long.MIN_VALUE, Round.process(Long.MIN_VALUE, 5));
+    }
+
+    @Override
+    protected List<Object> simpleData() {
+        return List.of(1 / randomDouble(), between(-30, 30));
+    }
+
+    @Override
+    protected Expression expressionForSimpleData() {
+        return new Round(Source.EMPTY, field("arg", DataTypes.DOUBLE), field("precision", DataTypes.INTEGER));
+    }
+
+    @Override
+    protected DataType expressionForSimpleDataType() {
+        return DataTypes.DOUBLE;
+    }
+
+    @Override
+    protected Matcher<Object> resultMatcher(List<Object> data) {
+        return equalTo(Maths.round((Number) data.get(0), (Number) data.get(1)));
+    }
+
+    @Override
+    protected String expectedEvaluatorSimpleToString() {
+        return "DecimalRoundExpressionEvaluator[fieldEvaluator=Doubles[channel=0], decimalsEvaluator=Ints[channel=1]]";
+    }
+
+    @Override
+    protected Expression constantFoldable(List<Object> data) {
+        return new Round(
+            Source.EMPTY,
+            new Literal(Source.EMPTY, data.get(0), DataTypes.DOUBLE),
+            new Literal(Source.EMPTY, data.get(1), DataTypes.INTEGER)
+        );
+    }
+
+    @Override
+    protected void assertSimpleWithNulls(List<Object> data, Object value, int nullBlock) {
+        if (nullBlock == 1) {
+            assertThat(value, equalTo(Maths.round((Number) data.get(0), 0)));
+        } else {
+            super.assertSimpleWithNulls(data, value, nullBlock);
+        }
+    }
+
+    @Override
+    protected List<ArgumentSpec> argSpec() {
+        return List.of(required(numerics()), optional(integers()));
+    }
+
+    @Override
+    protected Expression build(Source source, List<Literal> args) {
+        return new Round(source, args.get(0), args.size() < 2 ? null : args.get(1));
     }
 }

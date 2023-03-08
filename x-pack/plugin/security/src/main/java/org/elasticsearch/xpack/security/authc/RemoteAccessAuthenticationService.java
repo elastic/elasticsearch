@@ -90,6 +90,8 @@ public class RemoteAccessAuthenticationService {
             return;
         }
 
+        // stash to drop remote access authentication headers since we've read their values, and we want to maintain the invariant that
+        // either the remote access authentication header is in the context, or the authentication header, but not both
         try (ThreadContext.StoredContext ignored = AuditUtil.stashContextWithRequestId(threadContext)) {
             final Supplier<ThreadContext.StoredContext> storedContextSupplier = threadContext.newRestorableContext(false);
             authenticationService.authenticate(

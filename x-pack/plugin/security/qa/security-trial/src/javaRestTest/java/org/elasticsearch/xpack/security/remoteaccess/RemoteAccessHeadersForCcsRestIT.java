@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
+import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.RemoteAccessHeaders;
 import org.junit.After;
@@ -1068,7 +1069,8 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
             actualHeaders.keySet(),
             containsInAnyOrder(
                 RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY,
-                RemoteAccessHeaders.REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY
+                RemoteAccessHeaders.REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY,
+                AuditUtil.AUDIT_REQUEST_ID
             )
         );
     }

@@ -1,0 +1,55 @@
+[role="xpack"]
+[[list-engines]]
+= List Engines API
+[subs="attributes"]
+++++
+<titleabbrev>List search applications</titleabbrev>
+
+Returns information about search applications.
+
+[[list-search-applications-request]]
+== {api-request-title}
+
+`GET _application/search_application/`
+
+[[list-search-applications-prereq]]
+== {api-prereq-title}
+
+Requires the `manage_search_application` cluster privilege.
+
+[[list-search-applications-path-params]]
+== {api-path-parms-title}
+
+`q`::
+(Optional, string) Query in the Lucene query string syntax, to return only search applications matching the query.
+
+`size`::
+(Optional, indeger)
+
+`from`::
+(Optional, indeger)
+
+[[list-search-applications-response-codes]]
+== {api-response-codes-title}
+
+`403`::
+Insufficient privileges
+
+[[list-search-applications-example]]
+== {api-examples-title}
+
+The following example lists all configured search applications:
+
+[source,console]
+--------------------------------------------------
+GET _application/search_application/
+--------------------------------------------------
+// TEST[skip:TBD]
+
+The following example lists the first three search applications matching `foo`:
+
+[source,console]
+--------------------------------------------------
+GET _application/search_application/?from=0&size=3&q=foo
+--------------------------------------------------
+// TEST[skip:TBD]

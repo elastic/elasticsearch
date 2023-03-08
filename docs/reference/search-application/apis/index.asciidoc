@@ -1,0 +1,9 @@
+[[search-application-apis]]
+== Search Application APIs
+
+Use search application APIs to manage tasks and resources related to search applications.
+
+include::put-search-application.asciidoc[]
+include::get-search-application.asciidoc[]
+include::list-search-applications.asciidoc[]
+include::delete-search-application.asciidoc[]

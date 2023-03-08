@@ -1,0 +1,49 @@
+[role="xpack"]
+[[get-search-application]]
+= Get Search Application API
+[subs="attributes"]
+++++
+
+<titleabbrev>Get search application</titleabbrev>
+
+Retrieves information about a search application.
+
+[[get-search-application-request]]
+== {api-request-title}
+
+`GET _application/search_application/<name>`
+
+[[get-search-application-prereq]]
+== {api-prereq-title}
+
+Requires the `manage_search-application` cluster privilege.
+Also requires manage `manage_index` privileges on all indices that are added to the search application.
+
+[[get-search-application-path-params]]
+== {api-path-parms-title}
+
+`<name>`::
+(Required, string)
+
+[[get-search-application-response-codes]]
+== {api-response-codes-title}
+
+`400`::
+The `name` was not provided.
+
+`403`::
+Insufficient privileges
+
+`404` (Missing resources)::
+No search application matching `name` could be found.
+
+[[get-search-application-example]]
+== {api-examples-title}
+
+The following example gets the search application named `my-app`:
+
+[source,console]
+--------------------------------------------------
+GET _application/search_application/my-app/
+--------------------------------------------------
+// TEST[skip:TBD]

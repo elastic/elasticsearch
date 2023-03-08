@@ -1,9 +1,0 @@
-[[engine-apis]]
-== Engine APIs
-
-Use engine APIs to manage tasks and resources related to search engines.
-
-include::put-engine.asciidoc[]
-include::get-engine.asciidoc[]
-include::list-engines.asciidoc[]
-include::delete-engine.asciidoc[]

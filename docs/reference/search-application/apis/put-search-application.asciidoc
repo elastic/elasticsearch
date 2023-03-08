@@ -1,0 +1,65 @@
+[role="xpack"]
+[[put-search-application]]
+= Put Search Application API
+[subs="attributes"]
+++++
+
+<titleabbrev>Upsert search applications</titleabbrev>
+
+Creates or updates a search application.
+
+[[put-search-application-request]]
+== {api-request-title}
+
+`PUT _application/search_application/<name>`
+
+[[put-search-application-prereq]]
+== {api-prereq-title}
+
+Requires the `manage_search_application` cluster privilege.
+Also requires manage `manage_index` privileges on all indices that are added to the search application.
+
+[[put-search-application-path-params]]
+== {api-path-parms-title}
+
+`create`::
+(Optional, Boolean) If true, this request will fail attempting to create a search application that already exists.
+
+[[put-search-application-response-codes]]
+== {api-response-codes-title}
+
+`403`::
+Insufficient privileges
+
+`404`::
+Search application `<name>` does not exist.
+
+`409`::
+Search application `<name>` exists and `create` is `true`.
+
+[[put-search-application-example]]
+== {api-examples-title}
+
+The following example creates a new search application called `my-app`:
+
+[source,console]
+--------------------------------------------------
+PUT _application/search_application/my-app?create
+{
+  "indices": [ "index1", "index2" ],
+  "analytics_collection_name": "my-analytics-collection"
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+The following example creates or updates an existing search application called `my_app`:
+
+[source,console]
+--------------------------------------------------
+PUT _application/search_application/my-app
+{
+  "indices": [ "index1", "index2", "index3" ],
+  "analytics_collection_name": "my-analytics-collection"
+}
+--------------------------------------------------
+// TEST[skip:TBD]

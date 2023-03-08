@@ -87,6 +87,11 @@ class RollupShardIndexer {
     private final Rounding.Prepared rounding;
     private final List<FieldValueFetcher> fieldValueFetchers;
     private final RollupShardTask task;
+    /*
+     * This monitor is used to throttle calls to bulkProcessor.add when the bulkProcessor already has too many bytes in flight and cannot
+     * accept more data until already-in-flight requests complete.
+     */
+    private final Object bulkProcessorTooFullMonitor = new Object();
     private volatile boolean abort = false;
     ByteSizeValue rollupBulkSize = ROLLUP_BULK_SIZE;
     ByteSizeValue rollupMaxBytesInFlight = ROLLUP_MAX_BYTES_IN_FLIGHT;
@@ -200,8 +205,9 @@ class RollupShardIndexer {
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
-                synchronized (RollupShardIndexer.this) {
-                    RollupShardIndexer.this.notifyAll();
+                // Notify in case any rejected docs were waiting for the space in TimeSeriesBucketCollector#indexBucket
+                synchronized (bulkProcessorTooFullMonitor) {
+                    bulkProcessorTooFullMonitor.notifyAll();
                 }
                 task.addNumIndexed(request.numberOfActions());
                 if (response.hasFailures()) {
@@ -225,8 +231,9 @@ class RollupShardIndexer {
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, Exception failure) {
-                synchronized (RollupShardIndexer.this) {
-                    RollupShardIndexer.this.notifyAll();
+                // Notify in case any rejected docs were waiting for the space in TimeSeriesBucketCollector#indexBucket
+                synchronized (bulkProcessorTooFullMonitor) {
+                    bulkProcessorTooFullMonitor.notifyAll();
                 }
                 if (failure != null) {
                     long items = request.numberOfActions();
@@ -356,6 +363,12 @@ class RollupShardIndexer {
             if (logger.isTraceEnabled()) {
                 logger.trace("Indexing rollup doc: [{}]", Strings.toString(doc));
             }
+            /*
+             * We want this method to block until the bulkProcessor accepts the doc. Otherwise the TimeSeriesIndexSearcher will continue
+             * retrieving data, and more and more docs will get rejected. BulkProcessor2 does not have the ability to exert backpressure.
+             * So we have to catch the EsRejectedExecutionException that is thrown when it already has too many bytes in flight. We then
+             * wait until some bulk has been completed, reducing the amount of data in flight and (probably) making room for this doc.
+             */
             boolean successfullyAdded = false;
             while (successfullyAdded == false && abort == false) {
                 try {
@@ -363,9 +376,14 @@ class RollupShardIndexer {
                     successfullyAdded = true;
                 } catch (EsRejectedExecutionException e) {
                     logger.info("Rollup doc rejected, and will try again");
-                    synchronized (RollupShardIndexer.this) {
+                    synchronized (bulkProcessorTooFullMonitor) {
+                        /*
+                         * Note: It is possible that notifyAll was called between the call to add above and entering this syncronized block.
+                         * But in that case, either we wait 500ms, or another batch completes and another call to notifyAll wakes us up.
+                         * Either way is preferable to moving the whole try/catch into this synchronized block.
+                         */
                         try {
-                            RollupShardIndexer.this.wait(500);
+                            bulkProcessorTooFullMonitor.wait(500);
                         } catch (InterruptedException ex) {
                             Thread.currentThread().interrupt();
                             throw new RuntimeException(ex);

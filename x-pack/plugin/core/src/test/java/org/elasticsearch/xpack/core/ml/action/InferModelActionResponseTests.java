@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -31,24 +32,31 @@ import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResultsTes
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResultsTests;
 
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.Matchers.containsString;
+
 public class InferModelActionResponseTests extends AbstractWireSerializingTestCase<Response> {
+
+    private static List<String> INFERENCE_RESULT_TYPES = List.of(
+        ClassificationInferenceResults.NAME,
+        RegressionInferenceResults.NAME,
+        NerResults.NAME,
+        TextEmbeddingResults.NAME,
+        PyTorchPassThroughResults.NAME,
+        FillMaskResults.NAME,
+        WarningInferenceResults.NAME,
+        QuestionAnsweringInferenceResults.NAME,
+        TextExpansionResults.NAME
+    );
 
     @Override
     protected Response createTestInstance() {
-        String resultType = randomFrom(
-            ClassificationInferenceResults.NAME,
-            RegressionInferenceResults.NAME,
-            NerResults.NAME,
-            TextEmbeddingResults.NAME,
-            PyTorchPassThroughResults.NAME,
-            FillMaskResults.NAME,
-            WarningInferenceResults.NAME,
-            QuestionAnsweringInferenceResults.NAME,
-            TextExpansionResults.NAME
-        );
+        String resultType = randomFrom(INFERENCE_RESULT_TYPES);
+
         return new Response(
             Stream.generate(() -> randomInferenceResult(resultType)).limit(randomIntBetween(0, 10)).collect(Collectors.toList()),
             randomAlphaOfLength(10),
@@ -58,7 +66,14 @@ public class InferModelActionResponseTests extends AbstractWireSerializingTestCa
 
     @Override
     protected Response mutateInstance(Response instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        var modelId = instance.getModelId();
+        var isLicensed = instance.isLicensed();
+        if (randomBoolean()) {
+            modelId = modelId + "foo";
+        } else {
+            isLicensed = isLicensed == false;
+        }
+        return new Response(instance.getInferenceResults(), modelId, isLicensed);
     }
 
     private static InferenceResults randomInferenceResult(String resultType) {
@@ -74,6 +89,15 @@ public class InferModelActionResponseTests extends AbstractWireSerializingTestCa
             case TextExpansionResults.NAME -> TextExpansionResultsTests.createRandomResults();
             default -> throw new AssertionError("unexpected result type [" + resultType + "]");
         };
+    }
+
+    public void testToXContentString() {
+        // assert that the toXContent method does not error
+        for (var inferenceType : INFERENCE_RESULT_TYPES) {
+            var s = Strings.toString(randomInferenceResult(inferenceType));
+            assertNotNull(s);
+            assertThat(s, not(containsString("error")));
+        }
     }
 
     @Override

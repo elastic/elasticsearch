@@ -13,5 +13,6 @@ module org.elasticsearch.dlm {
     requires org.apache.lucene.core;
     requires org.apache.logging.log4j;
 
+    exports org.elasticsearch.dlm.action to org.elasticsearch.server;
     exports org.elasticsearch.dlm;
 }

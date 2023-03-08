@@ -47,7 +47,6 @@ import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -169,9 +168,9 @@ public class FileSettingsServiceTests extends ESTestCase {
         FileSettingsService service = spy(fileSettingsService);
         CountDownLatch processFileLatch = new CountDownLatch(1);
 
-        doAnswer((Answer<CompletableFuture<Void>>) invocation -> {
+        doAnswer((Answer<Void>) invocation -> {
             processFileLatch.countDown();
-            return CompletableFuture.completedFuture(null);
+            return null;
         }).when(service).processFileChanges();
 
         service.start();

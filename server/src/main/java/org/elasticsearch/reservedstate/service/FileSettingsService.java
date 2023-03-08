@@ -19,7 +19,9 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.BufferedInputStream;
+import java.io.IOException;
 import java.nio.file.Files;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.xcontent.XContentType.JSON;
 
@@ -101,7 +103,7 @@ public class FileSettingsService extends AbstractFileWatchingService {
     }
 
     @Override
-    PlainActionFuture<Void> processFileChanges() {
+    void processFileChanges() throws ExecutionException, InterruptedException, IOException {
         PlainActionFuture<Void> completion = PlainActionFuture.newFuture();
         logger.info("processing path [{}] for [{}]", watchedFile(), NAMESPACE);
         try (
@@ -110,11 +112,8 @@ public class FileSettingsService extends AbstractFileWatchingService {
             var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
         ) {
             stateService.process(NAMESPACE, parser, (e) -> completeProcessing(e, completion));
-        } catch (Exception e) {
-            completion.onFailure(e);
         }
-
-        return completion;
+        completion.get();
     }
 
     private void completeProcessing(Exception e, PlainActionFuture<Void> completion) {

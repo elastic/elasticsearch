@@ -10,7 +10,6 @@ package org.elasticsearch.reservedstate.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -78,7 +77,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
      * Any implementation of this class must implement this method in order
      * to define what happens once the watched file changes.
      */
-    abstract PlainActionFuture<Void> processFileChanges();
+    abstract void processFileChanges() throws InterruptedException, ExecutionException, IOException;
 
     /**
      * There may be an indication in cluster state that the file we are watching
@@ -363,11 +362,11 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     // package private for testing
     void processSettingsAndNotifyListeners() throws InterruptedException {
         try {
-            processFileChanges().get();
+            processFileChanges();
             for (var listener : eventListeners) {
                 listener.watchedFileChanged();
             }
-        } catch (ExecutionException e) {
+        } catch (IOException | ExecutionException e) {
             logger.error(() -> "Error processing watched file: " + watchedFile(), e.getCause());
         }
     }

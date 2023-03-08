@@ -321,6 +321,11 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         return license == LicensesMetadata.LICENSE_TOMBSTONE ? null : license;
     }
 
+    @Override
+    public XPackLicenseState getXPackLicenseState() {
+        return xPacklicenseState;
+    }
+
     private LicensesMetadata getLicensesMetadata() {
         return this.clusterService.state().metadata().custom(LicensesMetadata.TYPE);
     }

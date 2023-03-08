@@ -29,10 +29,15 @@ import java.util.stream.Stream;
 public interface LicenseService extends LifecycleComponent {
 
     /**
-     * Get the current license.
+     * Get the current license. General consumption should prefer {@link LicenseService#getXPackLicenseState()} for license decisions.
      * @return the current license, null or {@link LicensesMetadata#LICENSE_TOMBSTONE} if no license is available.
      */
     License getLicense();
+
+    /**
+     * @return {@link XPackLicenseState} which should be the preferred way to read the license state to make license based decisions.
+     */
+    XPackLicenseState getXPackLicenseState();
 
     /**
      * Get the current license from the provided metadata. Implementations not backed by {@link org.elasticsearch.cluster.ClusterState}
@@ -107,7 +112,9 @@ public interface LicenseService extends LifecycleComponent {
          * Updates the {@link XPackLicenseState}. The {@link XPackLicenseState} is the preferred way to make decisions based on the license.
          * The {@link XPackLicenseState} is derived from the current {@link License} and must be updated for any changes to the license.
          */
-        void updateXPackLicenseState(License license);
+        default void updateXPackLicenseState(License license) {
+            getXPackLicenseState().update(license.operationMode(), true, "");
+        }
 
         /**
          * Creates or updates the current license as defined by the request.

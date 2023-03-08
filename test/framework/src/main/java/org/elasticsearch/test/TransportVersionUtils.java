@@ -121,17 +121,4 @@ public class TransportVersionUtils {
     public static TransportVersion randomPreviousCompatibleVersion(Random random, TransportVersion version) {
         return randomVersionBetween(random, minimumCompatibilityVersion(version), getPreviousVersion(version));
     }
-
-    private static final int MINIMUM_COMPAT_INDEX = Collections.binarySearch(ALL_VERSIONS, TransportVersion.MINIMUM_COMPATIBLE);
-
-    /** returns the first compatible future version */
-    public static TransportVersion compatibleFutureVersion(TransportVersion version) {
-        int versionIdx = Collections.binarySearch(ALL_VERSIONS, version);
-        if (versionIdx < 0) {
-            versionIdx = -(versionIdx + 1);
-        } else {
-            versionIdx++;
-        }
-        return ALL_VERSIONS.get(Math.max(versionIdx, MINIMUM_COMPAT_INDEX));
-    }
 }

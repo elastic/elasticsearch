@@ -25,9 +25,9 @@ import java.util.List;
  */
 class FieldValueFetcher {
 
-    private final MappedFieldType fieldType;
-    private final IndexFieldData<?> fieldData;
-    private final AbstractDownsampleFieldProducer rollupFieldProducer;
+    protected final MappedFieldType fieldType;
+    protected final IndexFieldData<?> fieldData;
+    protected final AbstractDownsampleFieldProducer rollupFieldProducer;
 
     protected FieldValueFetcher(MappedFieldType fieldType, IndexFieldData<?> fieldData) {
         this.fieldType = fieldType;
@@ -89,8 +89,12 @@ class FieldValueFetcher {
                 }
             } else {
                 if (context.fieldExistsInIndex(field)) {
-                    IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
-                    fetchers.add(new FieldValueFetcher(fieldType, fieldData));
+                    final IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
+                    if (context.isMultiField(field)) {
+                        fetchers.add(new MultiFieldValueFetcher(fieldType, fieldData));
+                    } else {
+                        fetchers.add(new FieldValueFetcher(fieldType, fieldData));
+                    }
                 }
             }
         }

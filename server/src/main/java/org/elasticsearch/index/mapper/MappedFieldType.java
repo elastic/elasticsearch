@@ -248,11 +248,23 @@ public abstract class MappedFieldType {
         int prefixLength,
         int maxExpansions,
         boolean transpositions,
-        SearchExecutionContext context
+        SearchExecutionContext context,
+        @Nullable MultiTermQuery.RewriteMethod rewriteMethod
     ) {
         throw new IllegalArgumentException(
             "Can only use fuzzy queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
+    }
+
+    public Query fuzzyQuery(
+        Object value,
+        Fuzziness fuzziness,
+        int prefixLength,
+        int maxExpansions,
+        boolean transpositions,
+        SearchExecutionContext context
+    ) {
+        return fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context, null);
     }
 
     // Case sensitive form of prefix query

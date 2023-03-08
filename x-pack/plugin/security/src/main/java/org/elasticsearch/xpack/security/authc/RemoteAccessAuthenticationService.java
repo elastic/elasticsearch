@@ -148,7 +148,19 @@ public class RemoteAccessAuthenticationService {
     }
 
     private void validate(final RemoteAccessAuthentication remoteAccessAuthentication) {
-        final Subject effectiveSubject = remoteAccessAuthentication.getAuthentication().getEffectiveSubject();
+        final Authentication authentication = remoteAccessAuthentication.getAuthentication();
+        authentication.checkConsistency();
+        final Subject effectiveSubject = authentication.getEffectiveSubject();
+        if (false == effectiveSubject.getType().equals(Subject.Type.USER)) {
+            throw new IllegalArgumentException(
+                "subject ["
+                    + effectiveSubject.getUser().principal()
+                    + "] has type ["
+                    + effectiveSubject.getType()
+                    + "] which is not supported for remote access"
+            );
+        }
+
         for (RemoteAccessAuthentication.RoleDescriptorsBytes roleDescriptorsBytes : remoteAccessAuthentication
             .getRoleDescriptorsBytesList()) {
             final Set<RoleDescriptor> roleDescriptors = roleDescriptorsBytes.toRoleDescriptors();
@@ -166,15 +178,6 @@ public class RemoteAccessAuthenticationService {
                     );
                 }
             }
-        }
-        if (false == effectiveSubject.getType().equals(Subject.Type.USER)) {
-            throw new IllegalArgumentException(
-                "subject ["
-                    + effectiveSubject.getUser().principal()
-                    + "] has type ["
-                    + effectiveSubject.getType()
-                    + "] which is not supported for remote access"
-            );
         }
     }
 

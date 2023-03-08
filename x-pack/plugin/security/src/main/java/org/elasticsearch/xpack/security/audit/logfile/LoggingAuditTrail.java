@@ -1653,7 +1653,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 }
             }
             // TODO: service token info is logged in a separate authentication field (#84394)
-            if (authentication.isAuthenticatedWithServiceAccount()) {
+            if (authentication.isServiceAccount()) {
                 logEntry.with(
                     SERVICE_TOKEN_NAME_FIELD_NAME,
                     (String) authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_NAME_FIELD)

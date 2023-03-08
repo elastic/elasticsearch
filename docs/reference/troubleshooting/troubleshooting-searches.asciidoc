@@ -228,8 +228,8 @@ field may have a different name.
 [[troubleshooting-searches-latest-data]]
 === Check the latest value
 
-For time-series data, confirm there's non-filtered data within the attempted 
-time range. For example, if trying to query the lastest data for field 
+For time-series data, confirm there is non-filtered data within the attempted 
+time range. For example, if you are trying to query the lastest data for field 
 `@timestamp` then you can run the following to see if the max `@timestamp` 
 falls within the attempted range:
 
@@ -237,7 +237,7 @@ falls within the attempted range:
 ----
 GET my-index-000001/_search?sort=@timestamp:desc&size=1
 ----
-
+//TEST[continued]
 
 [discrete]
 [[troubleshooting-searches-validate-explain-profile]]

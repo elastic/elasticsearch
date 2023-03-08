@@ -1,8 +1,9 @@
 [role="xpack"]
-[[list-engines]]
-= List Engines API
+[[list-search-applications]]
+= List Search Applications API
 [subs="attributes"]
 ++++
+
 <titleabbrev>List search applications</titleabbrev>
 
 Returns information about search applications.

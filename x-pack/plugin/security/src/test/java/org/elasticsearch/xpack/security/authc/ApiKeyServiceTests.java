@@ -469,7 +469,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         );
     }
 
-    public void testCreateApiKeyWillCacheOnCreation() {
+    public void testCreateApiKeyWillCacheOnCreation() throws Exception {
         final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
         final ApiKeyService service = createApiKeyService(settings);
         final Authentication authentication = AuthenticationTestHelper.builder()
@@ -972,7 +972,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(e.getMetadata(FeatureNotEnabledException.DISABLED_FEATURE_METADATA), contains("api_keys"));
     }
 
-    public void testApiKeyCache() throws IOException {
+    public void testApiKeyCache() throws Exception {
         final String apiKeyId = randomAlphaOfLength(12);
         final String apiKey = randomAlphaOfLength(16);
         Hasher hasher = getFastStoredHashAlgoForTests();
@@ -1280,7 +1280,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(cachedApiKeyHashResult.success, is(true));
     }
 
-    public void testApiKeyCacheDisabled() throws IOException {
+    public void testApiKeyCacheDisabled() throws Exception {
         final String apiKey = randomAlphaOfLength(16);
         Hasher hasher = getFastStoredHashAlgoForTests();
         final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
@@ -1300,7 +1300,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertNull(service.getRoleDescriptorsBytesCache());
     }
 
-    public void testApiKeyDocCacheCanBeDisabledSeparately() throws IOException {
+    public void testApiKeyDocCacheCanBeDisabledSeparately() throws Exception {
         final String apiKey = randomAlphaOfLength(16);
         Hasher hasher = getFastStoredHashAlgoForTests();
         final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));

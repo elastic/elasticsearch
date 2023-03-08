@@ -18,7 +18,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 
 import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -112,7 +111,7 @@ public /* TODO final */ class FanOutListener<T> implements ActionListener<T> {
      *                      then it will be completed using the given executor.
      */
     @SuppressWarnings({ "rawtypes" })
-    public void addListener(@Nullable ThreadContext threadContext, ExecutorService executor, ActionListener<T> listener) {
+    public void addListener(@Nullable ThreadContext threadContext, Executor executor, ActionListener<T> listener) {
         if (tryComplete(ref.get(), listener)) {
             return;
         }

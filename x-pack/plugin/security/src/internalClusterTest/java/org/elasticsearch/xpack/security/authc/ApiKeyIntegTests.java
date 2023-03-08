@@ -401,7 +401,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         verifyInvalidateResponse(1, responses, invalidateResponse);
     }
 
-    public void testInvalidateApiKeyWillClearApiKeyCache() throws IOException, ExecutionException, InterruptedException {
+    public void testInvalidateApiKeyWillClearApiKeyCache() throws Exception {
         final List<ApiKeyService> services = Arrays.stream(internalCluster().getNodeNames())
             .map(n -> internalCluster().getInstance(ApiKeyService.class, n))
             .collect(Collectors.toList());

@@ -995,7 +995,7 @@ public class ApiKeyService {
                 }
 
                 if (valueAlreadyInCache.get()) {
-                    listenableCacheEntry.addListener(ActionListener.wrap(result -> {
+                    listenableCacheEntry.addListener(threadPool.getThreadContext(), threadPool.generic(), ActionListener.wrap(result -> {
                         if (result.success) {
                             if (result.verify(credentials.getKey())) {
                                 // move on
@@ -1009,7 +1009,7 @@ public class ApiKeyService {
                             apiKeyAuthCache.invalidate(credentials.getId(), listenableCacheEntry);
                             validateApiKeyCredentials(docId, apiKeyDoc, credentials, clock, listener);
                         }
-                    }, listener::onFailure), threadPool.generic(), threadPool.getThreadContext());
+                    }, listener::onFailure));
                 } else {
                     verifyKeyAgainstHash(apiKeyDoc.hash, credentials, ActionListener.wrap(verified -> {
                         listenableCacheEntry.onResponse(new CachedApiKeyHashResult(verified, credentials.getKey()));
@@ -1035,7 +1035,7 @@ public class ApiKeyService {
     }
 
     // pkg private for testing
-    CachedApiKeyHashResult getFromCache(String id) {
+    CachedApiKeyHashResult getFromCache(String id) throws Exception {
         return apiKeyAuthCache == null ? null : apiKeyAuthCache.get(id).result();
     }
 

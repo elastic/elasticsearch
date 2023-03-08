@@ -285,13 +285,12 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 } else {
                     fullConnectionStep.onResponse(null);
                 }
-            }, e -> {
-                final Transport.Connection connection = openConnectionStep.result();
+            }, e -> openConnectionStep.addListener(ActionListener.wrap(connection -> {
                 final DiscoveryNode node = connection.getNode();
                 logger.debug(() -> format("[%s] failed to handshake with seed node: [%s]", clusterAlias, node), e);
                 IOUtils.closeWhileHandlingException(connection);
                 onFailure.accept(e);
-            });
+            }, onFailure)));
 
             fullConnectionStep.whenComplete(aVoid -> {
                 if (remoteClusterName.get() == null) {
@@ -339,13 +338,12 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                         )
                     );
                 }
-            }, e -> {
-                final Transport.Connection connection = openConnectionStep.result();
+            }, e -> openConnectionStep.addListener(ActionListener.wrap(connection -> {
                 final DiscoveryNode node = connection.getNode();
                 logger.debug(() -> format("[%s] failed to open managed connection to seed node: [%s]", clusterAlias, node), e);
-                IOUtils.closeWhileHandlingException(openConnectionStep.result());
+                IOUtils.closeWhileHandlingException(connection);
                 onFailure.accept(e);
-            });
+            }, onFailure)));
         } else {
             listener.onFailure(new NoSeedNodeLeftException(strategyType(), clusterAlias));
         }

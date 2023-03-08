@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResu
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResultsTests;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResultsTests;
 
@@ -44,7 +46,8 @@ public class InferModelActionResponseTests extends AbstractWireSerializingTestCa
             PyTorchPassThroughResults.NAME,
             FillMaskResults.NAME,
             WarningInferenceResults.NAME,
-            QuestionAnsweringInferenceResults.NAME
+            QuestionAnsweringInferenceResults.NAME,
+            TextExpansionResults.NAME
         );
         return new Response(
             Stream.generate(() -> randomInferenceResult(resultType)).limit(randomIntBetween(0, 10)).collect(Collectors.toList()),
@@ -59,27 +62,18 @@ public class InferModelActionResponseTests extends AbstractWireSerializingTestCa
     }
 
     private static InferenceResults randomInferenceResult(String resultType) {
-        switch (resultType) {
-            case ClassificationInferenceResults.NAME:
-                return ClassificationInferenceResultsTests.createRandomResults();
-            case RegressionInferenceResults.NAME:
-                return RegressionInferenceResultsTests.createRandomResults();
-            case NerResults.NAME:
-                return NerResultsTests.createRandomResults();
-            case TextEmbeddingResults.NAME:
-                return TextEmbeddingResultsTests.createRandomResults();
-            case PyTorchPassThroughResults.NAME:
-                return PyTorchPassThroughResultsTests.createRandomResults();
-            case FillMaskResults.NAME:
-                return FillMaskResultsTests.createRandomResults();
-            case WarningInferenceResults.NAME:
-                return WarningInferenceResultsTests.createRandomResults();
-            case QuestionAnsweringInferenceResults.NAME:
-                return QuestionAnsweringInferenceResultsTests.createRandomResults();
-            default:
-                fail("unexpected result type [" + resultType + "]");
-                return null;
-        }
+        return switch (resultType) {
+            case ClassificationInferenceResults.NAME -> ClassificationInferenceResultsTests.createRandomResults();
+            case RegressionInferenceResults.NAME -> RegressionInferenceResultsTests.createRandomResults();
+            case NerResults.NAME -> NerResultsTests.createRandomResults();
+            case TextEmbeddingResults.NAME -> TextEmbeddingResultsTests.createRandomResults();
+            case PyTorchPassThroughResults.NAME -> PyTorchPassThroughResultsTests.createRandomResults();
+            case FillMaskResults.NAME -> FillMaskResultsTests.createRandomResults();
+            case WarningInferenceResults.NAME -> WarningInferenceResultsTests.createRandomResults();
+            case QuestionAnsweringInferenceResults.NAME -> QuestionAnsweringInferenceResultsTests.createRandomResults();
+            case TextExpansionResults.NAME -> TextExpansionResultsTests.createRandomResults();
+            default -> throw new AssertionError("unexpected result type [" + resultType + "]");
+        };
     }
 
     @Override

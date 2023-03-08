@@ -15,6 +15,15 @@ import java.util.List;
 import java.util.Map;
 
 public class TextExpansionResultsTests extends InferenceResultsTestCase<TextExpansionResults> {
+    public static TextExpansionResults createRandomResults() {
+        int numTokens = randomIntBetween(0, 20);
+        List<TextExpansionResults.WeightedToken> tokenList = new ArrayList<>();
+        for (int i = 0; i < numTokens; i++) {
+            tokenList.add(new TextExpansionResults.WeightedToken(Integer.toString(i), (float) randomDoubleBetween(0.0, 5.0, false)));
+        }
+        return new TextExpansionResults(randomAlphaOfLength(4), tokenList, randomBoolean());
+    }
+
     @Override
     protected Writeable.Reader<TextExpansionResults> instanceReader() {
         return TextExpansionResults::new;
@@ -22,12 +31,7 @@ public class TextExpansionResultsTests extends InferenceResultsTestCase<TextExpa
 
     @Override
     protected TextExpansionResults createTestInstance() {
-        int numTokens = randomIntBetween(0, 20);
-        List<TextExpansionResults.WeightedToken> tokenList = new ArrayList<>();
-        for (int i = 0; i < numTokens; i++) {
-            tokenList.add(new TextExpansionResults.WeightedToken(Integer.toString(i), (float) randomDoubleBetween(0.0, 5.0, false)));
-        }
-        return new TextExpansionResults(randomAlphaOfLength(4), tokenList, randomBoolean());
+        return createRandomResults();
     }
 
     @Override

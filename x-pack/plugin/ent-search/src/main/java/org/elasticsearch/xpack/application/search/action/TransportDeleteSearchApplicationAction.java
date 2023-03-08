@@ -10,22 +10,26 @@ package org.elasticsearch.xpack.application.search.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 
 public class TransportDeleteSearchApplicationAction extends SearchApplicationTransportAction<
     DeleteSearchApplicationAction.Request,
     AcknowledgedResponse> {
 
-    private final SearchApplicationIndexService indexService;
-
     @Inject
     public TransportDeleteSearchApplicationAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        SearchApplicationIndexService indexService,
+        Client client,
+        ClusterService clusterService,
+        NamedWriteableRegistry namedWriteableRegistry,
+        BigArrays bigArrays,
         XPackLicenseState licenseState
     ) {
         super(
@@ -33,14 +37,17 @@ public class TransportDeleteSearchApplicationAction extends SearchApplicationTra
             transportService,
             actionFilters,
             DeleteSearchApplicationAction.Request::new,
+            client,
+            clusterService,
+            namedWriteableRegistry,
+            bigArrays,
             licenseState
         );
-        this.indexService = indexService;
     }
 
     @Override
     protected void doExecute(DeleteSearchApplicationAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         String name = request.getName();
-        indexService.deleteSearchApplicationAndAlias(name, listener.map(v -> AcknowledgedResponse.TRUE));
+        systemIndexService.deleteSearchApplicationAndAlias(name, listener.map(v -> AcknowledgedResponse.TRUE));
     }
 }

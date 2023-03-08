@@ -74,7 +74,15 @@ public class DataLifecycleServiceTests extends ESTestCase {
         clientSeenRequests = new CopyOnWriteArrayList<>();
 
         client = getTransportRequestsRecordingClient();
-        dataLifecycleService = new DataLifecycleService(Settings.EMPTY, client, clusterService, clock, threadPool, () -> now);
+        dataLifecycleService = new DataLifecycleService(
+            Settings.EMPTY,
+            client,
+            clusterService,
+            clock,
+            threadPool,
+            () -> now,
+            new DataLifecycleErrorStore()
+        );
         dataLifecycleService.init();
     }
 

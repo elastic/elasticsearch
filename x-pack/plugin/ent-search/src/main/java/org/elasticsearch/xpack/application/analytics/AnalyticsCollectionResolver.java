@@ -47,7 +47,7 @@ public class AnalyticsCollectionResolver {
         AnalyticsCollection collection = new AnalyticsCollection(collectionName);
 
         if (state.metadata().dataStreams().containsKey(collection.getEventDataStream()) == false) {
-            throw new ResourceNotFoundException("no such analytics collection [{}] ", collectionName);
+            throw new ResourceNotFoundException("no such analytics collection [{}]", collectionName);
         }
 
         return collection;
@@ -105,6 +105,10 @@ public class AnalyticsCollectionResolver {
     }
 
     private boolean matchAnyExpression(String collectionName, String... expressions) {
+        if (expressions.length < 1) {
+            return true;
+        }
+
         return Arrays.stream(expressions).anyMatch(expression -> matchExpression(collectionName, expression));
     }
 

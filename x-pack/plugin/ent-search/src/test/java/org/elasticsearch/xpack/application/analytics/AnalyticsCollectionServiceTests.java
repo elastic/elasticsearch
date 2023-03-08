@@ -89,12 +89,11 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
 
         AnalyticsCollectionService analyticsService = new AnalyticsCollectionService(mock(Client.class), analyticsCollectionResolver);
 
-        ResourceNotFoundException e = expectThrows(
+        expectThrows(
             ResourceNotFoundException.class,
+            collectionName,
             () -> awaitGetAnalyticsCollections(analyticsService, clusterState, collectionName)
         );
-
-        assertThat(e.getMessage(), equalTo(collectionName));
     }
 
     public void testGetAnalyticsCollectionOnNonMasterNode() {
@@ -159,12 +158,12 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
             return null;
         });
 
-        ResourceAlreadyExistsException e = expectThrows(
+        expectThrows(
             ResourceAlreadyExistsException.class,
+            "analytics collection " + collectionName + " already exists",
             () -> awaitPutAnalyticsCollection(analyticsService, clusterState, collectionName)
         );
 
-        assertThat(e.getMessage(), equalTo(collectionName));
         assertEquals(calledTimes.get(), 0);
     }
 
@@ -225,12 +224,11 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
 
         AnalyticsCollectionService analyticsService = new AnalyticsCollectionService(mock(Client.class), analyticsCollectionResolver);
 
-        ResourceNotFoundException e = expectThrows(
+        expectThrows(
             ResourceNotFoundException.class,
+            collectionName,
             () -> awaitDeleteAnalyticsCollection(analyticsService, clusterState, collectionName)
         );
-
-        assertThat(e.getMessage(), equalTo(collectionName));
     }
 
     public void testDeleteAnalyticsCollectionOnNonMasterNode() {

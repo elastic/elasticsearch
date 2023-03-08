@@ -76,7 +76,7 @@ public class AnalyticsCollectionService {
 
         try {
             analyticsCollectionResolver.collection(state, request.getName());
-            listener.onFailure(new ResourceAlreadyExistsException(request.getName()));
+            listener.onFailure(new ResourceAlreadyExistsException("analytics collection {} already exists", request.getName()));
         } catch (ResourceNotFoundException e) {
             AnalyticsCollection collection = new AnalyticsCollection(request.getName());
             CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(collection.getEventDataStream());

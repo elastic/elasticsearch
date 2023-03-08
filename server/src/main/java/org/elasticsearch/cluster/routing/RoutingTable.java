@@ -398,7 +398,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             if (part.version == version && updatedRouting == part.indicesRouting) {
                 return part;
             }
-            return new RoutingTable(version, indicesRouting.apply(part.indicesRouting));
+            return new RoutingTable(version, updatedRouting);
         }
 
         @Override

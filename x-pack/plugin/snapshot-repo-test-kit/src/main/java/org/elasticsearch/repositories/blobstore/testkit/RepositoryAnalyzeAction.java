@@ -452,13 +452,14 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
 
             final String registerName = "test-register-" + UUIDs.randomBase64UUID(random);
             try (var registerRefs = new RefCountingRunnable(finalRegisterValueVerifier(registerName, random, requestRefs.acquire()))) {
-                final long registerOperations = Math.max(nodes.size(), request.getConcurrency());
+                final int registerOperations = Math.max(nodes.size(), request.getConcurrency());
                 for (int i = 0; i < registerOperations; i++) {
                     final RegisterAnalyzeAction.Request registerAnalyzeRequest = new RegisterAnalyzeAction.Request(
                         request.getRepositoryName(),
                         blobPath,
                         registerName,
-                        registerOperations
+                        registerOperations,
+                        random.nextInt((registerOperations + 1) * 2)
                     );
                     final DiscoveryNode node = nodes.get(i < nodes.size() ? i : random.nextInt(nodes.size()));
                     final Releasable registerRef = registerRefs.acquire();

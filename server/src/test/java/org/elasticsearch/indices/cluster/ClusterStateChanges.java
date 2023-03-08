@@ -75,7 +75,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.StoppableExecutorServiceWrapper;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -108,7 +109,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
@@ -175,28 +176,9 @@ public class ClusterStateChanges {
             new TaskManager(SETTINGS, threadPool, Collections.emptySet())
         ) {
             @Override
-            protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
+            protected ExecutorService createThreadPoolExecutor() {
                 // run master tasks inline, no need to fork to a separate thread
-                return new PrioritizedEsThreadPoolExecutor(
-                    "fake-master",
-                    1,
-                    1,
-                    1,
-                    TimeUnit.SECONDS,
-                    r -> { throw new AssertionError("should not create new threads"); },
-                    null,
-                    null
-                ) {
-                    @Override
-                    public void execute(Runnable command, final TimeValue timeout, final Runnable timeoutCallback) {
-                        command.run();
-                    }
-
-                    @Override
-                    public void execute(Runnable command) {
-                        command.run();
-                    }
-                };
+                return new StoppableExecutorServiceWrapper(EsExecutors.DIRECT_EXECUTOR_SERVICE);
             }
         };
         // mocks

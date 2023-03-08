@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
@@ -161,16 +160,13 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         final RoutingNodes routingNodes = allocation.routingNodes();
         final boolean explain = allocation.debugDecision();
         // pre-check if it can be allocated to any node that currently exists, so we won't list the store for it for nothing
-        Tuple<Decision, Map<String, NodeAllocationResult>> result = canBeAllocatedToAtLeastOneNode(unassignedShard, allocation);
-        Decision allocateDecision = result.v1();
+        PerNodeAllocationResult result = canBeAllocatedToAtLeastOneNode(unassignedShard, allocation);
+        Decision allocateDecision = result.decision();
         if (allocateDecision.type() != Decision.Type.YES && (explain == false || hasInitiatedFetching(unassignedShard) == false)) {
             // only return early if we are not in explain mode, or we are in explain mode but we have not
             // yet attempted to fetch any shard data
             logger.trace("{}: ignoring allocation, can't be allocated on any node", unassignedShard);
-            return AllocateUnassignedDecision.no(
-                UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()),
-                result.v2() != null ? new ArrayList<>(result.v2().values()) : null
-            );
+            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), result.nodes());
         }
 
         AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> shardStores = fetchData(unassignedShard, allocation);
@@ -189,10 +185,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             assert explain
                 : "primary should only be null here if we are in explain mode, so we didn't "
                     + "exit early when canBeAllocatedToAtLeastOneNode didn't return a YES decision";
-            return AllocateUnassignedDecision.no(
-                UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()),
-                new ArrayList<>(result.v2().values())
-            );
+            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), result.nodes());
         }
         assert primaryShard.currentNodeId() != null;
         final DiscoveryNode primaryNode = allocation.nodes().get(primaryShard.currentNodeId());
@@ -217,7 +210,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         );
         assert explain == false || matchingNodes.nodeDecisions != null : "in explain mode, we must have individual node decisions";
 
-        List<NodeAllocationResult> nodeDecisions = augmentExplanationsWithStoreInfo(result.v2(), matchingNodes.nodeDecisions);
+        List<NodeAllocationResult> nodeDecisions = augmentExplanationsWithStoreInfo(result.nodes(), matchingNodes.nodeDecisions);
         if (allocateDecision.type() != Decision.Type.YES) {
             return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), nodeDecisions);
         } else if (matchingNodes.getNodeWithHighestMatch() != null) {
@@ -292,13 +285,10 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
      * YES or THROTTLE).  If in explain mode, also returns the node-level explanations as the second element
      * in the returned tuple.
      */
-    public static Tuple<Decision, Map<String, NodeAllocationResult>> canBeAllocatedToAtLeastOneNode(
-        ShardRouting shard,
-        RoutingAllocation allocation
-    ) {
+    public static PerNodeAllocationResult canBeAllocatedToAtLeastOneNode(ShardRouting shard, RoutingAllocation allocation) {
         Decision madeDecision = Decision.NO;
         final boolean explain = allocation.debugDecision();
-        Map<String, NodeAllocationResult> nodeDecisions = explain ? new HashMap<>() : null;
+        List<NodeAllocationResult> nodeDecisions = explain ? new ArrayList<>() : null;
         for (DiscoveryNode discoveryNode : allocation.nodes().getDataNodes().values()) {
             RoutingNode node = allocation.routingNodes().node(discoveryNode.getId());
             if (node == null) {
@@ -311,36 +301,34 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                 if (explain) {
                     madeDecision = decision;
                 } else {
-                    return Tuple.tuple(decision, null);
+                    return new PerNodeAllocationResult(decision, null);
                 }
             } else if (madeDecision.type() == Decision.Type.NO && decision.type() == Decision.Type.THROTTLE) {
                 madeDecision = decision;
             }
             if (explain) {
-                nodeDecisions.put(node.nodeId(), new NodeAllocationResult(node.node(), null, decision));
+                nodeDecisions.add(new NodeAllocationResult(node.node(), null, decision));
             }
         }
-        return Tuple.tuple(madeDecision, nodeDecisions);
+        return new PerNodeAllocationResult(madeDecision, nodeDecisions);
     }
+
+    public record PerNodeAllocationResult(Decision decision, List<NodeAllocationResult> nodes) {}
 
     /**
      * Takes the store info for nodes that have a shard store and adds them to the node decisions,
      * leaving the node explanations untouched for those nodes that do not have any store information.
      */
     public static List<NodeAllocationResult> augmentExplanationsWithStoreInfo(
-        Map<String, NodeAllocationResult> nodeDecisions,
+        List<NodeAllocationResult> nodeDecisions,
         Map<String, NodeAllocationResult> withShardStores
     ) {
         if (nodeDecisions == null || withShardStores == null) {
             return null;
         }
-        List<NodeAllocationResult> augmented = new ArrayList<>();
-        for (Map.Entry<String, NodeAllocationResult> entry : nodeDecisions.entrySet()) {
-            if (withShardStores.containsKey(entry.getKey())) {
-                augmented.add(withShardStores.get(entry.getKey()));
-            } else {
-                augmented.add(entry.getValue());
-            }
+        List<NodeAllocationResult> augmented = new ArrayList<>(nodeDecisions.size());
+        for (NodeAllocationResult nodeAllocationResult : nodeDecisions) {
+            augmented.add(withShardStores.getOrDefault(nodeAllocationResult.getNode().getId(), nodeAllocationResult));
         }
         return augmented;
     }

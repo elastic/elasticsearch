@@ -168,7 +168,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String PRINCIPAL_RUN_BY_FIELD_NAME = "user.run_by.name";
     public static final String PRINCIPAL_RUN_AS_FIELD_NAME = "user.run_as.name";
     public static final String PRINCIPAL_REALM_FIELD_NAME = "user.realm";
-    public static final String REMOTE_ACCESS_FIELD_NAME = "remote_access";
+    public static final String CROSS_CLUSTER_ACCESS_FIELD_NAME = "cross_cluster_access";
     public static final String PRINCIPAL_DOMAIN_FIELD_NAME = "user.realm_domain";
     public static final String PRINCIPAL_RUN_BY_REALM_FIELD_NAME = "user.run_by.realm";
     public static final String PRINCIPAL_RUN_BY_DOMAIN_FIELD_NAME = "user.run_by.realm_domain";
@@ -1607,11 +1607,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         LogEntryBuilder withAuthentication(Authentication authentication) {
-            addAuthenticationFieldsToLogEntry(logEntry, authentication, logger);
+            addAuthenticationFieldsToLogEntry(logEntry, authentication);
             return this;
         }
 
-        static void addAuthenticationFieldsToLogEntry(StringMapMessage logEntry, Authentication authentication, Logger logger) {
+        static void addAuthenticationFieldsToLogEntry(StringMapMessage logEntry, Authentication authentication) {
             logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
             logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
             if (authentication.isApiKey() || authentication.isRemoteAccess()) {
@@ -1635,14 +1635,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     final Authentication remoteAuthentication = (Authentication) authentication.getAuthenticatingSubject()
                         .getMetadata()
                         .get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
-                    final StringMapMessage remoteAccessLogEntry = logEntry.newInstance(Collections.emptyMap());
-                    addAuthenticationFieldsToLogEntry(remoteAccessLogEntry, remoteAuthentication, logger);
+                    final StringMapMessage crossClusterAccessLogEntry = logEntry.newInstance(Collections.emptyMap());
+                    addAuthenticationFieldsToLogEntry(crossClusterAccessLogEntry, remoteAuthentication);
                     try {
                         final XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
-                        builder.map(remoteAccessLogEntry.getData());
-                        logEntry.with(REMOTE_ACCESS_FIELD_NAME, Strings.toString(builder));
+                        builder.map(crossClusterAccessLogEntry.getData());
+                        logEntry.with(CROSS_CLUSTER_ACCESS_FIELD_NAME, Strings.toString(builder));
                     } catch (IOException e) {
-                        logger.error("Failed to write remote authentication [{}] as audit log entry", remoteAuthentication);
+                        throw new ElasticsearchSecurityException("Unexpected error while serializing remote authentication data", e);
                     }
                 }
             } else {

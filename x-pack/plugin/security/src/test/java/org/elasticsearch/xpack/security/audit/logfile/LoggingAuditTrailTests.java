@@ -2974,7 +2974,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat("authentication must be remote access", authentication.isRemoteAccess(), is(true));
         assertThat("remote authentication cannot be run-as", remoteAuthentication.isRunAs(), is(false));
         putCheckedFieldsForAuthentication(authentication, checkedFields);
-        final String expectedRemoteAccessLiteralField = switch (remoteAuthentication.getEffectiveSubject().getType()) {
+        final String expectedCrossClusterAccessLiteralField = switch (remoteAuthentication.getEffectiveSubject().getType()) {
             case USER -> {
                 assertThat(remoteAuthentication.getAuthenticationType(), oneOf(AuthenticationType.INTERNAL, AuthenticationType.REALM));
                 yield Strings.format(
@@ -2995,7 +2995,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             );
             default -> throw new IllegalArgumentException("unsupported type " + remoteAuthentication.getEffectiveSubject().getType());
         };
-        checkedLiteralFields.put(LoggingAuditTrail.REMOTE_ACCESS_FIELD_NAME, expectedRemoteAccessLiteralField);
+        checkedLiteralFields.put(LoggingAuditTrail.CROSS_CLUSTER_ACCESS_FIELD_NAME, expectedCrossClusterAccessLiteralField);
     }
 
     private static void putCheckedFieldsForAuthentication(Authentication authentication, MapBuilder<String, String> checkedFields) {

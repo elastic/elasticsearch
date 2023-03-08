@@ -28,5 +28,6 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
  * thread context to be captured at subscription time.
  * </ul>
  */
-// The name {@link ListenableActionFuture} dates back a long way and could be improved - TODO find a better name
+// TODO replace with superclass
+@Deprecated(forRemoval = true)
 public class ListenableActionFuture<T> extends FanOutListener<T> {}

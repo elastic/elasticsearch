@@ -33,5 +33,6 @@ import org.elasticsearch.action.support.ThreadedActionListener;
  * ListenableActionFuture} you must remember to use {@link ContextPreservingActionListener} to capture the thread context yourself.
  * </ul>
  */
-// The name {@link ListenableFuture} dates back a long way and could be improved - TODO find a better name
+// TODO replace with superclass
+@Deprecated(forRemoval = true)
 public final class ListenableFuture<V> extends FanOutListener<V> {}

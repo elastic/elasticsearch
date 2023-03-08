@@ -28,7 +28,6 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class StepListenerTests extends ESTestCase {
     private ThreadPool threadPool;
@@ -131,8 +130,7 @@ public class StepListenerTests extends ESTestCase {
         Collections.shuffle(stepListeners, random());
 
         final StepListener<Integer> combined = stepListeners.get(0).thenCombine(stepListeners.get(1), Math::max);
-        assertThat(combined.asFuture(), notNullValue());
-        assertThat(combined.asFuture().isDone(), equalTo(false));
+        assertThat(combined.isDone(), equalTo(false));
 
         final List<Integer> results = Collections.synchronizedList(new ArrayList<>(stepListeners.size()));
         final CountDownLatch latch = new CountDownLatch(stepListeners.size());
@@ -157,7 +155,7 @@ public class StepListenerTests extends ESTestCase {
         }
 
         latch.await();
-        assertThat(combined.asFuture().isDone(), equalTo(true));
+        assertThat(combined.isDone(), equalTo(true));
         if (failed.get() == false) {
             assertThat(combined.result(), equalTo(results.stream().reduce(Math::max).get()));
         } else {

@@ -8,12 +8,9 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.CheckedConsumer;
 
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -92,20 +89,14 @@ public final class StepListener<Response> implements ActionListener<Response> {
     }
 
     /**
-     * Returns the future associated with the given step listener
-     */
-    public Future<Response> asFuture() {
-        return delegate;
-    }
-
-    /**
      * Gets the result of this step. This method will throw {@link IllegalStateException} if this step is not completed yet.
      */
     public Response result() {
-        if (delegate.isDone() == false) {
-            throw new IllegalStateException("step is not completed yet");
-        }
-        return FutureUtils.get(delegate, 0L, TimeUnit.NANOSECONDS); // this future is done already - use a non-blocking method.
+        return delegate.result();
+    }
+
+    public boolean isDone() {
+        return delegate.isDone();
     }
 
     /**

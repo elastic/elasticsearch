@@ -872,7 +872,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 }
 
             }
-            return stepListener.asFuture().get();
+            return stepListener.result();
         }
 
         @Override

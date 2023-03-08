@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesActi
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
@@ -96,7 +97,7 @@ public class PrivilegeTests extends ESTestCase {
         }
     }
 
-    public void testCluster() throws Exception {
+    public void testCluster() {
         ClusterPrivilege allClusterPrivilege = ClusterPrivilegeResolver.resolve("all");
         assertThat(allClusterPrivilege, is(ClusterPrivilegeResolver.ALL));
         verifyClusterActionAllowed(allClusterPrivilege, "cluster:admin/xpack/security/*");
@@ -106,15 +107,6 @@ public class PrivilegeTests extends ESTestCase {
         verifyClusterActionAllowed(monitorClusterPrivilege, "cluster:monitor/*");
         verifyClusterActionDenied(monitorClusterPrivilege, "cluster:admin/xpack/security/*");
 
-        ClusterPrivilege crossClusterAccessClusterPrivilege = ClusterPrivilegeResolver.resolve("cross_cluster_access");
-        assertThat(crossClusterAccessClusterPrivilege, is(ClusterPrivilegeResolver.CROSS_CLUSTER_ACCESS));
-        verifyClusterActionAllowed(
-            crossClusterAccessClusterPrivilege,
-            "cluster:internal/remote_cluster/handshake",
-            "cluster:internal/remote_cluster/nodes"
-        );
-        verifyClusterActionDenied(crossClusterAccessClusterPrivilege, "internal:transport/handshake", "cluster:admin/xpack/security/*");
-
         ClusterPrivilege noneClusterPrivilege = ClusterPrivilegeResolver.resolve("none");
         assertThat(noneClusterPrivilege, is(ClusterPrivilegeResolver.NONE));
         verifyClusterActionDenied(noneClusterPrivilege, "cluster:admin/xpack/security/*");
@@ -122,20 +114,31 @@ public class PrivilegeTests extends ESTestCase {
         verifyClusterActionDenied(noneClusterPrivilege, "*");
 
         ClusterPermission monitorClusterPermission = monitorClusterPrivilege.buildPermission(ClusterPermission.builder()).build();
-        ClusterPermission crossClusterAccessClusterPermission = crossClusterAccessClusterPrivilege.buildPermission(
-            ClusterPermission.builder()
-        ).build();
         ClusterPermission allClusterPermission = allClusterPrivilege.buildPermission(ClusterPermission.builder()).build();
 
         // all implies monitor
         assertTrue(allClusterPermission.implies(monitorClusterPermission));
-        assertTrue(allClusterPermission.implies(crossClusterAccessClusterPermission));
 
         ClusterPermission.Builder builder = ClusterPermission.builder();
         builder = allClusterPrivilege.buildPermission(builder);
         builder = noneClusterPrivilege.buildPermission(builder);
         ClusterPermission combinedPermission = builder.build();
         assertTrue(combinedPermission.implies(monitorClusterPermission));
+
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            ClusterPrivilege crossClusterAccessClusterPrivilege = ClusterPrivilegeResolver.resolve("cross_cluster_access");
+            assertThat(crossClusterAccessClusterPrivilege, is(ClusterPrivilegeResolver.CROSS_CLUSTER_ACCESS));
+            verifyClusterActionAllowed(
+                crossClusterAccessClusterPrivilege,
+                "cluster:internal/remote_cluster/handshake",
+                "cluster:internal/remote_cluster/nodes"
+            );
+            verifyClusterActionDenied(crossClusterAccessClusterPrivilege, "internal:transport/handshake", "cluster:admin/xpack/security/*");
+            ClusterPermission crossClusterAccessClusterPermission = crossClusterAccessClusterPrivilege.buildPermission(
+                ClusterPermission.builder()
+            ).build();
+            assertTrue(allClusterPermission.implies(crossClusterAccessClusterPermission));
+        }
     }
 
     public void testClusterTemplateActions() throws Exception {

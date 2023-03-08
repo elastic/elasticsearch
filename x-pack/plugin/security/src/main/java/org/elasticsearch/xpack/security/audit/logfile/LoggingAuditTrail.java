@@ -168,6 +168,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String PRINCIPAL_RUN_BY_FIELD_NAME = "user.run_by.name";
     public static final String PRINCIPAL_RUN_AS_FIELD_NAME = "user.run_as.name";
     public static final String PRINCIPAL_REALM_FIELD_NAME = "user.realm";
+    public static final String CROSS_CLUSTER_ACCESS_FIELD_NAME = "cross_cluster_access";
     public static final String PRINCIPAL_DOMAIN_FIELD_NAME = "user.realm_domain";
     public static final String PRINCIPAL_RUN_BY_REALM_FIELD_NAME = "user.run_by.realm";
     public static final String PRINCIPAL_RUN_BY_DOMAIN_FIELD_NAME = "user.run_by.realm_domain";
@@ -1606,11 +1607,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         LogEntryBuilder withAuthentication(Authentication authentication) {
-            // TODO auditing for remote access
-            assert false == authentication.isRemoteAccess() : "remote access authentication not supported here yet";
+            addAuthenticationFieldsToLogEntry(logEntry, authentication);
+            return this;
+        }
+
+        static void addAuthenticationFieldsToLogEntry(StringMapMessage logEntry, Authentication authentication) {
             logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
             logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
-            if (authentication.isApiKey()) {
+            if (authentication.isApiKey() || authentication.isRemoteAccess()) {
                 logEntry.with(
                     API_KEY_ID_FIELD_NAME,
                     (String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
@@ -1626,6 +1630,20 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     // can be null for API keys created before version 7.7
                     logEntry.with(PRINCIPAL_REALM_FIELD_NAME, creatorRealmName);
                     // No domain information is needed here since API key itself does not work across realms
+                }
+                if (authentication.isRemoteAccess()) {
+                    final Authentication remoteAuthentication = (Authentication) authentication.getAuthenticatingSubject()
+                        .getMetadata()
+                        .get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
+                    final StringMapMessage crossClusterAccessLogEntry = logEntry.newInstance(Collections.emptyMap());
+                    addAuthenticationFieldsToLogEntry(crossClusterAccessLogEntry, remoteAuthentication);
+                    try {
+                        final XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+                        builder.map(crossClusterAccessLogEntry.getData());
+                        logEntry.with(CROSS_CLUSTER_ACCESS_FIELD_NAME, Strings.toString(builder));
+                    } catch (IOException e) {
+                        throw new ElasticsearchSecurityException("Unexpected error while serializing remote authentication data", e);
+                    }
                 }
             } else {
                 final Authentication.RealmRef authenticatedBy = authentication.getAuthenticatingSubject().getRealm();
@@ -1665,7 +1683,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                             + authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_SOURCE_FIELD)
                     );
             }
-            return this;
         }
 
         LogEntryBuilder with(String key, String value) {

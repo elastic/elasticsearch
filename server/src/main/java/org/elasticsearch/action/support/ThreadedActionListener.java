@@ -71,13 +71,13 @@ public final class ThreadedActionListener<Response> implements ActionListener<Re
             }
 
             @Override
-            public void onRejection(Exception e2) {
-                e.addSuppressed(e2);
+            public void onRejection(Exception rejectionException) {
+                rejectionException.addSuppressed(e);
                 try {
-                    delegate.onFailure(e);
-                } catch (Exception e3) {
-                    e.addSuppressed(e3);
-                    onFailure(e);
+                    delegate.onFailure(rejectionException);
+                } catch (Exception doubleFailure) {
+                    rejectionException.addSuppressed(doubleFailure);
+                    onFailure(rejectionException);
                 }
             }
 

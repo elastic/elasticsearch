@@ -120,6 +120,11 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     }
 
     @Override
+    protected boolean resetFeatureStates() {
+        return false;
+    }
+
+    @Override
     protected boolean preserveSecurityIndicesUponCompletion() {
         return true;
     }

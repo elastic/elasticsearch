@@ -73,7 +73,7 @@ import java.util.function.Supplier;
 public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemIndexPlugin {
     public static final String APPLICATION_API_ENDPOINT = "_application";
 
-    public static final String SEARCH_APPLICATION_API_ENDPOINT = "_application/search_application";
+    public static final String SEARCH_APPLICATION_API_ENDPOINT = APPLICATION_API_ENDPOINT + "/search_application";
 
     public static final String BEHAVIORAL_ANALYTICS_API_ENDPOINT = APPLICATION_API_ENDPOINT + "/analytics";
 

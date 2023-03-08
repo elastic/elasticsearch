@@ -57,7 +57,7 @@ public class XPackLicenseState {
         messages.put(XPackField.DEPRECATION, new String[] { "Deprecation APIs are disabled" });
         messages.put(XPackField.UPGRADE, new String[] { "Upgrade API is disabled" });
         messages.put(XPackField.SQL, new String[] { "SQL support is disabled" });
-        messages.put(XPackField.ENTERPRISE_SEARCH, new String[] { "Engines and behavioral analytics will be disabled" });
+        messages.put(XPackField.ENTERPRISE_SEARCH, new String[] { "Search Applications and behavioral analytics will be disabled" });
         messages.put(
             XPackField.ROLLUP,
             new String[] {
@@ -222,7 +222,7 @@ public class XPackLicenseState {
                     case TRIAL:
                     case PLATINUM:
                     case ENTERPRISE:
-                        return new String[] { "Engines and behavioral analytics will be disabled" };
+                        return new String[] { "Search Applications and behavioral analytics will be disabled" };
                 }
                 break;
         }

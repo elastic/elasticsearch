@@ -58,6 +58,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.groupingBy;
@@ -88,10 +92,11 @@ class RollupShardIndexer {
     private final List<FieldValueFetcher> fieldValueFetchers;
     private final RollupShardTask task;
     /*
-     * This monitor is used to throttle calls to bulkProcessor.add when the bulkProcessor already has too many bytes in flight and cannot
-     * accept more data until already-in-flight requests complete.
+     * This Lock and Condition are used to throttle calls to bulkProcessor.add when the bulkProcessor already has too many bytes in flight
+     * and cannot accept more data until already-in-flight requests complete.
      */
-    private final Object bulkProcessorTooFullMonitor = new Object();
+    private final Lock bulkProcessorLock = new ReentrantLock();
+    private final Condition bulkProcessorNotFull = bulkProcessorLock.newCondition();
     private volatile boolean abort = false;
     ByteSizeValue rollupBulkSize = ROLLUP_BULK_SIZE;
     ByteSizeValue rollupMaxBytesInFlight = ROLLUP_MAX_BYTES_IN_FLIGHT;
@@ -205,9 +210,12 @@ class RollupShardIndexer {
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
-                // Notify in case any rejected docs were waiting for the space in TimeSeriesBucketCollector#indexBucket
-                synchronized (bulkProcessorTooFullMonitor) {
-                    bulkProcessorTooFullMonitor.notifyAll();
+                // Signal in case any rejected docs were waiting for the space in bulkProcessor in TimeSeriesBucketCollector#indexBucket
+                bulkProcessorLock.lock();
+                try {
+                    bulkProcessorNotFull.signalAll();
+                } finally {
+                    bulkProcessorLock.unlock();
                 }
                 task.addNumIndexed(request.numberOfActions());
                 if (response.hasFailures()) {
@@ -231,9 +239,12 @@ class RollupShardIndexer {
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, Exception failure) {
-                // Notify in case any rejected docs were waiting for the space in TimeSeriesBucketCollector#indexBucket
-                synchronized (bulkProcessorTooFullMonitor) {
-                    bulkProcessorTooFullMonitor.notifyAll();
+                // Signal in case any rejected docs were waiting for the space in bulkProcessor in TimeSeriesBucketCollector#indexBucket
+                bulkProcessorLock.lock();
+                try {
+                    bulkProcessorNotFull.signalAll();
+                } finally {
+                    bulkProcessorLock.unlock();
                 }
                 if (failure != null) {
                     long items = request.numberOfActions();
@@ -375,19 +386,21 @@ class RollupShardIndexer {
                     bulkProcessor.add(request.request());
                     successfullyAdded = true;
                 } catch (EsRejectedExecutionException e) {
-                    logger.info("Rollup doc rejected, and will try again");
-                    synchronized (bulkProcessorTooFullMonitor) {
-                        /*
-                         * Note: It is possible that notifyAll was called between the call to add above and entering this syncronized block.
-                         * But in that case, either we wait 500ms, or another batch completes and another call to notifyAll wakes us up.
-                         * Either way is preferable to moving the whole try/catch into this synchronized block.
-                         */
-                        try {
-                            bulkProcessorTooFullMonitor.wait(500);
-                        } catch (InterruptedException ex) {
-                            Thread.currentThread().interrupt();
-                            throw new RuntimeException(ex);
-                        }
+                    logger.trace("Rollup doc rejected, and will try again");
+                    /*
+                     * Note: It is possible that signalAll was called between the call to add above and acquiring this lock.
+                     * But in that case, either we wait 500ms, or another batch completes and another call to signalAll wakes us up.
+                     * Either way is preferable to requiring this lock for the whole try/catch block. That is why we ignore the
+                     * result of the call to await() -- either way we are going to try calling bulkProcessor.add() again.
+                     */
+                    bulkProcessorLock.lock();
+                    try {
+                        bulkProcessorNotFull.await(500, TimeUnit.MILLISECONDS);
+                    } catch (InterruptedException ex) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException(ex);
+                    } finally {
+                        bulkProcessorLock.unlock();
                     }
                 }
             }

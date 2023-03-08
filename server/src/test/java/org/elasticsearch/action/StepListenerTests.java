@@ -91,7 +91,7 @@ public class StepListenerTests extends ESTestCase {
 
         if (failedStep == 1) {
             assertThat(expectThrows(RuntimeException.class, step1::result).getMessage(), equalTo("failed at step 1"));
-            assertThat(expectThrows(RuntimeException.class, step2::result).getMessage(), equalTo("step is not completed yet"));
+            assertFalse(step2.isDone());
         } else {
             assertThat(step1.result(), equalTo("hello"));
             assertThat(expectThrows(RuntimeException.class, step2::result).getMessage(), equalTo("failed at step 2"));

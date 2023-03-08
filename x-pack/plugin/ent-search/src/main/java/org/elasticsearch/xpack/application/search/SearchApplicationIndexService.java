@@ -306,15 +306,6 @@ public class SearchApplicationIndexService {
         try {
             final DeleteRequest deleteRequest = new DeleteRequest(SEARCH_APPLICATION_ALIAS_NAME).id(resourceName)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-
-            clientWithOrigin.delete(deleteRequest, listener.delegateFailure((delegate, deleteResponse) -> {
-                if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                    delegate.onFailure(new ResourceNotFoundException(resourceName));
-                    return;
-                }
-                delegate.onResponse(deleteResponse);
-            }));
-
             clientWithOrigin.delete(deleteRequest, new ActionListener<DeleteResponse>() {
                 @Override
                 public void onResponse(DeleteResponse deleteResponse) {

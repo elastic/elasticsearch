@@ -36,7 +36,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xpack.application.analytics.AnalyticsCollectionService;
 import org.elasticsearch.xpack.application.analytics.AnalyticsTemplateRegistry;
 import org.elasticsearch.xpack.application.analytics.action.DeleteAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.action.GetAnalyticsCollectionAction;
@@ -159,13 +158,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             xContentRegistry
         );
         analyticsTemplateRegistry.initialize();
-        final AnalyticsCollectionService analyticsCollectionService = new AnalyticsCollectionService(
-            client,
-            clusterService,
-            indexNameExpressionResolver
-        );
 
-        return Arrays.asList(analyticsTemplateRegistry, analyticsCollectionService);
+        return Arrays.asList(analyticsTemplateRegistry);
     }
 
     @Override

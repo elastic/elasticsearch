@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.application.analytics.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.application.analytics.AnalyticsCollectionTests;
 
 import java.io.IOException;
 
@@ -23,7 +22,7 @@ public class DeleteAnalyticsCollectionRequestSerializingTests extends AbstractWi
 
     @Override
     protected DeleteAnalyticsCollectionAction.Request createTestInstance() {
-        return new DeleteAnalyticsCollectionAction.Request(AnalyticsCollectionTests.randomAnalyticsCollection().getName());
+        return new DeleteAnalyticsCollectionAction.Request(randomIdentifier());
     }
 
     @Override

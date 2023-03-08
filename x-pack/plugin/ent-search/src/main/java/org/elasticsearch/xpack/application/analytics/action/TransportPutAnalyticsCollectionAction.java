@@ -18,7 +18,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.application.analytics.AnalyticsCollection;
 import org.elasticsearch.xpack.application.analytics.AnalyticsCollectionService;
 
 public class TransportPutAnalyticsCollectionAction extends TransportMasterNodeAction<
@@ -62,11 +61,7 @@ public class TransportPutAnalyticsCollectionAction extends TransportMasterNodeAc
         ClusterState state,
         ActionListener<PutAnalyticsCollectionAction.Response> listener
     ) {
-        AnalyticsCollection analyticsCollection = request.getAnalyticsCollection();
-        analyticsCollectionService.createAnalyticsCollection(
-            analyticsCollection,
-            listener.map(r -> new PutAnalyticsCollectionAction.Response(r))
-        );
+        analyticsCollectionService.putAnalyticsCollection(state, request, listener);
     }
 
 }

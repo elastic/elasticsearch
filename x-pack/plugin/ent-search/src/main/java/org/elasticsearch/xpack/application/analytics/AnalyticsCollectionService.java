@@ -12,133 +12,105 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
-
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.xpack.application.analytics.action.DeleteAnalyticsCollectionAction;
+import org.elasticsearch.xpack.application.analytics.action.GetAnalyticsCollectionAction;
+import org.elasticsearch.xpack.application.analytics.action.PutAnalyticsCollectionAction;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
 /**
  * A service that allows the manipulation of persistent {@link AnalyticsCollection} model.
- *
  * Until we have more specific need the {@link AnalyticsCollection} is just another representation
  * of a {@link org.elasticsearch.cluster.metadata.IndexAbstraction.DataStream}.
- *
  * As a consequence, this service is mostly a facade for the data stream API.
  */
-public class AnalyticsCollectionService implements ClusterStateListener {
+public class AnalyticsCollectionService {
 
     private final Client clientWithOrigin;
 
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final AnalyticsCollectionResolver analyticsCollectionResolver;
 
-    private volatile Map<String, AnalyticsCollection> analyticsCollections = Collections.emptyMap();
-
-    public AnalyticsCollectionService(
-        Client client,
-        ClusterService clusterService,
-        IndexNameExpressionResolver indexNameExpressionResolver
-    ) {
+    @Inject
+    public AnalyticsCollectionService(Client client, AnalyticsCollectionResolver analyticsCollectionResolver) {
         this.clientWithOrigin = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
-        clusterService.addListener(this);
+        this.analyticsCollectionResolver = analyticsCollectionResolver;
     }
 
     /**
      * Retrieve an analytics collection by name {@link AnalyticsCollection}
      *
-     * @param collectionName {@link AnalyticsCollection} name.
+     * @param state    Cluster state ({@link ClusterState}).
+     * @param request  {@link PutAnalyticsCollectionAction.Request} The request.
      * @param listener The action listener to invoke on response/failure.
      */
-    public void getAnalyticsCollection(String collectionName, ActionListener<AnalyticsCollection> listener) {
-        Map<String, AnalyticsCollection> collections = analyticsCollections;
+    public void getAnalyticsCollection(
+        ClusterState state,
+        GetAnalyticsCollectionAction.Request request,
+        ActionListener<GetAnalyticsCollectionAction.Response> listener
+    ) {
+        // This operation is supposed to be executed on the master node only.
+        assert (state.nodes().isLocalNodeElectedMaster());
 
-        if (collections.containsKey(collectionName) == false) {
-            listener.onFailure(new ResourceNotFoundException(collectionName));
-            return;
-        }
-
-        listener.onResponse(collections.get(collectionName));
+        listener.onResponse(new GetAnalyticsCollectionAction.Response(analyticsCollectionResolver.collections(state, request.getNames())));
     }
 
     /**
      * Create a new {@link AnalyticsCollection}
      *
-     * @param analyticsCollection {@link AnalyticsCollection} to be created.
+     * @param state    Cluster state ({@link ClusterState}).
+     * @param request  {@link PutAnalyticsCollectionAction.Request} The request.
      * @param listener The action listener to invoke on response/failure.
      */
-    public void createAnalyticsCollection(AnalyticsCollection analyticsCollection, ActionListener<AnalyticsCollection> listener) {
-        if (analyticsCollections.containsKey(analyticsCollection.getName())) {
-            listener.onFailure(new ResourceAlreadyExistsException(analyticsCollection.getName()));
-            return;
+    public void putAnalyticsCollection(
+        ClusterState state,
+        PutAnalyticsCollectionAction.Request request,
+        ActionListener<PutAnalyticsCollectionAction.Response> listener
+    ) {
+        // This operation is supposed to be executed on the master node only.
+        assert (state.nodes().isLocalNodeElectedMaster());
+
+        try {
+            analyticsCollectionResolver.collection(state, request.getName());
+            listener.onFailure(new ResourceAlreadyExistsException("analytics collection {} already exists", request.getName()));
+        } catch (ResourceNotFoundException e) {
+            AnalyticsCollection collection = new AnalyticsCollection(request.getName());
+            CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(collection.getEventDataStream());
+
+            ActionListener<AcknowledgedResponse> createDataStreamListener = ActionListener.wrap(
+                resp -> listener.onResponse(new PutAnalyticsCollectionAction.Response(resp.isAcknowledged(), request.getName())),
+                listener::onFailure
+            );
+
+            clientWithOrigin.execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest, createDataStreamListener);
         }
-
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
-            analyticsCollection.getEventDataStream()
-        );
-
-        ActionListener<AcknowledgedResponse> createDataStreamListener = ActionListener.wrap(
-            resp -> listener.onResponse(analyticsCollection),
-            listener::onFailure
-        );
-
-        clientWithOrigin.execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest, createDataStreamListener);
     }
 
     /**
      * Delete an analytics collection by name {@link AnalyticsCollection}
      *
-     * @param collectionName {@link AnalyticsCollection} name.
+     * @param state    Cluster state ({@link ClusterState}).
+     * @param request  {@link AnalyticsCollection} name.
      * @param listener The action listener to invoke on response/failure.
      */
-    public void deleteAnalyticsCollection(String collectionName, ActionListener<AcknowledgedResponse> listener) {
-        Map<String, AnalyticsCollection> collections = analyticsCollections;
+    public void deleteAnalyticsCollection(
+        ClusterState state,
+        DeleteAnalyticsCollectionAction.Request request,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        // This operation is supposed to be executed on the master node.
+        assert (state.nodes().isLocalNodeElectedMaster());
 
-        if (collections.containsKey(collectionName) == false) {
-            listener.onFailure(new ResourceNotFoundException(collectionName));
-            return;
+        try {
+            AnalyticsCollection collection = analyticsCollectionResolver.collection(state, request.getCollectionName());
+            DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(collection.getEventDataStream());
+            clientWithOrigin.execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamRequest, listener);
+        } catch (ResourceNotFoundException e) {
+            listener.onFailure(e);
         }
-
-        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(
-            collections.get(collectionName).getEventDataStream()
-        );
-
-        clientWithOrigin.execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamRequest, listener);
-    }
-
-    /**
-     * We refresh the local cache of the collections when cluster is updated.
-     *
-     * @param event {@link ClusterChangedEvent} event.
-     */
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        if (event.metadataChanged() == false) {
-            // Skipping the update if cluster metadata did not change.
-            return;
-        }
-
-        // Listing data streams that are matching the analytics collection pattern.
-        List<String> dataStreams = indexNameExpressionResolver.dataStreamNames(
-            event.state(),
-            IndicesOptions.lenientExpandOpen(),
-            AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INDEX_PATTERN
-        );
-
-        // Init an AnalyticsCollection instance from each matching data stream.
-        analyticsCollections = dataStreams.stream()
-            .map(AnalyticsCollection::fromDataStreamName)
-            .collect(Collectors.toMap(AnalyticsCollection::getName, Function.identity()));
     }
 }

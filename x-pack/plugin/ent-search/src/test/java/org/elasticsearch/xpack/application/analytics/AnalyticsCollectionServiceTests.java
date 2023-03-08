@@ -7,122 +7,305 @@
 
 package org.elasticsearch.xpack.application.analytics;
 
+import org.apache.logging.log4j.util.TriConsumer;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.application.analytics.action.DeleteAnalyticsCollectionAction;
+import org.elasticsearch.xpack.application.analytics.action.GetAnalyticsCollectionAction;
+import org.elasticsearch.xpack.application.analytics.action.PutAnalyticsCollectionAction;
+import org.junit.After;
 import org.junit.Before;
 
-import java.util.Locale;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-public class AnalyticsCollectionServiceTests extends AnalyticsTestCase {
-    private static final int NUM_COLLECTIONS = 10;
+public class AnalyticsCollectionServiceTests extends ESTestCase {
+
+    private ThreadPool threadPool;
+    private VerifyingClient client;
 
     @Before
-    public void setupDataStreams() throws Exception {
-        for (int i = 0; i < NUM_COLLECTIONS; i++) {
-            createDataStream(new AnalyticsCollection("collection_" + i).getEventDataStream());
-        }
+    public void createClient() {
+        threadPool = new TestThreadPool(this.getClass().getName());
+        client = new VerifyingClient(threadPool);
+    }
+
+    @After
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+        threadPool.shutdownNow();
     }
 
     public void testGetExistingAnalyticsCollection() throws Exception {
-        String collectionName = "collection_" + random().nextInt(NUM_COLLECTIONS);
-        AnalyticsCollection analyticsCollection = awaitGetAnalyticsCollection(collectionName);
-        assertThat(analyticsCollection.getName(), equalTo(collectionName));
-    }
+        String collectionName = randomIdentifier();
 
-    public void testGetMissingAnalyticsCollection() throws Exception {
-        ResourceNotFoundException e = expectThrows(
-            ResourceNotFoundException.class,
-            () -> { awaitGetAnalyticsCollection("not-a-collection-name"); }
+        ClusterState clusterState = createClusterState();
+
+        AnalyticsCollectionResolver analyticsCollectionResolver = mock(AnalyticsCollectionResolver.class);
+        when(analyticsCollectionResolver.collections(eq(clusterState), eq(collectionName))).thenReturn(
+            Collections.singletonList(new AnalyticsCollection(collectionName))
         );
 
-        assertThat(e.getMessage(), equalTo("not-a-collection-name"));
+        AnalyticsCollectionService analyticsService = new AnalyticsCollectionService(mock(Client.class), analyticsCollectionResolver);
+
+        List<AnalyticsCollection> collections = awaitGetAnalyticsCollections(analyticsService, clusterState, collectionName);
+        assertThat(collections.get(0).getName(), equalTo(collectionName));
+        assertThat(collections, hasSize(1));
+    }
+
+    public void testGetMissingAnalyticsCollection() {
+        String collectionName = randomIdentifier();
+        ClusterState clusterState = createClusterState();
+
+        AnalyticsCollectionResolver analyticsCollectionResolver = mock(AnalyticsCollectionResolver.class);
+        when(analyticsCollectionResolver.collections(eq(clusterState), eq(collectionName))).thenThrow(
+            new ResourceNotFoundException(collectionName)
+        );
+
+        AnalyticsCollectionService analyticsService = new AnalyticsCollectionService(mock(Client.class), analyticsCollectionResolver);
+
+        expectThrows(
+            ResourceNotFoundException.class,
+            collectionName,
+            () -> awaitGetAnalyticsCollections(analyticsService, clusterState, collectionName)
+        );
+    }
+
+    public void testGetAnalyticsCollectionOnNonMasterNode() {
+        String collectionName = randomIdentifier();
+        ClusterState clusterState = createClusterState(false);
+        AnalyticsCollectionResolver analyticsCollectionResolver = mock(AnalyticsCollectionResolver.class);
+
+        AnalyticsCollectionService analyticsService = new AnalyticsCollectionService(mock(Client.class), analyticsCollectionResolver);
+
+        expectThrows(AssertionError.class, () -> awaitGetAnalyticsCollections(analyticsService, clusterState, collectionName));
     }
 
     public void testCreateAnalyticsCollection() throws Exception {
-        String collectionName = randomAlphaOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
+        String collectionName = randomIdentifier();
+        ClusterState clusterState = createClusterState();
 
-        AnalyticsCollection analyticsCollection = awaitCreateAnalyticsCollection(new AnalyticsCollection(collectionName));
-        assertThat(analyticsCollection.getName(), equalTo(collectionName));
-
-        // Checking a data stream has been created for the analytics collection.
-        assertThat(clusterService().state().metadata().dataStreams(), hasKey(analyticsCollection.getEventDataStream()));
-
-        // Checking we can get the collection we have just created.
-        assertThat(awaitGetAnalyticsCollection(collectionName).getName(), equalTo(collectionName));
-    }
-
-    public void testCreateAlreadyExistingAnalyticsCollection() throws Exception {
-        String collectionName = "collection_" + random().nextInt(NUM_COLLECTIONS);
-
-        ResourceAlreadyExistsException e = expectThrows(
-            ResourceAlreadyExistsException.class,
-            () -> { awaitCreateAnalyticsCollection(new AnalyticsCollection(collectionName)); }
+        AnalyticsCollectionResolver analyticsCollectionResolver = mock(AnalyticsCollectionResolver.class);
+        when(analyticsCollectionResolver.collection(eq(clusterState), eq(collectionName))).thenThrow(
+            new ResourceNotFoundException(collectionName)
         );
 
-        assertThat(e.getMessage(), equalTo(collectionName));
+        AnalyticsCollectionService analyticsService = new AnalyticsCollectionService(client, analyticsCollectionResolver);
+        AtomicInteger calledTimes = new AtomicInteger(0);
+        client.setVerifier((action, request, listener) -> {
+            if (action instanceof CreateDataStreamAction) {
+                CreateDataStreamAction.Request createDataStreamRequest = (CreateDataStreamAction.Request) request;
+                assertThat(
+                    createDataStreamRequest.getName(),
+                    equalTo(AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INDEX_PREFIX + collectionName)
+                );
+                calledTimes.incrementAndGet();
+                return AcknowledgedResponse.TRUE;
+            } else {
+                fail("client called with unexpected request: " + request.toString());
+            }
+            return null;
+        });
+
+        PutAnalyticsCollectionAction.Response response = awaitPutAnalyticsCollection(analyticsService, clusterState, collectionName);
+
+        // Assert the response is acknowledged.
+        assertTrue(response.isAcknowledged());
+        assertThat(response.getName(), equalTo(collectionName));
+
+        // Assert the data stream has been created.
+        assertEquals(calledTimes.get(), 1);
+    }
+
+    public void testCreateAlreadyExistingAnalyticsCollection() {
+        String collectionName = randomIdentifier();
+        ClusterState clusterState = createClusterState();
+
+        AnalyticsCollectionResolver analyticsCollectionResolver = mock(AnalyticsCollectionResolver.class);
+        when(analyticsCollectionResolver.collection(eq(clusterState), eq(collectionName))).thenReturn(
+            new AnalyticsCollection(collectionName)
+        );
+
+        AnalyticsCollectionService analyticsService = new AnalyticsCollectionService(client, analyticsCollectionResolver);
+        AtomicInteger calledTimes = new AtomicInteger(0);
+        client.setVerifier((action, request, listener) -> {
+            calledTimes.incrementAndGet();
+            return null;
+        });
+
+        expectThrows(
+            ResourceAlreadyExistsException.class,
+            "analytics collection " + collectionName + " already exists",
+            () -> awaitPutAnalyticsCollection(analyticsService, clusterState, collectionName)
+        );
+
+        assertEquals(calledTimes.get(), 0);
+    }
+
+    public void testCreateAnalyticsCollectionOnNonMasterNode() {
+        String collectionName = randomIdentifier();
+        ClusterState clusterState = createClusterState(false);
+        AnalyticsCollectionResolver analyticsCollectionResolver = mock(AnalyticsCollectionResolver.class);
+
+        AnalyticsCollectionService analyticsService = new AnalyticsCollectionService(mock(Client.class), analyticsCollectionResolver);
+
+        expectThrows(AssertionError.class, () -> awaitPutAnalyticsCollection(analyticsService, clusterState, collectionName));
     }
 
     public void testDeleteAnalyticsCollection() throws Exception {
-        String collectionName = "collection_" + random().nextInt(NUM_COLLECTIONS);
-        String dataStreamName = awaitGetAnalyticsCollection(collectionName).getEventDataStream();
+        String collectionName = randomIdentifier();
+        String dataStreamName = AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INDEX_PREFIX + collectionName;
+        ClusterState clusterState = createClusterState();
 
-        AcknowledgedResponse response = awaitDeleteAnalyticsCollection(collectionName);
+        AnalyticsCollectionResolver analyticsCollectionResolver = mock(AnalyticsCollectionResolver.class);
+        when(analyticsCollectionResolver.collection(eq(clusterState), eq(collectionName))).thenReturn(
+            new AnalyticsCollection(collectionName)
+        );
+
+        AnalyticsCollectionService analyticsService = new AnalyticsCollectionService(client, analyticsCollectionResolver);
+
+        AtomicInteger calledTimes = new AtomicInteger(0);
+        client.setVerifier((action, request, listener) -> {
+            if (action instanceof DeleteDataStreamAction) {
+                DeleteDataStreamAction.Request deleteDataStreamRequest = (DeleteDataStreamAction.Request) request;
+
+                assertEquals(deleteDataStreamRequest.getNames().length, 1);
+                assertEquals(deleteDataStreamRequest.getNames()[0], dataStreamName);
+                calledTimes.incrementAndGet();
+                return AcknowledgedResponse.TRUE;
+            } else {
+                fail("client called with unexpected request: " + request.toString());
+            }
+            return null;
+        });
+
+        AcknowledgedResponse response = awaitDeleteAnalyticsCollection(analyticsService, clusterState, collectionName);
+
+        // Assert the response is acknowledged.
         assertThat(response.isAcknowledged(), equalTo(true));
 
-        // Checking that the underlying data stream has been deleted too.
-        assertThat(clusterService().state().metadata().dataStreams(), not(hasKey(dataStreamName)));
-
-        // Checking that the analytics collection is not accessible anymore.
-        expectThrows(ResourceNotFoundException.class, () -> awaitGetAnalyticsCollection(collectionName));
+        // Assert the data stream has been deleted.
+        assertEquals(calledTimes.get(), 1);
     }
 
-    public void testDeleteMissingAnalyticsCollection() throws Exception {
-        ResourceNotFoundException e = expectThrows(
+    public void testDeleteMissingAnalyticsCollection() {
+        String collectionName = randomIdentifier();
+        ClusterState clusterState = createClusterState();
+
+        AnalyticsCollectionResolver analyticsCollectionResolver = mock(AnalyticsCollectionResolver.class);
+        when(analyticsCollectionResolver.collection(eq(clusterState), eq(collectionName))).thenThrow(
+            new ResourceNotFoundException(collectionName)
+        );
+
+        AnalyticsCollectionService analyticsService = new AnalyticsCollectionService(mock(Client.class), analyticsCollectionResolver);
+
+        expectThrows(
             ResourceNotFoundException.class,
-            () -> { awaitDeleteAnalyticsCollection("not-a-collection-name"); }
+            collectionName,
+            () -> awaitDeleteAnalyticsCollection(analyticsService, clusterState, collectionName)
         );
-
-        assertThat(e.getMessage(), equalTo("not-a-collection-name"));
     }
 
-    private void createDataStream(String dataStreamName) throws ExecutionException, InterruptedException {
-        client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).get();
+    public void testDeleteAnalyticsCollectionOnNonMasterNode() {
+        String collectionName = randomIdentifier();
+        ClusterState clusterState = createClusterState(false);
+        AnalyticsCollectionResolver analyticsCollectionResolver = mock(AnalyticsCollectionResolver.class);
+
+        AnalyticsCollectionService analyticsService = new AnalyticsCollectionService(mock(Client.class), analyticsCollectionResolver);
+
+        expectThrows(AssertionError.class, () -> awaitDeleteAnalyticsCollection(analyticsService, clusterState, collectionName));
     }
 
-    private AnalyticsCollection awaitGetAnalyticsCollection(String collectionName) throws Exception {
-        Executor<String, AnalyticsCollection> executor = new Executor<>(analyticsCollectionService()::getAnalyticsCollection);
-        return executor.execute(collectionName);
+    public static class VerifyingClient extends NoOpClient {
+        private TriFunction<ActionType<?>, ActionRequest, ActionListener<?>, ActionResponse> verifier = (a, r, l) -> {
+            fail("verifier not set");
+            return null;
+        };
+
+        VerifyingClient(ThreadPool threadPool) {
+            super(threadPool);
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
+            try {
+                listener.onResponse((Response) verifier.apply(action, request, listener));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        }
+
+        public void setVerifier(TriFunction<ActionType<?>, ActionRequest, ActionListener<?>, ActionResponse> verifier) {
+            this.verifier = verifier;
+        }
     }
 
-    private AnalyticsCollection awaitCreateAnalyticsCollection(AnalyticsCollection collection) throws Exception {
-        Executor<AnalyticsCollection, AnalyticsCollection> executor = new Executor<>(
-            analyticsCollectionService()::createAnalyticsCollection
-        );
-        return executor.execute(collection);
+    private List<AnalyticsCollection> awaitGetAnalyticsCollections(
+        AnalyticsCollectionService analyticsCollectionService,
+        ClusterState clusterState,
+        String... collectionName
+    ) throws Exception {
+        GetAnalyticsCollectionAction.Request request = new GetAnalyticsCollectionAction.Request(collectionName);
+        return new Executor<>(clusterState, analyticsCollectionService::getAnalyticsCollection).execute(request).getAnalyticsCollections();
     }
 
-    private AcknowledgedResponse awaitDeleteAnalyticsCollection(String collectionName) throws Exception {
-        Executor<String, AcknowledgedResponse> executor = new Executor<>(analyticsCollectionService()::deleteAnalyticsCollection);
-        return executor.execute(collectionName);
+    private PutAnalyticsCollectionAction.Response awaitPutAnalyticsCollection(
+        AnalyticsCollectionService analyticsCollectionService,
+        ClusterState clusterState,
+        String collectionName
+    ) throws Exception {
+        PutAnalyticsCollectionAction.Request request = new PutAnalyticsCollectionAction.Request(collectionName);
+        return new Executor<>(clusterState, analyticsCollectionService::putAnalyticsCollection).execute(request);
+    }
+
+    private AcknowledgedResponse awaitDeleteAnalyticsCollection(
+        AnalyticsCollectionService analyticsCollectionService,
+        ClusterState clusterState,
+        String collectionName
+    ) throws Exception {
+        DeleteAnalyticsCollectionAction.Request request = new DeleteAnalyticsCollectionAction.Request(collectionName);
+        return new Executor<>(clusterState, analyticsCollectionService::deleteAnalyticsCollection).execute(request);
     }
 
     private static class Executor<T, R> {
-        BiConsumer<T, ActionListener<R>> f;
+        private final ClusterState clusterState;
 
-        Executor(BiConsumer<T, ActionListener<R>> f) {
-            this.f = f;
+        private final TriConsumer<ClusterState, T, ActionListener<R>> consumer;
+
+        Executor(ClusterState clusterState, TriConsumer<ClusterState, T, ActionListener<R>> consumer) {
+            this.clusterState = clusterState;
+            this.consumer = consumer;
+
         }
 
         public R execute(T param) throws Exception {
@@ -130,26 +313,32 @@ public class AnalyticsCollectionServiceTests extends AnalyticsTestCase {
             final AtomicReference<R> resp = new AtomicReference<>(null);
             final AtomicReference<Exception> exc = new AtomicReference<>(null);
 
-            f.accept(param, new ActionListener<R>() {
-                @Override
-                public void onResponse(R r) {
-                    resp.set(r);
-                    latch.countDown();
-                }
+            consumer.accept(clusterState, param, ActionListener.wrap(r -> {
+                resp.set(r);
+                latch.countDown();
+            }, e -> {
+                exc.set(e);
+                latch.countDown();
+            }));
 
-                @Override
-                public void onFailure(Exception e) {
-                    exc.set(e);
-                    latch.countDown();
-                }
-            });
-
-            assertTrue(latch.await(5, TimeUnit.SECONDS));
             if (exc.get() != null) {
                 throw exc.get();
             }
             assertNotNull(resp.get());
+
             return resp.get();
         }
+    }
+
+    private ClusterState createClusterState() {
+        return createClusterState(true);
+    }
+
+    private ClusterState createClusterState(boolean isLocaleNodeMaster) {
+        ClusterState clusterState = mock(ClusterState.class);
+        DiscoveryNodes nodes = mock(DiscoveryNodes.class);
+        when(nodes.isLocalNodeElectedMaster()).thenReturn(isLocaleNodeMaster);
+        when(clusterState.nodes()).thenReturn(nodes);
+        return clusterState;
     }
 }

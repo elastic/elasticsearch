@@ -9,17 +9,14 @@ package org.elasticsearch.xpack.application.analytics.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.application.analytics.AnalyticsCollection;
-import org.elasticsearch.xpack.application.analytics.action.support.BaseAnalyticsCollectionResponse;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -36,26 +33,20 @@ public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollect
     }
 
     public static class Request extends MasterNodeRequest<Request> {
-        private final AnalyticsCollection analyticsCollection;
+        private final String name;
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.analyticsCollection = new AnalyticsCollection(in);
+            this.name = in.readString();
         }
 
-        public Request(String resourceName, BytesReference content, XContentType contentType) {
-            this.analyticsCollection = AnalyticsCollection.fromXContentBytes(resourceName, content, contentType);
-        }
-
-        public Request(AnalyticsCollection analyticsCollection) {
-            this.analyticsCollection = analyticsCollection;
+        public Request(String name) {
+            this.name = name;
         }
 
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-
-            final String name = analyticsCollection.getName();
 
             if (name == null || name.isEmpty()) {
                 validationException = addValidationError("Analytics collection name is missing", validationException);
@@ -67,11 +58,11 @@ public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollect
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            analyticsCollection.writeTo(out);
+            out.writeString(name);
         }
 
-        public AnalyticsCollection getAnalyticsCollection() {
-            return analyticsCollection;
+        public String getName() {
+            return name;
         }
 
         @Override
@@ -79,31 +70,61 @@ public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollect
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request that = (Request) o;
-            return Objects.equals(analyticsCollection, that.analyticsCollection);
+            return Objects.equals(name, that.name);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(analyticsCollection);
+            return Objects.hash(name);
         }
     }
 
-    public static class Response extends BaseAnalyticsCollectionResponse implements ToXContentObject {
+    public static class Response extends AcknowledgedResponse implements StatusToXContentObject {
+
+        public static final ParseField COLLECTION_NAME_FIELD = new ParseField("name");
+
+        private final String name;
+
         public Response(StreamInput in) throws IOException {
             super(in);
+            this.name = in.readString();
         }
 
-        public Response(AnalyticsCollection analyticsCollection) {
-            super(analyticsCollection);
-        }
-
-        public RestStatus status() {
-            return RestStatus.OK;
+        public Response(boolean acknowledged, String name) {
+            super(acknowledged);
+            this.name = name;
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-            return toXContentCommon(builder, params);
+        public RestStatus status() {
+            return RestStatus.CREATED;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(name);
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * super.hashCode() + name.hashCode();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Response response = (Response) o;
+            return isAcknowledged() == response.isAcknowledged() && Objects.equals(name, response.name);
+        }
+
+        protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
+            builder.field(COLLECTION_NAME_FIELD.getPreferredName(), name);
         }
     }
 }

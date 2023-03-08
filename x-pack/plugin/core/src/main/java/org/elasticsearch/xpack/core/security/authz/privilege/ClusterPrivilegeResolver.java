@@ -253,7 +253,10 @@ public class ClusterPrivilegeResolver {
 
     public static final NamedClusterPrivilege CANCEL_TASK = new ActionClusterPrivilege("cancel_task", Set.of(CancelTasksAction.NAME + "*"));
 
-    public static final NamedClusterPrivilege MANAGE_SEARCH_APPLICATION = new ActionClusterPrivilege("manage_search_application", MANAGE_SEARCH_APPLICATION_PATTERN);
+    public static final NamedClusterPrivilege MANAGE_SEARCH_APPLICATION = new ActionClusterPrivilege(
+        "manage_search_application",
+        MANAGE_SEARCH_APPLICATION_PATTERN
+    );
     public static final NamedClusterPrivilege MANAGE_BEHAVIORAL_ANALYTICS = new ActionClusterPrivilege(
         "manage_behavioral_analytics",
         MANAGE_BEHAVIORAL_ANALYTICS_PATTERN

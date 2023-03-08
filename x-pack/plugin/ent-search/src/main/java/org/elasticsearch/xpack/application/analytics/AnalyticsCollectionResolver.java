@@ -24,6 +24,9 @@ import java.util.stream.Collectors;
 
 import static java.util.function.Predicate.not;
 
+/**
+ * A service that allows the resolution of {@link AnalyticsCollection} by name.
+ */
 public class AnalyticsCollectionResolver {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
@@ -32,6 +35,14 @@ public class AnalyticsCollectionResolver {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
+    /**
+     * Resolves a collection by exact name and returns it.
+     *
+     * @param state Cluster state.
+     * @param collectionName Collection name
+     * @return The {@link AnalyticsCollection} object
+     * @throws ResourceNotFoundException when no analytics collection is found.
+     */
     public AnalyticsCollection collection(ClusterState state, String collectionName) {
         AnalyticsCollection collection = new AnalyticsCollection(collectionName);
 
@@ -42,6 +53,15 @@ public class AnalyticsCollectionResolver {
         return collection;
     }
 
+    /**
+     * Resolves one or several collection by expression and returns them as a list.
+     * Expressions can be exact collection name but also contains wildcards.
+     *
+     * @param state Cluster state.
+     * @param expressions Array of the collection name expressions to be matched.
+     * @return List of {@link AnalyticsCollection} objects that match the expressions.
+     * @throws ResourceNotFoundException when no analytics collection is found.
+     */
     public List<AnalyticsCollection> collections(ClusterState state, String... expressions) {
         // Listing data streams that are matching the analytics collection pattern.
         List<String> dataStreams = indexNameExpressionResolver.dataStreamNames(

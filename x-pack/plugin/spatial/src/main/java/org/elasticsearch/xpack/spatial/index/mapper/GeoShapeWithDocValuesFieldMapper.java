@@ -197,6 +197,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
         @Override
         public Query geoShapeQuery(SearchExecutionContext context, String fieldName, ShapeRelation relation, LatLonGeometry... geometries) {
+            failIfNotIndexedNorDocValuesFallback(context);
             // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0)
             if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(Version.V_7_5_0)) {
                 throw new QueryShardException(
@@ -204,10 +205,15 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                     ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "]."
                 );
             }
-            Query query = LatLonShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), geometries);
-            if (hasDocValues()) {
-                final Query queryDocValues = new LatLonShapeDocValuesQuery(fieldName, relation.getLuceneRelation(), geometries);
-                query = new IndexOrDocValuesQuery(query, queryDocValues);
+            Query query;
+            if (isIndexed()) {
+                query = LatLonShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), geometries);
+                if (hasDocValues()) {
+                    final Query queryDocValues = new LatLonShapeDocValuesQuery(fieldName, relation.getLuceneRelation(), geometries);
+                    query = new IndexOrDocValuesQuery(query, queryDocValues);
+                }
+            } else {
+                query = new LatLonShapeDocValuesQuery(fieldName, relation.getLuceneRelation(), geometries);
             }
             return query;
         }

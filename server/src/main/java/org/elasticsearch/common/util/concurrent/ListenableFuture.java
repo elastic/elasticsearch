@@ -43,11 +43,12 @@ import java.util.concurrent.atomic.AtomicReference;
 // The name {@link ListenableFuture} dates back a long way and could be improved - TODO find a better name
 public final class ListenableFuture<V> extends PlainActionFuture<V> {
 
-    private record Node<V>(ActionListener<V> listener, Node<V> next) {}
+    private record Node<V> (ActionListener<V> listener, Node<V> next) {}
 
     /**
      * Marker to indicate the future is complete
      */
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     private static final Node DONE = new Node(null, null);
 
     private final AtomicReference<Node<V>> listeners = new AtomicReference<>();
@@ -79,9 +80,17 @@ public final class ListenableFuture<V> extends PlainActionFuture<V> {
     protected void done(boolean ignored) {
         @SuppressWarnings("unchecked")
         Node<V> notify = listeners.getAndSet(DONE);
-        while (notify != null) {
-            notifyListener(notify.listener());
-            notify = notify.next();
+        if (notify != null) {
+            // call the listeners in subscription order
+            List<ActionListener<V>> listeners = new ArrayList<>();
+            do {
+                listeners.add(notify.listener());
+                notify = notify.next();
+            } while (notify != null);
+
+            for (int i = listeners.size() - 1; i >= 0; i--) {
+                notifyListener(listeners.get(i));
+            }
         }
     }
 

@@ -128,9 +128,10 @@ public class MockSearchService extends SearchService {
         ReaderContext readerContext,
         ShardSearchRequest request,
         SearchShardTask task,
-        boolean includeAggregations
+        boolean includeAggregations,
+        ResultsMode resultsMode
     ) throws IOException {
-        SearchContext searchContext = super.createContext(readerContext, request, task, includeAggregations);
+        SearchContext searchContext = super.createContext(readerContext, request, task, includeAggregations, resultsMode);
         onCreateSearchContext.accept(searchContext);
         return searchContext;
     }

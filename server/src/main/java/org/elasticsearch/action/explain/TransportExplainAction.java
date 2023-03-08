@@ -27,6 +27,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.ResultsMode;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -113,7 +114,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     @Override
     protected ExplainResponse shardOperation(ExplainRequest request, ShardId shardId) throws IOException {
         ShardSearchRequest shardSearchLocalRequest = new ShardSearchRequest(shardId, request.nowInMillis, request.filteringAlias());
-        SearchContext context = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
+        SearchContext context = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT, ResultsMode.NONE);
         Engine.GetResult result = null;
         try {
             // No need to check the type, IndexShard#get does it for us

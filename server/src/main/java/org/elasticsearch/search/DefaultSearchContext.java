@@ -74,9 +74,7 @@ final class DefaultSearchContext extends SearchContext {
     private final IndexShard indexShard;
     private final IndexService indexService;
     private final ContextIndexSearcher searcher;
-    private final DfsSearchResult dfsResult;
-    private final QuerySearchResult queryResult;
-    private final FetchSearchResult fetchResult;
+    private final SearchPhaseResult searchPhaseResult;
     private final float queryBoost;
     private final boolean lowLevelCancellation;
     private TimeValue timeout;
@@ -135,16 +133,15 @@ final class DefaultSearchContext extends SearchContext {
         LongSupplier relativeTimeSupplier,
         TimeValue timeout,
         FetchPhase fetchPhase,
-        boolean lowLevelCancellation
+        boolean lowLevelCancellation,
+        ResultsMode resultsMode
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
         this.fetchPhase = fetchPhase;
         this.searchType = request.searchType();
         this.shardTarget = shardTarget;
-        this.dfsResult = new DfsSearchResult(readerContext.id(), shardTarget, request);
-        this.queryResult = new QuerySearchResult(readerContext.id(), shardTarget, request);
-        this.fetchResult = new FetchSearchResult(readerContext.id(), shardTarget);
+        this.searchPhaseResult = resultsMode.createSearchPhaseResult(readerContext.id(), shardTarget, request);
         this.indexService = readerContext.indexService();
         this.indexShard = readerContext.indexShard();
 
@@ -692,12 +689,12 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public DfsSearchResult dfsResult() {
-        return dfsResult;
+        return (DfsSearchResult) searchPhaseResult;
     }
 
     @Override
     public QuerySearchResult queryResult() {
-        return queryResult;
+        return (QuerySearchResult) searchPhaseResult;
     }
 
     @Override
@@ -707,7 +704,7 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public FetchSearchResult fetchResult() {
-        return fetchResult;
+        return (FetchSearchResult) searchPhaseResult;
     }
 
     @Override
@@ -758,4 +755,5 @@ final class DefaultSearchContext extends SearchContext {
     public SourceLoader newSourceLoader() {
         return searchExecutionContext.newSourceLoader(request.isForceSyntheticSource());
     }
+
 }

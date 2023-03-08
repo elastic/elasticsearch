@@ -43,7 +43,8 @@ public class CircuitBreakingException extends ElasticsearchException {
     }
 
     @Override
-    protected void writeExceptionDataTo(StreamOutput out) throws IOException {
+    protected void writeTo(StreamOutput out, WriteNestedExceptions writeNestedExceptions) throws IOException {
+        super.writeTo(out, writeNestedExceptions);
         out.writeLong(byteLimit);
         out.writeLong(bytesWanted);
         out.writeEnum(durability);

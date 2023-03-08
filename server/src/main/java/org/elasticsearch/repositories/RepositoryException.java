@@ -44,7 +44,8 @@ public class RepositoryException extends ElasticsearchException {
     }
 
     @Override
-    protected void writeExceptionDataTo(StreamOutput out) throws IOException {
+    protected void writeTo(StreamOutput out, WriteNestedExceptions writeNestedExceptions) throws IOException {
+        super.writeTo(out, writeNestedExceptions);
         out.writeOptionalString(repository);
     }
 }

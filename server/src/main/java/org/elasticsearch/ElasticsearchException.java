@@ -15,6 +15,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -280,20 +281,26 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         return rootCause;
     }
 
-    /**
-     * Write any exception-specific data to {@code out}
-     */
-    protected void writeExceptionDataTo(StreamOutput out) throws IOException {}
-
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
+        writeTo(out, createNestingFunction(0, () -> {}));
+    }
+
+    @FunctionalInterface
+    protected interface WriteNestedExceptions extends CheckedBiConsumer<Throwable, StreamOutput, IOException> {}
+
+    private static WriteNestedExceptions createNestingFunction(int level, Runnable nestedExceptionLimitCallback) {
+        return (t, o) -> {
+            writeException(t.getCause(), o, level, nestedExceptionLimitCallback);
+            writeStackTraces(t, o, (no, nt) -> writeException(nt, no, level, nestedExceptionLimitCallback));
+        };
+    }
+
+    protected void writeTo(StreamOutput out, WriteNestedExceptions writeNestedExceptions) throws IOException {
         out.writeOptionalString(this.getMessage());
-        out.writeException(this.getCause());
-        writeStackTraces(this, out, StreamOutput::writeException);
+        writeNestedExceptions.accept(this, out);
         out.writeMapOfLists(headers, StreamOutput::writeString, StreamOutput::writeString);
         out.writeMapOfLists(metadata, StreamOutput::writeString, StreamOutput::writeString);
-
-        writeExceptionDataTo(out);
     }
 
     public static ElasticsearchException readException(StreamInput input, int id) throws IOException {
@@ -871,9 +878,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             }
             output.writeVInt(0);
             output.writeVInt(getId(ex.getClass()));
-            // use the ElasticsearchException as the base exception
-            throwable = ex;
-            esException = ex;
+            ex.writeTo(output, createNestingFunction(nestedLevel + 1, nestedExceptionLimitCallback));
+            return;
         }
 
         if (writeMessage) {
@@ -882,14 +888,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         if (writeCause) {
             writeException(throwable.getCause(), output, nestedLevel + 1, nestedExceptionLimitCallback);
         }
-
         writeStackTraces(throwable, output, (o, t) -> writeException(t, o, nestedLevel + 1, nestedExceptionLimitCallback));
-
-        if (esException != null) {
-            output.writeMapOfLists(esException.headers, StreamOutput::writeString, StreamOutput::writeString);
-            output.writeMapOfLists(esException.metadata, StreamOutput::writeString, StreamOutput::writeString);
-            esException.writeExceptionDataTo(output);
-        }
     }
 
     /**

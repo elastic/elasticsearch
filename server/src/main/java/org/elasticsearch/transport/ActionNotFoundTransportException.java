@@ -33,7 +33,8 @@ public class ActionNotFoundTransportException extends TransportException {
     }
 
     @Override
-    protected void writeExceptionDataTo(StreamOutput out) throws IOException {
+    protected void writeTo(StreamOutput out, WriteNestedExceptions writeNestedExceptions) throws IOException {
+        super.writeTo(out, writeNestedExceptions);
         out.writeOptionalString(action);
     }
 

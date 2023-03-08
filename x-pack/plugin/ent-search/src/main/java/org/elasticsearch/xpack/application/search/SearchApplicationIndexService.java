@@ -352,7 +352,21 @@ public class SearchApplicationIndexService {
                 .storedFields(Collections.singletonList("_none_"))
                 .sort(SearchApplication.NAME_FIELD.getPreferredName(), SortOrder.ASC);
             final SearchRequest req = new SearchRequest(SEARCH_APPLICATION_ALIAS_NAME).source(source);
-            clientWithOrigin.search(req, listener.map(SearchApplicationIndexService::mapSearchResponse));
+            clientWithOrigin.search(req, new ActionListener<>() {
+                @Override
+                public void onResponse(SearchResponse searchResponse) {
+                    listener.onResponse(mapSearchResponse(searchResponse));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof IndexNotFoundException) {
+                        listener.onResponse(new SearchApplicationResult(Collections.emptyList(), 0L));
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }
+            });
         } catch (Exception e) {
             listener.onFailure(e);
         }

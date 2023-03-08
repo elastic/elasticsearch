@@ -15,17 +15,44 @@ teardown:
         ignore: 404
 
 ---
-"Get Analytics Collection":
+"Get Analytics Collection for a particular collection":
   - do:
-      behavioral_analytics.get:
+      behavioral_analytics.list:
         name: my-test-analytics-collection
 
-  - match: { name: "my-test-analytics-collection" }
+  - match: {
+      "my-test-analytics-collection": {
+        event_data_stream: {
+          name: "behavioral_analytics-events-my-test-analytics-collection"
+        }
+      }
+    }
+
+---
+"Get Analytics Collection list":
+  - do:
+      behavioral_analytics.list:
+        name:
+
+  - match: {
+    "my-test-analytics-collection": {
+      event_data_stream: {
+        name: "behavioral_analytics-events-my-test-analytics-collection"
+      }
+    }
+  }
+  - match: {
+    "my-test-analytics-collection2": {
+      event_data_stream: {
+        name: "behavioral_analytics-events-my-test-analytics-collection2"
+      }
+    }
+  }
 
 ---
 "Get Analytics Collection - Resource does not exist":
   - do:
       catch: "missing"
-      search_application.get:
+      behavioral_analytics.list:
         name: test-nonexistent-analytics-collection
 

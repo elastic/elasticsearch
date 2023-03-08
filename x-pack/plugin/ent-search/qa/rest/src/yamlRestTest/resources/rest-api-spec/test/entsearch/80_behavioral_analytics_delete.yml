@@ -1,48 +1,32 @@
 setup:
   - do:
-      indices.create:
-        index: test-index
-        body:
-          settings:
-            index:
-              number_of_shards: 1
-              number_of_replicas: 0
-  - do:
-      search_application.put:
-        name: test-search-application-to-delete
-        body:
-          indices: [ "test-index" ]
+      behavioral_analytics.put:
+        name: my-test-analytics-collection
 
 ---
 teardown:
   - do:
-      search_application.delete:
-        name: test-search-application-to-delete
+      behavioral_analytics.delete:
+        name: test-analytics-collection-to-delete
         ignore: 404
 
 ---
-"Delete Search Application":
+"Delete Analytics Collection":
   - do:
-      search_application.delete:
-        name: test-search-application-to-delete
+      behavioral_analytics.delete:
+        name: my-test-analytics-collection
 
   - match: { acknowledged: true }
 
   - do:
       catch: "missing"
-      search_application.get:
-        name: test-search-application-to-delete
-
-  - do:
-      indices.exists_alias:
-        name: test-search-application-to-delete
-
-  - is_false: ''
+      behavioral_analytics.list:
+        name: my-test-analytics-collection
 
 ---
-"Delete Search Application - Index does not exist":
+"Delete Analytics Collection - Analytics Collection does not exist":
   - do:
       catch: "missing"
-      search_application.delete:
-        name: test-nonexistent-search-application
+      behavioral_analytics.delete:
+        name: test-nonexistent-analytics-collection
 

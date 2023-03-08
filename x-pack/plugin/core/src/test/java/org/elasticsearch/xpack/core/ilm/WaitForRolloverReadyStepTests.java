@@ -197,11 +197,11 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         long maxPrimaryShardDocs;
         if (conditions.getMaxPrimaryShardDocs() != null) {
             maxPrimaryShardDocs = conditions.getMaxPrimaryShardDocs();
-            if (maxPrimaryShardDocs > WaitForRolloverReadyStep.MAX_PRIMARY_SHARD_DOCS_FOR_TSDB) {
-                maxPrimaryShardDocs = WaitForRolloverReadyStep.MAX_PRIMARY_SHARD_DOCS_FOR_TSDB;
+            if (maxPrimaryShardDocs > WaitForRolloverReadyStep.MAX_PRIMARY_SHARD_DOCS) {
+                maxPrimaryShardDocs = WaitForRolloverReadyStep.MAX_PRIMARY_SHARD_DOCS;
             }
         } else {
-            maxPrimaryShardDocs = WaitForRolloverReadyStep.MAX_PRIMARY_SHARD_DOCS_FOR_TSDB;
+            maxPrimaryShardDocs = WaitForRolloverReadyStep.MAX_PRIMARY_SHARD_DOCS;
         }
         expectedConditions.add(new MaxPrimaryShardDocsCondition(maxPrimaryShardDocs));
         if (conditions.getMinSize() != null) {
@@ -707,7 +707,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             c.getMaxPrimaryShardSize(),
             c.getMaxAge(),
             c.getMaxDocs(),
-            randomLongBetween(WaitForRolloverReadyStep.MAX_PRIMARY_SHARD_DOCS_FOR_TSDB, Long.MAX_VALUE),
+            randomLongBetween(WaitForRolloverReadyStep.MAX_PRIMARY_SHARD_DOCS, Long.MAX_VALUE),
             c.getMinSize(),
             c.getMinPrimaryShardSize(),
             c.getMinAge(),
@@ -718,7 +718,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         assertThat(request.getRolloverTarget(), is(rolloverTarget));
         assertThat(request.masterNodeTimeout(), is(masterTimeout));
         assertThat(request.isDryRun(), is(true)); // it's always a dry_run
-        assertThat(request.getConditions().getMaxPrimaryShardDocs(), equalTo(WaitForRolloverReadyStep.MAX_PRIMARY_SHARD_DOCS_FOR_TSDB));
+        assertThat(request.getConditions().getMaxPrimaryShardDocs(), equalTo(WaitForRolloverReadyStep.MAX_PRIMARY_SHARD_DOCS));
         // If null then expected is always MAX_PRIMARY_SHARD_DOCS_FOR_TSDB
         step = new WaitForRolloverReadyStep(
             step.getKey(),
@@ -739,7 +739,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         assertThat(request.getRolloverTarget(), is(rolloverTarget));
         assertThat(request.masterNodeTimeout(), is(masterTimeout));
         assertThat(request.isDryRun(), is(true)); // it's always a dry_run
-        assertThat(request.getConditions().getMaxPrimaryShardDocs(), equalTo(WaitForRolloverReadyStep.MAX_PRIMARY_SHARD_DOCS_FOR_TSDB));
+        assertThat(request.getConditions().getMaxPrimaryShardDocs(), equalTo(WaitForRolloverReadyStep.MAX_PRIMARY_SHARD_DOCS));
         // If less then WaitForRolloverReadyStep.MAX_PRIMARY_SHARD_DOCS_FOR_TSDB then expected is what has been defined
         long maxPrimaryShardDocCount;
         step = new WaitForRolloverReadyStep(
@@ -750,7 +750,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             c.getMaxPrimaryShardSize(),
             c.getMaxAge(),
             c.getMaxDocs(),
-            maxPrimaryShardDocCount = randomLongBetween(1, WaitForRolloverReadyStep.MAX_PRIMARY_SHARD_DOCS_FOR_TSDB - 1),
+            maxPrimaryShardDocCount = randomLongBetween(1, WaitForRolloverReadyStep.MAX_PRIMARY_SHARD_DOCS - 1),
             c.getMinSize(),
             c.getMinPrimaryShardSize(),
             c.getMinAge(),

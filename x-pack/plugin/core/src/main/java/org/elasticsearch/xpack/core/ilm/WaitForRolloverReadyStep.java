@@ -39,7 +39,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
 
     public static final String NAME = "check-rollover-ready";
 
-    public static final long MAX_PRIMARY_SHARD_DOCS_FOR_TSDB = 200_000_000L;
+    public static final long MAX_PRIMARY_SHARD_DOCS = 200_000_000L;
 
     private final RolloverConditions conditions;
 
@@ -244,9 +244,9 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         long currentMaxPrimaryShardDocs = rolloverRequest.getConditions().getMaxPrimaryShardDocs() != null
             ? rolloverRequest.getConditions().getMaxPrimaryShardDocs()
             : Long.MAX_VALUE;
-        if (currentMaxPrimaryShardDocs > MAX_PRIMARY_SHARD_DOCS_FOR_TSDB) {
+        if (currentMaxPrimaryShardDocs > MAX_PRIMARY_SHARD_DOCS) {
             Map<String, Condition<?>> conditions = new HashMap<>(rolloverRequest.getConditions().getConditions());
-            conditions.put(MaxPrimaryShardDocsCondition.NAME, new MaxPrimaryShardDocsCondition(MAX_PRIMARY_SHARD_DOCS_FOR_TSDB));
+            conditions.put(MaxPrimaryShardDocsCondition.NAME, new MaxPrimaryShardDocsCondition(MAX_PRIMARY_SHARD_DOCS));
             rolloverRequest.setConditions(new RolloverConditions(conditions));
         }
         return rolloverRequest;

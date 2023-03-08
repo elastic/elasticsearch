@@ -36,7 +36,6 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequest;
-import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageResponse;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequestBuilder;
@@ -217,14 +216,6 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     NodesInfoRequestBuilder prepareNodesInfo(String... nodesIds);
 
     /**
-     * Cluster wide aggregated stats.
-     *
-     * @param request The cluster stats request
-     * @return The result future
-     */
-    ActionFuture<ClusterStatsResponse> clusterStats(ClusterStatsRequest request);
-
-    /**
      * Cluster wide aggregated stats
      *
      * @param request  The cluster stats request
@@ -260,31 +251,10 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      *
      * @param request
      *            The nodes usage request
-     * @return The result future
-     */
-    ActionFuture<NodesUsageResponse> nodesUsage(NodesUsageRequest request);
-
-    /**
-     * Nodes usage of the cluster.
-     *
-     * @param request
-     *            The nodes usage request
      * @param listener
      *            A listener to be notified with a result
      */
     void nodesUsage(NodesUsageRequest request, ActionListener<NodesUsageResponse> listener);
-
-    /**
-     * Nodes usage of the cluster.
-     */
-    NodesUsageRequestBuilder prepareNodesUsage(String... nodesIds);
-
-    /**
-     * Returns top N hot-threads samples per node. The hot-threads are only
-     * sampled for the node ids specified in the request.
-     *
-     */
-    ActionFuture<NodesHotThreadsResponse> nodesHotThreads(NodesHotThreadsRequest request);
 
     /**
      * Returns top N hot-threads samples per node. The hot-threads are only sampled
@@ -369,27 +339,12 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     /**
      * Returns list of shards the given search would be executed on.
      */
-    ActionFuture<ClusterSearchShardsResponse> searchShards(ClusterSearchShardsRequest request);
-
-    /**
-     * Returns list of shards the given search would be executed on.
-     */
     void searchShards(ClusterSearchShardsRequest request, ActionListener<ClusterSearchShardsResponse> listener);
 
     /**
      * Returns list of shards the given search would be executed on.
      */
-    ClusterSearchShardsRequestBuilder prepareSearchShards();
-
-    /**
-     * Returns list of shards the given search would be executed on.
-     */
     ClusterSearchShardsRequestBuilder prepareSearchShards(String... indices);
-
-    /**
-     * Registers a snapshot repository.
-     */
-    ActionFuture<AcknowledgedResponse> putRepository(PutRepositoryRequest request);
 
     /**
      * Registers a snapshot repository.
@@ -404,22 +359,12 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     /**
      * Unregisters a repository.
      */
-    ActionFuture<AcknowledgedResponse> deleteRepository(DeleteRepositoryRequest request);
-
-    /**
-     * Unregisters a repository.
-     */
     void deleteRepository(DeleteRepositoryRequest request, ActionListener<AcknowledgedResponse> listener);
 
     /**
      * Unregisters a repository.
      */
     DeleteRepositoryRequestBuilder prepareDeleteRepository(String name);
-
-    /**
-     * Gets repositories.
-     */
-    ActionFuture<GetRepositoriesResponse> getRepositories(GetRepositoriesRequest request);
 
     /**
      * Gets repositories.
@@ -439,17 +384,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     /**
      * Cleans up repository.
      */
-    ActionFuture<CleanupRepositoryResponse> cleanupRepository(CleanupRepositoryRequest repository);
-
-    /**
-     * Cleans up repository.
-     */
     void cleanupRepository(CleanupRepositoryRequest repository, ActionListener<CleanupRepositoryResponse> listener);
-
-    /**
-     * Verifies a repository.
-     */
-    ActionFuture<VerifyRepositoryResponse> verifyRepository(VerifyRepositoryRequest request);
 
     /**
      * Verifies a repository.
@@ -484,17 +419,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     /**
      * Clones a snapshot.
      */
-    ActionFuture<AcknowledgedResponse> cloneSnapshot(CloneSnapshotRequest request);
-
-    /**
-     * Clones a snapshot.
-     */
     void cloneSnapshot(CloneSnapshotRequest request, ActionListener<AcknowledgedResponse> listener);
-
-    /**
-     * Get snapshots.
-     */
-    ActionFuture<GetSnapshotsResponse> getSnapshots(GetSnapshotsRequest request);
 
     /**
      * Get snapshots.
@@ -505,11 +430,6 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Get snapshots.
      */
     GetSnapshotsRequestBuilder prepareGetSnapshots(String... repository);
-
-    /**
-     * Delete snapshot.
-     */
-    ActionFuture<AcknowledgedResponse> deleteSnapshot(DeleteSnapshotRequest request);
 
     /**
      * Delete snapshot.
@@ -546,18 +466,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Returns a list of the pending cluster tasks, that are scheduled to be executed. This includes operations
      * that update the cluster state (for example, a create index operation)
      */
-    ActionFuture<PendingClusterTasksResponse> pendingClusterTasks(PendingClusterTasksRequest request);
-
-    /**
-     * Returns a list of the pending cluster tasks, that are scheduled to be executed. This includes operations
-     * that update the cluster state (for example, a create index operation)
-     */
     PendingClusterTasksRequestBuilder preparePendingClusterTasks();
-
-    /**
-     * Get snapshot status.
-     */
-    ActionFuture<SnapshotsStatusResponse> snapshotsStatus(SnapshotsStatusRequest request);
 
     /**
      * Get snapshot status.
@@ -602,22 +511,12 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     /**
      * Deletes a stored ingest pipeline
      */
-    DeletePipelineRequestBuilder prepareDeletePipeline();
-
-    /**
-     * Deletes a stored ingest pipeline
-     */
     DeletePipelineRequestBuilder prepareDeletePipeline(String id);
 
     /**
      * Returns a stored ingest pipeline
      */
     void getPipeline(GetPipelineRequest request, ActionListener<GetPipelineResponse> listener);
-
-    /**
-     * Returns a stored ingest pipeline
-     */
-    ActionFuture<GetPipelineResponse> getPipeline(GetPipelineRequest request);
 
     /**
      * Returns a stored ingest pipeline
@@ -667,32 +566,12 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     /**
      * Delete a script from the cluster state
      */
-    ActionFuture<AcknowledgedResponse> deleteStoredScript(DeleteStoredScriptRequest request);
-
-    /**
-     * Delete a script from the cluster state
-     */
-    DeleteStoredScriptRequestBuilder prepareDeleteStoredScript();
-
-    /**
-     * Delete a script from the cluster state
-     */
     DeleteStoredScriptRequestBuilder prepareDeleteStoredScript(String id);
 
     /**
      * Store a script in the cluster state
      */
     void putStoredScript(PutStoredScriptRequest request, ActionListener<AcknowledgedResponse> listener);
-
-    /**
-     * Store a script in the cluster state
-     */
-    ActionFuture<AcknowledgedResponse> putStoredScript(PutStoredScriptRequest request);
-
-    /**
-     * Get a script from the cluster state
-     */
-    GetStoredScriptRequestBuilder prepareGetStoredScript();
 
     /**
      * Get a script from the cluster state
@@ -703,11 +582,6 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Get a script from the cluster state
      */
     void getStoredScript(GetStoredScriptRequest request, ActionListener<GetStoredScriptResponse> listener);
-
-    /**
-     * Get a script from the cluster state
-     */
-    ActionFuture<GetStoredScriptResponse> getStoredScript(GetStoredScriptRequest request);
 
     /**
      * List dangling indices on all nodes.

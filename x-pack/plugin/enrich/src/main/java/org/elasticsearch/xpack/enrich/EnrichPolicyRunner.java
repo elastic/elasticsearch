@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -420,7 +421,7 @@ public class EnrichPolicyRunner implements Runnable {
         reindexRequest.getDestination().routing("discard");
         reindexRequest.getDestination().setPipeline(EnrichPolicyReindexPipeline.pipelineName());
 
-        client.execute(EnrichReindexAction.INSTANCE, reindexRequest, new ActionListener.Delegating<>(listener) {
+        client.execute(EnrichReindexAction.INSTANCE, reindexRequest, new DelegatingActionListener<>(listener) {
             @Override
             public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
                 // Do we want to fail the request if there were failures during the reindex process?
@@ -507,7 +508,7 @@ public class EnrichPolicyRunner implements Runnable {
     protected void ensureSingleSegment(final String destinationIndexName, final int attempt) {
         enrichOriginClient().admin()
             .indices()
-            .segments(new IndicesSegmentsRequest(destinationIndexName), new ActionListener.Delegating<>(listener) {
+            .segments(new IndicesSegmentsRequest(destinationIndexName), new DelegatingActionListener<>(listener) {
                 @Override
                 public void onResponse(IndicesSegmentResponse indicesSegmentResponse) {
                     IndexSegments indexSegments = indicesSegmentResponse.getIndices().get(destinationIndexName);

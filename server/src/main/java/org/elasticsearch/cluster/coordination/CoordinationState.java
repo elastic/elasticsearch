@@ -32,6 +32,8 @@ public class CoordinationState {
 
     private static final Logger logger = LogManager.getLogger(CoordinationState.class);
 
+    public static boolean REGISTER_COORDINATION_MODE_ENABLED = false;
+
     private final DiscoveryNode localNode;
 
     private final ElectionStrategy electionStrategy;
@@ -165,7 +167,7 @@ public class CoordinationState {
      * @throws CoordinationStateRejectedException if the arguments were incompatible with the current state of this object.
      */
     public Join handleStartJoin(StartJoinRequest startJoinRequest) {
-        if (electionStrategy.isValidStartJoinRequest(startJoinRequest, getCurrentTerm()) == false) {
+        if (electionStrategy.shouldJoinLeaderInTerm(getCurrentTerm(), startJoinRequest.getTerm()) == false) {
             logger.debug(
                 "handleStartJoin: ignoring [{}] as term provided is not greater than current term [{}]",
                 startJoinRequest,
@@ -342,7 +344,7 @@ public class CoordinationState {
             throw new CoordinationStateRejectedException("only allow reconfiguration if joinVotes have quorum for new config");
         }
 
-        assert clusterState.getLastCommittedConfiguration().equals(getLastCommittedConfiguration())
+        assert clusterState.getLastCommittedConfiguration().equals(getLastCommittedConfiguration()) || REGISTER_COORDINATION_MODE_ENABLED
             : "last committed configuration should not change";
 
         lastPublishedVersion = clusterState.version();

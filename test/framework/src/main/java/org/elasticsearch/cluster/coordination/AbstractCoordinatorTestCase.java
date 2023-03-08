@@ -1082,7 +1082,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 );
                 final AllocationService allocationService = ESAllocationTestCase.createAllocationService(Settings.EMPTY);
                 final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
-                final var coordinationServices = getCoordinatorStrategy().getCoordinationServices(threadPool, settings, clusterSettings);
+                final var coordinationServices = getCoordinatorStrategy().getCoordinationServices(
+                    threadPool,
+                    settings,
+                    clusterSettings,
+                    persistedState
+                );
                 coordinator = new Coordinator(
                     "test_node",
                     settings,
@@ -1455,7 +1460,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     }
 
     protected interface CoordinatorStrategy {
-        CoordinationServices getCoordinationServices(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings);
+        CoordinationServices getCoordinationServices(
+            ThreadPool threadPool,
+            Settings settings,
+            ClusterSettings clusterSettings,
+            CoordinationState.PersistedState persistedState
+        );
 
         CoordinationState.PersistedState createFreshPersistedState(DiscoveryNode localNode, BooleanSupplier disruptStorage);
 
@@ -1492,7 +1502,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         }
 
         @Override
-        public CoordinationServices getCoordinationServices(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
+        public CoordinationServices getCoordinationServices(
+            ThreadPool threadPool,
+            Settings settings,
+            ClusterSettings clusterSettings,
+            CoordinationState.PersistedState persistedState
+        ) {
             return new CoordinationServices() {
                 @Override
                 public ElectionStrategy getQuorumStrategy() {

@@ -521,7 +521,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
                 final StartJoinRequest startJoinRequest = new StartJoinRequest(getLocalNode(), Math.max(getCurrentTerm(), maxTermSeen) + 1);
                 logger.debug("starting election with {}", startJoinRequest);
-                electionStrategy.onNewElection(startJoinRequest.getSourceNode(), startJoinRequest.getTerm());
+                electionStrategy.onNewElection(startJoinRequest.getSourceNode(), startJoinRequest.getTerm(), getLastAcceptedState());
                 getDiscoveredNodes().forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
             }
         }
@@ -555,7 +555,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
     private Optional<Join> ensureTermAtLeast(DiscoveryNode sourceNode, long targetTerm) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-        if (electionStrategy.shouldJoinLeaderInTerm(getCurrentTerm(), targetTerm, lastJoin)) {
+        if (electionStrategy.shouldJoinLeaderInTerm(getCurrentTerm(), targetTerm)) {
             return Optional.of(joinLeaderInTerm(new StartJoinRequest(sourceNode, targetTerm)));
         }
         return Optional.empty();

@@ -7,11 +7,10 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-
-import java.util.Optional;
 
 /**
  * Allows plugging in a custom election strategy, restricting the notion of an election quorum.
@@ -71,12 +70,8 @@ public abstract class ElectionStrategy {
         return voteCollection.isQuorum(lastCommittedConfiguration) && voteCollection.isQuorum(latestPublishedConfiguration);
     }
 
-    public boolean shouldJoinLeaderInTerm(long currentTerm, long targetTerm, Optional<Join> lastJoin) {
+    public boolean shouldJoinLeaderInTerm(long currentTerm, long targetTerm) {
         return currentTerm < targetTerm;
-    }
-
-    public boolean isValidStartJoinRequest(StartJoinRequest startJoinRequest, long currentTerm) {
-        return startJoinRequest.getTerm() > currentTerm;
     }
 
     /**
@@ -100,5 +95,5 @@ public abstract class ElectionStrategy {
         VoteCollection joinVotes
     );
 
-    public void onNewElection(DiscoveryNode sourceNode, long proposedTerm) {}
+    public void onNewElection(DiscoveryNode sourceNode, long proposedTerm, ClusterState latestAcceptedState) {}
 }

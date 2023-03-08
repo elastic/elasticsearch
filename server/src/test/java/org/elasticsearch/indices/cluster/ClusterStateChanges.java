@@ -231,16 +231,6 @@ public class ClusterStateChanges {
                 when(conn.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
                 return conn;
             }
-
-            @Override
-            public TransportVersion getMinTransportVersion() {
-                return TransportVersion.CURRENT;
-            }
-
-            @Override
-            public TransportVersion getMinTransportVersion(Predicate<DiscoveryNode> filter) {
-                return TransportVersion.CURRENT;
-            }
         };
         IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(SETTINGS, xContentRegistry, null, null, null) {
             // metadata upgrader should do nothing

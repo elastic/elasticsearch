@@ -681,7 +681,6 @@ public class NodeJoinExecutorTests extends ESTestCase {
         Transport.Connection connection = mock(Transport.Connection.class);
         when(connection.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
         when(service.getConnection(any())).thenReturn(connection);
-        when(service.getMinTransportVersion(any())).thenReturn(TransportVersion.CURRENT);
         return service;
     }
 

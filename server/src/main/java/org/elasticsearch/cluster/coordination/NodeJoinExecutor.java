@@ -104,7 +104,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         }
 
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(newState.nodes());
-        ImmutableOpenMap.Builder<String, TransportVersion> transportVersions = ImmutableOpenMap.builder(newState.transportVersions());
+        Map<String, TransportVersion> transportVersions = newState.transportVersions();
 
         assert nodesBuilder.isLocalNodeElectedMaster();
 
@@ -126,7 +126,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         TransportVersion transportVersion = transportService.getConnection(node).getTransportVersion();
                         if (enforceVersionBarrier) {
                             ensureVersionBarrier(node.getVersion(), minClusterNodeVersion);
-                            ensureTransportVersionBarrier(transportVersion, transportVersions.build().values());
+                            ensureTransportVersionBarrier(transportVersion, transportVersions.values());
                         }
                         ensureNodesCompatibility(node.getVersion(), minClusterNodeVersion, maxClusterNodeVersion);
                         // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices

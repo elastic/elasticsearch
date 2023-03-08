@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ParseField;
@@ -21,10 +20,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.application.analytics.AnalyticsCollection;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollectionAction.Response> {
 
@@ -36,41 +34,35 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
-        private final String collectionName;
+        private final String[] names;
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.collectionName = in.readString();
-        }
-
-        public Request(String collectionName) {
-            this.collectionName = collectionName;
+            this.names = in.readOptionalStringArray();
         }
 
         @Override
         public ActionRequestValidationException validate() {
-            ActionRequestValidationException validationException = null;
+            return null;
+        }
 
-            if (Strings.isNullOrEmpty(collectionName)) {
-                validationException = addValidationError("collection name missing", validationException);
-            }
-
-            return validationException;
+        public Request(String[] names) {
+            this.names = names;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(collectionName);
+            out.writeOptionalStringArray(names);
         }
 
-        public String getCollectionName() {
-            return this.collectionName;
+        public String[] getNames() {
+            return this.names;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(this.collectionName);
+            return Arrays.hashCode(this.names);
         }
 
         @Override
@@ -78,7 +70,7 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(this.collectionName, request.collectionName);
+            return Arrays.equals(this.names, request.names);
         }
     }
 

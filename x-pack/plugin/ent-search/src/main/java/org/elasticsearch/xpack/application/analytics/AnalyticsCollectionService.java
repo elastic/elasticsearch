@@ -12,21 +12,14 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.xpack.application.analytics.action.DeleteAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.action.GetAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.action.PutAnalyticsCollectionAction;
-
-import java.util.Arrays;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
@@ -40,12 +33,12 @@ public class AnalyticsCollectionService {
 
     private final Client clientWithOrigin;
 
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final AnalyticsCollectionResolver analyticsCollectionResolver;
 
     @Inject
-    public AnalyticsCollectionService(Client client, IndexNameExpressionResolver indexNameExpressionResolver) {
+    public AnalyticsCollectionService(Client client, AnalyticsCollectionResolver analyticsCollectionResolver) {
         this.clientWithOrigin = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.analyticsCollectionResolver = analyticsCollectionResolver;
     }
 
     /**
@@ -63,14 +56,7 @@ public class AnalyticsCollectionService {
         // This operation is supposed to be executed on the master node only.
         assert (state.nodes().isLocalNodeElectedMaster());
 
-        List<AnalyticsCollection> collections = analyticsCollections(state, request.getCollectionName());
-
-        if (collections.isEmpty()) {
-            listener.onFailure(new ResourceNotFoundException(request.getCollectionName()));
-            return;
-        }
-
-        listener.onResponse(new GetAnalyticsCollectionAction.Response(collections));
+        listener.onResponse(new GetAnalyticsCollectionAction.Response(analyticsCollectionResolver.collections(state, request.getNames())));
     }
 
     /**
@@ -88,22 +74,20 @@ public class AnalyticsCollectionService {
         // This operation is supposed to be executed on the master node only.
         assert (state.nodes().isLocalNodeElectedMaster());
 
-        if (analyticsCollections(state, request.getName()).isEmpty() == false) {
+        try {
+            analyticsCollectionResolver.collection(state, request.getName());
             listener.onFailure(new ResourceAlreadyExistsException(request.getName()));
-            return;
+        } catch (ResourceNotFoundException e) {
+            AnalyticsCollection collection = new AnalyticsCollection(request.getName());
+            CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(collection.getEventDataStream());
+
+            ActionListener<AcknowledgedResponse> createDataStreamListener = ActionListener.wrap(
+                resp -> listener.onResponse(new PutAnalyticsCollectionAction.Response(resp.isAcknowledged(), request.getName())),
+                listener::onFailure
+            );
+
+            clientWithOrigin.execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest, createDataStreamListener);
         }
-
-        AnalyticsCollection analyticsCollection = new AnalyticsCollection(request.getName());
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
-            analyticsCollection.getEventDataStream()
-        );
-
-        ActionListener<AcknowledgedResponse> createDataStreamListener = ActionListener.wrap(
-            resp -> listener.onResponse(new PutAnalyticsCollectionAction.Response(resp.isAcknowledged(), request.getName())),
-            listener::onFailure
-        );
-
-        clientWithOrigin.execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest, createDataStreamListener);
     }
 
     /**
@@ -121,35 +105,12 @@ public class AnalyticsCollectionService {
         // This operation is supposed to be executed on the master node.
         assert (state.nodes().isLocalNodeElectedMaster());
 
-        List<AnalyticsCollection> collections = analyticsCollections(state, request.getCollectionName());
-
-        if (collections.isEmpty()) {
-            listener.onFailure(new ResourceNotFoundException(request.getCollectionName()));
-            return;
+        try {
+            AnalyticsCollection collection = analyticsCollectionResolver.collection(state, request.getCollectionName());
+            DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(collection.getEventDataStream());
+            clientWithOrigin.execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamRequest, listener);
+        } catch (ResourceNotFoundException e) {
+            listener.onFailure(e);
         }
-
-        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(
-            collections.get(0).getEventDataStream()
-        );
-
-        clientWithOrigin.execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamRequest, listener);
-    }
-
-    private List<AnalyticsCollection> analyticsCollections(ClusterState state, String... expressions) {
-
-        Set<String> collectionNames = Arrays.stream(expressions).collect(Collectors.toSet());
-
-        // Listing data streams that are matching the analytics collection pattern.
-        List<String> dataStreams = indexNameExpressionResolver.dataStreamNames(
-            state,
-            IndicesOptions.lenientExpandOpen(),
-            AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INDEX_PATTERN
-        );
-
-        // Init an AnalyticsCollection instance from each matching data stream.
-        return dataStreams.stream()
-            .map(AnalyticsCollection::fromDataStreamName)
-            .filter(analyticsCollection -> collectionNames.contains(analyticsCollection.getName()))
-            .collect(Collectors.toList());
     }
 }

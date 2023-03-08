@@ -21,7 +21,7 @@ public class GetAnalyticsCollectionRequestSerializingTests extends AbstractWireS
 
     @Override
     protected GetAnalyticsCollectionAction.Request createTestInstance() {
-        return new GetAnalyticsCollectionAction.Request(randomIdentifier());
+        return new GetAnalyticsCollectionAction.Request(new String[] { randomIdentifier() });
     }
 
     @Override

@@ -105,4 +105,8 @@ public abstract class ElectionStrategy {
         return clusterState.getLastAcceptedConfiguration().equals(lastAcceptedConfiguration) == false
             && lastCommittedConfiguration.equals(lastAcceptedConfiguration) == false;
     }
+
+    public void beforeCommit(long term, long version) {
+
+    }
 }

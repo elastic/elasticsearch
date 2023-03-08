@@ -1672,6 +1672,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
     }
 
+    void beforeCommit(long term, long version) {
+        electionStrategy.beforeCommit(term, version);
+    }
+
     class CoordinatorPublication extends Publication {
 
         private final ClusterStatePublicationEvent clusterStatePublicationEvent;
@@ -1957,13 +1961,22 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             ActionListener<Empty> responseActionListener
         ) {
             assert transportService.getThreadPool().getThreadContext().isSystemContext();
-            transportService.sendRequest(
-                destination,
-                COMMIT_STATE_ACTION_NAME,
-                applyCommit,
-                COMMIT_STATE_REQUEST_OPTIONS,
-                new ActionListenerResponseHandler<>(wrapWithMutex(responseActionListener), in -> Empty.INSTANCE, Names.CLUSTER_COORDINATION)
-            );
+            try {
+                beforeCommit(applyCommit.getTerm(), applyCommit.getVersion());
+                transportService.sendRequest(
+                    destination,
+                    COMMIT_STATE_ACTION_NAME,
+                    applyCommit,
+                    COMMIT_STATE_REQUEST_OPTIONS,
+                    new ActionListenerResponseHandler<>(
+                        wrapWithMutex(responseActionListener),
+                        in -> Empty.INSTANCE,
+                        Names.CLUSTER_COORDINATION
+                    )
+                );
+            } catch (Exception e) {
+                responseActionListener.onFailure(e);
+            }
         }
     }
 

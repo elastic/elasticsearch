@@ -102,7 +102,7 @@ public abstract class ElectionStrategy {
         VotingConfiguration lastAcceptedConfiguration,
         VotingConfiguration lastCommittedConfiguration
     ) {
-        return clusterState.getLastAcceptedConfiguration().equals(lastAcceptedConfiguration) == false
-            && lastCommittedConfiguration.equals(lastAcceptedConfiguration) == false;
+        return clusterState.getLastAcceptedConfiguration().equals(lastAcceptedConfiguration)
+            && lastCommittedConfiguration.equals(lastAcceptedConfiguration);
     }
 }

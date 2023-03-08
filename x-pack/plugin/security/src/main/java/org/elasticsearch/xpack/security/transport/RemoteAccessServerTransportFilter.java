@@ -14,7 +14,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.security.audit.AuditUtil;
+import org.elasticsearch.xpack.security.audit.CrossClusterAccessAuditUtil;
 import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 
@@ -29,9 +29,10 @@ final class RemoteAccessServerTransportFilter extends ServerTransportFilter {
     static final Set<String> ALLOWED_TRANSPORT_HEADERS;
     static {
         final Set<String> allowedHeaders = new HashSet<>(
-            Set.of(REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY, REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY, AuditUtil.AUDIT_REQUEST_ID)
+            Set.of(REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY, REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY)
         );
         allowedHeaders.addAll(Task.HEADERS_TO_COPY);
+        allowedHeaders.addAll(CrossClusterAccessAuditUtil.AUDIT_HEADERS_TO_COPY);
         ALLOWED_TRANSPORT_HEADERS = Set.copyOf(allowedHeaders);
     }
 

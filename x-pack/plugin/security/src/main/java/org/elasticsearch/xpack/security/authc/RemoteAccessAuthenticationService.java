@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.audit.AuditUtil;
+import org.elasticsearch.xpack.security.audit.CrossClusterAccessAuditUtil;
 
 import java.io.IOException;
 import java.util.Set;
@@ -92,7 +92,7 @@ public class RemoteAccessAuthenticationService {
 
         // stash to drop remote access authentication headers since we've read their values, and we want to maintain the invariant that
         // either the remote access authentication header is in the context, or the authentication header, but not both
-        try (ThreadContext.StoredContext ignored = AuditUtil.stashContextWithRequestId(threadContext)) {
+        try (ThreadContext.StoredContext ignored = CrossClusterAccessAuditUtil.stashContextWithAuditHeaders(threadContext)) {
             final Supplier<ThreadContext.StoredContext> storedContextSupplier = threadContext.newRestorableContext(false);
             authenticationService.authenticate(
                 authcContext,

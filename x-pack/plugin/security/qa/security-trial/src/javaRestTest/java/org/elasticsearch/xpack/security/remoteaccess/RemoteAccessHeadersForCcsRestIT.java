@@ -52,7 +52,6 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
-import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.RemoteAccessHeaders;
 import org.junit.After;
@@ -946,7 +945,13 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
                 // this action is run by the system user, so we expect a remote access authentication header with an internal
                 // user authentication and empty role descriptors intersection
                 case RemoteClusterNodesAction.NAME -> {
-                    assertContainsRemoteAccessHeaders(actual.headers());
+                    assertThat(
+                        actual.headers().keySet(),
+                        containsInAnyOrder(
+                            RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY,
+                            RemoteAccessHeaders.REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY
+                        )
+                    );
                     assertContainsRemoteClusterAuthorizationHeader(encodedCredential, actual);
                     final var actualRemoteAccessAuthentication = RemoteAccessAuthentication.decode(
                         actual.headers().get(RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY)
@@ -964,7 +969,14 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
                     assertThat(actualRemoteAccessAuthentication, equalTo(expectedRemoteAccessAuthentication));
                 }
                 case SearchAction.NAME, ClusterSearchShardsAction.NAME -> {
-                    assertContainsRemoteAccessHeaders(actual.headers());
+                    assertThat(
+                        actual.headers().keySet(),
+                        containsInAnyOrder(
+                            RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY,
+                            RemoteAccessHeaders.REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY,
+                            "_xpack_audit_request_id"
+                        )
+                    );
                     assertContainsRemoteClusterAuthorizationHeader(encodedCredential, actual);
                     final var actualRemoteAccessAuthentication = RemoteAccessAuthentication.decode(
                         actual.headers().get(RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY)
@@ -1062,17 +1074,6 @@ public class RemoteAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestT
                 service.close();
             }
         }
-    }
-
-    private void assertContainsRemoteAccessHeaders(final Map<String, String> actualHeaders) {
-        assertThat(
-            actualHeaders.keySet(),
-            containsInAnyOrder(
-                RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY,
-                RemoteAccessHeaders.REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY,
-                AuditUtil.AUDIT_REQUEST_ID
-            )
-        );
     }
 
     private record CapturedActionWithHeaders(String action, Map<String, String> headers) {}

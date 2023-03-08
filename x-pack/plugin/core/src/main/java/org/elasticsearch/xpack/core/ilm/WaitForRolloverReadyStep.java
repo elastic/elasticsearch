@@ -23,7 +23,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -205,8 +204,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         // if we should only rollover if not empty, *and* if neither an explicit min_docs nor an explicit min_primary_shard_docs
         // has been specified on this policy, then inject a default min_docs: 1 condition so that we do not rollover empty indices
         boolean rolloverOnlyIfHasDocuments = LifecycleSettings.LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS_SETTING.get(metadata.settings());
-        boolean targetIsTsdb = dataStream != null && dataStream.getIndexMode() == IndexMode.TIME_SERIES;
-        RolloverRequest rolloverRequest = createRolloverRequest(rolloverTarget, masterTimeout, rolloverOnlyIfHasDocuments, targetIsTsdb);
+        RolloverRequest rolloverRequest = createRolloverRequest(rolloverTarget, masterTimeout, rolloverOnlyIfHasDocuments);
 
         getClient().admin()
             .indices()
@@ -232,16 +230,10 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
      * @param masterTimeout              the master timeout to use with the request
      * @param rolloverOnlyIfHasDocuments whether to inject a min_docs 1 condition if there is not already a min_docs
      *                                   (or min_primary_shard_docs) condition
-     * @param targetIsTsdb               Whether the target is a tsdb data stream
      * @return A RolloverRequest suitable for passing to {@code rolloverIndex(...) }.
      */
     // visible for testing
-    RolloverRequest createRolloverRequest(
-        String rolloverTarget,
-        TimeValue masterTimeout,
-        boolean rolloverOnlyIfHasDocuments,
-        boolean targetIsTsdb
-    ) {
+    RolloverRequest createRolloverRequest(String rolloverTarget, TimeValue masterTimeout, boolean rolloverOnlyIfHasDocuments) {
         RolloverRequest rolloverRequest = new RolloverRequest(rolloverTarget, null).masterNodeTimeout(masterTimeout);
         rolloverRequest.dryRun(true);
         if (rolloverOnlyIfHasDocuments && (conditions.getMinDocs() == null && conditions.getMinPrimaryShardDocs() == null)) {
@@ -252,7 +244,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         long currentMaxPrimaryShardDocs = rolloverRequest.getConditions().getMaxPrimaryShardDocs() != null
             ? rolloverRequest.getConditions().getMaxPrimaryShardDocs()
             : Long.MAX_VALUE;
-        if (targetIsTsdb && currentMaxPrimaryShardDocs > MAX_PRIMARY_SHARD_DOCS_FOR_TSDB) {
+        if (currentMaxPrimaryShardDocs > MAX_PRIMARY_SHARD_DOCS_FOR_TSDB) {
             Map<String, Condition<?>> conditions = new HashMap<>(rolloverRequest.getConditions().getConditions());
             conditions.put(MaxPrimaryShardDocsCondition.NAME, new MaxPrimaryShardDocsCondition(MAX_PRIMARY_SHARD_DOCS_FOR_TSDB));
             rolloverRequest.setConditions(new RolloverConditions(conditions));

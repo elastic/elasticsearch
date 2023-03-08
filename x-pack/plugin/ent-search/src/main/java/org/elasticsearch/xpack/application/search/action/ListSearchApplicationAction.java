@@ -31,7 +31,7 @@ import java.util.Objects;
 public class ListSearchApplicationAction extends ActionType<ListSearchApplicationAction.Response> {
 
     public static final ListSearchApplicationAction INSTANCE = new ListSearchApplicationAction();
-    public static final String NAME = "cluster:admin/search_application/list";
+    public static final String NAME = "cluster:admin/xpack/application/search_application/list";
 
     public ListSearchApplicationAction() {
         super(NAME, ListSearchApplicationAction.Response::new);

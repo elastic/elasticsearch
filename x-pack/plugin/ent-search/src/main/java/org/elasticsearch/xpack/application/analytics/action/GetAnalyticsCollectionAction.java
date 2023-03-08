@@ -27,7 +27,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollectionAction.Response> {
 
     public static final GetAnalyticsCollectionAction INSTANCE = new GetAnalyticsCollectionAction();
-    public static final String NAME = "cluster:admin/behavioral_analytics/get";
+    public static final String NAME = "cluster:admin/xpack/application/analytics/get";
 
     private GetAnalyticsCollectionAction() {
         super(NAME, GetAnalyticsCollectionAction.Response::new);

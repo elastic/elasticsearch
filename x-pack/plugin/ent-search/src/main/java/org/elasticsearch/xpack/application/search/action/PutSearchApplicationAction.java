@@ -29,7 +29,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class PutSearchApplicationAction extends ActionType<PutSearchApplicationAction.Response> {
 
     public static final PutSearchApplicationAction INSTANCE = new PutSearchApplicationAction();
-    public static final String NAME = "cluster:admin/search_application/put";
+    public static final String NAME = "cluster:admin/xpack/application/search_application/put";
 
     public PutSearchApplicationAction() {
         super(NAME, PutSearchApplicationAction.Response::new);

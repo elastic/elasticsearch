@@ -29,7 +29,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollectionAction.Response> {
 
     public static final PutAnalyticsCollectionAction INSTANCE = new PutAnalyticsCollectionAction();
-    public static final String NAME = "cluster:admin/behavioral_analytics/put";
+    public static final String NAME = "cluster:admin/xpack/application/analytics/put";
 
     public PutAnalyticsCollectionAction() {
         super(NAME, PutAnalyticsCollectionAction.Response::new);

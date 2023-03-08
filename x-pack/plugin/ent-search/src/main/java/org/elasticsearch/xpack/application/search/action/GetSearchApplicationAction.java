@@ -25,7 +25,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class GetSearchApplicationAction extends ActionType<GetSearchApplicationAction.Response> {
 
     public static final GetSearchApplicationAction INSTANCE = new GetSearchApplicationAction();
-    public static final String NAME = "cluster:admin/search_application/get";
+    public static final String NAME = "cluster:admin/xpack/application/search_application/get";
 
     private GetSearchApplicationAction() {
         super(NAME, GetSearchApplicationAction.Response::new);

@@ -23,7 +23,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class DeleteAnalyticsCollectionAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteAnalyticsCollectionAction INSTANCE = new DeleteAnalyticsCollectionAction();
-    public static final String NAME = "cluster:admin/behavioral_analytics/delete";
+    public static final String NAME = "cluster:admin/xpack/application/analytics/delete";
 
     private DeleteAnalyticsCollectionAction() {
         super(NAME, AcknowledgedResponse::readFrom);

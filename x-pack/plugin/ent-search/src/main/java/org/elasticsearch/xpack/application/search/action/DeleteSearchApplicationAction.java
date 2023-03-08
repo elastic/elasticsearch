@@ -22,7 +22,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class DeleteSearchApplicationAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteSearchApplicationAction INSTANCE = new DeleteSearchApplicationAction();
-    public static final String NAME = "cluster:admin/search_application/delete";
+    public static final String NAME = "cluster:admin/xpack/application/search_application/delete";
 
     private DeleteSearchApplicationAction() {
         super(NAME, AcknowledgedResponse::readFrom);

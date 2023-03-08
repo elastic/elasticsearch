@@ -177,6 +177,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     private Optional<CoordinatorPublication> currentPublication = Optional.empty();
     private final NodeHealthService nodeHealthService;
     private final List<PeerFinderListener> peerFinderListeners;
+    private final LeaderHeartbeatService leaderHeartbeatService;
 
     /**
      * @param nodeName The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the {@link SeedHostsResolver}.
@@ -199,7 +200,9 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         RerouteService rerouteService,
         ElectionStrategy electionStrategy,
         NodeHealthService nodeHealthService,
-        CircuitBreakerService circuitBreakerService
+        CircuitBreakerService circuitBreakerService,
+        Reconfigurator reconfigurator,
+        LeaderHeartbeatService leaderHeartbeatService
     ) {
         this.settings = settings;
         this.transportService = transportService;
@@ -220,7 +223,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             rerouteService,
             nodeHealthService,
             joinReasonService,
-            circuitBreakerService
+            circuitBreakerService,
+            reconfigurator::maybeReconfigureAfterNewMasterIsElected
         );
         this.joinValidationService = new JoinValidationService(
             settings,
@@ -272,7 +276,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.nodeLeftQueue = masterService.createTaskQueue("node-left", Priority.IMMEDIATE, new NodeLeftExecutor(allocationService));
         this.clusterApplier = clusterApplier;
         masterService.setClusterStateSupplier(this::getStateForMasterService);
-        this.reconfigurator = new Reconfigurator(settings, clusterSettings);
+        this.reconfigurator = reconfigurator;
         this.clusterBootstrapService = new ClusterBootstrapService(
             settings,
             transportService,
@@ -299,6 +303,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.nodeHealthService = nodeHealthService;
         this.peerFinderListeners = new CopyOnWriteArrayList<>();
         this.peerFinderListeners.add(clusterBootstrapService);
+        this.leaderHeartbeatService = leaderHeartbeatService;
     }
 
     /**
@@ -516,6 +521,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
                 final StartJoinRequest startJoinRequest = new StartJoinRequest(getLocalNode(), Math.max(getCurrentTerm(), maxTermSeen) + 1);
                 logger.debug("starting election with {}", startJoinRequest);
+                electionStrategy.onNewElection(startJoinRequest.getSourceNode(), startJoinRequest.getTerm(), getLastAcceptedState());
                 getDiscoveredNodes().forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
             }
         }
@@ -549,7 +555,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
     private Optional<Join> ensureTermAtLeast(DiscoveryNode sourceNode, long targetTerm) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-        if (getCurrentTerm() < targetTerm) {
+        if (electionStrategy.shouldJoinLeaderInTerm(getCurrentTerm(), targetTerm)) {
             return Optional.of(joinLeaderInTerm(new StartJoinRequest(sourceNode, targetTerm)));
         }
         return Optional.empty();
@@ -822,6 +828,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             peerFinder.activate(coordinationState.get().getLastAcceptedState().nodes());
             clusterFormationFailureHelper.start();
 
+            leaderHeartbeatService.stop();
             leaderChecker.setCurrentNodes(DiscoveryNodes.EMPTY_NODES);
             leaderChecker.updateLeader(null);
 
@@ -864,6 +871,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         clusterFormationFailureHelper.stop();
         closePrevotingAndElectionScheduler();
         preVoteCollector.update(getPreVoteResponse(), getLocalNode());
+        leaderHeartbeatService.start(getLocalNode(), getCurrentTerm());
 
         assert leaderChecker.leader() == null : leaderChecker.leader();
         followersChecker.updateFastResponseState(getCurrentTerm(), mode);
@@ -896,6 +904,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             joinAccumulator.close(mode);
             joinAccumulator = new JoinHelper.FollowerJoinAccumulator();
             leaderChecker.setCurrentNodes(DiscoveryNodes.EMPTY_NODES);
+            leaderHeartbeatService.stop();
         }
 
         updateSingleNodeClusterChecker();
@@ -1663,6 +1672,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
     }
 
+    void beforeCommit(long term, long version) {
+        electionStrategy.beforeCommit(term, version);
+    }
+
     class CoordinatorPublication extends Publication {
 
         private final ClusterStatePublicationEvent clusterStatePublicationEvent;
@@ -1899,7 +1912,9 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         protected Optional<ApplyCommitRequest> handlePublishResponse(DiscoveryNode sourceNode, PublishResponse publishResponse) {
             assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
             assert getCurrentTerm() >= publishResponse.getTerm();
-            return coordinationState.get().handlePublishResponse(sourceNode, publishResponse);
+            var applyCommit = coordinationState.get().handlePublishResponse(sourceNode, publishResponse);
+            applyCommit.ifPresent(applyCommitRequest -> beforeCommit(applyCommitRequest.getTerm(), applyCommitRequest.getVersion()));
+            return applyCommit;
         }
 
         @Override
@@ -1948,13 +1963,21 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             ActionListener<Empty> responseActionListener
         ) {
             assert transportService.getThreadPool().getThreadContext().isSystemContext();
-            transportService.sendRequest(
-                destination,
-                COMMIT_STATE_ACTION_NAME,
-                applyCommit,
-                COMMIT_STATE_REQUEST_OPTIONS,
-                new ActionListenerResponseHandler<>(wrapWithMutex(responseActionListener), in -> Empty.INSTANCE, Names.CLUSTER_COORDINATION)
-            );
+            try {
+                transportService.sendRequest(
+                    destination,
+                    COMMIT_STATE_ACTION_NAME,
+                    applyCommit,
+                    COMMIT_STATE_REQUEST_OPTIONS,
+                    new ActionListenerResponseHandler<>(
+                        wrapWithMutex(responseActionListener),
+                        in -> Empty.INSTANCE,
+                        Names.CLUSTER_COORDINATION
+                    )
+                );
+            } catch (Exception e) {
+                responseActionListener.onFailure(e);
+            }
         }
     }
 

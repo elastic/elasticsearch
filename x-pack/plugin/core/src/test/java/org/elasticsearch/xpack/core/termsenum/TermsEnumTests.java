@@ -105,6 +105,7 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94382")
     public void testTermsEnumIPRandomized() throws Exception {
         String indexName = "test_random";
         createIndex(indexName);

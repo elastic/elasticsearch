@@ -7,6 +7,7 @@
 
 package org.elasticsearch.blobcache.shared;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Setting;
@@ -71,20 +72,25 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertEquals(3, cacheService.freeRegionCount());
             assertFalse(region1.tryEvict());
             assertEquals(3, cacheService.freeRegionCount());
+            final var bytesReadFuture = new PlainActionFuture<Integer>();
             region0.populateAndRead(
                 ByteRange.of(0L, 1L),
                 ByteRange.of(0L, 1L),
                 (channel, channelPos, relativePos, length) -> 1,
                 (channel, channelPos, relativePos, length, progressUpdater) -> progressUpdater.accept(length),
-                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC)
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                bytesReadFuture
             );
             assertFalse(region0.tryEvict());
             assertEquals(3, cacheService.freeRegionCount());
+            assertFalse(bytesReadFuture.isDone());
             taskQueue.runAllRunnableTasks();
             assertTrue(region0.tryEvict());
             assertEquals(4, cacheService.freeRegionCount());
             assertTrue(region2.tryEvict());
             assertEquals(5, cacheService.freeRegionCount());
+            assertTrue(bytesReadFuture.isDone());
+            assertEquals(Integer.valueOf(1), bytesReadFuture.actionGet());
         }
     }
 

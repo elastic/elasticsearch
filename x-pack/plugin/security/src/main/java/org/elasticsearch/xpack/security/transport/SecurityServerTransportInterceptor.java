@@ -331,7 +331,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 assert authentication != null : "authentication must be present in security context";
                 final Subject effectiveSubject = authentication.getEffectiveSubject();
                 if (false == effectiveSubject.getType().equals(Subject.Type.USER)
-                    && false == effectiveSubject.getType().equals(Subject.Type.API_KEY)) {
+                    && false == effectiveSubject.getType().equals(Subject.Type.API_KEY)
+                    && false == effectiveSubject.getType().equals(Subject.Type.SERVICE_ACCOUNT)) {
                     logger.trace(
                         "Effective subject of request to remote cluster [{}] has an unsupported type [{}]",
                         remoteClusterAlias,

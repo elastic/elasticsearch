@@ -131,7 +131,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
             });
             if (authenticationInCache.get()) {
                 // there is a cached or an inflight authenticate request
-                listenableCacheEntry.addListener(threadPool.getThreadContext(), threadPool.generic(), ActionListener.wrap(cachedResult -> {
+                listenableCacheEntry.addListener(ActionListener.wrap(cachedResult -> {
                     final boolean credsMatch = cachedResult.verify(token.credentials());
                     if (cachedResult.authenticationResult.isAuthenticated()) {
                         if (credsMatch) {
@@ -189,7 +189,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                         cache.invalidate(token.principal(), listenableCacheEntry);
                         authenticateWithCache(token, listener);
                     }
-                }, listener::onFailure));
+                }, listener::onFailure), threadPool.executor(ThreadPool.Names.GENERIC), threadPool.getThreadContext());
             } else {
                 logger.trace(
                     "realm [{}] does not have a cached result for user [{}]; attempting fresh authentication",
@@ -297,13 +297,13 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                     listenableCacheEntry.onFailure(e);
                 }));
             }
-            listenableCacheEntry.addListener(threadPool.getThreadContext(), threadPool.generic(), ActionListener.wrap(cachedResult -> {
+            listenableCacheEntry.addListener(ActionListener.wrap(cachedResult -> {
                 if (cachedResult.user != null) {
                     listener.onResponse(cachedResult.user);
                 } else {
                     listener.onResponse(null);
                 }
-            }, listener::onFailure));
+            }, listener::onFailure), threadPool.executor(ThreadPool.Names.GENERIC), threadPool.getThreadContext());
         } catch (final ExecutionException e) {
             listener.onFailure(e);
         }

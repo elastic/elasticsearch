@@ -50,7 +50,7 @@ public class FanOutListenerTests extends ESTestCase {
 
         var subscriberCount = between(0, 4);
         for (int i = 0; i < subscriberCount; i++) {
-            listener.addListener(null, ActionListener.running(new OrderAssertingRunnable(i, order)));
+            listener.addListener(ActionListener.running(new OrderAssertingRunnable(i, order)));
         }
 
         assertEquals(0, order.get());
@@ -62,9 +62,9 @@ public class FanOutListenerTests extends ESTestCase {
         }
 
         assertEquals(subscriberCount, order.get());
-        listener.addListener(null, ActionListener.running(new OrderAssertingRunnable(subscriberCount, order)));
+        listener.addListener(ActionListener.running(new OrderAssertingRunnable(subscriberCount, order)));
         assertEquals(subscriberCount + 1, order.get());
-        listener.addListener(null, ActionListener.running(new OrderAssertingRunnable(subscriberCount + 1, order)));
+        listener.addListener(ActionListener.running(new OrderAssertingRunnable(subscriberCount + 1, order)));
         assertEquals(subscriberCount + 2, order.get());
     }
 
@@ -80,7 +80,7 @@ public class FanOutListenerTests extends ESTestCase {
 
         var subscriberCount = between(0, 4);
         for (int i = 0; i < subscriberCount; i++) {
-            listener.addListener(null, listenerFactory.apply(i));
+            listener.addListener(listenerFactory.apply(i));
         }
 
         assertEquals(0, order.get());
@@ -88,7 +88,7 @@ public class FanOutListenerTests extends ESTestCase {
         assertEquals(subscriberCount, order.get());
 
         assertEquals(subscriberCount, order.get());
-        listener.addListener(null, ActionListener.running(new OrderAssertingRunnable(subscriberCount, order)));
+        listener.addListener(ActionListener.running(new OrderAssertingRunnable(subscriberCount, order)));
         assertEquals(subscriberCount + 1, order.get());
 
         if (randomBoolean()) {
@@ -97,7 +97,7 @@ public class FanOutListenerTests extends ESTestCase {
             listener.onFailure(new ElasticsearchException("test"));
         }
 
-        listener.addListener(null, ActionListener.running(new OrderAssertingRunnable(subscriberCount + 1, order)));
+        listener.addListener(ActionListener.running(new OrderAssertingRunnable(subscriberCount + 1, order)));
         assertEquals(subscriberCount + 2, order.get());
     }
 
@@ -113,7 +113,7 @@ public class FanOutListenerTests extends ESTestCase {
 
         var subscriberCount = between(0, 4);
         for (int i = 0; i < subscriberCount; i++) {
-            listener.addListener(null, listenerFactory.apply(i));
+            listener.addListener(listenerFactory.apply(i));
         }
 
         assertEquals(0, order.get());
@@ -121,7 +121,7 @@ public class FanOutListenerTests extends ESTestCase {
         assertEquals(subscriberCount, order.get());
 
         assertEquals(subscriberCount, order.get());
-        listener.addListener(null, ActionListener.running(new OrderAssertingRunnable(subscriberCount, order)));
+        listener.addListener(ActionListener.running(new OrderAssertingRunnable(subscriberCount, order)));
         assertEquals(subscriberCount + 1, order.get());
 
         if (randomBoolean()) {
@@ -130,7 +130,7 @@ public class FanOutListenerTests extends ESTestCase {
             listener.onFailure(new ElasticsearchException("test"));
         }
 
-        listener.addListener(null, ActionListener.running(new OrderAssertingRunnable(subscriberCount + 1, order)));
+        listener.addListener(ActionListener.running(new OrderAssertingRunnable(subscriberCount + 1, order)));
         assertEquals(subscriberCount + 2, order.get());
     }
 
@@ -144,10 +144,10 @@ public class FanOutListenerTests extends ESTestCase {
             try (var ignored = threadContext.stashContext()) {
                 final var headerValue = randomAlphaOfLength(5);
                 threadContext.putHeader("test-header", headerValue);
-                listener.addListener(threadContext, ActionListener.running(() -> {
+                listener.addListener(ActionListener.running(() -> {
                     assertEquals(headerValue, threadContext.getHeader("test-header"));
                     completedListeners.incrementAndGet();
-                }));
+                }), EsExecutors.DIRECT_EXECUTOR_SERVICE, threadContext);
             }
         }
 
@@ -174,7 +174,7 @@ public class FanOutListenerTests extends ESTestCase {
                 try (var ignored = threadContext.stashContext()) {
                     final var headerValue = randomAlphaOfLength(5);
                     threadContext.putHeader("test-header", headerValue);
-                    listener.addListener(threadContext, new ActionListener<>() {
+                    listener.addListener(new ActionListener<>() {
                         @Override
                         public void onResponse(Object o) {
                             assertEquals(headerValue, threadContext.getHeader("test-header"));
@@ -194,7 +194,7 @@ public class FanOutListenerTests extends ESTestCase {
                         public void onFailure(Exception e) {
                             onResponse(e);
                         }
-                    });
+                    }, EsExecutors.DIRECT_EXECUTOR_SERVICE, threadContext);
                 }
             }, threadName));
         }
@@ -262,12 +262,12 @@ public class FanOutListenerTests extends ESTestCase {
             try (var ignored = threadContext.stashContext()) {
                 final var headerValue = randomAlphaOfLength(10);
                 threadContext.putHeader(headerName, headerValue);
-                listener.addListener(threadContext, executor, ActionListener.releaseAfter(assertingListener.map(result -> {
+                listener.addListener(ActionListener.releaseAfter(assertingListener.map(result -> {
                     assertNotSame(testThread, Thread.currentThread());
                     assertThat(Thread.currentThread().getName(), containsString(executorThreadPrefix));
                     assertEquals(headerValue, threadContext.getHeader(headerName));
                     return result;
-                }), refs.acquire()));
+                }), refs.acquire()), executor, threadContext);
             }
 
             assertFalse(listener.isDone());
@@ -278,11 +278,11 @@ public class FanOutListenerTests extends ESTestCase {
             try (var ignored = threadContext.stashContext()) {
                 final var headerValue = randomAlphaOfLength(10);
                 threadContext.putHeader(headerName, headerValue);
-                listener.addListener(threadContext, executor, ActionListener.releaseAfter(assertingListener.map(result -> {
+                listener.addListener(ActionListener.releaseAfter(assertingListener.map(result -> {
                     assertSame(testThread, Thread.currentThread());
                     assertEquals(headerValue, threadContext.getHeader(headerName));
                     return result;
-                }), refs.acquire()));
+                }), refs.acquire()), executor, threadContext);
             }
 
             assertEquals(interrupt, Thread.interrupted());

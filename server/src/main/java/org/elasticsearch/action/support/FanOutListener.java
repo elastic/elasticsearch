@@ -65,7 +65,7 @@ public /* TODO final */ class FanOutListener<T> implements ActionListener<T> {
      * {@link ThreadContext} of the thread which completes this listener.
      */
     public void addListener(ActionListener<T> listener) {
-        addListener(null, EsExecutors.DIRECT_EXECUTOR_SERVICE, listener);
+        addListener(listener, EsExecutors.DIRECT_EXECUTOR_SERVICE, null);
     }
 
     /**
@@ -83,35 +83,13 @@ public /* TODO final */ class FanOutListener<T> implements ActionListener<T> {
      * Listeners which subscribe without an explicit {@link ThreadContext} and are not completed immediately will be completed in the
      * {@link ThreadContext} of the thread which completes this listener.
      *
-     * @param threadContext If not {@code null}, and the subscribing listener is not completed immediately, then it will be completed in
-     *                      the given thread context.
-     */
-    public void addListener(@Nullable ThreadContext threadContext, ActionListener<T> listener) {
-        addListener(threadContext, EsExecutors.DIRECT_EXECUTOR_SERVICE, listener);
-    }
-
-    /**
-     * Add a listener to this listener's collection of subscribers. If this listener is complete, this method completes the subscribing
-     * listener immediately with the result with which this listener was completed. Otherwise, the subscribing listener is retained and
-     * completed when this listener is completed.
-     * <p>
-     * Subscribed listeners must not throw any exceptions. Use {@link ActionListener#wrap(ActionListener)} if you have a listener for which
-     * exceptions from its {@link ActionListener#onResponse} method should be handled by its own {@link ActionListener#onFailure} method.
-     * <p>
-     * Listeners added strictly before this listener is completed will themselves be completed in the order in which their subscriptions
-     * were received. However, there are no guarantees about the ordering of the completions of listeners which are added concurrently with
-     * (or after) the completion of this listener.
-     * <p>
-     * Listeners which subscribe without an explicit {@link ThreadContext} and are not completed immediately will be completed in the
-     * {@link ThreadContext} of the thread which completes this listener.
-     *
-     * @param threadContext If not {@code null}, and the subscribing listener is not completed immediately, then it will be completed in
-     *                      the given thread context.
      * @param executor      If not {@link EsExecutors#DIRECT_EXECUTOR_SERVICE}, and the subscribing listener is not completed immediately,
      *                      then it will be completed using the given executor.
+     * @param threadContext If not {@code null}, and the subscribing listener is not completed immediately, then it will be completed in
+     *                      the given thread context.
      */
     @SuppressWarnings({ "rawtypes" })
-    public void addListener(@Nullable ThreadContext threadContext, Executor executor, ActionListener<T> listener) {
+    public void addListener(ActionListener<T> listener, Executor executor, @Nullable ThreadContext threadContext) {
         if (tryComplete(ref.get(), listener)) {
             return;
         }

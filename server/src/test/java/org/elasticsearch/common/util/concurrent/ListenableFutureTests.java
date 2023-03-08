@@ -43,7 +43,7 @@ public class ListenableFutureTests extends ESTestCase {
         AtomicInteger notifications = new AtomicInteger(0);
         final int numberOfListeners = scaledRandomIntBetween(1, 12);
         for (int i = 0; i < numberOfListeners; i++) {
-            future.addListener(ActionListener.running(notifications::incrementAndGet));
+            future.addListener(ActionListener.running(notifications::incrementAndGet), EsExecutors.DIRECT_EXECUTOR_SERVICE, threadContext);
         }
 
         future.onResponse("");
@@ -57,14 +57,10 @@ public class ListenableFutureTests extends ESTestCase {
         final int numberOfListeners = scaledRandomIntBetween(1, 12);
         final Exception exception = new RuntimeException();
         for (int i = 0; i < numberOfListeners; i++) {
-            future.addListener(
-                threadContext,
-                EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                ActionListener.wrap(s -> fail("this should never be called"), e -> {
-                    assertEquals(exception, e);
-                    notifications.incrementAndGet();
-                })
-            );
+            future.addListener(ActionListener.wrap(s -> fail("this should never be called"), e -> {
+                assertEquals(exception, e);
+                notifications.incrementAndGet();
+            }), EsExecutors.DIRECT_EXECUTOR_SERVICE, threadContext);
         }
 
         future.onFailure(exception);
@@ -105,7 +101,7 @@ public class ListenableFutureTests extends ESTestCase {
                         logger.info("future received response");
                     } else {
                         logger.info("adding listener {}", threadNum);
-                        future.addListener(threadContext, executorService, ActionListener.wrap(s -> {
+                        future.addListener(ActionListener.wrap(s -> {
                             logger.info("listener {} received value {}", threadNum, s);
                             assertEquals("", s);
                             assertThat(threadContext.getTransient("key"), is(threadNum));
@@ -115,7 +111,7 @@ public class ListenableFutureTests extends ESTestCase {
                             logger.error(() -> "listener " + threadNum + " caught unexpected exception", e);
                             numExceptions.incrementAndGet();
                             listenersLatch.countDown();
-                        }));
+                        }), executorService, threadContext);
                         logger.info("listener {} added", threadNum);
                     }
                     barrier.await();
@@ -180,8 +176,8 @@ public class ListenableFutureTests extends ESTestCase {
             final var future1 = new PlainActionFuture<Void>();
             final var future2 = new PlainActionFuture<Void>();
 
-            listenableFuture.addListener(null, executorService, future1);
-            listenableFuture.addListener(null, executorService, future2);
+            listenableFuture.addListener(future1, executorService, null);
+            listenableFuture.addListener(future2, executorService, null);
 
             final var success = randomBoolean();
             if (success) {

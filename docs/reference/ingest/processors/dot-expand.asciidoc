@@ -147,6 +147,50 @@ into:
 
 '''
 
+If the dotted field is nested within a non-dotted structure, then use the `path` option to navigate the
+non-dotted structure:
+
+[source,js]
+--------------------------------------------------
+{
+  "dot_expander": {
+    "path": "foo"
+    "field": "*"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+The dot expand processor would turn this document:
+
+[source,js]
+--------------------------------------------------
+{
+  "foo" : {
+    "bar.one" : "value",
+    "bar.two" : "value"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+into:
+
+[source,js]
+--------------------------------------------------
+{
+  "foo" : {
+    "bar" : {
+      "one" : "value",
+      "two" : "value"
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+'''
+
 If any field outside of the leaf field conflicts with a pre-existing field of the same name,
 then that field needs to be renamed first.
 

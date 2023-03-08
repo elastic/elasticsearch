@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper.flattened;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
@@ -33,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -93,14 +93,14 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         KeyedFlattenedFieldType ft = createFieldType();
 
         Query expected = new PrefixQuery(new Term(ft.name(), "key\0val"));
-        assertEquals(expected, ft.prefixQuery("val", MultiTermQuery.CONSTANT_SCORE_REWRITE, false, MOCK_CONTEXT));
+        assertEquals(expected, ft.prefixQuery("val", randomBoolean() ? null : CONSTANT_SCORE_REWRITE, false, MOCK_CONTEXT));
 
         expected = AutomatonQueries.caseInsensitivePrefixQuery(new Term(ft.name(), "key\0vAl"));
-        assertEquals(expected, ft.prefixQuery("vAl", MultiTermQuery.CONSTANT_SCORE_REWRITE, true, MOCK_CONTEXT));
+        assertEquals(expected, ft.prefixQuery("vAl", randomBoolean() ? null : CONSTANT_SCORE_REWRITE, true, MOCK_CONTEXT));
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
-            () -> ft.prefixQuery("val", MultiTermQuery.CONSTANT_SCORE_REWRITE, false, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+            () -> ft.prefixQuery("val", randomBoolean() ? null : CONSTANT_SCORE_REWRITE, false, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
         );
         assertEquals(
             "[prefix] queries cannot be executed when 'search.allow_expensive_queries' is set to false. "

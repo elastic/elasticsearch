@@ -42,14 +42,15 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             this.contentPath = contentPath;
             parsers.push(in);
             if (in.currentToken() == Token.FIELD_NAME) {
-                expandDots();
+                expandDots(in);
             }
         }
 
         @Override
         public Token nextToken() throws IOException {
             Token token;
-            while ((token = delegate().nextToken()) == null) {
+            XContentParser delegate;
+            while ((token = (delegate = parsers.peek()).nextToken()) == null) {
                 parsers.pop();
                 if (parsers.isEmpty()) {
                     return null;
@@ -58,37 +59,112 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             if (token != Token.FIELD_NAME) {
                 return token;
             }
-            expandDots();
+            expandDots(delegate);
             return Token.FIELD_NAME;
         }
 
-        private void expandDots() throws IOException {
+        private void expandDots(XContentParser delegate) throws IOException {
             // this handles fields that belong to objects that can't hold subobjects, where the document specifies
             // the object holding the flat fields
             // e.g. { "metrics.service": { "time.max" : 10 } } with service having subobjects set to false
             if (contentPath.isWithinLeafObject()) {
                 return;
             }
-            XContentParser delegate = delegate();
             String field = delegate.currentName();
-            String[] subpaths = splitAndValidatePath(field);
-            // Corner case: if the input has a single trailing '.', eg 'field.', then we will get a single
-            // subpath due to the way String.split() works. We can only return fast here if this is not
-            // the case
-            // TODO make this case throw an error instead? https://github.com/elastic/elasticsearch/issues/28948
-            if (subpaths.length == 1 && field.endsWith(".") == false) {
+            int length = field.length();
+            if (length == 0) {
+                throw new IllegalArgumentException("field name cannot be an empty string");
+            }
+            final int dotCount = FieldTypeLookup.dotCount(field);
+            if (dotCount == 0) {
                 return;
             }
+            doExpandDots(delegate, field, dotCount);
+        }
+
+        private void doExpandDots(XContentParser delegate, String field, int dotCount) throws IOException {
+            int next;
+            int offset = 0;
+            String[] list = new String[dotCount + 1];
+            int listIndex = 0;
+            for (int i = 0; i < dotCount; i++) {
+                next = field.indexOf('.', offset);
+                list[listIndex++] = field.substring(offset, next);
+                offset = next + 1;
+            }
+
+            // Add remaining segment
+            list[listIndex] = field.substring(offset);
+
+            int resultSize = list.length;
+            // Construct result
+            while (resultSize > 0 && list[resultSize - 1].isEmpty()) {
+                resultSize--;
+            }
+            if (resultSize == 0) {
+                throw new IllegalArgumentException("field name cannot contain only dots");
+            }
+            final String[] subpaths;
+            if (resultSize == list.length) {
+                for (String part : list) {
+                    // check if the field name contains only whitespace
+                    if (part.isBlank()) {
+                        throwOnBlankOrEmptyPart(field, part);
+                    }
+                }
+                subpaths = list;
+            } else {
+                // Corner case: if the input has a single trailing '.', eg 'field.', then we will get a single
+                // subpath due to the way String.split() works. We can only return fast here if this is not
+                // the case
+                // TODO make this case throw an error instead? https://github.com/elastic/elasticsearch/issues/28948
+                if (resultSize == 1 && field.endsWith(".") == false) {
+                    return;
+                }
+                subpaths = extractAndValidateResults(field, list, resultSize);
+            }
+            pushSubParser(delegate, subpaths);
+        }
+
+        private void pushSubParser(XContentParser delegate, String[] subpaths) throws IOException {
             XContentLocation location = delegate.getTokenLocation();
             Token token = delegate.nextToken();
-            if (token == Token.END_OBJECT || token == Token.END_ARRAY) {
-                throw new IllegalStateException("Expecting START_OBJECT or START_ARRAY or VALUE but got [" + token + "]");
+            final XContentParser subParser;
+            if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
+                subParser = new XContentSubParser(delegate);
             } else {
-                XContentParser subParser = token == Token.START_OBJECT || token == Token.START_ARRAY
-                    ? new XContentSubParser(delegate)
-                    : new SingletonValueXContentParser(delegate);
-                parsers.push(new DotExpandingXContentParser(subParser, subpaths, location, contentPath));
+                if (token == Token.END_OBJECT || token == Token.END_ARRAY) {
+                    throwExpectedOpen(token);
+                }
+                subParser = new SingletonValueXContentParser(delegate);
             }
+            parsers.push(new DotExpandingXContentParser(subParser, subpaths, location, contentPath));
+        }
+
+        private static void throwExpectedOpen(Token token) {
+            throw new IllegalStateException("Expecting START_OBJECT or START_ARRAY or VALUE but got [" + token + "]");
+        }
+
+        private static String[] extractAndValidateResults(String field, String[] list, int resultSize) {
+            final String[] subpaths = new String[resultSize];
+            for (int i = 0; i < resultSize; i++) {
+                String part = list[i];
+                // check if the field name contains only whitespace
+                if (part.isBlank()) {
+                    throwOnBlankOrEmptyPart(field, part);
+                }
+                subpaths[i] = part;
+            }
+            return subpaths;
+        }
+
+        private static void throwOnBlankOrEmptyPart(String field, String part) {
+            if (part.isEmpty()) {
+                throw new IllegalArgumentException("field name cannot contain only whitespace: ['" + field + "']");
+            }
+            throw new IllegalArgumentException(
+                "field name starting or ending with a [.] makes object resolution ambiguous: [" + field + "]"
+            );
         }
 
         @Override
@@ -126,32 +202,6 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         public List<Object> listOrderedMap() throws IOException {
             throw new UnsupportedOperationException();
         }
-    }
-
-    private static String[] splitAndValidatePath(String fieldName) {
-        if (fieldName.isEmpty()) {
-            throw new IllegalArgumentException("field name cannot be an empty string");
-        }
-        if (fieldName.contains(".") == false) {
-            return new String[] { fieldName };
-        }
-        String[] parts = fieldName.split("\\.");
-        if (parts.length == 0) {
-            throw new IllegalArgumentException("field name cannot contain only dots");
-        }
-
-        for (String part : parts) {
-            // check if the field name contains only whitespace
-            if (part.isEmpty()) {
-                throw new IllegalArgumentException("field name cannot contain only whitespace: ['" + fieldName + "']");
-            }
-            if (part.isBlank()) {
-                throw new IllegalArgumentException(
-                    "field name starting or ending with a [.] makes object resolution ambiguous: [" + fieldName + "]"
-                );
-            }
-        }
-        return parts;
     }
 
     /**

@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult.ShardStoreInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.AsyncShardFetch.FetchResult;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
@@ -401,13 +400,11 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                 ? allocation.deciders().canForceAllocatePrimary(shardRouting, node, allocation)
                 : allocation.deciders().canAllocate(shardRouting, node, allocation);
             DecidedNode decidedNode = new DecidedNode(nodeShardState, decision);
-            if (decision.type() == Type.THROTTLE) {
-                throttledNodeShards.add(decidedNode);
-            } else if (decision.type() == Type.NO) {
-                noNodeShards.add(decidedNode);
-            } else {
-                yesNodeShards.add(decidedNode);
-            }
+            (switch (decision.type()) {
+                case YES -> yesNodeShards;
+                case THROTTLE -> throttledNodeShards;
+                case NO -> noNodeShards;
+            }).add(decidedNode);
         }
         return new NodesToAllocate(
             Collections.unmodifiableList(yesNodeShards),

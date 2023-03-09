@@ -338,11 +338,8 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
                     .contains("search.allow_expensive_queries") == false
         );
 
-        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(
-            Settings.builder().put("search.allow_expensive_queries", "false")
-        );
         // This should succeed, nothing was reserved
-        client().admin().cluster().updateSettings(req).get();
+        updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", "false"));
         // This will fail because repo-new isn't there, not because we can't write test-snapshots-err, meaning we were allowed to
         // make the request
         assertEquals(

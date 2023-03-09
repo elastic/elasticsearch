@@ -109,7 +109,18 @@ public class RRFRankIT extends ESIntegTestCase {
         ensureGreen(TimeValue.timeValueSeconds(120), "nrd_index");
 
         for (int doc = 0; doc < 10000; ++doc) {
-            client().prepareIndex("nrd_index").setSource("vector_asc", new float[] { doc }, "int", doc % 3, "text", "term " + doc).get();
+            client().prepareIndex("nrd_index")
+                .setSource(
+                    "vector_asc",
+                    new float[] { doc },
+                    "vector_desc",
+                    new float[] { 10000 - doc },
+                    "int",
+                    doc % 3,
+                    "text",
+                    "term " + doc
+                )
+                .get();
         }
 
         client().admin().indices().prepareRefresh("nrd_index").get();

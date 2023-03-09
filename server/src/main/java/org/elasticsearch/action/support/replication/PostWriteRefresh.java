@@ -129,14 +129,10 @@ public class PostWriteRefresh {
             transportService.getLocalNode(),
             TransportUnpromotableShardRefreshAction.NAME,
             unpromotableReplicaRequest,
-            new ActionListenerResponseHandler<>(
-                ActionListener.wrap(r -> listener.onResponse(wasForced), e -> {
-                    indexShard.failShard("Unable to refresh an unpomotable shard", e);
-                    listener.onFailure(e);
-                }),
-                (in) -> ActionResponse.Empty.INSTANCE,
-                ThreadPool.Names.REFRESH
-            )
+            new ActionListenerResponseHandler<>(ActionListener.wrap(r -> listener.onResponse(wasForced), e -> {
+                indexShard.failShard("Unable to refresh an unpomotable shard", e);
+                listener.onFailure(e);
+            }), (in) -> ActionResponse.Empty.INSTANCE, ThreadPool.Names.REFRESH)
         );
     }
 

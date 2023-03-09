@@ -164,6 +164,23 @@ public class IpPrefixAutomatonUtilTests extends ESTestCase {
             byte[] encode = InetAddressPoint.encode(InetAddress.getByName("0935:1902::643f:9e65:0:0"));
             assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
         }
+        {
+            CompiledAutomaton compiledAutomaton = IpPrefixAutomatonUtil.buildIpPrefixAutomaton("239");
+            byte[] encode = InetAddressPoint.encode(InetAddress.getByName("239.27.240.24"));
+            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
+            encode = InetAddressPoint.encode(InetAddress.getByName("239f:a360::25bb:828f:ffff:ffff"));
+            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
+            encode = InetAddressPoint.encode(InetAddress.getByName("2309:a360::25bb:828f:ffff:ffff"));
+            assertFalse(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
+        }
+        {
+            CompiledAutomaton compiledAutomaton = IpPrefixAutomatonUtil.buildIpPrefixAutomaton("255");
+            byte[] encode = InetAddressPoint.encode(InetAddress.getByName("255.27.240.24"));
+            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
+            encode = InetAddressPoint.encode(InetAddress.getByName("255:a360::25bb:828f:ffff:ffff"));
+            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
+        }
+
     }
 
     public void testParseIp6Prefix() {

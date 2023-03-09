@@ -132,7 +132,7 @@ public class IpPrefixAutomatonUtil {
             }
             if (padded.length() == 1) {
                 int value = Integer.parseInt(padded, 16);
-                a = concatenate(a, Operations.union(Automata.makeChar(value), Automata.makeCharRange(value * 16, value * 16 + 15)));
+                a = concatenate(a, Automata.makeCharRange(value * 16, value * 16 + 15));
                 bytesAdded++;
             }
             if (bytesAdded != 2) {
@@ -180,7 +180,7 @@ public class IpPrefixAutomatonUtil {
                 } else {
                     // if present, this is the last group
                     int numberPrefix = Integer.parseInt(group);
-                    if (numberPrefix < 255) {
+                    if (numberPrefix <= 255) {
                         incompleteGroupAutomaton = INCOMPLETE_IP4_GROUP_AUTOMATON_LOOKUP.get(numberPrefix);
                         prefixBytes++;
                     } else {

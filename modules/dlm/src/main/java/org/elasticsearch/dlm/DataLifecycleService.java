@@ -169,7 +169,6 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
             String writeIndex = dataStream.getWriteIndex().getName();
             try {
                 maybeExecuteRollover(state, dataStream);
-                errorStore.clearRecordedError(writeIndex);
             } catch (Exception e) {
                 logger.error(() -> String.format(Locale.ROOT, "DLM failed to rollver data stream [%s]", dataStream.getName()), e);
                 DataStream latestDataStream = clusterService.state().metadata().dataStreams().get(dataStream.getName());

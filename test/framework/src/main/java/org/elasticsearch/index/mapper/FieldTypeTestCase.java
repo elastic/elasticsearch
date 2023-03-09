@@ -9,13 +9,15 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.lookup.FieldLookup;
+import org.elasticsearch.search.lookup.LeafSearchLookup;
+import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -55,7 +57,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
 
         ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, format);
         Source source = Source.fromMap(Collections.singletonMap(field, sourceValue), randomFrom(XContentType.values()));
-        return fetcher.fetchValues(source, -1, new ArrayList<>());
+        return fetcher.fetchValues(source, -1, List.of());
     }
 
     public static List<?> fetchSourceValues(MappedFieldType fieldType, Object... values) throws IOException {
@@ -66,6 +68,24 @@ public abstract class FieldTypeTestCase extends ESTestCase {
 
         ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, null);
         Source source = Source.fromMap(Collections.singletonMap(field, List.of(values)), randomFrom(XContentType.values()));
-        return fetcher.fetchValues(source, -1, new ArrayList<>());
+        return fetcher.fetchValues(source, -1, List.of());
+    }
+
+    public static List<?> fetchStoredValue(MappedFieldType fieldType, List<Object> storedValues, String format) throws IOException {
+        String field = fieldType.name();
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        SearchLookup searchLookup = mock(SearchLookup.class);
+        LeafSearchLookup leafSearchLookup = mock(LeafSearchLookup.class);
+        LeafStoredFieldsLookup leafStoredFieldsLookup = mock(LeafStoredFieldsLookup.class);
+        FieldLookup fieldLookup = mock(FieldLookup.class);
+        when(searchExecutionContext.lookup()).thenReturn(searchLookup);
+        when(searchLookup.getLeafSearchLookup(null)).thenReturn(leafSearchLookup);
+        when(leafSearchLookup.fields()).thenReturn(leafStoredFieldsLookup);
+        when(leafStoredFieldsLookup.get(field)).thenReturn(fieldLookup);
+        when(fieldLookup.getValues()).thenReturn(storedValues);
+
+        ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, format);
+        fetcher.setNextReader(null);
+        return fetcher.fetchValues(null, -1, List.of());
     }
 }

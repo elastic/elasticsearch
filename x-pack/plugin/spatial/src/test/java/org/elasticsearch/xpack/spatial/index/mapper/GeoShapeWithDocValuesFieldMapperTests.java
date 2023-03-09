@@ -46,14 +46,10 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     }
 
     @Override
-    protected boolean supportsStoredFields() {
-        return false;
-    }
-
-    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerUpdateCheck(b -> b.field("orientation", "right"), m -> {
             AbstractShapeGeometryFieldMapper<?> gsfm = (AbstractShapeGeometryFieldMapper<?>) m;
             assertEquals(Orientation.RIGHT, gsfm.orientation());
@@ -305,7 +301,10 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
 
     public void testShapeArrayParsing() throws Exception {
 
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "geo_shape");
+            b.field("store", "true");
+        }));
 
         SourceToParse sourceToParse = source(b -> {
             b.startArray("shape")

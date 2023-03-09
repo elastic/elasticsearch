@@ -19,7 +19,7 @@ import java.util.List;
 /**
  * Value fetcher that loads from stored values.
  */
-public final class StoredValueFetcher implements ValueFetcher {
+public class StoredValueFetcher implements ValueFetcher {
 
     private final SearchLookup lookup;
     private LeafSearchLookup leafSearchLookup;
@@ -38,7 +38,14 @@ public final class StoredValueFetcher implements ValueFetcher {
     @Override
     public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) throws IOException {
         leafSearchLookup.setDocument(doc);
-        return leafSearchLookup.fields().get(fieldname).getValues();
+        return parseStoredValues(leafSearchLookup.fields().get(fieldname).getValues());
+    }
+
+    /**
+     * Given the values stored in lucene, parse it into a standard format.
+     */
+    protected List<Object> parseStoredValues(List<Object> values) {
+        return values;
     }
 
 }

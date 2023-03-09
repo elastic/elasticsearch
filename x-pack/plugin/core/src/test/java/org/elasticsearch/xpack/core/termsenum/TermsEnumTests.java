@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.termsenum;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
@@ -106,7 +108,7 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94382")
+    @Repeat(iterations = 100)
     public void testTermsEnumIPRandomized() throws Exception {
         String indexName = "test_random";
         createIndex(indexName);
@@ -145,9 +147,9 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
 
         // test for short random prefixes, max length 7 should at least include some separators but not be too long for short ipv4
         for (int prefixLength = 1; prefixLength < 7; prefixLength++) {
-            String randomPrefix = NetworkAddress.format(randomIps[randomIntBetween(0, numDocs)])
-                .substring(0, prefixLength)
-                .replaceAll("^0*", "");
+            String randomPrefix = NetworkAddress.format(randomIps[randomIntBetween(0, numDocs - 1)])
+                .substring(0, prefixLength);
+
             int expectedResults = 0;
             for (int i = 0; i < numDocs; i++) {
                 if (NetworkAddress.format(randomIps[i]).startsWith(randomPrefix)) {
@@ -166,7 +168,7 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
             );
 
             // test search after functionality
-            int searchAfterPosition = randomIntBetween(0, terms.size() - 1);
+            int searchAfterPosition = randomIntBetween(0, Math.max(0, terms.size() - 1));
             expectedResults = expectedResults - searchAfterPosition - 1;
             response = client().execute(
                 TermsEnumAction.INSTANCE,

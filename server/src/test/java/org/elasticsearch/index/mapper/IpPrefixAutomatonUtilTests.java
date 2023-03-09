@@ -113,6 +113,44 @@ public class IpPrefixAutomatonUtilTests extends ESTestCase {
 
         }
         {
+            CompiledAutomaton compiledAutomaton = IpPrefixAutomatonUtil.buildIpPrefixAutomaton("0");
+            byte[] encode = InetAddressPoint.encode(InetAddress.getByName("0.2.3.4"));
+            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
+            encode = InetAddressPoint.encode(InetAddress.getByName("::1.1.2.3"));
+            assertFalse(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
+            encode = InetAddressPoint.encode(InetAddress.getByName("1c7:21d6:ffff:ffff:6852:f279::"));
+            assertFalse(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
+        }
+        {
+            CompiledAutomaton compiledAutomaton = IpPrefixAutomatonUtil.buildIpPrefixAutomaton("00");
+            byte[] encode = InetAddressPoint.encode(InetAddress.getByName("0.2.3.4"));
+            assertFalse(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
+            encode = InetAddressPoint.encode(InetAddress.getByName("::1.1.2.3"));
+            assertFalse(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
+            encode = InetAddressPoint.encode(InetAddress.getByName("c7:21d6:ffff:ffff:6852:f279::"));
+            assertFalse(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
+        }
+        {
+            CompiledAutomaton compiledAutomaton = IpPrefixAutomatonUtil.buildIpPrefixAutomaton("0:");
+            byte[] encode = InetAddressPoint.encode(InetAddress.getByName("0.2.3.4"));
+            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
+            encode = InetAddressPoint.encode(InetAddress.getByName("::1.1.2.3"));
+            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
+            encode = InetAddressPoint.encode(InetAddress.getByName("0:21d6:ffff:ffff:6852:f279::"));
+            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
+        }
+        {
+            CompiledAutomaton compiledAutomaton = IpPrefixAutomatonUtil.buildIpPrefixAutomaton(":");
+            byte[] encode = InetAddressPoint.encode(InetAddress.getByName("0.2.3.4"));
+            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
+            encode = InetAddressPoint.encode(InetAddress.getByName("::1.1.2.3"));
+            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
+            encode = InetAddressPoint.encode(InetAddress.getByName("0:21d6:ffff:ffff:6852:f279::"));
+            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
+            encode = InetAddressPoint.encode(InetAddress.getByName("::"));
+            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
+        }
+        {
             CompiledAutomaton compiledAutomaton = IpPrefixAutomatonUtil.buildIpPrefixAutomaton("1.");
             byte[] encode = InetAddressPoint.encode(InetAddress.getByName("1.2.3.4"));
             assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
@@ -206,7 +244,6 @@ public class IpPrefixAutomatonUtilTests extends ESTestCase {
     }
 
     public void testAutomatonFromIPv6Group() throws UnknownHostException {
-        expectThrows(AssertionError.class, () -> IpPrefixAutomatonUtil.automatonFromIPv6Group(""));
         expectThrows(AssertionError.class, () -> IpPrefixAutomatonUtil.automatonFromIPv6Group("12345"));
 
         // start with a 4-char hex string, build automaton for random prefix of it, then assure its accepted

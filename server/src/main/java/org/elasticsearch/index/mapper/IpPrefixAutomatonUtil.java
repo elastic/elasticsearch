@@ -105,8 +105,13 @@ public class IpPrefixAutomatonUtil {
                         ipv6Automaton = concatenate(ipv6Automaton, Operations.repeat(Automata.makeChar(0)));
                     }
                 } else {
+                    // potentially partial block
+                    if (groupsAdded == 0 && ONLY_ZEROS.matcher(group).matches()) {
+                        // we ignore only-zero prefixes for ipv6, otherwise those would also match all ipv4 addresses
+                        return EMPTY_AUTOMATON;
+                    }
+                    // we need to create all possibilities of byte sequences this could match
                     groupsAdded++;
-                    // partial block, we need to create all possibilities of byte sequences this could match
                     ipv6Automaton = concatenate(ipv6Automaton, automatonFromIPv6Group(group));
                 }
             }
@@ -145,6 +150,10 @@ public class IpPrefixAutomatonUtil {
 
     private static Pattern IPV4_GROUP_MATCHER = Pattern.compile(
         "^((?:0|[1-9][0-9]{0,2})\\.)?" + "((?:0|[1-9][0-9]{0,2})\\.)?" + "((?:0|[1-9][0-9]{0,2})\\.)?" + "((?:0|[1-9][0-9]{0,2}))?$"
+    );
+
+    private static Pattern ONLY_ZEROS = Pattern.compile(
+        "^0+$"
     );
 
     /**

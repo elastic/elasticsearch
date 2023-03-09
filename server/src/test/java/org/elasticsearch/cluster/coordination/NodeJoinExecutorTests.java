@@ -38,8 +38,6 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -214,7 +212,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
-        final NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService, createTransportService());
+        final NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService);
 
         final DiscoveryNode masterNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
 
@@ -237,7 +235,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             clusterState,
             executor,
-            List.of(JoinTask.singleNode(actualNode, TEST_REASON, NOT_COMPLETED_LISTENER, 0L))
+            List.of(JoinTask.singleNode(actualNode, TransportVersion.CURRENT, TEST_REASON, NOT_COMPLETED_LISTENER, 0L))
         );
 
         assertThat(resultingState.getNodes().get(actualNode.getId()).getRoles(), equalTo(actualNode.getRoles()));
@@ -248,7 +246,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
         final long executorTerm = randomLongBetween(0L, Long.MAX_VALUE - 1);
-        final var executor = new NodeJoinExecutor(allocationService, rerouteService, createTransportService());
+        final var executor = new NodeJoinExecutor(allocationService, rerouteService);
 
         final var masterNode = new DiscoveryNode(UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Version.CURRENT);
         final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -267,10 +265,14 @@ public class NodeJoinExecutorTests extends ESTestCase {
                     clusterState,
                     executor,
                     randomBoolean()
-                        ? List.of(JoinTask.singleNode(masterNode, TEST_REASON, NOT_COMPLETED_LISTENER, executorTerm))
+                        ? List.of(
+                            JoinTask.singleNode(masterNode, TransportVersion.CURRENT, TEST_REASON, NOT_COMPLETED_LISTENER, executorTerm)
+                        )
                         : List.of(
                             JoinTask.completingElection(
-                                Stream.of(new JoinTask.NodeJoinTask(masterNode, TEST_REASON, NOT_COMPLETED_LISTENER)),
+                                Stream.of(
+                                    new JoinTask.NodeJoinTask(masterNode, TransportVersion.CURRENT, TEST_REASON, NOT_COMPLETED_LISTENER)
+                                ),
                                 executorTerm
                             )
                         ),
@@ -287,7 +289,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
         final long executorTerm = randomNonNegativeLong();
-        final var executor = new NodeJoinExecutor(allocationService, rerouteService, createTransportService());
+        final var executor = new NodeJoinExecutor(allocationService, rerouteService);
 
         final var masterNode = new DiscoveryNode(UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Version.CURRENT);
         final var localNode = new DiscoveryNode(UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Version.CURRENT);
@@ -314,10 +316,14 @@ public class NodeJoinExecutorTests extends ESTestCase {
                     clusterState,
                     executor,
                     randomBoolean()
-                        ? List.of(JoinTask.singleNode(masterNode, TEST_REASON, NOT_COMPLETED_LISTENER, executorTerm))
+                        ? List.of(
+                            JoinTask.singleNode(masterNode, TransportVersion.CURRENT, TEST_REASON, NOT_COMPLETED_LISTENER, executorTerm)
+                        )
                         : List.of(
                             JoinTask.completingElection(
-                                Stream.of(new JoinTask.NodeJoinTask(masterNode, TEST_REASON, NOT_COMPLETED_LISTENER)),
+                                Stream.of(
+                                    new JoinTask.NodeJoinTask(masterNode, TransportVersion.CURRENT, TEST_REASON, NOT_COMPLETED_LISTENER)
+                                ),
                                 executorTerm
                             )
                         ),
@@ -334,7 +340,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
         final long executorTerm = randomNonNegativeLong();
-        final var executor = new NodeJoinExecutor(allocationService, rerouteService, createTransportService());
+        final var executor = new NodeJoinExecutor(allocationService, rerouteService);
 
         final var masterNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
         final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -352,7 +358,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 () -> ClusterStateTaskExecutorUtils.executeHandlingResults(
                     clusterState,
                     executor,
-                    List.of(JoinTask.singleNode(masterNode, TEST_REASON, NOT_COMPLETED_LISTENER, executorTerm)),
+                    List.of(JoinTask.singleNode(masterNode, TransportVersion.CURRENT, TEST_REASON, NOT_COMPLETED_LISTENER, executorTerm)),
                     t -> fail("should not succeed"),
                     (t, e) -> assertThat(e, instanceOf(NotMasterException.class))
                 )
@@ -366,7 +372,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
         final long executorTerm = randomLongBetween(1, Long.MAX_VALUE);
-        final var executor = new NodeJoinExecutor(allocationService, rerouteService, createTransportService());
+        final var executor = new NodeJoinExecutor(allocationService, rerouteService);
 
         final var masterNode = new DiscoveryNode(UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Version.CURRENT);
         final var otherNodeOld = new DiscoveryNode(UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Version.CURRENT);
@@ -396,8 +402,8 @@ public class NodeJoinExecutorTests extends ESTestCase {
             List.of(
                 JoinTask.completingElection(
                     Stream.of(
-                        new JoinTask.NodeJoinTask(masterNode, TEST_REASON, NOT_COMPLETED_LISTENER),
-                        new JoinTask.NodeJoinTask(otherNodeNew, TEST_REASON, NOT_COMPLETED_LISTENER)
+                        new JoinTask.NodeJoinTask(masterNode, TransportVersion.CURRENT, TEST_REASON, NOT_COMPLETED_LISTENER),
+                        new JoinTask.NodeJoinTask(otherNodeNew, TransportVersion.CURRENT, TEST_REASON, NOT_COMPLETED_LISTENER)
                     ),
                     executorTerm
                 )
@@ -418,8 +424,8 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 afterElectionClusterState,
                 executor,
                 List.of(
-                    JoinTask.singleNode(masterNode, TEST_REASON, NOT_COMPLETED_LISTENER, executorTerm),
-                    JoinTask.singleNode(otherNodeOld, TEST_REASON, NOT_COMPLETED_LISTENER, executorTerm)
+                    JoinTask.singleNode(masterNode, TransportVersion.CURRENT, TEST_REASON, NOT_COMPLETED_LISTENER, executorTerm),
+                    JoinTask.singleNode(otherNodeOld, TransportVersion.CURRENT, TEST_REASON, NOT_COMPLETED_LISTENER, executorTerm)
                 )
             ).nodes().get(otherNodeNew.getId()).getEphemeralId(),
             equalTo(otherNodeNew.getEphemeralId())
@@ -431,7 +437,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
         final long executorTerm = randomLongBetween(1, Long.MAX_VALUE);
-        final var executor = new NodeJoinExecutor(allocationService, rerouteService, createTransportService());
+        final var executor = new NodeJoinExecutor(allocationService, rerouteService);
 
         final var masterNode = new DiscoveryNode(UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Version.CURRENT);
         final var otherNode = new DiscoveryNode(
@@ -473,8 +479,8 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 List.of(
                     JoinTask.completingElection(
                         Stream.of(
-                            new JoinTask.NodeJoinTask(masterNode, TEST_REASON, NOT_COMPLETED_LISTENER),
-                            new JoinTask.NodeJoinTask(otherNode, TEST_REASON, NOT_COMPLETED_LISTENER)
+                            new JoinTask.NodeJoinTask(masterNode, TransportVersion.CURRENT, TEST_REASON, NOT_COMPLETED_LISTENER),
+                            new JoinTask.NodeJoinTask(otherNode, TransportVersion.CURRENT, TEST_REASON, NOT_COMPLETED_LISTENER)
                         ),
                         executorTerm
                     )
@@ -486,7 +492,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 executor,
                 List.of(
                     JoinTask.completingElection(
-                        Stream.of(new JoinTask.NodeJoinTask(masterNode, TEST_REASON, NOT_COMPLETED_LISTENER)),
+                        Stream.of(new JoinTask.NodeJoinTask(masterNode, TransportVersion.CURRENT, TEST_REASON, NOT_COMPLETED_LISTENER)),
                         executorTerm
                     )
                 )
@@ -494,7 +500,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
             clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
                 clusterState,
                 executor,
-                List.of(JoinTask.singleNode(otherNode, TEST_REASON, NOT_COMPLETED_LISTENER, executorTerm))
+                List.of(JoinTask.singleNode(otherNode, TransportVersion.CURRENT, TEST_REASON, NOT_COMPLETED_LISTENER, executorTerm))
             );
         }
 
@@ -511,7 +517,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
         final long currentTerm = randomLongBetween(100, 1000);
-        final var executor = new NodeJoinExecutor(allocationService, rerouteService, createTransportService());
+        final var executor = new NodeJoinExecutor(allocationService, rerouteService);
 
         final var masterNode = new DiscoveryNode(UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Version.CURRENT);
         final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -539,7 +545,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
     public void testDesiredNodesMembershipIsUpgradedWhenNewNodesJoin() throws Exception {
         final var allocationService = createAllocationService();
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
-        final var executor = new NodeJoinExecutor(allocationService, rerouteService, createTransportService());
+        final var executor = new NodeJoinExecutor(allocationService, rerouteService);
 
         final var actualizedDesiredNodes = randomList(0, 5, this::createActualizedDesiredNode);
         final var pendingDesiredNodes = randomList(0, 5, this::createPendingDesiredNode);
@@ -558,7 +564,9 @@ public class NodeJoinExecutorTests extends ESTestCase {
         );
         final var desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
 
-        var tasks = joiningNodes.stream().map(node -> JoinTask.singleNode(node, TEST_REASON, NOT_COMPLETED_LISTENER, 0L)).toList();
+        var tasks = joiningNodes.stream()
+            .map(node -> JoinTask.singleNode(node, TransportVersion.CURRENT, TEST_REASON, NOT_COMPLETED_LISTENER, 0L))
+            .toList();
 
         final var updatedClusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(clusterState, executor, tasks);
 
@@ -576,7 +584,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
     public void testDesiredNodesMembershipIsUpgradedWhenANewMasterIsElected() throws Exception {
         final var allocationService = createAllocationService();
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
-        final var executor = new NodeJoinExecutor(allocationService, rerouteService, createTransportService());
+        final var executor = new NodeJoinExecutor(allocationService, rerouteService);
 
         final var actualizedDesiredNodes = randomList(1, 5, this::createPendingDesiredNode);
         final var pendingDesiredNodes = randomList(0, 5, this::createPendingDesiredNode);
@@ -591,7 +599,9 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final var desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
 
         final var completingElectionTask = JoinTask.completingElection(
-            clusterState.nodes().stream().map(node -> new JoinTask.NodeJoinTask(node, TEST_REASON, NOT_COMPLETED_LISTENER)),
+            clusterState.nodes()
+                .stream()
+                .map(node -> new JoinTask.NodeJoinTask(node, TransportVersion.CURRENT, TEST_REASON, NOT_COMPLETED_LISTENER)),
             1L
         );
 
@@ -617,7 +627,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
-        final NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService, createTransportService());
+        final NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService);
 
         final DiscoveryNode masterNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -643,7 +653,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 PlainActionFuture.<Void, RuntimeException>get(
                     future -> clusterService.getMasterService()
                         .createTaskQueue("test", Priority.NORMAL, executor)
-                        .submitTask("test", JoinTask.singleNode(node1, TEST_REASON, future, 0L), null),
+                        .submitTask("test", JoinTask.singleNode(node1, TransportVersion.CURRENT, TEST_REASON, future, 0L), null),
                     10,
                     TimeUnit.SECONDS
                 )
@@ -668,7 +678,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 PlainActionFuture.<Void, RuntimeException>get(
                     future -> clusterService.getMasterService()
                         .createTaskQueue("test", Priority.NORMAL, executor)
-                        .submitTask("test", JoinTask.singleNode(node2, testReasonWithLink, future, 0L), null),
+                        .submitTask("test", JoinTask.singleNode(node2, TransportVersion.CURRENT, testReasonWithLink, future, 0L), null),
                     10,
                     TimeUnit.SECONDS
                 )
@@ -689,8 +699,11 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
     private static JoinTask createRandomTask(DiscoveryNode node, long term) {
         return randomBoolean()
-            ? JoinTask.singleNode(node, TEST_REASON, NOT_COMPLETED_LISTENER, term)
-            : JoinTask.completingElection(Stream.of(new JoinTask.NodeJoinTask(node, TEST_REASON, NOT_COMPLETED_LISTENER)), term);
+            ? JoinTask.singleNode(node, TransportVersion.CURRENT, TEST_REASON, NOT_COMPLETED_LISTENER, term)
+            : JoinTask.completingElection(
+                Stream.of(new JoinTask.NodeJoinTask(node, TransportVersion.CURRENT, TEST_REASON, NOT_COMPLETED_LISTENER)),
+                term
+            );
     }
 
     private static AllocationService createAllocationService() {
@@ -700,14 +713,6 @@ public class NodeJoinExecutorTests extends ESTestCase {
             invocationOnMock -> invocationOnMock.getArguments()[0]
         );
         return allocationService;
-    }
-
-    private static TransportService createTransportService() {
-        TransportService service = mock(TransportService.class);
-        Transport.Connection connection = mock(Transport.Connection.class);
-        when(connection.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
-        when(service.getConnection(any())).thenReturn(connection);
-        return service;
     }
 
     // Hard-coding the class name here because it is also mentioned in the troubleshooting docs, so should not be renamed without care.

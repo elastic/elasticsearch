@@ -392,13 +392,14 @@ public class ClusterStateChanges {
 
     private static final JoinReason DUMMY_REASON = new JoinReason("dummy reason", null);
 
-    public ClusterState addNode(ClusterState clusterState, DiscoveryNode discoveryNode) {
+    public ClusterState addNode(ClusterState clusterState, DiscoveryNode discoveryNode, TransportVersion transportVersion) {
         return runTasks(
-            new NodeJoinExecutor(allocationService, (s, p, r) -> {}, transportService),
+            new NodeJoinExecutor(allocationService, (s, p, r) -> {}),
             clusterState,
             List.of(
                 JoinTask.singleNode(
                     discoveryNode,
+                    transportVersion,
                     DUMMY_REASON,
                     ActionListener.running(() -> { throw new AssertionError("should not complete publication"); }),
                     clusterState.term()
@@ -407,9 +408,9 @@ public class ClusterStateChanges {
         );
     }
 
-    public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes) {
+    public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes, TransportVersion transportVersion) {
         return runTasks(
-            new NodeJoinExecutor(allocationService, (s, p, r) -> {}, transportService),
+            new NodeJoinExecutor(allocationService, (s, p, r) -> {}),
             clusterState,
             List.of(
                 JoinTask.completingElection(
@@ -417,6 +418,7 @@ public class ClusterStateChanges {
                         .map(
                             node -> new JoinTask.NodeJoinTask(
                                 node,
+                                transportVersion,
                                 DUMMY_REASON,
                                 ActionListener.running(() -> { throw new AssertionError("should not complete publication"); })
                             )

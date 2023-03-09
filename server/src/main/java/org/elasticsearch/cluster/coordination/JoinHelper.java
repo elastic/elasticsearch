@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -94,7 +95,7 @@ public class JoinHelper {
         this.joinTaskQueue = masterService.createTaskQueue(
             "node-join",
             Priority.URGENT,
-            new NodeJoinExecutor(allocationService, rerouteService, transportService, maybeReconfigureAfterMasterElection)
+            new NodeJoinExecutor(allocationService, rerouteService, maybeReconfigureAfterMasterElection)
         );
         this.clusterApplier = clusterApplier;
         this.transportService = transportService;
@@ -229,7 +230,7 @@ public class JoinHelper {
             logger.debug("dropping join request to [{}]: [{}]", destination, statusInfo.getInfo());
             return;
         }
-        final JoinRequest joinRequest = new JoinRequest(transportService.getLocalNode(), term, optionalJoin);
+        final JoinRequest joinRequest = new JoinRequest(transportService.getLocalNode(), TransportVersion.CURRENT, term, optionalJoin);
         final Tuple<DiscoveryNode, JoinRequest> dedupKey = Tuple.tuple(destination, joinRequest);
         final var pendingJoinInfo = new PendingJoinInfo(transportService.getThreadPool().relativeTimeInMillis());
         if (pendingOutgoingJoins.putIfAbsent(dedupKey, pendingJoinInfo) == null) {
@@ -385,16 +386,17 @@ public class JoinHelper {
     }
 
     interface JoinAccumulator {
-        void handleJoinRequest(DiscoveryNode sender, ActionListener<Void> joinListener);
+        void handleJoinRequest(DiscoveryNode sender, TransportVersion transportVersion, ActionListener<Void> joinListener);
 
         default void close(Mode newMode) {}
     }
 
     class LeaderJoinAccumulator implements JoinAccumulator {
         @Override
-        public void handleJoinRequest(DiscoveryNode sender, ActionListener<Void> joinListener) {
+        public void handleJoinRequest(DiscoveryNode sender, TransportVersion transportVersion, ActionListener<Void> joinListener) {
             final JoinTask task = JoinTask.singleNode(
                 sender,
+                transportVersion,
                 joinReasonService.getJoinReason(sender, Mode.LEADER),
                 joinListener,
                 currentTermSupplier.getAsLong()
@@ -410,7 +412,7 @@ public class JoinHelper {
 
     static class InitialJoinAccumulator implements JoinAccumulator {
         @Override
-        public void handleJoinRequest(DiscoveryNode sender, ActionListener<Void> joinListener) {
+        public void handleJoinRequest(DiscoveryNode sender, TransportVersion transportVersion, ActionListener<Void> joinListener) {
             assert false : "unexpected join from " + sender + " during initialisation";
             joinListener.onFailure(new CoordinationStateRejectedException("join target is not initialised yet"));
         }
@@ -423,7 +425,7 @@ public class JoinHelper {
 
     static class FollowerJoinAccumulator implements JoinAccumulator {
         @Override
-        public void handleJoinRequest(DiscoveryNode sender, ActionListener<Void> joinListener) {
+        public void handleJoinRequest(DiscoveryNode sender, TransportVersion transportVersion, ActionListener<Void> joinListener) {
             joinListener.onFailure(new CoordinationStateRejectedException("join target is a follower"));
         }
 
@@ -435,15 +437,15 @@ public class JoinHelper {
 
     class CandidateJoinAccumulator implements JoinAccumulator {
 
-        private final Map<DiscoveryNode, ActionListener<Void>> joinRequestAccumulator = new HashMap<>();
+        private final Map<DiscoveryNode, Tuple<TransportVersion, ActionListener<Void>>> joinRequestAccumulator = new HashMap<>();
         boolean closed;
 
         @Override
-        public void handleJoinRequest(DiscoveryNode sender, ActionListener<Void> joinListener) {
+        public void handleJoinRequest(DiscoveryNode sender, TransportVersion transportVersion, ActionListener<Void> joinListener) {
             assert closed == false : "CandidateJoinAccumulator closed";
-            ActionListener<Void> prev = joinRequestAccumulator.put(sender, joinListener);
+            var prev = joinRequestAccumulator.put(sender, Tuple.tuple(transportVersion, joinListener));
             if (prev != null) {
-                prev.onFailure(new CoordinationStateRejectedException("received a newer join from " + sender));
+                prev.v2().onFailure(new CoordinationStateRejectedException("received a newer join from " + sender));
             }
         }
 
@@ -454,18 +456,19 @@ public class JoinHelper {
             if (newMode == Mode.LEADER) {
                 final JoinTask joinTask = JoinTask.completingElection(joinRequestAccumulator.entrySet().stream().map(entry -> {
                     final DiscoveryNode discoveryNode = entry.getKey();
-                    final ActionListener<Void> listener = entry.getValue();
+                    final var data = entry.getValue();
                     return new JoinTask.NodeJoinTask(
                         discoveryNode,
+                        data.v1(),
                         joinReasonService.getJoinReason(discoveryNode, Mode.CANDIDATE),
-                        listener
+                        data.v2()
                     );
                 }), currentTermSupplier.getAsLong());
                 joinTaskQueue.submitTask("elected-as-master ([" + joinTask.nodeCount() + "] nodes joined)", joinTask, null);
             } else {
                 assert newMode == Mode.FOLLOWER : newMode;
                 joinRequestAccumulator.values()
-                    .forEach(joinCallback -> joinCallback.onFailure(new CoordinationStateRejectedException("became follower")));
+                    .forEach(joinCallback -> joinCallback.v2().onFailure(new CoordinationStateRejectedException("became follower")));
             }
 
             // CandidateJoinAccumulator is only closed when becoming leader or follower, otherwise it accumulates all joins received

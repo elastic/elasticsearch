@@ -497,7 +497,6 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         BLOCKS("blocks"),
         NODES("nodes"),
         METADATA("metadata"),
-        TRANSPORT_VERSIONS("transport_versions"),
         ROUTING_TABLE("routing_table"),
         ROUTING_NODES("routing_nodes"),
         CUSTOMS("customs");
@@ -617,8 +616,9 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             ),
 
             // transportVersions
+            // just use NODES again, its node-related information
             chunkedSection(
-                metrics.contains(Metric.TRANSPORT_VERSIONS),
+                metrics.contains(Metric.NODES),
                 (builder, params) -> builder.startArray("transport_versions"),
                 transportVersions.entrySet().iterator(),
                 e -> Iterators.single(

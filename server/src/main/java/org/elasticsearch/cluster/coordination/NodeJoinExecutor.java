@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -46,22 +45,19 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
 
     private final AllocationService allocationService;
     private final RerouteService rerouteService;
-    private final TransportService transportService;
     private final Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection;
 
-    public NodeJoinExecutor(AllocationService allocationService, RerouteService rerouteService, TransportService transportService) {
-        this(allocationService, rerouteService, transportService, Function.identity());
+    public NodeJoinExecutor(AllocationService allocationService, RerouteService rerouteService) {
+        this(allocationService, rerouteService, Function.identity());
     }
 
     public NodeJoinExecutor(
         AllocationService allocationService,
         RerouteService rerouteService,
-        TransportService transportService,
         Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection
     ) {
         this.allocationService = allocationService;
         this.rerouteService = rerouteService;
-        this.transportService = transportService;
         this.maybeReconfigureAfterMasterElection = maybeReconfigureAfterMasterElection;
     }
 
@@ -134,7 +130,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     logger.debug("received a join request for an existing node [{}]", node);
                 } else {
                     try {
-                        TransportVersion transportVersion = transportService.getConnection(node).getTransportVersion();
+                        TransportVersion transportVersion = nodeJoinTask.transportVersion();
                         if (enforceVersionBarrier) {
                             ensureVersionBarrier(node.getVersion(), minClusterNodeVersion);
                             ensureTransportVersionBarrier(transportVersion, transportVersions.values());

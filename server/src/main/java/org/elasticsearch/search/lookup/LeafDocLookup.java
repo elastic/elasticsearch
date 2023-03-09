@@ -39,7 +39,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
       Field factories require a privileged action to advance to docids (files could be loaded). This wrapper
       is a place for that privileged action to be cached so that it does not need to be recreated for every document.
      */
-    class FieldFactoryWrapper  {
+    class FieldFactoryWrapper {
         final DocValuesScriptFieldFactory factory;
         private final PrivilegedAction<Void> advancer;
 

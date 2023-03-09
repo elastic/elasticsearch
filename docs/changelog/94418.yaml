@@ -1,5 +1,6 @@
 pr: 94418
 summary: Support for store parameter in `geo_shape` field
-area: "Geo"
+area: Geo
 type: enhancement
-issues: []
+issues:
+ - 83655

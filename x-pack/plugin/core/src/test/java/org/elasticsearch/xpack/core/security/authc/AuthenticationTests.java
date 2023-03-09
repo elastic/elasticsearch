@@ -755,7 +755,7 @@ public class AuthenticationTests extends ESTestCase {
                 containsString(
                     "versions of Elasticsearch before ["
                         + Authentication.VERSION_CROSS_CLUSTER_ACCESS_REALM
-                        + "] can't handle remote access authentication and attempted to rewrite for ["
+                        + "] can't handle cross cluster access authentication and attempted to rewrite for ["
                         + version.transportVersion
                         + "]"
                 )

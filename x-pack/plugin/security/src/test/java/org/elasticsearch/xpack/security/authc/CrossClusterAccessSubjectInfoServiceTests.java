@@ -212,7 +212,9 @@ public class CrossClusterAccessSubjectInfoServiceTests extends ESTestCase {
         assertThat(actual.getCause().getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(
             actual.getCause().getCause().getMessage(),
-            containsString("role descriptor for remote access can only contain index privileges but other privileges found for subject")
+            containsString(
+                "role descriptor for cross cluster access can only contain index privileges but other privileges found for subject"
+            )
         );
         verify(auditableRequest).exceptionProcessingRequest(
             any(Exception.class),

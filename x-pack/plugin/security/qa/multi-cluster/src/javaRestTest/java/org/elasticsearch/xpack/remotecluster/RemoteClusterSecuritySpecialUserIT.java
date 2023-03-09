@@ -36,7 +36,7 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
         fulfillingCluster = ElasticsearchCluster.local()
             .name("fulfilling-cluster")
             .apply(commonClusterConfig)
-            // anonymous user has superuser role, but it won't be applied to remote access users
+            // anonymous user has superuser role, but it won't be applied to cross cluster access users
             .setting("xpack.security.authc.anonymous.roles", "superuser")
             .setting("remote_cluster_server.enabled", "true")
             .setting("remote_cluster.port", "0")

@@ -58,7 +58,9 @@ public final class CrossClusterAccessSubjectInfo {
     public static CrossClusterAccessSubjectInfo readFromContext(final ThreadContext ctx) throws IOException {
         final String header = ctx.getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY);
         if (header == null) {
-            throw new IllegalArgumentException("remote access header [" + CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY + "] is required");
+            throw new IllegalArgumentException(
+                "cross cluster access header [" + CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY + "] is required"
+            );
         }
         return decode(header);
     }
@@ -104,7 +106,7 @@ public final class CrossClusterAccessSubjectInfo {
         // If we ever lift this restriction, we need to ensure that the serialization of each set of role descriptors to raw bytes is
         // deterministic. We can do so by sorting the role descriptors before serializing.
         assert roleDescriptorsIntersection.roleDescriptorsList().stream().noneMatch(rds -> rds.size() > 1)
-            : "sets with more than one role descriptor are not supported for remote access authentication";
+            : "sets with more than one role descriptor are not supported for cross cluster access authentication";
         final List<RoleDescriptorsBytes> roleDescriptorsBytesList = new ArrayList<>();
         for (Set<RoleDescriptor> roleDescriptors : roleDescriptorsIntersection.roleDescriptorsList()) {
             roleDescriptorsBytesList.add(RoleDescriptorsBytes.fromRoleDescriptors(roleDescriptors));

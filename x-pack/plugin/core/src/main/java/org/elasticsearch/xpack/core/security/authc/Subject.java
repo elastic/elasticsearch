@@ -34,7 +34,7 @@ import static org.elasticsearch.xpack.core.security.authc.Subject.Type.CROSS_CLU
 
 /**
  * A subject is a more generic concept similar to user and associated to the current authentication.
- * It is more generic than user because it can also represent API keys, service accounts, or remote access users.
+ * It is more generic than user because it can also represent API keys, service accounts, or cross cluster access users.
  * It also contains authentication level information, e.g. realm and metadata so that it can answer
  * queries in a better encapsulated way.
  */
@@ -72,7 +72,7 @@ public class Subject {
             assert ServiceAccountSettings.REALM_NAME.equals(realm.getName()) : "service account realm name mismatch";
             this.type = Type.SERVICE_ACCOUNT;
         } else if (AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_TYPE.equals(realm.getType())) {
-            assert AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_NAME.equals(realm.getName()) : "remote access realm name mismatch";
+            assert AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_NAME.equals(realm.getName()) : "cross cluster access realm name mismatch";
             this.type = Type.CROSS_CLUSTER_ACCESS;
         } else {
             this.type = Type.USER;
@@ -133,7 +133,7 @@ public class Subject {
                     (Authentication) resourceCreatorSubject.getMetadata().get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY)
                 );
             } else {
-                // A remote access subject can never share resources with non-remote access
+                // A cross cluster access subject can never share resources with non-cross cluster access
                 return false;
             }
         } else {
@@ -277,7 +277,7 @@ public class Subject {
         } else {
             // TODO handle this once we support API keys as querying subjects
             assert crossClusterAccessRoleDescriptorsBytes.size() == 1
-                : "only a singleton list of remote access role descriptors bytes is supported";
+                : "only a singleton list of cross cluster access role descriptors bytes is supported";
             for (RoleDescriptorsBytes roleDescriptorsBytes : crossClusterAccessRoleDescriptorsBytes) {
                 roleReferences.add(new RoleReference.CrossClusterAccessRoleReference(roleDescriptorsBytes));
             }

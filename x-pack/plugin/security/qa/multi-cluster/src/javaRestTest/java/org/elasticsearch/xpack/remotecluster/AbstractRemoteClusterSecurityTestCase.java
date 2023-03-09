@@ -96,7 +96,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     }
 
     /**
-     * Returns API key ID of remote access API key.
+     * Returns API key ID of cross cluster access API key.
      */
     protected String configureRemoteClustersWithApiKey(String indicesPrivilegesJson, boolean isProxyMode) throws Exception {
         // Create API key on FC

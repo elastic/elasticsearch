@@ -65,7 +65,10 @@ public class CrossClusterAccessSubjectInfoTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> CrossClusterAccessSubjectInfo.readFromContext(new ThreadContext(Settings.EMPTY))
         );
-        assertThat(actual.getMessage(), equalTo("remote access header [" + CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY + "] is required"));
+        assertThat(
+            actual.getMessage(),
+            equalTo("cross cluster access header [" + CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY + "] is required")
+        );
     }
 
     public static RoleDescriptorsIntersection randomRoleDescriptorsIntersection() {

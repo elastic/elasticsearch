@@ -301,7 +301,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 if (crossClusterAccessCredentials.isPresent()) {
                     sendWithCrossClusterAccessHeaders(crossClusterAccessCredentials.get(), connection, action, request, options, handler);
                 } else {
-                    // Send regular request, without remote access headers
+                    // Send regular request, without cross cluster access headers
                     try {
                         sender.sendRequest(connection, action, request, options, handler);
                     } catch (Exception e) {
@@ -312,9 +312,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
             /**
              * Returns cluster credentials if the connection is remote, cluster credentials are set up for the target cluster, and access
-             * via remote access headers is supported for the request type and authenticated subject. If remote access is not supported,
-             * this method does not return credentials even if they are configured, to signify that the request should be sent according to
-             * the basic security model
+             * via cross cluster access headers is supported for the request type and authenticated subject.
              */
             private Optional<RemoteClusterCredentials> getCrossClusterAccessCredentials(Transport.Connection connection, String action) {
                 final Optional<String> optionalRemoteClusterAlias = remoteClusterAliasResolver.apply(connection);

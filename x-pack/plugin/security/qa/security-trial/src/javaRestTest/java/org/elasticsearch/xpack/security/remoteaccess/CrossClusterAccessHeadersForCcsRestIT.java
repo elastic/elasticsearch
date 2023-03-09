@@ -942,8 +942,8 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         );
         for (CapturedActionWithHeaders actual : actualActionsWithHeaders) {
             switch (actual.action) {
-                // this action is run by the system user, so we expect a remote access authentication header with an internal
-                // user authentication and empty role descriptors intersection
+                // this action is run by the system user, so we expect a cross cluster access header with an internal user authentication
+                // and empty role descriptors intersection
                 case RemoteClusterNodesAction.NAME -> {
                     assertContainsCrossClusterAccessHeaders(actual.headers());
                     assertContainsCrossClusterAccessCredentialsHeader(encodedCredential, actual);

@@ -108,8 +108,8 @@ public class CrossClusterAccessAuthenticationService {
             authenticationService.authenticate(
                 authcContext,
                 new ContextPreservingActionListener<>(storedContextSupplier, ActionListener.wrap(authentication -> {
-                    assert authentication.isApiKey() : "initial authentication for remote access must be by API key";
-                    assert false == authentication.isRunAs() : "initial authentication for remote access cannot be run-as";
+                    assert authentication.isApiKey() : "initial authentication for cross cluster access must be by API key";
+                    assert false == authentication.isRunAs() : "initial authentication for cross cluster access cannot be run-as";
                     // try-catch so any failure here is wrapped by `withRequestProcessingFailure`, whereas `authenticate` failures are not
                     // we should _not_ wrap `authenticate` failures since this produces duplicate audit events
                     try {

@@ -170,7 +170,7 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                 )
             ),
             entry(
-                "Remote access authentication requires metadata to contain a non-null serialized remote access authentication",
+                "Cross cluster access authentication requires metadata to contain a non-null serialized cross cluster access authentication",
                 encodeAuthentication(
                     new Subject(
                         userFoo,
@@ -182,7 +182,7 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                 )
             ),
             entry(
-                "Remote access authentication cannot contain another remote access authentication in its metadata",
+                "Cross cluster access authentication cannot contain another cross cluster access authentication in its metadata",
                 encodeAuthentication(
                     new Subject(
                         userFoo,
@@ -199,7 +199,7 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                 )
             ),
             entry(
-                "Remote access authentication requires metadata to contain a non-null serialized remote access role descriptors",
+                "Cross cluster access authentication requires metadata to contain a non-null serialized cross cluster access role descriptors",
                 encodeAuthentication(
                     new Subject(
                         userFoo,

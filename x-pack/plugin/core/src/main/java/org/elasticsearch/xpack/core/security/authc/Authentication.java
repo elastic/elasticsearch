@@ -223,13 +223,13 @@ public final class Authentication implements ToXContentObject {
         // TODO how can this not be true
         // assert olderVersion.onOrBefore(getVersion());
 
-        // remote access introduced a new synthetic realm and subject type; these cannot be parsed by older versions, so rewriting is not
-        // possible
+        // cross cluster access introduced a new synthetic realm and subject type; these cannot be parsed by older versions, so rewriting is
+        // not possible
         if (isCrossClusterAccess() && olderVersion.before(VERSION_CROSS_CLUSTER_ACCESS_REALM)) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
                     + VERSION_CROSS_CLUSTER_ACCESS_REALM
-                    + "] can't handle remote access authentication and attempted to rewrite for ["
+                    + "] can't handle cross cluster access authentication and attempted to rewrite for ["
                     + olderVersion
                     + "]"
             );
@@ -448,7 +448,7 @@ public final class Authentication implements ToXContentObject {
             return false;
         }
 
-        // Real run-as for remote access could happen on the querying cluster side, but not on the fulfilling cluster. Since the
+        // Real run-as for cross cluster access could happen on the querying cluster side, but not on the fulfilling cluster. Since the
         // authentication instance corresponds to the fulfilling-cluster-side view, run-as is not supported
         if (isCrossClusterAccess()) {
             return false;
@@ -516,14 +516,14 @@ public final class Authentication implements ToXContentObject {
     // Package private for testing
     static void doWriteTo(Subject effectiveSubject, Subject authenticatingSubject, AuthenticationType type, StreamOutput out)
         throws IOException {
-        // remote access introduced a new synthetic realm and subject type; these cannot be parsed by older versions, so rewriting we should
-        // not send them across the wire to older nodes
+        // cross cluster access introduced a new synthetic realm and subject type; these cannot be parsed by older versions, so rewriting we
+        // should not send them across the wire to older nodes
         final boolean isRemoteAccess = effectiveSubject.getType() == Subject.Type.CROSS_CLUSTER_ACCESS;
         if (isRemoteAccess && out.getTransportVersion().before(VERSION_CROSS_CLUSTER_ACCESS_REALM)) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
                     + VERSION_CROSS_CLUSTER_ACCESS_REALM
-                    + "] can't handle remote access authentication and attempted to send to ["
+                    + "] can't handle cross cluster access authentication and attempted to send to ["
                     + out.getTransportVersion()
                     + "]"
             );
@@ -731,7 +731,7 @@ public final class Authentication implements ToXContentObject {
      * An Authentication object has internal constraint between its fields, e.g. if it is internal authentication,
      * it must have an internal user. These logics are upheld when authentication is built as a result of successful
      * authentication. Hence, this method mostly runs in test (where assertion is enabled).
-     * However, for RCS remote access, FC receives an authentication object as part of the request. There is
+     * However, for RCS cross cluster access, FC receives an authentication object as part of the request. There is
      * no guarantee that this authentication object also maintains the internal logics. Therefore, this method
      * is called explicitly in production when handling remote access requests.
      */
@@ -793,19 +793,19 @@ public final class Authentication implements ToXContentObject {
         if (Subject.Type.CROSS_CLUSTER_ACCESS == authenticatingSubject.getType()) {
             if (authenticatingSubject.getMetadata().get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY) == null) {
                 throw new IllegalArgumentException(
-                    "Remote access authentication requires metadata to contain a non-null serialized remote access authentication"
+                    "Cross cluster access authentication requires metadata to contain a non-null serialized cross cluster access authentication"
                 );
             }
             final Authentication innerAuthentication = (Authentication) authenticatingSubject.getMetadata()
                 .get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
             if (innerAuthentication.isCrossClusterAccess()) {
                 throw new IllegalArgumentException(
-                    "Remote access authentication cannot contain another remote access authentication in its metadata"
+                    "Cross cluster access authentication cannot contain another cross cluster access authentication in its metadata"
                 );
             }
             if (authenticatingSubject.getMetadata().get(CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY) == null) {
                 throw new IllegalArgumentException(
-                    "Remote access authentication requires metadata to contain a non-null serialized remote access role descriptors"
+                    "Cross cluster access authentication requires metadata to contain a non-null serialized cross cluster access role descriptors"
                 );
             }
             checkNoRunAs(this, "Remote access");
@@ -1192,7 +1192,7 @@ public final class Authentication implements ToXContentObject {
 
     public Authentication toCrossClusterAccess(CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo) {
         assert isApiKey() : "can only convert API key authentication to cross cluster access";
-        assert false == isRunAs() : "remote access does not support authentication with run-as";
+        assert false == isRunAs() : "cross cluster access does not support authentication with run-as";
         assert getEffectiveSubject().getUser().roles().length == 0
             : "the user associated with a cross cluster access authentication must have no role";
         final Map<String, Object> metadata = new HashMap<>(getAuthenticatingSubject().getMetadata());

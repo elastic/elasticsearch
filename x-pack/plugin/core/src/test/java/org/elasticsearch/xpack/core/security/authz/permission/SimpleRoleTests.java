@@ -214,7 +214,7 @@ public class SimpleRoleTests extends ESTestCase {
         );
 
         // Requesting role descriptors intersection for a cluster alias
-        // that has no remote access defined should result in an empty intersection.
+        // that has no cross cluster access defined should result in an empty intersection.
         assertThat(
             role.getRoleDescriptorsIntersectionForRemoteCluster("non-existing-cluster-alias"),
             equalTo(RoleDescriptorsIntersection.EMPTY)

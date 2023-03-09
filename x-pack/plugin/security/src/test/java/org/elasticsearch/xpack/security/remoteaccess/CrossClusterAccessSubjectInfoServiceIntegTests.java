@@ -65,7 +65,10 @@ public class CrossClusterAccessSubjectInfoServiceIntegTests extends SecurityInte
         try (var ignored = threadContext.stashContext()) {
             authenticateAndAssertExpectedErrorMessage(
                 service,
-                msg -> assertThat(msg, equalTo("remote access header [" + CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY + "] is required"))
+                msg -> assertThat(
+                    msg,
+                    equalTo("cross cluster access header [" + CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY + "] is required")
+                )
             );
         }
 
@@ -79,7 +82,7 @@ public class CrossClusterAccessSubjectInfoServiceIntegTests extends SecurityInte
                 msg -> assertThat(
                     msg,
                     equalTo(
-                        "remote access header ["
+                        "cross cluster access header ["
                             + CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY
                             + "] value must be a valid API key credential"
                     )
@@ -93,7 +96,10 @@ public class CrossClusterAccessSubjectInfoServiceIntegTests extends SecurityInte
             threadContext.putHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, ApiKeyService.withApiKeyPrefix(randomApiKey));
             authenticateAndAssertExpectedErrorMessage(
                 service,
-                msg -> assertThat(msg, equalTo("remote access header [" + CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY + "] is required"))
+                msg -> assertThat(
+                    msg,
+                    equalTo("cross cluster access header [" + CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY + "] is required")
+                )
             );
         }
 
@@ -136,7 +142,7 @@ public class CrossClusterAccessSubjectInfoServiceIntegTests extends SecurityInte
                 msg -> assertThat(
                     msg,
                     containsString(
-                        "role descriptor for remote access can only contain index privileges but other privileges found for subject"
+                        "role descriptor for cross cluster access can only contain index privileges but other privileges found for subject"
                     )
                 )
             );

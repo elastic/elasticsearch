@@ -76,7 +76,7 @@ public class AuthenticationSerializationTests extends ESTestCase {
         assertThat(readFrom, equalTo(authentication));
     }
 
-    public void testWriteToWithRemoteAccessThrowsOnUnsupportedVersion() throws Exception {
+    public void testWriteToWithCrossClusterAccessThrowsOnUnsupportedVersion() throws Exception {
         final Authentication authentication = randomBoolean()
             ? AuthenticationTestHelper.builder().crossClusterAccess().build()
             : AuthenticationTestHelper.builder().build();
@@ -95,7 +95,7 @@ public class AuthenticationSerializationTests extends ESTestCase {
                 containsString(
                     "versions of Elasticsearch before ["
                         + Authentication.VERSION_CROSS_CLUSTER_ACCESS_REALM
-                        + "] can't handle remote access authentication and attempted to send to ["
+                        + "] can't handle cross cluster access authentication and attempted to send to ["
                         + out.getTransportVersion()
                         + "]"
                 )

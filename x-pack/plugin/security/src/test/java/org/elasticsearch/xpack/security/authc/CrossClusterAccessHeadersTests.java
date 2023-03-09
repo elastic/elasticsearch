@@ -67,7 +67,9 @@ public class CrossClusterAccessHeadersTests extends ESTestCase {
 
         assertThat(
             actual.getMessage(),
-            equalTo("remote access header [" + CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY + "] value must be a valid API key credential")
+            equalTo(
+                "cross cluster access header [" + CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY + "] value must be a valid API key credential"
+            )
         );
     }
 
@@ -91,7 +93,9 @@ public class CrossClusterAccessHeadersTests extends ESTestCase {
 
         assertThat(
             actual.getMessage(),
-            equalTo("remote access header [" + CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY + "] value must be a valid API key credential")
+            equalTo(
+                "cross cluster access header [" + CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY + "] value must be a valid API key credential"
+            )
         );
     }
 

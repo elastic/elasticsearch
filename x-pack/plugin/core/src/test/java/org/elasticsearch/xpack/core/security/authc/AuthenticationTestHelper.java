@@ -427,7 +427,7 @@ public class AuthenticationTestHelper {
 
         public AuthenticationTestBuilder runAs() {
             if (crossClusterAccessSubjectInfo != null) {
-                throw new IllegalArgumentException("cannot convert to run-as for remote access authentication");
+                throw new IllegalArgumentException("cannot convert to run-as for cross cluster access authentication");
             }
             if (authenticatingAuthentication != null) {
                 throw new IllegalArgumentException("cannot convert to run-as again for run-as authentication");

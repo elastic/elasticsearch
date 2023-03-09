@@ -52,7 +52,9 @@ public final class CrossClusterAccessHeaders {
             return Objects.requireNonNull(ApiKeyService.getCredentialsFromHeader(header));
         } catch (Exception ex) {
             throw new IllegalArgumentException(
-                "remote access header [" + CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY + "] value must be a valid API key credential",
+                "cross cluster access header ["
+                    + CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY
+                    + "] value must be a valid API key credential",
                 ex
             );
         }

@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  * Sink operator implementation that pushes data to an {@link ExchangeSink}
@@ -28,15 +29,12 @@ import java.util.Objects;
 public class ExchangeSinkOperator extends SinkOperator {
 
     private final ExchangeSink sink;
-
-    private ListenableActionFuture<Void> isBlocked = NOT_BLOCKED;
-
     private int pagesAccepted;
 
-    public record ExchangeSinkOperatorFactory(Exchange ex) implements SinkOperatorFactory {
+    public record ExchangeSinkOperatorFactory(Supplier<ExchangeSink> exchangeSinks) implements SinkOperatorFactory {
         @Override
         public SinkOperator get() {
-            return new ExchangeSinkOperator(ex.createSink());
+            return new ExchangeSinkOperator(exchangeSinks.get());
         }
 
         @Override
@@ -61,13 +59,7 @@ public class ExchangeSinkOperator extends SinkOperator {
 
     @Override
     public ListenableActionFuture<Void> isBlocked() {
-        if (isBlocked.isDone()) {
-            isBlocked = sink.waitForWriting();
-            if (isBlocked.isDone()) {
-                isBlocked = NOT_BLOCKED;
-            }
-        }
-        return isBlocked;
+        return sink.waitForWriting();
     }
 
     @Override

@@ -49,7 +49,6 @@ import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ValueSourceInfo;
@@ -63,13 +62,6 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
-import org.elasticsearch.compute.operator.exchange.ExchangeSink;
-import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
-import org.elasticsearch.compute.operator.exchange.ExchangeSource;
-import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
-import org.elasticsearch.compute.operator.exchange.PassthroughExchanger;
-import org.elasticsearch.compute.operator.exchange.RandomExchanger;
-import org.elasticsearch.compute.operator.exchange.RandomUnionSourceOperator;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
@@ -105,8 +97,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.LongUnaryOperator;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
-import java.util.stream.LongStream;
 
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
@@ -374,39 +364,6 @@ public class OperatorTests extends ESTestCase {
         }
     }
 
-    public void testOperatorsWithPassthroughExchange() {
-        BigArrays bigArrays = bigArrays();
-        ExchangeSource exchangeSource = new ExchangeSource();
-        List<Long> result = new ArrayList<>();
-
-        try (
-            Driver driver1 = new Driver(
-                new SequenceLongBlockSourceOperator(LongStream.range(0, 1000)),
-                List.of(
-                    new EvalOperator((page, position) -> page.<LongBlock>getBlock(0).asVector().getLong(position) / 10, ElementType.LONG)
-                ),
-                new ExchangeSinkOperator(
-                    new ExchangeSink(new PassthroughExchanger(exchangeSource, Integer.MAX_VALUE), sink -> exchangeSource.finish())
-                ),
-                () -> {}
-            );
-            Driver driver2 = new Driver(
-                new ExchangeSourceOperator(exchangeSource),
-                List.of(groupByLongs(bigArrays, 1)),
-                new PageConsumerOperator(page -> {
-                    LongVector v = page.<LongBlock>getBlock(0).asVector();
-                    for (int i = 0; i < v.getPositionCount(); i++) {
-                        result.add(v.getLong(i));
-                    }
-                }),
-                () -> {}
-            )
-        ) {
-            runToCompletion(randomExecutor(), List.of(driver1, driver2));
-        }
-        assertThat(result, equalTo(LongStream.range(0, 100).boxed().toList()));
-    }
-
     private Operator groupByLongs(BigArrays bigArrays, int channel) {
         return new HashAggregationOperator(
             List.of(),
@@ -416,80 +373,6 @@ public class OperatorTests extends ESTestCase {
 
     private Executor randomExecutor() {
         return threadPool.executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC, ThreadPool.Names.SEARCH));
-    }
-
-    public void testOperatorsWithRandomExchange() {
-        BigArrays bigArrays = bigArrays();
-        ExchangeSource exchangeSource1 = new ExchangeSource();
-        ExchangeSource exchangeSource2 = new ExchangeSource();
-        ExchangeSource exchangeSource3 = new ExchangeSource();
-        ExchangeSource exchangeSource4 = new ExchangeSource();
-        Set<Long> result = new HashSet<>();
-
-        List<Driver> drivers = new ArrayList<>();
-        try {
-            drivers.add(
-                new Driver(
-                    new SequenceLongBlockSourceOperator(LongStream.range(0, 1000)),
-                    List.of(
-                        new EvalOperator(
-                            (page, position) -> page.<LongBlock>getBlock(0).asVector().getLong(position) / 10,
-                            ElementType.LONG
-                        )
-                    ),
-                    new ExchangeSinkOperator(
-                        new ExchangeSink(
-                            new RandomExchanger(
-                                List.of(p -> exchangeSource1.addPage(p, () -> {}), p -> exchangeSource2.addPage(p, () -> {}))
-                            ),
-                            sink -> {
-                                exchangeSource1.finish();
-                                exchangeSource2.finish();
-                            }
-                        )
-                    ),
-                    () -> {}
-                )
-            );
-            drivers.add(
-                new Driver(
-                    new ExchangeSourceOperator(exchangeSource1),
-                    List.of(groupByLongs(bigArrays, 1)),
-                    new ExchangeSinkOperator(
-                        new ExchangeSink(new PassthroughExchanger(exchangeSource3, Integer.MAX_VALUE), s -> exchangeSource3.finish())
-                    ),
-                    () -> {}
-                )
-            );
-            drivers.add(
-                new Driver(
-                    new ExchangeSourceOperator(exchangeSource2),
-                    List.of(groupByLongs(bigArrays, 1)),
-                    new ExchangeSinkOperator(
-                        new ExchangeSink(new PassthroughExchanger(exchangeSource4, Integer.MAX_VALUE), s -> exchangeSource4.finish())
-                    ),
-                    () -> {}
-                )
-            );
-            drivers.add(
-                new Driver(
-                    new RandomUnionSourceOperator(List.of(exchangeSource3, exchangeSource4)),
-                    List.of(groupByLongs(bigArrays, 0)),
-                    new PageConsumerOperator(page -> {
-                        LongVector v = page.<LongBlock>getBlock(0).asVector();
-                        for (int i = 0; i < v.getPositionCount(); i++) {
-                            result.add(v.getLong(i));
-                        }
-                    }),
-                    () -> {}
-                )
-            );
-            runToCompletion(randomExecutor(), drivers);
-        } finally {
-            Releasables.close(drivers);
-        }
-        // Order can get jumbled over the exchanges
-        assertThat(result, equalTo(LongStream.range(0, 100).boxed().collect(Collectors.toSet())));
     }
 
     public void testOperatorsWithLuceneGroupingCount() throws IOException {

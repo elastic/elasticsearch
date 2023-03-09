@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  * Source operator implementation that retrieves data from an {@link ExchangeSource}
@@ -31,11 +32,11 @@ public class ExchangeSourceOperator extends SourceOperator {
     private ListenableActionFuture<Void> isBlocked = NOT_BLOCKED;
     private int pagesEmitted;
 
-    public record ExchangeSourceOperatorFactory(Exchange exchange) implements SourceOperatorFactory {
+    public record ExchangeSourceOperatorFactory(Supplier<ExchangeSource> exchangeSources) implements SourceOperatorFactory {
 
         @Override
         public SourceOperator get() {
-            return new ExchangeSourceOperator(exchange.getNextSource());
+            return new ExchangeSourceOperator(exchangeSources.get());
         }
 
         @Override
@@ -50,8 +51,11 @@ public class ExchangeSourceOperator extends SourceOperator {
 
     @Override
     public Page getOutput() {
-        pagesEmitted++;
-        return source.removePage();
+        final var page = source.pollPage();
+        if (page != null) {
+            pagesEmitted++;
+        }
+        return page;
     }
 
     @Override
@@ -61,7 +65,7 @@ public class ExchangeSourceOperator extends SourceOperator {
 
     @Override
     public void finish() {
-        source.finish();
+
     }
 
     @Override
@@ -77,7 +81,7 @@ public class ExchangeSourceOperator extends SourceOperator {
 
     @Override
     public void close() {
-        source.close();
+
     }
 
     @Override

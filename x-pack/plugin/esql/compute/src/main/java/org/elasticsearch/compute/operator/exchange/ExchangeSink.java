@@ -8,66 +8,30 @@
 package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.action.support.ListenableActionFuture;
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.Operator;
-
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 
 /**
- * Sink for exchanging data. Thread-safe.
+ * Sink for exchanging data
+ * @see ExchangeSinkOperator
  */
-@Experimental
-public class ExchangeSink {
-
-    private final AtomicBoolean finished = new AtomicBoolean();
-    private final Consumer<ExchangeSink> onFinish;
-    private final Exchanger exchanger;
-
-    public ExchangeSink(Exchanger exchanger, Consumer<ExchangeSink> onFinish) {
-        this.exchanger = exchanger;
-        this.onFinish = onFinish;
-    }
-
-    public static ExchangeSink finishedExchangeSink() {
-        ExchangeSink finishedSink = new ExchangeSink(Exchanger.FINISHED, sink -> {});
-        finishedSink.finish();
-        return finishedSink;
-    }
-
+public interface ExchangeSink {
     /**
      * adds a new page to this sink
      */
-    public void addPage(Page page) {
-        exchanger.accept(page);
-    }
+    void addPage(Page page);
 
     /**
      * called once all pages have been added (see {@link #addPage(Page)}).
      */
-    public void finish() {
-        if (finished.compareAndSet(false, true)) {
-            exchanger.finish();
-            onFinish.accept(this);
-        }
-    }
+    void finish();
 
     /**
      * Whether the sink has received all pages
      */
-    public boolean isFinished() {
-        return finished.get();
-    }
+    boolean isFinished();
 
     /**
      * Whether the sink is blocked on adding more pages
      */
-    public ListenableActionFuture<Void> waitForWriting() {
-        if (isFinished()) {
-            return Operator.NOT_BLOCKED;
-        }
-        return exchanger.waitForWriting();
-    }
-
+    ListenableActionFuture<Void> waitForWriting();
 }

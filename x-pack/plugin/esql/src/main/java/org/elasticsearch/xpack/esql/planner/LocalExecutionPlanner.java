@@ -33,9 +33,9 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.TopNOperator;
 import org.elasticsearch.compute.operator.TopNOperator.TopNOperatorFactory;
-import org.elasticsearch.compute.operator.exchange.Exchange;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
+import org.elasticsearch.compute.operator.exchange.LocalExchanger;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -248,14 +248,13 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planExchange(ExchangeExec exchangeExec, LocalExecutionPlannerContext context) {
         DriverParallelism parallelism = DriverParallelism.SINGLE;
         context.driverParallelism(parallelism);
-        Exchange ex = new Exchange(parallelism.instanceCount(), context.bufferMaxPages);
-
+        LocalExchanger exchanger = new LocalExchanger(bufferMaxPages);
         LocalExecutionPlannerContext subContext = context.createSubContext();
         PhysicalOperation source = plan(exchangeExec.child(), subContext);
         Layout layout = source.layout;
-        PhysicalOperation sink = source.withSink(new ExchangeSinkOperatorFactory(ex), source.layout);
+        PhysicalOperation sink = source.withSink(new ExchangeSinkOperatorFactory(exchanger::createExchangeSink), source.layout);
         context.addDriverFactory(new DriverFactory(new DriverSupplier(context.bigArrays, sink), subContext.driverParallelism().get()));
-        return PhysicalOperation.fromSource(new ExchangeSourceOperatorFactory(ex), layout);
+        return PhysicalOperation.fromSource(new ExchangeSourceOperatorFactory(exchanger::createExchangeSource), layout);
     }
 
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {

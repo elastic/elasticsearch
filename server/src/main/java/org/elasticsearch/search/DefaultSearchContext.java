@@ -170,10 +170,12 @@ final class DefaultSearchContext extends SearchContext {
         this.lowLevelCancellation = lowLevelCancellation;
     }
 
+    @Override
     public void addFetchResult() {
         this.fetchResult = new FetchSearchResult(this.readerContext.id(), this.shardTarget);
     }
 
+    @Override
     public void addQueryResult() {
         this.queryResult = new QuerySearchResult(this.readerContext.id(), this.shardTarget, this.request);
     }

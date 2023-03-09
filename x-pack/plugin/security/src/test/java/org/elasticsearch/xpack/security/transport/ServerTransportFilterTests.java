@@ -44,7 +44,7 @@ import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_HEADER_FILTERS;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authorizationError;
-import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST;
+import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -102,7 +102,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         TransportRequest request = mock(TransportRequest.class);
         Authentication authentication = AuthenticationTestHelper.builder().build();
         boolean allowlisted = randomBoolean();
-        String action = allowlisted ? randomFrom(REMOTE_ACCESS_ACTION_ALLOWLIST) : "_action";
+        String action = allowlisted ? randomFrom(CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST) : "_action";
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
         doAnswer(getAnswer(authentication, true)).when(crossClusterAccessAuthcService)
             .authenticate(eq(action), eq(request), anyActionListener());
@@ -134,7 +134,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         TransportRequest request = mock(TransportRequest.class);
         Authentication authentication = AuthenticationTestHelper.builder().build();
         boolean allowlisted = randomBoolean();
-        String action = allowlisted ? randomFrom(REMOTE_ACCESS_ACTION_ALLOWLIST) : "_action";
+        String action = allowlisted ? randomFrom(CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST) : "_action";
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
         doAnswer(getAnswer(authentication, true)).when(crossClusterAccessAuthcService)
             .authenticate(eq(action), eq(request), anyActionListener());
@@ -220,7 +220,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         Exception authE = authenticationError("authc failed");
         // Only pick allowlisted action -- it does not make sense to pick one that isn't because we will never get to authenticate in that
         // case
-        String action = randomFrom(REMOTE_ACCESS_ACTION_ALLOWLIST);
+        String action = randomFrom(CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST);
         doAnswer(i -> {
             final Object[] args = i.getArguments();
             assertThat(args, arrayWithSize(3));

@@ -141,7 +141,7 @@ public class AuthenticationTests extends ESTestCase {
         final String apiKeyId1 = randomAlphaOfLengthBetween(10, 20);
         final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo1 = randomValueOtherThanMany(
             ra -> User.isInternal(ra.getAuthentication().getEffectiveSubject().getUser()),
-            AuthenticationTestHelper::randomRemoteAccessAuthentication
+            AuthenticationTestHelper::randomCrossClusterAccessSubjectInfo
         );
         final Authentication authentication = AuthenticationTestHelper.builder()
             .crossClusterAccess(apiKeyId1, crossClusterAccessSubjectInfo1)
@@ -172,7 +172,7 @@ public class AuthenticationTests extends ESTestCase {
         // 5. The same API key but for a different QC user base on its own canAccessResourcesOf
         final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo2 = randomValueOtherThanMany(
             ra -> crossClusterAccessSubjectInfo1.getAuthentication().canAccessResourcesOf(ra.getAuthentication()),
-            AuthenticationTestHelper::randomRemoteAccessAuthentication
+            AuthenticationTestHelper::randomCrossClusterAccessSubjectInfo
         );
         assertCannotAccessResources(
             authentication,
@@ -569,7 +569,7 @@ public class AuthenticationTests extends ESTestCase {
 
     public void testRemoteAccessAuthentication() throws IOException {
         final String remoteAccessApiKeyId = ESTestCase.randomAlphaOfLength(20);
-        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = AuthenticationTestHelper.randomRemoteAccessAuthentication();
+        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo();
         final Authentication authentication = AuthenticationTestHelper.builder()
             .crossClusterAccess(remoteAccessApiKeyId, crossClusterAccessSubjectInfo)
             .build(false);
@@ -676,7 +676,7 @@ public class AuthenticationTests extends ESTestCase {
     public void testToXContentWithRemoteAccess() throws IOException {
         final String apiKeyId = randomAlphaOfLength(20);
         final Authentication authentication = AuthenticationTestHelper.builder()
-            .crossClusterAccess(apiKeyId, AuthenticationTestHelper.randomRemoteAccessAuthentication())
+            .crossClusterAccess(apiKeyId, AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo())
             .build(false);
         final String apiKeyName = (String) authentication.getAuthenticatingSubject()
             .getMetadata()
@@ -863,7 +863,7 @@ public class AuthenticationTests extends ESTestCase {
         final User creator = randomUser();
         final String apiKeyId = randomAlphaOfLength(42);
         final Authentication apiKeyAuthentication = AuthenticationTestHelper.builder().apiKey(apiKeyId).user(creator).build(false);
-        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = AuthenticationTestHelper.randomRemoteAccessAuthentication();
+        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo();
 
         final Authentication actualAuthentication = apiKeyAuthentication.toCrossClusterAccess(crossClusterAccessSubjectInfo);
 

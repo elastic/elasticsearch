@@ -61,7 +61,7 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
         final TransportRequest request,
         final ActionListener<Authentication> authenticationListener
     ) {
-        if (false == SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST.contains(securityAction)) {
+        if (false == SecurityServerTransportInterceptor.CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST.contains(securityAction)) {
             authenticationListener.onFailure(
                 new IllegalArgumentException(
                     "action ["

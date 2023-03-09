@@ -149,7 +149,7 @@ public class SubjectTests extends ESTestCase {
         }
     }
 
-    public void testGetRoleReferencesForRemoteAccess() {
+    public void testGetRoleReferencesForCrossClusterAccess() {
         Map<String, Object> authMetadata = new HashMap<>();
         final String apiKeyId = randomAlphaOfLength(12);
         authMetadata.put(AuthenticationField.API_KEY_ID_KEY, apiKeyId);
@@ -168,8 +168,8 @@ public class SubjectTests extends ESTestCase {
         authMetadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleBytes);
 
         final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = randomBoolean()
-            ? AuthenticationTestHelper.randomRemoteAccessAuthentication(RoleDescriptorsIntersection.EMPTY)
-            : AuthenticationTestHelper.randomRemoteAccessAuthentication();
+            ? AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(RoleDescriptorsIntersection.EMPTY)
+            : AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo();
         authMetadata = crossClusterAccessSubjectInfo.copyWithCrossClusterAccessEntries(authMetadata);
 
         final Subject subject = new Subject(

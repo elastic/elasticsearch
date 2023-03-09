@@ -211,7 +211,7 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
     }
 
     public void testActionDeniedForRemoteAccessAuthentication() {
-        final var remoteAccessAuthentication = AuthenticationTestHelper.randomRemoteAccessAuthentication();
+        final var remoteAccessAuthentication = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo();
         final Authentication authentication = AuthenticationTestHelper.builder()
             .crossClusterAccess(randomAlphaOfLength(42), remoteAccessAuthentication)
             .build();
@@ -278,7 +278,7 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
             equalTo(Strings.format("service account [%s]", authentication4.getEffectiveSubject().getUser().principal()))
         );
 
-        final var remoteAccessAuthentication = AuthenticationTestHelper.randomRemoteAccessAuthentication();
+        final var remoteAccessAuthentication = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo();
         final Authentication authentication5 = AuthenticationTestHelper.builder()
             .crossClusterAccess(randomAlphaOfLength(42), remoteAccessAuthentication)
             .build();

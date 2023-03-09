@@ -430,7 +430,7 @@ public final class Authentication implements ToXContentObject {
     }
 
     public boolean isCrossClusterAccess() {
-        return effectiveSubject.getType() == Subject.Type.REMOTE_ACCESS;
+        return effectiveSubject.getType() == Subject.Type.CROSS_CLUSTER_ACCESS;
     }
 
     /**
@@ -517,7 +517,7 @@ public final class Authentication implements ToXContentObject {
         throws IOException {
         // remote access introduced a new synthetic realm and subject type; these cannot be parsed by older versions, so rewriting we should
         // not send them across the wire to older nodes
-        final boolean isRemoteAccess = effectiveSubject.getType() == Subject.Type.REMOTE_ACCESS;
+        final boolean isRemoteAccess = effectiveSubject.getType() == Subject.Type.CROSS_CLUSTER_ACCESS;
         if (isRemoteAccess && out.getTransportVersion().before(VERSION_REMOTE_ACCESS_REALM)) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
@@ -789,7 +789,7 @@ public final class Authentication implements ToXContentObject {
             );
         }
         checkConsistencyForApiKeyAuthenticatingSubject("API key");
-        if (Subject.Type.REMOTE_ACCESS == authenticatingSubject.getType()) {
+        if (Subject.Type.CROSS_CLUSTER_ACCESS == authenticatingSubject.getType()) {
             if (authenticatingSubject.getMetadata().get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY) == null) {
                 throw new IllegalArgumentException(
                     "Remote access authentication requires metadata to contain a non-null serialized remote access authentication"

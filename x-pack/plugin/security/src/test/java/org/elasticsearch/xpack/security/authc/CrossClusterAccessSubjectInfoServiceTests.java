@@ -68,7 +68,7 @@ public class CrossClusterAccessSubjectInfoServiceTests extends ESTestCase {
         final var threadContext = new ThreadContext(Settings.EMPTY);
         final var remoteAccessHeaders = new CrossClusterAccessHeaders(
             CrossClusterAccessHeadersTests.randomEncodedApiKeyHeader(),
-            AuthenticationTestHelper.randomRemoteAccessAuthentication()
+            AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo()
         );
         remoteAccessHeaders.writeToContext(threadContext);
         when(authcContext.getThreadContext()).thenReturn(threadContext);
@@ -108,7 +108,7 @@ public class CrossClusterAccessSubjectInfoServiceTests extends ESTestCase {
         final var threadContext = new ThreadContext(Settings.EMPTY);
         final var remoteAccessHeaders = new CrossClusterAccessHeaders(
             CrossClusterAccessHeadersTests.randomEncodedApiKeyHeader(),
-            AuthenticationTestHelper.randomRemoteAccessAuthentication()
+            AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo()
         );
         remoteAccessHeaders.writeToContext(threadContext);
         final AuthenticationService.AuditableRequest auditableRequest = mock(AuthenticationService.AuditableRequest.class);
@@ -219,7 +219,7 @@ public class CrossClusterAccessSubjectInfoServiceTests extends ESTestCase {
         final var threadContext = new ThreadContext(Settings.EMPTY);
         final var remoteAccessHeaders = new CrossClusterAccessHeaders(
             CrossClusterAccessHeadersTests.randomEncodedApiKeyHeader(),
-            AuthenticationTestHelper.randomRemoteAccessAuthentication()
+            AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo()
         );
         remoteAccessHeaders.writeToContext(threadContext);
         final AuthenticationService.AuditableRequest auditableRequest = mock(AuthenticationService.AuditableRequest.class);

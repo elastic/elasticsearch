@@ -29,7 +29,7 @@ public class CrossClusterAccessHeadersTests extends ESTestCase {
         final ThreadContext ctx = new ThreadContext(Settings.EMPTY);
         final var expected = new CrossClusterAccessHeaders(
             randomEncodedApiKeyHeader(),
-            AuthenticationTestHelper.randomRemoteAccessAuthentication(randomRoleDescriptorsIntersection())
+            AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(randomRoleDescriptorsIntersection())
         );
 
         expected.writeToContext(ctx);
@@ -46,7 +46,7 @@ public class CrossClusterAccessHeadersTests extends ESTestCase {
         final String encodedApiKey = encodedApiKeyWithPrefix(id, key);
         final var headers = new CrossClusterAccessHeaders(
             encodedApiKey,
-            AuthenticationTestHelper.randomRemoteAccessAuthentication(randomRoleDescriptorsIntersection())
+            AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(randomRoleDescriptorsIntersection())
         );
 
         final ApiKeyService.ApiKeyCredentials actual = headers.credentials();
@@ -59,7 +59,7 @@ public class CrossClusterAccessHeadersTests extends ESTestCase {
         final ThreadContext ctx = new ThreadContext(Settings.EMPTY);
         final var expected = new CrossClusterAccessHeaders(
             randomFrom("ApiKey abc", "ApiKey id:key", "ApiKey ", "ApiKey  "),
-            AuthenticationTestHelper.randomRemoteAccessAuthentication(randomRoleDescriptorsIntersection())
+            AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(randomRoleDescriptorsIntersection())
         );
 
         expected.writeToContext(ctx);
@@ -73,7 +73,7 @@ public class CrossClusterAccessHeadersTests extends ESTestCase {
 
     public void testReadOnHeaderWithMalformedPrefixThrows() throws IOException {
         final ThreadContext ctx = new ThreadContext(Settings.EMPTY);
-        AuthenticationTestHelper.randomRemoteAccessAuthentication(randomRoleDescriptorsIntersection()).writeToContext(ctx);
+        AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(randomRoleDescriptorsIntersection()).writeToContext(ctx);
         final String encodedApiKey = encodedApiKey(UUIDs.randomBase64UUID(), UUIDs.randomBase64UUID());
         ctx.putHeader(
             CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY,

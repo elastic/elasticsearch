@@ -78,7 +78,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
     private static final Logger logger = LogManager.getLogger(SecurityServerTransportInterceptor.class);
     // package private for testing
-    static final Set<String> REMOTE_ACCESS_ACTION_ALLOWLIST;
+    static final Set<String> CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST;
     static {
         final Stream<String> actions = Stream.of(
             REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
@@ -105,7 +105,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             FieldCapabilitiesAction.NAME + "[n]",
             "indices:data/read/eql"
         );
-        REMOTE_ACCESS_ACTION_ALLOWLIST = actions
+        CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST = actions
             // Include action, and proxy equivalent (i.e., with proxy action prefix)
             .flatMap(name -> Stream.of(name, TransportActionProxy.getProxyAction(name)))
             .collect(Collectors.toUnmodifiableSet());
@@ -358,7 +358,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final TransportResponseHandler<T> handler
             ) {
                 final String remoteClusterAlias = remoteClusterCredentials.clusterAlias();
-                if (false == REMOTE_ACCESS_ACTION_ALLOWLIST.contains(action)) {
+                if (false == CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST.contains(action)) {
                     throw new IllegalArgumentException(
                         "action ["
                             + action

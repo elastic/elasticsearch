@@ -237,7 +237,9 @@ public class AuthenticationTestHelper {
         );
     }
 
-    public static CrossClusterAccessSubjectInfo randomRemoteAccessAuthentication(RoleDescriptorsIntersection roleDescriptorsIntersection) {
+    public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo(
+        RoleDescriptorsIntersection roleDescriptorsIntersection
+    ) {
         try {
             // TODO add apikey() once we have querying-cluster-side API key support
             final Authentication authentication = ESTestCase.randomFrom(
@@ -250,8 +252,8 @@ public class AuthenticationTestHelper {
         }
     }
 
-    public static CrossClusterAccessSubjectInfo randomRemoteAccessAuthentication() {
-        return randomRemoteAccessAuthentication(
+    public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo() {
+        return randomCrossClusterAccessSubjectInfo(
             new RoleDescriptorsIntersection(
                 List.of(
                     // TODO randomize to add a second set once we have querying-cluster-side API key support
@@ -381,7 +383,7 @@ public class AuthenticationTestHelper {
         }
 
         public AuthenticationTestBuilder crossClusterAccess() {
-            return crossClusterAccess(ESTestCase.randomAlphaOfLength(20), randomRemoteAccessAuthentication());
+            return crossClusterAccess(ESTestCase.randomAlphaOfLength(20), randomCrossClusterAccessSubjectInfo());
         }
 
         public AuthenticationTestBuilder crossClusterAccess(

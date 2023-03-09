@@ -72,7 +72,7 @@ public class CrossClusterAccessSubjectInfoServiceIntegTests extends SecurityInte
         try (var ignored = threadContext.stashContext()) {
             new CrossClusterAccessHeaders(
                 ApiKeyService.withApiKeyPrefix("abc"),
-                AuthenticationTestHelper.randomRemoteAccessAuthentication()
+                AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo()
             ).writeToContext(threadContext);
             authenticateAndAssertExpectedErrorMessage(
                 service,
@@ -118,7 +118,7 @@ public class CrossClusterAccessSubjectInfoServiceIntegTests extends SecurityInte
         try (var ignored = threadContext.stashContext()) {
             new CrossClusterAccessHeaders(
                 encodedRemoteAccessApiKey,
-                AuthenticationTestHelper.randomRemoteAccessAuthentication(
+                AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(
                     new RoleDescriptorsIntersection(
                         randomValueOtherThanMany(
                             rd -> false == (rd.hasClusterPrivileges()

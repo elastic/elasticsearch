@@ -85,7 +85,7 @@ import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubj
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
 import static org.elasticsearch.xpack.security.transport.RemoteClusterCredentialsResolver.RemoteClusterCredentials;
-import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST;
+import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -1160,7 +1160,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     }
 
     private Tuple<String, TransportRequest> randomAllowlistedActionAndRequest() {
-        final String action = randomFrom(REMOTE_ACCESS_ACTION_ALLOWLIST.toArray(new String[0]));
+        final String action = randomFrom(CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST.toArray(new String[0]));
         return new Tuple<>(action, mock(TransportRequest.class));
     }
 

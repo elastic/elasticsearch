@@ -150,8 +150,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 null,
                 timeout,
                 null,
-                false,
-                ResultsMode.NONE
+                false
             );
             contextWithoutScroll.from(300);
             contextWithoutScroll.close();
@@ -181,16 +180,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 shardSearchRequest,
                 randomNonNegativeLong()
             );
-            DefaultSearchContext context1 = new DefaultSearchContext(
-                readerContext,
-                shardSearchRequest,
-                target,
-                null,
-                timeout,
-                null,
-                false,
-                ResultsMode.NONE
-            );
+            DefaultSearchContext context1 = new DefaultSearchContext(readerContext, shardSearchRequest, target, null, timeout, null, false);
             context1.from(300);
             exception = expectThrows(IllegalArgumentException.class, () -> context1.preProcess());
             assertThat(
@@ -254,16 +244,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 }
             };
             // rescore is null but sliceBuilder is not null
-            DefaultSearchContext context2 = new DefaultSearchContext(
-                readerContext,
-                shardSearchRequest,
-                target,
-                null,
-                timeout,
-                null,
-                false,
-                ResultsMode.NONE
-            );
+            DefaultSearchContext context2 = new DefaultSearchContext(readerContext, shardSearchRequest, target, null, timeout, null, false);
 
             SliceBuilder sliceBuilder = mock(SliceBuilder.class);
             int numSlices = maxSlicesPerScroll + randomIntBetween(1, 100);
@@ -289,16 +270,7 @@ public class DefaultSearchContextTests extends ESTestCase {
             when(shardSearchRequest.getAliasFilter()).thenReturn(AliasFilter.EMPTY);
             when(shardSearchRequest.indexBoost()).thenReturn(AbstractQueryBuilder.DEFAULT_BOOST);
 
-            DefaultSearchContext context3 = new DefaultSearchContext(
-                readerContext,
-                shardSearchRequest,
-                target,
-                null,
-                timeout,
-                null,
-                false,
-                ResultsMode.NONE
-            );
+            DefaultSearchContext context3 = new DefaultSearchContext(readerContext, shardSearchRequest, target, null, timeout, null, false);
             ParsedQuery parsedQuery = ParsedQuery.parsedMatchAllQuery();
             context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess();
             assertEquals(context3.query(), context3.buildFilteredQuery(parsedQuery.query()));
@@ -314,16 +286,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 randomNonNegativeLong(),
                 false
             );
-            DefaultSearchContext context4 = new DefaultSearchContext(
-                readerContext,
-                shardSearchRequest,
-                target,
-                null,
-                timeout,
-                null,
-                false,
-                ResultsMode.NONE
-            );
+            DefaultSearchContext context4 = new DefaultSearchContext(readerContext, shardSearchRequest, target, null, timeout, null, false);
             context4.sliceBuilder(new SliceBuilder(1, 2)).parsedQuery(parsedQuery).preProcess();
             Query query1 = context4.query();
             context4.sliceBuilder(new SliceBuilder(0, 2)).parsedQuery(parsedQuery).preProcess();
@@ -382,16 +345,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 randomNonNegativeLong(),
                 false
             );
-            DefaultSearchContext context = new DefaultSearchContext(
-                readerContext,
-                shardSearchRequest,
-                target,
-                null,
-                timeout,
-                null,
-                false,
-                ResultsMode.NONE
-            );
+            DefaultSearchContext context = new DefaultSearchContext(readerContext, shardSearchRequest, target, null, timeout, null, false);
 
             assertThat(context.searcher().hasCancellations(), is(false));
             context.searcher().addQueryCancellation(() -> {});

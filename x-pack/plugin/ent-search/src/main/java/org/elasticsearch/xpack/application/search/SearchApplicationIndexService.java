@@ -209,10 +209,22 @@ public class SearchApplicationIndexService {
      * @param listener The action listener to invoke on response/failure.
      */
     public void putSearchApplication(SearchApplication app, boolean create, ActionListener<IndexResponse> listener) {
-        createOrUpdateAlias(
-            app,
-            new DelegatingIndexNotFoundActionListener<>(app.name(), listener, (l, response) -> updateSearchApplication(app, create, l))
-        );
+        createOrUpdateAlias(app, new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                updateSearchApplication(app, create, listener);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // Convert index not found failure from the alias API into an illegal argument
+                Exception failException = e;
+                if (e instanceof IndexNotFoundException) {
+                    failException = new IllegalArgumentException(e.getMessage(), e);
+                }
+                listener.onFailure(failException);
+            }
+        });
     }
 
     private void createOrUpdateAlias(SearchApplication app, ActionListener<AcknowledgedResponse> listener) {

@@ -10,7 +10,6 @@ package org.elasticsearch.reservedstate.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -365,16 +364,14 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     }
 
     // package private for testing
-    void processSettingsAndNotifyListeners() {
+    void processSettingsAndNotifyListeners() throws InterruptedException {
         try {
             processFileChanges();
             for (var listener : eventListeners) {
                 listener.watchedFileChanged();
             }
         } catch (IOException | ExecutionException e) {
-            logger.error(() -> "Error processing watched file: " + watchedFile(), e.getCause());
-        } catch (InterruptedException e) {
-            throw new ElasticsearchException(e);
+            logger.error(() -> "Error processing watched file: " + watchedFile(), e);
         }
     }
 

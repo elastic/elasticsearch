@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
@@ -223,7 +224,7 @@ public class ShardLimitValidator {
         // Only enforce the shard limit if we have at least one data node, so that we don't block
         // index creation during cluster setup
         if (nodeCount == 0 || newShards <= 0) {
-            return new Result(true, -1, newShards, maxShardsInCluster, group);
+            return new Result(true, Optional.empty(), newShards, maxShardsInCluster, group);
         }
 
         if ((currentOpenShards + newShards) > maxShardsInCluster) {
@@ -238,10 +239,10 @@ public class ShardLimitValidator {
                 .sum();
 
             if ((currentFilteredShards + newShards) > maxShardsInCluster) {
-                return new Result(false, currentFilteredShards, newShards, maxShardsInCluster, group);
+                return new Result(false, Optional.of(currentFilteredShards), newShards, maxShardsInCluster, group);
             }
         }
-        return new Result(true, 0, newShards, maxShardsInCluster, group);
+        return new Result(true, Optional.empty(), newShards, maxShardsInCluster, group);
     }
 
     private static int nodeCount(ClusterState state, Predicate<DiscoveryNode> nodePredicate) {
@@ -260,7 +261,7 @@ public class ShardLimitValidator {
         return "this action would add ["
             + result.totalShardsToAdd
             + "] shards, but this cluster currently has ["
-            + result.currentFilteredShards
+            + result.currentUsedShardsByGroup.get()
             + "]/["
             + result.maxShardsInCluster
             + "] maximum "
@@ -272,5 +273,11 @@ public class ShardLimitValidator {
      * A Result object containing enough information to be used by external callers about the state of the cluster from the shard limits
      * perspective.
      */
-    public record Result(boolean canAddShards, long currentFilteredShards, int totalShardsToAdd, int maxShardsInCluster, String group) {}
+    public record Result(
+        boolean canAddShards,
+        Optional<Long> currentUsedShardsByGroup,
+        int totalShardsToAdd,
+        int maxShardsInCluster,
+        String group
+    ) {}
 }

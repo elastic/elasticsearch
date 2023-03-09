@@ -78,7 +78,10 @@ public class ShardLimitValidatorTests extends ESTestCase {
         );
         assertEquals(shardLimitsResult.maxShardsInCluster(), maxShards);
         assertEquals(shardLimitsResult.totalShardsToAdd(), totalShards);
-        assertEquals(shardLimitsResult.currentFilteredShards(), currentOpenShards);
+        shardLimitsResult.currentUsedShardsByGroup().ifPresentOrElse(
+                v -> assertEquals(currentOpenShards, v.intValue()),
+                () -> fail("currentUsedShard should be defined")
+        );
         assertEquals(shardLimitsResult.group(), "normal");
     }
 
@@ -108,7 +111,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
         assertTrue(shardLimitsResult.canAddShards());
         assertEquals(shardLimitsResult.maxShardsInCluster(), maxShardsInCluster);
         assertEquals(shardLimitsResult.totalShardsToAdd(), shardsToAdd);
-        assertEquals(shardLimitsResult.currentFilteredShards(), 0);
+        assertFalse(shardLimitsResult.currentUsedShardsByGroup().isPresent());
         assertEquals(shardLimitsResult.group(), "normal");
     }
 

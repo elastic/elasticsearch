@@ -134,6 +134,13 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                 errorStore.clearStore();
             }
         }
+        if (event.localNodeMaster()) {
+            // only execute if we're the master
+            List<Index> indicesDeleted = event.indicesDeleted();
+            for (Index deleted : indicesDeleted) {
+                errorStore.clearRecordedError(deleted.getName());
+            }
+        }
     }
 
     @Override

@@ -343,25 +343,26 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         if (geometry == null) {
             return;
         }
-        geometry = indexer.normalize(geometry);
-        List<IndexableField> fields = indexer.getIndexableFields(geometry);
+        final Geometry normalizedGeometry = indexer.normalize(geometry);
+        final List<IndexableField> fields = indexer.getIndexableFields(normalizedGeometry);
         if (fieldType().isIndexed()) {
             context.doc().addAll(fields);
         }
         if (fieldType().hasDocValues()) {
-            String name = fieldType().name();
+            final String name = fieldType().name();
             BinaryShapeDocValuesField docValuesField = (BinaryShapeDocValuesField) context.doc().getByKey(name);
             if (docValuesField == null) {
                 docValuesField = new BinaryShapeDocValuesField(name, CoordinateEncoder.GEO);
                 context.doc().addWithKey(name, docValuesField);
             }
+            // we need to pass the original geometry to compute more precisely the centroid, e.g if lon > 180
             docValuesField.add(fields, geometry);
         } else if (fieldType().isIndexed()) {
             context.addToFieldNames(fieldType().name());
         }
 
         if (fieldType().isStored()) {
-            context.doc().add(new StoredField(fieldType().name(), WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN)));
+            context.doc().add(new StoredField(fieldType().name(), WellKnownBinary.toWKB(normalizedGeometry, ByteOrder.LITTLE_ENDIAN)));
         }
     }
 

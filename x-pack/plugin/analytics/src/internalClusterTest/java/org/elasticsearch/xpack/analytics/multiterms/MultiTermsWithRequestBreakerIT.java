@@ -50,13 +50,9 @@ public class MultiTermsWithRequestBreakerIT extends ESIntegTestCase {
                 .toArray(IndexRequestBuilder[]::new)
         );
 
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), requestBreaker)
-            )
-            .get();
+        updateClusterSettings(
+            Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), requestBreaker)
+        );
 
         try {
             client().prepareSearch("test")
@@ -75,13 +71,7 @@ public class MultiTermsWithRequestBreakerIT extends ESIntegTestCase {
             }
         }
 
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder().putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey())
-            )
-            .get();
+        updateClusterSettings(Settings.builder().putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey()));
 
         // validation done by InternalTestCluster.ensureEstimatedStats()
     }

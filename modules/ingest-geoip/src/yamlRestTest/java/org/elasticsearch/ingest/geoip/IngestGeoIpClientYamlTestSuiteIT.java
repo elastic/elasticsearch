@@ -46,7 +46,7 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
         .module("reindex")
         .module("ingest-geoip")
         .systemProperty("ingest.geoip.downloader.enabled.default", "true")
-        .settings(s -> useFixture ? Map.of("ingest.geoip.downloader.endpoint", fixture.getAddress()) : Map.of())
+        .setting("ingest.geoip.downloader.endpoint", () -> fixture.getAddress(), s -> useFixture)
         .build();
 
     @ClassRule

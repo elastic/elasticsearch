@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -60,6 +61,7 @@ public class TestDocumentParserContext extends DocumentParserContext {
                 s -> null,
                 s -> null,
                 Version.CURRENT,
+                () -> TransportVersion.CURRENT,
                 () -> null,
                 null,
                 new IndexAnalyzers(

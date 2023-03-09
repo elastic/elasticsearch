@@ -196,6 +196,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         if (needsMapperService(indexSettings, indexCreationContext)) {
             assert indexAnalyzers != null;
             this.mapperService = new MapperService(
+                clusterService,
                 indexSettings,
                 indexAnalyzers,
                 parserConfiguration,

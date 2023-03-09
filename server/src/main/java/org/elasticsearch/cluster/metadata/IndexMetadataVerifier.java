@@ -13,6 +13,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -51,6 +52,7 @@ public class IndexMetadataVerifier {
     private static final Logger logger = LogManager.getLogger(IndexMetadataVerifier.class);
 
     private final Settings settings;
+    private final ClusterService clusterService;
     private final XContentParserConfiguration parserConfiguration;
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
@@ -58,12 +60,14 @@ public class IndexMetadataVerifier {
 
     public IndexMetadataVerifier(
         Settings settings,
+        ClusterService clusterService,
         NamedXContentRegistry xContentRegistry,
         MapperRegistry mapperRegistry,
         IndexScopedSettings indexScopedSettings,
         ScriptCompiler scriptCompiler
     ) {
         this.settings = settings;
+        this.clusterService = clusterService;
         this.parserConfiguration = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
             .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         this.mapperRegistry = mapperRegistry;
@@ -185,6 +189,7 @@ public class IndexMetadataVerifier {
             };
             try (IndexAnalyzers fakeIndexAnalzyers = new IndexAnalyzers(analyzerMap, analyzerMap, analyzerMap)) {
                 MapperService mapperService = new MapperService(
+                    clusterService,
                     indexSettings,
                     fakeIndexAnalzyers,
                     parserConfiguration,

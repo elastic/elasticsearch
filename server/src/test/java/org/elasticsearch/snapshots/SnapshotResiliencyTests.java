@@ -1962,7 +1962,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     allocationService,
                     metadataCreateIndexService,
                     new MetadataDeleteIndexService(settings, clusterService, allocationService),
-                    new IndexMetadataVerifier(settings, namedXContentRegistry, mapperRegistry, indexScopedSettings, ScriptCompiler.NONE),
+                    new IndexMetadataVerifier(
+                        settings,
+                        clusterService,
+                        namedXContentRegistry,
+                        mapperRegistry,
+                        indexScopedSettings,
+                        ScriptCompiler.NONE
+                    ),
                     shardLimitValidator,
                     EmptySystemIndices.INSTANCE,
                     indicesService,

@@ -231,7 +231,14 @@ public class ClusterStateChanges {
                 return conn;
             }
         };
-        IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(SETTINGS, xContentRegistry, null, null, null) {
+        IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(
+            SETTINGS,
+            clusterService,
+            xContentRegistry,
+            null,
+            null,
+            null
+        ) {
             // metadata upgrader should do nothing
             @Override
             public IndexMetadata verifyIndexMetadata(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {

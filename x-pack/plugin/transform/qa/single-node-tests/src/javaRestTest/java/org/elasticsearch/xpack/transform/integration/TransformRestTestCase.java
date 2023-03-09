@@ -630,7 +630,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
               "indices": [
                 {
                   "names": [ %s ],
-                  "privileges": [ "create_index", "read", "write", "view_index_metadata" ]
+                  "privileges": [ "create_index", "delete_index", "read", "write", "view_index_metadata" ]
                 }
               ]
             }""", indicesStr));

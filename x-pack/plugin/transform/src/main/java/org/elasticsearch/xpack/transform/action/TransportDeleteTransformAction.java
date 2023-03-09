@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ClientHelper.executeWithHeadersAsync;
 
 public class TransportDeleteTransformAction extends AcknowledgedTransportMasterNodeAction<Request> {
 
@@ -118,9 +119,17 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
         // <2> Delete destination index
         ActionListener<Tuple<TransformConfig, SeqNoPrimaryTermAndIndex>> getTransformConfigurationListener = ActionListener.wrap(
             transformConfigAndVersion -> {
-                String destIndex = transformConfigAndVersion.v1().getDestination().getIndex();
+                TransformConfig config = transformConfigAndVersion.v1();
+                String destIndex = config.getDestination().getIndex();
                 DeleteIndexRequest deleteDestIndexRequest = new DeleteIndexRequest(destIndex);
-                executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, DeleteIndexAction.INSTANCE, deleteDestIndexRequest, listener);
+                executeWithHeadersAsync(
+                    config.getHeaders(),
+                    TRANSFORM_ORIGIN,
+                    client,
+                    DeleteIndexAction.INSTANCE,
+                    deleteDestIndexRequest,
+                    listener
+                );
             },
             listener::onFailure
         );

@@ -738,11 +738,11 @@ public class AuthenticationTests extends ESTestCase {
             ? AuthenticationTestHelper.builder().crossClusterAccess().build()
             : AuthenticationTestHelper.builder().build();
 
-        final Version versionBeforeRemoteAccessRealm = VersionUtils.getPreviousVersion(Version.V_8_7_0);
+        final Version versionBeforeCrossClusterAccessRealm = VersionUtils.getPreviousVersion(Version.V_8_8_0);
         final Version version = VersionUtils.randomVersionBetween(
             random(),
-            versionBeforeRemoteAccessRealm.minimumCompatibilityVersion(),
-            versionBeforeRemoteAccessRealm
+            versionBeforeCrossClusterAccessRealm.minimumCompatibilityVersion(),
+            versionBeforeCrossClusterAccessRealm
         );
 
         if (authentication.isCrossClusterAccess()) {

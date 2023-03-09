@@ -74,7 +74,7 @@ import static org.elasticsearch.xpack.security.transport.RemoteClusterCredential
 
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
-    static final TransportVersion VERSION_REMOTE_ACCESS_HEADERS = TransportVersion.V_8_7_0;
+    static final TransportVersion VERSION_CROSS_CLUSTER_ACCESS_HEADERS = TransportVersion.V_8_7_0;
 
     private static final Logger logger = LogManager.getLogger(SecurityServerTransportInterceptor.class);
     // package private for testing
@@ -365,7 +365,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                             + "] cannot be executed because it is not allowed as a cross cluster operation"
                     );
                 }
-                if (connection.getTransportVersion().before(VERSION_REMOTE_ACCESS_HEADERS)) {
+                if (connection.getTransportVersion().before(VERSION_CROSS_CLUSTER_ACCESS_HEADERS)) {
                     throw new IllegalArgumentException(
                         "Settings for remote cluster ["
                             + remoteClusterAlias

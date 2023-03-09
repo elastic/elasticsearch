@@ -298,7 +298,7 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
         );
     }
 
-    public void testRemoteAccessDenied() {
+    public void testRemoteActionDenied() {
         final Authentication authentication = AuthenticationTestHelper.builder().build();
         final String action = "indices:/some/action/" + randomAlphaOfLengthBetween(0, 8);
         final String clusterAlias = randomAlphaOfLengthBetween(5, 12);

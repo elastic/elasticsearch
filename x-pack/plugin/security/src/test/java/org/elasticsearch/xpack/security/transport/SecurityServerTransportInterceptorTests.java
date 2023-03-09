@@ -575,7 +575,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertTrue(exceptionSent.get());
     }
 
-    public void testSendWithRemoteAccessHeaders() throws Exception {
+    public void testSendWithCrossClusterAccessHeaders() throws Exception {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
         final String authType = randomFrom("internal", "user", "apikey");
@@ -619,7 +619,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
 
         final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
         final AtomicReference<String> sentCredential = new AtomicReference<>();
-        final AtomicReference<CrossClusterAccessSubjectInfo> sentRemoteAccessAuthentication = new AtomicReference<>();
+        final AtomicReference<CrossClusterAccessSubjectInfo> sentCrossClusterAccessSubjectInfo = new AtomicReference<>();
         final AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
             @Override
             public <T extends TransportResponse> void sendRequest(
@@ -635,7 +635,9 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 assertThat(securityContext.getAuthentication(), nullValue());
                 sentCredential.set(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY));
                 try {
-                    sentRemoteAccessAuthentication.set(CrossClusterAccessSubjectInfo.readFromContext(securityContext.getThreadContext()));
+                    sentCrossClusterAccessSubjectInfo.set(
+                        CrossClusterAccessSubjectInfo.readFromContext(securityContext.getThreadContext())
+                    );
                 } catch (IOException e) {
                     fail("no exceptions expected but got " + e);
                 }
@@ -677,7 +679,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertTrue(calledWrappedSender.get());
         assertThat(sentCredential.get(), equalTo(remoteClusterCredential));
         assertThat(
-            sentRemoteAccessAuthentication.get(),
+            sentCrossClusterAccessSubjectInfo.get(),
             equalTo(new CrossClusterAccessSubjectInfo(authentication, expectedRoleDescriptorsIntersection))
         );
         verify(securityContext, never()).executeAsInternalUser(any(), any(), anyConsumer());
@@ -691,7 +693,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY), nullValue());
     }
 
-    public void testSendWithUserIfRemoteAccessHeadersConditionNotMet() throws Exception {
+    public void testSendWithUserIfCrossClusterAccessHeadersConditionNotMet() throws Exception {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
         boolean noCredential = randomBoolean();
@@ -770,7 +772,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY), nullValue());
     }
 
-    public void testSendWithRemoteAccessHeadersThrowsOnOldConnection() throws Exception {
+    public void testSendWithCrossClusterAccessHeadersThrowsOnOldConnection() throws Exception {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
         final Authentication authentication = AuthenticationTestHelper.builder()
@@ -824,10 +826,13 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             }
         });
         final Transport.Connection connection = mock(Transport.Connection.class);
-        final TransportVersion versionBeforeRemoteAccessHeaders = TransportVersionUtils.getPreviousVersion(
-            SecurityServerTransportInterceptor.VERSION_REMOTE_ACCESS_HEADERS
+        final TransportVersion versionBeforeCrossClusterAccessHeaders = TransportVersionUtils.getPreviousVersion(
+            SecurityServerTransportInterceptor.VERSION_CROSS_CLUSTER_ACCESS_HEADERS
         );
-        final TransportVersion version = TransportVersionUtils.randomPreviousCompatibleVersion(random(), versionBeforeRemoteAccessHeaders);
+        final TransportVersion version = TransportVersionUtils.randomPreviousCompatibleVersion(
+            random(),
+            versionBeforeCrossClusterAccessHeaders
+        );
         when(connection.getTransportVersion()).thenReturn(version);
         final Tuple<String, TransportRequest> actionAndReq = randomAllowlistedActionAndRequest();
         final AtomicBoolean calledHandleException = new AtomicBoolean(false);
@@ -949,7 +954,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY), nullValue());
     }
 
-    public void testSendWithRemoteAccessHeadersThrowsIfActionNotAllowlisted() throws Exception {
+    public void testSendWithCrossClusterAccessHeadersThrowsIfActionNotAllowlisted() throws Exception {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
         final Authentication authentication = AuthenticationTestHelper.builder()

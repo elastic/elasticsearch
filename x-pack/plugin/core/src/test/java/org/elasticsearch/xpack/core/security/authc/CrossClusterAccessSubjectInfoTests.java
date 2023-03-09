@@ -32,15 +32,15 @@ public class CrossClusterAccessSubjectInfoTests extends ESTestCase {
     public void testWriteReadContextRoundtrip() throws IOException {
         final ThreadContext ctx = new ThreadContext(Settings.EMPTY);
         final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection = randomRoleDescriptorsIntersection();
-        final var expectedRemoteAccessAuthentication = new CrossClusterAccessSubjectInfo(
+        final var expectedCrossClusterAccessSubjectInfo = new CrossClusterAccessSubjectInfo(
             AuthenticationTestHelper.builder().build(),
             expectedRoleDescriptorsIntersection
         );
 
-        expectedRemoteAccessAuthentication.writeToContext(ctx);
+        expectedCrossClusterAccessSubjectInfo.writeToContext(ctx);
         final CrossClusterAccessSubjectInfo actual = CrossClusterAccessSubjectInfo.readFromContext(ctx);
 
-        assertThat(actual.getAuthentication(), equalTo(expectedRemoteAccessAuthentication.getAuthentication()));
+        assertThat(actual.getAuthentication(), equalTo(expectedCrossClusterAccessSubjectInfo.getAuthentication()));
         final List<Set<RoleDescriptor>> roleDescriptorsList = new ArrayList<>();
         for (CrossClusterAccessSubjectInfo.RoleDescriptorsBytes rdb : actual.getRoleDescriptorsBytesList()) {
             Set<RoleDescriptor> roleDescriptors = rdb.toRoleDescriptors();

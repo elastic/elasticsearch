@@ -950,7 +950,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     final var actualCrossClusterAccessSubjectInfo = CrossClusterAccessSubjectInfo.decode(
                         actual.headers().get(CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY)
                     );
-                    final var expectedRemoteAccessAuthentication = new CrossClusterAccessSubjectInfo(
+                    final var expectedCrossClusterAccessSubjectInfo = new CrossClusterAccessSubjectInfo(
                         Authentication.newInternalAuthentication(
                             SystemUser.INSTANCE,
                             TransportVersion.CURRENT,
@@ -960,15 +960,15 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                         ),
                         RoleDescriptorsIntersection.EMPTY
                     );
-                    assertThat(actualCrossClusterAccessSubjectInfo, equalTo(expectedRemoteAccessAuthentication));
+                    assertThat(actualCrossClusterAccessSubjectInfo, equalTo(expectedCrossClusterAccessSubjectInfo));
                 }
                 case SearchAction.NAME, ClusterSearchShardsAction.NAME -> {
                     assertContainsCrossClusterAccessHeaders(actual.headers());
                     assertContainsCrossClusterAccessCredentialsHeader(encodedCredential, actual);
-                    final var actualRemoteAccessAuthentication = CrossClusterAccessSubjectInfo.decode(
+                    final var actualCrossClusterAccessSubjectInfo = CrossClusterAccessSubjectInfo.decode(
                         actual.headers().get(CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY)
                     );
-                    crossClusterAccessSubjectInfoChecker.accept(actualRemoteAccessAuthentication, expectedRoleDescriptorsIntersection);
+                    crossClusterAccessSubjectInfoChecker.accept(actualCrossClusterAccessSubjectInfo, expectedRoleDescriptorsIntersection);
                 }
                 default -> fail("Unexpected action [" + actual.action + "]");
             }

@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class CrossClusterAccessSubjectInfoServiceIntegTests extends SecurityIntegTestCase {
+public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityIntegTestCase {
 
     @BeforeClass
     public static void checkFeatureFlag() {
@@ -211,7 +211,8 @@ public class CrossClusterAccessSubjectInfoServiceIntegTests extends SecurityInte
     }
 
     private String getEncodedCrossClusterAccessApiKey() {
-        final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client().admin().cluster()).setName("remote_access_key").get();
+        final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client().admin().cluster()).setName("cross_cluster_access_key")
+            .get();
         return ApiKeyService.withApiKeyPrefix(
             Base64.getEncoder().encodeToString((response.getId() + ":" + response.getKey()).getBytes(StandardCharsets.UTF_8))
         );

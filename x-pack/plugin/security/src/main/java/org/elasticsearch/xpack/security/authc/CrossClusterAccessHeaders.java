@@ -15,7 +15,7 @@ import java.util.Objects;
 
 public final class CrossClusterAccessHeaders {
 
-    public static final String CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY = "_cross_cluster_access_credential";
+    public static final String CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY = "_cross_cluster_access_credentials";
     private final String credentialsHeader;
     private final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo;
 

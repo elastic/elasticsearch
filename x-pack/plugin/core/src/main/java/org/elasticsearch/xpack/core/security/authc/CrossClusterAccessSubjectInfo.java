@@ -93,7 +93,7 @@ public final class CrossClusterAccessSubjectInfo {
 
     @Override
     public String toString() {
-        return "RemoteAccessAuthentication{"
+        return "CrossClusterAccessSubjectInfo{"
             + "authentication="
             + authentication
             + ", roleDescriptorsBytesList="

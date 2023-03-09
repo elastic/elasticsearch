@@ -138,7 +138,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         final var createApiKeyRequest = new Request("POST", "/_security/api_key");
         createApiKeyRequest.setJsonEntity(Strings.format("""
             {
-              "name": "remote_access_key",
+              "name": "cross_cluster_access_key",
               "role_descriptors": {
                 "role": {
                   "cluster": ["cross_cluster_access"],

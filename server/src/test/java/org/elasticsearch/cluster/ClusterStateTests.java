@@ -38,6 +38,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -45,6 +46,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -1088,5 +1090,20 @@ public class ClusterStateTests extends ESTestCase {
             chunks += 1;
         }
         assertEquals(expectedChunks, chunks);
+    }
+
+    public void testGetMinTransportVersion() throws IOException {
+        var builder = ClusterState.builder(buildClusterState());
+        int numNodes = randomIntBetween(2, 20);
+        TransportVersion minVersion = TransportVersion.CURRENT;
+
+        for (int i = 0; i < numNodes; i++) {
+            TransportVersion tv = TransportVersionUtils.randomVersion();
+            builder.putTransportVersion("nodeTv" + i, tv);
+            minVersion = Collections.min(List.of(minVersion, tv));
+        }
+
+        var newState = builder.build();
+        assertThat(newState.getMinTransportVersion(), equalTo(minVersion));
     }
 }

@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -46,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.assertDesiredNodesStatusIsCorrect;
@@ -138,6 +140,30 @@ public class NodeJoinExecutorTests extends ESTestCase {
         } else {
             NodeJoinExecutor.ensureNodesCompatibility(justGood, minNodeVersion, maxNodeVersion);
         }
+    }
+
+    public void testPreventJoinClusterWithUnsupportedTransportVersion() {
+        List<TransportVersion> versions = IntStream.range(0, randomIntBetween(2, 10))
+            .mapToObj(i -> TransportVersionUtils.randomCompatibleVersion(random()))
+            .toList();
+        TransportVersion min = Collections.min(versions);
+
+        // should not throw
+        NodeJoinExecutor.ensureTransportVersionBarrier(
+            TransportVersionUtils.randomVersionBetween(random(), min, TransportVersion.CURRENT),
+            versions
+        );
+        expectThrows(
+            IllegalStateException.class,
+            () -> NodeJoinExecutor.ensureTransportVersionBarrier(
+                TransportVersionUtils.randomVersionBetween(
+                    random(),
+                    TransportVersionUtils.getFirstVersion(),
+                    TransportVersionUtils.getPreviousVersion(min)
+                ),
+                versions
+            )
+        );
     }
 
     public void testSuccess() {

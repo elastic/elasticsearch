@@ -358,7 +358,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
      * ensures that the joining node's transport version is equal or higher to the minClusterTransportVersion. This is needed
      * to ensure that the minimum transport version of the cluster doesn't go backwards.
      **/
-    private static void ensureTransportVersionBarrier(
+    static void ensureTransportVersionBarrier(
         TransportVersion joiningTransportVersion,
         Collection<TransportVersion> existingTransportVersions
     ) {

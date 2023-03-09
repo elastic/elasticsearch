@@ -100,7 +100,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
      */
     protected String configureRemoteClustersWithApiKey(String indicesPrivilegesJson, boolean isProxyMode) throws Exception {
         // Create API key on FC
-        final Map<String, Object> apiKeyMap = createRemoteAccessApiKey(indicesPrivilegesJson);
+        final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey(indicesPrivilegesJson);
         final String encodedRemoteAccessApiKey = (String) apiKeyMap.get("encoded");
 
         // Update remote cluster settings on QC with the API key
@@ -133,7 +133,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         return (String) apiKeyMap.get("id");
     }
 
-    protected Map<String, Object> createRemoteAccessApiKey(String indicesPrivilegesJson) throws IOException {
+    protected Map<String, Object> createCrossClusterAccessApiKey(String indicesPrivilegesJson) throws IOException {
         // Create API key on FC
         final var createApiKeyRequest = new Request("POST", "/_security/api_key");
         createApiKeyRequest.setJsonEntity(Strings.format("""

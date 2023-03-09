@@ -174,7 +174,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 useProxyMode,
                 minimizeRoundtrips,
                 encodedCredential,
-                this::assertRemoteAccessAuthenticationMatchesNativeUser,
+                this::assertCrossClusterAccessSubjectInfoMatchesNativeUser,
                 new RoleDescriptorsIntersection(
                     List.of(
                         Set.of(
@@ -249,7 +249,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 useProxyModeA,
                 minimizeRoundtrips,
                 clusterCredentialA,
-                this::assertRemoteAccessAuthenticationMatchesNativeUser,
+                this::assertCrossClusterAccessSubjectInfoMatchesNativeUser,
                 new RoleDescriptorsIntersection(
                     List.of(
                         Set.of(
@@ -277,7 +277,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 useProxyModeB,
                 minimizeRoundtrips,
                 clusterCredentialB,
-                this::assertRemoteAccessAuthenticationMatchesNativeUser,
+                this::assertCrossClusterAccessSubjectInfoMatchesNativeUser,
                 new RoleDescriptorsIntersection(
                     List.of(
                         Set.of(
@@ -392,7 +392,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 useProxyModeA,
                 minimizeRoundtrips,
                 clusterCredentialA,
-                this::assertRemoteAccessAuthenticationMatchesApiKey,
+                this::assertCrossClusterAccessSubjectInfoMatchesApiKey,
                 new RoleDescriptorsIntersection(
                     List.of(
                         // Base API key role
@@ -436,7 +436,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 useProxyModeB,
                 minimizeRoundtrips,
                 clusterCredentialB,
-                this::assertRemoteAccessAuthenticationMatchesApiKey,
+                this::assertCrossClusterAccessSubjectInfoMatchesApiKey,
                 new RoleDescriptorsIntersection(
                     List.of(
                         Set.of(
@@ -754,7 +754,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 useProxyMode,
                 minimizeRoundtrips,
                 clusterCredential,
-                this::assertRemoteAccessAuthenticationMatchesApiKey,
+                this::assertCrossClusterAccessSubjectInfoMatchesApiKey,
                 expectedRoleDescriptorsIntersection
             );
         }
@@ -855,7 +855,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         }
     }
 
-    private void assertRemoteAccessAuthenticationMatchesNativeUser(
+    private void assertCrossClusterAccessSubjectInfoMatchesNativeUser(
         final CrossClusterAccessSubjectInfo actualCrossClusterAccessSubjectInfo,
         final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection
     ) {
@@ -879,7 +879,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         }
     }
 
-    private void assertRemoteAccessAuthenticationMatchesApiKey(
+    private void assertCrossClusterAccessSubjectInfoMatchesApiKey(
         final CrossClusterAccessSubjectInfo actualCrossClusterAccessSubjectInfo,
         final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection
     ) {
@@ -945,7 +945,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 // this action is run by the system user, so we expect a remote access authentication header with an internal
                 // user authentication and empty role descriptors intersection
                 case RemoteClusterNodesAction.NAME -> {
-                    assertContainsRemoteAccessHeaders(actual.headers());
+                    assertContainsCrossClusterAccessHeaders(actual.headers());
                     assertContainsRemoteClusterAuthorizationHeader(encodedCredential, actual);
                     final var actualRemoteAccessAuthentication = CrossClusterAccessSubjectInfo.decode(
                         actual.headers().get(CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY)
@@ -963,7 +963,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     assertThat(actualRemoteAccessAuthentication, equalTo(expectedRemoteAccessAuthentication));
                 }
                 case SearchAction.NAME, ClusterSearchShardsAction.NAME -> {
-                    assertContainsRemoteAccessHeaders(actual.headers());
+                    assertContainsCrossClusterAccessHeaders(actual.headers());
                     assertContainsRemoteClusterAuthorizationHeader(encodedCredential, actual);
                     final var actualRemoteAccessAuthentication = CrossClusterAccessSubjectInfo.decode(
                         actual.headers().get(CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY)
@@ -1063,7 +1063,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         }
     }
 
-    private void assertContainsRemoteAccessHeaders(final Map<String, String> actualHeaders) {
+    private void assertContainsCrossClusterAccessHeaders(final Map<String, String> actualHeaders) {
         assertThat(
             actualHeaders.keySet(),
             containsInAnyOrder(

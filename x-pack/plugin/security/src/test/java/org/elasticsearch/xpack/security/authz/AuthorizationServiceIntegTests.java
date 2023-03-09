@@ -85,7 +85,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                 nodeName
             )
         );
-        final RoleDescriptorsIntersection actual = authorizeThenRetrieveRemoteAccessDescriptors(
+        final RoleDescriptorsIntersection actual = authorizeThenRetrieveCrossClusterAccessDescriptors(
             threadContext,
             authzService,
             authentication,
@@ -121,7 +121,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
         );
     }
 
-    private RoleDescriptorsIntersection authorizeThenRetrieveRemoteAccessDescriptors(
+    private RoleDescriptorsIntersection authorizeThenRetrieveCrossClusterAccessDescriptors(
         final ThreadContext threadContext,
         final AuthorizationService authzService,
         final Authentication authentication,
@@ -142,7 +142,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                 AuthenticateAction.INSTANCE.name(),
                 AuthenticateRequest.INSTANCE,
                 ActionTestUtils.assertNoFailureListener(nothing -> {
-                    authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
+                    authzService.retrieveCrossClusterAccessRoleDescriptorsIntersection(
                         concreteClusterAlias,
                         authentication.getEffectiveSubject(),
                         new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(newValue -> {

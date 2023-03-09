@@ -361,10 +361,10 @@ public class AuthenticationTests extends ESTestCase {
         }
     }
 
-    public void testIsRemoteAccess() {
-        final boolean isRemoteAccess = randomBoolean();
+    public void testIsCrossClusterAccess() {
+        final boolean isCrossClusterAccess = randomBoolean();
         final Authentication authentication;
-        if (isRemoteAccess) {
+        if (isCrossClusterAccess) {
             authentication = AuthenticationTestHelper.builder().crossClusterAccess().build();
         } else {
             authentication = randomValueOtherThanMany(
@@ -373,7 +373,7 @@ public class AuthenticationTests extends ESTestCase {
             );
         }
 
-        if (isRemoteAccess) {
+        if (isCrossClusterAccess) {
             assertThat(authentication.isCrossClusterAccess(), is(true));
             // Also validate that this does not clash with API keys
             assertThat(authentication.isApiKey(), is(false));

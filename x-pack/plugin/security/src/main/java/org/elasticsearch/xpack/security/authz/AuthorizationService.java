@@ -208,7 +208,7 @@ public class AuthorizationService {
         authorizationEngine.getUserPrivileges(authorizationInfo, wrapPreservingContext(listener, threadContext));
     }
 
-    public void retrieveRemoteAccessRoleDescriptorsIntersection(
+    public void retrieveCrossClusterAccessRoleDescriptorsIntersection(
         final String remoteClusterAlias,
         final Subject subject,
         final ActionListener<RoleDescriptorsIntersection> listener
@@ -229,7 +229,7 @@ public class AuthorizationService {
             subject,
             wrapPreservingContext(
                 listener.delegateFailure(
-                    (delegatedLister, resolvedAuthzInfo) -> authorizationEngine.getRemoteAccessRoleDescriptorsIntersection(
+                    (delegatedLister, resolvedAuthzInfo) -> authorizationEngine.getCrossClusterAccessRoleDescriptorsIntersection(
                         remoteClusterAlias,
                         resolvedAuthzInfo,
                         wrapPreservingContext(delegatedLister, threadContext)

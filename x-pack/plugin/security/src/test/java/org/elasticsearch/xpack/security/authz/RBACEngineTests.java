@@ -1652,7 +1652,7 @@ public class RBACEngineTests extends ESTestCase {
         when(authorizationInfo.getRole()).thenReturn(role);
 
         final PlainActionFuture<RoleDescriptorsIntersection> future = new PlainActionFuture<>();
-        engine.getRemoteAccessRoleDescriptorsIntersection(concreteClusterAlias, authorizationInfo, future);
+        engine.getCrossClusterAccessRoleDescriptorsIntersection(concreteClusterAlias, authorizationInfo, future);
         final RoleDescriptorsIntersection actual = future.get();
 
         assertThat(
@@ -1709,7 +1709,7 @@ public class RBACEngineTests extends ESTestCase {
         final RBACAuthorizationInfo authorizationInfo1 = mock(RBACAuthorizationInfo.class);
         when(authorizationInfo1.getRole()).thenReturn(role1);
         final PlainActionFuture<RoleDescriptorsIntersection> future1 = new PlainActionFuture<>();
-        engine.getRemoteAccessRoleDescriptorsIntersection(concreteClusterAlias, authorizationInfo1, future1);
+        engine.getCrossClusterAccessRoleDescriptorsIntersection(concreteClusterAlias, authorizationInfo1, future1);
         final RoleDescriptorsIntersection actual1 = future1.get();
 
         // Randomize the order of both remote indices groups and each of the indices permissions groups each group holds
@@ -1729,7 +1729,7 @@ public class RBACEngineTests extends ESTestCase {
         final RBACAuthorizationInfo authorizationInfo2 = mock(RBACAuthorizationInfo.class);
         when(authorizationInfo2.getRole()).thenReturn(role2);
         final PlainActionFuture<RoleDescriptorsIntersection> future2 = new PlainActionFuture<>();
-        engine.getRemoteAccessRoleDescriptorsIntersection(concreteClusterAlias, authorizationInfo2, future2);
+        engine.getCrossClusterAccessRoleDescriptorsIntersection(concreteClusterAlias, authorizationInfo2, future2);
         final RoleDescriptorsIntersection actual2 = future2.get();
 
         assertThat(actual1, equalTo(actual2));
@@ -1756,7 +1756,7 @@ public class RBACEngineTests extends ESTestCase {
         when(authorizationInfo.getRole()).thenReturn(role);
 
         final PlainActionFuture<RoleDescriptorsIntersection> future = new PlainActionFuture<>();
-        engine.getRemoteAccessRoleDescriptorsIntersection(
+        engine.getCrossClusterAccessRoleDescriptorsIntersection(
             randomValueOtherThan(concreteClusterAlias, () -> randomAlphaOfLength(10)),
             authorizationInfo,
             future
@@ -1775,7 +1775,7 @@ public class RBACEngineTests extends ESTestCase {
         when(authorizationInfo.getRole()).thenReturn(role);
 
         final PlainActionFuture<RoleDescriptorsIntersection> future = new PlainActionFuture<>();
-        engine.getRemoteAccessRoleDescriptorsIntersection(
+        engine.getCrossClusterAccessRoleDescriptorsIntersection(
             randomValueOtherThan(concreteClusterAlias, () -> randomAlphaOfLength(10)),
             authorizationInfo,
             future
@@ -1800,7 +1800,7 @@ public class RBACEngineTests extends ESTestCase {
             final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
             when(authorizationInfo.getRole()).thenReturn(role);
             final PlainActionFuture<RoleDescriptorsIntersection> future = new PlainActionFuture<>();
-            engine.getRemoteAccessRoleDescriptorsIntersection(randomAlphaOfLengthBetween(5, 20), authorizationInfo, future);
+            engine.getCrossClusterAccessRoleDescriptorsIntersection(randomAlphaOfLengthBetween(5, 20), authorizationInfo, future);
             assertThat(
                 future.actionGet(),
                 equalTo(
@@ -1836,7 +1836,7 @@ public class RBACEngineTests extends ESTestCase {
             final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
             when(authorizationInfo.getRole()).thenReturn(role);
             final PlainActionFuture<RoleDescriptorsIntersection> future = new PlainActionFuture<>();
-            engine.getRemoteAccessRoleDescriptorsIntersection(randomAlphaOfLengthBetween(5, 20), authorizationInfo, future);
+            engine.getCrossClusterAccessRoleDescriptorsIntersection(randomAlphaOfLengthBetween(5, 20), authorizationInfo, future);
             assertThat(
                 future.actionGet(),
                 equalTo(
@@ -1872,7 +1872,7 @@ public class RBACEngineTests extends ESTestCase {
             final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
             when(authorizationInfo.getRole()).thenReturn(role);
             final PlainActionFuture<RoleDescriptorsIntersection> future = new PlainActionFuture<>();
-            engine.getRemoteAccessRoleDescriptorsIntersection(randomAlphaOfLengthBetween(5, 20), authorizationInfo, future);
+            engine.getCrossClusterAccessRoleDescriptorsIntersection(randomAlphaOfLengthBetween(5, 20), authorizationInfo, future);
             assertThat(
                 future.actionGet(),
                 equalTo(

@@ -210,10 +210,10 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
         );
     }
 
-    public void testActionDeniedForRemoteAccessAuthentication() {
-        final var remoteAccessAuthentication = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo();
+    public void testActionDeniedForCrossClusterAccessAuthentication() {
+        final var crossClusterAccessSubjectInfo = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo();
         final Authentication authentication = AuthenticationTestHelper.builder()
-            .crossClusterAccess(randomAlphaOfLength(42), remoteAccessAuthentication)
+            .crossClusterAccess(randomAlphaOfLength(42), crossClusterAccessSubjectInfo)
             .build();
         final Authentication innerAuthentication = (Authentication) authentication.getAuthenticatingSubject()
             .getMetadata()

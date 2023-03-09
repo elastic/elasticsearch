@@ -54,7 +54,7 @@ public class CrossClusterAccessSubjectInfoServiceIntegTests extends SecurityInte
     }
 
     public void testInvalidHeaders() throws IOException {
-        final String encodedRemoteAccessApiKey = getEncodedRemoteAccessApiKey();
+        final String encodedRemoteAccessApiKey = getEncodedCrossClusterAccessApiKey();
         final String nodeName = internalCluster().getRandomNodeName();
         final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
         final CrossClusterAccessAuthenticationService service = internalCluster().getInstance(
@@ -175,7 +175,7 @@ public class CrossClusterAccessSubjectInfoServiceIntegTests extends SecurityInte
 
         try (var ignored = threadContext.stashContext()) {
             new CrossClusterAccessHeaders(
-                getEncodedRemoteAccessApiKey(),
+                getEncodedCrossClusterAccessApiKey(),
                 new CrossClusterAccessSubjectInfo(
                     AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build(),
                     new RoleDescriptorsIntersection(new RoleDescriptor("role", null, null, null, null, null, null, null))
@@ -204,7 +204,7 @@ public class CrossClusterAccessSubjectInfoServiceIntegTests extends SecurityInte
         }
     }
 
-    private String getEncodedRemoteAccessApiKey() {
+    private String getEncodedCrossClusterAccessApiKey() {
         final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client().admin().cluster()).setName("remote_access_key").get();
         return ApiKeyService.withApiKeyPrefix(
             Base64.getEncoder().encodeToString((response.getId() + ":" + response.getKey()).getBytes(StandardCharsets.UTF_8))

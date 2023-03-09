@@ -783,7 +783,7 @@ public final class Authentication implements ToXContentObject {
 
     private void checkConsistencyForApiKeyAuthenticationType() {
         final RealmRef authenticatingRealm = authenticatingSubject.getRealm();
-        if (false == authenticatingRealm.isApiKeyRealm() && false == authenticatingRealm.isRemoteAccessRealm()) {
+        if (false == authenticatingRealm.isApiKeyRealm() && false == authenticatingRealm.isCrossClusterAccessRealm()) {
             throw new IllegalArgumentException(
                 Strings.format("API key authentication cannot have realm type [%s]", authenticatingRealm.type)
             );
@@ -831,7 +831,7 @@ public final class Authentication implements ToXContentObject {
         // for mostly historical reasons.
         assert false == authenticatingRealm.isAttachRealm()
             && false == authenticatingRealm.isFallbackRealm()
-            && false == authenticatingRealm.isRemoteAccessRealm()
+            && false == authenticatingRealm.isCrossClusterAccessRealm()
             : "Token authentication cannot have authenticating realm " + authenticatingRealm;
 
         checkNoInternalUser(authenticatingSubject, "Token");
@@ -1069,7 +1069,7 @@ public final class Authentication implements ToXContentObject {
             return ServiceAccountSettings.REALM_NAME.equals(name) && ServiceAccountSettings.REALM_TYPE.equals(type);
         }
 
-        private boolean isRemoteAccessRealm() {
+        private boolean isCrossClusterAccessRealm() {
             return CROSS_CLUSTER_ACCESS_REALM_NAME.equals(name) && CROSS_CLUSTER_ACCESS_REALM_TYPE.equals(type);
         }
 

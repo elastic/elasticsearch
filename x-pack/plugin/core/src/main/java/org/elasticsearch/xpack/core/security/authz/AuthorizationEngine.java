@@ -241,15 +241,17 @@ public interface AuthorizationEngine {
     void getUserPrivileges(AuthorizationInfo authorizationInfo, ActionListener<GetUserPrivilegesResponse> listener);
 
     /**
-     * Retrieve remote access privileges for a given target cluster, from the provided authorization information, to be sent together
+     * Retrieve cross cluster access privileges for a given target cluster, from the provided authorization information, to be sent together
      * with a cross-cluster request (e.g. CCS) from an originating cluster to the target cluster.
      */
-    default void getRemoteAccessRoleDescriptorsIntersection(
+    default void getCrossClusterAccessRoleDescriptorsIntersection(
         final String remoteClusterAlias,
         final AuthorizationInfo authorizationInfo,
         final ActionListener<RoleDescriptorsIntersection> listener
     ) {
-        throw new UnsupportedOperationException("retrieving remote access role descriptors is not supported by this authorization engine");
+        throw new UnsupportedOperationException(
+            "retrieving cross cluster access role descriptors is not supported by this authorization engine"
+        );
     }
 
     /**

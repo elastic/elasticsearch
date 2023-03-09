@@ -663,7 +663,7 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     @Override
-    public void getRemoteAccessRoleDescriptorsIntersection(
+    public void getCrossClusterAccessRoleDescriptorsIntersection(
         final String remoteClusterAlias,
         final AuthorizationInfo authorizationInfo,
         final ActionListener<RoleDescriptorsIntersection> listener

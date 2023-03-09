@@ -43,7 +43,7 @@ Configure this setting only if you need the publish port to be different from
 
 `http.max_content_length`::
 (<<static-cluster-setting,Static>>, <<byte-units,byte value>>)
-Maximum size of an HTTP request body. Defaults to `100mb`. Configuring this
+Maximum size of an HTTP request body, compressed if applicable. Defaults to `100mb`. Configuring this
 setting to greater than `100mb` can cause cluster instability and is not
 recommended. If you hit this limit when sending a request to the <<docs-bulk>>
 API, configure your client to send fewer documents in each bulk request. If you

@@ -118,7 +118,7 @@ IMPORTANT: Existing data on the cluster will not be replicated by
 `_ccr/auto_follow` even though the patterns may match. This function will only
 replicate newly created backing indices (as part of the data stream).
 +
-IMPORTANT: Ensure to have `leader_index_exclustion_patterns` to avoid recursion.
+IMPORTANT: Use `leader_index_exclusion_patterns` to avoid recursion.
 +
 TIP: `follow_index_pattern` allows lowercase characters only.
 +

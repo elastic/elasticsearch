@@ -1,5 +1,5 @@
 pr: 94418
 summary: Support for store parameter in `geo_shape` field
-area: "Mapping, Geo"
+area: "Geo"
 type: enhancement
 issues: []

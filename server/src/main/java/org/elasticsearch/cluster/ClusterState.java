@@ -615,7 +615,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 metrics.contains(Metric.TRANSPORT_VERSIONS),
                 (builder, params) -> builder.startArray("transport_versions"),
                 transportVersions.entrySet().iterator(),
-                e -> Iterators.single((builder, params) -> builder.field("nodeId", e.getKey()).field("transportVersion", e.getValue())),
+                e -> Iterators.single((builder, params) -> builder.field("node_id", e.getKey()).field("transport_version", e.getValue())),
                 (builder, params) -> builder.endArray()
             ),
 
@@ -751,7 +751,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         }
 
         public Map<String, TransportVersion> transportVersions() {
-            return new HashMap<>(this.transportVersions);
+            return Collections.unmodifiableMap(this.transportVersions);
         }
 
         public Builder routingTable(RoutingTable.Builder routingTableBuilder) {
@@ -839,7 +839,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 metadata,
                 routingTable,
                 nodes,
-                Map.copyOf(transportVersions),
+                transportVersions,
                 blocks,
                 customs.build(),
                 fromDiff,

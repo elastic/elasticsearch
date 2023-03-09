@@ -102,7 +102,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             EqlSearchAction.INSTANCE.name(),
             this,
             EqlSearchTask.class,
-                clusterService,
+            clusterService,
             threadPool,
             bigArrays
         );

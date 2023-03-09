@@ -112,7 +112,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static java.util.stream.Collectors.toMap;

@@ -18,8 +18,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecutor.Task> {
 
@@ -51,7 +53,7 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
     public ClusterState execute(BatchExecutionContext<Task> batchExecutionContext) throws Exception {
         ClusterState initialState = batchExecutionContext.initialState();
         DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(initialState.nodes());
-        ImmutableOpenMap.Builder<String, TransportVersion> transportVersions = ImmutableOpenMap.builder(initialState.transportVersions());
+        Map<String, TransportVersion> transportVersions = new HashMap<>(initialState.transportVersions());
         boolean removed = false;
         for (final var taskContext : batchExecutionContext.taskContexts()) {
             final var task = taskContext.getTask();
@@ -97,9 +99,9 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
     protected ClusterState remainingNodesClusterState(
         ClusterState currentState,
         DiscoveryNodes.Builder remainingNodesBuilder,
-        ImmutableOpenMap.Builder<String, TransportVersion> transportVersions
+        Map<String, TransportVersion> transportVersions
     ) {
-        return ClusterState.builder(currentState).nodes(remainingNodesBuilder).transportVersions(transportVersions.build()).build();
+        return ClusterState.builder(currentState).nodes(remainingNodesBuilder).transportVersions(transportVersions).build();
     }
 
 }

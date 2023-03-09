@@ -150,7 +150,7 @@ public class AsyncTaskManagementService<
         this.taskClass = taskClass;
         this.asyncTaskIndexService = new AsyncTaskIndexService<>(
             index,
-                clusterService,
+            clusterService,
             threadPool.getThreadContext(),
             client,
             origin,

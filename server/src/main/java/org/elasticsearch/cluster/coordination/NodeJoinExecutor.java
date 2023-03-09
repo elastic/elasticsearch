@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.transport.TransportService;
 
@@ -104,7 +103,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         }
 
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(newState.nodes());
-        Map<String, TransportVersion> transportVersions = newState.transportVersions();
+        Map<String, TransportVersion> transportVersions = new HashMap<>(newState.transportVersions());
 
         assert nodesBuilder.isLocalNodeElectedMaster();
 
@@ -357,9 +356,9 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             throw new IllegalStateException(
                 "node with transport version ["
                     + joiningTransportVersion
-                    + "] may not join a cluster using transport version ["
+                    + "] may not join a cluster with minimum transport version ["
                     + minClusterTransportVersion
-                    + "] or greater"
+                    + "]"
             );
         }
     }

@@ -49,7 +49,6 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;

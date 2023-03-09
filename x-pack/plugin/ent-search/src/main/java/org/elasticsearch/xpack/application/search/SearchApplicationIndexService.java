@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -75,6 +74,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -186,27 +186,15 @@ public class SearchApplicationIndexService {
      */
     public void getSearchApplication(String resourceName, ActionListener<SearchApplication> listener) {
         final GetRequest getRequest = new GetRequest(SEARCH_APPLICATION_ALIAS_NAME).id(resourceName).realtime(true);
-        clientWithOrigin.get(getRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(GetResponse getResponse) {
-                if (getResponse.isExists() == false) {
-                    listener.onFailure(new ResourceNotFoundException(resourceName));
-                    return;
-                }
-                final BytesReference source = getResponse.getSourceInternal();
-                final SearchApplication res = parseSearchApplicationBinaryFromSource(source);
-                listener.onResponse(res);
+        clientWithOrigin.get(getRequest, new DelegatingIndexNotFoundActionListener<>(resourceName, listener, (l, getResponse) -> {
+            if (getResponse.isExists() == false) {
+                l.onFailure(new ResourceNotFoundException(resourceName));
+                return;
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (e instanceof IndexNotFoundException) {
-                    listener.onFailure(new ResourceNotFoundException(resourceName));
-                    return;
-                }
-                listener.onFailure(e);
-            }
-        });
+            final BytesReference source = getResponse.getSourceInternal();
+            final SearchApplication res = parseSearchApplicationBinaryFromSource(source);
+            l.onResponse(res);
+        }));
     }
 
     private static String getSearchAliasName(SearchApplication app) {
@@ -221,22 +209,10 @@ public class SearchApplicationIndexService {
      * @param listener The action listener to invoke on response/failure.
      */
     public void putSearchApplication(SearchApplication app, boolean create, ActionListener<IndexResponse> listener) {
-        createOrUpdateAlias(app, new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                updateSearchApplication(app, create, listener);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                // Convert index not found failure from the alias API into an illegal argument
-                Exception failException = e;
-                if (e instanceof IndexNotFoundException) {
-                    failException = new IllegalArgumentException(e.getMessage(), e);
-                }
-                listener.onFailure(failException);
-            }
-        });
+        createOrUpdateAlias(
+            app,
+            new DelegatingIndexNotFoundActionListener<>(app.name(), listener, (l, response) -> updateSearchApplication(app, create, l))
+        );
     }
 
     private void createOrUpdateAlias(SearchApplication app, ActionListener<AcknowledgedResponse> listener) {
@@ -306,25 +282,16 @@ public class SearchApplicationIndexService {
         try {
             final DeleteRequest deleteRequest = new DeleteRequest(SEARCH_APPLICATION_ALIAS_NAME).id(resourceName)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            clientWithOrigin.delete(deleteRequest, new ActionListener<DeleteResponse>() {
-                @Override
-                public void onResponse(DeleteResponse deleteResponse) {
+            clientWithOrigin.delete(
+                deleteRequest,
+                new DelegatingIndexNotFoundActionListener<>(resourceName, listener, (l, deleteResponse) -> {
                     if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                        listener.onFailure(new ResourceNotFoundException(resourceName));
+                        l.onFailure(new ResourceNotFoundException(resourceName));
                         return;
                     }
-                    listener.onResponse(deleteResponse);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    if (e instanceof IndexNotFoundException) {
-                        listener.onFailure(new ResourceNotFoundException(resourceName));
-                        return;
-                    }
-                    listener.onFailure(e);
-                }
-            });
+                    l.onResponse(deleteResponse);
+                })
+            );
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -339,21 +306,16 @@ public class SearchApplicationIndexService {
             IndicesAliasesRequest.AliasActions.remove().aliases(searchAliasName).indices("*")
         );
 
-        clientWithOrigin.admin().indices().aliases(aliasesRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                listener.onResponse(AcknowledgedResponse.TRUE);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (e instanceof IndexNotFoundException) {
-                    listener.onFailure(new ResourceNotFoundException(searchAliasName));
-                    return;
-                }
-                listener.onFailure(e);
-            }
-        });
+        clientWithOrigin.admin()
+            .indices()
+            .aliases(
+                aliasesRequest,
+                new DelegatingIndexNotFoundActionListener<>(
+                    searchAliasName,
+                    listener,
+                    (l, acknowledgedResponse) -> l.onResponse(AcknowledgedResponse.TRUE)
+                )
+            );
     }
 
     /**
@@ -485,6 +447,32 @@ public class SearchApplicationIndexService {
         try (OutputStreamStreamOutput out = new OutputStreamStreamOutput(os)) {
             out.setTransportVersion(minNodeVersion.transportVersion);
             app.writeTo(out);
+        }
+    }
+
+    static class DelegatingIndexNotFoundActionListener<T, R> extends ActionListener.Delegating<T, R> {
+
+        private final BiConsumer<ActionListener<R>, T> bc;
+        private final String resourceName;
+
+        DelegatingIndexNotFoundActionListener(String resourceName, ActionListener<R> delegate, BiConsumer<ActionListener<R>, T> bc) {
+            super(delegate);
+            this.bc = bc;
+            this.resourceName = resourceName;
+        }
+
+        @Override
+        public void onResponse(T t) {
+            bc.accept(delegate, t);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            if (e instanceof IndexNotFoundException) {
+                delegate.onFailure(new ResourceNotFoundException(resourceName));
+                return;
+            }
+            delegate.onFailure(e);
         }
     }
 

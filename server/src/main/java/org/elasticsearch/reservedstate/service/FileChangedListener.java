@@ -9,10 +9,10 @@
 package org.elasticsearch.reservedstate.service;
 
 /**
- * Listener interface for the file settings service. Listeners will get
- * notified when the settings have been updated, or if there are no settings
+ * Listener interface for the file watching service. Listeners will get
+ * notified when the watched file has been updated, or if there is no file
  * on initial start.
  */
-public interface FileSettingsChangedListener {
-    void settingsChanged();
+public interface FileChangedListener {
+    void watchedFileChanged();
 }

@@ -68,7 +68,7 @@ public class RoleReferenceTests extends ESTestCase {
 
     public void testRemoteAccessRoleReference() {
         final var roleDescriptorsBytes = new CrossClusterAccessSubjectInfo.RoleDescriptorsBytes(new BytesArray(randomAlphaOfLength(50)));
-        final var remoteAccessRoleReference = new RoleReference.RemoteAccessRoleReference(roleDescriptorsBytes);
+        final var remoteAccessRoleReference = new RoleReference.CrossClusterAccessRoleReference(roleDescriptorsBytes);
 
         final RoleKey roleKey = remoteAccessRoleReference.id();
         assertThat(roleKey.getNames(), hasItem("remote_access:" + roleDescriptorsBytes.digest()));

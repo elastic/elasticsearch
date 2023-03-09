@@ -32,7 +32,7 @@ import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService.CROSS_CLUSTER_INTERNAL_ROLE;
-import static org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService.VERSION_REMOTE_ACCESS_AUTHENTICATION;
+import static org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService.VERSION_CROSS_CLUSTER_ACCESS_AUTHENTICATION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -96,7 +96,7 @@ public class CrossClusterAccessSubjectInfoServiceTests extends ESTestCase {
             actual.getCause().getCause().getMessage(),
             equalTo(
                 "all nodes must have version ["
-                    + VERSION_REMOTE_ACCESS_AUTHENTICATION
+                    + VERSION_CROSS_CLUSTER_ACCESS_AUTHENTICATION
                     + "] or higher to support cross cluster requests through the dedicated remote cluster port"
             )
         );

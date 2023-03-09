@@ -21,18 +21,13 @@ import java.util.Optional;
 
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION;
 
-public class CrossClusterAccessCredentialsResolver {
+public class RemoteClusterCredentialsResolver {
 
-    private static final Logger LOGGER = LogManager.getLogger(CrossClusterAccessCredentialsResolver.class);
+    private static final Logger LOGGER = LogManager.getLogger(RemoteClusterCredentialsResolver.class);
 
     private final Map<String, String> apiKeys = ConcurrentCollections.newConcurrentMap();
 
-    /**
-     * Initialize load and reload REMOTE_CLUSTER_AUTHORIZATION values.
-     * @param settings Contains zero, one, or many values of REMOTE_CLUSTER_AUTHORIZATION literal values.
-     * @param clusterSettings Contains one affix setting REMOTE_CLUSTER_AUTHORIZATION.
-     */
-    public CrossClusterAccessCredentialsResolver(final Settings settings, final ClusterSettings clusterSettings) {
+    public RemoteClusterCredentialsResolver(final Settings settings, final ClusterSettings clusterSettings) {
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
             for (final Map.Entry<String, String> entry : REMOTE_CLUSTER_AUTHORIZATION.getAsMap(settings).entrySet()) {
                 if (Strings.isEmpty(entry.getValue()) == false) {
@@ -56,12 +51,12 @@ public class CrossClusterAccessCredentialsResolver {
     private void update(final String clusterAlias, final String authorization) {
         if (Strings.isEmpty(authorization)) {
             apiKeys.remove(clusterAlias);
-            LOGGER.debug("Authorization value for clusterAlias {} removed", clusterAlias);
+            LOGGER.debug("Credentials value for cluster alias [{}] removed", clusterAlias);
         } else {
             final boolean notFound = Strings.isEmpty(apiKeys.put(clusterAlias, authorization));
-            LOGGER.debug("Authorization value for clusterAlias {} {}", clusterAlias, (notFound ? "added" : "updated"));
+            LOGGER.debug("Credentials value for cluster alias [{}] {}", clusterAlias, (notFound ? "added" : "updated"));
         }
     }
 
-    record RemoteClusterCredentials(String clusterAlias, String authorization) {}
+    record RemoteClusterCredentials(String clusterAlias, String credentials) {}
 }

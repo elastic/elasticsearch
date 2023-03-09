@@ -174,7 +174,7 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                 encodeAuthentication(
                     new Subject(
                         userFoo,
-                        Authentication.RealmRef.newRemoteAccessRealmRef("node"),
+                        Authentication.RealmRef.newCrossClusterAccessRealmRef("node"),
                         TransportVersion.CURRENT,
                         Map.of(AuthenticationField.API_KEY_ID_KEY, "abc")
                     ),
@@ -186,7 +186,7 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                 encodeAuthentication(
                     new Subject(
                         userFoo,
-                        Authentication.RealmRef.newRemoteAccessRealmRef("node"),
+                        Authentication.RealmRef.newCrossClusterAccessRealmRef("node"),
                         TransportVersion.CURRENT,
                         Map.of(
                             AuthenticationField.API_KEY_ID_KEY,
@@ -203,7 +203,7 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                 encodeAuthentication(
                     new Subject(
                         userFoo,
-                        Authentication.RealmRef.newRemoteAccessRealmRef("node"),
+                        Authentication.RealmRef.newCrossClusterAccessRealmRef("node"),
                         TransportVersion.CURRENT,
                         Map.of(
                             AuthenticationField.API_KEY_ID_KEY,
@@ -221,7 +221,7 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                     new Subject(userBar, realm2),
                     new Subject(
                         userFoo,
-                        Authentication.RealmRef.newRemoteAccessRealmRef("node"),
+                        Authentication.RealmRef.newCrossClusterAccessRealmRef("node"),
                         TransportVersion.CURRENT,
                         Map.of(
                             AuthenticationField.API_KEY_ID_KEY,

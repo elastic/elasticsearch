@@ -117,12 +117,12 @@ public interface RoleReference {
         }
     }
 
-    final class RemoteAccessRoleReference implements RoleReference {
+    final class CrossClusterAccessRoleReference implements RoleReference {
 
         private final CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes;
         private RoleKey id = null;
 
-        public RemoteAccessRoleReference(CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes) {
+        public CrossClusterAccessRoleReference(CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes) {
             this.roleDescriptorsBytes = roleDescriptorsBytes;
         }
 
@@ -138,7 +138,7 @@ public interface RoleReference {
 
         @Override
         public void resolve(RoleReferenceResolver resolver, ActionListener<RolesRetrievalResult> listener) {
-            resolver.resolveRemoteAccessRoleReference(this, listener);
+            resolver.resolveCrossClusterAccessRoleReference(this, listener);
         }
 
         public CrossClusterAccessSubjectInfo.RoleDescriptorsBytes getRoleDescriptorsBytes() {

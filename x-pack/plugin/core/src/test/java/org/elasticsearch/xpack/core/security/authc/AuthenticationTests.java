@@ -368,7 +368,7 @@ public class AuthenticationTests extends ESTestCase {
             authentication = AuthenticationTestHelper.builder().crossClusterAccess().build();
         } else {
             authentication = randomValueOtherThanMany(
-                authc -> AuthenticationField.REMOTE_ACCESS_REALM_TYPE.equals(authc.getAuthenticatingSubject().getRealm().getType()),
+                authc -> AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_TYPE.equals(authc.getAuthenticatingSubject().getRealm().getType()),
                 () -> AuthenticationTestHelper.builder().build()
             );
         }
@@ -585,8 +585,8 @@ public class AuthenticationTests extends ESTestCase {
             authentication.getAuthenticatingSubject().getRealm(),
             equalTo(
                 new RealmRef(
-                    AuthenticationField.REMOTE_ACCESS_REALM_NAME,
-                    AuthenticationField.REMOTE_ACCESS_REALM_TYPE,
+                    AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_NAME,
+                    AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_TYPE,
                     authentication.getAuthenticatingSubject().getRealm().getNodeName()
                 )
             )

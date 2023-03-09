@@ -71,8 +71,8 @@ public class Subject {
         } else if (ServiceAccountSettings.REALM_TYPE.equals(realm.getType())) {
             assert ServiceAccountSettings.REALM_NAME.equals(realm.getName()) : "service account realm name mismatch";
             this.type = Type.SERVICE_ACCOUNT;
-        } else if (AuthenticationField.REMOTE_ACCESS_REALM_TYPE.equals(realm.getType())) {
-            assert AuthenticationField.REMOTE_ACCESS_REALM_NAME.equals(realm.getName()) : "remote access realm name mismatch";
+        } else if (AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_TYPE.equals(realm.getType())) {
+            assert AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_NAME.equals(realm.getName()) : "remote access realm name mismatch";
             this.type = Type.REMOTE_ACCESS;
         } else {
             this.type = Type.USER;
@@ -273,13 +273,13 @@ public class Subject {
         if (remoteAccessRoleDescriptorsBytes.isEmpty()) {
             // If the remote access role descriptors are empty, the remote user has no privileges. We need to add an empty role to restrict
             // access of the overall intersection accordingly
-            roleReferences.add(new RoleReference.RemoteAccessRoleReference(RoleDescriptorsBytes.EMPTY));
+            roleReferences.add(new RoleReference.CrossClusterAccessRoleReference(RoleDescriptorsBytes.EMPTY));
         } else {
             // TODO handle this once we support API keys as querying subjects
             assert remoteAccessRoleDescriptorsBytes.size() == 1
                 : "only a singleton list of remote access role descriptors bytes is supported";
             for (RoleDescriptorsBytes roleDescriptorsBytes : remoteAccessRoleDescriptorsBytes) {
-                roleReferences.add(new RoleReference.RemoteAccessRoleReference(roleDescriptorsBytes));
+                roleReferences.add(new RoleReference.CrossClusterAccessRoleReference(roleDescriptorsBytes));
             }
         }
         roleReferences.addAll(buildRoleReferencesForApiKey().getRoleReferences());

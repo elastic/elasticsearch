@@ -28,11 +28,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Optional;
 
-import static org.elasticsearch.xpack.security.transport.CrossClusterAccessCredentialsResolver.RemoteClusterCredentials;
+import static org.elasticsearch.xpack.security.transport.RemoteClusterCredentialsResolver.RemoteClusterCredentials;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class CrossClusterAccessCredentialsResolverTests extends ESTestCase {
+public class RemoteClusterCredentialsResolverTests extends ESTestCase {
 
     private ThreadPool threadPool;
     private ClusterService clusterService;
@@ -66,16 +66,16 @@ public class CrossClusterAccessCredentialsResolverTests extends ESTestCase {
             initialSettingsBuilder.put("cluster.remote." + clusterNameB + ".authorization", "");
         }
         final Settings initialSettings = initialSettingsBuilder.build();
-        CrossClusterAccessCredentialsResolver crossClusterAccessCredentialsResolver = new CrossClusterAccessCredentialsResolver(
+        RemoteClusterCredentialsResolver remoteClusterCredentialsResolver = new RemoteClusterCredentialsResolver(
             initialSettings,
             clusterService.getClusterSettings()
         );
         assertThat(
-            crossClusterAccessCredentialsResolver.resolve(clusterNameA),
+            remoteClusterCredentialsResolver.resolve(clusterNameA),
             is(equalTo(remoteClusterCredentials(clusterNameA, "initialize")))
         );
-        assertThat(crossClusterAccessCredentialsResolver.resolve(clusterNameB), is(Optional.empty()));
-        assertThat(crossClusterAccessCredentialsResolver.resolve(clusterDoesNotExist), is(Optional.empty()));
+        assertThat(remoteClusterCredentialsResolver.resolve(clusterNameB), is(Optional.empty()));
+        assertThat(remoteClusterCredentialsResolver.resolve(clusterDoesNotExist), is(Optional.empty()));
         final DiscoveryNode masterNodeA = clusterService.state().nodes().getMasterNode();
 
         // Add clusterB authorization setting
@@ -86,12 +86,12 @@ public class CrossClusterAccessCredentialsResolverTests extends ESTestCase {
             .build();
         final ClusterState newClusterState1 = createClusterState(clusterNameA, masterNodeA, newSettingsAddClusterB);
         ClusterServiceUtils.setState(clusterService, newClusterState1);
-        assertThat(crossClusterAccessCredentialsResolver.resolve(clusterNameA), is(equalTo(remoteClusterCredentials(clusterNameA, "addB"))));
+        assertThat(remoteClusterCredentialsResolver.resolve(clusterNameA), is(equalTo(remoteClusterCredentials(clusterNameA, "addB"))));
         assertThat(
-            crossClusterAccessCredentialsResolver.resolve(clusterNameB),
+            remoteClusterCredentialsResolver.resolve(clusterNameB),
             is(equalTo(remoteClusterCredentials(clusterNameB, clusterBapiKey1)))
         );
-        assertThat(crossClusterAccessCredentialsResolver.resolve(clusterDoesNotExist), is(Optional.empty()));
+        assertThat(remoteClusterCredentialsResolver.resolve(clusterDoesNotExist), is(Optional.empty()));
 
         // Change clusterB authorization setting
         final String clusterBapiKey2 = randomApiKey();
@@ -101,12 +101,12 @@ public class CrossClusterAccessCredentialsResolverTests extends ESTestCase {
             .build();
         final ClusterState newClusterState2 = createClusterState(clusterNameA, masterNodeA, newSettingsUpdateClusterB);
         ClusterServiceUtils.setState(clusterService, newClusterState2);
-        assertThat(crossClusterAccessCredentialsResolver.resolve(clusterNameA), is(equalTo(remoteClusterCredentials(clusterNameA, "editB"))));
+        assertThat(remoteClusterCredentialsResolver.resolve(clusterNameA), is(equalTo(remoteClusterCredentials(clusterNameA, "editB"))));
         assertThat(
-            crossClusterAccessCredentialsResolver.resolve(clusterNameB),
+            remoteClusterCredentialsResolver.resolve(clusterNameB),
             is(equalTo(remoteClusterCredentials(clusterNameB, clusterBapiKey2)))
         );
-        assertThat(crossClusterAccessCredentialsResolver.resolve(clusterDoesNotExist), is(Optional.empty()));
+        assertThat(remoteClusterCredentialsResolver.resolve(clusterDoesNotExist), is(Optional.empty()));
 
         // Remove clusterB authorization setting
         final Settings.Builder newSettingsOmitClusterBBuilder = Settings.builder();
@@ -117,9 +117,9 @@ public class CrossClusterAccessCredentialsResolverTests extends ESTestCase {
         final Settings newSettingsOmitClusterB = newSettingsOmitClusterBBuilder.build();
         final ClusterState newClusterState3 = createClusterState(clusterNameA, masterNodeA, newSettingsOmitClusterB);
         ClusterServiceUtils.setState(clusterService, newClusterState3);
-        assertThat(crossClusterAccessCredentialsResolver.resolve(clusterNameA), is(equalTo(remoteClusterCredentials(clusterNameA, "omitB"))));
-        assertThat(crossClusterAccessCredentialsResolver.resolve(clusterNameB), is(Optional.empty()));
-        assertThat(crossClusterAccessCredentialsResolver.resolve(clusterDoesNotExist), is(Optional.empty()));
+        assertThat(remoteClusterCredentialsResolver.resolve(clusterNameA), is(equalTo(remoteClusterCredentials(clusterNameA, "omitB"))));
+        assertThat(remoteClusterCredentialsResolver.resolve(clusterNameB), is(Optional.empty()));
+        assertThat(remoteClusterCredentialsResolver.resolve(clusterDoesNotExist), is(Optional.empty()));
     }
 
     private static Optional<RemoteClusterCredentials> remoteClusterCredentials(String clusterAlias, String encodedApiKeyValue) {

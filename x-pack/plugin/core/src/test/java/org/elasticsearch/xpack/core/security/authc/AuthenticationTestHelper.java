@@ -72,7 +72,7 @@ public class AuthenticationTestHelper {
         AuthenticationField.ATTACH_REALM_TYPE,
         AuthenticationField.FALLBACK_REALM_TYPE,
         ServiceAccountSettings.REALM_TYPE,
-        AuthenticationField.REMOTE_ACCESS_REALM_TYPE
+        AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_TYPE
     );
 
     private static final Set<User> INTERNAL_USERS = Set.of(

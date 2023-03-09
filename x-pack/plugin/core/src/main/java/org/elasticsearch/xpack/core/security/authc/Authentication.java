@@ -57,9 +57,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newAnonymousRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newApiKeyRealmRef;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newCrossClusterAccessRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newInternalAttachRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newInternalFallbackRealmRef;
-import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newRemoteAccessRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newServiceAccountRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_TYPE;
@@ -68,11 +68,11 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AP
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_REALM_NAME;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMAIN_PARSER;
 
 /**
@@ -915,7 +915,7 @@ public final class Authentication implements ToXContentObject {
             ANONYMOUS_REALM_NAME,
             FALLBACK_REALM_NAME,
             ATTACH_REALM_NAME,
-            REMOTE_ACCESS_REALM_NAME
+            CROSS_CLUSTER_ACCESS_REALM_NAME
         ).contains(realmRef.getName())) {
             return true;
         }
@@ -925,7 +925,7 @@ public final class Authentication implements ToXContentObject {
             ANONYMOUS_REALM_TYPE,
             FALLBACK_REALM_TYPE,
             ATTACH_REALM_TYPE,
-            REMOTE_ACCESS_REALM_TYPE
+            CROSS_CLUSTER_ACCESS_REALM_TYPE
         ).contains(realmRef.getType())) {
             return true;
         }
@@ -1070,7 +1070,7 @@ public final class Authentication implements ToXContentObject {
         }
 
         private boolean isRemoteAccessRealm() {
-            return REMOTE_ACCESS_REALM_NAME.equals(name) && REMOTE_ACCESS_REALM_TYPE.equals(type);
+            return CROSS_CLUSTER_ACCESS_REALM_NAME.equals(name) && CROSS_CLUSTER_ACCESS_REALM_TYPE.equals(type);
         }
 
         static RealmRef newInternalAttachRealmRef(String nodeName) {
@@ -1099,9 +1099,9 @@ public final class Authentication implements ToXContentObject {
             return new RealmRef(API_KEY_REALM_NAME, API_KEY_REALM_TYPE, nodeName, null);
         }
 
-        static RealmRef newRemoteAccessRealmRef(String nodeName) {
-            // no domain for remote access authentication
-            return new RealmRef(REMOTE_ACCESS_REALM_NAME, REMOTE_ACCESS_REALM_TYPE, nodeName, null);
+        static RealmRef newCrossClusterAccessRealmRef(String nodeName) {
+            // no domain for cross cluster access authentication
+            return new RealmRef(CROSS_CLUSTER_ACCESS_REALM_NAME, CROSS_CLUSTER_ACCESS_REALM_TYPE, nodeName, null);
         }
     }
 
@@ -1195,7 +1195,7 @@ public final class Authentication implements ToXContentObject {
         assert getEffectiveSubject().getUser().roles().length == 0
             : "the user associated with a cross cluster access authentication must have no role";
         final Map<String, Object> metadata = new HashMap<>(getAuthenticatingSubject().getMetadata());
-        final Authentication.RealmRef authenticatedBy = newRemoteAccessRealmRef(getAuthenticatingSubject().getRealm().getNodeName());
+        final Authentication.RealmRef authenticatedBy = newCrossClusterAccessRealmRef(getAuthenticatingSubject().getRealm().getNodeName());
         return new Authentication(
             new Subject(
                 getEffectiveSubject().getUser(),

@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.C
 
 public class CrossClusterAccessAuthenticationService {
 
-    public static final Version VERSION_REMOTE_ACCESS_AUTHENTICATION = Version.V_8_8_0;
+    public static final Version VERSION_CROSS_CLUSTER_ACCESS_AUTHENTICATION = Version.V_8_8_0;
 
     public static final RoleDescriptor CROSS_CLUSTER_INTERNAL_ROLE = new RoleDescriptor(
         "_cross_cluster_internal",
@@ -81,12 +81,12 @@ public class CrossClusterAccessAuthenticationService {
             return;
         }
 
-        if (getMinNodeVersion().before(VERSION_REMOTE_ACCESS_AUTHENTICATION)) {
+        if (getMinNodeVersion().before(VERSION_CROSS_CLUSTER_ACCESS_AUTHENTICATION)) {
             withRequestProcessingFailure(
                 authcContext,
                 new IllegalArgumentException(
                     "all nodes must have version ["
-                        + VERSION_REMOTE_ACCESS_AUTHENTICATION
+                        + VERSION_CROSS_CLUSTER_ACCESS_AUTHENTICATION
                         + "] or higher to support cross cluster requests through the dedicated remote cluster port"
                 ),
                 listener

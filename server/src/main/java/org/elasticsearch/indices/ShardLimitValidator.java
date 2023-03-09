@@ -205,7 +205,7 @@ public class ShardLimitValidator {
      * @param replicas          The number of replicas of the primary shards that we want to be able to add to the cluster
      * @param state             The cluster state, used to get cluster settings and to get the number of open shards already in the cluster
      */
-    public static Result checkShardLimitForNormalNode(int numberOfNewShards, int replicas, ClusterState state) {
+    public static Result checkShardLimitForNormalNodes(int numberOfNewShards, int replicas, ClusterState state) {
         final int maxShardsPerNode = SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(state.getMetadata().settings());
         return checkShardLimit(
             numberOfNewShards * (1 + replicas),

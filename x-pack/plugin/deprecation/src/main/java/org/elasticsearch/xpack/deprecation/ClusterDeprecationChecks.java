@@ -24,7 +24,7 @@ public class ClusterDeprecationChecks {
         // Make sure we have room to add a small non-frozen index if needed
         final int shardsInFutureNewSmallIndex = 5;
         final int replicasForFutureIndex = 1;
-        ShardLimitValidator.Result shardLimitsResult = ShardLimitValidator.checkShardLimitForNormalNode(
+        ShardLimitValidator.Result shardLimitsResult = ShardLimitValidator.checkShardLimitForNormalNodes(
             shardsInFutureNewSmallIndex,
             replicasForFutureIndex,
             clusterState

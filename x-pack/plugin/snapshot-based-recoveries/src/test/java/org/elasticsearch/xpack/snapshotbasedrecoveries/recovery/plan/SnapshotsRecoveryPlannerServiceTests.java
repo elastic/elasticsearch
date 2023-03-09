@@ -526,8 +526,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
     }
 
     private void assertUsesExpectedSnapshot(ShardRecoveryPlan shardRecoveryPlan, ShardSnapshot expectedSnapshotToUse) {
-        assertThat(shardRecoveryPlan.getSnapshotFilesToRecover().getIndexId(), equalTo(expectedSnapshotToUse.getIndexId()));
-        assertThat(shardRecoveryPlan.getSnapshotFilesToRecover().getRepository(), equalTo(expectedSnapshotToUse.getRepository()));
+        assertThat(shardRecoveryPlan.getSnapshotFilesToRecover().indexId(), equalTo(expectedSnapshotToUse.getIndexId()));
+        assertThat(shardRecoveryPlan.getSnapshotFilesToRecover().repository(), equalTo(expectedSnapshotToUse.getRepository()));
 
         final Store.MetadataSnapshot shardSnapshotMetadataSnapshot = expectedSnapshotToUse.getMetadataSnapshot();
         for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : shardRecoveryPlan.getSnapshotFilesToRecover()) {

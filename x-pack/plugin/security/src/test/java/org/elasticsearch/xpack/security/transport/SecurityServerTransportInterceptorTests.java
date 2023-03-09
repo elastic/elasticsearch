@@ -713,10 +713,11 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final AuthenticationTestHelper.AuthenticationTestBuilder builder = AuthenticationTestHelper.builder();
         final Authentication authentication;
         if (unsupportedAuthentication) {
-            authentication = builder.serviceAccount().build();
+            authentication = builder.remoteAccess().build();
         } else {
             authentication = randomFrom(
                 builder.apiKey().build(),
+                builder.serviceAccount().build(),
                 builder.user(new User(randomAlphaOfLengthBetween(3, 10), randomRoles())).realm().build()
             );
         }

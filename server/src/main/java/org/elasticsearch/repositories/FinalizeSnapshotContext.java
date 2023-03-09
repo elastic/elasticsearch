@@ -11,6 +11,7 @@ package org.elasticsearch.repositories;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -24,7 +25,7 @@ import java.util.function.Consumer;
 /**
  * Context for finalizing a snapshot.
  */
-public final class FinalizeSnapshotContext extends ActionListener.Delegating<RepositoryData, RepositoryData> {
+public final class FinalizeSnapshotContext extends DelegatingActionListener<RepositoryData, RepositoryData> {
 
     private final ShardGenerations updatedShardGenerations;
 

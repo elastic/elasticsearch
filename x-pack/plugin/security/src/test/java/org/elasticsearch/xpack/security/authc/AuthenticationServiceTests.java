@@ -849,20 +849,20 @@ public class AuthenticationServiceTests extends ESTestCase {
     public void testAuthenticateTransportFallback() throws Exception {
         when(firstRealm.token(threadContext)).thenReturn(null);
         when(secondRealm.token(threadContext)).thenReturn(null);
-        User user1 = new User("username", "r1", "r2");
+        User fallbackUser = AuthenticationTestHelper.randomInternalUser();
         boolean requestIdAlreadyPresent = randomBoolean();
         SetOnce<String> reqId = new SetOnce<>();
         if (requestIdAlreadyPresent) {
             reqId.set(AuditUtil.getOrGenerateRequestId(threadContext));
         }
 
-        authenticateBlocking("_action", transportRequest, user1, result -> {
+        authenticateBlocking("_action", transportRequest, fallbackUser, result -> {
             if (requestIdAlreadyPresent) {
                 assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
             }
             assertThat(expectAuditRequestId(threadContext), is(result.v2()));
             assertThat(result, notNullValue());
-            assertThat(result.v1().getEffectiveSubject().getUser(), sameInstance(user1));
+            assertThat(result.v1().getEffectiveSubject().getUser(), sameInstance(fallbackUser));
             assertThat(result.v1().getAuthenticationType(), is(AuthenticationType.INTERNAL));
             assertThreadContextContainsAuthentication(result.v1());
             verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result.v1()), eq(threadContext));

@@ -131,6 +131,8 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
             } else {
                 // we were the master, and now we aren't
                 cancelJob();
+                // clear the deduplicator on master failover so we could re-send the requests in case we're re-elected
+                transportActionsDeduplicator.clear();
                 errorStore.clearStore();
             }
         }

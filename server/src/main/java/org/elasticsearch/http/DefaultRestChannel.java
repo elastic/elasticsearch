@@ -151,17 +151,26 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             restResponse.getHeaders()
                 .forEach((key, values) -> tracer.setAttribute(traceId, "http.response.headers." + key, String.join("; ", values)));
 
-            ActionListener<Void> listener = ActionListener.running(() -> Releasables.close(toClose));
-            try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
+            ActionListener<Void> listener = ActionListener.releasing(Releasables.wrap(toClose));
+            if (httpLogger != null) {
+                final var finalContentLength = contentLength;
+                final var finalOpaque = opaque;
+                listener = ActionListener.runAfter(
+                    listener,
+                    () -> httpLogger.logResponse(restResponse, httpChannel, finalContentLength, finalOpaque, request.getRequestId(), true)
+                );
+            }
+
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                 httpChannel.sendResponse(httpResponse, listener);
             }
             success = true;
         } finally {
             if (success == false) {
                 Releasables.close(toClose);
-            }
-            if (httpLogger != null) {
-                httpLogger.logResponse(restResponse, httpChannel, contentLength, opaque, request.getRequestId(), success);
+                if (httpLogger != null) {
+                    httpLogger.logResponse(restResponse, httpChannel, contentLength, opaque, request.getRequestId(), false);
+                }
             }
         }
     }

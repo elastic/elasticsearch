@@ -86,7 +86,7 @@ public class SnapshotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
 
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
 
-        Files.createDirectories(fileSettingsService.operatorSettingsDir());
+        Files.createDirectories(fileSettingsService.watchedFileDir());
         Path tempFilePath = createTempFile();
 
         Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
@@ -94,7 +94,7 @@ public class SnapshotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
         do {
             try {
                 // this can fail on Windows because of timing
-                Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);
+                Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
                 return;
             } catch (IOException e) {
                 logger.info("--> retrying writing a settings file [" + retryCount + "]");
@@ -170,7 +170,7 @@ public class SnapshotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
         );
 
         logger.info("--> deleting operator file, no file based settings");
-        Files.delete(fs.operatorSettingsFile());
+        Files.delete(fs.watchedFile());
 
         logger.info("--> restore global state from the snapshot");
         clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap").setRestoreGlobalState(true).setWaitForCompletion(true).get();

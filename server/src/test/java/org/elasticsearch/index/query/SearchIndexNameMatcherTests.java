@@ -42,7 +42,7 @@ public class SearchIndexNameMatcherTests extends ESTestCase {
     }
 
     private static IndexMetadata.Builder indexBuilder(String index) {
-        return IndexMetadata.builder(index).settings(settings(Version.CURRENT, 1, 0));
+        return IndexMetadata.builder(index).settings(indexSettings(Version.CURRENT, 1, 0));
     }
 
     public void testLocalIndex() {

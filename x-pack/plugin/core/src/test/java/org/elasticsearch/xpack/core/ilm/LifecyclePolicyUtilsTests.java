@@ -79,7 +79,7 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
                         )
                         .put(
                             IndexMetadata.builder("myindex")
-                                .settings(settings(Version.CURRENT, 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
+                                .settings(indexSettings(Version.CURRENT, 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
                         )
                         .build()
                 )
@@ -104,7 +104,7 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
                         )
                         .put(
                             IndexMetadata.builder("myindex")
-                                .settings(settings(Version.CURRENT, 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
+                                .settings(indexSettings(Version.CURRENT, 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
                         )
                         .putCustom(
                             ComposableIndexTemplateMetadata.TYPE,
@@ -147,15 +147,15 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
                 )
                 .put(
                     IndexMetadata.builder("myindex")
-                        .settings(settings(Version.CURRENT, 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
+                        .settings(indexSettings(Version.CURRENT, 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
                 )
                 .put(
                     IndexMetadata.builder("another")
-                        .settings(settings(Version.CURRENT, 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
+                        .settings(indexSettings(Version.CURRENT, 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
                 )
                 .put(
                     IndexMetadata.builder("other")
-                        .settings(settings(Version.CURRENT, 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "otherpolicy"))
+                        .settings(indexSettings(Version.CURRENT, 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "otherpolicy"))
                 )
 
                 .putCustom(

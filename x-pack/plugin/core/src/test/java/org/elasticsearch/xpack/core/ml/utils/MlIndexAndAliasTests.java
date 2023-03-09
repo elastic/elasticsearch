@@ -431,7 +431,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
     }
 
     private static IndexMetadata createIndexMetadata(String indexName, boolean withAlias) {
-        IndexMetadata.Builder builder = IndexMetadata.builder(indexName).settings(settings(Version.CURRENT, 1, 0));
+        IndexMetadata.Builder builder = IndexMetadata.builder(indexName).settings(indexSettings(Version.CURRENT, 1, 0));
         if (withAlias) {
             builder.putAlias(AliasMetadata.builder(TEST_INDEX_ALIAS).build());
         }

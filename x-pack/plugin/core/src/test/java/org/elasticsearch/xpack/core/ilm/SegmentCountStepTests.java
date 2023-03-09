@@ -45,7 +45,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
     }
 
     private IndexMetadata makeMeta(Index index) {
-        return IndexMetadata.builder(index.getName()).settings(settings(Version.CURRENT, 1, 0)).build();
+        return IndexMetadata.builder(index.getName()).settings(indexSettings(Version.CURRENT, 1, 0)).build();
     }
 
     @Override

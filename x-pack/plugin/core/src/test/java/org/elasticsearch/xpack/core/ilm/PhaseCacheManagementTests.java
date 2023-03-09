@@ -126,7 +126,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
     public void testEligibleForRefresh() {
         IndexMetadata meta = IndexMetadata.builder("index")
             .settings(
-                settings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
                     IndexMetadata.SETTING_INDEX_UUID,
                     randomAlphaOfLength(5)
                 )
@@ -137,7 +137,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
         LifecycleExecutionState state = LifecycleExecutionState.builder().build();
         meta = IndexMetadata.builder("index")
             .settings(
-                settings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
                     IndexMetadata.SETTING_INDEX_UUID,
                     randomAlphaOfLength(5)
                 )
@@ -149,7 +149,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
         state = LifecycleExecutionState.builder().setPhase("phase").setAction("action").setStep("step").build();
         meta = IndexMetadata.builder("index")
             .settings(
-                settings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
                     IndexMetadata.SETTING_INDEX_UUID,
                     randomAlphaOfLength(5)
                 )
@@ -161,7 +161,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
         state = LifecycleExecutionState.builder().setPhaseDefinition("{}").build();
         meta = IndexMetadata.builder("index")
             .settings(
-                settings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
                     IndexMetadata.SETTING_INDEX_UUID,
                     randomAlphaOfLength(5)
                 )
@@ -178,7 +178,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
             .build();
         meta = IndexMetadata.builder("index")
             .settings(
-                settings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
                     IndexMetadata.SETTING_INDEX_UUID,
                     randomAlphaOfLength(5)
                 )
@@ -190,7 +190,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
         state = LifecycleExecutionState.builder().setPhase("phase").setAction("action").setStep("step").setPhaseDefinition("{}").build();
         meta = IndexMetadata.builder("index")
             .settings(
-                settings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
                     IndexMetadata.SETTING_INDEX_UUID,
                     randomAlphaOfLength(5)
                 )
@@ -520,7 +520,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
 
         meta = IndexMetadata.builder(index)
             .settings(
-                settings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
                     LifecycleSettings.LIFECYCLE_NAME,
                     "my-policy"
                 ).put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5))
@@ -575,7 +575,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
     private static IndexMetadata.Builder mkMeta() {
         return IndexMetadata.builder(index)
             .settings(
-                settings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
                     IndexMetadata.SETTING_INDEX_UUID,
                     randomAlphaOfLength(5)
                 )

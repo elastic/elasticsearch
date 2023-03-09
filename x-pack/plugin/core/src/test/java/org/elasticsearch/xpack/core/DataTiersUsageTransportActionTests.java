@@ -710,7 +710,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
     }
 
     private static IndexMetadata indexMetadata(String indexName, int numberOfShards, int numberOfReplicas, String... dataTierPrefs) {
-        Settings.Builder settingsBuilder = settings(Version.CURRENT, numberOfShards, numberOfReplicas).put(
+        Settings.Builder settingsBuilder = indexSettings(Version.CURRENT, numberOfShards, numberOfReplicas).put(
             SETTING_CREATION_DATE,
             System.currentTimeMillis()
         );

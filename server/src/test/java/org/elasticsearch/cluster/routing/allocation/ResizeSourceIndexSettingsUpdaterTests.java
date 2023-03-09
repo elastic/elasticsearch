@@ -105,7 +105,7 @@ public class ResizeSourceIndexSettingsUpdaterTests extends ESAllocationTestCase 
 
         final int targetNumShards = randomFrom(1, 2, 4, 8, 16);
         final int targetNumReplicas = randomInt(2);
-        final Settings.Builder targetSettings = settings(Version.CURRENT, targetNumShards, targetNumReplicas);
+        final Settings.Builder targetSettings = indexSettings(Version.CURRENT, targetNumShards, targetNumReplicas);
         targetSettings.put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME.getKey(), sourceIndex);
         targetSettings.put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID.getKey(), sourceMetadata.index(sourceIndex).getIndexUUID());
         final boolean isShrink = randomBoolean();

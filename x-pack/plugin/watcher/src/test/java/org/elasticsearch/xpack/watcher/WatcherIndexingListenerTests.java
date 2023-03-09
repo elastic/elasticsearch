@@ -738,7 +738,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     }
 
     private IndexMetadata.Builder createIndexBuilder(String name, int numberOfShards, int numberOfReplicas) {
-        return IndexMetadata.builder(name).settings(settings(Version.CURRENT, numberOfShards, numberOfReplicas));
+        return IndexMetadata.builder(name).settings(indexSettings(Version.CURRENT, numberOfShards, numberOfReplicas));
     }
 
     private static DiscoveryNode newNode(String nodeId) {

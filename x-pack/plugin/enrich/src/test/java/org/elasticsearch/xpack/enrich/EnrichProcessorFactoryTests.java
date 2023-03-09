@@ -328,7 +328,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
 
     static Metadata createMetadata(String name, EnrichPolicy policy) {
         IndexMetadata.Builder builder = IndexMetadata.builder(EnrichPolicy.getBaseName(name) + "-1");
-        builder.settings(settings(Version.CURRENT, 1, 0));
+        builder.settings(indexSettings(Version.CURRENT, 1, 0));
         builder.putMapping(Strings.format("""
             {"_meta": {"enrich_match_field": "%s", "enrich_policy_type": "%s"}}
             """, policy.getMatchField(), policy.getType()));

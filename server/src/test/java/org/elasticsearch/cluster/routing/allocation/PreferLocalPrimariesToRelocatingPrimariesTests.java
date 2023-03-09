@@ -79,11 +79,11 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
         metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder(clusterState.metadata().index("test1"))
-                    .settings(settings(Version.CURRENT, numberOfShards, 0).put("index.routing.allocation.exclude._name", "node2"))
+                    .settings(indexSettings(Version.CURRENT, numberOfShards, 0).put("index.routing.allocation.exclude._name", "node2"))
             )
             .put(
                 IndexMetadata.builder(clusterState.metadata().index("test2"))
-                    .settings(settings(Version.CURRENT, numberOfShards, 0).put("index.routing.allocation.exclude._name", "node2"))
+                    .settings(indexSettings(Version.CURRENT, numberOfShards, 0).put("index.routing.allocation.exclude._name", "node2"))
             )
             .build();
         clusterState = ClusterState.builder(clusterState)

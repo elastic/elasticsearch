@@ -824,7 +824,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
         );
 
         for (int i = 0; i < requiredSettings.size(); i++) {
-            final Settings.Builder settings = settings(Version.CURRENT, 1, 0);
+            final Settings.Builder settings = indexSettings(Version.CURRENT, 1, 0);
             for (int j = 0; j < requiredSettings.size(); j++) {
                 if (i != j) {
                     settings.put(requiredSettings.get(j).getKey(), randomAlphaOfLength(10));

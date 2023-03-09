@@ -288,10 +288,10 @@ public class LimitedRoleTests extends ESTestCase {
 
     public void testAuthorize() {
         IndexMetadata.Builder imbBuilder = IndexMetadata.builder("_index")
-            .settings(settings(Version.CURRENT, 1, 1))
+            .settings(indexSettings(Version.CURRENT, 1, 1))
             .putAlias(AliasMetadata.builder("_alias"));
         IndexMetadata.Builder imbBuilder1 = IndexMetadata.builder("_index1")
-            .settings(settings(Version.CURRENT, 1, 1))
+            .settings(indexSettings(Version.CURRENT, 1, 1))
             .putAlias(AliasMetadata.builder("_alias1"));
         Metadata md = Metadata.builder().put(imbBuilder).put(imbBuilder1).build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);

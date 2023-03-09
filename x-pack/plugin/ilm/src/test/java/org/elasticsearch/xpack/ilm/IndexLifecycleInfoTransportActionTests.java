@@ -116,7 +116,7 @@ public class IndexLifecycleInfoTransportActionTests extends ESTestCase {
 
         Metadata.Builder metadata = Metadata.builder().putCustom(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata);
         indexPolicies.forEach((indexName, policyName) -> {
-            Settings indexSettings = settings(Version.CURRENT, 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, policyName).build();
+            Settings indexSettings = indexSettings(Version.CURRENT, 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, policyName).build();
             IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName).settings(indexSettings);
             metadata.put(indexMetadata);
         });

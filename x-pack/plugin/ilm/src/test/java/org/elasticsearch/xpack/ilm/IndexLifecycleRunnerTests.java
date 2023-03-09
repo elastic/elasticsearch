@@ -284,7 +284,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
         ThreadPool threadPool = new TestThreadPool("name");
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(settings(Version.CURRENT, 1, 1).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(indexSettings(Version.CURRENT, 1, 1).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .build();
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         DiscoveryNode node = clusterService.localNode();
@@ -334,7 +334,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .setStep("cluster_state_action_step")
             .build();
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(settings(Version.CURRENT, 1, 1).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(indexSettings(Version.CURRENT, 1, 1).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, les.asMap())
             .build();
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
@@ -420,7 +420,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .setStep("cluster_state_action_step")
             .build();
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(settings(Version.CURRENT, 1, 1).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(indexSettings(Version.CURRENT, 1, 1).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, les.asMap())
             .build();
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
@@ -469,7 +469,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
         ThreadPool threadPool = new TestThreadPool("name");
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(settings(Version.CURRENT, 1, 1).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(indexSettings(Version.CURRENT, 1, 1).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .build();
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         DiscoveryNode node = clusterService.localNode();
@@ -517,7 +517,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .setStep("cluster_state_action_step")
             .build();
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(settings(Version.CURRENT, 1, 1).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(indexSettings(Version.CURRENT, 1, 1).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, les.asMap())
             .build();
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
@@ -593,7 +593,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .setStep("cluster_state_action_step")
             .build();
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(settings(Version.CURRENT, 1, 1).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(indexSettings(Version.CURRENT, 1, 1).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, les.asMap())
             .build();
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);

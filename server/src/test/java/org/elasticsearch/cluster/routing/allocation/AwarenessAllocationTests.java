@@ -1038,7 +1038,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         final Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder("test")
-                    .settings(settings(Version.CURRENT, 1, 99).put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
+                    .settings(indexSettings(Version.CURRENT, 1, 99).put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
             )
             .build();
 
@@ -1071,7 +1071,9 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
 
         final AllocationService strategy = createAllocationService(settings);
 
-        final Metadata metadata = Metadata.builder().put(IndexMetadata.builder("test").settings(settings(Version.CURRENT, 1, 2))).build();
+        final Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(indexSettings(Version.CURRENT, 1, 2)))
+            .build();
 
         final ClusterState clusterState = applyStartedShardsUntilNoChange(
             ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(Settings.EMPTY))

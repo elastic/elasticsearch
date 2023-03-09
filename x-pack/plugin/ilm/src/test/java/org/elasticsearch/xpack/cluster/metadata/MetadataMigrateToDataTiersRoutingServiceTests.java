@@ -486,7 +486,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     private Settings.Builder getBaseIndexSettings() {
-        return settings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+        return indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
             LifecycleSettings.LIFECYCLE_NAME,
             lifecycleName
         );

@@ -120,7 +120,7 @@ public class IndexMetadataConversionTests extends ESTestCase {
     }
 
     public static IndexMetadata newIndexMeta(String name, Settings indexSettings) {
-        final Settings settings = settings(randomIndexCompatibleVersion(random()), between(1, 5), between(0, 5)).put(
+        final Settings settings = indexSettings(randomIndexCompatibleVersion(random()), between(1, 5), between(0, 5)).put(
             IndexMetadata.SETTING_CREATION_DATE,
             randomNonNegativeLong()
         ).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random())).put(indexSettings).build();

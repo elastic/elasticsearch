@@ -588,7 +588,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             .put(
                 IndexMetadata.builder(shard.getIndexName())
                     .settings(
-                        settings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, shard.getIndexName())
+                        indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, shard.getIndexName())
                             .put(DataTier.TIER_PREFERENCE, tierPreference)
                     )
             );

@@ -227,7 +227,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         indices.add(TransformInternalIndexConstants.LATEST_INDEX_NAME);
         for (String indexName : indices) {
             IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
-            indexMetadata.settings(settings(Version.CURRENT, 1, 0));
+            indexMetadata.settings(indexSettings(Version.CURRENT, 1, 0));
             metadata.put(indexMetadata);
             Index index = new Index(indexName, "_uuid");
             ShardId shardId = new ShardId(index, 0);

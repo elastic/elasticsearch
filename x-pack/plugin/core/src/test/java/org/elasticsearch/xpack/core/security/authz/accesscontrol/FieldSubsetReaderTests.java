@@ -1143,7 +1143,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testMappingsFilteringDuelWithSourceFiltering() throws Exception {
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("index").settings(settings(Version.CURRENT, 1, 0)).putMapping(MAPPING_TEST_ITEM))
+            .put(IndexMetadata.builder("index").settings(indexSettings(Version.CURRENT, 1, 0)).putMapping(MAPPING_TEST_ITEM))
             .build();
 
         {

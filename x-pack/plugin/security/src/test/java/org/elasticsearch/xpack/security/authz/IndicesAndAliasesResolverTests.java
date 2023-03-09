@@ -127,7 +127,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     @Before
     public void setup() {
-        Settings settings = settings(Version.CURRENT, randomIntBetween(1, 2), randomIntBetween(0, 1)).put(
+        Settings settings = indexSettings(Version.CURRENT, randomIntBetween(1, 2), randomIntBetween(0, 1)).put(
             "cluster.remote.remote.seeds",
             "127.0.0.1:" + randomIntBetween(9301, 9350)
         ).put("cluster.remote.other_remote.seeds", "127.0.0.1:" + randomIntBetween(9351, 9399)).build();

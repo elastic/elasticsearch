@@ -2010,7 +2010,7 @@ public class RBACEngineTests extends ESTestCase {
             .collect(
                 Collectors.toMap(
                     i -> i,
-                    v -> new IndexAbstraction.ConcreteIndex(IndexMetadata.builder(v).settings(settings(Version.CURRENT, 1, 0)).build())
+                    v -> new IndexAbstraction.ConcreteIndex(IndexMetadata.builder(v).settings(indexSettings(Version.CURRENT, 1, 0)).build())
                 )
             );
 

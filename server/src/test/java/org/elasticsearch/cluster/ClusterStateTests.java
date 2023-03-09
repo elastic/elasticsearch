@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -142,7 +143,7 @@ public class ClusterStateTests extends ESTestCase {
             clusterState,
             builder,
             new ToXContent.MapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API)),
-            34
+            37
         );
         builder.endObject();
 
@@ -208,6 +209,12 @@ public class ClusterStateTests extends ESTestCase {
                       "version": "%s"
                     }
                   },
+                  "transport_versions" : [
+                    {
+                      "node_id" : "nodeId1",
+                      "transport_version" : "8000099"
+                    }
+                  ],
                   "metadata": {
                     "cluster_uuid": "clusterUUID",
                     "cluster_uuid_committed": false,
@@ -378,7 +385,7 @@ public class ClusterStateTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        writeChunks(clusterState, builder, new ToXContent.MapParams(mapParams), 34);
+        writeChunks(clusterState, builder, new ToXContent.MapParams(mapParams), 37);
         builder.endObject();
 
         assertEquals(
@@ -443,6 +450,12 @@ public class ClusterStateTests extends ESTestCase {
                       "version" : "%s"
                     }
                   },
+                  "transport_versions" : [
+                    {
+                      "node_id" : "nodeId1",
+                      "transport_version" : "8000099"
+                    }
+                  ],
                   "metadata" : {
                     "cluster_uuid" : "clusterUUID",
                     "cluster_uuid_committed" : false,
@@ -610,7 +623,7 @@ public class ClusterStateTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        writeChunks(clusterState, builder, new ToXContent.MapParams(mapParams), 34);
+        writeChunks(clusterState, builder, new ToXContent.MapParams(mapParams), 37);
         builder.endObject();
 
         assertEquals(
@@ -675,6 +688,12 @@ public class ClusterStateTests extends ESTestCase {
                       "version" : "%s"
                     }
                   },
+                  "transport_versions" : [
+                    {
+                      "node_id" : "nodeId1",
+                      "transport_version" : "8000099"
+                    }
+                  ],
                   "metadata" : {
                     "cluster_uuid" : "clusterUUID",
                     "cluster_uuid_committed" : false,
@@ -866,7 +885,7 @@ public class ClusterStateTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        writeChunks(clusterState, builder, ToXContent.EMPTY_PARAMS, 25);
+        writeChunks(clusterState, builder, ToXContent.EMPTY_PARAMS, 27);
         builder.endObject();
 
         assertEquals(Strings.format("""
@@ -877,6 +896,7 @@ public class ClusterStateTests extends ESTestCase {
               "master_node" : null,
               "blocks" : { },
               "nodes" : { },
+              "transport_versions" : [ ],
               "metadata" : {
                 "cluster_uuid" : "clusterUUID",
                 "cluster_uuid_committed" : false,
@@ -973,6 +993,7 @@ public class ClusterStateTests extends ESTestCase {
                     .add(new DiscoveryNode("nodeId1", new TransportAddress(InetAddress.getByName("127.0.0.1"), 111), Version.CURRENT))
                     .build()
             )
+            .putTransportVersion("nodeId1", TransportVersion.V_8_0_0)
             .blocks(
                 ClusterBlocks.builder()
                     .addGlobalBlock(

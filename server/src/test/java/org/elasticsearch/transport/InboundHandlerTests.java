@@ -295,7 +295,7 @@ public class InboundHandlerTests extends ESTestCase {
             );
             BytesStreamOutput byteData = new BytesStreamOutput();
             TaskId.EMPTY_TASK_ID.writeTo(byteData);
-            TransportVersion.writeVersion(remoteVersion, byteData);
+            TransportVersion.writeVersion(byteData, remoteVersion);
             final InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(byteData.bytes()), () -> {
                 try {
                     TimeUnit.SECONDS.sleep(1L);

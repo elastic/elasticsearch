@@ -184,7 +184,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
             out.writeOptionalString(executorNodeAttr);
             out.writeOptionalString(responseNode);
             out.writeOptionalString(testParam);
-            TransportVersion.writeVersion(minVersion, out);
+            TransportVersion.writeVersion(out, minVersion);
             out.writeOptionalString(feature.orElse(null));
         }
 

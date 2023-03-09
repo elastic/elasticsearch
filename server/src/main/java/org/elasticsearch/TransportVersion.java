@@ -213,7 +213,7 @@ public class TransportVersion implements Comparable<TransportVersion> {
         return new TransportVersion(id, "<unknown>");
     }
 
-    public static void writeVersion(TransportVersion version, StreamOutput out) throws IOException {
+    public static void writeVersion(StreamOutput out, TransportVersion version) throws IOException {
         out.writeVInt(version.id);
     }
 

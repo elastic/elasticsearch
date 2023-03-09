@@ -503,7 +503,7 @@ public final class Authentication implements ToXContentObject {
     static String doEncode(Subject effectiveSubject, Subject authenticatingSubject, AuthenticationType type) throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
         output.setTransportVersion(effectiveSubject.getTransportVersion());
-        TransportVersion.writeVersion(effectiveSubject.getTransportVersion(), output);
+        TransportVersion.writeVersion(output, effectiveSubject.getTransportVersion());
         doWriteTo(effectiveSubject, authenticatingSubject, type, output);
         return Base64.getEncoder().encodeToString(BytesReference.toBytes(output.bytes()));
     }

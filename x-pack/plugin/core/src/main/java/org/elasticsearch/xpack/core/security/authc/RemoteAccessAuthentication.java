@@ -115,7 +115,7 @@ public final class RemoteAccessAuthentication {
     public String encode() throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(authentication.getEffectiveSubject().getTransportVersion());
-        TransportVersion.writeVersion(authentication.getEffectiveSubject().getTransportVersion(), out);
+        TransportVersion.writeVersion(out, authentication.getEffectiveSubject().getTransportVersion());
         authentication.writeTo(out);
         out.writeCollection(roleDescriptorsBytesList, (o, rdb) -> rdb.writeTo(o));
         return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));

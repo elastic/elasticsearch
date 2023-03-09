@@ -99,7 +99,7 @@ public class DelayableWriteableTests extends ESTestCase {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            TransportVersion.writeVersion(out.getTransportVersion(), out);
+            TransportVersion.writeVersion(out, out.getTransportVersion());
         }
     }
 

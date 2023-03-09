@@ -459,6 +459,12 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         }
         sb.append(blocks());
         sb.append(nodes());
+        if (transportVersions.isEmpty() == false) {
+            sb.append("transport versions:\n");
+            for (var tv : transportVersions.entrySet()) {
+                sb.append(TAB).append(tv.getKey()).append(": ").append(tv.getValue());
+            }
+        }
         sb.append(routingTable());
         sb.append(getRoutingNodes());
         if (customs.isEmpty() == false) {
@@ -615,7 +621,13 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 metrics.contains(Metric.TRANSPORT_VERSIONS),
                 (builder, params) -> builder.startArray("transport_versions"),
                 transportVersions.entrySet().iterator(),
-                e -> Iterators.single((builder, params) -> builder.field("node_id", e.getKey()).field("transport_version", e.getValue())),
+                e -> Iterators.single((builder, params) ->
+                    builder
+                        .startObject()
+                        .field("node_id", e.getKey())
+                        .field("transport_version", e.getValue().toString())
+                        .endObject()
+                ),
                 (builder, params) -> builder.endArray()
             ),
 
@@ -881,6 +893,9 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         builder.metadata = Metadata.readFrom(in);
         builder.routingTable = RoutingTable.readFrom(in);
         builder.nodes = DiscoveryNodes.readFrom(in, localNode);
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            builder.transportVersions(in.readMap(StreamInput::readString, TransportVersion::readVersion));
+        }
         builder.blocks = ClusterBlocks.readFrom(in);
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
@@ -901,6 +916,9 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         metadata.writeTo(out);
         routingTable.writeTo(out);
         nodes.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            out.writeMap(transportVersions, StreamOutput::writeString, TransportVersion::writeVersion);
+        }
         blocks.writeTo(out);
         VersionedNamedWriteable.writeVersionedWritables(out, customs);
         if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {

@@ -1068,10 +1068,10 @@ public class Node implements Closeable {
                 }
                 b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
                 pluginComponents.forEach(p -> {
-                    if (p instanceof PluginComponentInterface<?, ?> pci) {
+                    if (p instanceof PluginComponentBinding<?, ?> pcb) {
                         @SuppressWarnings("unchecked")
-                        Class<Object> clazz = (Class<Object>) pci.clazz();
-                        b.bind(clazz).toProvider(pci.provider());
+                        Class<Object> clazz = (Class<Object>) pcb.inter();
+                        b.bind(clazz).toInstance(pcb.impl());
 
                     } else {
                         @SuppressWarnings("unchecked")
@@ -1121,8 +1121,8 @@ public class Node implements Closeable {
             clusterModule.setExistingShardsAllocators(injector.getInstance(GatewayAllocator.class));
 
             List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream().map(p -> {
-                if (p instanceof PluginComponentInterface<?, ?> pci) {
-                    return pci.provider().get();
+                if (p instanceof PluginComponentBinding<?, ?> pcb) {
+                    return pcb.impl();
                 }
                 return p;
             }).filter(p -> p instanceof LifecycleComponent).map(p -> (LifecycleComponent) p).toList();

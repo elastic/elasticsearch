@@ -11,4 +11,4 @@ highlight:
     e.g. when ranking based on several fields, each with its own vector, or when a document
     includes a vector for the image and another vector for the text. The user may want to obtain
     relevance ranking based on a combination of all of these kNN clauses.
-  notable: true
+  notable: false

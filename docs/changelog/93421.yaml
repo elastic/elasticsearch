@@ -7,4 +7,4 @@ highlight:
   title: Make `frequent_item_sets` aggregation GA
   body: The `frequent_item_sets` aggregation has been moved from
         technical preview to general availability.
-  notable: true
+  notable: false

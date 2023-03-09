@@ -49,7 +49,7 @@ import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.StandardLicenseFactory;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.node.PluginComponentInterface;
+import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -326,8 +326,8 @@ public class XPackPlugin extends XPackClientPlugin
 
         // It is useful to override these as they are what guice is injecting into actions
         components.add(sslService);
-        components.add(new PluginComponentInterface<>(LicenseService.MutableLicense.class, () -> licenseService));
-        components.add(new PluginComponentInterface<>(LicenseService.class, () -> licenseService));
+        components.add(new PluginComponentBinding<>(LicenseService.MutableLicense.class, licenseService));
+        components.add(new PluginComponentBinding<>(LicenseService.class, licenseService));
         components.add(getLicenseState());
 
         return components;

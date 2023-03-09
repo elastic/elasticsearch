@@ -82,6 +82,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -457,7 +458,7 @@ public class NodeTests extends ESTestCase {
             AllocationService allocationService
         ) {
             List<Object> components = new ArrayList<>();
-            components.add(new PluginComponentInterface<>(MyInterface.class, getRandomBool() ? Foo::new : Bar::new));
+            components.add(new PluginComponentBinding<>(MyInterface.class, getRandomBool() ? new Foo() : new Bar()));
             return components;
         }
 
@@ -611,10 +612,10 @@ public class NodeTests extends ESTestCase {
             MockPluginWithAltImpl.MyInterface myInterface = node.injector().getInstance(MockPluginWithAltImpl.MyInterface.class);
             MockPluginWithAltImpl plugin = node.getPluginsService().filterPlugins(MockPluginWithAltImpl.class).get(0);
             if (plugin.getRandomBool()) {
-                assertTrue(myInterface instanceof MockPluginWithAltImpl.Foo);
+                assertThat(myInterface, instanceOf(MockPluginWithAltImpl.Foo.class));
                 assertTrue(myInterface.get().equalsIgnoreCase("foo"));
             } else {
-                assertTrue(myInterface instanceof MockPluginWithAltImpl.Bar);
+                assertThat(myInterface, instanceOf(MockPluginWithAltImpl.Bar.class));
                 assertTrue(myInterface.get().equalsIgnoreCase("bar"));
             }
             node.start();

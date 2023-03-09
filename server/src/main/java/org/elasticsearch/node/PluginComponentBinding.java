@@ -8,7 +8,6 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 
@@ -26,7 +25,7 @@ public class MyPlugin extends Plugin implements ExtensiblePlugin
     @Override
     public Collection<Object> createComponents(...) {
         List<Object> components = new ArrayList<>();
-        components.add(new PluginComponentInterface<>(MyInterface.class, () -> this.myImplementation));
+        components.add(new PluginComponentInterface<>(MyInterface.class, this.myImplementation));
         ...
         return components;
     }
@@ -55,4 +54,4 @@ public class TransportMyAction extends TransportMasterNodeAction<MyRequest, MyRe
  * @param <I> The interface class
  * @param <T> The implementation class
  */
-public record PluginComponentInterface<I, T extends I> (Class<? extends I> clazz, Provider<T> provider) {}
+public record PluginComponentBinding<I, T extends I> (Class<? extends I> inter, T impl) {}

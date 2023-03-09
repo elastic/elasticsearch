@@ -176,7 +176,7 @@ public class SimpleRole implements Role {
     }
 
     @Override
-    public RoleDescriptorsIntersection getRemoteAccessRoleDescriptorsIntersection(final String remoteClusterAlias) {
+    public RoleDescriptorsIntersection getRoleDescriptorsIntersectionForRemoteCluster(final String remoteClusterAlias) {
         final RemoteIndicesPermission remoteIndicesPermission = remoteIndices.forCluster(remoteClusterAlias);
         if (remoteIndicesPermission.remoteIndicesGroups().isEmpty()) {
             return RoleDescriptorsIntersection.EMPTY;

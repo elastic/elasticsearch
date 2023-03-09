@@ -154,7 +154,7 @@ public class CrossClusterAccessSubjectInfoServiceTests extends ESTestCase {
         verify(authcContext).addAuthenticationToken(credentialsArgMatches(remoteAccessHeaders.credentials()));
     }
 
-    public void testExceptionProcessingRequestOnInvalidRemoteAccessAuthentication() throws IOException {
+    public void testExceptionProcessingRequestOnInvalidCrossClusterAccessSubjectInfo() throws IOException {
         final var threadContext = new ThreadContext(Settings.EMPTY);
         final var remoteAccessHeaders = new CrossClusterAccessHeaders(
             CrossClusterAccessHeadersTests.randomEncodedApiKeyHeader(),

@@ -171,7 +171,7 @@ public interface Role {
      * @return an intersection of defined role descriptors for the remote access to a given cluster,
      *         otherwise an empty intersection if remote privileges are not defined
      */
-    RoleDescriptorsIntersection getRemoteAccessRoleDescriptorsIntersection(String remoteClusterAlias);
+    RoleDescriptorsIntersection getRoleDescriptorsIntersectionForRemoteCluster(String remoteClusterAlias);
 
     /***
      * Creates a {@link LimitedRole} that uses this Role as base and the given role as limited-by.

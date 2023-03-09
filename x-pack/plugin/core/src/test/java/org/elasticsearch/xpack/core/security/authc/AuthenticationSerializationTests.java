@@ -63,7 +63,7 @@ public class AuthenticationSerializationTests extends ESTestCase {
         assertThat(readFromAuthenticatingUser, equalTo(authentication.getAuthenticatingSubject().getUser()));
     }
 
-    public void testWriteToAndReadFromWithRemoteAccess() throws Exception {
+    public void testWriteToAndReadFromWithCrossClusterAccess() throws Exception {
         final Authentication authentication = AuthenticationTestHelper.builder().crossClusterAccess().build();
         assertThat(authentication.isCrossClusterAccess(), is(true));
 

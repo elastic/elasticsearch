@@ -599,8 +599,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         // We capture the listener so that we can complete the full flow, by calling onResponse further down
         @SuppressWarnings("unchecked")
         final ArgumentCaptor<ActionListener<RoleDescriptorsIntersection>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
-        doAnswer(i -> null).when(authzService)
-            .retrieveCrossClusterAccessRoleDescriptorsIntersection(any(), any(), listenerCaptor.capture());
+        doAnswer(i -> null).when(authzService).getRoleDescriptorsIntersectionForRemoteCluster(any(), any(), listenerCaptor.capture());
 
         final SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
@@ -683,7 +682,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         );
         verify(securityContext, never()).executeAsInternalUser(any(), any(), anyConsumer());
         verify(remoteClusterCredentialsResolver, times(1)).resolve(eq(remoteClusterAlias));
-        verify(authzService, times(authType.equals("internal") ? 0 : 1)).retrieveCrossClusterAccessRoleDescriptorsIntersection(
+        verify(authzService, times(authType.equals("internal") ? 0 : 1)).getRoleDescriptorsIntersectionForRemoteCluster(
             eq(remoteClusterAlias),
             eq(authentication.getEffectiveSubject()),
             anyActionListener()
@@ -766,7 +765,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         sender.sendRequest(connection, actionAndReq.v1(), actionAndReq.v2(), null, null);
         assertTrue(calledWrappedSender.get());
         assertThat(sentAuthentication.get(), equalTo(authentication));
-        verify(authzService, never()).retrieveCrossClusterAccessRoleDescriptorsIntersection(any(), any(), anyActionListener());
+        verify(authzService, never()).getRoleDescriptorsIntersectionForRemoteCluster(any(), any(), anyActionListener());
         assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY), nullValue());
         assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY), nullValue());
     }
@@ -891,7 +890,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             final var listener = (ActionListener<RoleDescriptorsIntersection>) invocation.getArgument(2);
             listener.onResponse(RoleDescriptorsIntersection.EMPTY);
             return null;
-        }).when(authzService).retrieveCrossClusterAccessRoleDescriptorsIntersection(any(), any(), anyActionListener());
+        }).when(authzService).getRoleDescriptorsIntersectionForRemoteCluster(any(), any(), anyActionListener());
 
         final SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,

@@ -567,7 +567,7 @@ public class AuthenticationTests extends ESTestCase {
         }
     }
 
-    public void testRemoteAccessAuthentication() throws IOException {
+    public void testCrossClusterAccessAuthentication() throws IOException {
         final String remoteAccessApiKeyId = ESTestCase.randomAlphaOfLength(20);
         final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo();
         final Authentication authentication = AuthenticationTestHelper.builder()
@@ -673,7 +673,7 @@ public class AuthenticationTests extends ESTestCase {
         runWithAuthenticationToXContent(authentication2, m -> assertThat(m, not(hasKey("api_key"))));
     }
 
-    public void testToXContentWithRemoteAccess() throws IOException {
+    public void testToXContentWithCrossClusterAccess() throws IOException {
         final String apiKeyId = randomAlphaOfLength(20);
         final Authentication authentication = AuthenticationTestHelper.builder()
             .crossClusterAccess(apiKeyId, AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo())
@@ -733,7 +733,7 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(authenticationV7.encode(), equalTo(headerV7));
     }
 
-    public void testMaybeRewriteForOlderVersionWithRemoteAccessThrowsOnUnsupportedVersion() {
+    public void testMaybeRewriteForOlderVersionWithCrossClusterAccessThrowsOnUnsupportedVersion() {
         final Authentication authentication = randomBoolean()
             ? AuthenticationTestHelper.builder().crossClusterAccess().build()
             : AuthenticationTestHelper.builder().build();
@@ -766,7 +766,7 @@ public class AuthenticationTests extends ESTestCase {
         }
     }
 
-    public void testMaybeRewriteForOlderVersionWithRemoteAccessRewritesAuthenticationInMetadata() throws IOException {
+    public void testMaybeRewriteForOlderVersionWithCrossClusterAccessRewritesAuthenticationInMetadata() throws IOException {
         final TransportVersion remoteAccessRealmVersion = Authentication.VERSION_REMOTE_ACCESS_REALM;
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
@@ -790,7 +790,7 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(innerActualAuthentication, equalTo(innerAuthentication.maybeRewriteForOlderVersion(maybeOldVersion)));
     }
 
-    public void testMaybeRewriteMetadataForRemoteAccessAuthentication() throws IOException {
+    public void testMaybeRewriteMetadataForCrossClusterAccessAuthentication() throws IOException {
         final Authentication innerAuthentication = AuthenticationTestHelper.builder().build();
         final Authentication authentication = AuthenticationTestHelper.builder()
             .crossClusterAccess(
@@ -859,7 +859,7 @@ public class AuthenticationTests extends ESTestCase {
         );
     }
 
-    public void testToRemoteAccess() {
+    public void testToCrossClusterAccess() {
         final User creator = randomUser();
         final String apiKeyId = randomAlphaOfLength(42);
         final Authentication apiKeyAuthentication = AuthenticationTestHelper.builder().apiKey(apiKeyId).user(creator).build(false);
@@ -908,7 +908,7 @@ public class AuthenticationTests extends ESTestCase {
         );
     }
 
-    public void testMaybeRewriteMetadataForApiKeyRoleDescriptorsWithRemoteAccess() {
+    public void testMaybeRewriteMetadataForApiKeyRoleDescriptorsWithRemoteIndices() {
         final String apiKeyId = randomAlphaOfLengthBetween(1, 10);
         final String apiKeyName = randomAlphaOfLengthBetween(1, 10);
         final Map<String, Object> metadata = Map.ofEntries(

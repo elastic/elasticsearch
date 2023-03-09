@@ -3037,7 +3037,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
     }
 
-    public void testActionDeniedForRemoteAccessAuthentication() {
+    public void testActionDeniedForCrossClusterAccessAuthentication() {
         final Authentication authentication = AuthenticationTestHelper.builder().crossClusterAccess().build();
         final AuthorizationInfo authorizationInfo = mock(AuthorizationInfo.class);
         when(authorizationInfo.asMap()).thenReturn(

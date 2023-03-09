@@ -244,7 +244,7 @@ public interface AuthorizationEngine {
      * Retrieve cross cluster access privileges for a given target cluster, from the provided authorization information, to be sent together
      * with a cross-cluster request (e.g. CCS) from an originating cluster to the target cluster.
      */
-    default void getCrossClusterAccessRoleDescriptorsIntersection(
+    default void getRoleDescriptorsIntersectionForRemoteCluster(
         final String remoteClusterAlias,
         final AuthorizationInfo authorizationInfo,
         final ActionListener<RoleDescriptorsIntersection> listener

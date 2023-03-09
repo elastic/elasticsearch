@@ -408,7 +408,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     assert false : message;
                     throw new IllegalArgumentException(message);
                 } else {
-                    authzService.retrieveCrossClusterAccessRoleDescriptorsIntersection(
+                    authzService.getRoleDescriptorsIntersectionForRemoteCluster(
                         remoteClusterAlias,
                         authentication.getEffectiveSubject(),
                         ActionListener.wrap(roleDescriptorsIntersection -> {

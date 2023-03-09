@@ -142,7 +142,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                 AuthenticateAction.INSTANCE.name(),
                 AuthenticateRequest.INSTANCE,
                 ActionTestUtils.assertNoFailureListener(nothing -> {
-                    authzService.retrieveCrossClusterAccessRoleDescriptorsIntersection(
+                    authzService.getRoleDescriptorsIntersectionForRemoteCluster(
                         concreteClusterAlias,
                         authentication.getEffectiveSubject(),
                         new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(newValue -> {

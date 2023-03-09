@@ -38,7 +38,11 @@ public class UnsupportedAttribute extends FieldAttribute implements Unresolvable
     }
 
     public UnsupportedAttribute(Source source, String name, UnsupportedEsField field, String customMessage) {
-        super(source, name, field);
+        this(source, name, field, customMessage, null);
+    }
+
+    public UnsupportedAttribute(Source source, String name, UnsupportedEsField field, String customMessage, NameId id) {
+        super(source, null, name, field, null, Nullability.TRUE, id, false);
         this.hasCustomMessage = customMessage != null;
         this.message = customMessage == null ? errorMessage(qualifiedName(), field) : customMessage;
     }
@@ -58,7 +62,7 @@ public class UnsupportedAttribute extends FieldAttribute implements Unresolvable
         NameId id,
         boolean synthetic
     ) {
-        return new UnsupportedAttribute(source, name, (UnsupportedEsField) field(), hasCustomMessage ? message : null);
+        return new UnsupportedAttribute(source, name, (UnsupportedEsField) field(), hasCustomMessage ? message : null, id);
     }
 
     protected String label() {

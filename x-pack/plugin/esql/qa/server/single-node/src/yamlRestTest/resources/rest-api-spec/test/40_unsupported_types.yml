@@ -197,3 +197,79 @@ unsupported:
   - match: { values.0.26: "<unsupported>" }
   - match: { values.0.27: 3 }
   - match: { values.0.28: "<unsupported>" }
+
+
+# limit 0
+  - do:
+      esql.query:
+        body:
+          query: 'from test | limit 0'
+  - match: { columns.0.name: aggregate_metric_double }
+  - match: { columns.0.type: unsupported }
+  - match: { columns.1.name: binary }
+  - match: { columns.1.type: unsupported }
+  - match: { columns.2.name: boolean }
+  - match: { columns.2.type: boolean }
+  - match: { columns.3.name: completion }
+  - match: { columns.3.type: unsupported }
+  - match: { columns.4.name: date_nanos }
+  - match: { columns.4.type: unsupported }
+  - match: { columns.5.name: date_range }
+  - match: { columns.5.type: unsupported }
+  - match: { columns.6.name: dense_vector }
+  - match: { columns.6.type: unsupported }
+  - match: { columns.7.name: double_range }
+  - match: { columns.7.type: unsupported }
+  - match: { columns.8.name: float_range }
+  - match: { columns.8.type: unsupported }
+  - match: { columns.9.name: geo_point }
+  - match: { columns.9.type: unsupported }
+  - match: { columns.10.name: histogram }
+  - match: { columns.10.type: unsupported }
+  - match: { columns.11.name: integer_range }
+  - match: { columns.11.type: unsupported }
+  - match: { columns.12.name: ip }
+  - match: { columns.12.type: unsupported }
+  - match: { columns.13.name: ip_range }
+  - match: { columns.13.type: unsupported }
+  - match: { columns.14.name: long_range }
+  - match: { columns.14.type: unsupported }
+  - match: { columns.15.name: match_only_text }
+  - match: { columns.15.type: unsupported }
+  - match: { columns.16.name: name }
+  - match: { columns.16.type: keyword }
+  - match: { columns.17.name: rank_feature }
+  - match: { columns.17.type: unsupported }
+  - match: { columns.18.name: rank_features }
+  - match: { columns.18.type: unsupported }
+  - match: { columns.19.name: search_as_you_type }
+  - match: { columns.19.type: unsupported }
+  - match: { columns.20.name: search_as_you_type._2gram }
+  - match: { columns.20.type: unsupported }
+  - match: { columns.21.name: search_as_you_type._3gram }
+  - match: { columns.21.type: unsupported }
+  - match: { columns.22.name: search_as_you_type._index_prefix }
+  - match: { columns.22.type: unsupported }
+  - match: { columns.23.name: shape }
+  - match: { columns.23.type: unsupported }
+  - match: { columns.24.name: some_doc.bar }
+  - match: { columns.24.type: long }
+  - match: { columns.25.name: some_doc.foo }
+  - match: { columns.25.type: keyword }
+  - match: { columns.26.name: text }
+  - match: { columns.26.type: unsupported }
+  - match: { columns.27.name: token_count }
+  - match: { columns.27.type: integer }
+  - match: { columns.28.name: version }
+  - match: { columns.28.type: unsupported }
+
+  - length: { values: 0 }
+
+# project unsupported and limit 0
+  - do:
+      esql.query:
+        body:
+          query: 'from test | project shape | limit 0'
+  - match: { columns.0.name: shape }
+  - match: { columns.0.type: unsupported }
+  - length: { values: 0 }

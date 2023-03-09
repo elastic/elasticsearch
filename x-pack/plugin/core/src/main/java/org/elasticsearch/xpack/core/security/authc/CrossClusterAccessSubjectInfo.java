@@ -105,6 +105,7 @@ public final class CrossClusterAccessSubjectInfo {
         throws IOException {
         // If we ever lift this restriction, we need to ensure that the serialization of each set of role descriptors to raw bytes is
         // deterministic. We can do so by sorting the role descriptors before serializing.
+
         assert roleDescriptorsIntersection.roleDescriptorsList().stream().noneMatch(rds -> rds.size() > 1)
             : "sets with more than one role descriptor are not supported for cross cluster access authentication";
         final List<RoleDescriptorsBytes> roleDescriptorsBytesList = new ArrayList<>();
@@ -135,7 +136,8 @@ public final class CrossClusterAccessSubjectInfo {
     }
 
     /**
-     * Returns a copy of the passed-in metadata map, with the relevant cross cluster access fields included. Does not modify the original map.
+     * Returns a copy of the passed-in metadata map, with the relevant cross cluster access fields included.
+     * Does not modify the original map.
      */
     public Map<String, Object> copyWithCrossClusterAccessEntries(final Map<String, Object> authenticationMetadata) {
         assert false == authenticationMetadata.containsKey(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY)

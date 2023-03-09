@@ -170,7 +170,8 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                 )
             ),
             entry(
-                "Cross cluster access authentication requires metadata to contain a non-null serialized cross cluster access authentication",
+                "Cross cluster access authentication requires metadata to contain "
+                    + "a non-null serialized cross cluster access authentication field",
                 encodeAuthentication(
                     new Subject(
                         userFoo,
@@ -199,7 +200,8 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                 )
             ),
             entry(
-                "Cross cluster access authentication requires metadata to contain a non-null serialized cross cluster access role descriptors",
+                "Cross cluster access authentication requires metadata to contain "
+                    + "a non-null serialized cross cluster access role descriptors field",
                 encodeAuthentication(
                     new Subject(
                         userFoo,

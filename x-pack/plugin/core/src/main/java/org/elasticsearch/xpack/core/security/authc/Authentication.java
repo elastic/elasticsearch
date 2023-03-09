@@ -793,7 +793,8 @@ public final class Authentication implements ToXContentObject {
         if (Subject.Type.CROSS_CLUSTER_ACCESS == authenticatingSubject.getType()) {
             if (authenticatingSubject.getMetadata().get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY) == null) {
                 throw new IllegalArgumentException(
-                    "Cross cluster access authentication requires metadata to contain a non-null serialized cross cluster access authentication"
+                    "Cross cluster access authentication requires metadata to contain "
+                        + "a non-null serialized cross cluster access authentication field"
                 );
             }
             final Authentication innerAuthentication = (Authentication) authenticatingSubject.getMetadata()
@@ -805,7 +806,8 @@ public final class Authentication implements ToXContentObject {
             }
             if (authenticatingSubject.getMetadata().get(CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY) == null) {
                 throw new IllegalArgumentException(
-                    "Cross cluster access authentication requires metadata to contain a non-null serialized cross cluster access role descriptors"
+                    "Cross cluster access authentication requires metadata to contain "
+                        + "a non-null serialized cross cluster access role descriptors field"
                 );
             }
             checkNoRunAs(this, "Remote access");

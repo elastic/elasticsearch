@@ -951,7 +951,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 assertPeerRecoveryUsedSnapshots(indexRecoveredFromSnapshot1, sourceNode, targetNode);
 
                 for (RecoverySnapshotFileRequest recoverySnapshotFileRequest : recoverySnapshotFileRequests) {
-                    String indexName = recoverySnapshotFileRequest.getShardId().getIndexName();
+                    String indexName = recoverySnapshotFileRequest.shardId().getIndexName();
                     assertThat(indexName, is(equalTo(indexRecoveredFromSnapshot1)));
                 }
 

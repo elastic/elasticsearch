@@ -261,7 +261,7 @@ public class ShardLimitValidator {
         return "this action would add ["
             + result.totalShardsToAdd
             + "] shards, but this cluster currently has ["
-            + result.currentUsedShardsByGroup.get()
+            + result.currentUsedShards.get()
             + "]/["
             + result.maxShardsInCluster
             + "] maximum "
@@ -275,7 +275,7 @@ public class ShardLimitValidator {
      */
     public record Result(
         boolean canAddShards,
-        Optional<Long> currentUsedShardsByGroup,
+        Optional<Long> currentUsedShards,
         int totalShardsToAdd,
         int maxShardsInCluster,
         String group

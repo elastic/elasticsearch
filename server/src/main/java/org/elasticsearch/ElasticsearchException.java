@@ -289,10 +289,11 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     @FunctionalInterface
     protected interface WriteNestedExceptions extends CheckedBiConsumer<Throwable, StreamOutput, IOException> {}
 
-    private static WriteNestedExceptions createNestingFunction(int level, Runnable nestedExceptionLimitCallback) {
+    private static WriteNestedExceptions createNestingFunction(int thisLevel, Runnable nestedExceptionLimitCallback) {
+        int nextLevel = thisLevel+1;
         return (t, o) -> {
-            writeException(t.getCause(), o, level, nestedExceptionLimitCallback);
-            writeStackTraces(t, o, (no, nt) -> writeException(nt, no, level, nestedExceptionLimitCallback));
+            writeException(t.getCause(), o, nextLevel, nestedExceptionLimitCallback);
+            writeStackTraces(t, o, (no, nt) -> writeException(nt, no, nextLevel, nestedExceptionLimitCallback));
         };
     }
 
@@ -739,7 +740,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     /**
      * Serializes the given exceptions stacktrace elements as well as it's suppressed exceptions to the given output stream.
      */
-    public static <T extends Throwable> T writeStackTraces(T throwable, StreamOutput out, Writer<Throwable> exceptionWriter)
+    public static void writeStackTraces(Throwable throwable, StreamOutput out, Writer<Throwable> exceptionWriter)
         throws IOException {
         out.writeArray((o, v) -> {
             o.writeString(v.getClassName());
@@ -748,7 +749,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             o.writeVInt(v.getLineNumber());
         }, throwable.getStackTrace());
         out.writeArray(exceptionWriter, throwable.getSuppressed());
-        return throwable;
     }
 
     /**
@@ -781,7 +781,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
         boolean writeCause = true;
         boolean writeMessage = true;
-        ElasticsearchException esException = null;
         if (throwable instanceof CorruptIndexException cie) {
             output.writeVInt(1);
             output.writeOptionalString(cie.getOriginalMessage());
@@ -878,7 +877,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             }
             output.writeVInt(0);
             output.writeVInt(getId(ex.getClass()));
-            ex.writeTo(output, createNestingFunction(nestedLevel + 1, nestedExceptionLimitCallback));
+            ex.writeTo(output, createNestingFunction(nestedLevel, nestedExceptionLimitCallback));
             return;
         }
 

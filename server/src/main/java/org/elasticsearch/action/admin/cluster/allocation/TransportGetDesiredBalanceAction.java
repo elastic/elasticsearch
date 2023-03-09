@@ -91,11 +91,13 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
             listener.onFailure(new ResourceNotFoundException("Desired balance is not computed yet"));
             return;
         }
+        var clusterInfo = clusterInfoService.getClusterInfo();
         listener.onResponse(
             new DesiredBalanceResponse(
                 desiredBalanceShardsAllocator.getStats(),
-                ClusterBalanceStats.createFrom(state, clusterInfoService.getClusterInfo(), writeLoadForecaster),
-                createRoutingTable(state, latestDesiredBalance)
+                ClusterBalanceStats.createFrom(state, clusterInfo, writeLoadForecaster),
+                createRoutingTable(state, latestDesiredBalance),
+                clusterInfo
             )
         );
     }

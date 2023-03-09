@@ -104,7 +104,8 @@ public final class Authentication implements ToXContentObject {
     private static final Logger logger = LogManager.getLogger(Authentication.class);
     private static final TransportVersion VERSION_AUTHENTICATION_TYPE = TransportVersion.fromId(6_07_00_99);
 
-    public static final TransportVersion VERSION_REMOTE_ACCESS_REALM = TransportVersion.V_8_7_0;
+    // TODO: will this break because of the rename?
+    public static final TransportVersion VERSION_CROSS_CLUSTER_ACCESS_REALM = TransportVersion.V_8_7_0;
     public static final TransportVersion VERSION_API_KEY_ROLES_AS_BYTES = TransportVersion.V_7_9_0;
     public static final TransportVersion VERSION_REALM_DOMAINS = TransportVersion.V_8_2_0;
     public static final TransportVersion VERSION_METADATA_BEYOND_GENERIC_MAP = TransportVersion.V_8_8_0;
@@ -224,10 +225,10 @@ public final class Authentication implements ToXContentObject {
 
         // remote access introduced a new synthetic realm and subject type; these cannot be parsed by older versions, so rewriting is not
         // possible
-        if (isCrossClusterAccess() && olderVersion.before(VERSION_REMOTE_ACCESS_REALM)) {
+        if (isCrossClusterAccess() && olderVersion.before(VERSION_CROSS_CLUSTER_ACCESS_REALM)) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + VERSION_REMOTE_ACCESS_REALM
+                    + VERSION_CROSS_CLUSTER_ACCESS_REALM
                     + "] can't handle remote access authentication and attempted to rewrite for ["
                     + olderVersion
                     + "]"
@@ -518,10 +519,10 @@ public final class Authentication implements ToXContentObject {
         // remote access introduced a new synthetic realm and subject type; these cannot be parsed by older versions, so rewriting we should
         // not send them across the wire to older nodes
         final boolean isRemoteAccess = effectiveSubject.getType() == Subject.Type.CROSS_CLUSTER_ACCESS;
-        if (isRemoteAccess && out.getTransportVersion().before(VERSION_REMOTE_ACCESS_REALM)) {
+        if (isRemoteAccess && out.getTransportVersion().before(VERSION_CROSS_CLUSTER_ACCESS_REALM)) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + VERSION_REMOTE_ACCESS_REALM
+                    + VERSION_CROSS_CLUSTER_ACCESS_REALM
                     + "] can't handle remote access authentication and attempted to send to ["
                     + out.getTransportVersion()
                     + "]"

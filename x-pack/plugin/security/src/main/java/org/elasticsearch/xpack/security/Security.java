@@ -911,12 +911,12 @@ public class Security extends Plugin
         );
 
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
-        final CrossClusterAccessAuthenticationService remoteAccessAuthcService = new CrossClusterAccessAuthenticationService(
+        final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService = new CrossClusterAccessAuthenticationService(
             clusterService,
             apiKeyService,
             authcService.get()
         );
-        components.add(remoteAccessAuthcService);
+        components.add(crossClusterAccessAuthcService);
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(
                 settings,
@@ -926,7 +926,7 @@ public class Security extends Plugin
                 getSslService(),
                 securityContext.get(),
                 destructiveOperations,
-                remoteAccessAuthcService,
+                crossClusterAccessAuthcService,
                 remoteClusterCredentialsResolver
             )
         );

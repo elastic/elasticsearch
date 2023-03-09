@@ -278,9 +278,9 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
             equalTo(Strings.format("service account [%s]", authentication4.getEffectiveSubject().getUser().principal()))
         );
 
-        final var remoteAccessAuthentication = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo();
+        final var crossClusterAccessSubjectInfo = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo();
         final Authentication authentication5 = AuthenticationTestHelper.builder()
-            .crossClusterAccess(randomAlphaOfLength(42), remoteAccessAuthentication)
+            .crossClusterAccess(randomAlphaOfLength(42), crossClusterAccessSubjectInfo)
             .build();
         final Authentication innerAuthentication = (Authentication) authentication5.getAuthenticatingSubject()
             .getMetadata()

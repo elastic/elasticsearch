@@ -98,7 +98,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         verify(authzService).authorize(eq(authentication), eq("_action"), eq(request), anyActionListener());
     }
 
-    public void testRemoteAccessInbound() {
+    public void testCrossClusterAccessInbound() {
         TransportRequest request = mock(TransportRequest.class);
         Authentication authentication = AuthenticationTestHelper.builder().build();
         boolean allowlisted = randomBoolean();
@@ -106,7 +106,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
         doAnswer(getAnswer(authentication, true)).when(crossClusterAccessAuthcService)
             .authenticate(eq(action), eq(request), anyActionListener());
-        ServerTransportFilter filter = getNodeRemoteAccessFilter();
+        ServerTransportFilter filter = getNodeCrossClusterAccessFilter();
         PlainActionFuture<Void> listener = spy(new PlainActionFuture<>());
         filter.inbound(action, request, channel, listener);
         if (allowlisted) {
@@ -130,7 +130,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         }
     }
 
-    public void testRemoteAccessInboundInvalidHeadersFail() {
+    public void testCrossClusterAccessInboundInvalidHeadersFail() {
         TransportRequest request = mock(TransportRequest.class);
         Authentication authentication = AuthenticationTestHelper.builder().build();
         boolean allowlisted = randomBoolean();
@@ -138,7 +138,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
         doAnswer(getAnswer(authentication, true)).when(crossClusterAccessAuthcService)
             .authenticate(eq(action), eq(request), anyActionListener());
-        ServerTransportFilter filter = getNodeRemoteAccessFilter(Set.copyOf(randomNonEmptySubsetOf(SECURITY_HEADER_FILTERS)));
+        ServerTransportFilter filter = getNodeCrossClusterAccessFilter(Set.copyOf(randomNonEmptySubsetOf(SECURITY_HEADER_FILTERS)));
         PlainActionFuture<Void> listener = new PlainActionFuture<>();
         filter.inbound(action, request, channel, listener);
         var actual = expectThrows(IllegalArgumentException.class, listener::actionGet);
@@ -169,15 +169,15 @@ public class ServerTransportFilterTests extends ESTestCase {
         );
         Authentication authentication = AuthenticationTestHelper.builder().build();
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
-        boolean remoteAccess = randomBoolean();
-        ServerTransportFilter filter = remoteAccess ? getNodeRemoteAccessFilter() : getNodeFilter();
+        boolean crossClusterAccess = randomBoolean();
+        ServerTransportFilter filter = crossClusterAccess ? getNodeCrossClusterAccessFilter() : getNodeFilter();
         PlainActionFuture<Void> listener = spy(new PlainActionFuture<>());
         filter.inbound(action, request, channel, listener);
         if (failDestructiveOperations) {
             expectThrows(IllegalArgumentException.class, listener::actionGet);
             verifyNoMoreInteractions(authzService);
         } else {
-            if (remoteAccess) {
+            if (crossClusterAccess) {
                 var actual = expectThrows(IllegalArgumentException.class, listener::actionGet);
                 assertThat(
                     actual.getMessage(),
@@ -215,7 +215,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         verifyNoMoreInteractions(authzService);
     }
 
-    public void testRemoteAccessInboundAuthenticationException() {
+    public void testCrossClusterAccessInboundAuthenticationException() {
         TransportRequest request = mock(TransportRequest.class);
         Exception authE = authenticationError("authc failed");
         // Only pick allowlisted action -- it does not make sense to pick one that isn't because we will never get to authenticate in that
@@ -237,7 +237,7 @@ public class ServerTransportFilterTests extends ESTestCase {
             callback.onFailure(authE);
             return Void.TYPE;
         }).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
-        ServerTransportFilter filter = getNodeRemoteAccessFilter();
+        ServerTransportFilter filter = getNodeCrossClusterAccessFilter();
         try {
             PlainActionFuture<Void> future = new PlainActionFuture<>();
             filter.inbound(action, request, channel, future);
@@ -252,8 +252,8 @@ public class ServerTransportFilterTests extends ESTestCase {
     }
 
     public void testInboundAuthorizationException() {
-        boolean remoteAccess = randomBoolean();
-        ServerTransportFilter filter = remoteAccess ? getNodeRemoteAccessFilter() : getNodeFilter();
+        boolean crossClusterAccess = randomBoolean();
+        ServerTransportFilter filter = crossClusterAccess ? getNodeCrossClusterAccessFilter() : getNodeFilter();
         TransportRequest request = mock(TransportRequest.class);
         Authentication authentication = AuthenticationTestHelper.builder().build();
         String action = SearchAction.NAME;
@@ -268,7 +268,7 @@ public class ServerTransportFilterTests extends ESTestCase {
             future.actionGet();
         });
         assertThat(e.getMessage(), equalTo("authz failed"));
-        if (remoteAccess) {
+        if (crossClusterAccess) {
             verify(crossClusterAccessAuthcService).authenticate(anyString(), any(), anyActionListener());
             verify(authcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
         } else {
@@ -304,10 +304,10 @@ public class ServerTransportFilterTests extends ESTestCase {
         return getAnswer(authentication, false);
     }
 
-    private static Answer<Class<Void>> getAnswer(Authentication authentication, boolean remoteAccess) {
+    private static Answer<Class<Void>> getAnswer(Authentication authentication, boolean crossClusterAccess) {
         return i -> {
             final Object[] args = i.getArguments();
-            assertThat(args, arrayWithSize(remoteAccess ? 3 : 4));
+            assertThat(args, arrayWithSize(crossClusterAccess ? 3 : 4));
             @SuppressWarnings("unchecked")
             ActionListener<Authentication> callback = (ActionListener<Authentication>) args[args.length - 1];
             callback.onResponse(authentication);
@@ -328,11 +328,11 @@ public class ServerTransportFilterTests extends ESTestCase {
         );
     }
 
-    private CrossClusterAccessServerTransportFilter getNodeRemoteAccessFilter() {
-        return getNodeRemoteAccessFilter(Collections.emptySet());
+    private CrossClusterAccessServerTransportFilter getNodeCrossClusterAccessFilter() {
+        return getNodeCrossClusterAccessFilter(Collections.emptySet());
     }
 
-    private CrossClusterAccessServerTransportFilter getNodeRemoteAccessFilter(Set<String> additionalHeadersKeys) {
+    private CrossClusterAccessServerTransportFilter getNodeCrossClusterAccessFilter(Set<String> additionalHeadersKeys) {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         ThreadContext threadContext = new ThreadContext(settings);
         for (var header : additionalHeadersKeys) {

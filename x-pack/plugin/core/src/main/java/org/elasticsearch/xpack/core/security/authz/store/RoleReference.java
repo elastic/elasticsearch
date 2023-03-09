@@ -131,7 +131,7 @@ public interface RoleReference {
             // Hashing can be expensive. memorize the result in case the method is called multiple times.
             if (id == null) {
                 final String roleDescriptorsHash = roleDescriptorsBytes.digest();
-                id = new RoleKey(Set.of("remote_access:" + roleDescriptorsHash), "remote_access");
+                id = new RoleKey(Set.of("cross_cluster_access:" + roleDescriptorsHash), "cross_cluster_access");
             }
             return id;
         }

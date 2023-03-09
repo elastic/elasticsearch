@@ -66,13 +66,13 @@ public class RoleReferenceTests extends ESTestCase {
         assertThat(roleKey.getSource(), equalTo("apikey_" + apiKeyRoleType));
     }
 
-    public void testRemoteAccessRoleReference() {
+    public void testCrossClusterAccessRoleReference() {
         final var roleDescriptorsBytes = new CrossClusterAccessSubjectInfo.RoleDescriptorsBytes(new BytesArray(randomAlphaOfLength(50)));
-        final var remoteAccessRoleReference = new RoleReference.CrossClusterAccessRoleReference(roleDescriptorsBytes);
+        final var crossClusterAccessRoleReference = new RoleReference.CrossClusterAccessRoleReference(roleDescriptorsBytes);
 
-        final RoleKey roleKey = remoteAccessRoleReference.id();
-        assertThat(roleKey.getNames(), hasItem("remote_access:" + roleDescriptorsBytes.digest()));
-        assertThat(roleKey.getSource(), equalTo("remote_access"));
+        final RoleKey roleKey = crossClusterAccessRoleReference.id();
+        assertThat(roleKey.getNames(), hasItem("cross_cluster_access:" + roleDescriptorsBytes.digest()));
+        assertThat(roleKey.getSource(), equalTo("cross_cluster_access"));
     }
 
     public void testServiceAccountRoleReference() {

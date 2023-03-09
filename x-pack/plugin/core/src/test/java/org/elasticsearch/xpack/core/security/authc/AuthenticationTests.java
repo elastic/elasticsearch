@@ -137,7 +137,7 @@ public class AuthenticationTests extends ESTestCase {
         );
     }
 
-    public void testRemoteAccessCanAccessResourceOf() throws IOException {
+    public void testCrossClusterAccessCanAccessResourceOf() throws IOException {
         final String apiKeyId1 = randomAlphaOfLengthBetween(10, 20);
         final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo1 = randomValueOtherThanMany(
             ra -> User.isInternal(ra.getAuthentication().getEffectiveSubject().getUser()),
@@ -148,10 +148,10 @@ public class AuthenticationTests extends ESTestCase {
             .build(false);
         final User apiKeyUser1 = authentication.getEffectiveSubject().getUser();
 
-        // 1. Same remote access authentication, allow access (this is only scenario resource share is allowed)
+        // 1. Same cross cluster access authentication, allow access (this is only scenario resource share is allowed)
         assertCanAccessResources(authentication, authentication);
 
-        // 2. The remote access authentication is not the same as its nested QC user authentication
+        // 2. The cross cluster access authentication is not the same as its nested QC user authentication
         // This also covers the case where FC happens to have a user that looks the same as the QC user
         assertCannotAccessResources(authentication, crossClusterAccessSubjectInfo1.getAuthentication());
         assertThat(
@@ -162,7 +162,7 @@ public class AuthenticationTests extends ESTestCase {
         // 3. The same API key can be used with the REST interface
         assertCannotAccessResources(authentication, AuthenticationTestHelper.builder().apiKey(apiKeyId1).build());
 
-        // 4. The same QC user can use a different remote access API key
+        // 4. The same QC user can use a different cross cluster access API key
         final String apiKeyId2 = randomValueOtherThan(apiKeyId1, () -> randomAlphaOfLengthBetween(10, 20));
         assertCannotAccessResources(
             authentication,
@@ -400,9 +400,9 @@ public class AuthenticationTests extends ESTestCase {
         Authentication internalAuthentication = randomInternalAuthentication();
         assertThat(internalAuthentication.isAssignedToDomain(), is(false));
         assertThat(internalAuthentication.getDomain(), nullValue());
-        Authentication remoteAccessAuthentication = AuthenticationTestHelper.builder().crossClusterAccess().build();
-        assertThat(remoteAccessAuthentication.isAssignedToDomain(), is(false));
-        assertThat(remoteAccessAuthentication.getDomain(), nullValue());
+        Authentication crossClusterAccessAuthentication = AuthenticationTestHelper.builder().crossClusterAccess().build();
+        assertThat(crossClusterAccessAuthentication.isAssignedToDomain(), is(false));
+        assertThat(crossClusterAccessAuthentication.getDomain(), nullValue());
     }
 
     public void testRealmAuthenticationIsAssignedToDomain() {
@@ -568,10 +568,10 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public void testCrossClusterAccessAuthentication() throws IOException {
-        final String remoteAccessApiKeyId = ESTestCase.randomAlphaOfLength(20);
+        final String crossClusterAccessApiKeyId = ESTestCase.randomAlphaOfLength(20);
         final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo();
         final Authentication authentication = AuthenticationTestHelper.builder()
-            .crossClusterAccess(remoteAccessApiKeyId, crossClusterAccessSubjectInfo)
+            .crossClusterAccess(crossClusterAccessApiKeyId, crossClusterAccessSubjectInfo)
             .build(false);
 
         assertThat(authentication.getAuthenticationType(), equalTo(Authentication.AuthenticationType.API_KEY));
@@ -593,7 +593,7 @@ public class AuthenticationTests extends ESTestCase {
         );
         assertThat(
             authentication.getAuthenticatingSubject().getMetadata(),
-            hasEntry(AuthenticationField.API_KEY_ID_KEY, remoteAccessApiKeyId)
+            hasEntry(AuthenticationField.API_KEY_ID_KEY, crossClusterAccessApiKeyId)
         );
         assertThat(
             authentication.getAuthenticatingSubject().getMetadata(),
@@ -754,7 +754,7 @@ public class AuthenticationTests extends ESTestCase {
                 ex.getMessage(),
                 containsString(
                     "versions of Elasticsearch before ["
-                        + Authentication.VERSION_REMOTE_ACCESS_REALM
+                        + Authentication.VERSION_CROSS_CLUSTER_ACCESS_REALM
                         + "] can't handle remote access authentication and attempted to rewrite for ["
                         + version.transportVersion
                         + "]"
@@ -767,10 +767,10 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public void testMaybeRewriteForOlderVersionWithCrossClusterAccessRewritesAuthenticationInMetadata() throws IOException {
-        final TransportVersion remoteAccessRealmVersion = Authentication.VERSION_REMOTE_ACCESS_REALM;
+        final TransportVersion crossClusterAccessRealmVersion = Authentication.VERSION_CROSS_CLUSTER_ACCESS_REALM;
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            remoteAccessRealmVersion,
+            crossClusterAccessRealmVersion,
             TransportVersion.CURRENT
         );
         final Authentication innerAuthentication = AuthenticationTestHelper.builder().transportVersion(version).build();
@@ -780,7 +780,11 @@ public class AuthenticationTests extends ESTestCase {
                 new CrossClusterAccessSubjectInfo(innerAuthentication, RoleDescriptorsIntersection.EMPTY)
             )
             .build();
-        final TransportVersion maybeOldVersion = TransportVersionUtils.randomVersionBetween(random(), remoteAccessRealmVersion, version);
+        final TransportVersion maybeOldVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            crossClusterAccessRealmVersion,
+            version
+        );
 
         final Authentication actual = authentication.maybeRewriteForOlderVersion(maybeOldVersion);
 

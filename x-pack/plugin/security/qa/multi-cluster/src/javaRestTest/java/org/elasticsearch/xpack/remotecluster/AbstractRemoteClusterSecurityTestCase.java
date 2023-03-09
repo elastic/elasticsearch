@@ -101,11 +101,11 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     protected String configureRemoteClustersWithApiKey(String indicesPrivilegesJson, boolean isProxyMode) throws Exception {
         // Create API key on FC
         final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey(indicesPrivilegesJson);
-        final String encodedRemoteAccessApiKey = (String) apiKeyMap.get("encoded");
+        final String encodedCrossClusterAccessApiKey = (String) apiKeyMap.get("encoded");
 
         // Update remote cluster settings on QC with the API key
         final Settings.Builder builder = Settings.builder()
-            .put("cluster.remote.my_remote_cluster.authorization", encodedRemoteAccessApiKey);
+            .put("cluster.remote.my_remote_cluster.authorization", encodedCrossClusterAccessApiKey);
         ;
         if (isProxyMode) {
             builder.put("cluster.remote.my_remote_cluster.mode", "proxy")

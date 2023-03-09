@@ -115,11 +115,11 @@ class AuthorizationDenialMessages {
             assert apiKeyId != null : "api key id must be present in the metadata";
             userText = "API key id [" + apiKeyId + "] of " + userText;
             if (authentication.isCrossClusterAccess()) {
-                final Authentication remoteAccessAuthentication = (Authentication) authentication.getAuthenticatingSubject()
+                final Authentication crossClusterAccessAuthentication = (Authentication) authentication.getAuthenticatingSubject()
                     .getMetadata()
                     .get(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
-                assert remoteAccessAuthentication != null : "remote access authentication must be present in the metadata";
-                userText = successfulAuthenticationDescription(remoteAccessAuthentication, null) + " authenticated by " + userText;
+                assert crossClusterAccessAuthentication != null : "cross cluster access authentication must be present in the metadata";
+                userText = successfulAuthenticationDescription(crossClusterAccessAuthentication, null) + " authenticated by " + userText;
             }
         }
         return userText;

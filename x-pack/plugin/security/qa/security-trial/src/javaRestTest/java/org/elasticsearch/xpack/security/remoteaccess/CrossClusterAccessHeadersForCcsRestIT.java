@@ -946,8 +946,8 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 // user authentication and empty role descriptors intersection
                 case RemoteClusterNodesAction.NAME -> {
                     assertContainsCrossClusterAccessHeaders(actual.headers());
-                    assertContainsRemoteClusterAuthorizationHeader(encodedCredential, actual);
-                    final var actualRemoteAccessAuthentication = CrossClusterAccessSubjectInfo.decode(
+                    assertContainsCrossClusterAccessCredentialsHeader(encodedCredential, actual);
+                    final var actualCrossClusterAccessSubjectInfo = CrossClusterAccessSubjectInfo.decode(
                         actual.headers().get(CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY)
                     );
                     final var expectedRemoteAccessAuthentication = new CrossClusterAccessSubjectInfo(
@@ -956,15 +956,15 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                             TransportVersion.CURRENT,
                             // Since we are running on a multi-node cluster the actual node name may be different between runs
                             // so just copy the one from the actual result
-                            actualRemoteAccessAuthentication.getAuthentication().getEffectiveSubject().getRealm().getNodeName()
+                            actualCrossClusterAccessSubjectInfo.getAuthentication().getEffectiveSubject().getRealm().getNodeName()
                         ),
                         RoleDescriptorsIntersection.EMPTY
                     );
-                    assertThat(actualRemoteAccessAuthentication, equalTo(expectedRemoteAccessAuthentication));
+                    assertThat(actualCrossClusterAccessSubjectInfo, equalTo(expectedRemoteAccessAuthentication));
                 }
                 case SearchAction.NAME, ClusterSearchShardsAction.NAME -> {
                     assertContainsCrossClusterAccessHeaders(actual.headers());
-                    assertContainsRemoteClusterAuthorizationHeader(encodedCredential, actual);
+                    assertContainsCrossClusterAccessCredentialsHeader(encodedCredential, actual);
                     final var actualRemoteAccessAuthentication = CrossClusterAccessSubjectInfo.decode(
                         actual.headers().get(CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY)
                     );
@@ -975,7 +975,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         }
     }
 
-    private void assertContainsRemoteClusterAuthorizationHeader(String encodedCredential, CapturedActionWithHeaders actual) {
+    private void assertContainsCrossClusterAccessCredentialsHeader(String encodedCredential, CapturedActionWithHeaders actual) {
         assertThat(actual.headers(), hasKey(CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY));
         assertThat(
             actual.headers().get(CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY),

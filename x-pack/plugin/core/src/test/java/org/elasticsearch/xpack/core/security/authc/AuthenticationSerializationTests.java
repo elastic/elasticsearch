@@ -84,7 +84,7 @@ public class AuthenticationSerializationTests extends ESTestCase {
         final BytesStreamOutput out = new BytesStreamOutput();
         final TransportVersion version = TransportVersionUtils.randomPreviousCompatibleVersion(
             random(),
-            Authentication.VERSION_REMOTE_ACCESS_REALM
+            Authentication.VERSION_CROSS_CLUSTER_ACCESS_REALM
         );
         out.setTransportVersion(version);
 
@@ -94,7 +94,7 @@ public class AuthenticationSerializationTests extends ESTestCase {
                 ex.getMessage(),
                 containsString(
                     "versions of Elasticsearch before ["
-                        + Authentication.VERSION_REMOTE_ACCESS_REALM
+                        + Authentication.VERSION_CROSS_CLUSTER_ACCESS_REALM
                         + "] can't handle remote access authentication and attempted to send to ["
                         + out.getTransportVersion()
                         + "]"

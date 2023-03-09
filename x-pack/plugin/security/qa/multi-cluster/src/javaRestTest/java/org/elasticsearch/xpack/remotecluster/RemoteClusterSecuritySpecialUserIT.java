@@ -62,7 +62,7 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
     public void testAnonymousUserFromQueryClusterWorks() throws Exception {
-        final String remoteAccessApiKeyId = configureRemoteClustersWithApiKey("""
+        final String crossClusterAccessApiKeyId = configureRemoteClustersWithApiKey("""
             [
                {
                  "names": ["shared-*", "apm-1", ".security*"],
@@ -120,7 +120,7 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
                 containsString(
                     "action [indices:data/read/search] towards remote cluster is unauthorized for user [_anonymous] "
                         + "with assigned roles [read_remote_shared_logs] authenticated by API key id ["
-                        + remoteAccessApiKeyId
+                        + crossClusterAccessApiKeyId
                         + "] of user [test_user] on indices ["
                         + inaccessibleIndexForAnonymous
                         + "]"

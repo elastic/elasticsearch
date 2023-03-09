@@ -10,6 +10,7 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.core.Nullable;
@@ -328,6 +329,10 @@ public abstract class SearchContext implements Releasable {
      * to correctly cleanup this result object.
      */
     public abstract void addQueryResult();
+
+    public abstract TotalHits getTotalHits();
+
+    public abstract float getMaxScore();
 
     public abstract FetchPhase fetchPhase();
 

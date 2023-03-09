@@ -15,6 +15,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -708,6 +709,22 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public QuerySearchResult queryResult() {
         return queryResult;
+    }
+
+    @Override
+    public TotalHits getTotalHits() {
+        if (queryResult != null) {
+            return queryResult.getTotalHits();
+        }
+        return null;
+    }
+
+    @Override
+    public float getMaxScore() {
+        if (queryResult != null) {
+            return queryResult.getMaxScore();
+        }
+        return Float.NaN;
     }
 
     @Override

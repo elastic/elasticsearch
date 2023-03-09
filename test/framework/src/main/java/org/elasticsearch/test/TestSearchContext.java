@@ -497,6 +497,7 @@ public class TestSearchContext extends SearchContext {
     public void addFetchResult() {
         // this space intentionally left blank
     }
+
     @Override
     public FetchPhase fetchPhase() {
         return null;

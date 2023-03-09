@@ -403,6 +403,7 @@ public abstract class FilteredSearchContext extends SearchContext {
     public void addFetchResult() {
         in.addFetchResult();
     }
+
     @Override
     public FetchPhase fetchPhase() {
         return in.fetchPhase();

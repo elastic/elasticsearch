@@ -23,9 +23,10 @@ templates for these indices, see <<config-monitoring-indices>>.
 ****
 **Question for reviewers:**
 
-What do Elastic Agent users need to know about configuring indices? Is index
-configuration possible given that Elastic Agent uses data streams and
-backing indices?
+What do Elastic Agent users need to know about configuring indices? I think the
+topic about configuring indices only applies to legacy collectors, but let me
+know if I'm incorrect. If it's only relevant for legacy collectors, I will
+remove the link above.
 ****
 
 You can use {agent} or {metricbeat} to collect monitoring data and to ship it
@@ -56,3 +57,19 @@ collection methods, you should migrate to using {agent} or {metricbeat}.
 ** {winlogbeat-ref}/monitoring.html[{winlogbeat}]
 * {apm-guide-ref}/monitor-apm.html[Monitoring APM Server]
 * {fleet-guide}/monitor-elastic-agent.html[Monitoring {agent}s]
+{fleet}-managed agents) or
+{fleet-guide}/elastic-agent-monitoring-configuration[Configure monitoring for standalone {agent}s]
+
+****
+**Question for reviewers:**
+
+Is it possible to get Elastic Agent metrics to show up in the Stack Monitoring
+UI? (Similar to how you get APM Server metrics to appear--documented
+https://www.elastic.co/guide/en/apm/guide/current/monitor-apm.html#monitor-apm-self-install).
+If so, I need to know to know the specific configuration to show.
+
+Right now I just point to the topics about Agent monitoring, but I'm not sure if
+it's possible to populate the Stack Monitoring UI with Elastic Agent metrics.
+Should we even mention agent monitoring in this list? If we mention it here, we
+should mention it in the topic about monitoring a production cluster.
+****

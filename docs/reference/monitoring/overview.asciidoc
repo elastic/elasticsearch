@@ -6,8 +6,8 @@
 ++++
 
 When you monitor a cluster, you collect data from the {es} nodes, {ls} nodes,
-{kib} instances, {ents}, APM, and Beats in your cluster. You can also collect
-logs.
+{kib} instances, {ents}, APM Server, and Beats in your cluster. You can also
+collect logs.
 
 All of the monitoring metrics are stored in {es}, which enables you to easily
 visualize the data in {kib}. By default, the monitoring metrics are stored in

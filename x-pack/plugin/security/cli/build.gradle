@@ -1,4 +1,5 @@
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
+
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.build'
@@ -10,7 +11,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   api "org.bouncycastle:bcpkix-jdk15on:${versions.bouncycastle}"
   api "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
-  api "commons-io:commons-io:2.5"
+  api "commons-io:commons-io:2.11.0"
   testImplementation("com.google.jimfs:jimfs:${versions.jimfs}") {
     // this is provided by the runtime classpath, from the security project
     exclude group: "com.google.guava", module: "guava"

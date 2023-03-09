@@ -17,7 +17,7 @@ Creates or updates a Search Application.
 == {api-prereq-title}
 
 Requires the `manage_search_application` cluster privilege.
-Also requires manage `manage` privileges on all indices that are added to the Search Application.
+Also requires `manage` privileges on all indices that are added to the Search Application.
 
 [[put-search-application-path-params]]
 == {api-path-parms-title}

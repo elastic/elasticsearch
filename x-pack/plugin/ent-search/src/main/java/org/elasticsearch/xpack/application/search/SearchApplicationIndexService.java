@@ -481,7 +481,7 @@ public class SearchApplicationIndexService {
         @Override
         public void onFailure(Exception e) {
             if (e instanceof IndexNotFoundException) {
-                delegate.onFailure(new ResourceNotFoundException(resourceName));
+                delegate.onFailure(new ResourceNotFoundException(resourceName, e));
                 return;
             }
             delegate.onFailure(e);

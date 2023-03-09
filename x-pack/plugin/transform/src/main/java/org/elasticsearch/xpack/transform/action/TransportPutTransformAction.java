@@ -92,61 +92,60 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     @Override
     protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener) {
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
+
+        TransformConfig config = request.getConfig().setCreateTime(Instant.now()).setVersion(Version.CURRENT);
         useSecondaryAuthIfAvailable(securityContext, () -> {
             // set headers to run transform as calling user
             Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
                 threadPool.getThreadContext(),
                 clusterService.state()
             );
-
-            TransformConfig config = request.getConfig()
-                .setHeaders(filteredHeaders)
-                .setCreateTime(Instant.now())
-                .setVersion(Version.CURRENT);
-
-            String transformId = config.getId();
-            // quick check whether a transform has already been created under that name
-            if (PersistentTasksCustomMetadata.getTaskWithId(clusterState, transformId) != null) {
-                listener.onFailure(
-                    new ResourceAlreadyExistsException(
-                        TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_EXISTS, transformId)
-                    )
-                );
-                return;
-            }
-
-            // <3> Create the transform
-            ActionListener<ValidateTransformAction.Response> validateTransformListener = ActionListener.wrap(
-                validationResponse -> putTransform(request, listener),
-                listener::onFailure
-            );
-
-            // <2> Validate source and destination indices
-            ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(
-                aVoid -> client.execute(
-                    ValidateTransformAction.INSTANCE,
-                    new ValidateTransformAction.Request(config, request.isDeferValidation(), request.timeout()),
-                    validateTransformListener
-                ),
-                listener::onFailure
-            );
-
-            // <1> Early check to verify that the user can create the destination index and can read from the source
-            if (XPackSettings.SECURITY_ENABLED.get(settings) && request.isDeferValidation() == false) {
-                TransformPrivilegeChecker.checkPrivileges(
-                    "create",
-                    securityContext,
-                    indexNameExpressionResolver,
-                    clusterState,
-                    client,
-                    config,
-                    true,
-                    checkPrivilegesListener
-                );
-            } else { // No security enabled, just move on
-                checkPrivilegesListener.onResponse(null);
-            }
+            config.setHeaders(filteredHeaders);
         });
+
+        String transformId = config.getId();
+        // quick check whether a transform has already been created under that name
+        if (PersistentTasksCustomMetadata.getTaskWithId(clusterState, transformId) != null) {
+            listener.onFailure(
+                new ResourceAlreadyExistsException(TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_EXISTS, transformId))
+            );
+            return;
+        }
+
+        // <3> Create the transform
+        ActionListener<ValidateTransformAction.Response> validateTransformListener = ActionListener.wrap(
+            validationResponse -> putTransform(request, listener),
+            listener::onFailure
+        );
+
+        // <2> Validate source and destination indices
+        ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(
+            aVoid -> ClientHelper.executeWithHeadersAsync(
+                config.getHeaders(),
+                ClientHelper.TRANSFORM_ORIGIN,
+                client,
+                ValidateTransformAction.INSTANCE,
+                new ValidateTransformAction.Request(config, request.isDeferValidation(), request.timeout()),
+                validateTransformListener
+            ),
+            listener::onFailure
+        );
+
+        // <1> Early check to verify that the user can create the destination index and can read from the source
+        if (XPackSettings.SECURITY_ENABLED.get(settings) && request.isDeferValidation() == false) {
+            TransformPrivilegeChecker.checkPrivileges(
+                "create",
+                securityContext,
+                indexNameExpressionResolver,
+                clusterState,
+                client,
+                config,
+                true,
+                checkPrivilegesListener
+            );
+        } else { // No security enabled, just move on
+            checkPrivilegesListener.onResponse(null);
+        }
     }
 
     @Override

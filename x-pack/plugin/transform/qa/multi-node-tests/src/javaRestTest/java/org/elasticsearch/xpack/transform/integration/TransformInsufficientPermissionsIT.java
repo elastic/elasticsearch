@@ -31,6 +31,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -44,6 +45,8 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
     private static final String JUNIOR_HEADER = basicAuthHeaderValue(JUNIOR_USERNAME, TEST_PASSWORD_SECURE_STRING);
     private static final String SENIOR_USERNAME = "bill_senior";
     private static final String SENIOR_HEADER = basicAuthHeaderValue(SENIOR_USERNAME, TEST_PASSWORD_SECURE_STRING);
+    private static final String NOT_A_TRANSFORM_ADMIN = "not_a_transform_admin";
+    private static final String NOT_A_TRANSFORM_ADMIN_HEADER = basicAuthHeaderValue(NOT_A_TRANSFORM_ADMIN, TEST_PASSWORD_SECURE_STRING);
 
     private static final int NUM_USERS = 28;
 
@@ -169,6 +172,53 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
         waitUntilCheckpoint(transformId, 1);
 
         assertThat(extractValue(getTransformStats(transformId), "health", "status"), is(equalTo("green")));
+    }
+
+    /**
+     * defer_validation = true
+     * unattended       = false
+     */
+    @SuppressWarnings("unchecked")
+    public void testNoTransformAdminRoleInSecondaryAuth() throws Exception {
+        String transformId = "transform-permissions-defer-nounattended";
+        String sourceIndexName = transformId + "-index";
+        String destIndexName = sourceIndexName + "-dest";
+        createReviewsIndex(sourceIndexName, 10, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
+
+        TransformConfig config = createConfig(transformId, sourceIndexName, destIndexName, false);
+
+        // PUT with defer_validation should work even though the secondary auth does not have transform_admin role
+        putTransform(
+            transformId,
+            Strings.toString(config),
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader(SECONDARY_AUTH_KEY, NOT_A_TRANSFORM_ADMIN_HEADER)
+                .addParameter("defer_validation", String.valueOf(true))
+                .build()
+        );
+
+        // _update should work even though the secondary auth does not have transform_admin role
+        updateConfig(
+            transformId,
+            "{}",
+            RequestOptions.DEFAULT.toBuilder().addHeader(SECONDARY_AUTH_KEY, NOT_A_TRANSFORM_ADMIN_HEADER).build()
+        );
+
+        // _start fails in an expected way,
+        ResponseException e = expectThrows(ResponseException.class, () -> startTransform(config.getId(), RequestOptions.DEFAULT));
+        assertThat(
+            e.getMessage(),
+            allOf(
+                containsString(Strings.format("Could not create destination index [%s] for transform [%s]", destIndexName, transformId)),
+                containsString(
+                    Strings.format(
+                        "is unauthorized for user [%s] with effective roles [transform_admin] on indices [%s]",
+                        JUNIOR_USERNAME,
+                        destIndexName
+                    )
+                )
+            )
+        );
     }
 
     /**

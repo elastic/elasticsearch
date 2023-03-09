@@ -18,7 +18,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
+import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
@@ -32,8 +32,8 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY;
-import static org.elasticsearch.xpack.security.authc.RemoteAccessHeaders.REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY;
+import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
+import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
 
 public class RemoteAccessAuthenticationService {
 
@@ -70,11 +70,11 @@ public class RemoteAccessAuthenticationService {
         final Authenticator.Context authcContext = authenticationService.newContext(action, request, false);
         final ThreadContext threadContext = authcContext.getThreadContext();
 
-        final RemoteAccessHeaders remoteAccessHeaders;
+        final CrossClusterAccessHeaders crossClusterAccessHeaders;
         try {
             // parse and add as authentication token as early as possible so that failure events in audit log include API key ID
-            remoteAccessHeaders = RemoteAccessHeaders.readFromContext(threadContext);
-            authcContext.addAuthenticationToken(remoteAccessHeaders.clusterCredentials());
+            crossClusterAccessHeaders = CrossClusterAccessHeaders.readFromContext(threadContext);
+            authcContext.addAuthenticationToken(crossClusterAccessHeaders.credentials());
             apiKeyService.ensureEnabled();
         } catch (Exception ex) {
             withRequestProcessingFailure(authcContext, ex, listener);
@@ -101,7 +101,7 @@ public class RemoteAccessAuthenticationService {
                 Collections.emptyList(),
                 // drop remote access authentication headers since we've read their values, and we want to maintain the invariant that
                 // either the remote access authentication header is in the context, or the authentication header, but not both
-                List.of(REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY, REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY)
+                List.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY)
             )
         ) {
             final Supplier<ThreadContext.StoredContext> storedContextSupplier = threadContext.newRestorableContext(false);
@@ -113,11 +113,12 @@ public class RemoteAccessAuthenticationService {
                     // try-catch so any failure here is wrapped by `withRequestProcessingFailure`, whereas `authenticate` failures are not
                     // we should _not_ wrap `authenticate` failures since this produces duplicate audit events
                     try {
-                        final RemoteAccessAuthentication remoteAccessAuthentication = remoteAccessHeaders.remoteAccessAuthentication();
-                        validate(remoteAccessAuthentication);
+                        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = crossClusterAccessHeaders
+                            .crossClusterAccessSubjectInfo();
+                        validate(crossClusterAccessSubjectInfo);
                         writeAuthToContext(
                             authcContext,
-                            authentication.toRemoteAccess(maybeRewriteForSystemUser(remoteAccessAuthentication)),
+                            authentication.toRemoteAccess(maybeRewriteForSystemUser(crossClusterAccessSubjectInfo)),
                             listener
                         );
                     } catch (Exception ex) {
@@ -128,12 +129,13 @@ public class RemoteAccessAuthenticationService {
         }
     }
 
-    private static RemoteAccessAuthentication maybeRewriteForSystemUser(final RemoteAccessAuthentication remoteAccessAuthentication)
-        throws IOException {
-        final Subject receivedEffectiveSubject = remoteAccessAuthentication.getAuthentication().getEffectiveSubject();
+    private static CrossClusterAccessSubjectInfo maybeRewriteForSystemUser(
+        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo
+    ) throws IOException {
+        final Subject receivedEffectiveSubject = crossClusterAccessSubjectInfo.getAuthentication().getEffectiveSubject();
         final User user = receivedEffectiveSubject.getUser();
         if (SystemUser.is(user)) {
-            return new RemoteAccessAuthentication(
+            return new CrossClusterAccessSubjectInfo(
                 Authentication.newInternalAuthentication(
                     SystemUser.INSTANCE,
                     receivedEffectiveSubject.getTransportVersion(),
@@ -146,7 +148,7 @@ public class RemoteAccessAuthenticationService {
                 "received cross cluster request from an unexpected internal user [" + user.principal() + "]"
             );
         } else {
-            return remoteAccessAuthentication;
+            return crossClusterAccessSubjectInfo;
         }
     }
 
@@ -154,8 +156,8 @@ public class RemoteAccessAuthenticationService {
         return authenticationService;
     }
 
-    private void validate(final RemoteAccessAuthentication remoteAccessAuthentication) {
-        final Authentication authentication = remoteAccessAuthentication.getAuthentication();
+    private void validate(final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo) {
+        final Authentication authentication = crossClusterAccessSubjectInfo.getAuthentication();
         authentication.checkConsistency();
         final Subject effectiveSubject = authentication.getEffectiveSubject();
         if (false == effectiveSubject.getType().equals(Subject.Type.USER)
@@ -169,7 +171,7 @@ public class RemoteAccessAuthenticationService {
             );
         }
 
-        for (RemoteAccessAuthentication.RoleDescriptorsBytes roleDescriptorsBytes : remoteAccessAuthentication
+        for (CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes : crossClusterAccessSubjectInfo
             .getRoleDescriptorsBytesList()) {
             final Set<RoleDescriptor> roleDescriptors = roleDescriptorsBytes.toRoleDescriptors();
             for (RoleDescriptor roleDescriptor : roleDescriptors) {

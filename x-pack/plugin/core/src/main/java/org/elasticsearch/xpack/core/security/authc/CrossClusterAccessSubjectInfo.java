@@ -36,29 +36,29 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public final class RemoteAccessAuthentication {
-    public static final String REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY = "_remote_access_authentication";
+public final class CrossClusterAccessSubjectInfo {
+    public static final String CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY = "_cross_cluster_access_subject_info";
     private final Authentication authentication;
     private final List<RoleDescriptorsBytes> roleDescriptorsBytesList;
 
-    public RemoteAccessAuthentication(Authentication authentication, RoleDescriptorsIntersection roleDescriptorsIntersection)
+    public CrossClusterAccessSubjectInfo(Authentication authentication, RoleDescriptorsIntersection roleDescriptorsIntersection)
         throws IOException {
         this(authentication, toRoleDescriptorsBytesList(roleDescriptorsIntersection));
     }
 
-    private RemoteAccessAuthentication(Authentication authentication, List<RoleDescriptorsBytes> roleDescriptorsBytesList) {
+    private CrossClusterAccessSubjectInfo(Authentication authentication, List<RoleDescriptorsBytes> roleDescriptorsBytesList) {
         this.authentication = authentication;
         this.roleDescriptorsBytesList = roleDescriptorsBytesList;
     }
 
     public void writeToContext(final ThreadContext ctx) throws IOException {
-        ctx.putHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY, encode());
+        ctx.putHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY, encode());
     }
 
-    public static RemoteAccessAuthentication readFromContext(final ThreadContext ctx) throws IOException {
-        final String header = ctx.getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY);
+    public static CrossClusterAccessSubjectInfo readFromContext(final ThreadContext ctx) throws IOException {
+        final String header = ctx.getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY);
         if (header == null) {
-            throw new IllegalArgumentException("remote access header [" + REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY + "] is required");
+            throw new IllegalArgumentException("remote access header [" + CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY + "] is required");
         }
         return decode(header);
     }
@@ -76,7 +76,7 @@ public final class RemoteAccessAuthentication {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        RemoteAccessAuthentication that = (RemoteAccessAuthentication) o;
+        CrossClusterAccessSubjectInfo that = (CrossClusterAccessSubjectInfo) o;
 
         if (false == authentication.equals(that.authentication)) return false;
         return roleDescriptorsBytesList.equals(that.roleDescriptorsBytesList);
@@ -121,7 +121,7 @@ public final class RemoteAccessAuthentication {
         return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
     }
 
-    public static RemoteAccessAuthentication decode(final String header) throws IOException {
+    public static CrossClusterAccessSubjectInfo decode(final String header) throws IOException {
         Objects.requireNonNull(header);
         final byte[] bytes = Base64.getDecoder().decode(header);
         final StreamInput in = StreamInput.wrap(bytes);
@@ -129,7 +129,7 @@ public final class RemoteAccessAuthentication {
         in.setTransportVersion(version);
         final Authentication authentication = new Authentication(in);
         final List<RoleDescriptorsBytes> roleDescriptorsBytesList = in.readImmutableList(RoleDescriptorsBytes::new);
-        return new RemoteAccessAuthentication(authentication, roleDescriptorsBytesList);
+        return new CrossClusterAccessSubjectInfo(authentication, roleDescriptorsBytesList);
     }
 
     /**

@@ -48,7 +48,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
-import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
+import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -81,9 +81,9 @@ import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
-import static org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY;
+import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
-import static org.elasticsearch.xpack.security.authc.RemoteAccessHeaders.REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY;
+import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
 import static org.elasticsearch.xpack.security.transport.RemoteClusterCredentialsResolver.RemoteClusterCredentials;
 import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST;
 import static org.hamcrest.Matchers.contains;
@@ -619,7 +619,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
 
         final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
         final AtomicReference<String> sentCredential = new AtomicReference<>();
-        final AtomicReference<RemoteAccessAuthentication> sentRemoteAccessAuthentication = new AtomicReference<>();
+        final AtomicReference<CrossClusterAccessSubjectInfo> sentRemoteAccessAuthentication = new AtomicReference<>();
         final AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
             @Override
             public <T extends TransportResponse> void sendRequest(
@@ -633,9 +633,9 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                     fail("sender called more than once");
                 }
                 assertThat(securityContext.getAuthentication(), nullValue());
-                sentCredential.set(securityContext.getThreadContext().getHeader(REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY));
+                sentCredential.set(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY));
                 try {
-                    sentRemoteAccessAuthentication.set(RemoteAccessAuthentication.readFromContext(securityContext.getThreadContext()));
+                    sentRemoteAccessAuthentication.set(CrossClusterAccessSubjectInfo.readFromContext(securityContext.getThreadContext()));
                 } catch (IOException e) {
                     fail("no exceptions expected but got " + e);
                 }
@@ -650,8 +650,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             public void handleResponse(TransportResponse response) {
                 // Headers should get restored before handle response is called
                 assertThat(securityContext.getAuthentication(), equalTo(authentication));
-                assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY), nullValue());
-                assertThat(securityContext.getThreadContext().getHeader(REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY), nullValue());
+                assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY), nullValue());
+                assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY), nullValue());
             }
 
             @Override
@@ -678,7 +678,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertThat(sentCredential.get(), equalTo(remoteClusterCredential));
         assertThat(
             sentRemoteAccessAuthentication.get(),
-            equalTo(new RemoteAccessAuthentication(authentication, expectedRoleDescriptorsIntersection))
+            equalTo(new CrossClusterAccessSubjectInfo(authentication, expectedRoleDescriptorsIntersection))
         );
         verify(securityContext, never()).executeAsInternalUser(any(), any(), anyConsumer());
         verify(remoteClusterCredentialsResolver, times(1)).resolve(eq(remoteClusterAlias));
@@ -687,8 +687,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             eq(authentication.getEffectiveSubject()),
             anyActionListener()
         );
-        assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY), nullValue());
-        assertThat(securityContext.getThreadContext().getHeader(REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY), nullValue());
+        assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY), nullValue());
+        assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY), nullValue());
     }
 
     public void testSendWithUserIfRemoteAccessHeadersConditionNotMet() throws Exception {
@@ -756,8 +756,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                     fail("sender called more than once");
                 }
                 sentAuthentication.set(securityContext.getAuthentication());
-                assertThat(securityContext.getThreadContext().getHeader(REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY), nullValue());
-                assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY), nullValue());
+                assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY), nullValue());
+                assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY), nullValue());
             }
         });
         final Transport.Connection connection = mock(Transport.Connection.class);
@@ -766,8 +766,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertTrue(calledWrappedSender.get());
         assertThat(sentAuthentication.get(), equalTo(authentication));
         verify(authzService, never()).retrieveRemoteAccessRoleDescriptorsIntersection(any(), any(), anyActionListener());
-        assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY), nullValue());
-        assertThat(securityContext.getThreadContext().getHeader(REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY), nullValue());
+        assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY), nullValue());
+        assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY), nullValue());
     }
 
     public void testSendWithRemoteAccessHeadersThrowsOnOldConnection() throws Exception {
@@ -865,8 +865,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             )
         );
         verify(remoteClusterCredentialsResolver, times(1)).resolve(eq(remoteClusterAlias));
-        assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY), nullValue());
-        assertThat(securityContext.getThreadContext().getHeader(REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY), nullValue());
+        assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY), nullValue());
+        assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY), nullValue());
     }
 
     public void testSendRemoteRequestFailsIfUserHasNoRemoteIndicesPrivileges() throws Exception {
@@ -945,8 +945,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             }
         });
         assertThat(actualException.get(), is(expectedException));
-        assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY), nullValue());
-        assertThat(securityContext.getThreadContext().getHeader(REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY), nullValue());
+        assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY), nullValue());
+        assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY), nullValue());
     }
 
     public void testSendWithRemoteAccessHeadersThrowsIfActionNotAllowlisted() throws Exception {
@@ -1040,8 +1040,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             )
         );
         verify(remoteClusterAuthorizationResolver, times(1)).resolve(eq(remoteClusterAlias));
-        assertThat(securityContext.getThreadContext().getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY), nullValue());
-        assertThat(securityContext.getThreadContext().getHeader(REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY), nullValue());
+        assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY), nullValue());
+        assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY), nullValue());
     }
 
     public void testProfileFiltersCreatedDifferentlyForDifferentTransportAndRemoteClusterSslSettings() {
@@ -1104,9 +1104,9 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final Map<String, ServerTransportFilter> profileFilters = securityServerTransportInterceptor.getProfileFilters();
         assertThat(profileFilters.keySet(), containsInAnyOrder("default", "_remote_cluster"));
         assertThat(profileFilters.get("default").isExtractClientCert(), is(transportSslEnabled));
-        assertThat(profileFilters.get("default"), not(instanceOf(RemoteAccessServerTransportFilter.class)));
+        assertThat(profileFilters.get("default"), not(instanceOf(CrossClusterAccessServerTransportFilter.class)));
         assertThat(profileFilters.get("_remote_cluster").isExtractClientCert(), is(false));
-        assertThat(profileFilters.get("_remote_cluster"), instanceOf(RemoteAccessServerTransportFilter.class));
+        assertThat(profileFilters.get("_remote_cluster"), instanceOf(CrossClusterAccessServerTransportFilter.class));
     }
 
     public void testNoProfileFilterForRemoteClusterWhenTheFeatureIsDisabled() {

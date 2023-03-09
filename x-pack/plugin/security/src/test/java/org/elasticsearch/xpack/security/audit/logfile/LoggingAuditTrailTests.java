@@ -93,7 +93,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
+import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
@@ -2585,7 +2585,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
             AuthenticationTestHelper.builder().apiKey().metadata(Map.of(AuthenticationField.API_KEY_NAME_KEY, randomAlphaOfLength(42)))
         ).build(false);
         final Authentication authentication = AuthenticationTestHelper.builder()
-            .remoteAccess(randomAlphaOfLength(42), new RemoteAccessAuthentication(remoteAuthentication, RoleDescriptorsIntersection.EMPTY))
+            .remoteAccess(
+                randomAlphaOfLength(42),
+                new CrossClusterAccessSubjectInfo(remoteAuthentication, RoleDescriptorsIntersection.EMPTY)
+            )
             .build();
         final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
         final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();

@@ -28,7 +28,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.RoleDescriptorsBytes;
+import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.RoleDescriptorsBytes;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
@@ -1189,7 +1189,7 @@ public final class Authentication implements ToXContentObject {
         return authentication;
     }
 
-    public Authentication toRemoteAccess(RemoteAccessAuthentication remoteAccessAuthentication) {
+    public Authentication toRemoteAccess(CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo) {
         assert isApiKey() : "can only convert API key authentication to remote access";
         assert false == isRunAs() : "remote access does not support authentication with run-as";
         assert getEffectiveSubject().getUser().roles().length == 0
@@ -1201,7 +1201,7 @@ public final class Authentication implements ToXContentObject {
                 getEffectiveSubject().getUser(),
                 authenticatedBy,
                 TransportVersion.CURRENT,
-                remoteAccessAuthentication.copyWithRemoteAccessEntries(metadata)
+                crossClusterAccessSubjectInfo.copyWithRemoteAccessEntries(metadata)
             ),
             getAuthenticationType()
         );

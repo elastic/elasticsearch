@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.security.authz.store;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
+import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 
 import java.util.Set;
 
@@ -67,7 +67,7 @@ public class RoleReferenceTests extends ESTestCase {
     }
 
     public void testRemoteAccessRoleReference() {
-        final var roleDescriptorsBytes = new RemoteAccessAuthentication.RoleDescriptorsBytes(new BytesArray(randomAlphaOfLength(50)));
+        final var roleDescriptorsBytes = new CrossClusterAccessSubjectInfo.RoleDescriptorsBytes(new BytesArray(randomAlphaOfLength(50)));
         final var remoteAccessRoleReference = new RoleReference.RemoteAccessRoleReference(roleDescriptorsBytes);
 
         final RoleKey roleKey = remoteAccessRoleReference.id();

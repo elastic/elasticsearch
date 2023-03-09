@@ -167,10 +167,10 @@ public class SubjectTests extends ESTestCase {
         );
         authMetadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleBytes);
 
-        final RemoteAccessAuthentication remoteAccessAuthentication = randomBoolean()
+        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = randomBoolean()
             ? AuthenticationTestHelper.randomRemoteAccessAuthentication(RoleDescriptorsIntersection.EMPTY)
             : AuthenticationTestHelper.randomRemoteAccessAuthentication();
-        authMetadata = remoteAccessAuthentication.copyWithRemoteAccessEntries(authMetadata);
+        authMetadata = crossClusterAccessSubjectInfo.copyWithRemoteAccessEntries(authMetadata);
 
         final Subject subject = new Subject(
             new User("joe"),
@@ -188,9 +188,9 @@ public class SubjectTests extends ESTestCase {
             assertThat(
                 remoteAccessRoleReference.getRoleDescriptorsBytes(),
                 equalTo(
-                    remoteAccessAuthentication.getRoleDescriptorsBytesList().isEmpty()
-                        ? RemoteAccessAuthentication.RoleDescriptorsBytes.EMPTY
-                        : remoteAccessAuthentication.getRoleDescriptorsBytesList().get(0)
+                    crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList().isEmpty()
+                        ? CrossClusterAccessSubjectInfo.RoleDescriptorsBytes.EMPTY
+                        : crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList().get(0)
                 )
             );
 
@@ -208,9 +208,9 @@ public class SubjectTests extends ESTestCase {
             assertThat(
                 remoteAccessRoleReference.getRoleDescriptorsBytes(),
                 equalTo(
-                    remoteAccessAuthentication.getRoleDescriptorsBytesList().isEmpty()
-                        ? RemoteAccessAuthentication.RoleDescriptorsBytes.EMPTY
-                        : remoteAccessAuthentication.getRoleDescriptorsBytesList().get(0)
+                    crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList().isEmpty()
+                        ? CrossClusterAccessSubjectInfo.RoleDescriptorsBytes.EMPTY
+                        : crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList().get(0)
                 )
             );
 

@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.security.authz.store;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
+import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 
 import java.util.HashSet;
 import java.util.List;
@@ -119,10 +119,10 @@ public interface RoleReference {
 
     final class RemoteAccessRoleReference implements RoleReference {
 
-        private final RemoteAccessAuthentication.RoleDescriptorsBytes roleDescriptorsBytes;
+        private final CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes;
         private RoleKey id = null;
 
-        public RemoteAccessRoleReference(RemoteAccessAuthentication.RoleDescriptorsBytes roleDescriptorsBytes) {
+        public RemoteAccessRoleReference(CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes) {
             this.roleDescriptorsBytes = roleDescriptorsBytes;
         }
 
@@ -141,7 +141,7 @@ public interface RoleReference {
             resolver.resolveRemoteAccessRoleReference(this, listener);
         }
 
-        public RemoteAccessAuthentication.RoleDescriptorsBytes getRoleDescriptorsBytes() {
+        public CrossClusterAccessSubjectInfo.RoleDescriptorsBytes getRoleDescriptorsBytes() {
             return roleDescriptorsBytes;
         }
 

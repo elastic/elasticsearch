@@ -44,7 +44,7 @@ import org.elasticsearch.transport.TransportService.ContextRestoreResponseHandle
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
+import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
@@ -52,8 +52,8 @@ import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
 import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
-import org.elasticsearch.xpack.security.authc.RemoteAccessHeaders;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.authz.PreAuthorizationUtils;
@@ -209,10 +209,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             }
 
             private void assertNoRemoteAccessHeadersInContext() {
-                assert securityContext.getThreadContext().getHeader(RemoteAccessHeaders.REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY) == null
+                assert securityContext.getThreadContext()
+                    .getHeader(CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY) == null
                     : "remote access headers should not be in security context";
                 assert securityContext.getThreadContext()
-                    .getHeader(RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY) == null
+                    .getHeader(CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY) == null
                     : "remote access headers should not be in security context";
             }
         };
@@ -387,12 +388,12 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final User user = authentication.getEffectiveSubject().getUser();
                 if (SystemUser.is(user)) {
                     try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-                        new RemoteAccessHeaders(
+                        new CrossClusterAccessHeaders(
                             remoteClusterCredentials.authorization(),
                             // Access control is handled differently for the system user. Privileges are defined by the fulfilling cluster,
                             // so we pass an empty role descriptors intersection here and let the receiver resolve privileges based on the
                             // authentication instance
-                            new RemoteAccessAuthentication(authentication, RoleDescriptorsIntersection.EMPTY)
+                            new CrossClusterAccessSubjectInfo(authentication, RoleDescriptorsIntersection.EMPTY)
                         ).writeToContext(threadContext);
                         sender.sendRequest(connection, action, request, options, contextRestoreHandler);
                     } catch (IOException e) {
@@ -411,9 +412,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                                 throw authzService.remoteActionDenied(authentication, action, remoteClusterAlias);
                             }
                             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                                new RemoteAccessHeaders(
+                                new CrossClusterAccessHeaders(
                                     remoteClusterCredentials.authorization(),
-                                    new RemoteAccessAuthentication(authentication, roleDescriptorsIntersection)
+                                    new CrossClusterAccessSubjectInfo(authentication, roleDescriptorsIntersection)
                                 ).writeToContext(threadContext);
                                 sender.sendRequest(connection, action, request, options, contextRestoreHandler);
                             }
@@ -480,7 +481,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             if (useRemoteClusterProfile) {
                 profileFilters.put(
                     profileName,
-                    new RemoteAccessServerTransportFilter(
+                    new CrossClusterAccessServerTransportFilter(
                         remoteAccessAuthcService,
                         authzService,
                         threadPool.getThreadContext(),

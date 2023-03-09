@@ -325,11 +325,11 @@ public class ServerTransportFilterTests extends ESTestCase {
         );
     }
 
-    private RemoteAccessServerTransportFilter getNodeRemoteAccessFilter() {
+    private CrossClusterAccessServerTransportFilter getNodeRemoteAccessFilter() {
         return getNodeRemoteAccessFilter(Collections.emptySet());
     }
 
-    private RemoteAccessServerTransportFilter getNodeRemoteAccessFilter(Set<String> additionalHeadersKeys) {
+    private CrossClusterAccessServerTransportFilter getNodeRemoteAccessFilter(Set<String> additionalHeadersKeys) {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         ThreadContext threadContext = new ThreadContext(settings);
         for (var header : additionalHeadersKeys) {
@@ -337,14 +337,14 @@ public class ServerTransportFilterTests extends ESTestCase {
         }
         // Randomly include valid headers
         if (randomBoolean()) {
-            for (var validHeader : RemoteAccessServerTransportFilter.ALLOWED_TRANSPORT_HEADERS) {
+            for (var validHeader : CrossClusterAccessServerTransportFilter.ALLOWED_TRANSPORT_HEADERS) {
                 // don't overwrite additionalHeadersKeys
                 if (false == additionalHeadersKeys.contains(validHeader)) {
                     threadContext.putHeader(validHeader, randomAlphaOfLength(20));
                 }
             }
         }
-        return new RemoteAccessServerTransportFilter(
+        return new CrossClusterAccessServerTransportFilter(
             remoteAccessAuthcService,
             authzService,
             threadContext,

@@ -39,12 +39,15 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.application.analytics.AnalyticsTemplateRegistry;
 import org.elasticsearch.xpack.application.analytics.action.DeleteAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.action.GetAnalyticsCollectionAction;
+import org.elasticsearch.xpack.application.analytics.action.PostAnalyticsEventAction;
 import org.elasticsearch.xpack.application.analytics.action.PutAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.action.RestDeleteAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.action.RestGetAnalyticsCollectionAction;
+import org.elasticsearch.xpack.application.analytics.action.RestPostAnalyticsEventAction;
 import org.elasticsearch.xpack.application.analytics.action.RestPutAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.action.TransportDeleteAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.action.TransportGetAnalyticsCollectionAction;
+import org.elasticsearch.xpack.application.analytics.action.TransportPostAnalyticsEventAction;
 import org.elasticsearch.xpack.application.analytics.action.TransportPutAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.search.action.DeleteSearchApplicationAction;
@@ -98,6 +101,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             new ActionHandler<>(PutAnalyticsCollectionAction.INSTANCE, TransportPutAnalyticsCollectionAction.class),
             new ActionHandler<>(GetAnalyticsCollectionAction.INSTANCE, TransportGetAnalyticsCollectionAction.class),
             new ActionHandler<>(DeleteAnalyticsCollectionAction.INSTANCE, TransportDeleteAnalyticsCollectionAction.class),
+            new ActionHandler<>(PostAnalyticsEventAction.INSTANCE, TransportPostAnalyticsEventAction.class),
             new ActionHandler<>(DeleteSearchApplicationAction.INSTANCE, TransportDeleteSearchApplicationAction.class),
             new ActionHandler<>(GetSearchApplicationAction.INSTANCE, TransportGetSearchApplicationAction.class),
             new ActionHandler<>(ListSearchApplicationAction.INSTANCE, TransportListSearchApplicationAction.class),
@@ -126,7 +130,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             new RestDeleteSearchApplicationAction(),
             new RestPutAnalyticsCollectionAction(),
             new RestGetAnalyticsCollectionAction(),
-            new RestDeleteAnalyticsCollectionAction()
+            new RestDeleteAnalyticsCollectionAction(),
+            new RestPostAnalyticsEventAction()
         );
     }
 

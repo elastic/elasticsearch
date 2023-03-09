@@ -114,6 +114,11 @@ public class TransformUpdater {
         final TimeValue timeout,
         ActionListener<UpdateResult> listener
     ) {
+        final Map<String, String> securityHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
+            securityContext.getThreadContext(),
+            clusterState
+        );
+
         // rewrite config into a new format if necessary
         TransformConfig rewrittenConfig = TransformConfig.rewriteForUpdate(config);
         TransformConfig updatedConfig = update != null ? update.apply(rewrittenConfig) : rewrittenConfig;
@@ -176,7 +181,7 @@ public class TransformUpdater {
 
         // <2> Validate source and destination indices
         ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(
-            aVoid -> validateTransform(updatedConfig, client, deferValidation, timeout, validateTransformListener),
+            aVoid -> validateTransform(updatedConfig, client, securityHeaders, deferValidation, timeout, validateTransformListener),
             listener::onFailure
         );
 
@@ -200,12 +205,13 @@ public class TransformUpdater {
     private static void validateTransform(
         TransformConfig config,
         Client client,
+        Map<String, String> securityHeaders,
         boolean deferValidation,
         TimeValue timeout,
         ActionListener<Map<String, String>> listener
     ) {
         ClientHelper.executeWithHeadersAsync(
-            config.getHeaders(),
+            securityHeaders,
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             ValidateTransformAction.INSTANCE,

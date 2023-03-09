@@ -31,7 +31,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -180,7 +179,7 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
      */
     @SuppressWarnings("unchecked")
     public void testNoTransformAdminRoleInSecondaryAuth() throws Exception {
-        String transformId = "transform-permissions-defer-nounattended";
+        String transformId = "transform-permissions-no-admin-role";
         String sourceIndexName = transformId + "-index";
         String destIndexName = sourceIndexName + "-dest";
         createReviewsIndex(sourceIndexName, 10, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
@@ -204,21 +203,8 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
             RequestOptions.DEFAULT.toBuilder().addHeader(SECONDARY_AUTH_KEY, NOT_A_TRANSFORM_ADMIN_HEADER).build()
         );
 
-        // _start fails in an expected way,
-        ResponseException e = expectThrows(ResponseException.class, () -> startTransform(config.getId(), RequestOptions.DEFAULT));
-        assertThat(
-            e.getMessage(),
-            allOf(
-                containsString(Strings.format("Could not create destination index [%s] for transform [%s]", destIndexName, transformId)),
-                containsString(
-                    Strings.format(
-                        "is unauthorized for user [%s] with effective roles [transform_admin] on indices [%s]",
-                        JUNIOR_USERNAME,
-                        destIndexName
-                    )
-                )
-            )
-        );
+        // _start works because user not_a_transform_admin has data access
+        startTransform(config.getId(), RequestOptions.DEFAULT);
     }
 
     /**

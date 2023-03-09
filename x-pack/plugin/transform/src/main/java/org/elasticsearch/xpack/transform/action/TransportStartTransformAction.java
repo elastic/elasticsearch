@@ -128,6 +128,11 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         final AtomicReference<TransformTaskParams> transformTaskParamsHolder = new AtomicReference<>();
         final AtomicReference<TransformConfig> transformConfigHolder = new AtomicReference<>();
 
+        final Map<String, String> securityHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
+            threadPool.getThreadContext(),
+            clusterService.state()
+        );
+
         // <5> Wait for the allocated task's state to STARTED
         ActionListener<PersistentTasksCustomMetadata.PersistentTask<TransformTaskParams>> newPersistentTaskActionListener = ActionListener
             .wrap(task -> {
@@ -235,7 +240,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             );
             transformConfigHolder.set(config);
             ClientHelper.executeWithHeadersAsync(
-                config.getHeaders(),
+                securityHeaders,
                 ClientHelper.TRANSFORM_ORIGIN,
                 client,
                 ValidateTransformAction.INSTANCE,

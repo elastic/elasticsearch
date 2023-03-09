@@ -93,6 +93,11 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener) {
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
+        final Map<String, String> securityHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
+            threadPool.getThreadContext(),
+            clusterService.state()
+        );
+
         TransformConfig config = request.getConfig().setCreateTime(Instant.now()).setVersion(Version.CURRENT);
         useSecondaryAuthIfAvailable(securityContext, () -> {
             // set headers to run transform as calling user
@@ -121,7 +126,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         // <2> Validate source and destination indices
         ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(
             aVoid -> ClientHelper.executeWithHeadersAsync(
-                config.getHeaders(),
+                securityHeaders,
                 ClientHelper.TRANSFORM_ORIGIN,
                 client,
                 ValidateTransformAction.INSTANCE,

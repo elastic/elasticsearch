@@ -54,7 +54,7 @@ GET _application/search_application/?from=0&size=3&q=foo
 
 As sample response:
 
-[source,json]
+[source,js]
 --------------------------------------------------
 {
   "count": 2,

@@ -102,7 +102,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             TransportOpenPointInTimeAction.OPEN_SHARD_READER_CONTEXT_NAME,
             ResolveIndexAction.NAME,
             FieldCapabilitiesAction.NAME,
-            FieldCapabilitiesAction.NAME + "[n]"
+            FieldCapabilitiesAction.NAME + "[n]",
+            "indices:data/read/eql"
         );
         REMOTE_ACCESS_ACTION_ALLOWLIST = actions
             // Include action, and proxy equivalent (i.e., with proxy action prefix)

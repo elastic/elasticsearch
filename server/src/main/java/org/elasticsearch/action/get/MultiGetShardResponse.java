@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class MultiGetShardResponse extends ActionResponse {
 
@@ -61,6 +62,18 @@ public class MultiGetShardResponse extends ActionResponse {
         failures.add(failure);
     }
 
+    public List<Integer> locations() {
+        return locations;
+    }
+
+    public List<GetResponse> responses() {
+        return responses;
+    }
+
+    public List<MultiGetResponse.Failure> failures() {
+        return failures;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(locations.size());
@@ -79,5 +92,18 @@ public class MultiGetShardResponse extends ActionResponse {
                 failures.get(i).writeTo(out);
             }
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o instanceof MultiGetShardResponse == false) return false;
+        MultiGetShardResponse other = (MultiGetShardResponse) o;
+        return Objects.equals(locations, other.locations) && Objects.equals(responses, other.responses);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(locations, responses);
     }
 }

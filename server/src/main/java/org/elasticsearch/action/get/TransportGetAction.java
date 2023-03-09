@@ -150,14 +150,24 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                 )
             );
         } else if (request.realtime()) {
+            var multiGetShardRequest = asMultiGetShardRequest(request);
             transportService.sendRequest(
                 node,
                 TransportGetFromTranslogAction.NAME,
-                request,
+                multiGetShardRequest,
                 new ActionListenerResponseHandler<>(listener.delegateFailure((l, r) -> {
-                    if (r.getResult() != null) {
+                    assert r.multiGetShardResponse().locations.size() == 1
+                        && r.multiGetShardResponse().responses.size() == 1
+                        && r.multiGetShardResponse().failures.size() == 1;
+                    MultiGetResponse.Failure failure = r.multiGetShardResponse().failures.get(0);
+                    if (failure != null) {
+                        l.onFailure(failure.getFailure());
+                        return;
+                    }
+                    GetResponse getResponse = r.multiGetShardResponse().responses.get(0);
+                    if (getResponse != null) {
                         logger.trace("received result for real-time get for id '{}' from promotable shard", request.id());
-                        l.onResponse(new GetResponse(r.getResult()));
+                        l.onResponse(getResponse);
                     } else {
                         assert r.segmentGeneration() > -1L;
                         logger.trace(
@@ -211,5 +221,21 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         } else {
             return super.getExecutor(request, shardId);
         }
+    }
+
+    public static MultiGetShardRequest asMultiGetShardRequest(GetRequest getRequest) {
+        var multiGetRequest = new MultiGetRequest().preference(getRequest.preference())
+            .refresh(getRequest.refresh())
+            .realtime(getRequest.realtime())
+            .setForceSyntheticSource(getRequest.isForceSyntheticSource());
+        MultiGetRequest.Item item = new MultiGetRequest.Item(getRequest.index(), getRequest.id()).routing(getRequest.routing())
+            .storedFields(getRequest.storedFields())
+            .version(getRequest.version())
+            .versionType(getRequest.versionType())
+            .fetchSourceContext(getRequest.fetchSourceContext());
+        var multiGetShardRequest = new MultiGetShardRequest(multiGetRequest, getRequest.index(), getRequest.getInternalShardId().id());
+        multiGetShardRequest.setInternalShardId(getRequest.getInternalShardId());
+        multiGetShardRequest.add(0, item);
+        return multiGetShardRequest;
     }
 }

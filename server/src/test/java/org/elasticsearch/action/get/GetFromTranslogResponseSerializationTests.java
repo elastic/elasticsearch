@@ -9,12 +9,15 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.get.GetResultTests;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.UUID;
 
 public class GetFromTranslogResponseSerializationTests extends AbstractWireSerializingTestCase<TransportGetFromTranslogAction.Response> {
     @Override
@@ -24,18 +27,18 @@ public class GetFromTranslogResponseSerializationTests extends AbstractWireSeria
 
     @Override
     protected TransportGetFromTranslogAction.Response createTestInstance() {
-        return new TransportGetFromTranslogAction.Response(randomGetResult(), randomSegmentGeneration());
+        return new TransportGetFromTranslogAction.Response(randomMultiGetShardResponse(), randomSegmentGeneration());
     }
 
     @Override
     protected TransportGetFromTranslogAction.Response mutateInstance(TransportGetFromTranslogAction.Response instance) throws IOException {
         return randomBoolean()
             ? new TransportGetFromTranslogAction.Response(
-                instance.getResult(),
+                instance.multiGetShardResponse(),
                 randomValueOtherThan(instance.segmentGeneration(), this::randomSegmentGeneration)
             )
             : new TransportGetFromTranslogAction.Response(
-                randomValueOtherThan(instance.getResult(), this::randomGetResult),
+                randomValueOtherThan(instance.multiGetShardResponse(), this::randomMultiGetShardResponse),
                 instance.segmentGeneration()
             );
     }
@@ -44,7 +47,37 @@ public class GetFromTranslogResponseSerializationTests extends AbstractWireSeria
         return randomBoolean() ? -1L : randomNonNegativeLong();
     }
 
-    private GetResult randomGetResult() {
-        return randomBoolean() ? null : GetResultTests.randomGetResult(randomFrom(XContentType.values())).v1();
+    private GetResponse randomGetResponse() {
+        return randomBoolean() ? null : new GetResponse(GetResultTests.randomGetResult(randomFrom(XContentType.values())).v1());
+    }
+
+    private MultiGetShardResponse randomMultiGetShardResponse() {
+        var response = new MultiGetShardResponse();
+        int size = randomIntBetween(0, 100);
+        for (int i = 0; i < size; i++) {
+            int l = randomNonNegativeInt();
+            if (randomBoolean()) {
+                response.add(l, randomGetResponse());
+            } else {
+                response.add(l, randomFailure());
+            }
+        }
+        return response;
+    }
+
+    private MultiGetResponse.Failure randomFailure() {
+        return new MultiGetResponse.Failure(randomIdentifier(), randomIdentifier(), randomException());
+    }
+
+    private Exception randomException() {
+        return randomFrom(
+            new ShardNotFoundException(randomShardId()),
+            new IOException(randomUnicodeOfLengthBetween(10, 100)),
+            new IndexNotFoundException(randomIdentifier())
+        );
+    }
+
+    private ShardId randomShardId() {
+        return new ShardId(randomAlphaOfLength(10), UUID.randomUUID().toString(), randomIntBetween(0, 5));
     }
 }

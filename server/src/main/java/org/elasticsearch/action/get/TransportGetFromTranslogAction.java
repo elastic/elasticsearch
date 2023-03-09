@@ -13,12 +13,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -32,7 +32,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Objects;
 
-public class TransportGetFromTranslogAction extends HandledTransportAction<GetRequest, TransportGetFromTranslogAction.Response> {
+public class TransportGetFromTranslogAction extends HandledTransportAction<MultiGetShardRequest, TransportGetFromTranslogAction.Response> {
 
     public static final String NAME = "internal:data/read/get_from_translog";
     public static final Logger logger = LogManager.getLogger(TransportGetFromTranslogAction.class);
@@ -41,78 +41,110 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<GetRe
 
     @Inject
     public TransportGetFromTranslogAction(TransportService transportService, IndicesService indicesService, ActionFilters actionFilters) {
-        super(NAME, transportService, actionFilters, GetRequest::new, ThreadPool.Names.GET);
+        super(NAME, transportService, actionFilters, MultiGetShardRequest::new, ThreadPool.Names.GET);
         this.indicesService = indicesService;
     }
 
     @Override
-    protected void doExecute(Task task, GetRequest request, ActionListener<Response> listener) {
+    protected void doExecute(Task task, MultiGetShardRequest request, ActionListener<Response> listener) {
         final ShardId shardId = request.getInternalShardId();
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         assert indexShard.routingEntry().isPromotableToPrimary();
-        assert request.realtime();
         Engine engine = indexShard.getEngineOrNull();
         if (engine == null) {
             listener.onFailure(new AlreadyClosedException("engine closed"));
             return;
         }
-        var get = new Engine.Get(request.realtime(), request.realtime(), request.id()).version(request.version())
-            .versionType(request.versionType());
-        assert Objects.equals(get.uid().field(), IdFieldMapper.NAME) : get.uid().field();
+        assert request.realtime();
         ActionListener.completeWith(listener, () -> {
-            if (engine.isInVersionMap(get.uid().bytes())) {
-                var result = indexShard.getService()
-                    .get(
-                        request.id(),
-                        request.storedFields(),
-                        request.realtime(),
-                        request.version(),
-                        request.versionType(),
-                        request.fetchSourceContext(),
-                        request.isForceSyntheticSource()
-                    );
-                return new Response(result, -1);
+            Response response = new Response();
+            boolean includeSegmentGeneration = false;
+            for (int i = 0; i < request.locations.size(); i++) {
+                MultiGetRequest.Item item = request.items.get(i);
+                var get = new Engine.Get(request.realtime(), request.realtime(), item.id());
+                assert Objects.equals(get.uid().field(), IdFieldMapper.NAME) : get.uid().field();
+                if (engine.isInVersionMap(get.uid().bytes())) {
+                    try {
+                        var result = indexShard.getService()
+                            .get(
+                                item.id(),
+                                item.storedFields(),
+                                request.realtime(),
+                                item.version(),
+                                item.versionType(),
+                                item.fetchSourceContext(),
+                                request.isForceSyntheticSource()
+                            );
+                        response.addResult(request.locations.get(i), new GetResponse(result));
+                    } catch (RuntimeException | IOException e) {
+                        if (TransportActions.isShardNotAvailableException(e)) {
+                            throw e;
+                        }
+                        logger.debug("failed to execute get_from_translog for {}[id={}]: {}", shardId, item.id(), e);
+                        response.addFailure(request.locations.get(i), new MultiGetResponse.Failure(request.index(), item.id(), e));
+                    }
+                } else {
+                    includeSegmentGeneration = true;
+                    response.addResult(request.locations.get(i), null);
+                }
             }
-            long segmentGeneration = engine.commitStats().getGeneration();
-            return new Response(null, segmentGeneration);
+            if (includeSegmentGeneration) {
+                response.segmentGeneration(engine.commitStats().getGeneration());
+            }
+            return response;
         });
     }
 
     public static class Response extends ActionResponse {
-        private GetResult getResult;
-        private final long segmentGeneration;
+        private final MultiGetShardResponse multiGetShardResponse;
+        private long segmentGeneration;
 
-        public Response(GetResult getResult, long segmentGeneration) {
-            this.getResult = getResult;
+        public Response() {
+            this.segmentGeneration = -1;
+            this.multiGetShardResponse = new MultiGetShardResponse();
+        }
+
+        // for testing
+        Response(MultiGetShardResponse response, long segmentGeneration) {
             this.segmentGeneration = segmentGeneration;
+            this.multiGetShardResponse = response;
+        }
+
+        public void addResult(int location, GetResponse result) {
+            multiGetShardResponse.locations.add(location);
+            multiGetShardResponse.responses.add(result);
+            multiGetShardResponse.failures.add(null);
+        }
+
+        public void addFailure(int location, MultiGetResponse.Failure failure) {
+            multiGetShardResponse.locations.add(location);
+            multiGetShardResponse.responses.add(null);
+            multiGetShardResponse.failures.add(failure);
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
             segmentGeneration = in.readZLong();
-            if (in.readBoolean()) {
-                getResult = new GetResult(in);
-            }
+            multiGetShardResponse = new MultiGetShardResponse(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeZLong(segmentGeneration);
-            if (getResult == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                getResult.writeTo(out);
-            }
+            multiGetShardResponse.writeTo(out);
         }
 
-        public GetResult getResult() {
-            return getResult;
+        public void segmentGeneration(long segmentGeneration) {
+            this.segmentGeneration = segmentGeneration;
         }
 
         public long segmentGeneration() {
             return segmentGeneration;
+        }
+
+        public MultiGetShardResponse multiGetShardResponse() {
+            return multiGetShardResponse;
         }
 
         @Override
@@ -120,12 +152,12 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<GetRe
             if (this == o) return true;
             if (o instanceof Response == false) return false;
             Response other = (Response) o;
-            return Objects.equals(getResult, other.getResult) && segmentGeneration == other.segmentGeneration;
+            return Objects.equals(multiGetShardResponse, other.multiGetShardResponse) && segmentGeneration == other.segmentGeneration;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(segmentGeneration, getResult);
+            return Objects.hash(segmentGeneration, multiGetShardResponse);
         }
     }
 }

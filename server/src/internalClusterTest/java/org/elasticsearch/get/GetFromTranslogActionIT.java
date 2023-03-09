@@ -12,6 +12,8 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.get.TransportGetFromTranslogAction;
 import org.elasticsearch.action.get.TransportGetFromTranslogAction.Response;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -40,33 +42,41 @@ public class GetFromTranslogActionIT extends ESIntegTestCase {
         );
         ensureGreen();
 
-        GetRequest getRequest1 = client().prepareGet(indexOrAlias(), "1").request();
-        Response getResponse1 = getFromTranslog(getRequest1);
-        assertNull(getResponse1.getResult());
-        assertThat(getResponse1.segmentGeneration(), greaterThan(0L));
+        GetRequest request1 = client().prepareGet(indexOrAlias(), "1").request();
+        Response response1 = getFromTranslog(request1);
+        assertNotExists(response1);
 
         client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
 
-        var getResponse2 = getFromTranslog(getRequest1);
-        assertNotNull(getResponse2.getResult());
-        assertThat(getResponse2.getResult().isExists(), equalTo(true));
-        assertThat(getResponse2.segmentGeneration(), equalTo(-1L));
+        var response2 = getFromTranslog(request1);
+        assertExists(response2);
 
         var indexResponse = client().prepareIndex("test").setSource("field1", "value2").get();
-        var getRequest2 = client().prepareGet(indexOrAlias(), indexResponse.getId()).request();
-        var getResponse3 = getFromTranslog(getRequest2);
-        assertNotNull(getResponse3.getResult());
-        assertThat(getResponse3.getResult().isExists(), equalTo(true));
-        assertThat(getResponse3.segmentGeneration(), equalTo(-1L));
+        var request2 = client().prepareGet(indexOrAlias(), indexResponse.getId()).request();
+        var response3 = getFromTranslog(request2);
+        assertExists(response3);
 
         client().admin().indices().refresh(new RefreshRequest("test")).get();
 
-        var getResponse4 = getFromTranslog(getRequest1);
-        assertNull(getResponse4.getResult());
-        assertThat(getResponse4.segmentGeneration(), greaterThan(0L));
-        var getResponse5 = getFromTranslog(getRequest2);
-        assertNull(getResponse5.getResult());
-        assertThat(getResponse5.segmentGeneration(), greaterThan(0L));
+        var response4 = getFromTranslog(request1);
+        assertNotExists(response4);
+        var response5 = getFromTranslog(request2);
+        assertNotExists(response5);
+    }
+
+    private void assertExists(TransportGetFromTranslogAction.Response response) {
+        assertThat(response.multiGetShardResponse().responses().size(), equalTo(1));
+        GetResponse getResponse = response.multiGetShardResponse().responses().get(0);
+        assertNotNull(getResponse);
+        assertThat(getResponse.isExists(), equalTo(true));
+        assertThat(response.segmentGeneration(), equalTo(-1L));
+    }
+
+    private void assertNotExists(TransportGetFromTranslogAction.Response response) {
+        assertThat(response.multiGetShardResponse().responses().size(), equalTo(1));
+        GetResponse getResponse = response.multiGetShardResponse().responses().get(0);
+        assertNull(getResponse);
+        assertThat(response.segmentGeneration(), greaterThan(0L));
     }
 
     private Response getFromTranslog(GetRequest getRequest) throws Exception {
@@ -74,12 +84,13 @@ public class GetFromTranslogActionIT extends ESIntegTestCase {
         var node = clusterService().state().nodes().get(shardRouting.currentNodeId());
         assertNotNull(node);
         getRequest.setInternalShardId(shardRouting.shardId());
+        var multiGetShardRequest = TransportGetAction.asMultiGetShardRequest(getRequest);
         var transportService = internalCluster().getInstance(TransportService.class);
         PlainActionFuture<Response> response = new PlainActionFuture<>();
         transportService.sendRequest(
             node,
             TransportGetFromTranslogAction.NAME,
-            getRequest,
+            multiGetShardRequest,
             new ActionListenerResponseHandler<>(response, Response::new, ThreadPool.Names.GET)
         );
         return response.get();

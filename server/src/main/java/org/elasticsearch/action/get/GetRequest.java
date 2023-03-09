@@ -20,7 +20,6 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceLoader;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -235,11 +234,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     public GetRequest realtime(boolean realtime) {
         this.realtime = realtime;
         return this;
-    }
-
-    // Used only for testing
-    public void setInternalShardId(ShardId shardId) {
-        internalShardId = shardId;
     }
 
     /**

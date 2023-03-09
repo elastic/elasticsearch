@@ -75,6 +75,11 @@ public abstract class SingleShardRequest<Request extends SingleShardRequest<Requ
         return internalShardId;
     }
 
+    // Used only for testing
+    public void setInternalShardId(ShardId shardId) {
+        internalShardId = shardId;
+    }
+
     /**
      * Sets the index.
      */

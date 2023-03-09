@@ -290,7 +290,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     protected interface WriteNestedExceptions extends CheckedBiConsumer<Throwable, StreamOutput, IOException> {}
 
     private static WriteNestedExceptions createNestingFunction(int thisLevel, Runnable nestedExceptionLimitCallback) {
-        int nextLevel = thisLevel+1;
+        int nextLevel = thisLevel + 1;
         return (t, o) -> {
             writeException(t.getCause(), o, nextLevel, nestedExceptionLimitCallback);
             writeStackTraces(t, o, (no, nt) -> writeException(nt, no, nextLevel, nestedExceptionLimitCallback));
@@ -740,8 +740,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     /**
      * Serializes the given exceptions stacktrace elements as well as it's suppressed exceptions to the given output stream.
      */
-    public static void writeStackTraces(Throwable throwable, StreamOutput out, Writer<Throwable> exceptionWriter)
-        throws IOException {
+    public static void writeStackTraces(Throwable throwable, StreamOutput out, Writer<Throwable> exceptionWriter) throws IOException {
         out.writeArray((o, v) -> {
             o.writeString(v.getClassName());
             o.writeOptionalString(v.getFileName());

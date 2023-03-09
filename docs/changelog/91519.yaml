@@ -1,11 +1,13 @@
 pr: 91519
-summary: Release time series index settings and data stream as GA
+summary: Time series (TSDS) GA
 area: TSDB
 type: feature
 issues: []
 highlight:
-  title: Release time series index settings and data stream as GA
+  title: Time series (TSDS) GA
   body: |-
-    The time series (TSDB) mode on indexes has been in tech preview, and is now released as GA.
-    This also includes support for time series data stream and ingest.
+    Time Series Data Stream (TSDS) is a technique for optimizing Elasticsearch indices for time series data.
+    This involves sorting the indices to achieve better compression and using synthetic_source to reduce index size.
+    As a result, TSDS indices are significantly smaller than non-time_series indices that contain the same data.
+    TSDS is particularly useful for managing time series data with high volume.
   notable: true

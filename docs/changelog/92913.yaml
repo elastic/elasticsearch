@@ -1,10 +1,14 @@
 pr: 92913
-summary: Release time series down-sampling as GA
+summary: Downsampling GA
 area: TSDB
 type: feature
 issues: []
 highlight:
-  title: Release time series down-sampling as GA
+  title: Downsampling GA
   body: |-
-    Time series (TSDB) down-sampling has been in tech preview, and is now released as GA.
+    Downsampling is a technique that reduces the number of documents in Elasticsearch time series indices,
+    resulting in smaller indices and improved query latency. This optimization is achieved by pre-aggregating
+    time series indices, using the time_series index schema to identify the time series.
+    Downsampling is configured as an action in ILM, making it a useful tool for managing large volumes of
+    time series data in Elasticsearch.
   notable: true

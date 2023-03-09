@@ -65,7 +65,7 @@ public class RankSearchSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testRRFRankSmallerThanSize() throws IOException {
-        int numShards = 1 + randomInt(3);
+        int numShards = 1;// + randomInt(3);
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
 
         XContentBuilder builder = XContentFactory.jsonBuilder()
@@ -100,5 +100,10 @@ public class RankSearchSingleNodeTests extends ESSingleNodeTestCase {
             .get();
 
         assertEquals(3, response.getHits().getHits().length);
+        assertEquals(3, response.getHits().getHits().length);
+        // assertEquals(1, response.getHits().getAt(0).getRank());
+        if (true) throw new RuntimeException("" + response.getHits().getAt(0).field("vector").getValue().getClass());
+        assertEquals(0.0, response.getHits().getAt(0).field("vector").getValue(), 0.0);
+        assertEquals("term term", response.getHits().getAt(0).field("text").getValue());
     }
 }

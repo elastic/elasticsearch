@@ -49,7 +49,7 @@ public class RankContextInternal implements Writeable, Rewriteable<RankContextIn
         boolean rewritten = false;
         for (QueryBuilder queryBuilder : queryBuilders) {
             QueryBuilder rewrittenQueryBuilder = queryBuilder.rewrite(ctx);
-            rewrittenQueryBuilders.add(queryBuilder);
+            rewrittenQueryBuilders.add(rewrittenQueryBuilder);
             rewritten |= rewrittenQueryBuilder != queryBuilder;
         }
         return rewritten ? new RankContextInternal(rewrittenQueryBuilders) : this;

@@ -93,7 +93,7 @@ public class RRFRankContext extends RankContext {
                 rrfRankDoc.shardIndex = querySearchResult.getShardIndex();
                 for (int qi = 0; qi < queryCount; ++qi) {
                     if (rrfRankDoc.positions[qi] != NO_RANK) {
-                        queues.get(qi).add(rrfRankDoc);
+                        queues.get(qi).insertWithOverflow(rrfRankDoc);
                     }
                 }
             }
@@ -162,5 +162,6 @@ public class RRFRankContext extends RankContext {
         assert scoreDoc instanceof RRFRankDoc;
         RRFRankDoc rankResult = (RRFRankDoc) scoreDoc;
         searchHit.setRank(rankResult.rank);
+        searchHit.setPositions(rankResult.positions);
     }
 }

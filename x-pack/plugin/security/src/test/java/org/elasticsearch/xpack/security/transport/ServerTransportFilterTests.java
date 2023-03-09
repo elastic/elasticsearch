@@ -68,7 +68,7 @@ public class ServerTransportFilterTests extends ESTestCase {
     private TransportChannel channel;
     private boolean failDestructiveOperations;
     private DestructiveOperations destructiveOperations;
-    private CrossClusterAccessAuthenticationService remoteAccessAuthcService;
+    private CrossClusterAccessAuthenticationService crossClusterAccessAuthcService;
 
     @Before
     public void init() throws Exception {
@@ -83,8 +83,8 @@ public class ServerTransportFilterTests extends ESTestCase {
             settings,
             new ClusterSettings(settings, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
         );
-        remoteAccessAuthcService = mock(CrossClusterAccessAuthenticationService.class);
-        when(remoteAccessAuthcService.getAuthenticationService()).thenReturn(authcService);
+        crossClusterAccessAuthcService = mock(CrossClusterAccessAuthenticationService.class);
+        when(crossClusterAccessAuthcService.getAuthenticationService()).thenReturn(authcService);
     }
 
     public void testInbound() {
@@ -104,7 +104,8 @@ public class ServerTransportFilterTests extends ESTestCase {
         boolean allowlisted = randomBoolean();
         String action = allowlisted ? randomFrom(REMOTE_ACCESS_ACTION_ALLOWLIST) : "_action";
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
-        doAnswer(getAnswer(authentication, true)).when(remoteAccessAuthcService).authenticate(eq(action), eq(request), anyActionListener());
+        doAnswer(getAnswer(authentication, true)).when(crossClusterAccessAuthcService)
+            .authenticate(eq(action), eq(request), anyActionListener());
         ServerTransportFilter filter = getNodeRemoteAccessFilter();
         PlainActionFuture<Void> listener = spy(new PlainActionFuture<>());
         filter.inbound(action, request, channel, listener);
@@ -115,7 +116,7 @@ public class ServerTransportFilterTests extends ESTestCase {
                 eq(request),
                 anyActionListener()
             );
-            verify(remoteAccessAuthcService).authenticate(anyString(), any(), anyActionListener());
+            verify(crossClusterAccessAuthcService).authenticate(anyString(), any(), anyActionListener());
             verify(authcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
         } else {
             var actual = expectThrows(IllegalArgumentException.class, listener::actionGet);
@@ -124,7 +125,7 @@ public class ServerTransportFilterTests extends ESTestCase {
                 equalTo("action [" + action + "] is not allowed as a cross cluster operation on the dedicated remote cluster server port")
             );
             verify(authcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
-            verify(remoteAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
+            verify(crossClusterAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
             verifyNoMoreInteractions(authzService);
         }
     }
@@ -135,7 +136,8 @@ public class ServerTransportFilterTests extends ESTestCase {
         boolean allowlisted = randomBoolean();
         String action = allowlisted ? randomFrom(REMOTE_ACCESS_ACTION_ALLOWLIST) : "_action";
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
-        doAnswer(getAnswer(authentication, true)).when(remoteAccessAuthcService).authenticate(eq(action), eq(request), anyActionListener());
+        doAnswer(getAnswer(authentication, true)).when(crossClusterAccessAuthcService)
+            .authenticate(eq(action), eq(request), anyActionListener());
         ServerTransportFilter filter = getNodeRemoteAccessFilter(Set.copyOf(randomNonEmptySubsetOf(SECURITY_HEADER_FILTERS)));
         PlainActionFuture<Void> listener = new PlainActionFuture<>();
         filter.inbound(action, request, channel, listener);
@@ -149,14 +151,14 @@ public class ServerTransportFilterTests extends ESTestCase {
             );
         } else {
             verify(authcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
-            verify(remoteAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
+            verify(crossClusterAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
             verifyNoMoreInteractions(authzService);
             assertThat(
                 actual.getMessage(),
                 equalTo("action [" + action + "] is not allowed as a cross cluster operation on the dedicated remote cluster server port")
             );
         }
-        verify(remoteAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
+        verify(crossClusterAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
     }
 
     public void testInboundDestructiveOperations() {
@@ -226,7 +228,7 @@ public class ServerTransportFilterTests extends ESTestCase {
             ActionListener<Authentication> callback = (ActionListener<Authentication>) args[args.length - 1];
             callback.onFailure(authE);
             return Void.TYPE;
-        }).when(remoteAccessAuthcService).authenticate(eq(action), eq(request), anyActionListener());
+        }).when(crossClusterAccessAuthcService).authenticate(eq(action), eq(request), anyActionListener());
         doAnswer(i -> {
             final Object[] args = i.getArguments();
             assertThat(args, arrayWithSize(4));
@@ -245,7 +247,7 @@ public class ServerTransportFilterTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("authc failed"));
         }
         verifyNoMoreInteractions(authzService);
-        verify(remoteAccessAuthcService).authenticate(anyString(), any(), anyActionListener());
+        verify(crossClusterAccessAuthcService).authenticate(anyString(), any(), anyActionListener());
         verify(authcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
     }
 
@@ -256,7 +258,8 @@ public class ServerTransportFilterTests extends ESTestCase {
         Authentication authentication = AuthenticationTestHelper.builder().build();
         String action = SearchAction.NAME;
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
-        doAnswer(getAnswer(authentication, true)).when(remoteAccessAuthcService).authenticate(eq(action), eq(request), anyActionListener());
+        doAnswer(getAnswer(authentication, true)).when(crossClusterAccessAuthcService)
+            .authenticate(eq(action), eq(request), anyActionListener());
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         doThrow(authorizationError("authz failed")).when(authzService)
             .authorize(eq(authentication), eq(action), eq(request), anyActionListener());
@@ -266,11 +269,11 @@ public class ServerTransportFilterTests extends ESTestCase {
         });
         assertThat(e.getMessage(), equalTo("authz failed"));
         if (remoteAccess) {
-            verify(remoteAccessAuthcService).authenticate(anyString(), any(), anyActionListener());
+            verify(crossClusterAccessAuthcService).authenticate(anyString(), any(), anyActionListener());
             verify(authcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
         } else {
             verify(authcService).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
-            verify(remoteAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
+            verify(crossClusterAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
         }
     }
 
@@ -345,7 +348,7 @@ public class ServerTransportFilterTests extends ESTestCase {
             }
         }
         return new CrossClusterAccessServerTransportFilter(
-            remoteAccessAuthcService,
+            crossClusterAccessAuthcService,
             authzService,
             threadContext,
             false,

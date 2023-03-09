@@ -804,7 +804,7 @@ public class AuthenticationTests extends ESTestCase {
             authentication.getEffectiveSubject().getTransportVersion()
         );
 
-        final Map<String, Object> rewrittenMetadata = Authentication.maybeRewriteMetadataForRemoteAccessAuthentication(
+        final Map<String, Object> rewrittenMetadata = Authentication.maybeRewriteMetadataForCrossClusterAccessAuthentication(
             olderVersion,
             authentication
         );

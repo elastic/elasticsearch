@@ -20,14 +20,19 @@ package co.elastic.elasticsearch.stateless.engine;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.LongSupplier;
 
 /**
@@ -47,6 +52,8 @@ public class IndexEngine extends InternalEngine {
 
     private final AtomicLong lastFlushNanos;
     private volatile TimeValue indexFlushInterval;
+    private volatile Scheduler.ScheduledCancellable cancellableFlushTask;
+    private final ReleasableLock flushLock = new ReleasableLock(new ReentrantLock());
 
     public IndexEngine(EngineConfig engineConfig) {
         super(engineConfig);
@@ -54,30 +61,59 @@ public class IndexEngine extends InternalEngine {
         this.relativeTimeInNanosSupplier = config().getRelativeTimeInNanosSupplier();
         this.lastFlushNanos = new AtomicLong(relativeTimeInNanosSupplier.getAsLong());
         this.indexFlushInterval = INDEX_FLUSH_INTERVAL_SETTING.get(config().getIndexSettings().getSettings());
+        cancellableFlushTask = scheduleFlushTask();
     }
 
     @Override
     public void onSettingsChanged() {
         super.onSettingsChanged();
         this.indexFlushInterval = INDEX_FLUSH_INTERVAL_SETTING.get(config().getIndexSettings().getSettings());
+        cancellableFlushTask.cancel();
+        cancellableFlushTask = scheduleFlushTask();
     }
 
-    @Override
-    public boolean shouldPeriodicallyFlush() {
-        final TimeValue flushInterval = indexFlushInterval;
-        boolean shouldFlushBecauseInterval = flushInterval.duration() != -1
-            && (relativeTimeInNanosSupplier.getAsLong() - lastFlushNanos.get()) >= flushInterval.nanos();
-        // TODO flush only if `indexWriter.hasUncommittedChanges() == true`
-        return shouldFlushBecauseInterval || super.shouldPeriodicallyFlush();
+    private Scheduler.ScheduledCancellable scheduleFlushTask() {
+        return engineConfig.getThreadPool().schedule(this::scheduleFlush, indexFlushInterval, ThreadPool.Names.FLUSH);
+    }
+
+    private void scheduleFlush() {
+        if (isClosed.get()) {
+            return;
+        }
+        TimeValue nextFlushDelay;
+        long sinceLastFlushNanos = relativeTimeInNanosSupplier.getAsLong() - lastFlushNanos.get();
+        if (sinceLastFlushNanos < indexFlushInterval.nanos()) {
+            // Try to maintain flushes happening within the indexFlushInterval in case of an unscheduled flush
+            nextFlushDelay = TimeValue.timeValueNanos(indexFlushInterval.nanos() - sinceLastFlushNanos);
+        } else {
+            try (ReleasableLock releasableLock = flushLock.tryAcquire()) {
+                if (releasableLock != null) {
+                    scheduledFlush();
+                }
+            }
+            nextFlushDelay = indexFlushInterval;
+        }
+        cancellableFlushTask = engineConfig.getThreadPool().schedule(this::scheduleFlush, nextFlushDelay, ThreadPool.Names.FLUSH);
+    }
+
+    // visible for testing
+    void scheduledFlush() {
+        flush();
     }
 
     @Override
     public boolean flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        boolean result = super.flush(force, waitIfOngoing);
-        if (result) {
-            lastFlushNanos.set(relativeTimeInNanosSupplier.getAsLong());
+        try (ReleasableLock locked = waitIfOngoing ? flushLock.acquire() : flushLock.tryAcquire()) {
+            if (locked == null) {
+                return false;
+            }
+            long newLastFlushNanos = relativeTimeInNanosSupplier.getAsLong();
+            boolean result = super.flush(force, waitIfOngoing);
+            if (result) {
+                lastFlushNanos.set(newLastFlushNanos);
+            }
+            return result;
         }
-        return result;
     }
 
     // visible for testing
@@ -96,5 +132,11 @@ public class IndexEngine extends InternalEngine {
             flush(true, true);
         }
         return super.refresh(source);
+    }
+
+    @Override
+    public void close() throws IOException {
+        cancellableFlushTask.cancel();
+        super.close();
     }
 }

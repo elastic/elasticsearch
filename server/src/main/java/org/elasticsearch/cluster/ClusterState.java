@@ -621,9 +621,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 metrics.contains(Metric.TRANSPORT_VERSIONS),
                 (builder, params) -> builder.startArray("transport_versions"),
                 transportVersions.entrySet().iterator(),
-                e -> Iterators.single((builder, params) ->
-                    builder
-                        .startObject()
+                e -> Iterators.single(
+                    (builder, params) -> builder.startObject()
                         .field("node_id", e.getKey())
                         .field("transport_version", e.getValue().toString())
                         .endObject()

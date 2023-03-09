@@ -38,9 +38,8 @@ public class EsqlMediaTypeParser {
      * isn't then we use the {@code Content-Type} header which is required.
      */
     public static MediaType getResponseMediaType(RestRequest request, EsqlQueryRequest esqlRequest) {
-        return request.hasParam(URL_PARAM_FORMAT)
-            ? validateColumnarRequest(esqlRequest.columnar(), mediaTypeFromParams(request), request)
-            : mediaTypeFromHeaders(request);
+        var mediaType = request.hasParam(URL_PARAM_FORMAT) ? mediaTypeFromParams(request) : mediaTypeFromHeaders(request);
+        return validateColumnarRequest(esqlRequest.columnar(), mediaType, request);
     }
 
     private static MediaType mediaTypeFromHeaders(RestRequest request) {
@@ -57,7 +56,7 @@ public class EsqlMediaTypeParser {
         if (requestIsColumnar && fromMediaType instanceof TextFormat) {
             throw new IllegalArgumentException(
                 "Invalid use of [columnar] argument: cannot be used in combination with "
-                    + Arrays.stream(TextFormat.values()).map(MediaType::queryParameter)
+                    + Arrays.stream(TextFormat.values()).map(MediaType::queryParameter).toList()
                     + " formats"
             );
         }

@@ -71,6 +71,23 @@ public class EsqlMediaTypeParserTests extends ESTestCase {
         assertEquals(e.getMessage(), "Invalid request content type: Accept=[text/garbage], Content-Type=[application/json], format=[null]");
     }
 
+    public void testColumnarWithAcceptText() {
+        var accept = randomFrom("text/plain", "text/csv", "text/tab-separated-values");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> getResponseMediaType(reqWithAccept(accept), createTestInstance(true))
+        );
+        assertEquals(e.getMessage(), "Invalid use of [columnar] argument: cannot be used in combination with [txt, csv, tsv] formats");
+    }
+
+    public void testColumnarWithParamText() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> getResponseMediaType(reqWithParams(Map.of("format", randomFrom("txt", "csv", "tsv"))), createTestInstance(true))
+        );
+        assertEquals(e.getMessage(), "Invalid use of [columnar] argument: cannot be used in combination with [txt, csv, tsv] formats");
+    }
+
     public void testNoFormat() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -83,6 +100,12 @@ public class EsqlMediaTypeParserTests extends ESTestCase {
         return new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withHeaders(
             Map.of("Content-Type", Collections.singletonList("application/json"), "Accept", Collections.singletonList(acceptHeader))
         ).build();
+    }
+
+    private static RestRequest reqWithParams(Map<String, String> params) {
+        return new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withHeaders(
+            Map.of("Content-Type", Collections.singletonList("application/json"))
+        ).withParams(params).build();
     }
 
     protected EsqlQueryRequest createTestInstance(boolean columnar) {

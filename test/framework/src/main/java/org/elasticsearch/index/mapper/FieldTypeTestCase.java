@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -57,7 +58,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
 
         ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, format);
         Source source = Source.fromMap(Collections.singletonMap(field, sourceValue), randomFrom(XContentType.values()));
-        return fetcher.fetchValues(source, -1, List.of());
+        return fetcher.fetchValues(source, -1, new ArrayList<>());
     }
 
     public static List<?> fetchSourceValues(MappedFieldType fieldType, Object... values) throws IOException {

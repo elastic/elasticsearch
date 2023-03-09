@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -26,9 +27,10 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestResponseListener;
 
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -96,12 +98,16 @@ public class RestAllocationAction extends AbstractCatAction {
     }
 
     private Table buildTable(RestRequest request, final ClusterStateResponse state, final NodesStatsResponse stats) {
-        final Map<String, Integer> allocs = state.getState().routingTable().allShards().collect(Collectors.groupingBy(shardRouting -> {
-            if (shardRouting.assignedToNode() == false) {
-                return shardRouting.currentNodeId();
+        final Map<String, Integer> allocs = new HashMap<>();
+
+        for (Iterator<ShardRouting> iterator = state.getState().routingTable().allShards().iterator(); iterator.hasNext();) {
+            ShardRouting shard = iterator.next();
+            String nodeId = "UNASSIGNED";
+            if (shard.assignedToNode()) {
+                nodeId = shard.currentNodeId();
             }
-            return "UNASSIGNED";
-        }, Collectors.summingInt(v -> 1)));
+            allocs.merge(nodeId, 1, Integer::sum);
+        }
         Table table = getTableWithHeader(request);
 
         for (NodeStats nodeStats : stats.getNodes()) {

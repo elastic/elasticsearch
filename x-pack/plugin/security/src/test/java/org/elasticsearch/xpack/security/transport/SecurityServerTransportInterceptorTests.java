@@ -61,7 +61,7 @@ import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
+import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.After;
 import org.mockito.ArgumentCaptor;
@@ -84,7 +84,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
-import static org.elasticsearch.xpack.security.transport.RemoteClusterCredentialsResolver.RemoteClusterCredentials;
+import static org.elasticsearch.xpack.security.transport.CrossClusterAccessCredentialsResolver.RemoteClusterCredentials;
 import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -147,8 +147,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            mock(RemoteAccessAuthenticationService.class),
-            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings())
+            mock(CrossClusterAccessAuthenticationService.class),
+            new CrossClusterAccessCredentialsResolver(settings, clusterService.getClusterSettings())
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -198,8 +198,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            mock(RemoteAccessAuthenticationService.class),
-            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings())
+            mock(CrossClusterAccessAuthenticationService.class),
+            new CrossClusterAccessCredentialsResolver(settings, clusterService.getClusterSettings())
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -242,8 +242,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            mock(RemoteAccessAuthenticationService.class),
-            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings())
+            mock(CrossClusterAccessAuthenticationService.class),
+            new CrossClusterAccessCredentialsResolver(settings, clusterService.getClusterSettings())
         ) {
             @Override
             void assertNoAuthentication(String action) {}
@@ -304,8 +304,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            mock(RemoteAccessAuthenticationService.class),
-            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings())
+            mock(CrossClusterAccessAuthenticationService.class),
+            new CrossClusterAccessCredentialsResolver(settings, clusterService.getClusterSettings())
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -372,8 +372,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            mock(RemoteAccessAuthenticationService.class),
-            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings())
+            mock(CrossClusterAccessAuthenticationService.class),
+            new CrossClusterAccessCredentialsResolver(settings, clusterService.getClusterSettings())
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -436,8 +436,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            mock(RemoteAccessAuthenticationService.class),
-            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings())
+            mock(CrossClusterAccessAuthenticationService.class),
+            new CrossClusterAccessCredentialsResolver(settings, clusterService.getClusterSettings())
         );
 
         final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
@@ -589,10 +589,10 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             default -> throw new IllegalStateException("unexpected case");
         };
         authentication.writeToContext(threadContext);
-        final RemoteClusterCredentialsResolver remoteClusterCredentialsResolver = mock(RemoteClusterCredentialsResolver.class);
+        final CrossClusterAccessCredentialsResolver crossClusterAccessCredentialsResolver = mock(CrossClusterAccessCredentialsResolver.class);
         final String remoteClusterAlias = randomAlphaOfLengthBetween(5, 10);
         final String remoteClusterCredential = ApiKeyService.withApiKeyPrefix(randomAlphaOfLengthBetween(10, 42));
-        when(remoteClusterCredentialsResolver.resolve(any())).thenReturn(
+        when(crossClusterAccessCredentialsResolver.resolve(any())).thenReturn(
             Optional.of(new RemoteClusterCredentials(remoteClusterAlias, remoteClusterCredential))
         );
         final AuthorizationService authzService = mock(AuthorizationService.class);
@@ -612,8 +612,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            mock(RemoteAccessAuthenticationService.class),
-            remoteClusterCredentialsResolver,
+            mock(CrossClusterAccessAuthenticationService.class),
+            crossClusterAccessCredentialsResolver,
             ignored -> Optional.of(remoteClusterAlias)
         );
 
@@ -681,7 +681,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             equalTo(new CrossClusterAccessSubjectInfo(authentication, expectedRoleDescriptorsIntersection))
         );
         verify(securityContext, never()).executeAsInternalUser(any(), any(), anyConsumer());
-        verify(remoteClusterCredentialsResolver, times(1)).resolve(eq(remoteClusterAlias));
+        verify(crossClusterAccessCredentialsResolver, times(1)).resolve(eq(remoteClusterAlias));
         verify(authzService, times(authType.equals("internal") ? 0 : 1)).retrieveRemoteAccessRoleDescriptorsIntersection(
             eq(remoteClusterAlias),
             eq(authentication.getEffectiveSubject()),
@@ -702,8 +702,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             noCredential = true;
         }
         final String remoteClusterAlias = randomAlphaOfLengthBetween(5, 10);
-        final RemoteClusterCredentialsResolver remoteClusterCredentialsResolver = mock(RemoteClusterCredentialsResolver.class);
-        when(remoteClusterCredentialsResolver.resolve(any())).thenReturn(
+        final CrossClusterAccessCredentialsResolver crossClusterAccessCredentialsResolver = mock(CrossClusterAccessCredentialsResolver.class);
+        when(crossClusterAccessCredentialsResolver.resolve(any())).thenReturn(
             noCredential
                 ? Optional.empty()
                 : Optional.of(
@@ -713,7 +713,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final AuthenticationTestHelper.AuthenticationTestBuilder builder = AuthenticationTestHelper.builder();
         final Authentication authentication;
         if (unsupportedAuthentication) {
-            authentication = builder.remoteAccess().build();
+            authentication = builder.crossClusterAccess().build();
         } else {
             authentication = randomFrom(
                 builder.apiKey().build(),
@@ -736,8 +736,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            mock(RemoteAccessAuthenticationService.class),
-            remoteClusterCredentialsResolver,
+            mock(CrossClusterAccessAuthenticationService.class),
+            crossClusterAccessCredentialsResolver,
             ignored -> notRemoteConnection ? Optional.empty() : Optional.of(remoteClusterAlias)
         );
 
@@ -788,10 +788,10 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             .realm()
             .build();
         authentication.writeToContext(threadContext);
-        final RemoteClusterCredentialsResolver remoteClusterCredentialsResolver = mock(RemoteClusterCredentialsResolver.class);
+        final CrossClusterAccessCredentialsResolver crossClusterAccessCredentialsResolver = mock(CrossClusterAccessCredentialsResolver.class);
         final String remoteClusterAlias = randomAlphaOfLengthBetween(5, 10);
         final String remoteClusterCredential = ApiKeyService.withApiKeyPrefix(randomAlphaOfLengthBetween(10, 42));
-        when(remoteClusterCredentialsResolver.resolve(any())).thenReturn(
+        when(crossClusterAccessCredentialsResolver.resolve(any())).thenReturn(
             Optional.of(new RemoteClusterCredentials(remoteClusterAlias, remoteClusterCredential))
         );
 
@@ -806,8 +806,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            mock(RemoteAccessAuthenticationService.class),
-            remoteClusterCredentialsResolver,
+            mock(CrossClusterAccessAuthenticationService.class),
+            crossClusterAccessCredentialsResolver,
             ignored -> Optional.of(remoteClusterAlias)
         );
 
@@ -864,7 +864,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                     + "] does not support receiving them"
             )
         );
-        verify(remoteClusterCredentialsResolver, times(1)).resolve(eq(remoteClusterAlias));
+        verify(crossClusterAccessCredentialsResolver, times(1)).resolve(eq(remoteClusterAlias));
         assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY), nullValue());
         assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY), nullValue());
     }
@@ -877,10 +877,10 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             .realm()
             .build();
         authentication.writeToContext(threadContext);
-        final RemoteClusterCredentialsResolver remoteClusterCredentialsResolver = mock(RemoteClusterCredentialsResolver.class);
+        final CrossClusterAccessCredentialsResolver crossClusterAccessCredentialsResolver = mock(CrossClusterAccessCredentialsResolver.class);
         final String remoteClusterAlias = randomAlphaOfLengthBetween(5, 10);
         final String remoteClusterCredential = ApiKeyService.withApiKeyPrefix(randomAlphaOfLengthBetween(10, 42));
-        when(remoteClusterCredentialsResolver.resolve(any())).thenReturn(
+        when(crossClusterAccessCredentialsResolver.resolve(any())).thenReturn(
             Optional.of(new RemoteClusterCredentials(remoteClusterAlias, remoteClusterCredential))
         );
         final AuthorizationService authzService = mock(AuthorizationService.class);
@@ -903,8 +903,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            mock(RemoteAccessAuthenticationService.class),
-            remoteClusterCredentialsResolver,
+            mock(CrossClusterAccessAuthenticationService.class),
+            crossClusterAccessCredentialsResolver,
             ignored -> Optional.of(remoteClusterAlias)
         );
 
@@ -967,7 +967,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             .realm()
             .build();
         authentication.writeToContext(threadContext);
-        final RemoteClusterCredentialsResolver remoteClusterAuthorizationResolver = mock(RemoteClusterCredentialsResolver.class);
+        final CrossClusterAccessCredentialsResolver remoteClusterAuthorizationResolver = mock(CrossClusterAccessCredentialsResolver.class);
         final String remoteClusterAlias = randomAlphaOfLengthBetween(5, 10);
         final String remoteClusterCredential = ApiKeyService.withApiKeyPrefix(randomAlphaOfLengthBetween(10, 42));
         when(remoteClusterAuthorizationResolver.resolve(any())).thenReturn(
@@ -985,7 +985,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            mock(RemoteAccessAuthenticationService.class),
+            mock(CrossClusterAccessAuthenticationService.class),
             remoteClusterAuthorizationResolver,
             ignored -> Optional.of(remoteClusterAlias)
         );
@@ -1097,8 +1097,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            mock(RemoteAccessAuthenticationService.class),
-            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings())
+            mock(CrossClusterAccessAuthenticationService.class),
+            new CrossClusterAccessCredentialsResolver(settings, clusterService.getClusterSettings())
         );
 
         final Map<String, ServerTransportFilter> profileFilters = securityServerTransportInterceptor.getProfileFilters();
@@ -1150,8 +1150,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
-            mock(RemoteAccessAuthenticationService.class),
-            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings())
+            mock(CrossClusterAccessAuthenticationService.class),
+            new CrossClusterAccessCredentialsResolver(settings, clusterService.getClusterSettings())
         );
 
         final Map<String, ServerTransportFilter> profileFilters = securityServerTransportInterceptor.getProfileFilters();

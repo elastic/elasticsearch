@@ -21,9 +21,9 @@ import java.util.Optional;
 
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION;
 
-public class RemoteClusterCredentialsResolver {
+public class CrossClusterAccessCredentialsResolver {
 
-    private static final Logger LOGGER = LogManager.getLogger(RemoteClusterCredentialsResolver.class);
+    private static final Logger LOGGER = LogManager.getLogger(CrossClusterAccessCredentialsResolver.class);
 
     private final Map<String, String> apiKeys = ConcurrentCollections.newConcurrentMap();
 
@@ -32,7 +32,7 @@ public class RemoteClusterCredentialsResolver {
      * @param settings Contains zero, one, or many values of REMOTE_CLUSTER_AUTHORIZATION literal values.
      * @param clusterSettings Contains one affix setting REMOTE_CLUSTER_AUTHORIZATION.
      */
-    public RemoteClusterCredentialsResolver(final Settings settings, final ClusterSettings clusterSettings) {
+    public CrossClusterAccessCredentialsResolver(final Settings settings, final ClusterSettings clusterSettings) {
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
             for (final Map.Entry<String, String> entry : REMOTE_CLUSTER_AUTHORIZATION.getAsMap(settings).entrySet()) {
                 if (Strings.isEmpty(entry.getValue()) == false) {

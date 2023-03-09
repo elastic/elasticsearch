@@ -31,8 +31,8 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService.CROSS_CLUSTER_INTERNAL_ROLE;
-import static org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService.VERSION_REMOTE_ACCESS_AUTHENTICATION;
+import static org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService.CROSS_CLUSTER_INTERNAL_ROLE;
+import static org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService.VERSION_REMOTE_ACCESS_AUTHENTICATION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -81,7 +81,7 @@ public class CrossClusterAccessSubjectInfoServiceTests extends ESTestCase {
             i -> new ElasticsearchSecurityException("potato", (Exception) i.getArguments()[0])
         );
         when(authenticationService.newContext(anyString(), any(), anyBoolean())).thenReturn(authcContext);
-        final RemoteAccessAuthenticationService service = new RemoteAccessAuthenticationService(
+        final CrossClusterAccessAuthenticationService service = new CrossClusterAccessAuthenticationService(
             clusterService,
             apiKeyService,
             authenticationService
@@ -121,7 +121,7 @@ public class CrossClusterAccessSubjectInfoServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final ArgumentCaptor<ActionListener<Authentication>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
         doAnswer(i -> null).when(authenticationService).authenticate(eq(authcContext), listenerCaptor.capture());
-        final RemoteAccessAuthenticationService service = new RemoteAccessAuthenticationService(
+        final CrossClusterAccessAuthenticationService service = new CrossClusterAccessAuthenticationService(
             clusterService,
             apiKeyService,
             authenticationService
@@ -133,10 +133,10 @@ public class CrossClusterAccessSubjectInfoServiceTests extends ESTestCase {
         listenerCaptor.getValue().onResponse(apiKeyAuthentication);
         future.get();
 
-        final Authentication remoteAuthentication = remoteAccessHeaders.crossClusterAccessSubjectInfo().getAuthentication();
+        final Authentication remoteAuthentication = remoteAccessHeaders.subjectInfo().getAuthentication();
         final Authentication expectedAuthentication;
         if (SystemUser.is(remoteAuthentication.getEffectiveSubject().getUser())) {
-            expectedAuthentication = apiKeyAuthentication.toRemoteAccess(
+            expectedAuthentication = apiKeyAuthentication.toCrossClusterAccess(
                 new CrossClusterAccessSubjectInfo(
                     Authentication.newInternalAuthentication(
                         SystemUser.INSTANCE,
@@ -147,7 +147,7 @@ public class CrossClusterAccessSubjectInfoServiceTests extends ESTestCase {
                 )
             );
         } else {
-            expectedAuthentication = apiKeyAuthentication.toRemoteAccess(remoteAccessHeaders.crossClusterAccessSubjectInfo());
+            expectedAuthentication = apiKeyAuthentication.toCrossClusterAccess(remoteAccessHeaders.subjectInfo());
         }
         verify(auditableRequest).authenticationSuccess(expectedAuthentication);
         verifyNoMoreInteractions(auditableRequest);
@@ -193,7 +193,7 @@ public class CrossClusterAccessSubjectInfoServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final ArgumentCaptor<ActionListener<Authentication>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
         doAnswer(i -> null).when(authenticationService).authenticate(eq(authcContext), listenerCaptor.capture());
-        final RemoteAccessAuthenticationService service = new RemoteAccessAuthenticationService(
+        final CrossClusterAccessAuthenticationService service = new CrossClusterAccessAuthenticationService(
             clusterService,
             apiKeyService,
             authenticationService
@@ -230,7 +230,7 @@ public class CrossClusterAccessSubjectInfoServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final ArgumentCaptor<ActionListener<Authentication>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
         doAnswer(i -> null).when(authenticationService).authenticate(eq(authcContext), listenerCaptor.capture());
-        final RemoteAccessAuthenticationService service = new RemoteAccessAuthenticationService(
+        final CrossClusterAccessAuthenticationService service = new CrossClusterAccessAuthenticationService(
             clusterService,
             apiKeyService,
             authenticationService

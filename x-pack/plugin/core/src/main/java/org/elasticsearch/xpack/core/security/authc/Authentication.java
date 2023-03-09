@@ -67,12 +67,12 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AP
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_REALM_TYPE;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMAIN_PARSER;
 
 /**
@@ -224,7 +224,7 @@ public final class Authentication implements ToXContentObject {
 
         // remote access introduced a new synthetic realm and subject type; these cannot be parsed by older versions, so rewriting is not
         // possible
-        if (isRemoteAccess() && olderVersion.before(VERSION_REMOTE_ACCESS_REALM)) {
+        if (isCrossClusterAccess() && olderVersion.before(VERSION_REMOTE_ACCESS_REALM)) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
                     + VERSION_REMOTE_ACCESS_REALM
@@ -274,8 +274,8 @@ public final class Authentication implements ToXContentObject {
     private static Map<String, Object> maybeRewriteMetadata(TransportVersion olderVersion, Authentication authentication) {
         if (authentication.isAuthenticatedAsApiKey()) {
             return maybeRewriteMetadataForApiKeyRoleDescriptors(olderVersion, authentication);
-        } else if (authentication.isRemoteAccess()) {
-            return maybeRewriteMetadataForRemoteAccessAuthentication(olderVersion, authentication);
+        } else if (authentication.isCrossClusterAccess()) {
+            return maybeRewriteMetadataForCrossClusterAccessAuthentication(olderVersion, authentication);
         } else {
             return authentication.getAuthenticatingSubject().getMetadata();
         }
@@ -309,7 +309,7 @@ public final class Authentication implements ToXContentObject {
     public Authentication token() {
         assert false == isAuthenticatedInternally();
         assert false == isServiceAccount();
-        assert false == isRemoteAccess();
+        assert false == isCrossClusterAccess();
         final Authentication newTokenAuthentication = new Authentication(effectiveSubject, authenticatingSubject, AuthenticationType.TOKEN);
         return newTokenAuthentication;
     }
@@ -334,7 +334,7 @@ public final class Authentication implements ToXContentObject {
             && false == anonymousUser.equals(getEffectiveSubject().getUser())
             && false == User.isInternal(getEffectiveSubject().getUser())
             && false == isApiKey()
-            && false == isRemoteAccess()
+            && false == isCrossClusterAccess()
             && false == isServiceAccount();
 
         if (false == shouldAddAnonymousRoleNames) {
@@ -429,7 +429,7 @@ public final class Authentication implements ToXContentObject {
         return effectiveSubject.getType() == Subject.Type.API_KEY;
     }
 
-    public boolean isRemoteAccess() {
+    public boolean isCrossClusterAccess() {
         return effectiveSubject.getType() == Subject.Type.REMOTE_ACCESS;
     }
 
@@ -449,7 +449,7 @@ public final class Authentication implements ToXContentObject {
 
         // Real run-as for remote access could happen on the querying cluster side, but not on the fulfilling cluster. Since the
         // authentication instance corresponds to the fulfilling-cluster-side view, run-as is not supported
-        if (isRemoteAccess()) {
+        if (isCrossClusterAccess()) {
             return false;
         }
 
@@ -665,7 +665,7 @@ public final class Authentication implements ToXContentObject {
         }
         builder.endObject();
         builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
-        if (isApiKey() || isRemoteAccess()) {
+        if (isApiKey() || isCrossClusterAccess()) {
             final String apiKeyId = (String) getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
             final String apiKeyName = (String) getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
             if (apiKeyName == null) {
@@ -677,9 +677,9 @@ public final class Authentication implements ToXContentObject {
     }
 
     private static final Map<String, CheckedFunction<StreamInput, Object, IOException>> METADATA_VALUE_READER = Map.of(
-        REMOTE_ACCESS_AUTHENTICATION_KEY,
+        CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY,
         Authentication::new,
-        REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY,
+        CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY,
         in -> in.readList(RoleDescriptorsBytes::new)
     );
 
@@ -699,9 +699,9 @@ public final class Authentication implements ToXContentObject {
     }
 
     private static final Map<String, Writeable.Writer<?>> METADATA_VALUE_WRITER = Map.of(
-        REMOTE_ACCESS_AUTHENTICATION_KEY,
+        CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY,
         (out, v) -> ((Authentication) v).writeTo(out),
-        REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY,
+        CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY,
         (out, v) -> {
             @SuppressWarnings("unchecked")
             final List<RoleDescriptorsBytes> roleDescriptorsBytesList = (List<RoleDescriptorsBytes>) v;
@@ -790,19 +790,19 @@ public final class Authentication implements ToXContentObject {
         }
         checkConsistencyForApiKeyAuthenticatingSubject("API key");
         if (Subject.Type.REMOTE_ACCESS == authenticatingSubject.getType()) {
-            if (authenticatingSubject.getMetadata().get(REMOTE_ACCESS_AUTHENTICATION_KEY) == null) {
+            if (authenticatingSubject.getMetadata().get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY) == null) {
                 throw new IllegalArgumentException(
                     "Remote access authentication requires metadata to contain a non-null serialized remote access authentication"
                 );
             }
             final Authentication innerAuthentication = (Authentication) authenticatingSubject.getMetadata()
-                .get(REMOTE_ACCESS_AUTHENTICATION_KEY);
-            if (innerAuthentication.isRemoteAccess()) {
+                .get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
+            if (innerAuthentication.isCrossClusterAccess()) {
                 throw new IllegalArgumentException(
                     "Remote access authentication cannot contain another remote access authentication in its metadata"
                 );
             }
-            if (authenticatingSubject.getMetadata().get(REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY) == null) {
+            if (authenticatingSubject.getMetadata().get(CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY) == null) {
                 throw new IllegalArgumentException(
                     "Remote access authentication requires metadata to contain a non-null serialized remote access role descriptors"
                 );
@@ -1171,7 +1171,7 @@ public final class Authentication implements ToXContentObject {
         );
         assert false == authentication.isServiceAccount();
         assert false == authentication.isApiKey();
-        assert false == authentication.isRemoteAccess();
+        assert false == authentication.isCrossClusterAccess();
         assert false == authentication.isAuthenticatedInternally();
         assert false == authentication.isAuthenticatedAnonymously();
         return authentication;
@@ -1189,23 +1189,22 @@ public final class Authentication implements ToXContentObject {
         return authentication;
     }
 
-    public Authentication toRemoteAccess(CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo) {
-        assert isApiKey() : "can only convert API key authentication to remote access";
+    public Authentication toCrossClusterAccess(CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo) {
+        assert isApiKey() : "can only convert API key authentication to cross cluster access";
         assert false == isRunAs() : "remote access does not support authentication with run-as";
         assert getEffectiveSubject().getUser().roles().length == 0
-            : "the user associated with a remote access authentication must have no role";
+            : "the user associated with a cross cluster access authentication must have no role";
         final Map<String, Object> metadata = new HashMap<>(getAuthenticatingSubject().getMetadata());
         final Authentication.RealmRef authenticatedBy = newRemoteAccessRealmRef(getAuthenticatingSubject().getRealm().getNodeName());
-        final Authentication authentication = new Authentication(
+        return new Authentication(
             new Subject(
                 getEffectiveSubject().getUser(),
                 authenticatedBy,
                 TransportVersion.CURRENT,
-                crossClusterAccessSubjectInfo.copyWithRemoteAccessEntries(metadata)
+                crossClusterAccessSubjectInfo.copyWithCrossClusterAccessEntries(metadata)
             ),
             getAuthenticationType()
         );
-        return authentication;
     }
 
     // pkg-private for testing
@@ -1281,18 +1280,21 @@ public final class Authentication implements ToXContentObject {
     }
 
     // pkg-private for testing
-    static Map<String, Object> maybeRewriteMetadataForRemoteAccessAuthentication(
+    static Map<String, Object> maybeRewriteMetadataForCrossClusterAccessAuthentication(
         final TransportVersion olderVersion,
         final Authentication authentication
     ) {
-        assert authentication.isRemoteAccess() : "authentication must be remote access";
+        assert authentication.isCrossClusterAccess() : "authentication must be cross cluster access";
         final Map<String, Object> metadata = authentication.getAuthenticatingSubject().getMetadata();
-        assert metadata.containsKey(REMOTE_ACCESS_AUTHENTICATION_KEY)
-            : "metadata must contain authentication object for remote access authentication";
-        final Authentication authenticationFromMetadata = (Authentication) metadata.get(REMOTE_ACCESS_AUTHENTICATION_KEY);
+        assert metadata.containsKey(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY)
+            : "metadata must contain authentication object for cross cluster access authentication";
+        final Authentication authenticationFromMetadata = (Authentication) metadata.get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
         if (authenticationFromMetadata.getEffectiveSubject().getTransportVersion().after(olderVersion)) {
             final Map<String, Object> rewrittenMetadata = new HashMap<>(metadata);
-            rewrittenMetadata.put(REMOTE_ACCESS_AUTHENTICATION_KEY, authenticationFromMetadata.maybeRewriteForOlderVersion(olderVersion));
+            rewrittenMetadata.put(
+                CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY,
+                authenticationFromMetadata.maybeRewriteForOlderVersion(olderVersion)
+            );
             return rewrittenMetadata;
         } else {
             return metadata;

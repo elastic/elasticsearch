@@ -133,18 +133,18 @@ public final class CrossClusterAccessSubjectInfo {
     }
 
     /**
-     * Returns a copy of the passed-in metadata map, with the relevant remote access fields included. Does not modify the original map.
+     * Returns a copy of the passed-in metadata map, with the relevant cross cluster access fields included. Does not modify the original map.
      */
-    public Map<String, Object> copyWithRemoteAccessEntries(final Map<String, Object> authenticationMetadata) {
-        assert false == authenticationMetadata.containsKey(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
-            : "metadata already contains [" + AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY + "] entry";
-        assert false == authenticationMetadata.containsKey(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY)
-            : "metadata already contains [" + AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY + "] entry";
-        assert false == getAuthentication().isRemoteAccess()
-            : "authentication included in remote access header cannot itself be remote access";
+    public Map<String, Object> copyWithCrossClusterAccessEntries(final Map<String, Object> authenticationMetadata) {
+        assert false == authenticationMetadata.containsKey(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY)
+            : "metadata already contains [" + AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY + "] entry";
+        assert false == authenticationMetadata.containsKey(AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY)
+            : "metadata already contains [" + AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY + "] entry";
+        assert false == getAuthentication().isCrossClusterAccess()
+            : "authentication included in cross cluster access header cannot itself be cross cluster access";
         final Map<String, Object> copy = new HashMap<>(authenticationMetadata);
-        copy.put(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, getAuthentication());
-        copy.put(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY, getRoleDescriptorsBytesList());
+        copy.put(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY, getAuthentication());
+        copy.put(AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY, getRoleDescriptorsBytesList());
         return Collections.unmodifiableMap(copy);
     }
 

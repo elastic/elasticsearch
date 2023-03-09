@@ -28,7 +28,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY;
 import static org.elasticsearch.xpack.core.security.authc.Subject.Type.API_KEY;
 import static org.elasticsearch.xpack.core.security.authc.Subject.Type.REMOTE_ACCESS;
 
@@ -129,8 +129,8 @@ public class Subject {
                 if (false == isTheSameApiKey(resourceCreatorSubject)) {
                     return false;
                 }
-                return ((Authentication) getMetadata().get(REMOTE_ACCESS_AUTHENTICATION_KEY)).canAccessResourcesOf(
-                    (Authentication) resourceCreatorSubject.getMetadata().get(REMOTE_ACCESS_AUTHENTICATION_KEY)
+                return ((Authentication) getMetadata().get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY)).canAccessResourcesOf(
+                    (Authentication) resourceCreatorSubject.getMetadata().get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY)
                 );
             } else {
                 // A remote access subject can never share resources with non-remote access
@@ -268,7 +268,7 @@ public class Subject {
         final List<RoleReference> roleReferences = new ArrayList<>(4);
         @SuppressWarnings("unchecked")
         final var remoteAccessRoleDescriptorsBytes = (List<RoleDescriptorsBytes>) metadata.get(
-            AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY
+            AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY
         );
         if (remoteAccessRoleDescriptorsBytes.isEmpty()) {
             // If the remote access role descriptors are empty, the remote user has no privileges. We need to add an empty role to restrict

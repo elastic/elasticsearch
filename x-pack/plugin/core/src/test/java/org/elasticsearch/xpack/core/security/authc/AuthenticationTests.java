@@ -144,7 +144,7 @@ public class AuthenticationTests extends ESTestCase {
             AuthenticationTestHelper::randomRemoteAccessAuthentication
         );
         final Authentication authentication = AuthenticationTestHelper.builder()
-            .remoteAccess(apiKeyId1, crossClusterAccessSubjectInfo1)
+            .crossClusterAccess(apiKeyId1, crossClusterAccessSubjectInfo1)
             .build(false);
         final User apiKeyUser1 = authentication.getEffectiveSubject().getUser();
 
@@ -156,7 +156,7 @@ public class AuthenticationTests extends ESTestCase {
         assertCannotAccessResources(authentication, crossClusterAccessSubjectInfo1.getAuthentication());
         assertThat(
             crossClusterAccessSubjectInfo1.getAuthentication(),
-            is(authentication.getEffectiveSubject().getMetadata().get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY))
+            is(authentication.getEffectiveSubject().getMetadata().get(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY))
         );
 
         // 3. The same API key can be used with the REST interface
@@ -166,7 +166,7 @@ public class AuthenticationTests extends ESTestCase {
         final String apiKeyId2 = randomValueOtherThan(apiKeyId1, () -> randomAlphaOfLengthBetween(10, 20));
         assertCannotAccessResources(
             authentication,
-            AuthenticationTestHelper.builder().remoteAccess(apiKeyId2, crossClusterAccessSubjectInfo1).build(false)
+            AuthenticationTestHelper.builder().crossClusterAccess(apiKeyId2, crossClusterAccessSubjectInfo1).build(false)
         );
 
         // 5. The same API key but for a different QC user base on its own canAccessResourcesOf
@@ -176,7 +176,7 @@ public class AuthenticationTests extends ESTestCase {
         );
         assertCannotAccessResources(
             authentication,
-            AuthenticationTestHelper.builder().user(apiKeyUser1).remoteAccess(apiKeyId1, crossClusterAccessSubjectInfo2).build(false)
+            AuthenticationTestHelper.builder().user(apiKeyUser1).crossClusterAccess(apiKeyId1, crossClusterAccessSubjectInfo2).build(false)
         );
 
         // 6. Allow access if QC authentication is a run-as equivalent
@@ -197,7 +197,7 @@ public class AuthenticationTests extends ESTestCase {
         // random the role descriptor intersection because it does not matter for resource sharing check
         final Authentication authentication2 = AuthenticationTestHelper.builder()
             .user(apiKeyUser1)
-            .remoteAccess(apiKeyId1, new CrossClusterAccessSubjectInfo(qcAuthentication2, randomRoleDescriptorsIntersection()))
+            .crossClusterAccess(apiKeyId1, new CrossClusterAccessSubjectInfo(qcAuthentication2, randomRoleDescriptorsIntersection()))
             .build(false);
         assertCanAccessResources(authentication, authentication2);
 
@@ -207,7 +207,7 @@ public class AuthenticationTests extends ESTestCase {
             authentication,
             AuthenticationTestHelper.builder()
                 .user(apiKeyUser1)
-                .remoteAccess(
+                .crossClusterAccess(
                     apiKeyId1,
                     new CrossClusterAccessSubjectInfo(
                         AuthenticationTestHelper.builder()
@@ -225,7 +225,7 @@ public class AuthenticationTests extends ESTestCase {
         final Authentication authenticationWithSameQcUserDifferentRealm;
         final CheckedFunction<RealmRef, Authentication, IOException> authenticationForRealm = realmRef -> AuthenticationTestHelper.builder()
             .user(apiKeyUser1)
-            .remoteAccess(
+            .crossClusterAccess(
                 apiKeyId1,
                 new CrossClusterAccessSubjectInfo(
                     AuthenticationTestHelper.builder().user(qcAuthentication1.getEffectiveSubject().getUser()).realmRef(realmRef).build(),
@@ -365,7 +365,7 @@ public class AuthenticationTests extends ESTestCase {
         final boolean isRemoteAccess = randomBoolean();
         final Authentication authentication;
         if (isRemoteAccess) {
-            authentication = AuthenticationTestHelper.builder().remoteAccess().build();
+            authentication = AuthenticationTestHelper.builder().crossClusterAccess().build();
         } else {
             authentication = randomValueOtherThanMany(
                 authc -> AuthenticationField.REMOTE_ACCESS_REALM_TYPE.equals(authc.getAuthenticatingSubject().getRealm().getType()),
@@ -374,12 +374,12 @@ public class AuthenticationTests extends ESTestCase {
         }
 
         if (isRemoteAccess) {
-            assertThat(authentication.isRemoteAccess(), is(true));
+            assertThat(authentication.isCrossClusterAccess(), is(true));
             // Also validate that this does not clash with API keys
             assertThat(authentication.isApiKey(), is(false));
             assertThat(authentication.isAuthenticatedAsApiKey(), is(false));
         } else {
-            assertThat(authentication.isRemoteAccess(), is(false));
+            assertThat(authentication.isCrossClusterAccess(), is(false));
         }
     }
 
@@ -400,7 +400,7 @@ public class AuthenticationTests extends ESTestCase {
         Authentication internalAuthentication = randomInternalAuthentication();
         assertThat(internalAuthentication.isAssignedToDomain(), is(false));
         assertThat(internalAuthentication.getDomain(), nullValue());
-        Authentication remoteAccessAuthentication = AuthenticationTestHelper.builder().remoteAccess().build();
+        Authentication remoteAccessAuthentication = AuthenticationTestHelper.builder().crossClusterAccess().build();
         assertThat(remoteAccessAuthentication.isAssignedToDomain(), is(false));
         assertThat(remoteAccessAuthentication.getDomain(), nullValue());
     }
@@ -571,7 +571,7 @@ public class AuthenticationTests extends ESTestCase {
         final String remoteAccessApiKeyId = ESTestCase.randomAlphaOfLength(20);
         final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = AuthenticationTestHelper.randomRemoteAccessAuthentication();
         final Authentication authentication = AuthenticationTestHelper.builder()
-            .remoteAccess(remoteAccessApiKeyId, crossClusterAccessSubjectInfo)
+            .crossClusterAccess(remoteAccessApiKeyId, crossClusterAccessSubjectInfo)
             .build(false);
 
         assertThat(authentication.getAuthenticationType(), equalTo(Authentication.AuthenticationType.API_KEY));
@@ -580,7 +580,7 @@ public class AuthenticationTests extends ESTestCase {
             authentication.getEffectiveSubject().getUser(),
             equalTo(AuthenticationTestHelper.stripRoles(authentication.getEffectiveSubject().getUser()))
         );
-        assertThat(authentication.isRemoteAccess(), is(true));
+        assertThat(authentication.isCrossClusterAccess(), is(true));
         assertThat(
             authentication.getAuthenticatingSubject().getRealm(),
             equalTo(
@@ -597,11 +597,14 @@ public class AuthenticationTests extends ESTestCase {
         );
         assertThat(
             authentication.getAuthenticatingSubject().getMetadata(),
-            hasEntry(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, crossClusterAccessSubjectInfo.getAuthentication())
+            hasEntry(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY, crossClusterAccessSubjectInfo.getAuthentication())
         );
         assertThat(
             authentication.getAuthenticatingSubject().getMetadata(),
-            hasEntry(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY, crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList())
+            hasEntry(
+                AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY,
+                crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList()
+            )
         );
 
         // Serialization round-trip
@@ -644,7 +647,7 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(AuthenticationTestHelper.builder().anonymous(anonymousUser).build().token().supportsRunAs(anonymousUser), is(false));
 
         // Remote access cannot run-as
-        assertThat(AuthenticationTestHelper.builder().remoteAccess().build().supportsRunAs(anonymousUser), is(false));
+        assertThat(AuthenticationTestHelper.builder().crossClusterAccess().build().supportsRunAs(anonymousUser), is(false));
     }
 
     private void assertCanAccessResources(Authentication authentication0, Authentication authentication1) {
@@ -673,7 +676,7 @@ public class AuthenticationTests extends ESTestCase {
     public void testToXContentWithRemoteAccess() throws IOException {
         final String apiKeyId = randomAlphaOfLength(20);
         final Authentication authentication = AuthenticationTestHelper.builder()
-            .remoteAccess(apiKeyId, AuthenticationTestHelper.randomRemoteAccessAuthentication())
+            .crossClusterAccess(apiKeyId, AuthenticationTestHelper.randomRemoteAccessAuthentication())
             .build(false);
         final String apiKeyName = (String) authentication.getAuthenticatingSubject()
             .getMetadata()
@@ -732,7 +735,7 @@ public class AuthenticationTests extends ESTestCase {
 
     public void testMaybeRewriteForOlderVersionWithRemoteAccessThrowsOnUnsupportedVersion() {
         final Authentication authentication = randomBoolean()
-            ? AuthenticationTestHelper.builder().remoteAccess().build()
+            ? AuthenticationTestHelper.builder().crossClusterAccess().build()
             : AuthenticationTestHelper.builder().build();
 
         final Version versionBeforeRemoteAccessRealm = VersionUtils.getPreviousVersion(Version.V_8_7_0);
@@ -742,7 +745,7 @@ public class AuthenticationTests extends ESTestCase {
             versionBeforeRemoteAccessRealm
         );
 
-        if (authentication.isRemoteAccess()) {
+        if (authentication.isCrossClusterAccess()) {
             final var ex = expectThrows(
                 IllegalArgumentException.class,
                 () -> authentication.maybeRewriteForOlderVersion(version.transportVersion)
@@ -772,7 +775,7 @@ public class AuthenticationTests extends ESTestCase {
         );
         final Authentication innerAuthentication = AuthenticationTestHelper.builder().transportVersion(version).build();
         final Authentication authentication = AuthenticationTestHelper.builder()
-            .remoteAccess(
+            .crossClusterAccess(
                 randomAlphaOfLength(20),
                 new CrossClusterAccessSubjectInfo(innerAuthentication, RoleDescriptorsIntersection.EMPTY)
             )
@@ -783,14 +786,14 @@ public class AuthenticationTests extends ESTestCase {
 
         final Authentication innerActualAuthentication = (Authentication) actual.getAuthenticatingSubject()
             .getMetadata()
-            .get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
+            .get(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
         assertThat(innerActualAuthentication, equalTo(innerAuthentication.maybeRewriteForOlderVersion(maybeOldVersion)));
     }
 
     public void testMaybeRewriteMetadataForRemoteAccessAuthentication() throws IOException {
         final Authentication innerAuthentication = AuthenticationTestHelper.builder().build();
         final Authentication authentication = AuthenticationTestHelper.builder()
-            .remoteAccess(
+            .crossClusterAccess(
                 randomAlphaOfLength(20),
                 new CrossClusterAccessSubjectInfo(innerAuthentication, RoleDescriptorsIntersection.EMPTY)
             )
@@ -806,7 +809,9 @@ public class AuthenticationTests extends ESTestCase {
             authentication
         );
 
-        final Authentication innerRewritten = (Authentication) rewrittenMetadata.get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
+        final Authentication innerRewritten = (Authentication) rewrittenMetadata.get(
+            AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY
+        );
         assertThat(innerRewritten, equalTo(innerAuthentication.maybeRewriteForOlderVersion(olderVersion)));
     }
 
@@ -860,18 +865,21 @@ public class AuthenticationTests extends ESTestCase {
         final Authentication apiKeyAuthentication = AuthenticationTestHelper.builder().apiKey(apiKeyId).user(creator).build(false);
         final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = AuthenticationTestHelper.randomRemoteAccessAuthentication();
 
-        final Authentication actualAuthentication = apiKeyAuthentication.toRemoteAccess(crossClusterAccessSubjectInfo);
+        final Authentication actualAuthentication = apiKeyAuthentication.toCrossClusterAccess(crossClusterAccessSubjectInfo);
 
-        assertThat(actualAuthentication.isRemoteAccess(), is(true));
+        assertThat(actualAuthentication.isCrossClusterAccess(), is(true));
         assertThat(actualAuthentication.getEffectiveSubject().getUser(), equalTo(AuthenticationTestHelper.stripRoles(creator)));
         assertThat(actualAuthentication.getAuthenticatingSubject().getMetadata(), hasEntry(AuthenticationField.API_KEY_ID_KEY, apiKeyId));
         assertThat(
             actualAuthentication.getAuthenticatingSubject().getMetadata(),
-            hasEntry(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, crossClusterAccessSubjectInfo.getAuthentication())
+            hasEntry(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY, crossClusterAccessSubjectInfo.getAuthentication())
         );
         assertThat(
             actualAuthentication.getAuthenticatingSubject().getMetadata(),
-            hasEntry(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY, crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList())
+            hasEntry(
+                AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY,
+                crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList()
+            )
         );
     }
 

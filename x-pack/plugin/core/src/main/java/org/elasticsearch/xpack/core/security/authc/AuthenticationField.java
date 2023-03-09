@@ -35,8 +35,8 @@ public final class AuthenticationField {
 
     public static final String REMOTE_ACCESS_REALM_NAME = "_es_remote_access";
     public static final String REMOTE_ACCESS_REALM_TYPE = "_es_remote_access";
-    public static final String REMOTE_ACCESS_AUTHENTICATION_KEY = "_security_remote_access_authentication";
-    public static final String REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY = "_security_remote_access_role_descriptors";
+    public static final String CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY = "_security_remote_access_authentication";
+    public static final String CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY = "_security_remote_access_role_descriptors";
 
     private AuthenticationField() {}
 }

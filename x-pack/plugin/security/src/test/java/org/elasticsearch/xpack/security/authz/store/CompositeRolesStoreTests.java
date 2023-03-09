@@ -2049,7 +2049,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             version
         );
         final boolean emptyRemoteRole = randomBoolean();
-        Authentication authentication = apiKeyAuthentication.toRemoteAccess(
+        Authentication authentication = apiKeyAuthentication.toCrossClusterAccess(
             AuthenticationTestHelper.randomRemoteAccessAuthentication(
                 emptyRemoteRole
                     ? RoleDescriptorsIntersection.EMPTY

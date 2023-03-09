@@ -380,16 +380,16 @@ public class AuthenticationTestHelper {
             }
         }
 
-        public AuthenticationTestBuilder remoteAccess() {
-            return remoteAccess(ESTestCase.randomAlphaOfLength(20), randomRemoteAccessAuthentication());
+        public AuthenticationTestBuilder crossClusterAccess() {
+            return crossClusterAccess(ESTestCase.randomAlphaOfLength(20), randomRemoteAccessAuthentication());
         }
 
-        public AuthenticationTestBuilder remoteAccess(
+        public AuthenticationTestBuilder crossClusterAccess(
             final String remoteAccessApiKeyId,
             final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo
         ) {
             if (authenticatingAuthentication != null) {
-                throw new IllegalArgumentException("cannot use remote access authentication as run-as target");
+                throw new IllegalArgumentException("cannot use cross cluster access authentication as run-as target");
             }
             apiKey(remoteAccessApiKeyId);
             this.crossClusterAccessSubjectInfo = Objects.requireNonNull(crossClusterAccessSubjectInfo);
@@ -493,7 +493,7 @@ public class AuthenticationTestHelper {
                         // and a different subject type. If remoteAccessAuthentication is set, we transform the API key authentication
                         // instance into a remote access authentication instance.
                         authentication = crossClusterAccessSubjectInfo != null
-                            ? apiKeyAuthentication.toRemoteAccess(crossClusterAccessSubjectInfo)
+                            ? apiKeyAuthentication.toCrossClusterAccess(crossClusterAccessSubjectInfo)
                             : apiKeyAuthentication;
                     }
                     case TOKEN -> {

@@ -191,8 +191,8 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                         Map.of(
                             AuthenticationField.API_KEY_ID_KEY,
                             "abc",
-                            AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY,
-                            AuthenticationTestHelper.builder().remoteAccess().build()
+                            AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY,
+                            AuthenticationTestHelper.builder().crossClusterAccess().build()
                         )
                     ),
                     Authentication.AuthenticationType.API_KEY
@@ -208,7 +208,7 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                         Map.of(
                             AuthenticationField.API_KEY_ID_KEY,
                             "abc",
-                            AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY,
+                            AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY,
                             Authentication.newRealmAuthentication(userBar, realm2)
                         )
                     ),
@@ -226,9 +226,9 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                         Map.of(
                             AuthenticationField.API_KEY_ID_KEY,
                             "abc",
-                            AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY,
+                            AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY,
                             Authentication.newRealmAuthentication(userBar, realm2),
-                            AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY,
+                            AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY,
                             List.of()
                         )
                     ),

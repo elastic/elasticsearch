@@ -52,8 +52,8 @@ import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
-import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.authz.PreAuthorizationUtils;
@@ -70,7 +70,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME;
-import static org.elasticsearch.xpack.security.transport.RemoteClusterCredentialsResolver.RemoteClusterCredentials;
+import static org.elasticsearch.xpack.security.transport.CrossClusterAccessCredentialsResolver.RemoteClusterCredentials;
 
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
@@ -118,8 +118,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final ThreadPool threadPool;
     private final Settings settings;
     private final SecurityContext securityContext;
-    private final RemoteAccessAuthenticationService remoteAccessAuthcService;
-    private final RemoteClusterCredentialsResolver remoteClusterCredentialsResolver;
+    private final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService;
+    private final CrossClusterAccessCredentialsResolver crossClusterAccessCredentialsResolver;
     private final Function<Transport.Connection, Optional<String>> remoteClusterAliasResolver;
 
     public SecurityServerTransportInterceptor(
@@ -130,8 +130,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SSLService sslService,
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
-        RemoteAccessAuthenticationService remoteAccessAuthcService,
-        RemoteClusterCredentialsResolver remoteClusterCredentialsResolver
+        CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
+        CrossClusterAccessCredentialsResolver crossClusterAccessCredentialsResolver
     ) {
         this(
             settings,
@@ -141,8 +141,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             sslService,
             securityContext,
             destructiveOperations,
-            remoteAccessAuthcService,
-            remoteClusterCredentialsResolver,
+            crossClusterAccessAuthcService,
+            crossClusterAccessCredentialsResolver,
             RemoteConnectionManager::resolveRemoteClusterAlias
         );
     }
@@ -155,8 +155,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SSLService sslService,
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
-        RemoteAccessAuthenticationService remoteAccessAuthcService,
-        RemoteClusterCredentialsResolver remoteClusterCredentialsResolver,
+        CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
+        CrossClusterAccessCredentialsResolver crossClusterAccessCredentialsResolver,
         // Inject for simplified testing
         Function<Transport.Connection, Optional<String>> remoteClusterAliasResolver
     ) {
@@ -166,9 +166,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.authzService = authzService;
         this.sslService = sslService;
         this.securityContext = securityContext;
-        this.remoteAccessAuthcService = remoteAccessAuthcService;
+        this.crossClusterAccessAuthcService = crossClusterAccessAuthcService;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
-        this.remoteClusterCredentialsResolver = remoteClusterCredentialsResolver;
+        this.crossClusterAccessCredentialsResolver = crossClusterAccessCredentialsResolver;
         this.remoteClusterAliasResolver = remoteClusterAliasResolver;
     }
 
@@ -191,7 +191,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 TransportRequestOptions options,
                 TransportResponseHandler<T> handler
             ) {
-                assertNoRemoteAccessHeadersInContext();
+                assertNoCrossClusterAccessHeadersInContext();
                 final Optional<String> remoteClusterAlias = remoteClusterAliasResolver.apply(connection);
                 if (PreAuthorizationUtils.shouldRemoveParentAuthorizationFromThreadContext(remoteClusterAlias, action, securityContext)) {
                     securityContext.executeAfterRemovingParentAuthorization(original -> {
@@ -209,13 +209,13 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 }
             }
 
-            private void assertNoRemoteAccessHeadersInContext() {
+            private void assertNoCrossClusterAccessHeadersInContext() {
                 assert securityContext.getThreadContext()
                     .getHeader(CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY) == null
-                    : "remote access headers should not be in security context";
+                    : "cross cluster access headers should not be in security context";
                 assert securityContext.getThreadContext()
                     .getHeader(CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY) == null
-                    : "remote access headers should not be in security context";
+                    : "cross cluster access headers should not be in security context";
             }
         };
     }
@@ -321,7 +321,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 }
 
                 final String remoteClusterAlias = optionalRemoteClusterAlias.get();
-                final Optional<RemoteClusterCredentials> remoteClusterCredentials = remoteClusterCredentialsResolver.resolve(
+                final Optional<RemoteClusterCredentials> remoteClusterCredentials = crossClusterAccessCredentialsResolver.resolve(
                     remoteClusterAlias
                 );
                 if (remoteClusterCredentials.isEmpty()) {
@@ -483,7 +483,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 profileFilters.put(
                     profileName,
                     new CrossClusterAccessServerTransportFilter(
-                        remoteAccessAuthcService,
+                        crossClusterAccessAuthcService,
                         authzService,
                         threadPool.getThreadContext(),
                         remoteClusterServerSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration),

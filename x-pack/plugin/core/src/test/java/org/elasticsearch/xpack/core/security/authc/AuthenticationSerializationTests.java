@@ -64,13 +64,13 @@ public class AuthenticationSerializationTests extends ESTestCase {
     }
 
     public void testWriteToAndReadFromWithRemoteAccess() throws Exception {
-        final Authentication authentication = AuthenticationTestHelper.builder().remoteAccess().build();
-        assertThat(authentication.isRemoteAccess(), is(true));
+        final Authentication authentication = AuthenticationTestHelper.builder().crossClusterAccess().build();
+        assertThat(authentication.isCrossClusterAccess(), is(true));
 
         BytesStreamOutput output = new BytesStreamOutput();
         authentication.writeTo(output);
         final Authentication readFrom = new Authentication(output.bytes().streamInput());
-        assertThat(readFrom.isRemoteAccess(), is(true));
+        assertThat(readFrom.isCrossClusterAccess(), is(true));
 
         assertThat(readFrom, not(sameInstance(authentication)));
         assertThat(readFrom, equalTo(authentication));
@@ -78,7 +78,7 @@ public class AuthenticationSerializationTests extends ESTestCase {
 
     public void testWriteToWithRemoteAccessThrowsOnUnsupportedVersion() throws Exception {
         final Authentication authentication = randomBoolean()
-            ? AuthenticationTestHelper.builder().remoteAccess().build()
+            ? AuthenticationTestHelper.builder().crossClusterAccess().build()
             : AuthenticationTestHelper.builder().build();
 
         final BytesStreamOutput out = new BytesStreamOutput();
@@ -88,7 +88,7 @@ public class AuthenticationSerializationTests extends ESTestCase {
         );
         out.setTransportVersion(version);
 
-        if (authentication.isRemoteAccess()) {
+        if (authentication.isCrossClusterAccess()) {
             final var ex = expectThrows(IllegalArgumentException.class, () -> authentication.writeTo(out));
             assertThat(
                 ex.getMessage(),

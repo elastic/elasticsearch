@@ -58,7 +58,7 @@ public final class CrossClusterAccessHeaders {
         }
     }
 
-    public CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo() {
+    public CrossClusterAccessSubjectInfo subjectInfo() {
         return crossClusterAccessSubjectInfo;
     }
 

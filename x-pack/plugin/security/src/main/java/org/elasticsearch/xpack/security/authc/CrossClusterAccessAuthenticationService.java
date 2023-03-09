@@ -35,7 +35,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
 
-public class RemoteAccessAuthenticationService {
+public class CrossClusterAccessAuthenticationService {
 
     public static final Version VERSION_REMOTE_ACCESS_AUTHENTICATION = Version.V_8_8_0;
 
@@ -50,13 +50,13 @@ public class RemoteAccessAuthenticationService {
         null,
         null
     );
-    private static final Logger logger = LogManager.getLogger(RemoteAccessAuthenticationService.class);
+    private static final Logger logger = LogManager.getLogger(CrossClusterAccessAuthenticationService.class);
 
     private final ClusterService clusterService;
     private final ApiKeyService apiKeyService;
     private final AuthenticationService authenticationService;
 
-    public RemoteAccessAuthenticationService(
+    public CrossClusterAccessAuthenticationService(
         ClusterService clusterService,
         ApiKeyService apiKeyService,
         AuthenticationService authenticationService
@@ -99,8 +99,8 @@ public class RemoteAccessAuthenticationService {
         try (
             ThreadContext.StoredContext ignored = threadContext.newStoredContext(
                 Collections.emptyList(),
-                // drop remote access authentication headers since we've read their values, and we want to maintain the invariant that
-                // either the remote access authentication header is in the context, or the authentication header, but not both
+                // drop cross cluster access authentication headers since we've read their values, and we want to maintain the invariant
+                // that either the cross cluster access subject info header is in the context, or the authentication header, but not both
                 List.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY)
             )
         ) {
@@ -113,12 +113,11 @@ public class RemoteAccessAuthenticationService {
                     // try-catch so any failure here is wrapped by `withRequestProcessingFailure`, whereas `authenticate` failures are not
                     // we should _not_ wrap `authenticate` failures since this produces duplicate audit events
                     try {
-                        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = crossClusterAccessHeaders
-                            .crossClusterAccessSubjectInfo();
+                        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = crossClusterAccessHeaders.subjectInfo();
                         validate(crossClusterAccessSubjectInfo);
                         writeAuthToContext(
                             authcContext,
-                            authentication.toRemoteAccess(maybeRewriteForSystemUser(crossClusterAccessSubjectInfo)),
+                            authentication.toCrossClusterAccess(maybeRewriteForSystemUser(crossClusterAccessSubjectInfo)),
                             listener
                         );
                     } catch (Exception ex) {
@@ -167,7 +166,7 @@ public class RemoteAccessAuthenticationService {
                     + effectiveSubject.getUser().principal()
                     + "] has type ["
                     + effectiveSubject.getType()
-                    + "] which is not supported for remote access"
+                    + "] which is not supported for cross cluster access"
             );
         }
 
@@ -182,7 +181,8 @@ public class RemoteAccessAuthenticationService {
                     || roleDescriptor.hasRemoteIndicesPrivileges();
                 if (privilegesOtherThanIndex) {
                     throw new IllegalArgumentException(
-                        "role descriptor for remote access can only contain index privileges but other privileges found for subject ["
+                        "role descriptor for cross cluster access can only contain index privileges "
+                            + "but other privileges found for subject ["
                             + effectiveSubject.getUser().principal()
                             + "]"
                     );
@@ -200,7 +200,7 @@ public class RemoteAccessAuthenticationService {
         final Exception ex,
         final ActionListener<Authentication> listener
     ) {
-        logger.debug(() -> format("Failed to authenticate remote access for request [%s]", context.getRequest()), ex);
+        logger.debug(() -> format("Failed to authenticate cross cluster access for request [%s]", context.getRequest()), ex);
         final ElasticsearchSecurityException ese = context.getRequest()
             .exceptionProcessingRequest(ex, context.getMostRecentAuthenticationToken());
         context.addUnsuccessfulMessageToMetadata(ese);

@@ -213,11 +213,11 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
     public void testActionDeniedForRemoteAccessAuthentication() {
         final var remoteAccessAuthentication = AuthenticationTestHelper.randomRemoteAccessAuthentication();
         final Authentication authentication = AuthenticationTestHelper.builder()
-            .remoteAccess(randomAlphaOfLength(42), remoteAccessAuthentication)
+            .crossClusterAccess(randomAlphaOfLength(42), remoteAccessAuthentication)
             .build();
         final Authentication innerAuthentication = (Authentication) authentication.getAuthenticatingSubject()
             .getMetadata()
-            .get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
+            .get(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
         final String action = "indices:/some/action/" + randomAlphaOfLengthBetween(0, 8);
         assertThat(
             AuthorizationDenialMessages.actionDenied(authentication, null, action, mock(), null),
@@ -280,11 +280,11 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
 
         final var remoteAccessAuthentication = AuthenticationTestHelper.randomRemoteAccessAuthentication();
         final Authentication authentication5 = AuthenticationTestHelper.builder()
-            .remoteAccess(randomAlphaOfLength(42), remoteAccessAuthentication)
+            .crossClusterAccess(randomAlphaOfLength(42), remoteAccessAuthentication)
             .build();
         final Authentication innerAuthentication = (Authentication) authentication5.getAuthenticatingSubject()
             .getMetadata()
-            .get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
+            .get(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
         assertThat(
             AuthorizationDenialMessages.successfulAuthenticationDescription(authentication5, null),
             equalTo(

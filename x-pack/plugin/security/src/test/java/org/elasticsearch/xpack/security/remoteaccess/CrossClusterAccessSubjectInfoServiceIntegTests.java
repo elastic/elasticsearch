@@ -27,8 +27,8 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
-import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -57,7 +57,10 @@ public class CrossClusterAccessSubjectInfoServiceIntegTests extends SecurityInte
         final String encodedRemoteAccessApiKey = getEncodedRemoteAccessApiKey();
         final String nodeName = internalCluster().getRandomNodeName();
         final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
-        final RemoteAccessAuthenticationService service = internalCluster().getInstance(RemoteAccessAuthenticationService.class, nodeName);
+        final CrossClusterAccessAuthenticationService service = internalCluster().getInstance(
+            CrossClusterAccessAuthenticationService.class,
+            nodeName
+        );
 
         try (var ignored = threadContext.stashContext()) {
             authenticateAndAssertExpectedErrorMessage(
@@ -165,7 +168,10 @@ public class CrossClusterAccessSubjectInfoServiceIntegTests extends SecurityInte
     public void testSystemUserIsMappedToCrossClusterInternalRole() throws InterruptedException, IOException, ExecutionException {
         final String nodeName = internalCluster().getRandomNodeName();
         final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
-        final RemoteAccessAuthenticationService service = internalCluster().getInstance(RemoteAccessAuthenticationService.class, nodeName);
+        final CrossClusterAccessAuthenticationService service = internalCluster().getInstance(
+            CrossClusterAccessAuthenticationService.class,
+            nodeName
+        );
 
         try (var ignored = threadContext.stashContext()) {
             new CrossClusterAccessHeaders(
@@ -183,15 +189,18 @@ public class CrossClusterAccessSubjectInfoServiceIntegTests extends SecurityInte
             assertNotNull(actualAuthentication);
             final var innerAuthentication = (Authentication) actualAuthentication.getAuthenticatingSubject()
                 .getMetadata()
-                .get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
+                .get(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
             assertThat(innerAuthentication.getEffectiveSubject().getUser(), is(SystemUser.INSTANCE));
             @SuppressWarnings("unchecked")
             List<CrossClusterAccessSubjectInfo.RoleDescriptorsBytes> rds = (List<
                 CrossClusterAccessSubjectInfo.RoleDescriptorsBytes>) actualAuthentication.getAuthenticatingSubject()
                     .getMetadata()
-                    .get(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY);
+                    .get(AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY);
             assertThat(rds.size(), equalTo(1));
-            assertThat(rds.get(0).toRoleDescriptors(), equalTo(Set.of(RemoteAccessAuthenticationService.CROSS_CLUSTER_INTERNAL_ROLE)));
+            assertThat(
+                rds.get(0).toRoleDescriptors(),
+                equalTo(Set.of(CrossClusterAccessAuthenticationService.CROSS_CLUSTER_INTERNAL_ROLE))
+            );
         }
     }
 
@@ -203,7 +212,7 @@ public class CrossClusterAccessSubjectInfoServiceIntegTests extends SecurityInte
     }
 
     private void authenticateAndAssertExpectedErrorMessage(
-        RemoteAccessAuthenticationService service,
+        CrossClusterAccessAuthenticationService service,
         Consumer<String> errorMessageAssertion
     ) {
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();

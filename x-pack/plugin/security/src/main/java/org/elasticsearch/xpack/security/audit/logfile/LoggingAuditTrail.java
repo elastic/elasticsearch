@@ -1614,7 +1614,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         static void addAuthenticationFieldsToLogEntry(StringMapMessage logEntry, Authentication authentication) {
             logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
             logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
-            if (authentication.isApiKey() || authentication.isRemoteAccess()) {
+            if (authentication.isApiKey() || authentication.isCrossClusterAccess()) {
                 logEntry.with(
                     API_KEY_ID_FIELD_NAME,
                     (String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
@@ -1631,10 +1631,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     logEntry.with(PRINCIPAL_REALM_FIELD_NAME, creatorRealmName);
                     // No domain information is needed here since API key itself does not work across realms
                 }
-                if (authentication.isRemoteAccess()) {
+                if (authentication.isCrossClusterAccess()) {
                     final Authentication remoteAuthentication = (Authentication) authentication.getAuthenticatingSubject()
                         .getMetadata()
-                        .get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
+                        .get(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
                     final StringMapMessage crossClusterAccessLogEntry = logEntry.newInstance(Collections.emptyMap());
                     addAuthenticationFieldsToLogEntry(crossClusterAccessLogEntry, remoteAuthentication);
                     try {

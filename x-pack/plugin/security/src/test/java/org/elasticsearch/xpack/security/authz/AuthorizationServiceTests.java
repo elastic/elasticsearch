@@ -3038,7 +3038,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testActionDeniedForRemoteAccessAuthentication() {
-        final Authentication authentication = AuthenticationTestHelper.builder().remoteAccess().build();
+        final Authentication authentication = AuthenticationTestHelper.builder().crossClusterAccess().build();
         final AuthorizationInfo authorizationInfo = mock(AuthorizationInfo.class);
         when(authorizationInfo.asMap()).thenReturn(
             Map.of(PRINCIPAL_ROLES_FIELD_NAME, randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(5, 8)))

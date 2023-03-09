@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
+import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
@@ -68,7 +68,7 @@ public class ServerTransportFilterTests extends ESTestCase {
     private TransportChannel channel;
     private boolean failDestructiveOperations;
     private DestructiveOperations destructiveOperations;
-    private RemoteAccessAuthenticationService remoteAccessAuthcService;
+    private CrossClusterAccessAuthenticationService remoteAccessAuthcService;
 
     @Before
     public void init() throws Exception {
@@ -83,7 +83,7 @@ public class ServerTransportFilterTests extends ESTestCase {
             settings,
             new ClusterSettings(settings, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
         );
-        remoteAccessAuthcService = mock(RemoteAccessAuthenticationService.class);
+        remoteAccessAuthcService = mock(CrossClusterAccessAuthenticationService.class);
         when(remoteAccessAuthcService.getAuthenticationService()).thenReturn(authcService);
     }
 

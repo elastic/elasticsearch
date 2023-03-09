@@ -14,7 +14,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
+import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 
 import java.util.HashSet;
@@ -34,10 +34,10 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
         ALLOWED_TRANSPORT_HEADERS = Set.copyOf(allowedHeaders);
     }
 
-    private final RemoteAccessAuthenticationService remoteAccessAuthcService;
+    private final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService;
 
     CrossClusterAccessServerTransportFilter(
-        RemoteAccessAuthenticationService remoteAccessAuthcService,
+        CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
         AuthorizationService authzService,
         ThreadContext threadContext,
         boolean extractClientCert,
@@ -45,14 +45,14 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
         SecurityContext securityContext
     ) {
         super(
-            remoteAccessAuthcService.getAuthenticationService(),
+            crossClusterAccessAuthcService.getAuthenticationService(),
             authzService,
             threadContext,
             extractClientCert,
             destructiveOperations,
             securityContext
         );
-        this.remoteAccessAuthcService = remoteAccessAuthcService;
+        this.crossClusterAccessAuthcService = crossClusterAccessAuthcService;
     }
 
     @Override
@@ -76,7 +76,7 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
                 authenticationListener.onFailure(ex);
                 return;
             }
-            remoteAccessAuthcService.authenticate(securityAction, request, authenticationListener);
+            crossClusterAccessAuthcService.authenticate(securityAction, request, authenticationListener);
         }
     }
 

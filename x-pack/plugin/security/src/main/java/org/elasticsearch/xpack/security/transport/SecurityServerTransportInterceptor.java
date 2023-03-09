@@ -70,11 +70,10 @@ import java.util.stream.Stream;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_CROSS_CLUSTER_ACCESS_REALM;
 import static org.elasticsearch.xpack.security.transport.RemoteClusterCredentialsResolver.RemoteClusterCredentials;
 
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
-
-    static final TransportVersion VERSION_CROSS_CLUSTER_ACCESS_HEADERS = TransportVersion.V_8_7_0;
 
     private static final Logger logger = LogManager.getLogger(SecurityServerTransportInterceptor.class);
     // package private for testing
@@ -294,12 +293,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 TransportRequestOptions options,
                 TransportResponseHandler<T> handler
             ) {
-                final Optional<RemoteClusterCredentials> crossClusterAccessCredentials = getCrossClusterAccessCredentials(
-                    connection,
-                    action
-                );
-                if (crossClusterAccessCredentials.isPresent()) {
-                    sendWithCrossClusterAccessHeaders(crossClusterAccessCredentials.get(), connection, action, request, options, handler);
+                final Optional<RemoteClusterCredentials> remoteClusterCredentials = getRemoteClusterCredentials(connection);
+                if (remoteClusterCredentials.isPresent()) {
+                    sendWithCrossClusterAccessHeaders(remoteClusterCredentials.get(), connection, action, request, options, handler);
                 } else {
                     // Send regular request, without cross cluster access headers
                     try {
@@ -314,7 +310,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
              * Returns cluster credentials if the connection is remote, cluster credentials are set up for the target cluster, and access
              * via cross cluster access headers is supported for the request type and authenticated subject.
              */
-            private Optional<RemoteClusterCredentials> getCrossClusterAccessCredentials(Transport.Connection connection, String action) {
+            private Optional<RemoteClusterCredentials> getRemoteClusterCredentials(Transport.Connection connection) {
                 final Optional<String> optionalRemoteClusterAlias = remoteClusterAliasResolver.apply(connection);
                 if (optionalRemoteClusterAlias.isEmpty()) {
                     logger.trace("Connection is not remote");
@@ -365,7 +361,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                             + "] cannot be executed because it is not allowed as a cross cluster operation"
                     );
                 }
-                if (connection.getTransportVersion().before(VERSION_CROSS_CLUSTER_ACCESS_HEADERS)) {
+                if (connection.getTransportVersion().before(VERSION_CROSS_CLUSTER_ACCESS_REALM)) {
                     throw new IllegalArgumentException(
                         "Settings for remote cluster ["
                             + remoteClusterAlias

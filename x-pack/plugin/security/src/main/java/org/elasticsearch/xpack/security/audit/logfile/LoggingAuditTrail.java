@@ -1632,17 +1632,20 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     // No domain information is needed here since API key itself does not work across realms
                 }
                 if (authentication.isCrossClusterAccess()) {
-                    final Authentication remoteAuthentication = (Authentication) authentication.getAuthenticatingSubject()
+                    final Authentication innerAuthentication = (Authentication) authentication.getAuthenticatingSubject()
                         .getMetadata()
                         .get(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
                     final StringMapMessage crossClusterAccessLogEntry = logEntry.newInstance(Collections.emptyMap());
-                    addAuthenticationFieldsToLogEntry(crossClusterAccessLogEntry, remoteAuthentication);
+                    addAuthenticationFieldsToLogEntry(crossClusterAccessLogEntry, innerAuthentication);
                     try {
                         final XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
                         builder.map(crossClusterAccessLogEntry.getData());
                         logEntry.with(CROSS_CLUSTER_ACCESS_FIELD_NAME, Strings.toString(builder));
                     } catch (IOException e) {
-                        throw new ElasticsearchSecurityException("Unexpected error while serializing remote authentication data", e);
+                        throw new ElasticsearchSecurityException(
+                            "Unexpected error while serializing cross cluster access authentication data",
+                            e
+                        );
                     }
                 }
             } else {

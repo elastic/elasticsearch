@@ -81,6 +81,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_CROSS_CLUSTER_ACCESS_REALM;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
@@ -826,12 +827,12 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             }
         });
         final Transport.Connection connection = mock(Transport.Connection.class);
-        final TransportVersion versionBeforeCrossClusterAccessHeaders = TransportVersionUtils.getPreviousVersion(
-            SecurityServerTransportInterceptor.VERSION_CROSS_CLUSTER_ACCESS_HEADERS
+        final TransportVersion versionBeforeCrossClusterAccessRealm = TransportVersionUtils.getPreviousVersion(
+            VERSION_CROSS_CLUSTER_ACCESS_REALM
         );
         final TransportVersion version = TransportVersionUtils.randomPreviousCompatibleVersion(
             random(),
-            versionBeforeCrossClusterAccessHeaders
+            versionBeforeCrossClusterAccessRealm
         );
         when(connection.getTransportVersion()).thenReturn(version);
         final Tuple<String, TransportRequest> actionAndReq = randomAllowlistedActionAndRequest();

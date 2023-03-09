@@ -45,7 +45,7 @@ import static org.elasticsearch.core.Strings.format;
 public class TaskCancellationService {
     public static final String BAN_PARENT_ACTION_NAME = "internal:admin/tasks/ban";
     public static final String CANCEL_CHILD_ACTION_NAME = "internal:admin/tasks/cancel_child";
-    public static final Version CANCEL_CHILD_ACTION_VERSION = Version.V_8_7_0;
+    public static final TransportVersion VERSION_SUPPORTING_CANCEL_CHILD_ACTION = TransportVersion.V_8_8_0;
     private static final Logger logger = LogManager.getLogger(TaskCancellationService.class);
     private final TransportService transportService;
     private final TaskManager taskManager;
@@ -394,7 +394,7 @@ public class TaskCancellationService {
      * Sends an action to cancel a child task, associated with the given request ID and parent task.
      */
     public void cancelChildRemote(TaskId parentTask, long childRequestId, Transport.Connection childConnection, String reason) {
-        if (childConnection.getVersion().onOrAfter(CANCEL_CHILD_ACTION_VERSION)) {
+        if (childConnection.getTransportVersion().onOrAfter(VERSION_SUPPORTING_CANCEL_CHILD_ACTION)) {
             logger.debug(
                 "sending cancellation of child of parent task [{}] with request ID [{}] on the connection [{}] because of [{}]",
                 parentTask,

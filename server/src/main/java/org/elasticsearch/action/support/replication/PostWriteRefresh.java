@@ -130,7 +130,10 @@ public class PostWriteRefresh {
             TransportUnpromotableShardRefreshAction.NAME,
             unpromotableReplicaRequest,
             new ActionListenerResponseHandler<>(
-                listener.delegateFailure((l, r) -> l.onResponse(wasForced)),
+                ActionListener.wrap(r -> listener.onResponse(wasForced), e -> {
+                    indexShard.failShard("Unable to refresh an unpomotable shard", e);
+                    listener.onFailure(e);
+                }),
                 (in) -> ActionResponse.Empty.INSTANCE,
                 ThreadPool.Names.REFRESH
             )

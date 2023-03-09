@@ -9,6 +9,7 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -97,7 +98,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
         final AtomicInteger counter = new AtomicInteger(shardRequests.size());
 
         for (final MultiGetShardRequest shardRequest : shardRequests.values()) {
-            client.executeLocally(TransportShardMultiGetAction.TYPE, shardRequest, new ActionListener.Delegating<>(listener) {
+            client.executeLocally(TransportShardMultiGetAction.TYPE, shardRequest, new DelegatingActionListener<>(listener) {
                 @Override
                 public void onResponse(MultiGetShardResponse response) {
                     for (int i = 0; i < response.locations.size(); i++) {

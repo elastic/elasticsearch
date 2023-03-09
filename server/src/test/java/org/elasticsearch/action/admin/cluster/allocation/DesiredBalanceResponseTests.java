@@ -296,6 +296,12 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
                 assertEquals(jsonDesired.get("ignored"), desiredShards.desired().ignored());
             }
         }
+
+        Map<String, Object> clusterInfo = (Map<String, Object>) json.get("cluster_info");
+        assertThat(
+            clusterInfo.keySet(),
+            containsInAnyOrder("nodes", "shard_paths", "shard_sizes", "shard_data_set_sizes", "reserved_sizes")
+        );
     }
 
     public void testChunking() {

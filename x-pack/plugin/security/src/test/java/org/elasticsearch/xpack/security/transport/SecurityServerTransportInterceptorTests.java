@@ -460,7 +460,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final AsyncSender sender = interceptor.interceptSender(intercepted);
 
         Transport.Connection connection = mock(Transport.Connection.class);
-        final TransportVersion connectionVersion = TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT);
+        final TransportVersion connectionVersion = TransportVersionUtils.randomCompatibleVersion(random());
         when(connection.getTransportVersion()).thenReturn(connectionVersion);
 
         sender.sendRequest(connection, "indices:foo[s]", null, null, null);
@@ -713,10 +713,11 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final AuthenticationTestHelper.AuthenticationTestBuilder builder = AuthenticationTestHelper.builder();
         final Authentication authentication;
         if (unsupportedAuthentication) {
-            authentication = builder.serviceAccount().build();
+            authentication = builder.remoteAccess().build();
         } else {
             authentication = randomFrom(
                 builder.apiKey().build(),
+                builder.serviceAccount().build(),
                 builder.user(new User(randomAlphaOfLengthBetween(3, 10), randomRoles())).realm().build()
             );
         }

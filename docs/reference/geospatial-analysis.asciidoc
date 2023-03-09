@@ -1,0 +1,46 @@
+[[geospatial-analysis]]
+= Geospatial analysis
+
+[partintro]
+--
+
+Geospatial analysis with speed, at scale. All with a stack that scales automatically.
+
+[discrete]
+[[geospatial-mapping]]
+== Geospatial mapping
+
+Elasticsearch supports two types of geo data: <<geo_point>> fields which support lat/lon pairs, and <<geo_shape>> fields, which support points, lines, circles, polygons, multi-polygons, etc. Use <<explicit-mapping,explicit mapping>> to index geo data fields.
+
+Have an index with lat/lon pairs but no geo_point mapping? Use <<runtime-mapping-fields,runtime fields>> to make a geo_point field without reindexing.
+
+[discrete]
+[[geospatial-ingest]]
+== Ingest
+
+Use <<geoip-processor>> to add geographical location of an IPv4 or IPv6 address.
+
+<<geo-match-enrich-policy-type>>
+
+[discrete]
+[[geospatial-query]]
+== Query
+
+<<geo-queries,Geo queries>> will help you answer location-driven questions.
+
+[discrete]
+[[geospatial-aggregate]]
+== Aggregate
+
+[discrete]
+[[geospatial-integrate]]
+== Integrate
+
+Use <<search-vector-tile-api,vector tile search API>> to consume Elasticsearch geo data within existing GIS investments.
+
+[discrete]
+[[geospatial-visualize]]
+== Visualize
+
+Visualize geo data with {kibana-ref}/maps.html[Kibana]. Add your map to a {kibana-ref}/dashboard.html[dashboard] to view your data from all angles.
+

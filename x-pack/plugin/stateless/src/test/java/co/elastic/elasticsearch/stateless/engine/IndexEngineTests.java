@@ -21,40 +21,65 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.mockito.Mockito;
 
-import java.io.IOException;
 import java.util.Collections;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public class IndexEngineTests extends AbstractEngineTestCase {
 
-    public void testShouldPeriodicallyFlush() throws IOException {
-
-        var configuredFlushIntervalNanos = randomLongBetween(1_000L, 5_000_000_000L);
+    public void testPeriodicallyFlushesRegardlessOfIndexing() throws Exception {
         var settings = Settings.builder()
-            .put(IndexEngine.INDEX_FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueNanos(configuredFlushIntervalNanos))
+            .put(IndexEngine.INDEX_FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueNanos(TimeUnit.MILLISECONDS.toNanos(10)))
             .build();
+        try (var engine = Mockito.spy(newIndexEngine(copy(indexConfig(), settings, System::nanoTime)));) {
+            int numberOfFlushes = randomIntBetween(1, 10);
+            CountDownLatch latch = new CountDownLatch(numberOfFlushes);
+            Mockito.doAnswer(invocation -> {
+                latch.countDown();
+                return invocation.callRealMethod();
+            }).when(engine).scheduledFlush();
+            engine.onSettingsChanged(); // Refresh the reference on the scheduledFlush method
 
-        var currentTime = new AtomicLong(0L);
-        try (var engine = newIndexEngine(copy(indexConfig(), settings, currentTime::get))) {
-            // should not flush immediately after creation until interval is elapsed
-            assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
-            // should flush after interval is elapsed even if there are no prior flushes
-            currentTime.addAndGet(configuredFlushIntervalNanos);
-            assertThat(engine.shouldPeriodicallyFlush(), equalTo(true));
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
+        }
+    }
 
-            // flush and record flush time
-            assertThat("Flush time is only recorded when flush=true", engine.flush(false, false), equalTo(true));
-            assertThat("Flush time is correctly recorded", engine.getLastFlushNanos(), equalTo(currentTime.get()));
-            // should not flush until interval is elapsed
-            currentTime.addAndGet(configuredFlushIntervalNanos - 1);
-            assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
-            // should flush until after interval is elapsed
-            currentTime.addAndGet(1);
-            assertThat(engine.shouldPeriodicallyFlush(), equalTo(true));
+    public void testAdjustsPeriodicFlushingIntervalInCaseOfManualFlushes() throws Exception {
+        long flushInterval = TimeUnit.MILLISECONDS.toNanos(10);
+        var settings = Settings.builder()
+            .put(IndexEngine.INDEX_FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueNanos(flushInterval))
+            .build();
+        try (var engine = Mockito.spy(newIndexEngine(copy(indexConfig(), settings, System::nanoTime)));) {
+            int numberOfFlushes = randomIntBetween(5, 10);
+            CountDownLatch latch = new CountDownLatch(numberOfFlushes);
+            Mockito.doAnswer(invocation -> {
+                // Keep flushing at flushInterval, don't flush if a manual flush happened recently
+                assertTrue(System.nanoTime() - engine.getLastFlushNanos() >= flushInterval);
+                latch.countDown();
+                return invocation.callRealMethod();
+            }).when(engine).scheduledFlush();
+            engine.onSettingsChanged(); // Refresh the reference on the scheduledFlush method
+
+            Thread manualFlushThread = new Thread(() -> {
+                while (Thread.currentThread().isInterrupted() == false) {
+                    if (randomBoolean()) {
+                        engine.flush(false, false);
+                    }
+                    try {
+                        Thread.sleep(randomIntBetween(10, 50));
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            });
+            manualFlushThread.start();
+
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
+            manualFlushThread.interrupt();
         }
     }
 

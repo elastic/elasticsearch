@@ -38,8 +38,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -69,7 +67,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -336,24 +333,13 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         }
         // Refresh via the bulk request or a follow-up Refresh API call
         boolean bulkRefreshes = randomBoolean();
-        AtomicBoolean bulkFinished = new AtomicBoolean(false);
         boolean forcedRefresh = false;
-        Releasable releasable = null;
         if (bulkRefreshes) {
             WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WAIT_UNTIL, IMMEDIATE);
             bulkRequest.setRefreshPolicy(refreshPolicy);
             forcedRefresh = refreshPolicy == IMMEDIATE;
-            // TODO: Currently only an indexing operation triggers a flush. There is not workaround to ensure
-            // intermittent flushes. Since refreshes requires flushes in stateless, WAIT_UNTIL will hang until
-            // there is an out-of-band flush. This workaround should be removed in
-            // https://elasticco.atlassian.net/browse/ES-5672
-            if (refreshPolicy == WAIT_UNTIL) {
-                releasable = intervalFlush(indexName, bulkFinished);
-            }
         }
         var bulkResponse = bulkRequest.get();
-        bulkFinished.set(true);
-        Releasables.close(releasable);
         assertNoFailures(bulkResponse);
         if (bulkRefreshes == false) {
             assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
@@ -682,22 +668,10 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
         }
         boolean bulkRefreshes = randomBoolean();
-        AtomicBoolean bulkFinished = new AtomicBoolean(false);
-        Releasable releasable = null;
         if (bulkRefreshes) {
-            WriteRequest.RefreshPolicy refreshPolicy = randomFrom(IMMEDIATE, WAIT_UNTIL);
-            bulkRequest.setRefreshPolicy(refreshPolicy);
-            // TODO: Currently only an indexing operation triggers a flush. There is not workaround to ensure
-            // intermittent flushes. Since refreshes requires flushes in stateless, WAIT_UNTIL will hang until
-            // there is an out-of-band flush. This workaround should be removed in
-            // https://elasticco.atlassian.net/browse/ES-5672
-            if (refreshPolicy == WAIT_UNTIL) {
-                releasable = intervalFlush(indexName, bulkFinished);
-            }
+            bulkRequest.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL));
         }
         assertNoFailures(bulkRequest.get());
-        bulkFinished.set(true);
-        Releasables.close(releasable);
         if (bulkRefreshes == false) {
             assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
         }

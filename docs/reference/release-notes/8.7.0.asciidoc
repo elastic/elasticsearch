@@ -114,6 +114,7 @@ Recovery::
 * Report recovered files as recovered from snapshot for fully mounted searchable snapshots {es-pull}92976[#92976]
 
 Rollup::
+* Propagate timestamp format and convert nanoseconds to milliseconds {es-pull}94141[#94141] (issue: {es-issue}94085[#94085])
 * Support downsampling of histogram as labels {es-pull}93445[#93445] (issue: {es-issue}93263[#93263])
 
 Search::
@@ -122,6 +123,7 @@ Search::
 * Fix missing override for matches in `ProfileWeight` {es-pull}92360[#92360]
 * Nested path info shouldn't be added during `copy_to` {es-pull}93340[#93340] (issue: {es-issue}93117[#93117])
 * Use all profiling events on startup {es-pull}92087[#92087]
+* [Profiling] Adjust handling of last data slice {es-pull}94283[#94283]
 * [Profiling] Ensure responses are only sent once {es-pull}93692[#93692] (issue: {es-issue}93691[#93691])
 * [Profiling] Handle response processing errors {es-pull}93860[#93860]
 
@@ -234,7 +236,6 @@ Machine Learning::
 * Improve anomaly detection results indexing speed {es-pull}92417[#92417]
 * Improve frequent items runtime {es-pull}93255[#93255]
 * Increase the default timeout for the start trained model deployment API {es-pull}92328[#92328]
-* Make native inference generally available {es-pull}92213[#92213]
 * Option to delete user-added annotations for the reset/delete job APIs {es-pull}91698[#91698] (issue: {es-issue}74310[#74310])
 * Persist data counts and datafeed timing stats asynchronously {es-pull}93000[#93000]
 * Text Embedding search {es-pull}93531[#93531]
@@ -329,6 +330,7 @@ Ingest Node::
 
 Machine Learning::
 * Make `frequent_item_sets` aggregation GA {es-pull}93421[#93421]
+* Make native inference generally available {es-pull}92213[#92213]
 
 TSDB::
 * Add a TSDB rate aggregation {es-pull}90447[#90447]

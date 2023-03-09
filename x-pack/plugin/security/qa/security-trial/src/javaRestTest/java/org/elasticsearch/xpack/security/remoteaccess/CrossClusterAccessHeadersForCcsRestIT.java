@@ -138,7 +138,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
-    public void testRemoteAccessHeadersSentSingleRemote() throws Exception {
+    public void testCrossClusterAccessHeadersSentSingleRemote() throws Exception {
         final BlockingQueue<CapturedActionWithHeaders> capturedHeaders = ConcurrentCollections.newBlockingQueue();
         try (MockTransportService remoteTransport = startTransport("remoteNodeA", threadPool, capturedHeaders)) {
             final String encodedCredential = randomBase64UUID(random());
@@ -200,7 +200,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         }
     }
 
-    public void testRemoteAccessHeadersSentMultipleRemotes() throws Exception {
+    public void testCrossClusterAccessHeadersSentMultipleRemotes() throws Exception {
         final Map<String, BlockingQueue<CapturedActionWithHeaders>> capturedHeadersByCluster = Map.of(
             CLUSTER_A,
             ConcurrentCollections.newBlockingQueue(),
@@ -307,7 +307,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         }
     }
 
-    public void testApiKeyRemoteAccessHeadersSentMultipleRemotes() throws Exception {
+    public void testApiKeyCrossClusterAccessHeadersSentMultipleRemotes() throws Exception {
         final Tuple<String, String> apiKeyTuple = createOrGrantApiKey("""
             {
               "name": "my-api-key",
@@ -481,7 +481,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         }
     }
 
-    public void testApiKeyRemoteAccessHeadersSentSingleRemote() throws Exception {
+    public void testApiKeyCrossClusterAccessHeadersSentSingleRemote() throws Exception {
         final boolean createApiKeyWithRoleDescriptors = randomBoolean();
         final Tuple<String, String> apiKeyTuple; // id, encoded
         if (createApiKeyWithRoleDescriptors) {
@@ -596,7 +596,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     )
                 );
             }
-            testCcsWithApiKeyRemoteAccessAuthenticationAgainstSingleCluster(
+            testCcsWithApiKeyCrossClusterAccessAuthenticationAgainstSingleCluster(
                 CLUSTER_A + "_1",
                 apiKeyEncoded,
                 expectedRoleDescriptorsIntersection
@@ -710,7 +710,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     )
                 );
             }
-            testCcsWithApiKeyRemoteAccessAuthenticationAgainstSingleCluster(
+            testCcsWithApiKeyCrossClusterAccessAuthenticationAgainstSingleCluster(
                 CLUSTER_A + "_2",
                 apiKeyEncoded,
                 expectedRoleDescriptorsIntersection
@@ -718,7 +718,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         }
     }
 
-    private void testCcsWithApiKeyRemoteAccessAuthenticationAgainstSingleCluster(
+    private void testCcsWithApiKeyCrossClusterAccessAuthenticationAgainstSingleCluster(
         String cluster,
         String apiKeyEncoded,
         RoleDescriptorsIntersection expectedRoleDescriptorsIntersection
@@ -924,7 +924,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         boolean useProxyMode,
         boolean minimizeRoundtrips,
         final String encodedCredential,
-        final BiConsumer<CrossClusterAccessSubjectInfo, RoleDescriptorsIntersection> remoteAccessAuthenticationChecker,
+        final BiConsumer<CrossClusterAccessSubjectInfo, RoleDescriptorsIntersection> crossClusterAccessSubjectInfoChecker,
         final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection
     ) throws IOException {
         final Set<String> expectedActions = new HashSet<>();
@@ -968,7 +968,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     final var actualRemoteAccessAuthentication = CrossClusterAccessSubjectInfo.decode(
                         actual.headers().get(CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY)
                     );
-                    remoteAccessAuthenticationChecker.accept(actualRemoteAccessAuthentication, expectedRoleDescriptorsIntersection);
+                    crossClusterAccessSubjectInfoChecker.accept(actualRemoteAccessAuthentication, expectedRoleDescriptorsIntersection);
                 }
                 default -> fail("Unexpected action [" + actual.action + "]");
             }

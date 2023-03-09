@@ -25,8 +25,8 @@ Other versions:
 [discrete]
 [[time_series_tsds_ga]]
 === Time series (TSDS) GA
-Time Series Data Stream (TSDS) is a feature for optimizing Elasticsearch indices for time series data.
-This involves sorting the indices to achieve better compression and using synthetic_source to reduce index size.
+<<tsds,Time Series Data Stream (TSDS)>> is a feature for optimizing Elasticsearch indices for time series data.
+This involves sorting the indices to achieve better compression and using synthetic _source to reduce index size.
 As a result, TSDS indices are significantly smaller than non-time_series indices that contain the same data.
 TSDS is particularly useful for managing time series data with high volume.
 
@@ -35,9 +35,10 @@ TSDS is particularly useful for managing time series data with high volume.
 [discrete]
 [[downsampling_ga]]
 === Downsampling GA
-Downsampling is a feature that reduces the number of stored documents in Elasticsearch time series indices,
-resulting in smaller indices and improved query latency. This optimization is achieved by pre-aggregating
-time series indices, using the time_series index schema to identify the time series.
+<<downsampling,Downsampling>> is a feature that reduces the number of stored documents in Elasticsearch
+time series indices, resulting in smaller indices and improved query latency.
+This optimization is achieved by pre-aggregating time series indices,
+using the time_series index schema to identify the time series.
 Downsampling is configured as an action in ILM, making it a useful tool for managing large volumes of
 time series data in Elasticsearch.
 

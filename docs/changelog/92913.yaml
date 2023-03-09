@@ -6,9 +6,10 @@ issues: []
 highlight:
   title: Downsampling GA
   body: |-
-    Downsampling is a feature that reduces the number of stored documents in Elasticsearch time series indices,
-    resulting in smaller indices and improved query latency. This optimization is achieved by pre-aggregating
-    time series indices, using the time_series index schema to identify the time series.
+    <<downsampling,Downsampling>> is a feature that reduces the number of stored documents in Elasticsearch
+    time series indices, resulting in smaller indices and improved query latency.
+    This optimization is achieved by pre-aggregating time series indices,
+    using the time_series index schema to identify the time series.
     Downsampling is configured as an action in ILM, making it a useful tool for managing large volumes of
     time series data in Elasticsearch.
   notable: true

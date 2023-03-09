@@ -36,20 +36,29 @@ public final class RerouteProcessor extends AbstractProcessor {
     private final List<String> dataset;
     private final List<String> namespace;
     private final String destination;
+    private final boolean skipIfTargetUnchanged;
 
     RerouteProcessor(List<String> dataset, List<String> namespace) {
-        this(null, null, dataset, namespace, null);
+        this(null, null, dataset, namespace, null, false);
     }
 
     RerouteProcessor(String destination) {
-        this(null, null, null, null, destination);
+        this(null, null, null, null, destination, false);
     }
 
-    RerouteProcessor(String tag, String description, List<String> dataset, List<String> namespace, String destination) {
+    RerouteProcessor(
+        String tag,
+        String description,
+        List<String> dataset,
+        List<String> namespace,
+        String destination,
+        boolean skipIfTargetUnchanged
+    ) {
         super(tag, description);
         this.dataset = dataset;
         this.namespace = namespace;
         this.destination = destination;
+        this.skipIfTargetUnchanged = skipIfTargetUnchanged;
     }
 
     private static String sanitizeDataStreamField(String s, char[] disallowedInDataset) {
@@ -78,21 +87,21 @@ public final class RerouteProcessor extends AbstractProcessor {
             ingestDocument.reroute(destination);
             return ingestDocument;
         }
-        final String indexName = ingestDocument.getFieldValue(IngestDocument.Metadata.INDEX.getFieldName(), String.class);
+        final String currentTarget = ingestDocument.getFieldValue(IngestDocument.Metadata.INDEX.getFieldName(), String.class);
         final String type;
         final String currentDataset;
         final String currentNamespace;
-        int indexOfFirstDash = indexName.indexOf('-');
+        int indexOfFirstDash = currentTarget.indexOf('-');
         if (indexOfFirstDash < 0) {
-            throw createInvalidDataStreamNameException(indexName);
+            throw createInvalidDataStreamNameException(currentTarget);
         }
-        int indexOfSecondDash = indexName.indexOf('-', indexOfFirstDash + 1);
+        int indexOfSecondDash = currentTarget.indexOf('-', indexOfFirstDash + 1);
         if (indexOfSecondDash < 0) {
-            throw createInvalidDataStreamNameException(indexName);
+            throw createInvalidDataStreamNameException(currentTarget);
         }
-        type = parseDataStreamType(indexName, indexOfFirstDash);
-        currentDataset = parseDataStreamDataset(indexName, indexOfFirstDash, indexOfSecondDash);
-        currentNamespace = parseDataStreamNamespace(indexName, indexOfSecondDash);
+        type = parseDataStreamType(currentTarget, indexOfFirstDash);
+        currentDataset = parseDataStreamDataset(currentTarget, indexOfFirstDash, indexOfSecondDash);
+        currentNamespace = parseDataStreamNamespace(currentTarget, indexOfSecondDash);
 
         String dataset = determineDataset(ingestDocument, currentDataset);
         String namespace = determineNamespace(ingestDocument, currentNamespace);
@@ -100,6 +109,9 @@ public final class RerouteProcessor extends AbstractProcessor {
             return ingestDocument;
         }
         String newTarget = type + "-" + dataset + "-" + namespace;
+        if (newTarget.equals(currentTarget) && skipIfTargetUnchanged) {
+            return ingestDocument;
+        }
         ingestDocument.reroute(newTarget);
         ingestDocument.setFieldValue(DATA_STREAM_TYPE, type);
         ingestDocument.setFieldValue(DATA_STREAM_DATASET, dataset);
@@ -152,9 +164,6 @@ public final class RerouteProcessor extends AbstractProcessor {
             if (value.startsWith("{") && value.endsWith("}")) {
                 String fieldReference = value.substring(1, value.length() - 1);
                 result = sanitization.apply(ingestDocument.getFieldValue(fieldReference, String.class, true));
-                if (fieldReference.equals(dataStreamFieldName) && fromCurrentTarget.equals(result)) {
-                    result = null;
-                }
             } else {
                 result = value;
             }
@@ -218,8 +227,10 @@ public final class RerouteProcessor extends AbstractProcessor {
             if (destination != null && (dataset.isEmpty() == false || namespace.isEmpty() == false)) {
                 throw newConfigurationException(TYPE, tag, "destination", "can only be set if dataset and namespace are not set");
             }
+            boolean skipIfTargetUnchanged = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "skip_if_target_unchanged", false);
 
-            return new RerouteProcessor(tag, description, dataset, namespace, destination);
+
+            return new RerouteProcessor(tag, description, dataset, namespace, destination, skipIfTargetUnchanged);
         }
     }
 }

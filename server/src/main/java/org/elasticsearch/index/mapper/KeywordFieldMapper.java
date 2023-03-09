@@ -468,11 +468,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             int prefixLength,
             int maxExpansions,
             boolean transpositions,
-            SearchExecutionContext context
+            SearchExecutionContext context,
+            @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
             failIfNotIndexedNorDocValuesFallback(context);
             if (isIndexed()) {
-                return super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context);
+                return super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context, rewriteMethod);
             } else {
                 return StringScriptFieldFuzzyQuery.build(
                     new Script(""),

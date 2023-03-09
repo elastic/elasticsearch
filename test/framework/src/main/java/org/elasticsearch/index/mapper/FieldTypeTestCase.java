@@ -69,7 +69,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
 
         ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, null);
         Source source = Source.fromMap(Collections.singletonMap(field, List.of(values)), randomFrom(XContentType.values()));
-        return fetcher.fetchValues(source, -1, List.of());
+        return fetcher.fetchValues(source, -1, new ArrayList<>());
     }
 
     public static List<?> fetchStoredValue(MappedFieldType fieldType, List<Object> storedValues, String format) throws IOException {
@@ -87,6 +87,6 @@ public abstract class FieldTypeTestCase extends ESTestCase {
 
         ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, format);
         fetcher.setNextReader(null);
-        return fetcher.fetchValues(null, -1, List.of());
+        return fetcher.fetchValues(null, -1, new ArrayList<>());
     }
 }

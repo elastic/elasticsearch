@@ -5,7 +5,7 @@ type: feature
 issues: []
 highlight:
   title: Make natural language processing GA
-  body: From 8.7, NLP model management, model allocation, and support for 
-    inference against third party models are generally available. (The new 
+  body: From 8.7, NLP model management, model allocation, and support for
+    inference against third party models are generally available. (The new
     `text_embedding` extension to `knn` search is still in technical preview.)
-  notable: true
+  notable: false

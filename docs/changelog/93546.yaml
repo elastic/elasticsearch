@@ -12,4 +12,4 @@ highlight:
 
     Currently there is no documentation about the `time_series` aggregation.
     This will be added in a followup change.
-  notable: true
+  notable: false

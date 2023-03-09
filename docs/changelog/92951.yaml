@@ -13,4 +13,4 @@ highlight:
     where an email address is matched or replace all matches with the text `<REDACTED>` if preferred.
     Grok provides an extensive library of predefined patterns that can be conveniently referenced by
     the Redact processor.
-  notable: true
+  notable: false

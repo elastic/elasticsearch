@@ -10,4 +10,4 @@ highlight:
     the cluster. The new API provides both a high level overview of the cluster
     health, and a very detailed report that can include a precise diagnosis and
     a resolution.
-  notable: true
+  notable: false

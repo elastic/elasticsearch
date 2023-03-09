@@ -1,0 +1,11 @@
+pr: 91519
+summary: Release time series index settings and data stream as GA
+area: TSDB
+type: feature
+issues: []
+highlight:
+  title: Release time series index settings and data stream as GA
+  body: |-
+    The time series (TSDB) mode on indexes has been in tech preview, and is now released as GA.
+    This also includes support for time series data stream and ingest.
+  notable: true

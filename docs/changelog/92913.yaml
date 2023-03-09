@@ -1,0 +1,10 @@
+pr: 92913
+summary: Release time series down-sampling as GA
+area: TSDB
+type: feature
+issues: []
+highlight:
+  title: Release time series down-sampling as GA
+  body: |-
+    Time series (TSDB) down-sampling has been in tech preview, and is now released as GA.
+  notable: true

@@ -23,6 +23,24 @@ Other versions:
 // tag::notable-highlights[]
 
 [discrete]
+[[release_time_series_index_settings_data_stream_as_ga]]
+=== Release time series index settings and data stream as GA
+The time series (TSDB) mode on indexes has been in tech preview, and is now released as GA.
+This also includes support for time series data stream and ingest.
+
+{es-pull}91519[#91519]
+
+[discrete]
+[[release_time_series_down_sampling_as_ga]]
+=== Release time series down-sampling as GA
+Time series (TSDB) down-sampling has been in tech preview, and is now released as GA.
+
+{es-pull}92913[#92913]
+
+// end::notable-highlights[]
+
+
+[discrete]
 [[geohex_aggregations_on_both_geo_point_geo_shape_fields]]
 === Geohex aggregations on both `geo_point` and `geo_shape` fields
 Previously Elasticsearch 8.1.0 expanded `geo_grid` aggregation support from rectangular tiles (geotile and geohash)
@@ -174,7 +192,4 @@ Currently there is no documentation about the `time_series` aggregation.
 This will be added in a followup change.
 
 {es-pull}93546[#93546]
-
-// end::notable-highlights[]
-
 

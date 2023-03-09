@@ -21,4 +21,4 @@ highlight:
     a very similar geographic area on the planet, as well as the fact that the distance between tile centers is
     very similar in all directions, and consistent across the map.
     These benefits are now available to all Elasticsearch users.
-  notable: true
+  notable: false

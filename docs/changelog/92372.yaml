@@ -13,4 +13,4 @@ highlight:
     `AccessController.doPrivileged` call. The current version of the geoip
     library no longer requires that, however, so the expensive code has been
     removed, resulting in better performance for the ingest geoip processor.
-  notable: true
+  notable: false

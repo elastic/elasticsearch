@@ -334,6 +334,8 @@ Machine Learning::
 
 TSDB::
 * Add a TSDB rate aggregation {es-pull}90447[#90447]
+* Release time series down-sampling as GA {es-pull}92913[#92913]
+* Release time series index settings and data stream as GA {es-pull}91519[#91519]
 * Release time_series and rate (on counter fields) aggegations as tech preview {es-pull}93546[#93546]
 
 Transform::

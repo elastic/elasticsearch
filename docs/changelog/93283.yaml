@@ -10,4 +10,4 @@ highlight:
     reducing the I/O load if a term is not present in a segment.
     This improves performance when retrieving documents by `_id`, which happens when performing
     get or mget requests, or when issuing `_bulk` requests that provide explicit `_id`s.
-  notable: true
+  notable: false

@@ -17,4 +17,4 @@ highlight:
     pipeline, a document is now marshalled from json before any
     pipelines execute and then back to json after all pipelines have
     executed.
-  notable: true
+  notable: false

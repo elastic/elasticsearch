@@ -12,4 +12,4 @@ highlight:
     Also metrics/label producers were modified so that they extract the doc_values directly from the leaves.
     This allows for extra optimizations for cases such as labels/counters that do not extract doc_values
     unless they are consumed. Those changes yielded a 3x-4x performance improvement of the downsampling operation, as measured by our benchmarks.
-  notable: true
+  notable: false

@@ -20,4 +20,4 @@ highlight:
 
     [role="screenshot"]
     image::images/spatial/geogrid_h3_children.png[Kibana map with three H3 layers: cell, children and intersecting non-children]
-  notable: true
+  notable: false

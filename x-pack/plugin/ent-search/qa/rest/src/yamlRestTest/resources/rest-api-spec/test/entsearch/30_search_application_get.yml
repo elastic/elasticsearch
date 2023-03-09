@@ -40,7 +40,6 @@ teardown:
   - match: { name: "my-test-search-application" }
   - match: { indices: [ "test-index1", "test-index2" ] }
   - match: { analytics_collection_name: "test-analytics" }
-  - match: { search_alias: "my-test-search-application" }
   - gte: { updated_at_millis: 0 }
 
 ---

@@ -198,7 +198,7 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
         DeleteResponse resp = awaitDeleteSearchApplication("my_search_app_4");
         assertThat(resp.status(), equalTo(RestStatus.OK));
         expectThrows(ResourceNotFoundException.class, () -> awaitGetSearchApplication("my_search_app_4"));
-        GetAliasesResponse response = searchAppService.getAlias(SearchApplication.getSearchAliasName("my_search_app_4"));
+        GetAliasesResponse response = searchAppService.getAlias("my_search_app_4");
         assertTrue(response.getAliases().isEmpty());
 
         {

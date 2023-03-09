@@ -39,6 +39,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthenticationTests.randomRoleDescriptorsIntersection;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -355,10 +356,8 @@ public class AuthenticationTests extends ESTestCase {
 
         if (isServiceAccount) {
             assertThat(authentication.isServiceAccount(), is(true));
-            assertThat(authentication.isAuthenticatedWithServiceAccount(), is(true));
         } else {
             assertThat(authentication.isServiceAccount(), is(false));
-            assertThat(authentication.isAuthenticatedWithServiceAccount(), is(false));
         }
     }
 
@@ -637,9 +636,8 @@ public class AuthenticationTests extends ESTestCase {
         // Service account cannot run-as
         assertThat(AuthenticationTestHelper.builder().serviceAccount().build().supportsRunAs(anonymousUser), is(false));
 
-        // Neither internal user nor its token can run-as
+        // internal user cannot run-as
         assertThat(AuthenticationTestHelper.builder().internal().build().supportsRunAs(anonymousUser), is(false));
-        assertThat(AuthenticationTestHelper.builder().internal().build().token().supportsRunAs(anonymousUser), is(false));
 
         // Neither anonymous user nor its token can run-as
         assertThat(AuthenticationTestHelper.builder().anonymous(anonymousUser).build().supportsRunAs(anonymousUser), is(false));
@@ -900,13 +898,13 @@ public class AuthenticationTests extends ESTestCase {
         final String apiKeyId = randomAlphaOfLengthBetween(1, 10);
         final String apiKeyName = randomAlphaOfLengthBetween(1, 10);
         final Map<String, Object> metadata = Map.ofEntries(
-            Map.entry(AuthenticationField.API_KEY_ID_KEY, apiKeyId),
-            Map.entry(AuthenticationField.API_KEY_NAME_KEY, apiKeyName),
-            Map.entry(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("""
+            entry(AuthenticationField.API_KEY_ID_KEY, apiKeyId),
+            entry(AuthenticationField.API_KEY_NAME_KEY, apiKeyName),
+            entry(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("""
                 {"base_role":{"cluster":["all"],
                 "remote_indices":{"names":["logs-*"],"privileges":["read"],"clusters":["my_cluster*","other_cluster"]}}
                 }""")),
-            Map.entry(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("""
+            entry(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("""
                 {"limited_by_role":{"cluster":["*"],
                 "remote_indices":{"names":["logs-*-*"],"privileges":["write"],"clusters":["my_cluster*"]}}
                 }"""))

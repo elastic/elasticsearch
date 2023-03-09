@@ -97,6 +97,9 @@ query parameter, which will attempt a single retry round for these shards.
 `nodes`::
     Shows the `nodes` part of the response.
 
+`transport_versions`::
+    Shows the `transport_versions` part of the response.
+
 `none`::
     Excludes the entire `state` field from the response.
 

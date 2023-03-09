@@ -72,6 +72,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("analysis-common")
         .module("vector-tile")
         .module("x-pack-analytics")
+        .module("x-pack-eql")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.security.transport.ssl.enabled", "false")
@@ -117,6 +118,11 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()))
             )
             .build();
+    }
+
+    @Override
+    protected boolean resetFeatureStates() {
+        return false;
     }
 
     @Override
@@ -204,7 +210,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
               "name": "remote_access_key",
               "role_descriptors": {
                 "role": {
-                  "cluster": ["cluster:internal/remote_cluster/handshake", "cluster:internal/remote_cluster/nodes"],
+                  "cluster": ["cross_cluster_access"],
                   "index": [
                     {
                       "names": ["*"],

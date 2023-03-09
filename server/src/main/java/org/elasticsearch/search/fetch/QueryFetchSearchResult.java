@@ -24,6 +24,7 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
 
     public QueryFetchSearchResult(StreamInput in) throws IOException {
         super(in);
+        // TODO: Delegate refcounting to QuerySearchResult
         queryResult = new QuerySearchResult(in);
         fetchResult = new FetchSearchResult(in);
     }

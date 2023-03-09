@@ -74,9 +74,9 @@ final class DefaultSearchContext extends SearchContext {
     private final IndexShard indexShard;
     private final IndexService indexService;
     private final ContextIndexSearcher searcher;
-    private final DfsSearchResult dfsResult;
-    private final QuerySearchResult queryResult;
-    private final FetchSearchResult fetchResult;
+    private DfsSearchResult dfsResult;
+    private QuerySearchResult queryResult;
+    private FetchSearchResult fetchResult;
     private final float queryBoost;
     private final boolean lowLevelCancellation;
     private TimeValue timeout;
@@ -142,9 +142,6 @@ final class DefaultSearchContext extends SearchContext {
         this.fetchPhase = fetchPhase;
         this.searchType = request.searchType();
         this.shardTarget = shardTarget;
-        this.dfsResult = new DfsSearchResult(readerContext.id(), shardTarget, request);
-        this.queryResult = new QuerySearchResult(readerContext.id(), shardTarget, request);
-        this.fetchResult = new FetchSearchResult(readerContext.id(), shardTarget);
         this.indexService = readerContext.indexService();
         this.indexShard = readerContext.indexShard();
 
@@ -170,6 +167,19 @@ final class DefaultSearchContext extends SearchContext {
         );
         queryBoost = request.indexBoost();
         this.lowLevelCancellation = lowLevelCancellation;
+    }
+
+    public void addFetchResult() {
+        this.fetchResult = new FetchSearchResult(this.readerContext.id(), this.shardTarget);
+    }
+
+    public void addQueryResult() {
+        this.queryResult = new QuerySearchResult(this.readerContext.id(), this.shardTarget, this.request);
+    }
+
+    @Override
+    public void addDfsResult() {
+        this.dfsResult = new DfsSearchResult(this.readerContext.id(), this.shardTarget, this.request);
     }
 
     /**

@@ -164,6 +164,7 @@ public class FetchPhase {
             throw new TaskCancelledException("cancelled");
         }
 
+        // TODO: Replace these with LoD style wrappers in DefaultSearchContext
         TotalHits totalHits = context.queryResult().getTotalHits();
         return new SearchHits(hits, totalHits, context.queryResult().getMaxScore());
     }

@@ -369,15 +369,28 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
+    public void addDfsResult() {
+        in.addDfsResult();
+    }
+
+    @Override
     public QuerySearchResult queryResult() {
         return in.queryResult();
     }
 
     @Override
+    public void addQueryResult() {
+        in.addQueryResult();
+    }
+    @Override
     public FetchSearchResult fetchResult() {
         return in.fetchResult();
     }
 
+    @Override
+    public void addFetchResult() {
+        in.addFetchResult();
+    }
     @Override
     public FetchPhase fetchPhase() {
         return in.fetchPhase();

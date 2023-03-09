@@ -315,11 +315,29 @@ public abstract class SearchContext implements Releasable {
 
     public abstract DfsSearchResult dfsResult();
 
+    /**
+     * Indicates that the caller will be using, and thus owning, a {@link DfsSearchResult} object.  It is the caller's responsibility
+     * to correctly cleanup this result object.
+     */
+    public abstract void addDfsResult();
+
     public abstract QuerySearchResult queryResult();
+
+    /**
+     * Indicates that the caller will be using, and thus owning, a {@link QuerySearchResult} object.  It is the caller's responsibility
+     * to correctly cleanup this result object.
+     */
+    public abstract void addQueryResult();
 
     public abstract FetchPhase fetchPhase();
 
     public abstract FetchSearchResult fetchResult();
+
+    /**
+     * Indicates that the caller will be using, and thus owning, a {@link FetchSearchResult} object.  It is the caller's responsibility
+     * to correctly cleanup this result object.
+     */
+    public abstract void addFetchResult();
 
     /**
      * Return a handle over the profilers for the current search request, or {@code null} if profiling is not enabled.

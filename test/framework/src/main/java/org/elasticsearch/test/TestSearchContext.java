@@ -474,8 +474,18 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
+    public void addDfsResult() {
+        // this space intentionally left blank
+    }
+
+    @Override
     public QuerySearchResult queryResult() {
         return queryResult;
+    }
+
+    @Override
+    public void addQueryResult() {
+        // this space intentionally left blank
     }
 
     @Override
@@ -483,6 +493,10 @@ public class TestSearchContext extends SearchContext {
         return null;
     }
 
+    @Override
+    public void addFetchResult() {
+        // this space intentionally left blank
+    }
     @Override
     public FetchPhase fetchPhase() {
         return null;

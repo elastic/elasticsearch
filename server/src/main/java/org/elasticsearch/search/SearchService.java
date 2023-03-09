@@ -641,6 +641,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 tracer.stopTrace();
             }
             if (request.numberOfShards() == 1) {
+                // TODO: Need to add in a Fetch result mode here, so we can use the combined QueryFetchSearchResult later
                 return executeFetchPhase(readerContext, context, afterQueryTime);
             } else {
                 // Pass the rescoreDocIds to the queryResult to send them the coordinating node and receive them back in the fetch phase.

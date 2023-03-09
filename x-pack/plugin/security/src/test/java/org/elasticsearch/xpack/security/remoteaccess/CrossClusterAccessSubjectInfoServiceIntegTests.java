@@ -54,7 +54,7 @@ public class CrossClusterAccessSubjectInfoServiceIntegTests extends SecurityInte
     }
 
     public void testInvalidHeaders() throws IOException {
-        final String encodedRemoteAccessApiKey = getEncodedCrossClusterAccessApiKey();
+        final String encodedCrossClusterAccessApiKey = getEncodedCrossClusterAccessApiKey();
         final String nodeName = internalCluster().getRandomNodeName();
         final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
         final CrossClusterAccessAuthenticationService service = internalCluster().getInstance(
@@ -106,7 +106,7 @@ public class CrossClusterAccessSubjectInfoServiceIntegTests extends SecurityInte
         try (var ignored = threadContext.stashContext()) {
             final var internalUser = randomValueOtherThan(SystemUser.INSTANCE, AuthenticationTestHelper::randomInternalUser);
             new CrossClusterAccessHeaders(
-                encodedRemoteAccessApiKey,
+                encodedCrossClusterAccessApiKey,
                 new CrossClusterAccessSubjectInfo(
                     AuthenticationTestHelper.builder().internal(internalUser).build(),
                     RoleDescriptorsIntersection.EMPTY
@@ -123,7 +123,7 @@ public class CrossClusterAccessSubjectInfoServiceIntegTests extends SecurityInte
 
         try (var ignored = threadContext.stashContext()) {
             new CrossClusterAccessHeaders(
-                encodedRemoteAccessApiKey,
+                encodedCrossClusterAccessApiKey,
                 AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(
                     new RoleDescriptorsIntersection(
                         randomValueOtherThanMany(
@@ -151,7 +151,7 @@ public class CrossClusterAccessSubjectInfoServiceIntegTests extends SecurityInte
         try (var ignored = threadContext.stashContext()) {
             Authentication authentication = AuthenticationTestHelper.builder().apiKey().build();
             new CrossClusterAccessHeaders(
-                encodedRemoteAccessApiKey,
+                encodedCrossClusterAccessApiKey,
                 new CrossClusterAccessSubjectInfo(authentication, RoleDescriptorsIntersection.EMPTY)
             ).writeToContext(threadContext);
 
@@ -164,7 +164,7 @@ public class CrossClusterAccessSubjectInfoServiceIntegTests extends SecurityInte
                             + authentication.getEffectiveSubject().getUser().principal()
                             + "] has type ["
                             + authentication.getEffectiveSubject().getType()
-                            + "] which is not supported for remote access"
+                            + "] which is not supported for cross cluster access"
                     )
                 )
             );

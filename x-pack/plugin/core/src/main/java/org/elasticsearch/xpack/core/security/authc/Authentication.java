@@ -733,7 +733,7 @@ public final class Authentication implements ToXContentObject {
      * authentication. Hence, this method mostly runs in test (where assertion is enabled).
      * However, for RCS cross cluster access, FC receives an authentication object as part of the request. There is
      * no guarantee that this authentication object also maintains the internal logics. Therefore, this method
-     * is called explicitly in production when handling remote access requests.
+     * is called explicitly in production when handling cross cluster access requests.
      */
     public void checkConsistency() {
         // isRunAs logic consistency

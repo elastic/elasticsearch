@@ -859,7 +859,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             equalTo(
                 "Settings for remote cluster ["
                     + remoteClusterAlias
-                    + "] indicate remote access headers should be sent but target cluster version ["
+                    + "] indicate cross cluster access headers should be sent but target cluster version ["
                     + connection.getTransportVersion()
                     + "] does not support receiving them"
             )

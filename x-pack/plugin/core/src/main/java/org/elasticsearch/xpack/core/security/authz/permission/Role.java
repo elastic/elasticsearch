@@ -168,7 +168,7 @@ public interface Role {
      * Returns the intersection of role descriptors defined for a remote cluster with the given alias.
      *
      * @param remoteClusterAlias the remote cluster alias for which to return a role descriptors intersection
-     * @return an intersection of defined role descriptors for the remote access to a given cluster,
+     * @return an intersection of role descriptors that describe the remote privileges towards a given cluster,
      *         otherwise an empty intersection if remote privileges are not defined
      */
     RoleDescriptorsIntersection getRoleDescriptorsIntersectionForRemoteCluster(String remoteClusterAlias);

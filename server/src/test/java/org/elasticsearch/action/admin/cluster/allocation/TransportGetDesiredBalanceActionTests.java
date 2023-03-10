@@ -178,7 +178,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
         }
         RoutingTable routingTable = routingTableBuilder.build();
 
-        List<ShardId> shardIds = routingTable.allShards().stream().map(ShardRouting::shardId).toList();
+        List<ShardId> shardIds = routingTable.allShards().map(ShardRouting::shardId).toList();
         Map<String, Set<ShardId>> indexShards = shardIds.stream()
             .collect(Collectors.groupingBy(e -> e.getIndex().getName(), Collectors.toSet()));
         Map<ShardId, ShardAssignment> shardAssignments = new HashMap<>();

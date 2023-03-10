@@ -1,33 +1,33 @@
 [role="xpack"]
 [[delete-search-application]]
-= Delete Search Application API
-[subs="attributes"]
-++++
+=== Delete Search Application
 
+++++
 <titleabbrev>Delete Search Application</titleabbrev>
+++++
 
 Removes a Search Application and its associated alias.
 Indices attached to the Search Application are not removed.
 
 [[delete-search-application-request]]
-== {api-request-title}
+==== {api-request-title}
 
 `DELETE _application/search_application/<name>`
 
 [[delete-search-application-prereq]]
-== {api-prereq-title}
+==== {api-prereq-title}
 
 Requires the `manage_search_application` cluster privilege.
 Also requires `manage` privileges on all indices that are included in the Search Application.
 
 [[delete-search-application-path-params]]
-== {api-path-parms-title}
+==== {api-path-parms-title}
 
 `<name>`::
 (Required, string)
 
 [[delete-search-application-response-codes]]
-== {api-response-codes-title}
+==== {api-response-codes-title}
 
 `400`::
 The `name` was not provided.
@@ -36,7 +36,7 @@ The `name` was not provided.
 No Search Application matching `name` could be found.
 
 [[delete-search-application-example]]
-== {api-examples-title}
+==== {api-examples-title}
 
 The following example deletes the Search Application named `my-app`:
 

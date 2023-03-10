@@ -1,33 +1,33 @@
 [role="xpack"]
 [[put-search-application]]
-= Put Search Application API
-[subs="attributes"]
-++++
+=== Put Search Application
 
-<titleabbrev>Upsert Search Applications</titleabbrev>
+++++
+<titleabbrev>Put Search Application</titleabbrev>
+++++
 
 Creates or updates a Search Application.
 
 [[put-search-application-request]]
-== {api-request-title}
+==== {api-request-title}
 
 `PUT _application/search_application/<name>`
 
-[[put-search-application-prereq]]
-== {api-prereq-title}
+[[put-search-application-prereqs]]
+==== {api-prereq-title}
 
 Requires the `manage_search_application` cluster privilege.
-Also requires `manage` privileges on all indices that are added to the Search Application.
+Also requires <<privileges-list-indices,manage privileges>> on all indices that are added to the Search Application.
 
 [[put-search-application-path-params]]
-== {api-path-parms-title}
+==== {api-path-parms-title}
 
 `create`::
 (Optional, Boolean) If `true`, this request cannot replace or update existing Search Applications.
 Defaults to `false`.
 
 [[put-search-application-response-codes]]
-== {api-response-codes-title}
+==== {api-response-codes-title}
 
 `404`::
 Search Application `<name>` does not exist.
@@ -36,7 +36,7 @@ Search Application `<name>` does not exist.
 Search Application `<name>` exists and `create` is `true`.
 
 [[put-search-application-example]]
-== {api-examples-title}
+==== {api-examples-title}
 
 The following example creates a new Search Application called `my-app`:
 
@@ -61,3 +61,4 @@ PUT _application/search_application/my-app
 }
 --------------------------------------------------
 // TEST[skip:TBD]
+

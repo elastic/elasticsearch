@@ -212,7 +212,7 @@ public class CsvTests extends ESTestCase {
             .toList();
         try {
             LocalExecutionPlan localExecutionPlan = planner.plan(new OutputExec(physicalPlan, (l, p) -> { collectedPages.add(p); }));
-            drivers.addAll(localExecutionPlan.createDrivers());
+            drivers.addAll(localExecutionPlan.createDrivers("csv-test-session"));
 
             runToCompletion(threadPool.executor(ThreadPool.Names.SEARCH), drivers);
         } finally {

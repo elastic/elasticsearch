@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator;
 
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -25,6 +27,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverStatus> {
     public void testToXContent() {
         DriverStatus status = new DriverStatus(
+            "ABC:123",
             DriverStatus.Status.RUNNING,
             List.of(
                 new DriverStatus.OperatorStatus("LuceneSource", LuceneSourceOperatorStatusTests.simple()),
@@ -35,7 +38,7 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
             Strings.toString(status),
             equalTo(
                 """
-                    {"status":"running","active_operators":[{"operator":"LuceneSource","status":"""
+                    {"sessionId":"ABC:123","status":"running","active_operators":[{"operator":"LuceneSource","status":"""
                     + LuceneSourceOperatorStatusTests.simpleToJson()
                     + "},{\"operator\":\"ValuesSourceReader\",\"status\":"
                     + ValuesSourceReaderOperatorStatusTests.simpleToJson()
@@ -51,7 +54,11 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
 
     @Override
     protected DriverStatus createTestInstance() {
-        return new DriverStatus(randomStatus(), randomActiveOperators());
+        return new DriverStatus(randomSessionId(), randomStatus(), randomActiveOperators());
+    }
+
+    private String randomSessionId() {
+        return RandomStrings.randomAsciiLettersOfLengthBetween(random(), 1, 15);
     }
 
     private DriverStatus.Status randomStatus() {
@@ -73,14 +80,23 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
 
     @Override
     protected DriverStatus mutateInstance(DriverStatus instance) throws IOException {
-        switch (between(0, 1)) {
+        var sessionId = instance.sessionId();
+        var status = instance.status();
+        var operators = instance.activeOperators();
+        switch (between(0, 2)) {
             case 0:
-                return new DriverStatus(randomValueOtherThan(instance.status(), this::randomStatus), instance.activeOperators());
+                sessionId = randomValueOtherThan(sessionId, this::randomSessionId);
+                break;
             case 1:
-                return new DriverStatus(instance.status(), randomValueOtherThan(instance.activeOperators(), this::randomActiveOperators));
+                status = randomValueOtherThan(status, this::randomStatus);
+                break;
+            case 2:
+                operators = randomValueOtherThan(operators, this::randomActiveOperators);
+                break;
             default:
                 throw new UnsupportedOperationException();
         }
+        return new DriverStatus(sessionId, status, operators);
     }
 
     @Override

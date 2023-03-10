@@ -153,13 +153,13 @@ public class LocalExchangerTests extends ESTestCase {
         for (int i = 0; i < numSinks; i++) {
             String description = "sink-" + i;
             ExchangeSinkOperator sinkOperator = new ExchangeSinkOperator(exchanger.createExchangeSink());
-            Driver d = new Driver(() -> description, new SeqNoGenerator(), List.of(), sinkOperator, () -> {});
+            Driver d = new Driver("test-session:1", () -> description, new SeqNoGenerator(), List.of(), sinkOperator, () -> {});
             drivers.add(d);
         }
         for (int i = 0; i < numSources; i++) {
             String description = "source-" + i;
             ExchangeSourceOperator sourceOperator = new ExchangeSourceOperator(exchanger.createExchangeSource());
-            Driver d = new Driver(() -> description, sourceOperator, List.of(), new SeqNoCollector(), () -> {});
+            Driver d = new Driver("test-session:2", () -> description, sourceOperator, List.of(), new SeqNoCollector(), () -> {});
             drivers.add(d);
         }
         // Sometimes use a single thread to make sure no deadlock when sinks/sources are blocked

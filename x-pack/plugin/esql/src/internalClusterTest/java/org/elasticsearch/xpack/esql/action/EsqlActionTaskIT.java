@@ -49,11 +49,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.emptyIterable;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Tests that we expose a reasonable task status.
@@ -112,6 +114,7 @@ public class EsqlActionTaskIT extends ESIntegTestCase {
         int exchangeSinks = 0;
         for (TaskInfo task : foundTasks) {
             DriverStatus status = (DriverStatus) task.status();
+            assertThat(status.sessionId(), not(emptyOrNullString()));
             for (DriverStatus.OperatorStatus o : status.activeOperators()) {
                 if (o.operator().equals("LuceneSourceOperator[shardId=0]")) {
                     LuceneSourceOperator.Status oStatus = (LuceneSourceOperator.Status) o.status();

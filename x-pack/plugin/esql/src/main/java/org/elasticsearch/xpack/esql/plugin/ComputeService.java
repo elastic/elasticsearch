@@ -107,7 +107,13 @@ public class ComputeService {
         );
     }
 
-    public void runCompute(Task rootTask, PhysicalPlan physicalPlan, EsqlConfiguration configuration, ActionListener<List<Page>> listener) {
+    public void runCompute(
+        String sessionId,
+        Task rootTask,
+        PhysicalPlan physicalPlan,
+        EsqlConfiguration configuration,
+        ActionListener<List<Page>> listener
+    ) {
         String[] indexNames = physicalPlan.collect(l -> l instanceof EsQueryExec)
             .stream()
             .map(qe -> ((EsQueryExec) qe).index().concreteIndices())
@@ -130,7 +136,7 @@ public class ComputeService {
                     new OutputExec(physicalPlan, (l, p) -> { collectedPages.add(p); })
                 );  // TODO it's more normal to collect a result per thread and merge in the callback
                 LOGGER.info("Local execution plan:\n{}", localExecutionPlan.describe());
-                drivers.addAll(localExecutionPlan.createDrivers());
+                drivers.addAll(localExecutionPlan.createDrivers(sessionId));
                 if (drivers.isEmpty()) {
                     throw new IllegalStateException("no drivers created");
                 }

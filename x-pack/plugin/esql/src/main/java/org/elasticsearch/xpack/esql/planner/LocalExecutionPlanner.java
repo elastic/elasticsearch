@@ -512,10 +512,10 @@ public class LocalExecutionPlanner {
         }
     }
 
-    record DriverSupplier(BigArrays bigArrays, PhysicalOperation physicalOperation) implements Supplier<Driver>, Describable {
+    record DriverSupplier(BigArrays bigArrays, PhysicalOperation physicalOperation) implements Function<String, Driver>, Describable {
 
         @Override
-        public Driver get() {
+        public Driver apply(String sessionId) {
             SourceOperator source = null;
             List<Operator> operators = new ArrayList<>();
             SinkOperator sink = null;
@@ -525,7 +525,7 @@ public class LocalExecutionPlanner {
                 physicalOperation.operators(operators);
                 sink = physicalOperation.sink();
                 success = true;
-                return new Driver(physicalOperation::describe, source, operators, sink, () -> {});
+                return new Driver(sessionId, physicalOperation::describe, source, operators, sink, () -> {});
             } finally {
                 if (false == success) {
                     Releasables.close(source, () -> Releasables.close(operators), sink);
@@ -561,11 +561,11 @@ public class LocalExecutionPlanner {
             this.driverFactories = driverFactories;
         }
 
-        public List<Driver> createDrivers() {
+        public List<Driver> createDrivers(String sessionId) {
             List<Driver> drivers = new ArrayList<>();
             for (DriverFactory df : driverFactories) {
                 for (int i = 0; i < df.driverParallelism.instanceCount; i++) {
-                    drivers.add(df.driverSupplier.get());
+                    drivers.add(df.driverSupplier.apply(sessionId));
                 }
             }
             return drivers;

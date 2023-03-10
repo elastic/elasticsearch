@@ -43,6 +43,7 @@ public class EsqlSession {
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlSession.class);
 
+    private final String sessionId;
     private final EsqlConfiguration configuration;
     private final IndexResolver indexResolver;
 
@@ -55,6 +56,7 @@ public class EsqlSession {
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
 
     public EsqlSession(
+        String sessionId,
         EsqlConfiguration configuration,
         IndexResolver indexResolver,
         PreAnalyzer preAnalyzer,
@@ -62,6 +64,7 @@ public class EsqlSession {
         LogicalPlanOptimizer logicalPlanOptimizer,
         Mapper mapper
     ) {
+        this.sessionId = sessionId;
         this.configuration = configuration;
         this.indexResolver = indexResolver;
 
@@ -71,6 +74,10 @@ public class EsqlSession {
         this.mapper = mapper;
         this.logicalPlanOptimizer = logicalPlanOptimizer;
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
+    }
+
+    public String sessionId() {
+        return sessionId;
     }
 
     public void execute(EsqlQueryRequest request, ActionListener<PhysicalPlan> listener) {

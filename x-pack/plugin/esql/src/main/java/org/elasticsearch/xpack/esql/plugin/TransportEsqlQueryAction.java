@@ -26,6 +26,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.UnsupportedValueSource;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.ColumnInfo;
@@ -82,8 +83,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             request.pragmas(),
             EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.get(settings)
         );
-        planExecutor.newSession(configuration).execute(request, wrap(r -> {
-            computeService.runCompute(task, r, configuration, listener.map(pages -> {
+        String sessionId = sessionID(task);
+        planExecutor.newSession(sessionId, configuration).execute(request, wrap(r -> {
+            computeService.runCompute(sessionId, task, r, configuration, listener.map(pages -> {
                 List<ColumnInfo> columns = r.output()
                     .stream()
                     .map(c -> new ColumnInfo(c.qualifiedName(), EsqlDataTypes.outputType(c.dataType())))
@@ -95,6 +97,15 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 );
             }));
         }, listener::onFailure));
+    }
+
+    /**
+     * Returns the ID for this compute session. The ID is unique within the cluster, and is used
+     * to identify the compute-session across nodes. The ID is just the TaskID of the task that
+     * initiated the session.
+     */
+    final String sessionID(Task task) {
+        return new TaskId(clusterService.localNode().getId(), task.getId()).toString();
     }
 
     public static List<List<Object>> pagesToValues(List<DataType> dataTypes, List<Page> pages) {

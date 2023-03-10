@@ -43,13 +43,14 @@ import java.util.stream.Collectors;
 public class Driver implements Runnable, Releasable, Describable {
     public static final TimeValue DEFAULT_TIME_BEFORE_YIELDING = TimeValue.timeValueMillis(200);
 
+    private final String sessionId;
     private final Supplier<String> description;
     private final List<Operator> activeOperators;
     private final Releasable releasable;
 
     private final AtomicBoolean cancelled = new AtomicBoolean(false);
     private final AtomicReference<ListenableActionFuture<Void>> blocked = new AtomicReference<>();
-    private final AtomicReference<DriverStatus> status = new AtomicReference<>(new DriverStatus(DriverStatus.Status.QUEUED, List.of()));
+    private final AtomicReference<DriverStatus> status;
 
     /**
      * Creates a new driver with a chain of operators.
@@ -59,18 +60,21 @@ public class Driver implements Runnable, Releasable, Describable {
      * @param releasable a {@link Releasable} to invoked once the chain of operators has run to completion
      */
     public Driver(
+        String sessionId,
         Supplier<String> description,
         SourceOperator source,
         List<Operator> intermediateOperators,
         SinkOperator sink,
         Releasable releasable
     ) {
+        this.sessionId = sessionId;
         this.description = description;
         this.activeOperators = new ArrayList<>();
         this.activeOperators.add(source);
         this.activeOperators.addAll(intermediateOperators);
         this.activeOperators.add(sink);
         this.releasable = releasable;
+        this.status = new AtomicReference<>(new DriverStatus(sessionId, DriverStatus.Status.QUEUED, List.of()));
     }
 
     /**
@@ -81,7 +85,7 @@ public class Driver implements Runnable, Releasable, Describable {
      * @param releasable a {@link Releasable} to invoked once the chain of operators has run to completion
      */
     public Driver(SourceOperator source, List<Operator> intermediateOperators, SinkOperator sink, Releasable releasable) {
-        this(() -> null, source, intermediateOperators, sink, releasable);
+        this("unset", () -> null, source, intermediateOperators, sink, releasable);
     }
 
     /**
@@ -315,6 +319,7 @@ public class Driver implements Runnable, Releasable, Describable {
 
     private DriverStatus buildStatus(DriverStatus.Status status) {
         return new DriverStatus(
+            sessionId,
             status,
             activeOperators.stream().map(o -> new DriverStatus.OperatorStatus(o.toString(), o.status())).toList()
         );

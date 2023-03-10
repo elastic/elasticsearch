@@ -32,7 +32,7 @@ public class PlanExecutor {
         this.mapper = new Mapper(functionRegistry);
     }
 
-    public EsqlSession newSession(EsqlConfiguration cfg) {
-        return new EsqlSession(cfg, indexResolver, preAnalyzer, functionRegistry, logicalPlanOptimizer, mapper);
+    public EsqlSession newSession(String sessionId, EsqlConfiguration cfg) {
+        return new EsqlSession(sessionId, cfg, indexResolver, preAnalyzer, functionRegistry, logicalPlanOptimizer, mapper);
     }
 }

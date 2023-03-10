@@ -30,21 +30,23 @@ public class DriverStatus implements Task.Status {
         DriverStatus::new
     );
 
+    private final String sessionId;
     private final Status status;
     private final List<OperatorStatus> activeOperators;
 
-    DriverStatus(Status status, List<OperatorStatus> activeOperators) {
+    DriverStatus(String sessionId, Status status, List<OperatorStatus> activeOperators) {
+        this.sessionId = sessionId;
         this.status = status;
         this.activeOperators = activeOperators;
     }
 
     DriverStatus(StreamInput in) throws IOException {
-        status = Status.valueOf(in.readString());
-        activeOperators = in.readImmutableList(OperatorStatus::new);
+        this(in.readString(), Status.valueOf(in.readString()), in.readImmutableList(OperatorStatus::new));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(sessionId);
         out.writeString(status.toString());
         out.writeList(activeOperators);
     }
@@ -52,6 +54,10 @@ public class DriverStatus implements Task.Status {
     @Override
     public String getWriteableName() {
         return ENTRY.name;
+    }
+
+    public String sessionId() {
+        return sessionId;
     }
 
     public Status status() {
@@ -65,6 +71,7 @@ public class DriverStatus implements Task.Status {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field("sessionId", sessionId);
         builder.field("status", status.toString().toLowerCase(Locale.ROOT));
         builder.startArray("active_operators");
         for (OperatorStatus active : activeOperators) {
@@ -79,12 +86,12 @@ public class DriverStatus implements Task.Status {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DriverStatus that = (DriverStatus) o;
-        return status == that.status && activeOperators.equals(that.activeOperators);
+        return sessionId.equals(that.sessionId) && status == that.status && activeOperators.equals(that.activeOperators);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(status, activeOperators);
+        return Objects.hash(sessionId, status, activeOperators);
     }
 
     @Override
@@ -161,5 +168,4 @@ public class DriverStatus implements Task.Status {
             return builder.value(toString().toLowerCase(Locale.ROOT));
         }
     }
-
 }

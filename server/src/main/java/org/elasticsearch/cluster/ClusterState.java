@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -48,6 +49,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -59,6 +61,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
@@ -894,6 +897,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         builder.nodes = DiscoveryNodes.readFrom(in, localNode);
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             builder.transportVersions(in.readMap(StreamInput::readString, TransportVersion::readVersion));
+        } else {
+            // this clusterstate is from a pre-8.8.0 node
+            // infer the versions from discoverynodes for now
+            builder.nodes().getNodes().values().forEach(n -> builder.putTransportVersion(n.getId(), inferTransportVersion(n)));
         }
         builder.blocks = ClusterBlocks.readFrom(in);
         int customSize = in.readVInt();
@@ -905,6 +912,18 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             in.readVInt(); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
         }
         return builder.build();
+    }
+
+    private static TransportVersion inferTransportVersion(DiscoveryNode node) {
+        TransportVersion tv;
+        if (node.getVersion().before(Version.V_8_8_0)) {
+            // 1-2-1 mapping between Version and TransportVersion
+            tv = TransportVersion.fromId(node.getVersion().id);
+        } else {
+            // use the lowest value it could be for now
+            tv = TransportVersion.V_8_8_0;
+        }
+        return tv;
     }
 
     @Override

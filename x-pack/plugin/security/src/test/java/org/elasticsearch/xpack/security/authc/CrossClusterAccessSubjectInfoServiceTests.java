@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
+import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -31,7 +32,6 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService.CROSS_CLUSTER_INTERNAL_ROLE;
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService.VERSION_CROSS_CLUSTER_ACCESS_AUTHENTICATION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -140,13 +140,9 @@ public class CrossClusterAccessSubjectInfoServiceTests extends ESTestCase {
         final Authentication expectedAuthentication;
         if (SystemUser.is(remoteAuthentication.getEffectiveSubject().getUser())) {
             expectedAuthentication = apiKeyAuthentication.toCrossClusterAccess(
-                new CrossClusterAccessSubjectInfo(
-                    Authentication.newInternalAuthentication(
-                        SystemUser.INSTANCE,
-                        remoteAuthentication.getEffectiveSubject().getTransportVersion(),
-                        remoteAuthentication.getEffectiveSubject().getRealm().getNodeName()
-                    ),
-                    new RoleDescriptorsIntersection(CROSS_CLUSTER_INTERNAL_ROLE)
+                CrossClusterAccessUser.crossClusterAccessSubjectInfo(
+                    remoteAuthentication.getEffectiveSubject().getTransportVersion(),
+                    remoteAuthentication.getEffectiveSubject().getRealm().getNodeName()
                 )
             );
         } else {

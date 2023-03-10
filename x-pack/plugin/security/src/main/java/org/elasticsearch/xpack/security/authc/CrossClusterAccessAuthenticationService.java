@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
+import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -39,17 +39,6 @@ public class CrossClusterAccessAuthenticationService {
 
     public static final Version VERSION_CROSS_CLUSTER_ACCESS_AUTHENTICATION = Version.V_8_8_0;
 
-    public static final RoleDescriptor CROSS_CLUSTER_INTERNAL_ROLE = new RoleDescriptor(
-        "_cross_cluster_internal",
-        new String[] { "cross_cluster_access" },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-    );
     private static final Logger logger = LogManager.getLogger(CrossClusterAccessAuthenticationService.class);
 
     private final ClusterService clusterService;
@@ -117,7 +106,7 @@ public class CrossClusterAccessAuthenticationService {
                         validate(crossClusterAccessSubjectInfo);
                         writeAuthToContext(
                             authcContext,
-                            authentication.toCrossClusterAccess(maybeRewriteForSystemUser(crossClusterAccessSubjectInfo)),
+                            authentication.toCrossClusterAccess(maybeSwitchToCrossClusterAccessUser(crossClusterAccessSubjectInfo)),
                             listener
                         );
                     } catch (Exception ex) {
@@ -128,19 +117,15 @@ public class CrossClusterAccessAuthenticationService {
         }
     }
 
-    private static CrossClusterAccessSubjectInfo maybeRewriteForSystemUser(
+    private static CrossClusterAccessSubjectInfo maybeSwitchToCrossClusterAccessUser(
         final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo
     ) throws IOException {
         final Subject receivedEffectiveSubject = crossClusterAccessSubjectInfo.getAuthentication().getEffectiveSubject();
         final User user = receivedEffectiveSubject.getUser();
         if (SystemUser.is(user)) {
-            return new CrossClusterAccessSubjectInfo(
-                Authentication.newInternalAuthentication(
-                    SystemUser.INSTANCE,
-                    receivedEffectiveSubject.getTransportVersion(),
-                    receivedEffectiveSubject.getRealm().getNodeName()
-                ),
-                new RoleDescriptorsIntersection(CROSS_CLUSTER_INTERNAL_ROLE)
+            return CrossClusterAccessUser.crossClusterAccessSubjectInfo(
+                receivedEffectiveSubject.getTransportVersion(),
+                receivedEffectiveSubject.getRealm().getNodeName()
             );
         } else if (User.isInternal(user)) {
             throw new IllegalArgumentException(

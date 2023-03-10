@@ -39,9 +39,9 @@ No Search Application matching `name` could be found.
 The following example gets the Search Application named `my-app`:
 
 [source,console]
---------------------------------------------------
+----
 GET _application/search_application/my-app/
---------------------------------------------------
+----
 // TEST[skip:TBD]
 
 A sample response:

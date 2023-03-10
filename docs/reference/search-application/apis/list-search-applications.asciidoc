@@ -39,17 +39,17 @@ Requires the `manage_search_application` cluster privilege.
 The following example lists all configured Search Applications:
 
 [source,console]
---------------------------------------------------
+----
 GET _application/search_application/
---------------------------------------------------
+----
 // TEST[skip:TBD]
 
 The following example lists the first three Search Applications matching `foo`:
 
 [source,console]
---------------------------------------------------
+----
 GET _application/search_application/?from=0&size=3&q=foo
---------------------------------------------------
+----
 // TEST[skip:TBD]
 
 A sample response:

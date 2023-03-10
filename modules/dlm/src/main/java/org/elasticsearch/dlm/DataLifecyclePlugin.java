@@ -28,7 +28,10 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.dlm.action.GetDataLifecycleAction;
 import org.elasticsearch.dlm.action.GetDataLifecycleTransportAction;
+import org.elasticsearch.dlm.action.PutDataLifecycleAction;
+import org.elasticsearch.dlm.action.PutDataLifecycleTransportAction;
 import org.elasticsearch.dlm.rest.RestGetDataLifecycleAction;
+import org.elasticsearch.dlm.rest.RestPutDataLifecycleAction;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -116,7 +119,7 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         try {
             IOUtils.close(dataLifecycleInitialisationService.get());
         } catch (IOException e) {
@@ -127,7 +130,8 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         var getDataStreamsAction = new ActionHandler<>(GetDataLifecycleAction.INSTANCE, GetDataLifecycleTransportAction.class);
-        return List.of(getDataStreamsAction);
+        var putDataStreamsAction = new ActionHandler<>(PutDataLifecycleAction.INSTANCE, PutDataLifecycleTransportAction.class);
+        return List.of(getDataStreamsAction, putDataStreamsAction);
     }
 
     @Override
@@ -141,6 +145,7 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         var getDataStreamsAction = new RestGetDataLifecycleAction();
-        return List.of(getDataStreamsAction);
+        var putDataStreamsAction = new RestPutDataLifecycleAction();
+        return List.of(getDataStreamsAction, putDataStreamsAction);
     }
 }

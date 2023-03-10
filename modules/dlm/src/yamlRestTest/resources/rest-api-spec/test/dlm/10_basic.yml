@@ -49,6 +49,25 @@ setup:
   - match: { data_streams.0.lifecycle.data_retention: '10d' }
 
 ---
+"Put data lifecycle":
+
+  - do:
+      indices.put_data_lifecycle:
+        name: "data-stream-with-lifecycle"
+        body:
+          lifecycle:
+            data_retention: '30d'
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_lifecycle:
+        name: "*"
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.name: data-stream-with-lifecycle }
+  - match: { data_streams.0.lifecycle.data_retention: '30d' }
+
+
+---
 "Get data lifecycle with defaults":
 
   - do:

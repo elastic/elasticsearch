@@ -6,7 +6,7 @@
 
 Geospatial analysis with speed, at scale. All with a stack that scales automatically.
 
-The Elastic Stack is more than search. Use machine learning and alerting to put your geo data to work for you.
+The Elastic Stack is more than search. Use machine learning and alerting to put your geo data to work.
 
 [discrete]
 [[geospatial-mapping]]
@@ -20,11 +20,11 @@ Have an index with lat/lon pairs but no geo_point mapping? Use <<runtime-mapping
 [[geospatial-ingest]]
 == Ingest
 
-Data is often messy and incomplete. Elasticearch <<ingest,ingest pipelines>> let you clean, transform, and augment your data before indexing. 
+Data is often messy and incomplete. <<ingest,Ingest pipelines>> let you clean, transform, and augment your data before indexing. 
 
 * Use <<geoip-processor>> to add geographical location of an IPv4 or IPv6 address.
-* Use <<ingest-geo-grid-processor,geo-grid processor>> to convert grid tile or cell ids to regular bounding boxes or polygons which describe their shape.
-* Use <<geo-match-enrich-policy-type,geo_match enrich policy>> for reverse geocoding. For example, use {reverse-geocoding-tutorial.html}/maps.html[reverse geocoding] to visualize urban areas by web traffic.
+* Use <<ingest-geo-grid-processor,geo-grid processor>> to convert grid tile or hexagonal cell ids to bounding boxes or polygons which describe their shape.
+* Use <<geo-match-enrich-policy-type,geo_match enrich policy>> for reverse geocoding. For example, use {reverse-geocoding-tutorial.html}/maps.html[reverse geocoding] to visualize metropolitan areas by web traffic.
 
 [discrete]
 [[geospatial-query]]
@@ -35,6 +35,23 @@ Data is often messy and incomplete. Elasticearch <<ingest,ingest pipelines>> let
 [discrete]
 [[geospatial-aggregate]]
 == Aggregate
+
+<<search-aggregations,Aggregations>> summarize your data as metrics, statistics, or other analytics. Use <<search-aggregations-bucket,bucket aggregations>> to group documents into buckets, also called bins, based on field values, ranges, or other criteria. Then, use <<search-aggregations-metrics,metric aggregations>> to calculate metrics, such as a sum or average, from field values in each bucket.
+
+Geospatial bucket aggregations:
+
+* <<search-aggregations-bucket-geodistance-aggregation,Geo-distance aggregation>> evaluates the distance of each geo_point location from an origin point and determines the buckets it belongs to based on the ranges (a document belongs to a bucket if the distance between the document and the origin falls within the distance range of the bucket).
+* <<search-aggregations-bucket-geohashgrid-aggregation,Geohash grid aggregation>> groups geo_point and geo_shape values into buckets that represent a grid.
+* <<search-aggregations-bucket-geohexgrid-aggregation,Geohex grid aggregation>> groups geo_point and geo_shape values into buckets that represent an H3 hexagonal cell.
+* <<search-aggregations-bucket-geotilegrid-aggregation,Geotile grid aggregation>> groups geo_point and geo_shape values into buckets that represent a grid. Each cell corresponds to a {wikipedia}/Tiled_web_map[map tile] as used by many online map sites.
+ 
+Geospatial metric aggregations:
+
+* <<search-aggregations-metrics-geobounds-aggregation, Geo-bounds aggregation>> computes the geographic bounding box containing all values for a Geopoint or Geoshape field.
+* <<search-aggregations-metrics-geocentroid-aggregation, Geo-centroid aggregation>> computes the weighted centroid from all coordinate values for geo fields.
+* <<search-aggregations-metrics-geo-line,Geo-line aggregation>> aggregates all geo_point values within a bucket into a LineString ordered by the chosen sort field. Use geo_line aggregation to create {kibana-ref}/asset-tracking-tutorial.html[vehicle tracks]. 
+
+Combine aggrgations to perform complex geospatial analysis. For example, use term aggregation to group documents into buckets per an unique identifier. Then use geo-line aggregation to compute a track for each unique identifier. In another example, use geotile grid aggregation to group documents into a grid. Then use geo-centroid aggregation to find the weighted centroid of each grid cell.
 
 [discrete]
 [[geospatial-integrate]]

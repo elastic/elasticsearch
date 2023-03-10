@@ -36,7 +36,7 @@ Data is often messy and incomplete. <<ingest,Ingest pipelines>> lets you clean, 
 [[geospatial-aggregate]]
 == Aggregate
 
-<<search-aggregations,Aggregations>> summarizes your data as metrics, statistics, or other analytics. Use <<search-aggregations-bucket,bucket aggregations>> to group documents into buckets, also called bins, based on field values, ranges, or other criteria. Then, use <<search-aggregations-metrics,metric aggregations>> to calculate metrics, such as a sum or average, from field values in each bucket.
+<<search-aggregations,Aggregations>> summarizes your data as metrics, statistics, or other analytics. Use <<search-aggregations-bucket,bucket aggregations>> to group documents into buckets, also called bins, based on field values, ranges, or other criteria. Then, use <<search-aggregations-metrics,metric aggregations>> to calculate metrics, such as a sum or average, from field values in each bucket. Compare metrics across buckets to gain insights from your data.
 
 Geospatial bucket aggregations:
 

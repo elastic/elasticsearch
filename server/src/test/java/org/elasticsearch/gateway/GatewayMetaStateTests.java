@@ -198,10 +198,7 @@ public class GatewayMetaStateTests extends ESTestCase {
         Metadata.Builder builder = Metadata.builder();
         for (String template : templates) {
             IndexTemplateMetadata templateMetadata = IndexTemplateMetadata.builder(template)
-                .settings(
-                    settings(Version.CURRENT).put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 3))
-                        .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), randomIntBetween(1, 5))
-                )
+                .settings(indexSettings(Version.CURRENT, randomIntBetween(1, 5), randomIntBetween(0, 3)))
                 .patterns(randomIndexPatterns())
                 .build();
             builder.put(templateMetadata);

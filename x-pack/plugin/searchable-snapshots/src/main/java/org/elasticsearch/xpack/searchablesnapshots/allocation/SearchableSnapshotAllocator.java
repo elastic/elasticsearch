@@ -528,13 +528,13 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         }
     }
 
-    private record MatchingNodes(DiscoveryNode nodeWithHighestMatch, @Nullable Map<String, NodeAllocationResult> nodeDecisions) {
+    private record MatchingNodes(@Nullable Map<String, NodeAllocationResult> nodeDecisions, @Nullable DiscoveryNode nodeWithHighestMatch) {
 
         private static MatchingNodes create(
             Map<DiscoveryNode, Long> matchingNodes,
             @Nullable Map<String, NodeAllocationResult> nodeDecisions
         ) {
-            return new MatchingNodes(getNodeWithHighestMatch(matchingNodes), nodeDecisions);
+            return new MatchingNodes(nodeDecisions, getNodeWithHighestMatch(matchingNodes));
         }
 
         /**

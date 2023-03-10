@@ -249,6 +249,10 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                                 values.add(
                                     WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, bytesRef.bytes, bytesRef.offset, bytesRef.length)
                                 );
+                            } else {
+                                throw new IllegalArgumentException(
+                                    "Unexpected type class fetching [" + name() + "]: " + storedValue.getClass()
+                                );
                             }
                         }
                         return formatter.apply(values);

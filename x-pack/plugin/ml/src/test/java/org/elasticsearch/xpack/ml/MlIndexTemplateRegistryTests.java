@@ -108,7 +108,7 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
         assertThat(indexTemplate.template().settings().get("index.lifecycle.rollover_alias"), equalTo(".ml-stats-write"));
     }
 
-    public void testStatsTemplateNiIlm() {
+    public void testStatsTemplateNoIlm() {
         MlIndexTemplateRegistry registry = new MlIndexTemplateRegistry(
             Settings.EMPTY,
             clusterService,

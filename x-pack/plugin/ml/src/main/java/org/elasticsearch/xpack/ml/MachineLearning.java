@@ -476,8 +476,7 @@ public class MachineLearning extends Plugin
         PersistentTaskPlugin,
         SearchPlugin,
         ShutdownAwarePlugin,
-        ExtensiblePlugin,
-        MachineLearningExtension {
+        ExtensiblePlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_ml/";
     // Endpoints that were deprecated in 7.x can still be called in 8.x using the REST compatibility layer
@@ -561,17 +560,10 @@ public class MachineLearning extends Plugin
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
-        loader.loadExtensions(MachineLearningExtension.class).forEach(machineLearningExtensions::add);
-    }
-
-    @Override
-    public boolean useIlm() {
-        return true;
-    }
-
-    @Override
-    public boolean includeNodeInfo() {
-        return true;
+        loader.loadExtensions(MachineLearningExtension.class).forEach(machineLearningExtension::set);
+        if (machineLearningExtension.get() == null) {
+            machineLearningExtension.set(new DefaultMachineLearningExtension());
+        }
     }
 
     // This is not used in v8 and higher, but users are still prevented from setting it directly to avoid confusion
@@ -742,11 +734,10 @@ public class MachineLearning extends Plugin
     private final SetOnce<DeploymentManager> deploymentManager = new SetOnce<>();
     private final SetOnce<TrainedModelAssignmentClusterService> trainedModelAllocationClusterServiceSetOnce = new SetOnce<>();
 
-    private final List<MachineLearningExtension> machineLearningExtensions;
+    private final SetOnce<MachineLearningExtension> machineLearningExtension = new SetOnce<>();
 
     public MachineLearning(Settings settings) {
         this.settings = settings;
-        this.machineLearningExtensions = new ArrayList<>(List.of(this));
         this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(settings);
     }
 
@@ -888,7 +879,7 @@ public class MachineLearning extends Plugin
             clusterService,
             threadPool,
             client,
-            useIlm(),
+            machineLearningExtension.get().useIlm(),
             xContentRegistry
         );
         registry.initialize();

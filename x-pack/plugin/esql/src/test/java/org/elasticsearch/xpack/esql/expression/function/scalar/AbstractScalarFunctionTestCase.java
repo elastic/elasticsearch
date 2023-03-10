@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.hamcrest.Matcher;
 
+import java.time.Duration;
+import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -47,6 +49,27 @@ import static org.hamcrest.Matchers.nullValue;
  * Base class for function tests.
  */
 public abstract class AbstractScalarFunctionTestCase extends ESTestCase {
+    /**
+     * Generate a random value of the appropriate type to fit into blocks of {@code e}.
+     */
+    public static Literal randomLiteral(DataType type) {
+        return new Literal(Source.EMPTY, switch (type.typeName()) {
+            case "boolean" -> randomBoolean();
+            case "byte" -> randomByte();
+            case "short" -> randomShort();
+            case "integer" -> randomInt();
+            case "long" -> randomLong();
+            case "date_period" -> Period.ofDays(randomInt(10));
+            case "datetime" -> randomMillisUpToYear9999();
+            case "double" -> randomDouble();
+            case "float" -> randomFloat();
+            case "keyword" -> randomAlphaOfLength(5);
+            case "time_duration" -> Duration.ofMillis(randomNonNegativeLong());
+            case "null" -> null;
+            default -> throw new IllegalArgumentException("can't make random values for [" + type.typeName() + "]");
+        }, type);
+    }
+
     protected abstract List<Object> simpleData();
 
     protected abstract Expression expressionForSimpleData();

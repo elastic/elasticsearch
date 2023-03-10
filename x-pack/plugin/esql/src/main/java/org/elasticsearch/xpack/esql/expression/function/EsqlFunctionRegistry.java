@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsolute
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.IsNull;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
@@ -71,7 +72,7 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
                 def(DateFormat.class, DateFormat::new, "date_format"),
                 def(DateTrunc.class, DateTrunc::new, "date_trunc"), },
             // conditional
-            new FunctionDefinition[] { def(Case.class, Case::new, "case") } };
+            new FunctionDefinition[] { def(Case.class, Case::new, "case"), def(IsNull.class, IsNull::new, "is_null"), } };
     }
 
     @Override

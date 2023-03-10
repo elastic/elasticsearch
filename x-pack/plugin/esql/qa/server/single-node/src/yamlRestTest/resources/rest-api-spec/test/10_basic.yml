@@ -277,11 +277,47 @@ setup:
   - match: {columns.1.name: "synopsis"}
   - match: {columns.1.type: "keyword"}
   - length: {values: 2}
-  - length: {values.0: 19}
-  - length: {values.1: 19}
-  - match: {values.0: ["abs", "avg", "case", "concat", "count", "date_format", "date_trunc", "is_finite", "is_infinite", "is_nan",
-                        "length", "max", "median", "median_absolute_deviation", "min", "round", "starts_with", "substring", "sum"]}
-  - match: {values.1: ["abs(arg1)", "avg(arg1)", "case(arg1[])", "concat(arg1, arg2[])", "count(arg1)", "date_format(arg1, arg2)",
-                        "date_trunc(arg1, arg2)", "is_finite(arg1)", "is_infinite(arg1)", "is_nan(arg1)", "length(arg1)", "max(arg1)",
-                        "median(arg1)", "median_absolute_deviation(arg1)", "min(arg1)", "round(arg1, arg2)", "starts_with(arg1, arg2)",
-                        "substring(arg1, arg2, arg3)", "sum(arg1)"]}
+  - match:
+      values.0:
+        - abs
+        - avg
+        - case
+        - concat
+        - count
+        - date_format
+        - date_trunc
+        - is_finite
+        - is_infinite
+        - is_nan
+        - is_null
+        - length
+        - max
+        - median
+        - median_absolute_deviation
+        - min
+        - round
+        - starts_with
+        - substring
+        - sum
+  - match:
+      values.1:
+        - abs(arg1)
+        - avg(arg1)
+        - case(arg1[])
+        - concat(arg1, arg2[])
+        - count(arg1)
+        - date_format(arg1, arg2)
+        - date_trunc(arg1, arg2)
+        - is_finite(arg1)
+        - is_infinite(arg1)
+        - is_nan(arg1)
+        - is_null(arg1)
+        - length(arg1)
+        - max(arg1)
+        - median(arg1)
+        - median_absolute_deviation(arg1)
+        - min(arg1)
+        - round(arg1, arg2)
+        - starts_with(arg1, arg2)
+        - substring(arg1, arg2, arg3)
+        - sum(arg1)

@@ -199,9 +199,9 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
                 }
 
                 for (LeafReaderContext leafReaderContext : searcher.getLeafContexts()) {
-                    Scorer scorer = w.scorer(leafReaderContext);
                     // If we have matching docs, the score should always be greater than 0 for that segment
-                    if (scorer != null) {
+                    if (w.count(leafReaderContext) > 0) {
+                        Scorer scorer = w.scorer(leafReaderContext);
                         assertThat(leafReaderContext.toString(), scorer.getMaxScore(NO_MORE_DOCS), greaterThan(0.0f));
                     }
                 }

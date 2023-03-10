@@ -72,29 +72,32 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
         client().prepareIndex(indexName).setId("5").setSource(jsonBuilder().startObject().field("ip_addr", "13.3.3.3").endObject()).get();
         assertEquals(RestStatus.OK, client().admin().indices().prepareRefresh().get().getStatus());
         {
-            TermsEnumResponse response = client().execute(TermsEnumAction.INSTANCE, new TermsEnumRequest(indexName).field("ip_addr").timeout(TimeValue.timeValueMillis(10))).get();
-            expectMatches(response,"1.2.3.4", "2.2.2.2", "13.3.3.3", "205.0.1.2", "2001:db8::1:0:0:1");
+            TermsEnumResponse response = client().execute(
+                TermsEnumAction.INSTANCE,
+                new TermsEnumRequest(indexName).field("ip_addr").timeout(TimeValue.timeValueMillis(10))
+            ).get();
+            expectMatches(response, "1.2.3.4", "2.2.2.2", "13.3.3.3", "205.0.1.2", "2001:db8::1:0:0:1");
         }
         {
             TermsEnumResponse response = client().execute(
                 TermsEnumAction.INSTANCE,
                 new TermsEnumRequest(indexName).field("ip_addr").searchAfter("13.3.3.3")
             ).get();
-            expectMatches(response,"205.0.1.2", "2001:db8::1:0:0:1");
+            expectMatches(response, "205.0.1.2", "2001:db8::1:0:0:1");
         }
         {
             TermsEnumResponse response = client().execute(
                 TermsEnumAction.INSTANCE,
                 new TermsEnumRequest(indexName).field("ip_addr").string("2")
             ).get();
-            expectMatches(response,"2.2.2.2", "205.0.1.2", "2001:db8::1:0:0:1");
+            expectMatches(response, "2.2.2.2", "205.0.1.2", "2001:db8::1:0:0:1");
         }
         {
             TermsEnumResponse response = client().execute(
                 TermsEnumAction.INSTANCE,
                 new TermsEnumRequest(indexName).field("ip_addr").string("20")
             ).get();
-            expectMatches(response,"205.0.1.2", "2001:db8::1:0:0:1");
+            expectMatches(response, "205.0.1.2", "2001:db8::1:0:0:1");
         }
     }
 
@@ -143,8 +146,7 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
 
         // test for short random prefixes, max length 7 should at least include some separators but not be too long for short ipv4
         for (int prefixLength = 1; prefixLength < 7; prefixLength++) {
-            String randomPrefix = NetworkAddress.format(randomIps[randomIntBetween(0, numDocs - 1)])
-                .substring(0, prefixLength);
+            String randomPrefix = NetworkAddress.format(randomIps[randomIntBetween(0, numDocs - 1)]).substring(0, prefixLength);
 
             int expectedResults = 0;
             for (int i = 0; i < numDocs; i++) {

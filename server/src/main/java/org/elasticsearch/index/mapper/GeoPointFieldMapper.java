@@ -378,8 +378,13 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
 
         // only used in test
+        public GeoPointFieldType(String name, TimeSeriesParams.MetricType metricType) {
+            this(name, true, false, true, null, null, Collections.emptyMap(), metricType);
+        }
+
+        // only used in test
         public GeoPointFieldType(String name) {
-            this(name, true, false, true, null, null, Collections.emptyMap(), null);
+            this(name, null);
         }
 
         @Override

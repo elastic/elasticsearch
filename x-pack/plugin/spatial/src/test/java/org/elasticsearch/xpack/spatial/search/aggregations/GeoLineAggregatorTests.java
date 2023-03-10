@@ -8,26 +8,30 @@ package org.elasticsearch.xpack.spatial.search.aggregations;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.aggregations.bucket.timeseries.TimeSeriesAggregationBuilder;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -81,7 +85,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         long[] expectedAggPoints = new long[] { lonLat, lonLat };
         double[] expectedAggSortValues = new double[] { NumericUtils.doubleToSortableLong(2), NumericUtils.doubleToSortableLong(4) };
 
-        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+        testCase(aggregationBuilder, iw -> {
             for (int i = 0; i < points.length; i++) {
                 List<Field> fields = new ArrayList<>();
                 fields.add(new SortedDocValuesField("group_id", new BytesRef("group")));
@@ -117,7 +121,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         // input
         double[] sortValues = new double[] { 1, 0, 2, 0, 3, 4, 5 };
 
-        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+        testCase(aggregationBuilder, iw -> {
             for (int i = 0; i < sortValues.length; i++) {
                 iw.addDocument(
                     Arrays.asList(
@@ -145,20 +149,8 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").field("group_id")
             .subAggregation(lineAggregationBuilder);
 
-        long lonLat = (((long) GeoEncodingUtils.encodeLongitude(90.0)) << 32) | GeoEncodingUtils.encodeLatitude(45.0) & 0xffffffffL;
-        // input
-        long[] points = new long[] { lonLat, 0, lonLat, 0, lonLat, lonLat, lonLat };
-        // expected
-        long[] expectedAggPoints = new long[] { lonLat, lonLat, lonLat, lonLat, lonLat };
-        double[] expectedAggSortValues = new double[] {
-            NumericUtils.doubleToSortableLong(1),
-            NumericUtils.doubleToSortableLong(2),
-            NumericUtils.doubleToSortableLong(3),
-            NumericUtils.doubleToSortableLong(4),
-            NumericUtils.doubleToSortableLong(5) };
-
-        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
-            for (int i = 0; i < points.length; i++) {
+        testCase(aggregationBuilder, iw -> {
+            for (int i = 0; i < 7; i++) {
                 iw.addDocument(
                     Arrays.asList(
                         new LatLonDocValuesField("value_field", 45.0, 90.0),
@@ -171,6 +163,54 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             InternalGeoLine geoLine = terms.getBuckets().get(0).getAggregations().get("_name");
             assertThat(geoLine.length(), equalTo(0));
             assertTrue(geoLine.isComplete());
+        });
+    }
+
+    public void testMissingSortField_TSDB() throws IOException {
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
+        GeoLineAggregationBuilder lineAggregationBuilder = new GeoLineAggregationBuilder("_name").point(valueConfig).size(10);
+
+        TermsAggregationBuilder termsAggregationBuilder = new TermsAggregationBuilder("_name").field("group_id")
+            .subAggregation(lineAggregationBuilder);
+
+        TimeSeriesAggregationBuilder aggregationBuilder = new TimeSeriesAggregationBuilder("tsid").subAggregation(termsAggregationBuilder);
+
+        double startLat = 45.0;
+        double startLon = 90;
+        long lonLat = (((long) GeoEncodingUtils.encodeLongitude(startLon)) << 32) | GeoEncodingUtils.encodeLatitude(startLat) & 0xffffffffL;
+        // input
+        long[] points = new long[] { lonLat, 0, lonLat, 0, lonLat, lonLat, lonLat };
+        // expected
+        long[] expectedAggPoints = new long[] { lonLat, lonLat, lonLat, lonLat, lonLat };
+        double[] expectedAggSortValues = new double[] {
+            NumericUtils.doubleToSortableLong(1),
+            NumericUtils.doubleToSortableLong(2),
+            NumericUtils.doubleToSortableLong(3),
+            NumericUtils.doubleToSortableLong(4),
+            NumericUtils.doubleToSortableLong(5) };
+
+        long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
+        testCase(aggregationBuilder, iw -> {
+            for (int i = 0; i < points.length; i++) {
+                long timestamp = startTime + 1000 * i;
+                double latitude = startLat + i * 0.1;
+                double longitude = startLon + i * 0.1;
+                iw.addDocument(
+                    Arrays.asList(
+                        new LatLonDocValuesField("value_field", latitude, longitude),
+                        new SortedDocValuesField("group_id", new BytesRef("group")),
+                        new SortedNumericDocValuesField(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp),
+                        new LongPoint(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp)
+                    )
+                );
+            }
+        }, terms -> {
+            assertThat(terms.getBuckets().size(), equalTo(1));
+            InternalGeoLine geoLine = terms.getBuckets().get(0).getAggregations().get("_name");
+            assertThat(geoLine.length(), equalTo(expectedAggPoints.length));
+            assertTrue(geoLine.isComplete());
+            assertArrayEquals(expectedAggPoints, geoLine.line());
+            assertArrayEquals(expectedAggSortValues, geoLine.sortVals(), 0d);
         });
     }
 
@@ -222,7 +262,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
 
         lines.put(groupOrd, new InternalGeoLine("_name", linePoints, lineSorts, null, complete, true, SortOrder.ASC, size));
 
-        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+        testCase(aggregationBuilder, iw -> {
             for (int i = 0; i < points.length; i++) {
                 int x = (int) (points[i] >> 32);
                 int y = (int) points[i];
@@ -259,7 +299,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             .size(size);
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").field("group_id")
             .subAggregation(lineAggregationBuilder);
-        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {}, terms -> { assertTrue(terms.getBuckets().isEmpty()); });
+        testCase(aggregationBuilder, iw -> {}, terms -> { assertTrue(terms.getBuckets().isEmpty()); });
     }
 
     public void testOnePoint() throws IOException {
@@ -274,7 +314,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             .subAggregation(lineAggregationBuilder);
         double lon = GeoEncodingUtils.decodeLongitude(randomInt());
         double lat = GeoEncodingUtils.decodeLatitude(randomInt());
-        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+        testCase(aggregationBuilder, iw -> {
             iw.addDocument(
                 Arrays.asList(
                     new LatLonDocValuesField("value_field", lat, lon),
@@ -352,7 +392,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             indexedSortValues.put(groupOrd, sortValues);
         }
 
-        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+        testCase(aggregationBuilder, iw -> {
             for (int group = 0; group < numGroups; group++) {
                 long[] points = indexedPoints.get(group);
                 double[] sortValues = indexedSortValues.get(group);
@@ -388,20 +428,9 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
     }
 
     private void testCase(
-        Query query,
-        TermsAggregationBuilder aggregationBuilder,
+        AggregationBuilder aggregationBuilder,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<Terms> verify
-    ) throws IOException {
-        testCase(query, aggregationBuilder, buildIndex, verify, NumberFieldMapper.NumberType.LONG);
-    }
-
-    private void testCase(
-        Query query,
-        TermsAggregationBuilder aggregationBuilder,
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-        Consumer<Terms> verify,
-        NumberFieldMapper.NumberType fieldNumberType
     ) throws IOException {
 
         Directory directory = newDirectory();
@@ -412,9 +441,11 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         try {
-            MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("value_field");
+            boolean timeSeries = aggregationBuilder.isInSortOrderExecutionRequired();
+            TimeSeriesParams.MetricType metricType = timeSeries ? TimeSeriesParams.MetricType.POSITION : null;
+            MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("value_field", metricType);
             MappedFieldType groupFieldType = new KeywordFieldMapper.KeywordFieldType("group_id", false, true, Collections.emptyMap());
-            MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("sort_field", fieldNumberType);
+            MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("sort_field", NumberFieldMapper.NumberType.LONG);
 
             Terms terms = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType, fieldType2, groupFieldType));
             verify.accept(terms);

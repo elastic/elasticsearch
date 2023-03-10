@@ -20,7 +20,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -100,7 +99,6 @@ public class TransformUpdater {
      */
 
     public static void updateTransform(
-        ThreadPool threadPool,
         SecurityContext securityContext,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterState clusterState,

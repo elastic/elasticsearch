@@ -125,7 +125,6 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
             request.getId(),
             ActionListener.wrap(
                 configAndVersion -> TransformUpdater.updateTransform(
-                    threadPool,
                     securityContext,
                     indexNameExpressionResolver,
                     clusterState,

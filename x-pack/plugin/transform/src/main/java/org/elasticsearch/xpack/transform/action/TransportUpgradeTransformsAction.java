@@ -152,7 +152,6 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
             update.setHeaders(config.getHeaders());
 
             TransformUpdater.updateTransform(
-                threadPool,
                 securityContext,
                 indexNameExpressionResolver,
                 clusterState,

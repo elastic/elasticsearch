@@ -117,7 +117,6 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
             transformConfigAndVersion -> {
                 final ClusterState clusterState = clusterService.state();
                 TransformUpdater.updateTransform(
-                    threadPool,
                     securityContext,
                     indexNameExpressionResolver,
                     clusterState,

@@ -117,7 +117,6 @@ public class TransformUpdaterTests extends ESTestCase {
         TransformConfigUpdate update = TransformConfigUpdate.EMPTY;
         assertUpdate(
             listener -> TransformUpdater.updateTransform(
-                client.threadPool(),
                 securityContext,
                 indexNameExpressionResolver,
                 ClusterState.EMPTY_STATE,
@@ -151,7 +150,6 @@ public class TransformUpdaterTests extends ESTestCase {
 
         assertUpdate(
             listener -> TransformUpdater.updateTransform(
-                client.threadPool(),
                 securityContext,
                 indexNameExpressionResolver,
                 ClusterState.EMPTY_STATE,
@@ -221,7 +219,6 @@ public class TransformUpdaterTests extends ESTestCase {
         TransformConfigUpdate update = TransformConfigUpdate.EMPTY;
         assertUpdate(
             listener -> TransformUpdater.updateTransform(
-                client.threadPool(),
                 securityContext,
                 indexNameExpressionResolver,
                 ClusterState.EMPTY_STATE,
@@ -287,7 +284,6 @@ public class TransformUpdaterTests extends ESTestCase {
         TransformConfigUpdate update = TransformConfigUpdate.EMPTY;
         assertUpdate(
             listener -> TransformUpdater.updateTransform(
-                client.threadPool(),
                 securityContext,
                 indexNameExpressionResolver,
                 ClusterState.EMPTY_STATE,

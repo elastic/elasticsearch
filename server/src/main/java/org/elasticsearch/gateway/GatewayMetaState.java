@@ -96,7 +96,7 @@ public class GatewayMetaState implements Closeable {
         assert persistedState.get() == null : "should only start once, but already have " + persistedState.get();
         try {
             persistedState.set(
-                initializePersistedState(
+                createPersistedState(
                     settings,
                     transportService,
                     clusterService,
@@ -111,7 +111,7 @@ public class GatewayMetaState implements Closeable {
         }
     }
 
-    private PersistedState initializePersistedState(
+    private PersistedState createPersistedState(
         Settings settings,
         TransportService transportService,
         ClusterService clusterService,
@@ -121,7 +121,7 @@ public class GatewayMetaState implements Closeable {
         PersistedClusterStateService persistedClusterStateService
     ) throws IOException {
         if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.canContainData(settings)) {
-            return initializeOnDiskPersistedState(
+            return createOnDiskPersistedState(
                 settings,
                 transportService,
                 clusterService,
@@ -132,10 +132,10 @@ public class GatewayMetaState implements Closeable {
             );
         }
 
-        return initializeInMemoryPersistedState(settings, transportService, clusterService, metaStateService, persistedClusterStateService);
+        return createInMemoryPersistedState(settings, transportService, clusterService, metaStateService, persistedClusterStateService);
     }
 
-    private PersistedState initializeOnDiskPersistedState(
+    private PersistedState createOnDiskPersistedState(
         Settings settings,
         TransportService transportService,
         ClusterService clusterService,
@@ -200,7 +200,7 @@ public class GatewayMetaState implements Closeable {
         return persistedState;
     }
 
-    private InMemoryPersistedState initializeInMemoryPersistedState(
+    private PersistedState createInMemoryPersistedState(
         Settings settings,
         TransportService transportService,
         ClusterService clusterService,

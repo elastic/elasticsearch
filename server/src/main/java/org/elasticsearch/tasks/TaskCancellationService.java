@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -395,16 +396,17 @@ public class TaskCancellationService {
      */
     public void cancelChildRemote(TaskId parentTask, long childRequestId, Transport.Connection childConnection, String reason) {
         if (childConnection.getTransportVersion().onOrAfter(VERSION_SUPPORTING_CANCEL_CHILD_ACTION)) {
+            DiscoveryNode childNode = childConnection.getNode();
             logger.debug(
-                "sending cancellation of child of parent task [{}] with request ID [{}] on the connection [{}] because of [{}]",
+                "sending cancellation of child of parent task [{}] with request ID [{}] to node [{}] because of [{}]",
                 parentTask,
                 childRequestId,
-                childConnection,
+                childNode,
                 reason
             );
             final CancelChildRequest request = CancelChildRequest.createCancelChildRequest(parentTask, childRequestId, reason);
             transportService.sendRequest(
-                childConnection,
+                childNode,
                 CANCEL_CHILD_ACTION_NAME,
                 request,
                 TransportRequestOptions.EMPTY,

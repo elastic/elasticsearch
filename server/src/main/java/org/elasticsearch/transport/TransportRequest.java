@@ -34,7 +34,7 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
     /**
      * Request ID. Defaults to -1, meaning "no request ID is set".
      */
-    private long requestId = -1;
+    private volatile long requestId = -1;
 
     public TransportRequest() {}
 

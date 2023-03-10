@@ -414,18 +414,18 @@ public class CancellableTasksIT extends ESIntegTestCase {
         return taskId.get();
     }
 
-    static void waitForRootTask(ActionFuture<TestResponse> rootTask, boolean timeout) {
+    static void waitForRootTask(ActionFuture<TestResponse> rootTask, boolean expectToTimeout) {
         try {
             rootTask.actionGet();
         } catch (Exception e) {
             final Throwable cause = ExceptionsHelper.unwrap(
                 e,
-                timeout ? ReceiveTimeoutTransportException.class : TaskCancelledException.class
+                expectToTimeout ? ReceiveTimeoutTransportException.class : TaskCancelledException.class
             );
             assertNotNull(cause);
             assertThat(
                 cause.getMessage(),
-                timeout
+                expectToTimeout
                     ? containsStringIgnoringCase("timed out after")
                     : anyOf(
                         equalTo("parent task was cancelled [by user request]"),
@@ -585,7 +585,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
                         }
                     } else {
                         final TransportRequestOptions transportRequestOptions = subRequest.timeout
-                            ? TransportRequestOptions.timeout(TimeValue.timeValueSeconds(1))
+                            ? TransportRequestOptions.timeout(TimeValue.timeValueMillis(400))
                             : TransportRequestOptions.EMPTY;
                         transportService.sendRequest(
                             subRequest.node,

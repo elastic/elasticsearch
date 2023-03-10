@@ -874,6 +874,10 @@ public class MachineLearning extends Plugin
 
         this.mlUpgradeModeActionFilter.set(new MlUpgradeModeActionFilter(clusterService));
 
+        if (machineLearningExtension.get() == null) {
+            machineLearningExtension.set(new DefaultMachineLearningExtension());
+        }
+
         MlIndexTemplateRegistry registry = new MlIndexTemplateRegistry(
             settings,
             clusterService,

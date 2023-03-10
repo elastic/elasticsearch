@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -79,7 +80,8 @@ public class JoinHelperTests extends ESTestCase {
             (s, p, r) -> {},
             () -> new StatusInfo(HEALTHY, "info"),
             new JoinReasonService(() -> 0L),
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            Function.identity()
         );
         transportService.start();
 
@@ -241,7 +243,8 @@ public class JoinHelperTests extends ESTestCase {
             (s, p, r) -> {},
             nodeHealthServiceStatus::get,
             new JoinReasonService(() -> 0L),
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            Function.identity()
         );
         transportService.start();
 

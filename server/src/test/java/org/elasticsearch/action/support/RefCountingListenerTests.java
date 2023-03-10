@@ -182,6 +182,25 @@ public class RefCountingListenerTests extends ESTestCase {
         }
     }
 
+    public void testConsumerFailure() {
+        final var executed = new AtomicBoolean();
+        try (var refs = new RefCountingListener(new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void unused) {
+                fail("unexpected success");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertThat(e.getMessage(), equalTo("simulated"));
+                executed.set(true);
+            }
+        })) {
+            refs.acquire(ignored -> { throw new ElasticsearchException("simulated"); }).onResponse(null);
+        }
+        assertTrue(executed.get());
+    }
+
     public void testJavaDocExample() {
         final var flag = new AtomicBoolean();
         runExample(ActionListener.running(() -> assertTrue(flag.compareAndSet(false, true))));

@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -87,12 +88,13 @@ public class JoinHelper {
         RerouteService rerouteService,
         NodeHealthService nodeHealthService,
         JoinReasonService joinReasonService,
-        CircuitBreakerService circuitBreakerService
+        CircuitBreakerService circuitBreakerService,
+        Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection
     ) {
         this.joinTaskQueue = masterService.createTaskQueue(
             "node-join",
             Priority.URGENT,
-            new NodeJoinExecutor(allocationService, rerouteService)
+            new NodeJoinExecutor(allocationService, rerouteService, maybeReconfigureAfterMasterElection)
         );
         this.clusterApplier = clusterApplier;
         this.transportService = transportService;

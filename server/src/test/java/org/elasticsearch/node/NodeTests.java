@@ -11,14 +11,22 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine.Searcher;
@@ -32,14 +40,18 @@ import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsServiceTests;
 import org.elasticsearch.plugins.RecoveryPlannerPlugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
@@ -52,6 +64,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +73,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -68,6 +82,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -367,6 +382,92 @@ public class NodeTests extends ESTestCase {
         }
     }
 
+    public static class MockPluginWithAltImpl extends Plugin {
+        private final boolean randomBool;
+        private static boolean startCalled = false;
+        private static boolean stopCalled = false;
+        private static boolean closeCalled = false;
+
+        public MockPluginWithAltImpl() {
+            this.randomBool = randomBoolean();
+        }
+
+        interface MyInterface extends LifecycleComponent {
+            String get();
+
+        }
+
+        static class Foo extends AbstractLifecycleComponent implements MyInterface {
+            @Override
+            public String get() {
+                return "foo";
+            }
+
+            @Override
+            protected void doStart() {
+                startCalled = true;
+            }
+
+            @Override
+            protected void doStop() {
+                stopCalled = true;
+            }
+
+            @Override
+            protected void doClose() throws IOException {
+                closeCalled = true;
+            }
+        }
+
+        static class Bar extends AbstractLifecycleComponent implements MyInterface {
+            @Override
+            public String get() {
+                return "bar";
+            }
+
+            @Override
+            protected void doStart() {
+                startCalled = true;
+            }
+
+            @Override
+            protected void doStop() {
+                stopCalled = true;
+            }
+
+            @Override
+            protected void doClose() throws IOException {
+                closeCalled = true;
+            }
+        }
+
+        @Override
+        public Collection<Object> createComponents(
+            Client client,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ResourceWatcherService resourceWatcherService,
+            ScriptService scriptService,
+            NamedXContentRegistry xContentRegistry,
+            Environment environment,
+            NodeEnvironment nodeEnvironment,
+            NamedWriteableRegistry namedWriteableRegistry,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            Supplier<RepositoriesService> repositoriesServiceSupplier,
+            Tracer tracer,
+            AllocationService allocationService
+        ) {
+            List<Object> components = new ArrayList<>();
+            components.add(new PluginComponentBinding<>(MyInterface.class, getRandomBool() ? new Foo() : new Bar()));
+            return components;
+        }
+
+        public boolean getRandomBool() {
+            return this.randomBool;
+        }
+
+    }
+
     public static class MockRecoveryPlannerPlugin extends Plugin implements RecoveryPlannerPlugin {
         public MockRecoveryPlannerPlugin() {}
 
@@ -502,6 +603,26 @@ public class NodeTests extends ESTestCase {
         assertTrue(msg, msg.contains("Cannot have additional setting [foo.bar]"));
         assertTrue(msg, msg.contains("plugin [" + AdditionalSettingsPlugin1.class.getName()));
         assertTrue(msg, msg.contains("plugin [" + AdditionalSettingsPlugin2.class.getName()));
+    }
+
+    public void testPluginComponentInterfaceBinding() throws IOException, NodeValidationException {
+        List<Class<? extends Plugin>> plugins = basePlugins();
+        plugins.add(MockPluginWithAltImpl.class);
+        try (Node node = new MockNode(baseSettings().build(), plugins)) {
+            MockPluginWithAltImpl.MyInterface myInterface = node.injector().getInstance(MockPluginWithAltImpl.MyInterface.class);
+            MockPluginWithAltImpl plugin = node.getPluginsService().filterPlugins(MockPluginWithAltImpl.class).get(0);
+            if (plugin.getRandomBool()) {
+                assertThat(myInterface, instanceOf(MockPluginWithAltImpl.Foo.class));
+                assertThat(myInterface.get(), equalTo("foo"));
+            } else {
+                assertThat(myInterface, instanceOf(MockPluginWithAltImpl.Bar.class));
+                assertThat(myInterface.get(), equalTo("bar"));
+            }
+            node.start();
+            assertTrue(MockPluginWithAltImpl.startCalled);
+        }
+        assertTrue(MockPluginWithAltImpl.stopCalled);
+        assertTrue(MockPluginWithAltImpl.closeCalled);
     }
 
     private RestRequest request(NamedXContentRegistry namedXContentRegistry, RestApiVersion restApiVersion) throws IOException {

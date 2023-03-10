@@ -44,10 +44,9 @@ import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
+import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.getSecondarySecurityHeaders;
 
 public class TransportPutTransformAction extends AcknowledgedTransportMasterNodeAction<Request> {
 
@@ -93,20 +92,8 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener) {
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
-        final Map<String, String> securityHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
-            threadPool.getThreadContext(),
-            clusterService.state()
-        );
-
         TransformConfig config = request.getConfig().setCreateTime(Instant.now()).setVersion(Version.CURRENT);
-        useSecondaryAuthIfAvailable(securityContext, () -> {
-            // set headers to run transform as calling user
-            Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
-                threadPool.getThreadContext(),
-                clusterService.state()
-            );
-            config.setHeaders(filteredHeaders);
-        });
+        config.setHeaders(getSecondarySecurityHeaders(threadPool, securityContext, clusterState));
 
         String transformId = config.getId();
         // quick check whether a transform has already been created under that name
@@ -125,10 +112,9 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
 
         // <2> Validate source and destination indices
         ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(
-            aVoid -> ClientHelper.executeWithHeadersAsync(
-                securityHeaders,
-                ClientHelper.TRANSFORM_ORIGIN,
+            aVoid -> ClientHelper.executeAsyncWithOrigin(
                 client,
+                ClientHelper.TRANSFORM_ORIGIN,
                 ValidateTransformAction.INSTANCE,
                 new ValidateTransformAction.Request(config, request.isDeferValidation(), request.timeout()),
                 validateTransformListener

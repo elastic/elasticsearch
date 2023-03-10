@@ -89,7 +89,6 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
                     .build()
             )
         );
-
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(equalTo(403)));
         assertThat(
             e.getMessage(),
@@ -246,6 +245,37 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
 
         // transform is green again
         assertThat(extractValue(getTransformStats(transformId), "health", "status"), is(equalTo("green")));
+    }
+
+    public void testPreviewRequestFailsPermissionsCheck() throws Exception {
+        String transformId = "transform-permissions-preview";
+        String sourceIndexName = transformId + "-index";
+        String destIndexName = sourceIndexName + "-dest";
+        createReviewsIndex(sourceIndexName, 10, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
+
+        TransformConfig config = createConfig(transformId, sourceIndexName, destIndexName, false);
+
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> previewTransform(Strings.toString(config), RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, JUNIOR_HEADER).build())
+        );
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), is(equalTo(403)));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                String.format(
+                    Locale.ROOT,
+                    "Cannot preview transform [%s] because user %s lacks the required permissions "
+                        + "[%s:[read, view_index_metadata], %s:[create_index, index, read]]",
+                    transformId,
+                    JUNIOR_USERNAME,
+                    sourceIndexName,
+                    destIndexName
+                )
+            )
+        );
+
+        previewTransform(Strings.toString(config), RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, SENIOR_HEADER).build());
     }
 
     @Override

@@ -28,7 +28,6 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -47,10 +46,9 @@ import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
+import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.getSecondarySecurityHeaders;
 
 public class TransportUpdateTransformAction extends TransportTasksAction<TransformTask, Request, Response, Response> {
 
@@ -119,14 +117,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         }
 
         TransformConfigUpdate update = request.getUpdate();
-        useSecondaryAuthIfAvailable(securityContext, () -> {
-            // set headers to run transform as calling user
-            Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
-                threadPool.getThreadContext(),
-                clusterService.state()
-            );
-            update.setHeaders(filteredHeaders);
-        });
+        update.setHeaders(getSecondarySecurityHeaders(threadPool, securityContext, clusterState));
 
         // GET transform and attempt to update
         // We don't want the update to complete if the config changed between GET and INDEX

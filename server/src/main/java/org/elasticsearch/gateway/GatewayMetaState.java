@@ -35,6 +35,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -43,6 +44,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -91,7 +93,8 @@ public class GatewayMetaState implements Closeable {
         MetaStateService metaStateService,
         IndexMetadataVerifier indexMetadataVerifier,
         MetadataUpgrader metadataUpgrader,
-        PersistedClusterStateService persistedClusterStateService
+        PersistedClusterStateService persistedClusterStateService,
+        List<ClusterCoordinationPlugin> clusterCoordinationPlugins
     ) {
         assert persistedState.get() == null : "should only start once, but already have " + persistedState.get();
         try {
@@ -103,7 +106,8 @@ public class GatewayMetaState implements Closeable {
                     metaStateService,
                     indexMetadataVerifier,
                     metadataUpgrader,
-                    persistedClusterStateService
+                    persistedClusterStateService,
+                    clusterCoordinationPlugins
                 )
             );
         } catch (IOException e) {
@@ -118,8 +122,22 @@ public class GatewayMetaState implements Closeable {
         MetaStateService metaStateService,
         IndexMetadataVerifier indexMetadataVerifier,
         MetadataUpgrader metadataUpgrader,
-        PersistedClusterStateService persistedClusterStateService
+        PersistedClusterStateService persistedClusterStateService,
+        List<ClusterCoordinationPlugin> clusterCoordinationPlugins
     ) throws IOException {
+        final var persistedStateFactories = clusterCoordinationPlugins.stream()
+            .map(ClusterCoordinationPlugin::getPersistedStateFactory)
+            .filter(Objects::nonNull)
+            .toList();
+
+        if (persistedStateFactories.size() > 1) {
+            throw new IllegalStateException("multiple persisted-state factories found: " + persistedStateFactories);
+        }
+
+        if (persistedStateFactories.size() == 1) {
+            return persistedStateFactories.get(0).createPersistedState(settings, transportService, persistedClusterStateService);
+        }
+
         if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.canContainData(settings)) {
             return createOnDiskPersistedState(
                 settings,

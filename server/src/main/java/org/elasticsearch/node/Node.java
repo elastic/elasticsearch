@@ -230,6 +230,7 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -1282,6 +1283,22 @@ public class Node implements Closeable {
         ClusterSettings clusterSettings,
         LongSupplier relativeTimeMillisSupplier
     ) {
+        final List<ClusterCoordinationPlugin.PersistedClusterStateServiceFactory> persistedClusterStateServiceFactories = pluginsService
+            .filterPlugins(ClusterCoordinationPlugin.class)
+            .stream()
+            .map(ClusterCoordinationPlugin::getPersistedClusterStateServiceFactory)
+            .filter(Objects::nonNull)
+            .toList();
+
+        if (persistedClusterStateServiceFactories.size() > 1) {
+            throw new IllegalStateException("multiple persisted-state-service factories found: " + persistedClusterStateServiceFactories);
+        }
+
+        if (persistedClusterStateServiceFactories.size() == 1) {
+            return persistedClusterStateServiceFactories.get(0)
+                .newPersistedClusterStateService(nodeEnvironment, xContentRegistry, clusterSettings, relativeTimeMillisSupplier);
+        }
+
         return new PersistedClusterStateService(nodeEnvironment, xContentRegistry, clusterSettings, relativeTimeMillisSupplier);
     }
 
@@ -1383,7 +1400,8 @@ public class Node implements Closeable {
             injector.getInstance(MetaStateService.class),
             injector.getInstance(IndexMetadataVerifier.class),
             injector.getInstance(MetadataUpgrader.class),
-            injector.getInstance(PersistedClusterStateService.class)
+            injector.getInstance(PersistedClusterStateService.class),
+            pluginsService.filterPlugins(ClusterCoordinationPlugin.class)
         );
         if (Assertions.ENABLED) {
             try {

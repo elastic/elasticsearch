@@ -67,6 +67,8 @@ Use <<search-vector-tile-api,vector tile search API>> to consume Elasticsearch g
 
 Visualize geo data with {kibana-ref}/maps.html[Kibana]. Add your map to a {kibana-ref}/dashboard.html[dashboard] to view your data from all angles.
 
+This dashboard shows the devastating effects of the https://www.elastic.co/blog/understanding-evolution-volcano-eruption-elastic-maps/[Cumbre Vieja eruption].
+
 image:images/spatial/cumbre_vieja_eruption_dashboard.png[Kibana dashboard showing Cumbre Vieja eruption from Aug 31 2021 to Dec 14 2021]
 
 [discrete]

@@ -92,6 +92,9 @@ public class SearchApplicationIndexService {
     public static final String SEARCH_APPLICATION_CONCRETE_INDEX_NAME = ".search-app-1";
     public static final String SEARCH_APPLICATION_INDEX_NAME_PATTERN = ".search-app-*";
 
+    // The client to perform any operations on user indices (alias, ...).
+    private final Client client;
+    // The client to interact with the system index (internal user).
     private final Client clientWithOrigin;
     private final ClusterService clusterService;
     public final NamedWriteableRegistry namedWriteableRegistry;
@@ -103,6 +106,7 @@ public class SearchApplicationIndexService {
         NamedWriteableRegistry namedWriteableRegistry,
         BigArrays bigArrays
     ) {
+        this.client = client;
         this.clientWithOrigin = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
         this.clusterService = clusterService;
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -240,7 +244,7 @@ public class SearchApplicationIndexService {
             requestBuilder = updateAliasIndices(currentAliases, targetAliases, searchAliasName);
 
         } else {
-            requestBuilder = clientWithOrigin.admin().indices().prepareAliases().addAlias(app.indices(), searchAliasName);
+            requestBuilder = client.admin().indices().prepareAliases().addAlias(app.indices(), searchAliasName);
         }
 
         requestBuilder.execute(listener);
@@ -251,7 +255,7 @@ public class SearchApplicationIndexService {
         Set<String> deleteIndices = new HashSet<>(currentAliases);
         deleteIndices.removeAll(targetAliases);
 
-        IndicesAliasesRequestBuilder aliasesRequestBuilder = clientWithOrigin.admin().indices().prepareAliases();
+        IndicesAliasesRequestBuilder aliasesRequestBuilder = client.admin().indices().prepareAliases();
 
         // Always re-add aliases, as an index could have been removed manually and it must be restored
         for (String newIndex : targetAliases) {
@@ -310,15 +314,14 @@ public class SearchApplicationIndexService {
     }
 
     GetAliasesResponse getAlias(String searchAliasName) {
-        return clientWithOrigin.admin().indices().getAliases(new GetAliasesRequest(searchAliasName)).actionGet();
+        return client.admin().indices().getAliases(new GetAliasesRequest(searchAliasName)).actionGet();
     }
 
     private void removeAlias(String searchAliasName, ActionListener<AcknowledgedResponse> listener) {
         IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest().addAliasAction(
             IndicesAliasesRequest.AliasActions.remove().aliases(searchAliasName).indices("*")
         );
-
-        clientWithOrigin.admin()
+        client.admin()
             .indices()
             .aliases(
                 aliasesRequest,

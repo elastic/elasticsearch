@@ -92,7 +92,7 @@ teardown:
       search_application.put:
         name: test-error-search-application
         body:
-          indices: [ "test-index1", "index-does-not-exist" ]
+          indices: [ "test-index1", "test-index-does-not-exist" ]
 
 ---
 "Create Search Application - Resource already exists":
@@ -115,3 +115,14 @@ teardown:
 
   - match: { error.type: "version_conflict_engine_exception" }
 
+---
+"Create Search Application - Insufficient privilege":
+  - do:
+      catch: forbidden
+      search_application.put:
+        name: another-search-application
+        create: true
+        body:
+          indices: [ "another-index" ]
+
+  - match: { error.type: "security_exception" }

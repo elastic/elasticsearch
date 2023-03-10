@@ -45,8 +45,8 @@ public class ElasticsearchStatusException extends ElasticsearchException {
     }
 
     @Override
-    protected void writeTo(StreamOutput out, WriteNestedExceptions writeNestedExceptions) throws IOException {
-        super.writeTo(out, writeNestedExceptions);
+    protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
+        super.writeTo(out, nestedExceptionsWriter);
         RestStatus.writeTo(out, status);
     }
 

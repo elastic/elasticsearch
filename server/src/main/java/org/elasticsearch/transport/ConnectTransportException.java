@@ -41,8 +41,8 @@ public class ConnectTransportException extends ActionTransportException {
     }
 
     @Override
-    protected void writeTo(StreamOutput out, WriteNestedExceptions writeNestedExceptions) throws IOException {
-        super.writeTo(out, writeNestedExceptions);
+    protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
+        super.writeTo(out, nestedExceptionsWriter);
         if (out.getTransportVersion().before(TransportVersion.V_8_1_0)) {
             out.writeMissingWriteable(DiscoveryNode.class);
         }

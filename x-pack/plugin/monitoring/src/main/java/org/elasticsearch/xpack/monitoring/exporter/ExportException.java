@@ -53,8 +53,8 @@ public class ExportException extends ElasticsearchException implements Iterable<
     }
 
     @Override
-    protected void writeTo(StreamOutput out, WriteNestedExceptions writeNestedExceptions) throws IOException {
-        super.writeTo(out, writeNestedExceptions);
+    protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
+        super.writeTo(out, nestedExceptionsWriter);
         out.writeCollection(exceptions);
     }
 

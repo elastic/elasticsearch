@@ -38,8 +38,8 @@ public class SearchException extends ElasticsearchException implements Elasticse
     }
 
     @Override
-    protected void writeTo(StreamOutput out, WriteNestedExceptions writeNestedExceptions) throws IOException {
-        super.writeTo(out, writeNestedExceptions);
+    protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
+        super.writeTo(out, nestedExceptionsWriter);
         if (shardTarget == null) {
             out.writeBoolean(false);
         } else {

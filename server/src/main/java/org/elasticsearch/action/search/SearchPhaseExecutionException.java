@@ -43,8 +43,8 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     }
 
     @Override
-    protected void writeTo(StreamOutput out, WriteNestedExceptions writeNestedExceptions) throws IOException {
-        super.writeTo(out, writeNestedExceptions);
+    protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
+        super.writeTo(out, nestedExceptionsWriter);
         out.writeOptionalString(phaseName);
         out.writeArray(shardFailures);
     }

@@ -286,20 +286,17 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         writeTo(out, createNestingFunction(0, () -> {}));
     }
 
-    @FunctionalInterface
-    protected interface WriteNestedExceptions extends CheckedBiConsumer<Throwable, StreamOutput, IOException> {}
-
-    private static WriteNestedExceptions createNestingFunction(int thisLevel, Runnable nestedExceptionLimitCallback) {
+    private static Writer<Throwable> createNestingFunction(int thisLevel, Runnable nestedExceptionLimitCallback) {
         int nextLevel = thisLevel + 1;
-        return (t, o) -> {
+        return (o, t) -> {
             writeException(t.getCause(), o, nextLevel, nestedExceptionLimitCallback);
             writeStackTraces(t, o, (no, nt) -> writeException(nt, no, nextLevel, nestedExceptionLimitCallback));
         };
     }
 
-    protected void writeTo(StreamOutput out, WriteNestedExceptions writeNestedExceptions) throws IOException {
+    protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
         out.writeOptionalString(this.getMessage());
-        writeNestedExceptions.accept(this, out);
+        nestedExceptionsWriter.write(out, this);
         out.writeMapOfLists(headers, StreamOutput::writeString, StreamOutput::writeString);
         out.writeMapOfLists(metadata, StreamOutput::writeString, StreamOutput::writeString);
     }

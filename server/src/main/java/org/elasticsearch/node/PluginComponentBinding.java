@@ -25,7 +25,7 @@ public class MyPlugin extends Plugin implements ExtensiblePlugin
     @Override
     public Collection<Object> createComponents(...) {
         List<Object> components = new ArrayList<>();
-        components.add(new PluginComponentInterface<>(MyInterface.class, this.myImplementation));
+        components.add(new PluginComponentBinding<>(MyInterface.class, this.myImplementation));
         ...
         return components;
     }

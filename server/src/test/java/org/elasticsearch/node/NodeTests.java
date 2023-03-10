@@ -613,10 +613,10 @@ public class NodeTests extends ESTestCase {
             MockPluginWithAltImpl plugin = node.getPluginsService().filterPlugins(MockPluginWithAltImpl.class).get(0);
             if (plugin.getRandomBool()) {
                 assertThat(myInterface, instanceOf(MockPluginWithAltImpl.Foo.class));
-                assertTrue(myInterface.get().equalsIgnoreCase("foo"));
+                assertThat(myInterface.get(), equalTo("foo"));
             } else {
                 assertThat(myInterface, instanceOf(MockPluginWithAltImpl.Bar.class));
-                assertTrue(myInterface.get().equalsIgnoreCase("bar"));
+                assertThat(myInterface.get(), equalTo("bar"));
             }
             node.start();
             assertTrue(MockPluginWithAltImpl.startCalled);

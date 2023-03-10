@@ -218,34 +218,20 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
     private void slowDownRecovery(ByteSizeValue shardSize) {
         long chunkSize = Math.max(1, shardSize.getBytes() / 10);
-        assertTrue(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        // one chunk per sec..
-                        .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), chunkSize, ByteSizeUnit.BYTES)
-                        // small chunks
-                        .put(CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkSize, ByteSizeUnit.BYTES))
-                )
-                .get()
-                .isAcknowledged()
+        updateClusterSettings(
+            Settings.builder()
+                // one chunk per sec..
+                .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), chunkSize, ByteSizeUnit.BYTES)
+                // small chunks
+                .put(CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkSize, ByteSizeUnit.BYTES))
         );
     }
 
     private void restoreRecoverySpeed() {
-        assertTrue(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "20mb")
-                        .put(CHUNK_SIZE_SETTING.getKey(), RecoverySettings.DEFAULT_CHUNK_SIZE)
-                )
-                .get()
-                .isAcknowledged()
+        updateClusterSettings(
+            Settings.builder()
+                .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "20mb")
+                .put(CHUNK_SIZE_SETTING.getKey(), RecoverySettings.DEFAULT_CHUNK_SIZE)
         );
     }
 
@@ -360,15 +346,9 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         logger.info("--> start node A");
         final String nodeA = internalCluster().startNode();
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
-                )
+        updateClusterSettings(
+            Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
         );
-
         logger.info("--> create index on node: {}", nodeA);
         createIndex(
             INDEX_NAME,

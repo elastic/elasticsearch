@@ -41,7 +41,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -95,104 +94,140 @@ public class GatewayMetaState implements Closeable {
         PersistedClusterStateService persistedClusterStateService
     ) {
         assert persistedState.get() == null : "should only start once, but already have " + persistedState.get();
+        try {
+            persistedState.set(
+                createPersistedState(
+                    settings,
+                    transportService,
+                    clusterService,
+                    metaStateService,
+                    indexMetadataVerifier,
+                    metadataUpgrader,
+                    persistedClusterStateService
+                )
+            );
+        } catch (IOException e) {
+            throw new ElasticsearchException("failed to load metadata", e);
+        }
+    }
 
+    private PersistedState createPersistedState(
+        Settings settings,
+        TransportService transportService,
+        ClusterService clusterService,
+        MetaStateService metaStateService,
+        IndexMetadataVerifier indexMetadataVerifier,
+        MetadataUpgrader metadataUpgrader,
+        PersistedClusterStateService persistedClusterStateService
+    ) throws IOException {
         if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.canContainData(settings)) {
-            try {
-                final PersistedClusterStateService.OnDiskState onDiskState = persistedClusterStateService.loadBestOnDiskState();
+            return createOnDiskPersistedState(
+                settings,
+                transportService,
+                clusterService,
+                metaStateService,
+                indexMetadataVerifier,
+                metadataUpgrader,
+                persistedClusterStateService
+            );
+        }
 
-                Metadata metadata = onDiskState.metadata;
-                long lastAcceptedVersion = onDiskState.lastAcceptedVersion;
-                long currentTerm = onDiskState.currentTerm;
+        return createInMemoryPersistedState(settings, transportService, clusterService, metaStateService, persistedClusterStateService);
+    }
 
-                if (onDiskState.empty()) {
-                    assert Version.CURRENT.major <= Version.V_7_0_0.major + 1
-                        : "legacy metadata loader is not needed anymore from v9 onwards";
-                    final Tuple<Manifest, Metadata> legacyState = metaStateService.loadFullState();
-                    if (legacyState.v1().isEmpty() == false) {
-                        metadata = legacyState.v2();
-                        lastAcceptedVersion = legacyState.v1().clusterStateVersion();
-                        currentTerm = legacyState.v1().currentTerm();
-                    }
-                }
+    private PersistedState createOnDiskPersistedState(
+        Settings settings,
+        TransportService transportService,
+        ClusterService clusterService,
+        MetaStateService metaStateService,
+        IndexMetadataVerifier indexMetadataVerifier,
+        MetadataUpgrader metadataUpgrader,
+        PersistedClusterStateService persistedClusterStateService
+    ) throws IOException {
+        final PersistedClusterStateService.OnDiskState onDiskState = persistedClusterStateService.loadBestOnDiskState();
 
-                PersistedState persistedState = null;
-                boolean success = false;
-                try {
-                    final ClusterState clusterState = prepareInitialClusterState(
-                        transportService,
-                        clusterService,
-                        ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
-                            .version(lastAcceptedVersion)
-                            .metadata(upgradeMetadataForNode(metadata, indexMetadataVerifier, metadataUpgrader))
-                            .build()
-                    );
-                    if (DiscoveryNode.isMasterNode(settings)) {
-                        persistedState = new LucenePersistedState(persistedClusterStateService, currentTerm, clusterState);
-                    } else {
-                        persistedState = new AsyncPersistedState(
-                            settings,
-                            transportService.getThreadPool(),
-                            new LucenePersistedState(persistedClusterStateService, currentTerm, clusterState)
-                        );
-                    }
-                    if (DiscoveryNode.canContainData(settings)) {
-                        metaStateService.unreferenceAll(); // unreference legacy files (only keep them for dangling indices functionality)
-                    } else {
-                        metaStateService.deleteAll(); // delete legacy files
-                    }
-                    // write legacy node metadata to prevent accidental downgrades from spawning empty cluster state
-                    NodeMetadata.FORMAT.writeAndCleanup(
-                        new NodeMetadata(
-                            persistedClusterStateService.getNodeId(),
-                            Version.CURRENT,
-                            clusterState.metadata().oldestIndexVersion()
-                        ),
-                        persistedClusterStateService.getDataPaths()
-                    );
-                    success = true;
-                } finally {
-                    if (success == false) {
-                        IOUtils.closeWhileHandlingException(persistedState);
-                    }
-                }
+        Metadata metadata = onDiskState.metadata;
+        long lastAcceptedVersion = onDiskState.lastAcceptedVersion;
+        long currentTerm = onDiskState.currentTerm;
 
-                this.persistedState.set(persistedState);
-            } catch (IOException e) {
-                throw new ElasticsearchException("failed to load metadata", e);
+        if (onDiskState.empty()) {
+            assert Version.CURRENT.major <= Version.V_7_0_0.major + 1 : "legacy metadata loader is not needed anymore from v9 onwards";
+            final Tuple<Manifest, Metadata> legacyState = metaStateService.loadFullState();
+            if (legacyState.v1().isEmpty() == false) {
+                metadata = legacyState.v2();
+                lastAcceptedVersion = legacyState.v1().clusterStateVersion();
+                currentTerm = legacyState.v1().currentTerm();
             }
-        } else {
-            final long currentTerm = 0L;
+        }
+
+        PersistedState persistedState = null;
+        boolean success = false;
+        try {
             final ClusterState clusterState = prepareInitialClusterState(
                 transportService,
                 clusterService,
-                ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings)).build()
+                ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
+                    .version(lastAcceptedVersion)
+                    .metadata(upgradeMetadataForNode(metadata, indexMetadataVerifier, metadataUpgrader))
+                    .build()
             );
-            if (persistedClusterStateService.getDataPaths().length > 0) {
-                // write empty cluster state just so that we have a persistent node id. There is no need to write out global metadata with
-                // cluster uuid as coordinating-only nodes do not snap into a cluster as they carry no state
-                try (PersistedClusterStateService.Writer persistenceWriter = persistedClusterStateService.createWriter()) {
-                    persistenceWriter.writeFullStateAndCommit(currentTerm, clusterState);
-                } catch (IOException e) {
-                    throw new ElasticsearchException("failed to load metadata", e);
-                }
-                try {
-                    // delete legacy cluster state files
-                    metaStateService.deleteAll();
-                    // write legacy node metadata to prevent downgrades from spawning empty cluster state
-                    NodeMetadata.FORMAT.writeAndCleanup(
-                        new NodeMetadata(
-                            persistedClusterStateService.getNodeId(),
-                            Version.CURRENT,
-                            clusterState.metadata().oldestIndexVersion()
-                        ),
-                        persistedClusterStateService.getDataPaths()
-                    );
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
+            if (DiscoveryNode.isMasterNode(settings)) {
+                persistedState = new LucenePersistedState(persistedClusterStateService, currentTerm, clusterState);
+            } else {
+                persistedState = new AsyncPersistedState(
+                    settings,
+                    transportService.getThreadPool(),
+                    new LucenePersistedState(persistedClusterStateService, currentTerm, clusterState)
+                );
             }
-            persistedState.set(new InMemoryPersistedState(currentTerm, clusterState));
+            if (DiscoveryNode.canContainData(settings)) {
+                metaStateService.unreferenceAll(); // unreference legacy files (only keep them for dangling indices functionality)
+            } else {
+                metaStateService.deleteAll(); // delete legacy files
+            }
+            // write legacy node metadata to prevent accidental downgrades from spawning empty cluster state
+            NodeMetadata.FORMAT.writeAndCleanup(
+                new NodeMetadata(persistedClusterStateService.getNodeId(), Version.CURRENT, clusterState.metadata().oldestIndexVersion()),
+                persistedClusterStateService.getDataPaths()
+            );
+            success = true;
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(persistedState);
+            }
         }
+
+        return persistedState;
+    }
+
+    private PersistedState createInMemoryPersistedState(
+        Settings settings,
+        TransportService transportService,
+        ClusterService clusterService,
+        MetaStateService metaStateService,
+        PersistedClusterStateService persistedClusterStateService
+    ) throws IOException {
+        final long currentTerm = 0L;
+        final ClusterState clusterState = prepareInitialClusterState(
+            transportService,
+            clusterService,
+            ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings)).build()
+        );
+        if (persistedClusterStateService.getDataPaths().length > 0) {
+            // write empty cluster state just so that we have a persistent node id. There is no need to write out global metadata with
+            // cluster uuid as coordinating-only nodes do not snap into a cluster as they carry no state
+            try (PersistedClusterStateService.Writer persistenceWriter = persistedClusterStateService.createWriter()) {
+                persistenceWriter.writeFullStateAndCommit(currentTerm, clusterState);
+            }
+            // delete legacy cluster state files
+            metaStateService.deleteAll();
+            // write legacy node metadata to prevent downgrades from spawning empty cluster state
+            NodeMetadata.FORMAT.writeAndCleanup(
+                new NodeMetadata(persistedClusterStateService.getNodeId(), Version.CURRENT, clusterState.metadata().oldestIndexVersion()),
+                persistedClusterStateService.getDataPaths()
+            );
+        }
+        return new InMemoryPersistedState(currentTerm, clusterState);
     }
 
     // exposed so it can be overridden by tests

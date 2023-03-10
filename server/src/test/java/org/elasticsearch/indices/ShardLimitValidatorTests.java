@@ -27,12 +27,12 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateServiceTests.addClosedIndex;
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateServiceTests.addOpenedIndex;
 import static org.elasticsearch.cluster.shards.ShardCounts.forDataNodeCount;
+import static org.elasticsearch.indices.ShardLimitValidator.NORMAL_GROUP;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -42,70 +42,75 @@ public class ShardLimitValidatorTests extends ESTestCase {
     public void testOverShardLimit() {
         int nodesInCluster = randomIntBetween(1, 90);
         ShardCounts counts = forDataNodeCount(nodesInCluster);
-
-        String group = randomFrom(ShardLimitValidator.VALID_GROUPS);
         ClusterState state = createClusterForShardLimitTest(
             nodesInCluster,
             counts.getFirstIndexShards(),
             counts.getFirstIndexReplicas(),
             counts.getShardsPerNode(),
-            group
+            NORMAL_GROUP
         );
 
         int shardsToAdd = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
-        Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(
+        var shardLimitsResult = ShardLimitValidator.checkShardLimit(
             shardsToAdd,
             state,
             counts.getShardsPerNode(),
             nodesInCluster,
-            group
+            NORMAL_GROUP
         );
 
         int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
-        int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
+        int currentOpenShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
         int maxShards = counts.getShardsPerNode() * nodesInCluster;
-        assertTrue(errorMessage.isPresent());
+
+        assertFalse(shardLimitsResult.canAddShards());
         assertEquals(
             "this action would add ["
                 + totalShards
                 + "] shards, but this cluster currently has ["
-                + currentShards
+                + currentOpenShards
                 + "]/["
                 + maxShards
                 + "] maximum "
-                + group
+                + NORMAL_GROUP
                 + " shards open",
-            errorMessage.get()
+            ShardLimitValidator.errorMessageFrom(shardLimitsResult)
         );
-        assertFalse(ShardLimitValidator.canAddShardsToCluster(counts.getFailingIndexShards(), counts.getFailingIndexReplicas(), state));
+        assertEquals(shardLimitsResult.maxShardsInCluster(), maxShards);
+        assertEquals(shardLimitsResult.totalShardsToAdd(), totalShards);
+        shardLimitsResult.currentUsedShards()
+            .ifPresentOrElse(v -> assertEquals(currentOpenShards, v.intValue()), () -> fail("currentUsedShard should be defined"));
+        assertEquals(shardLimitsResult.group(), "normal");
     }
 
     public void testUnderShardLimit() {
         int nodesInCluster = randomIntBetween(2, 90);
         // Calculate the counts for a cluster 1 node smaller than we have to ensure we have headroom
         ShardCounts counts = forDataNodeCount(nodesInCluster - 1);
-
-        String group = randomFrom(ShardLimitValidator.VALID_GROUPS);
         ClusterState state = createClusterForShardLimitTest(
             nodesInCluster,
             counts.getFirstIndexShards(),
             counts.getFirstIndexReplicas(),
             counts.getShardsPerNode(),
-            group
+            NORMAL_GROUP
         );
 
         int existingShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
-        int shardsToAdd = randomIntBetween(1, (counts.getShardsPerNode() * nodesInCluster) - existingShards);
-        Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(
+        int maxShardsInCluster = counts.getShardsPerNode() * nodesInCluster;
+        int shardsToAdd = randomIntBetween(1, maxShardsInCluster - existingShards);
+        var shardLimitsResult = ShardLimitValidator.checkShardLimit(
             shardsToAdd,
             state,
             counts.getShardsPerNode(),
             nodesInCluster,
-            group
+            NORMAL_GROUP
         );
 
-        assertFalse(errorMessage.isPresent());
-        assertTrue(ShardLimitValidator.canAddShardsToCluster(shardsToAdd, 0, state));
+        assertTrue(shardLimitsResult.canAddShards());
+        assertEquals(shardLimitsResult.maxShardsInCluster(), maxShardsInCluster);
+        assertEquals(shardLimitsResult.totalShardsToAdd(), shardsToAdd);
+        assertFalse(shardLimitsResult.currentUsedShards().isPresent());
+        assertEquals(shardLimitsResult.group(), "normal");
     }
 
     public void testValidateShardLimitOpenIndices() {

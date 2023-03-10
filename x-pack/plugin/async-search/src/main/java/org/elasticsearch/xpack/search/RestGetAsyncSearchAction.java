@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.search;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
@@ -19,6 +21,7 @@ import java.util.Set;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.search.RestSubmitAsyncSearchAction.RESPONSE_PARAMS;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestGetAsyncSearchAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {

@@ -102,7 +102,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             TransportOpenPointInTimeAction.OPEN_SHARD_READER_CONTEXT_NAME,
             ResolveIndexAction.NAME,
             FieldCapabilitiesAction.NAME,
-            FieldCapabilitiesAction.NAME + "[n]"
+            FieldCapabilitiesAction.NAME + "[n]",
+            "indices:data/read/eql"
         );
         REMOTE_ACCESS_ACTION_ALLOWLIST = actions
             // Include action, and proxy equivalent (i.e., with proxy action prefix)
@@ -331,7 +332,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 assert authentication != null : "authentication must be present in security context";
                 final Subject effectiveSubject = authentication.getEffectiveSubject();
                 if (false == effectiveSubject.getType().equals(Subject.Type.USER)
-                    && false == effectiveSubject.getType().equals(Subject.Type.API_KEY)) {
+                    && false == effectiveSubject.getType().equals(Subject.Type.API_KEY)
+                    && false == effectiveSubject.getType().equals(Subject.Type.SERVICE_ACCOUNT)) {
                     logger.trace(
                         "Effective subject of request to remote cluster [{}] has an unsupported type [{}]",
                         remoteClusterAlias,

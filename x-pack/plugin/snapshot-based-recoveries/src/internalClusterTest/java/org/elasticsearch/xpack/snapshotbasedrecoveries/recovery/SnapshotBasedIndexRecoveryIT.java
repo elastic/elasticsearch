@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
@@ -951,7 +950,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 assertPeerRecoveryUsedSnapshots(indexRecoveredFromSnapshot1, sourceNode, targetNode);
 
                 for (RecoverySnapshotFileRequest recoverySnapshotFileRequest : recoverySnapshotFileRequests) {
-                    String indexName = recoverySnapshotFileRequest.getShardId().getIndexName();
+                    String indexName = recoverySnapshotFileRequest.shardId().getIndexName();
                     assertThat(indexName, is(equalTo(indexRecoveredFromSnapshot1)));
                 }
 
@@ -1190,19 +1189,13 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         );
         ensureGreen(indexName);
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        // Do not retry the first RESTORE_FILE_FROM_SNAPSHOT after the connection is closed
-                        .put(INDICES_RECOVERY_INTERNAL_ACTION_RETRY_TIMEOUT_SETTING.getKey(), TimeValue.ZERO)
-                        .put(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(), 1)
-                        .put(INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING.getKey(), 1)
-                        .put(INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING.getKey(), 1)
-                        .build()
-                )
+        updateClusterSettings(
+            Settings.builder()
+                // Do not retry the first RESTORE_FILE_FROM_SNAPSHOT after the connection is closed
+                .put(INDICES_RECOVERY_INTERNAL_ACTION_RETRY_TIMEOUT_SETTING.getKey(), TimeValue.ZERO)
+                .put(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(), 1)
+                .put(INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING.getKey(), 1)
+                .put(INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING.getKey(), 1)
         );
 
         int numDocs = randomIntBetween(300, 1000);
@@ -1579,9 +1572,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
     }
 
     private void updateSetting(String key, String value) {
-        ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest();
-        settingsRequest.persistentSettings(Settings.builder().put(key, value));
-        assertAcked(client().admin().cluster().updateSettings(settingsRequest).actionGet());
+        updateClusterSettings(Settings.builder().put(key, value));
     }
 
     private void createRepo(String repoName, String type) {

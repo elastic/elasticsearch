@@ -17,8 +17,6 @@ import org.elasticsearch.repositories.IndexId;
 import java.io.IOException;
 
 public class RecoverySnapshotFileRequest extends RecoveryTransportRequest {
-    private final long recoveryId;
-    private final ShardId shardId;
     private final String repository;
     private final IndexId indexId;
     private final BlobStoreIndexShardSnapshot.FileInfo fileInfo;
@@ -31,9 +29,7 @@ public class RecoverySnapshotFileRequest extends RecoveryTransportRequest {
         IndexId indexId,
         BlobStoreIndexShardSnapshot.FileInfo fileInfo
     ) {
-        super(requestSeqNo);
-        this.recoveryId = recoveryId;
-        this.shardId = shardId;
+        super(requestSeqNo, recoveryId, shardId);
         this.repository = repository;
         this.indexId = indexId;
         this.fileInfo = fileInfo;
@@ -41,8 +37,6 @@ public class RecoverySnapshotFileRequest extends RecoveryTransportRequest {
 
     public RecoverySnapshotFileRequest(StreamInput in) throws IOException {
         super(in);
-        this.recoveryId = in.readLong();
-        this.shardId = new ShardId(in);
         this.repository = in.readString();
         this.indexId = new IndexId(in);
         this.fileInfo = new BlobStoreIndexShardSnapshot.FileInfo(in);
@@ -53,19 +47,9 @@ public class RecoverySnapshotFileRequest extends RecoveryTransportRequest {
         assert out.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_TRANSPORT_VERSION)
             : "Unexpected serialization version " + out.getTransportVersion();
         super.writeTo(out);
-        out.writeLong(recoveryId);
-        shardId.writeTo(out);
         out.writeString(repository);
         indexId.writeTo(out);
         fileInfo.writeTo(out);
-    }
-
-    public long getRecoveryId() {
-        return recoveryId;
-    }
-
-    public ShardId getShardId() {
-        return shardId;
     }
 
     public String getRepository() {

@@ -49,7 +49,7 @@ public class GrokTests extends ESTestCase {
     }
 
     private void testMatchWithoutCaptures(boolean ecsCompatibility) {
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "value", logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "value", logger::warn);
         assertThat(grok.captures("value"), equalTo(Map.of()));
         assertThat(grok.captures("prefix_value"), equalTo(Map.of()));
         assertThat(grok.captures("no_match"), nullValue());
@@ -61,7 +61,7 @@ public class GrokTests extends ESTestCase {
     }
 
     private void testCapturesBytes(boolean ecsCompatibility) {
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "%{NUMBER:n:int}", logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{NUMBER:n:int}", logger::warn);
         byte[] utf8 = "10".getBytes(StandardCharsets.UTF_8);
         assertThat(captureBytes(grok, utf8, 0, utf8.length), equalTo(Map.of("n", 10)));
         assertThat(captureBytes(grok, utf8, 0, 1), equalTo(Map.of("n", 1)));
@@ -130,7 +130,7 @@ public class GrokTests extends ESTestCase {
         List<String> acceptedDuplicates
     ) {
         String line = "Mar 16 00:01:25 evita postfix/smtpd[1713]: connect from camomile.cloud9.net[168.100.1.3]";
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "%{SYSLOGLINE}", logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{SYSLOGLINE}", logger::warn);
 
         Map<String, GrokCaptureType> captureTypes = new HashMap<>();
         captureTypes.put(facility.v1().getKey(), facility.v1().getValue());
@@ -213,7 +213,7 @@ public class GrokTests extends ESTestCase {
     ) {
         String line = "<191>1 2009-06-30T18:30:00+02:00 paxton.local grokdebug 4123 - [id1 foo=\\\"bar\\\"][id2 baz=\\\"something\\\"] "
             + "Hello, syslog.";
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "%{SYSLOG5424LINE}", logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{SYSLOG5424LINE}", logger::warn);
         assertCaptureConfig(
             grok,
             Map.ofEntries(app.v1(), host.v1(), msg.v1(), msgid.v1(), pri.v1(), proc.v1(), sd.v1(), ts.v1(), ver.v1())
@@ -237,7 +237,7 @@ public class GrokTests extends ESTestCase {
 
     private void testDatePattern(boolean ecsCompatibility) {
         String line = "fancy 12-12-12 12:12:12";
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "(?<timestamp>%{DATE_EU} %{TIME})", logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "(?<timestamp>%{DATE_EU} %{TIME})", logger::warn);
         assertCaptureConfig(grok, Map.of("timestamp", STRING));
         Map<String, Object> matches = grok.captures(line);
         assertEquals("12-12-12 12:12:12", matches.get("timestamp"));
@@ -249,7 +249,7 @@ public class GrokTests extends ESTestCase {
     }
 
     private void testNilCoercedValues(boolean ecsCompatibility) {
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "test (N/A|%{BASE10NUM:duration:float}ms)", logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "test (N/A|%{BASE10NUM:duration:float}ms)", logger::warn);
         assertCaptureConfig(grok, Map.of("duration", FLOAT));
         Map<String, Object> matches = grok.captures("test 28.4ms");
         assertEquals(28.4f, matches.get("duration"));
@@ -263,7 +263,7 @@ public class GrokTests extends ESTestCase {
     }
 
     private void testNilWithNoCoercion(boolean ecsCompatibility) {
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "test (N/A|%{BASE10NUM:duration}ms)", logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "test (N/A|%{BASE10NUM:duration}ms)", logger::warn);
         assertCaptureConfig(grok, Map.of("duration", STRING));
         Map<String, Object> matches = grok.captures("test 28.4ms");
         assertEquals("28.4", matches.get("duration"));
@@ -278,7 +278,7 @@ public class GrokTests extends ESTestCase {
 
     private void testUnicodeSyslog(boolean ecsCompatibility) {
         Grok grok = new Grok(
-            Grok.getBuiltinPatterns(ecsCompatibility),
+            GrokBuiltinPatterns.get(ecsCompatibility),
             "<%{POSINT:syslog_pri}>%{SPACE}%{SYSLOGTIMESTAMP:syslog_timestamp} "
                 + "%{SYSLOGHOST:syslog_hostname} %{PROG:syslog_program}(:?)(?:\\[%{GREEDYDATA:syslog_pid}\\])?(:?) "
                 + "%{GREEDYDATA:syslog_message}",
@@ -311,7 +311,7 @@ public class GrokTests extends ESTestCase {
     }
 
     private void testNamedFieldsWithWholeTextMatch(boolean ecsCompatibility) {
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "%{DATE_EU:stimestamp}", logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{DATE_EU:stimestamp}", logger::warn);
         assertCaptureConfig(grok, Map.of("stimestamp", STRING));
         Map<String, Object> matches = grok.captures("11/01/01");
         assertThat(matches.get("stimestamp"), equalTo("11/01/01"));
@@ -323,7 +323,7 @@ public class GrokTests extends ESTestCase {
     }
 
     private void testWithOniguramaNamedCaptures(boolean ecsCompatibility) {
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "(?<foo>\\w+)", logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "(?<foo>\\w+)", logger::warn);
         assertCaptureConfig(grok, Map.of("foo", STRING));
         Map<String, Object> matches = grok.captures("hello world");
         assertThat(matches.get("foo"), equalTo("hello"));
@@ -335,7 +335,7 @@ public class GrokTests extends ESTestCase {
     }
 
     private void testISO8601(boolean ecsCompatibility) {
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "^%{TIMESTAMP_ISO8601}$", logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "^%{TIMESTAMP_ISO8601}$", logger::warn);
         assertCaptureConfig(grok, Map.of());
         List<String> timeMessages = Arrays.asList(
             "2001-01-01T00:00:00",
@@ -365,7 +365,7 @@ public class GrokTests extends ESTestCase {
     }
 
     private void testNotISO8601(boolean ecsCompatibility, List<String> additionalCases) {
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "^%{TIMESTAMP_ISO8601}$", logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "^%{TIMESTAMP_ISO8601}$", logger::warn);
         assertCaptureConfig(grok, Map.of());
         List<String> timeMessages = Arrays.asList(
             "2001-13-01T00:00:00", // invalid month
@@ -498,7 +498,7 @@ public class GrokTests extends ESTestCase {
 
     private void testBooleanCaptures(boolean ecsCompatibility) {
         String pattern = "%{WORD:name}=%{WORD:status:boolean}";
-        Grok g = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), pattern, logger::warn);
+        Grok g = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), pattern, logger::warn);
         assertCaptureConfig(g, Map.of("name", STRING, "status", BOOLEAN));
 
         String text = "active=true";
@@ -658,7 +658,7 @@ public class GrokTests extends ESTestCase {
             31.184.238.164 - - [24/Jul/2014:05:35:37 +0530] "GET /logs/access.log HTTP/1.0" 200 69849 "http://8rursodiol.enjin.com" \
             "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/30.0.1599.12785 YaBrowser/13.12.1599.12785 \
             Safari/537.36" "www.dlwindianrailways.com\"""";
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "%{COMBINEDAPACHELOG}", logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{COMBINEDAPACHELOG}", logger::warn);
 
         Map<String, GrokCaptureType> captureTypes = new HashMap<>();
         captureTypes.put(agent.v1().getKey(), agent.v1().getValue());
@@ -838,7 +838,7 @@ public class GrokTests extends ESTestCase {
             t.start();
         };
         Grok grok = new Grok(
-            Grok.getBuiltinPatterns(ecsCompatibility),
+            GrokBuiltinPatterns.get(ecsCompatibility),
             grokPattern,
             MatcherWatchdog.newInstance(10, 200, System::currentTimeMillis, scheduler),
             logger::warn
@@ -887,7 +887,7 @@ public class GrokTests extends ESTestCase {
     }
 
     private void testUnsupportedBracketsInFieldName(boolean ecsCompatibility) {
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "%{WORD:unsuppo(r)ted}", logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{WORD:unsuppo(r)ted}", logger::warn);
         Map<String, Object> matches = grok.captures("line");
         assertNull(matches);
     }
@@ -898,7 +898,7 @@ public class GrokTests extends ESTestCase {
     }
 
     private void testJavaClassPatternWithUnderscore(boolean ecsCompatibility) {
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "%{JAVACLASS}", logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{JAVACLASS}", logger::warn);
         assertThat(grok.match("Test_Class.class"), is(true));
     }
 
@@ -908,7 +908,7 @@ public class GrokTests extends ESTestCase {
     }
 
     private void testJavaFilePatternWithSpaces(boolean ecsCompatibility) {
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "%{JAVAFILE}", logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{JAVAFILE}", logger::warn);
         assertThat(grok.match("Test Class.java"), is(true));
     }
 
@@ -919,7 +919,7 @@ public class GrokTests extends ESTestCase {
 
     private void testLogCallBack(boolean ecsCompatibility) {
         AtomicReference<String> message = new AtomicReference<>();
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), ".*\\[.*%{SPACE}*\\].*", message::set);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), ".*\\[.*%{SPACE}*\\].*", message::set);
         grok.match("[foo]");
         // this message comes from Joni, so updates to Joni may change the expectation
         assertThat(message.get(), containsString("regular expression has redundant nested repeat operator"));
@@ -929,7 +929,7 @@ public class GrokTests extends ESTestCase {
         String line = "foo";
         // test both with and without ECS compatibility
         for (boolean ecsCompatibility : new boolean[] { false, true }) {
-            Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "%{WORD:" + fieldName + "}", logger::warn);
+            Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{WORD:" + fieldName + "}", logger::warn);
             Map<String, Object> matches = grok.captures(line);
             assertEquals(line, matches.get(fieldName));
         }

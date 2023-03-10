@@ -151,15 +151,9 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
         String indexName = "test";
         String nodeWithPrimary = internalCluster().startNode();
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
-                )
+        updateClusterSettings(
+            Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
         );
-
         assertAcked(
             client().admin()
                 .indices()
@@ -255,12 +249,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
         }
         ensureGlobalCheckpointAdvancedAndSynced(indexName);
         syncFlush(indexName);
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.enable", "primaries").build())
-        );
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.enable", "primaries"));
         internalCluster().fullRestart();
         ensureYellow(indexName);
         // Wait until the peer recovery retention leases of the offline node are expired
@@ -269,12 +258,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
                 assertThat(shardStats.getRetentionLeaseStats().retentionLeases().leases(), hasSize(1));
             }
         });
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull("cluster.routing.allocation.enable").build())
-        );
+        updateClusterSettings(Settings.builder().putNull("cluster.routing.allocation.enable"));
         ensureGreen(indexName);
         assertNoOpRecoveries(indexName);
     }

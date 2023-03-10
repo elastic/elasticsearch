@@ -152,6 +152,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         THREAD_POOL("thread_pool"),
         TRANSPORT("transport"),
         HTTP("http"),
+        REMOTE_CLUSTER_SERVER("remote_cluster_server"),
         PLUGINS("plugins"),
         INGEST("ingest"),
         AGGREGATIONS("aggregations"),

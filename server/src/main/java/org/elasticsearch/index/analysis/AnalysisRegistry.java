@@ -201,7 +201,7 @@ public final class AnalysisRegistry implements Closeable {
     /**
      * Creates an index-level {@link IndexAnalyzers} from this registry using the given index settings
      */
-    public IndexAnalyzers build(IndexSettings indexSettings) throws IOException {
+    public CloseableIndexAnalyzers build(IndexSettings indexSettings) throws IOException {
         final Map<String, CharFilterFactory> charFilterFactories = buildCharFilterFactories(indexSettings);
         final Map<String, TokenizerFactory> tokenizerFactories = buildTokenizerFactories(indexSettings);
         final Map<String, TokenFilterFactory> tokenFilterFactories = buildTokenFilterFactories(indexSettings);
@@ -585,7 +585,7 @@ public final class AnalysisRegistry implements Closeable {
         }
     }
 
-    public static IndexAnalyzers build(
+    public static CloseableIndexAnalyzers build(
         IndexSettings indexSettings,
         Map<String, AnalyzerProvider<?>> analyzerProviders,
         Map<String, AnalyzerProvider<?>> normalizerProviders,
@@ -664,7 +664,7 @@ public final class AnalysisRegistry implements Closeable {
                 throw new IllegalArgumentException("analyzer name must not start with '_'. got \"" + analyzer.getKey() + "\"");
             }
         }
-        return new IndexAnalyzers(analyzers, normalizers, whitespaceNormalizers);
+        return new CloseableIndexAnalyzers(analyzers, normalizers, whitespaceNormalizers);
     }
 
     private static NamedAnalyzer produceAnalyzer(

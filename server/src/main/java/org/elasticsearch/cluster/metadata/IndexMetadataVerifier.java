@@ -183,19 +183,19 @@ public class IndexMetadataVerifier {
                     return Collections.emptySet();
                 }
             };
-            try (IndexAnalyzers fakeIndexAnalzyers = new IndexAnalyzers(analyzerMap, analyzerMap, analyzerMap)) {
-                MapperService mapperService = new MapperService(
-                    indexSettings,
-                    fakeIndexAnalzyers,
-                    parserConfiguration,
-                    similarityService,
-                    mapperRegistry,
-                    () -> null,
-                    indexSettings.getMode().idFieldMapperWithoutFieldData(),
-                    scriptService
-                );
-                mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
-            }
+
+            MapperService mapperService = new MapperService(
+                indexSettings,
+                (type, name) -> new NamedAnalyzer(name, AnalyzerScope.INDEX, fakeDefault.analyzer()),
+                parserConfiguration,
+                similarityService,
+                mapperRegistry,
+                () -> null,
+                indexSettings.getMode().idFieldMapperWithoutFieldData(),
+                scriptService
+            );
+            mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
+
         } catch (Exception ex) {
             // Wrap the inner exception so we have the index name in the exception message
             throw new IllegalStateException("Failed to parse mappings for index [" + indexMetadata.getIndex() + "]", ex);

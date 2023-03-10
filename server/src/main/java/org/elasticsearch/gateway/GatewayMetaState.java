@@ -47,6 +47,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -127,7 +128,7 @@ public class GatewayMetaState implements Closeable {
     ) throws IOException {
         final var persistedStateFactories = clusterCoordinationPlugins.stream()
             .map(ClusterCoordinationPlugin::getPersistedStateFactory)
-            .filter(Objects::nonNull)
+            .flatMap(Optional::stream)
             .toList();
 
         if (persistedStateFactories.size() > 1) {

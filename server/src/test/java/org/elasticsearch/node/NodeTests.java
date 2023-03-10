@@ -70,6 +70,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
@@ -644,9 +645,11 @@ public class NodeTests extends ESTestCase {
         public PersistedClusterStateService persistedClusterStateService;
 
         @Override
-        public PersistedClusterStateServiceFactory getPersistedClusterStateServiceFactory() {
-            return (nodeEnvironment, namedXContentRegistry, clusterSettings, relativeTimeMillisSupplier) -> persistedClusterStateService =
-                new PersistedClusterStateService(nodeEnvironment, namedXContentRegistry, clusterSettings, relativeTimeMillisSupplier);
+        public Optional<PersistedClusterStateServiceFactory> getPersistedClusterStateServiceFactory() {
+            return Optional.of(
+                (nodeEnvironment, namedXContentRegistry, clusterSettings, relativeTimeMillisSupplier) -> persistedClusterStateService =
+                    new PersistedClusterStateService(nodeEnvironment, namedXContentRegistry, clusterSettings, relativeTimeMillisSupplier)
+            );
         }
     }
 
@@ -669,7 +672,10 @@ public class NodeTests extends ESTestCase {
         try (Node node = new MockNode(baseSettings().build(), List.of(TestClusterCoordinationPlugin1.class, getTestTransportPlugin()))) {
 
             for (final var plugin : node.getPluginsService().filterPlugins(BaseTestClusterCoordinationPlugin.class)) {
-                assertSame(plugin.persistedClusterStateService, node.injector().getInstance(PersistedClusterStateService.class));
+                assertSame(
+                    Objects.requireNonNull(plugin.persistedClusterStateService),
+                    node.injector().getInstance(PersistedClusterStateService.class)
+                );
             }
         }
     }

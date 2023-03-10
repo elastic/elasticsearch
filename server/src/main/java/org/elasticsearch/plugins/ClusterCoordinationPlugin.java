@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.transport.TransportService;
@@ -23,6 +22,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
@@ -44,12 +44,12 @@ public interface ClusterCoordinationPlugin {
         return Collections.emptyMap();
     }
 
-    default @Nullable PersistedStateFactory getPersistedStateFactory() {
-        return null;
+    default Optional<PersistedStateFactory> getPersistedStateFactory() {
+        return Optional.empty();
     }
 
-    default @Nullable PersistedClusterStateServiceFactory getPersistedClusterStateServiceFactory() {
-        return null;
+    default Optional<PersistedClusterStateServiceFactory> getPersistedClusterStateServiceFactory() {
+        return Optional.empty();
     }
 
     interface PersistedStateFactory {

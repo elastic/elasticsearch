@@ -29,6 +29,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -153,10 +154,10 @@ public class GatewayMetaStateTests extends ESTestCase {
         ) {
             final var duplicatePlugin = new ClusterCoordinationPlugin() {
                 @Override
-                public PersistedStateFactory getPersistedStateFactory() {
-                    return (settings, transportService, persistedClusterStateService) -> {
-                        throw new AssertionError("should not be called");
-                    };
+                public Optional<PersistedStateFactory> getPersistedStateFactory() {
+                    return Optional.of(
+                        (settings, transportService, persistedClusterStateService) -> { throw new AssertionError("should not be called"); }
+                    );
                 }
             };
             assertThat(
@@ -169,8 +170,8 @@ public class GatewayMetaStateTests extends ESTestCase {
 
             gatewayMetaState.start(null, null, null, null, null, null, null, List.of(new ClusterCoordinationPlugin() {
                 @Override
-                public PersistedStateFactory getPersistedStateFactory() {
-                    return (settings, transportService, persistedClusterStateService) -> testPersistedState;
+                public Optional<PersistedStateFactory> getPersistedStateFactory() {
+                    return Optional.of((settings, transportService, persistedClusterStateService) -> testPersistedState);
                 }
             }));
             assertSame(testPersistedState, gatewayMetaState.getPersistedState());

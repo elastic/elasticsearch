@@ -230,7 +230,6 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -1287,7 +1286,7 @@ public class Node implements Closeable {
             .filterPlugins(ClusterCoordinationPlugin.class)
             .stream()
             .map(ClusterCoordinationPlugin::getPersistedClusterStateServiceFactory)
-            .filter(Objects::nonNull)
+            .flatMap(Optional::stream)
             .toList();
 
         if (persistedClusterStateServiceFactories.size() > 1) {

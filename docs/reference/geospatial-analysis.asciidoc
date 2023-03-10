@@ -4,9 +4,9 @@
 [partintro]
 --
 
-Use {es} for geospatial analysis with speed, at scale. All with a stack that scales automatically.
+Did you know that {es} has geospatial capabilities? https://www.elastic.co/blog/geo-location-and-search[{es} and geo] go way back, to 2010. A lot has happened since then and today {es} provides robust geospatial capabilities with speed, all with a stack that scales automatically. 
 
-The Elastic Stack is more than search. Use machine learning and alerting to put your geo data to work.
+Not sure where to get started with {es} and geo? Then, you have come to the right place.
 
 [discrete]
 [[geospatial-mapping]]
@@ -20,10 +20,10 @@ Have an index with lat/lon pairs but no geo_point mapping? Use <<runtime-mapping
 [[geospatial-ingest]]
 == Ingest
 
-Data is often messy and incomplete. <<ingest,Ingest pipelines>> let you clean, transform, and augment your data before indexing. 
+Data is often messy and incomplete. <<ingest,Ingest pipelines>> lets you clean, transform, and augment your data before indexing. 
 
 * Use <<geoip-processor>> to add geographical location of an IPv4 or IPv6 address.
-* Use <<ingest-geo-grid-processor,geo-grid processor>> to convert grid tile or hexagonal cell ids to bounding boxes or polygons which describe their shape.
+* Use <<ingest-geo-grid-processor,geo-grid processor>> to convert grid tiles or hexagonal cell ids to bounding boxes or polygons which describe their shape.
 * Use <<geo-match-enrich-policy-type,geo_match enrich policy>> for reverse geocoding. For example, use {reverse-geocoding-tutorial.html}/maps.html[reverse geocoding] to visualize metropolitan areas by web traffic.
 
 [discrete]
@@ -32,13 +32,13 @@ Data is often messy and incomplete. <<ingest,Ingest pipelines>> let you clean, t
 
 <<geo-queries,Geo queries>> will help you answer location-driven questions.
 
-Combine geospatial queries with full text search queries for unparalleled searching experience. 
+Combine geospatial queries with full text search queries for unparalleled searching experience. For example, "Show me all subscribers that live in 5 miles of our new gym location, that joined in the last year and have running mentioned in their profile"
 
 [discrete]
 [[geospatial-aggregate]]
 == Aggregate
 
-<<search-aggregations,Aggregations>> summarize your data as metrics, statistics, or other analytics. Use <<search-aggregations-bucket,bucket aggregations>> to group documents into buckets, also called bins, based on field values, ranges, or other criteria. Then, use <<search-aggregations-metrics,metric aggregations>> to calculate metrics, such as a sum or average, from field values in each bucket.
+<<search-aggregations,Aggregations>> summarizes your data as metrics, statistics, or other analytics. Use <<search-aggregations-bucket,bucket aggregations>> to group documents into buckets, also called bins, based on field values, ranges, or other criteria. Then, use <<search-aggregations-metrics,metric aggregations>> to calculate metrics, such as a sum or average, from field values in each bucket.
 
 Geospatial bucket aggregations:
 
@@ -59,7 +59,7 @@ Combine aggregations to perform complex geospatial analysis. For example, to cal
 [[geospatial-integrate]]
 == Integrate
 
-Use <<search-vector-tile-api,vector tile search API>> to consume Elasticsearch geo data within existing GIS investments.
+Use <<search-vector-tile-api,vector tile search API>> to consume Elasticsearch geo data within existing GIS infrastructure.
 
 [discrete]
 [[geospatial-visualize]]
@@ -67,7 +67,7 @@ Use <<search-vector-tile-api,vector tile search API>> to consume Elasticsearch g
 
 Visualize geo data with {kibana-ref}/maps.html[Kibana]. Add your map to a {kibana-ref}/dashboard.html[dashboard] to view your data from all angles.
 
-This dashboard shows the devastating effects of the https://www.elastic.co/blog/understanding-evolution-volcano-eruption-elastic-maps/[Cumbre Vieja eruption].
+This dashboard shows the effects of the https://www.elastic.co/blog/understanding-evolution-volcano-eruption-elastic-maps/[Cumbre Vieja eruption].
 
 image:images/spatial/cumbre_vieja_eruption_dashboard.png[Kibana dashboard showing Cumbre Vieja eruption from Aug 31 2021 to Dec 14 2021]
 

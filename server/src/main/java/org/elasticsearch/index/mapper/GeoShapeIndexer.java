@@ -60,7 +60,7 @@ public class GeoShapeIndexer implements ShapeIndexer {
         return GeometryNormalizer.needsNormalize(orientation, geometry) ? GeometryNormalizer.apply(orientation, geometry) : geometry;
     }
 
-    /** Generates lucene indexable fields from a geometry. It expects geometries that has been already normalise. */
+    /** Generates lucene indexable fields from a geometry. It expects geometries that have already been normalised. */
     public List<IndexableField> getIndexableFields(Geometry geometry) {
         final LuceneGeometryIndexer visitor = new LuceneGeometryIndexer(name);
         geometry.visit(visitor);

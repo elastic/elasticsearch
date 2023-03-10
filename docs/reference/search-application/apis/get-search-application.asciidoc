@@ -43,3 +43,16 @@ The following example gets the Search Application named `my-app`:
 GET _application/search_application/my-app/
 --------------------------------------------------
 // TEST[skip:TBD]
+
+A sample response:
+
+[source,console-result]
+----
+{
+    {
+      "name": "my-app",
+      "indices": [ "index1", "index2" ],
+      "analytics_collection_name": "my-analytics"
+    }
+}
+----

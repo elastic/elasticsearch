@@ -31,7 +31,7 @@ setup:
           - index:
               _index: shapes
               _id: 2
-          - '{"default": "POINT(2.327000 48.860000)", "no_doc_values": "POINT(2.327000 48.860000)", "no_index": "POINT(2.327000 48.860000)", "no_doc_values_no_index": "POINT(2.327000 48.860000)", "stored": "POINT(4.912350 52.374081)"}'
+          - '{"default": "POINT(2.327000 48.860000)", "no_doc_values": "POINT(2.327000 48.860000)", "no_index": "POINT(2.327000 48.860000)", "no_doc_values_no_index": "POINT(2.327000 48.860000)", "stored": "POINT(2.327000 48.860000)"}'
   - do:
       indices.refresh: {}
 

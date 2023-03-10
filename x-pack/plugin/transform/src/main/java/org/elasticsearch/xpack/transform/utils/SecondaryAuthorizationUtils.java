@@ -20,7 +20,7 @@ public final class SecondaryAuthorizationUtils {
 
     private SecondaryAuthorizationUtils() {}
 
-    public static Map<String, String> getSecondarySecurityHeaders(
+    public static Map<String, String> getSecurityHeadersPreferringSecondary(
         ThreadPool threadPool,
         SecurityContext securityContext,
         ClusterState clusterState

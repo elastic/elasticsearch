@@ -64,7 +64,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.DUMMY_DEST_INDEX_FOR_PREVIEW;
-import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.getSecondarySecurityHeaders;
+import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.getSecurityHeadersPreferringSecondary;
 
 public class TransportPreviewTransformAction extends HandledTransportAction<Request, Response> {
 
@@ -205,7 +205,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
 
         final SetOnce<Map<String, String>> mappings = new SetOnce<>();
 
-        final Map<String, String> filteredHeaders = getSecondarySecurityHeaders(threadPool, securityContext, clusterService.state());
+        final Map<String, String> filteredHeaders = getSecurityHeadersPreferringSecondary(threadPool, securityContext, clusterService.state());
 
         ActionListener<SimulatePipelineResponse> pipelineResponseActionListener = ActionListener.wrap(simulatePipelineResponse -> {
             List<Map<String, Object>> docs = new ArrayList<>(simulatePipelineResponse.getResults().size());

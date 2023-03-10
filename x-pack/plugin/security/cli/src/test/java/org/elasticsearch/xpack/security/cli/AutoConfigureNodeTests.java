@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.cli;
 
 import joptsimple.OptionParser;
 
-import org.apache.commons.io.FileUtils;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.KeyPurposeId;
 import org.elasticsearch.cli.MockTerminal;
@@ -24,12 +23,14 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStore;
 import java.security.cert.X509Certificate;
+import java.util.Comparator;
 import java.util.List;
 
 import static java.nio.file.StandardOpenOption.CREATE_NEW;
@@ -291,8 +292,11 @@ public class AutoConfigureNodeTests extends ESTestCase {
         return (X509Certificate) httpKeystore.getCertificate("http");
     }
 
-    @SuppressForbidden(reason = "Uses File API because the commons io library does, which is useful for file manipulation")
+    @SuppressForbidden(reason = "We need to interact with the file system in order to test auto configuration")
     private void deleteDirectory(Path directory) throws IOException {
-        FileUtils.deleteDirectory(directory.toFile());
+        Files.walk(directory)
+            .sorted(Comparator.reverseOrder()) // Ensures directory contents are deleted first
+            .map(Path::toFile)
+            .map(File::delete);
     }
 }

@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.core.termsenum;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
@@ -40,7 +40,6 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
         return Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), "false").build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94378")
     public void testTermsEnumIPBasic() throws Exception {
         String indexName = "test";
         createIndex(indexName);
@@ -71,44 +70,41 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
             .setSource(jsonBuilder().startObject().field("ip_addr", "2001:db8::1:0:0:1").endObject())
             .get();
         client().prepareIndex(indexName).setId("5").setSource(jsonBuilder().startObject().field("ip_addr", "13.3.3.3").endObject()).get();
-        client().admin().indices().prepareRefresh().get();
-
+        assertEquals(RestStatus.OK, client().admin().indices().prepareRefresh().get().getStatus());
         {
-            TermsEnumResponse response = client().execute(TermsEnumAction.INSTANCE, new TermsEnumRequest(indexName).field("ip_addr")).get();
-            List<String> terms = response.getTerms();
-            assertEquals(5, terms.size());
-            assertThat(terms, contains("1.2.3.4", "2.2.2.2", "13.3.3.3", "205.0.1.2", "2001:db8::1:0:0:1"));
+            TermsEnumResponse response = client().execute(TermsEnumAction.INSTANCE, new TermsEnumRequest(indexName).field("ip_addr").timeout(TimeValue.timeValueMillis(10))).get();
+            expectMatches(response,"1.2.3.4", "2.2.2.2", "13.3.3.3", "205.0.1.2", "2001:db8::1:0:0:1");
         }
         {
             TermsEnumResponse response = client().execute(
                 TermsEnumAction.INSTANCE,
                 new TermsEnumRequest(indexName).field("ip_addr").searchAfter("13.3.3.3")
             ).get();
-            List<String> terms = response.getTerms();
-            assertEquals(2, terms.size());
-            assertThat(terms, contains("205.0.1.2", "2001:db8::1:0:0:1"));
+            expectMatches(response,"205.0.1.2", "2001:db8::1:0:0:1");
         }
         {
             TermsEnumResponse response = client().execute(
                 TermsEnumAction.INSTANCE,
                 new TermsEnumRequest(indexName).field("ip_addr").string("2")
             ).get();
-            List<String> terms = response.getTerms();
-            assertEquals(3, terms.size());
-            assertThat(terms, contains("2.2.2.2", "205.0.1.2", "2001:db8::1:0:0:1"));
+            expectMatches(response,"2.2.2.2", "205.0.1.2", "2001:db8::1:0:0:1");
         }
         {
             TermsEnumResponse response = client().execute(
                 TermsEnumAction.INSTANCE,
                 new TermsEnumRequest(indexName).field("ip_addr").string("20")
             ).get();
-            List<String> terms = response.getTerms();
-            assertEquals(2, terms.size());
-            assertThat(terms, contains("205.0.1.2", "2001:db8::1:0:0:1"));
+            expectMatches(response,"205.0.1.2", "2001:db8::1:0:0:1");
         }
     }
 
-    @Repeat(iterations = 100)
+    private static void expectMatches(TermsEnumResponse response, String... expectedTerms) {
+        assertTrue("terms response incomplete, maybe due to timeout", response.isComplete());
+        List<String> terms = response.getTerms();
+        assertEquals(expectedTerms.length, terms.size());
+        assertThat(terms, contains(expectedTerms));
+    }
+
     public void testTermsEnumIPRandomized() throws Exception {
         String indexName = "test_random";
         createIndex(indexName);
@@ -143,7 +139,7 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
             );
         }
         bulkRequestBuilder.get();
-        client().admin().indices().prepareRefresh().get();
+        assertEquals(RestStatus.OK, client().admin().indices().prepareRefresh().get().getStatus());
 
         // test for short random prefixes, max length 7 should at least include some separators but not be too long for short ipv4
         for (int prefixLength = 1; prefixLength < 7; prefixLength++) {

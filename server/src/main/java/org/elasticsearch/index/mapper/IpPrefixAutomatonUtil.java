@@ -152,9 +152,7 @@ public class IpPrefixAutomatonUtil {
         "^((?:0|[1-9][0-9]{0,2})\\.)?" + "((?:0|[1-9][0-9]{0,2})\\.)?" + "((?:0|[1-9][0-9]{0,2})\\.)?" + "((?:0|[1-9][0-9]{0,2}))?$"
     );
 
-    private static Pattern ONLY_ZEROS = Pattern.compile(
-        "^0+$"
-    );
+    private static Pattern ONLY_ZEROS = Pattern.compile("^0+$");
 
     /**
      * Creates an {@link Automaton} that accepts all ipv4 address byte representation

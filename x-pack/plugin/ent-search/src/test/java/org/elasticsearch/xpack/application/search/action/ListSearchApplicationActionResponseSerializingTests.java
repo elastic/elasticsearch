@@ -24,7 +24,7 @@ public class ListSearchApplicationActionResponseSerializingTests extends Abstrac
     private static ListSearchApplicationAction.Response randomSearchApplicationListItem() {
         return new ListSearchApplicationAction.Response(randomList(10, () -> {
             SearchApplication app = SearchApplicationTestUtils.randomSearchApplication();
-            return new SearchApplicationListItem(app.name(), app.indices(), app.searchAlias(), app.analyticsCollectionName());
+            return new SearchApplicationListItem(app.name(), app.indices(), app.analyticsCollectionName());
         }), randomLongBetween(0, 1000));
     }
 

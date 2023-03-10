@@ -44,7 +44,6 @@ public class SearchApplication implements Writeable, ToXContentObject {
     private final String[] indices;
     private long updatedAtMillis = System.currentTimeMillis();
     private final String analyticsCollectionName;
-    private final String searchAlias;
 
     /**
      * Public constructor.
@@ -59,7 +58,6 @@ public class SearchApplication implements Writeable, ToXContentObject {
         Arrays.sort(indices);
 
         this.analyticsCollectionName = analyticsCollectionName;
-        this.searchAlias = getSearchAliasName(name);
     }
 
     public SearchApplication(StreamInput in) throws IOException {
@@ -67,12 +65,6 @@ public class SearchApplication implements Writeable, ToXContentObject {
         this.indices = in.readStringArray();
         this.analyticsCollectionName = in.readOptionalString();
         this.updatedAtMillis = in.readLong();
-
-        this.searchAlias = getSearchAliasName(this.name);
-    }
-
-    public static String getSearchAliasName(String resourceName) {
-        return resourceName;
     }
 
     @Override
@@ -112,7 +104,6 @@ public class SearchApplication implements Writeable, ToXContentObject {
     public static final ParseField INDICES_FIELD = new ParseField("indices");
     public static final ParseField ANALYTICS_COLLECTION_NAME_FIELD = new ParseField("analytics_collection_name");
     public static final ParseField UPDATED_AT_MILLIS_FIELD = new ParseField("updated_at_millis");
-    public static final ParseField SEARCH_ALIAS_NAME_FIELD = new ParseField("search_alias");
     public static final ParseField BINARY_CONTENT_FIELD = new ParseField("binary_content");
 
     static {
@@ -120,7 +111,6 @@ public class SearchApplication implements Writeable, ToXContentObject {
         PARSER.declareStringArray(constructorArg(), INDICES_FIELD);
         PARSER.declareStringOrNull(optionalConstructorArg(), ANALYTICS_COLLECTION_NAME_FIELD);
         PARSER.declareLong(optionalConstructorArg(), UPDATED_AT_MILLIS_FIELD);
-        PARSER.declareString(optionalConstructorArg(), SEARCH_ALIAS_NAME_FIELD);
     }
 
     /**
@@ -165,7 +155,6 @@ public class SearchApplication implements Writeable, ToXContentObject {
         if (analyticsCollectionName != null) {
             builder.field(ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName(), analyticsCollectionName);
         }
-        builder.field(SEARCH_ALIAS_NAME_FIELD.getPreferredName(), searchAlias);
         builder.field(UPDATED_AT_MILLIS_FIELD.getPreferredName(), updatedAtMillis);
         builder.endObject();
         return builder;
@@ -206,10 +195,6 @@ public class SearchApplication implements Writeable, ToXContentObject {
         this.updatedAtMillis = updatedAtMillis;
     }
 
-    public String searchAlias() {
-        return searchAlias;
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -218,13 +203,12 @@ public class SearchApplication implements Writeable, ToXContentObject {
         return name.equals(app.name)
             && Arrays.equals(indices, app.indices)
             && Objects.equals(analyticsCollectionName, app.analyticsCollectionName)
-            && updatedAtMillis == app.updatedAtMillis()
-            && Objects.equals(searchAlias, app.searchAlias());
+            && updatedAtMillis == app.updatedAtMillis();
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(name, analyticsCollectionName, updatedAtMillis, searchAlias);
+        int result = Objects.hash(name, analyticsCollectionName, updatedAtMillis);
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }

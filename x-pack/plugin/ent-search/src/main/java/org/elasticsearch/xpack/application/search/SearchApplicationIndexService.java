@@ -202,7 +202,7 @@ public class SearchApplicationIndexService {
     }
 
     private static String getSearchAliasName(SearchApplication app) {
-        return app.searchAlias();
+        return app.name();
     }
 
     /**
@@ -342,7 +342,7 @@ public class SearchApplicationIndexService {
      *
      */
     public void deleteSearchApplicationAndAlias(String resourceName, ActionListener<DeleteResponse> listener) {
-        removeAlias(SearchApplication.getSearchAliasName(resourceName), new ActionListener<AcknowledgedResponse>() {
+        removeAlias(resourceName, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 deleteSearchApplication(resourceName, listener);
@@ -410,7 +410,6 @@ public class SearchApplicationIndexService {
         return new SearchApplicationListItem(
             resourceName,
             documentFields.get(SearchApplication.INDICES_FIELD.getPreferredName()).getValues().toArray(String[]::new),
-            SearchApplication.getSearchAliasName(resourceName),
             documentFields.get(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName()).getValue()
         );
     }

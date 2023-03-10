@@ -866,6 +866,23 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertThat(results.values(), empty());
     }
 
+    public void testShowInfo() {
+        EsqlQueryResponse results = run("show info");
+        assertThat(
+            results.columns(),
+            equalTo(List.of(new ColumnInfo("version", "keyword"), new ColumnInfo("date", "keyword"), new ColumnInfo("hash", "keyword")))
+        );
+        assertThat(results.values().size(), equalTo(1));
+        assertThat(results.values().get(0).get(0), equalTo(Build.CURRENT.version()));
+        assertThat(results.values().get(0).get(1), equalTo(Build.CURRENT.date()));
+        assertThat(results.values().get(0).get(2), equalTo(Build.CURRENT.hash()));
+    }
+
+    public void testShowFunctions() {
+        EsqlQueryResponse results = run("show functions");
+
+    }
+
     /*
      * Create two indices that both have nested documents in them. Create an alias pointing to the two indices.
      * Query an individual index, then query the alias checking that no nested documents are returned.

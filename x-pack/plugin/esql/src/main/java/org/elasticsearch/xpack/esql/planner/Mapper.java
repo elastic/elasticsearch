@@ -11,6 +11,8 @@ import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
+import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
@@ -21,7 +23,9 @@ import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
+import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
@@ -32,6 +36,12 @@ import org.elasticsearch.xpack.ql.plan.logical.Project;
 
 @Experimental
 public class Mapper {
+
+    private final FunctionRegistry functionRegistry;
+
+    public Mapper(FunctionRegistry functionRegistry) {
+        this.functionRegistry = functionRegistry;
+    }
 
     public PhysicalPlan map(LogicalPlan p) {
         if (p instanceof EsRelation esRelation) {
@@ -69,6 +79,14 @@ public class Mapper {
         if (p instanceof LocalRelation local) {
             return new LocalSourceExec(local.source(), local.output(), local.supplier());
         }
+
+        if (p instanceof ShowFunctions showFunctions) {
+            return new ShowExec(showFunctions.source(), showFunctions.output(), showFunctions.values(functionRegistry));
+        }
+        if (p instanceof ShowInfo showInfo) {
+            return new ShowExec(showInfo.source(), showInfo.output(), showInfo.values());
+        }
+
         throw new UnsupportedOperationException(p.nodeName());
     }
 

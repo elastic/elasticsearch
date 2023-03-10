@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.index.EsIndex;
@@ -106,9 +107,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         IndexResolution getIndexResult = IndexResolution.valid(test);
         logicalOptimizer = new LogicalPlanOptimizer();
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
-        mapper = new Mapper();
+        FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
+        mapper = new Mapper(functionRegistry);
 
-        analyzer = new Analyzer(new AnalyzerContext(config, new EsqlFunctionRegistry(), getIndexResult), new Verifier());
+        analyzer = new Analyzer(new AnalyzerContext(config, functionRegistry, getIndexResult), new Verifier());
     }
 
     public void testSingleFieldExtractor() {

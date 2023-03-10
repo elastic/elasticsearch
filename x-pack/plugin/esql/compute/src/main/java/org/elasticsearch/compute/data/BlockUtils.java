@@ -80,11 +80,12 @@ public final class BlockUtils {
             return fromListRow(list.get(0));
         }
 
-        var wrappers = new BuilderWrapper[size];
         var types = list.get(0);
+        var wrappers = new BuilderWrapper[types.size()];
 
         for (int i = 0, tSize = types.size(); i < tSize; i++) {
-            wrappers[i] = wrapperFor(types.get(i).getClass(), size);
+            Object o = types.get(i);
+            wrappers[i] = wrapperFor(o != null ? o.getClass() : null, size);
         }
         for (List<Object> values : list) {
             for (int j = 0, vSize = values.size(); j < vSize; j++) {

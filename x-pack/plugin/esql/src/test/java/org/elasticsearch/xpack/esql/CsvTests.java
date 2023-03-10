@@ -117,7 +117,7 @@ public class CsvTests extends ESTestCase {
     private final EsqlParser parser = new EsqlParser();
     private final Analyzer analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indexResolution), new Verifier());
     private final LogicalPlanOptimizer logicalPlanOptimizer = new LogicalPlanOptimizer();
-    private final Mapper mapper = new Mapper();
+    private final Mapper mapper = new Mapper(functionRegistry);
     private final PhysicalPlanOptimizer physicalPlanOptimizer = new TestPhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
     private ThreadPool threadPool;
 

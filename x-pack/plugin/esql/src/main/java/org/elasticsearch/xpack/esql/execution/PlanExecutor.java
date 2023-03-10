@@ -29,7 +29,7 @@ public class PlanExecutor {
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();
         this.logicalPlanOptimizer = new LogicalPlanOptimizer();
-        this.mapper = new Mapper();
+        this.mapper = new Mapper(functionRegistry);
     }
 
     public EsqlSession newSession(EsqlConfiguration cfg) {

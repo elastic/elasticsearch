@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.ProjectReorderRenameRemove;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
+import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -156,6 +158,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         }
         return input -> new ProjectReorderRenameRemove(source(ctx), input, projections, removals);
+    }
+
+    @Override
+    public LogicalPlan visitShowInfo(EsqlBaseParser.ShowInfoContext ctx) {
+        return new ShowInfo(source(ctx));
+    }
+
+    @Override
+    public LogicalPlan visitShowFunctions(EsqlBaseParser.ShowFunctionsContext ctx) {
+        return new ShowFunctions(source(ctx));
     }
 
     interface PlanFactory extends Function<LogicalPlan, LogicalPlan> {}

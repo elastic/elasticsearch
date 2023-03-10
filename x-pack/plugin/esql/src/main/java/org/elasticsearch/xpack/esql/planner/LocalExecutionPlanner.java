@@ -27,6 +27,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
 import org.elasticsearch.compute.operator.RowOperator.RowOperatorFactory;
+import org.elasticsearch.compute.operator.ShowOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
+import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -165,6 +167,8 @@ public class LocalExecutionPlanner {
             return planRow(row, context);
         } else if (node instanceof LocalSourceExec localSource) {
             return planLocal(localSource, context);
+        } else if (node instanceof ShowExec show) {
+            return planShow(show);
         }
         // output
         else if (node instanceof OutputExec outputExec) {
@@ -202,9 +206,6 @@ public class LocalExecutionPlanner {
         // unsupported fields are passed through as a BytesRef
         if (dataType == DataTypes.KEYWORD || dataType == DataTypes.UNSUPPORTED) {
             return ElementType.BYTES_REF;
-        }
-        if (dataType == DataTypes.BOOLEAN) {
-            return ElementType.BOOLEAN;
         }
         if (dataType == DataTypes.NULL) {
             return ElementType.NULL;
@@ -331,6 +332,14 @@ public class LocalExecutionPlanner {
         }
         LocalSourceOperator.ObjectSupplier supplier = Collections::emptyList;
         return PhysicalOperation.fromSource(new LocalSourceFactory(() -> new LocalSourceOperator(supplier)), layout.build());
+    }
+
+    private PhysicalOperation planShow(ShowExec showExec) {
+        Layout.Builder layout = new Layout.Builder();
+        for (var attribute : showExec.output()) {
+            layout.appendChannel(attribute.id());
+        }
+        return PhysicalOperation.fromSource(new ShowOperator.ShowOperatorFactory(showExec.values()), layout.build());
     }
 
     private PhysicalOperation planProject(ProjectExec project, LocalExecutionPlannerContext context) {

@@ -10,6 +10,7 @@ WHERE : 'where' -> pushMode(EXPRESSION);
 SORT : 'sort' -> pushMode(EXPRESSION);
 LIMIT : 'limit' -> pushMode(EXPRESSION);
 PROJECT : 'project' -> pushMode(SOURCE_IDENTIFIERS);
+SHOW : 'show' -> pushMode(EXPRESSION);
 UNKNOWN_CMD : ~[ \r\n\t[\]/]+ -> pushMode(EXPRESSION);
 
 LINE_COMMENT
@@ -86,6 +87,8 @@ NULLS : 'nulls';
 OR : 'or';
 RP : ')';
 TRUE : 'true';
+INFO : 'info';
+FUNCTIONS : 'functions';
 
 EQ  : '==';
 NEQ : '!=';

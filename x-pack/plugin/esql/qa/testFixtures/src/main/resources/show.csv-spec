@@ -1,0 +1,40 @@
+showInfo
+show info | stats v = count(version);
+
+v:long
+1
+;
+
+showFunctions
+show functions;
+
+  name:keyword           |           synopsis:keyword
+abs                      |abs(arg1)
+avg                      |avg(arg1)
+case                     |case(arg1[])
+concat                   |concat(arg1, arg2[])
+count                    |count(arg1)
+date_format              |date_format(arg1, arg2)
+date_trunc               |date_trunc(arg1, arg2)
+is_finite                |is_finite(arg1)
+is_infinite              |is_infinite(arg1)
+is_nan                   |is_nan(arg1)
+length                   |length(arg1)
+max                      |max(arg1)
+median                   |median(arg1)
+median_absolute_deviation|median_absolute_deviation(arg1)
+min                      |min(arg1)
+round                    |round(arg1, arg2)
+starts_with              |starts_with(arg1, arg2)
+substring                |substring(arg1, arg2, arg3)
+sum                      |sum(arg1)
+;
+
+showFunctionsFiltered
+show functions | where starts_with(name, "is_");
+
+  name:keyword           |           synopsis:keyword
+is_finite                |is_finite(arg1)
+is_infinite              |is_infinite(arg1)
+is_nan                   |is_nan(arg1)
+;

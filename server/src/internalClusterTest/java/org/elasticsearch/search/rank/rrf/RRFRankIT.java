@@ -438,7 +438,7 @@ public class RRFRankIT extends ESIntegTestCase {
         assertTrue(vectors.contains(506.0));
         assertTrue(vectors.contains(507.0));
         assertTrue(vectors.contains(511.0));
-        // 491 and 508 have the same positions so result set
+        // 491 and 508 have the score based on their positions so the result set
         // depends on what order the documents were received
         // on the coordinating node
         assertTrue(vectors.contains(491.0) || vectors.contains(508.0));

@@ -20,9 +20,11 @@ Have an index with lat/lon pairs but no geo_point mapping? Use <<runtime-mapping
 [[geospatial-ingest]]
 == Ingest
 
-Use <<geoip-processor>> to add geographical location of an IPv4 or IPv6 address.
+Data is often messy and incomplete. Elasticearch <<ingest,ingest pipelines>> let you clean, transform, and augment your data before indexing. 
 
-<<geo-match-enrich-policy-type>>
+* Use <<geoip-processor>> to add geographical location of an IPv4 or IPv6 address.
+* Use <<ingest-geo-grid-processor,geo-grid processor>> to convert grid tile or cell ids to regular bounding boxes or polygons which describe their shape.
+* Use <<geo-match-enrich-policy-type,geo_match enrich policy>> for reverse geocoding. For example, use {reverse-geocoding-tutorial.html}/maps.html[reverse geocoding] to visualize urban areas by web traffic.
 
 [discrete]
 [[geospatial-query]]

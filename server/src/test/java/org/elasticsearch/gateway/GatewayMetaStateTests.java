@@ -10,22 +10,28 @@ package org.elasticsearch.gateway;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestCustomMetadata;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GatewayMetaStateTests extends ESTestCase {
@@ -138,6 +144,37 @@ public class GatewayMetaStateTests extends ESTestCase {
         assertThat(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(upgrade.templates().get("template2").settings()), equalTo(10));
         for (IndexMetadata indexMetadata : upgrade) {
             assertTrue(metadata.hasIndexMetadata(indexMetadata));
+        }
+    }
+
+    public void testPluggablePersistedStateValidation() throws IOException {
+        try (
+            var gatewayMetaState = new GatewayMetaState();
+            var testPersistedState = new InMemoryPersistedState(0, ClusterState.EMPTY_STATE)
+        ) {
+            final var duplicatePlugin = new ClusterCoordinationPlugin() {
+                @Override
+                public Optional<PersistedStateFactory> getPersistedStateFactory() {
+                    return Optional.of(
+                        (settings, transportService, persistedClusterStateService) -> { throw new AssertionError("should not be called"); }
+                    );
+                }
+            };
+            assertThat(
+                expectThrows(
+                    IllegalStateException.class,
+                    () -> gatewayMetaState.start(null, null, null, null, null, null, null, List.of(duplicatePlugin, duplicatePlugin))
+                ).getMessage(),
+                containsString("multiple persisted-state factories")
+            );
+
+            gatewayMetaState.start(null, null, null, null, null, null, null, List.of(new ClusterCoordinationPlugin() {
+                @Override
+                public Optional<PersistedStateFactory> getPersistedStateFactory() {
+                    return Optional.of((settings, transportService, persistedClusterStateService) -> testPersistedState);
+                }
+            }));
+            assertSame(testPersistedState, gatewayMetaState.getPersistedState());
         }
     }
 

@@ -171,6 +171,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     // default visibility for testing purposes
     void run(ClusterState state) {
         for (DataStream dataStream : state.metadata().dataStreams().values()) {
+            clearErrorStoreForUnmanagedIndices(dataStream);
             if (dataStream.getLifecycle() == null) {
                 continue;
             }
@@ -199,6 +200,19 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                     () -> String.format(Locale.ROOT, "DLM failed to execute retention for data stream [%s]", dataStream.getName()),
                     e
                 );
+            }
+        }
+    }
+
+    /**
+     * This clears the error store for the case where a data stream or some backing indices were managed by DLM, failed in their
+     * lifecycle execution, and then they were not managed by DLM (maybe they were switched to ILM).
+     */
+    private void clearErrorStoreForUnmanagedIndices(DataStream dataStream) {
+        Metadata metadata = clusterService.state().metadata();
+        for (Index index : dataStream.getIndices()) {
+            if (dataStream.isIndexManagedByDLM(index, metadata::index) == false) {
+                errorStore.clearRecordedError(index.getName());
             }
         }
     }

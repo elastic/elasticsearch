@@ -18,7 +18,7 @@ Indices attached to the Search Application are not removed.
 ==== {api-prereq-title}
 
 Requires the `manage_search_application` cluster privilege.
-Also requires `manage` privileges on all indices that are included in the Search Application.
+Also requires <<privileges-list-indices,manage privileges>> on all indices that are included in the Search Application.
 
 [[delete-search-application-path-params]]
 ==== {api-path-parms-title}

@@ -450,6 +450,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
                     fetchStarted.countDown();
                     secondBulkIndexed.await();
                 } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                     throw new IllegalStateException(e);
                 }
             }

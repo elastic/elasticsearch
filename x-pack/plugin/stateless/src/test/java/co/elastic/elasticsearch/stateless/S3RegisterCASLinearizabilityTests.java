@@ -280,6 +280,7 @@ public class S3RegisterCASLinearizabilityTests extends ESTestCase {
             try {
                 Thread.sleep(millis);
             } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 throw new RuntimeException(e);
             }
         }
@@ -287,7 +288,10 @@ public class S3RegisterCASLinearizabilityTests extends ESTestCase {
         void waitForStartBarrier() {
             try {
                 startBarrier.await();
-            } catch (InterruptedException | BrokenBarrierException e) {
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+            } catch (BrokenBarrierException e) {
                 throw new RuntimeException(e);
             }
         }
@@ -296,6 +300,7 @@ public class S3RegisterCASLinearizabilityTests extends ESTestCase {
             try {
                 join();
             } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 throw new RuntimeException(e);
             }
         }

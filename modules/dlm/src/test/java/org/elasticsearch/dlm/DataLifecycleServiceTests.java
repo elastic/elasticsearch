@@ -306,6 +306,43 @@ public class DataLifecycleServiceTests extends ESTestCase {
         }
     }
 
+    public void testErrorStoreIsClearedOnBackingIndexBecomingUnmanaged() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        int numBackingIndices = 3;
+        Metadata.Builder builder = Metadata.builder();
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            numBackingIndices,
+            settings(Version.CURRENT),
+            new DataLifecycle(TimeValue.timeValueDays(700))
+        );
+        // all backing indices are in the error store
+        for (Index index : dataStream.getIndices()) {
+            dataLifecycleService.getErrorStore().recordError(index.getName(), new NullPointerException("bad"));
+        }
+        builder.put(dataStream);
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
+
+        Metadata metadata = state.metadata();
+        Metadata.Builder metaBuilder = Metadata.builder(metadata);
+
+        // update the backing indices to be ILM managed
+        for (Index index : dataStream.getIndices()) {
+            IndexMetadata indexMetadata = metadata.index(index);
+            IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(indexMetadata);
+            indexMetaBuilder.settings(Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy"));
+            metaBuilder.put(indexMetaBuilder.build(), true);
+        }
+        ClusterState updatedState = ClusterState.builder(state).metadata(metaBuilder).build();
+
+        dataLifecycleService.run(updatedState);
+
+        for (Index index : dataStream.getIndices()) {
+            assertThat(dataLifecycleService.getErrorStore().getError(index.getName()), nullValue());
+        }
+    }
+
     private static DiscoveryNodes.Builder buildNodes(String nodeId) {
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
         nodesBuilder.localNodeId(nodeId);

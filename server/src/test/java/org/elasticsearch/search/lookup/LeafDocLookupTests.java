@@ -214,27 +214,27 @@ public class LeafDocLookupTests extends ESTestCase {
         // load shared doc values field into cache w/ doc-access first
         assertEquals(docDocValues, leafDocLookup.get(nameDoc));
         assertEquals(1, leafDocLookup.docFactoryCache.size());
-        assertEquals(docFactory, leafDocLookup.docFactoryCache.get(nameDoc));
+        assertEquals(docFactory, leafDocLookup.docFactoryCache.get(nameDoc).factory);
         assertTrue(leafDocLookup.fieldFactoryCache.isEmpty());
         assertEquals(fieldDocValues, leafDocLookup.getScriptField(nameDoc));
         assertEquals(1, leafDocLookup.docFactoryCache.size());
-        assertEquals(docFactory, leafDocLookup.docFactoryCache.get(nameDoc));
+        assertEquals(docFactory, leafDocLookup.docFactoryCache.get(nameDoc).factory);
         assertEquals(1, leafDocLookup.fieldFactoryCache.size());
-        assertEquals(docFactory, leafDocLookup.fieldFactoryCache.get(nameDoc));
+        assertEquals(docFactory, leafDocLookup.fieldFactoryCache.get(nameDoc).factory);
 
         assertEquals(docDocValues, leafDocLookup.get(nameDoc));
         assertEquals(fieldDocValues, leafDocLookup.getScriptField(nameDoc));
         assertEquals(1, leafDocLookup.docFactoryCache.size());
-        assertEquals(docFactory, leafDocLookup.docFactoryCache.get(nameDoc));
+        assertEquals(docFactory, leafDocLookup.docFactoryCache.get(nameDoc).factory);
         assertEquals(1, leafDocLookup.fieldFactoryCache.size());
-        assertEquals(docFactory, leafDocLookup.fieldFactoryCache.get(nameDoc));
+        assertEquals(docFactory, leafDocLookup.fieldFactoryCache.get(nameDoc).factory);
 
         assertEquals(fieldDocValues, leafDocLookup.getScriptField(nameDoc));
         assertEquals(docDocValues, leafDocLookup.get(nameDoc));
         assertEquals(1, leafDocLookup.docFactoryCache.size());
-        assertEquals(docFactory, leafDocLookup.docFactoryCache.get(nameDoc));
+        assertEquals(docFactory, leafDocLookup.docFactoryCache.get(nameDoc).factory);
         assertEquals(1, leafDocLookup.fieldFactoryCache.size());
-        assertEquals(docFactory, leafDocLookup.fieldFactoryCache.get(nameDoc));
+        assertEquals(docFactory, leafDocLookup.fieldFactoryCache.get(nameDoc).factory);
 
         // clear the cache
         leafDocLookup.docFactoryCache.clear();
@@ -243,27 +243,27 @@ public class LeafDocLookupTests extends ESTestCase {
         // load shared doc values field into cache w/ field-access first
         assertEquals(fieldDocValues, leafDocLookup.getScriptField(nameDoc));
         assertEquals(1, leafDocLookup.fieldFactoryCache.size());
-        assertEquals(docFactory, leafDocLookup.fieldFactoryCache.get(nameDoc));
+        assertEquals(docFactory, leafDocLookup.fieldFactoryCache.get(nameDoc).factory);
         assertTrue(leafDocLookup.docFactoryCache.isEmpty());
         assertEquals(docDocValues, leafDocLookup.get(nameDoc));
         assertEquals(1, leafDocLookup.fieldFactoryCache.size());
-        assertEquals(docFactory, leafDocLookup.fieldFactoryCache.get(nameDoc));
+        assertEquals(docFactory, leafDocLookup.fieldFactoryCache.get(nameDoc).factory);
         assertEquals(1, leafDocLookup.docFactoryCache.size());
-        assertEquals(docFactory, leafDocLookup.docFactoryCache.get(nameDoc));
+        assertEquals(docFactory, leafDocLookup.docFactoryCache.get(nameDoc).factory);
 
         assertEquals(fieldDocValues, leafDocLookup.getScriptField(nameDoc));
         assertEquals(docDocValues, leafDocLookup.get(nameDoc));
         assertEquals(1, leafDocLookup.fieldFactoryCache.size());
-        assertEquals(docFactory, leafDocLookup.fieldFactoryCache.get(nameDoc));
+        assertEquals(docFactory, leafDocLookup.fieldFactoryCache.get(nameDoc).factory);
         assertEquals(1, leafDocLookup.docFactoryCache.size());
-        assertEquals(docFactory, leafDocLookup.docFactoryCache.get(nameDoc));
+        assertEquals(docFactory, leafDocLookup.docFactoryCache.get(nameDoc).factory);
 
         assertEquals(docDocValues, leafDocLookup.get(nameDoc));
         assertEquals(fieldDocValues, leafDocLookup.getScriptField(nameDoc));
         assertEquals(1, leafDocLookup.fieldFactoryCache.size());
-        assertEquals(docFactory, leafDocLookup.fieldFactoryCache.get(nameDoc));
+        assertEquals(docFactory, leafDocLookup.fieldFactoryCache.get(nameDoc).factory);
         assertEquals(1, leafDocLookup.docFactoryCache.size());
-        assertEquals(docFactory, leafDocLookup.docFactoryCache.get(nameDoc));
+        assertEquals(docFactory, leafDocLookup.docFactoryCache.get(nameDoc).factory);
 
         // clear the cache
         leafDocLookup.docFactoryCache.clear();
@@ -274,7 +274,7 @@ public class LeafDocLookupTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> leafDocLookup.get(nameSource));
         assertTrue(leafDocLookup.docFactoryCache.isEmpty());
         assertEquals(1, leafDocLookup.fieldFactoryCache.size());
-        assertEquals(sourceFactory, leafDocLookup.fieldFactoryCache.get(nameSource));
+        assertEquals(sourceFactory, leafDocLookup.fieldFactoryCache.get(nameSource).factory);
 
         // clear the cache
         leafDocLookup.docFactoryCache.clear();
@@ -283,27 +283,27 @@ public class LeafDocLookupTests extends ESTestCase {
         // load doc values for doc-access and script values for script-access from the same index field data w/ doc-access first
         assertEquals(docSourceAndDocValues, leafDocLookup.get(nameDocAndSource));
         assertEquals(1, leafDocLookup.docFactoryCache.size());
-        assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource));
+        assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource).factory);
         assertTrue(leafDocLookup.fieldFactoryCache.isEmpty());
         assertEquals(fieldSourceAndDocValues, leafDocLookup.getScriptField(nameDocAndSource));
         assertEquals(1, leafDocLookup.docFactoryCache.size());
-        assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource));
+        assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource).factory);
         assertEquals(1, leafDocLookup.fieldFactoryCache.size());
-        assertEquals(docAndSourceSourceFactory, leafDocLookup.fieldFactoryCache.get(nameDocAndSource));
+        assertEquals(docAndSourceSourceFactory, leafDocLookup.fieldFactoryCache.get(nameDocAndSource).factory);
 
         assertEquals(docSourceAndDocValues, leafDocLookup.get(nameDocAndSource));
         assertEquals(fieldSourceAndDocValues, leafDocLookup.getScriptField(nameDocAndSource));
         assertEquals(1, leafDocLookup.docFactoryCache.size());
-        assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource));
+        assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource).factory);
         assertEquals(1, leafDocLookup.fieldFactoryCache.size());
-        assertEquals(docAndSourceSourceFactory, leafDocLookup.fieldFactoryCache.get(nameDocAndSource));
+        assertEquals(docAndSourceSourceFactory, leafDocLookup.fieldFactoryCache.get(nameDocAndSource).factory);
 
         assertEquals(fieldSourceAndDocValues, leafDocLookup.getScriptField(nameDocAndSource));
         assertEquals(docSourceAndDocValues, leafDocLookup.get(nameDocAndSource));
         assertEquals(1, leafDocLookup.docFactoryCache.size());
-        assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource));
+        assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource).factory);
         assertEquals(1, leafDocLookup.fieldFactoryCache.size());
-        assertEquals(docAndSourceSourceFactory, leafDocLookup.fieldFactoryCache.get(nameDocAndSource));
+        assertEquals(docAndSourceSourceFactory, leafDocLookup.fieldFactoryCache.get(nameDocAndSource).factory);
 
         // clear the cache
         leafDocLookup.docFactoryCache.clear();
@@ -312,27 +312,27 @@ public class LeafDocLookupTests extends ESTestCase {
         // load doc values for doc-access and script values for script-access from the same index field data w/ field-access first
         assertEquals(fieldSourceAndDocValues, leafDocLookup.getScriptField(nameDocAndSource));
         assertEquals(1, leafDocLookup.fieldFactoryCache.size());
-        assertEquals(docAndSourceSourceFactory, leafDocLookup.fieldFactoryCache.get(nameDocAndSource));
+        assertEquals(docAndSourceSourceFactory, leafDocLookup.fieldFactoryCache.get(nameDocAndSource).factory);
         assertTrue(leafDocLookup.docFactoryCache.isEmpty());
         assertEquals(docSourceAndDocValues, leafDocLookup.get(nameDocAndSource));
         assertEquals(1, leafDocLookup.fieldFactoryCache.size());
-        assertEquals(docAndSourceSourceFactory, leafDocLookup.fieldFactoryCache.get(nameDocAndSource));
+        assertEquals(docAndSourceSourceFactory, leafDocLookup.fieldFactoryCache.get(nameDocAndSource).factory);
         assertEquals(1, leafDocLookup.docFactoryCache.size());
-        assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource));
+        assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource).factory);
 
         assertEquals(fieldSourceAndDocValues, leafDocLookup.getScriptField(nameDocAndSource));
         assertEquals(docSourceAndDocValues, leafDocLookup.get(nameDocAndSource));
         assertEquals(1, leafDocLookup.fieldFactoryCache.size());
-        assertEquals(docAndSourceSourceFactory, leafDocLookup.fieldFactoryCache.get(nameDocAndSource));
+        assertEquals(docAndSourceSourceFactory, leafDocLookup.fieldFactoryCache.get(nameDocAndSource).factory);
         assertEquals(1, leafDocLookup.docFactoryCache.size());
-        assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource));
+        assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource).factory);
 
         assertEquals(docSourceAndDocValues, leafDocLookup.get(nameDocAndSource));
         assertEquals(fieldSourceAndDocValues, leafDocLookup.getScriptField(nameDocAndSource));
         assertEquals(1, leafDocLookup.fieldFactoryCache.size());
-        assertEquals(docAndSourceSourceFactory, leafDocLookup.fieldFactoryCache.get(nameDocAndSource));
+        assertEquals(docAndSourceSourceFactory, leafDocLookup.fieldFactoryCache.get(nameDocAndSource).factory);
         assertEquals(1, leafDocLookup.docFactoryCache.size());
-        assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource));
+        assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource).factory);
 
         // clear the cache
         leafDocLookup.docFactoryCache.clear();
@@ -345,12 +345,12 @@ public class LeafDocLookupTests extends ESTestCase {
         assertEquals(fieldSourceValues, leafDocLookup.getScriptField(nameSource));
         assertEquals(fieldSourceAndDocValues, leafDocLookup.getScriptField(nameDocAndSource));
         assertEquals(2, leafDocLookup.docFactoryCache.size());
-        assertEquals(docFactory, leafDocLookup.docFactoryCache.get(nameDoc));
-        assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource));
+        assertEquals(docFactory, leafDocLookup.docFactoryCache.get(nameDoc).factory);
+        assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource).factory);
         assertEquals(3, leafDocLookup.fieldFactoryCache.size());
-        assertEquals(docFactory, leafDocLookup.fieldFactoryCache.get(nameDoc));
-        assertEquals(sourceFactory, leafDocLookup.fieldFactoryCache.get(nameSource));
-        assertEquals(docAndSourceSourceFactory, leafDocLookup.fieldFactoryCache.get(nameDocAndSource));
+        assertEquals(docFactory, leafDocLookup.fieldFactoryCache.get(nameDoc).factory);
+        assertEquals(sourceFactory, leafDocLookup.fieldFactoryCache.get(nameSource).factory);
+        assertEquals(docAndSourceSourceFactory, leafDocLookup.fieldFactoryCache.get(nameDocAndSource).factory);
 
         assertEquals(fieldDocValues, leafDocLookup.getScriptField(nameDoc));
         assertEquals(fieldSourceValues, leafDocLookup.getScriptField(nameSource));
@@ -358,12 +358,12 @@ public class LeafDocLookupTests extends ESTestCase {
         assertEquals(docDocValues, leafDocLookup.get(nameDoc));
         assertEquals(docSourceAndDocValues, leafDocLookup.get(nameDocAndSource));
         assertEquals(3, leafDocLookup.fieldFactoryCache.size());
-        assertEquals(docFactory, leafDocLookup.fieldFactoryCache.get(nameDoc));
-        assertEquals(sourceFactory, leafDocLookup.fieldFactoryCache.get(nameSource));
-        assertEquals(docAndSourceSourceFactory, leafDocLookup.fieldFactoryCache.get(nameDocAndSource));
+        assertEquals(docFactory, leafDocLookup.fieldFactoryCache.get(nameDoc).factory);
+        assertEquals(sourceFactory, leafDocLookup.fieldFactoryCache.get(nameSource).factory);
+        assertEquals(docAndSourceSourceFactory, leafDocLookup.fieldFactoryCache.get(nameDocAndSource).factory);
         assertEquals(2, leafDocLookup.docFactoryCache.size());
-        assertEquals(docFactory, leafDocLookup.docFactoryCache.get(nameDoc));
-        assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource));
+        assertEquals(docFactory, leafDocLookup.docFactoryCache.get(nameDoc).factory);
+        assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource).factory);
 
         assertEquals(docDocValues, leafDocLookup.get(nameDoc));
         assertEquals(docSourceAndDocValues, leafDocLookup.get(nameDocAndSource));
@@ -371,12 +371,12 @@ public class LeafDocLookupTests extends ESTestCase {
         assertEquals(fieldSourceValues, leafDocLookup.getScriptField(nameSource));
         assertEquals(fieldSourceAndDocValues, leafDocLookup.getScriptField(nameDocAndSource));
         assertEquals(2, leafDocLookup.docFactoryCache.size());
-        assertEquals(docFactory, leafDocLookup.docFactoryCache.get(nameDoc));
-        assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource));
+        assertEquals(docFactory, leafDocLookup.docFactoryCache.get(nameDoc).factory);
+        assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource).factory);
         assertEquals(3, leafDocLookup.fieldFactoryCache.size());
-        assertEquals(docFactory, leafDocLookup.fieldFactoryCache.get(nameDoc));
-        assertEquals(sourceFactory, leafDocLookup.fieldFactoryCache.get(nameSource));
-        assertEquals(docAndSourceSourceFactory, leafDocLookup.fieldFactoryCache.get(nameDocAndSource));
+        assertEquals(docFactory, leafDocLookup.fieldFactoryCache.get(nameDoc).factory);
+        assertEquals(sourceFactory, leafDocLookup.fieldFactoryCache.get(nameSource).factory);
+        assertEquals(docAndSourceSourceFactory, leafDocLookup.fieldFactoryCache.get(nameDocAndSource).factory);
 
         // clear the cache
         leafDocLookup.docFactoryCache.clear();
@@ -389,12 +389,12 @@ public class LeafDocLookupTests extends ESTestCase {
         assertEquals(docDocValues, leafDocLookup.get(nameDoc));
         assertEquals(docSourceAndDocValues, leafDocLookup.get(nameDocAndSource));
         assertEquals(3, leafDocLookup.fieldFactoryCache.size());
-        assertEquals(docFactory, leafDocLookup.fieldFactoryCache.get(nameDoc));
-        assertEquals(sourceFactory, leafDocLookup.fieldFactoryCache.get(nameSource));
-        assertEquals(docAndSourceSourceFactory, leafDocLookup.fieldFactoryCache.get(nameDocAndSource));
+        assertEquals(docFactory, leafDocLookup.fieldFactoryCache.get(nameDoc).factory);
+        assertEquals(sourceFactory, leafDocLookup.fieldFactoryCache.get(nameSource).factory);
+        assertEquals(docAndSourceSourceFactory, leafDocLookup.fieldFactoryCache.get(nameDocAndSource).factory);
         assertEquals(2, leafDocLookup.docFactoryCache.size());
-        assertEquals(docFactory, leafDocLookup.docFactoryCache.get(nameDoc));
-        assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource));
+        assertEquals(docFactory, leafDocLookup.docFactoryCache.get(nameDoc).factory);
+        assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource).factory);
 
         assertEquals(docDocValues, leafDocLookup.get(nameDoc));
         assertEquals(docSourceAndDocValues, leafDocLookup.get(nameDocAndSource));
@@ -402,12 +402,12 @@ public class LeafDocLookupTests extends ESTestCase {
         assertEquals(fieldSourceValues, leafDocLookup.getScriptField(nameSource));
         assertEquals(fieldSourceAndDocValues, leafDocLookup.getScriptField(nameDocAndSource));
         assertEquals(2, leafDocLookup.docFactoryCache.size());
-        assertEquals(docFactory, leafDocLookup.docFactoryCache.get(nameDoc));
-        assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource));
+        assertEquals(docFactory, leafDocLookup.docFactoryCache.get(nameDoc).factory);
+        assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource).factory);
         assertEquals(3, leafDocLookup.fieldFactoryCache.size());
-        assertEquals(docFactory, leafDocLookup.fieldFactoryCache.get(nameDoc));
-        assertEquals(sourceFactory, leafDocLookup.fieldFactoryCache.get(nameSource));
-        assertEquals(docAndSourceSourceFactory, leafDocLookup.fieldFactoryCache.get(nameDocAndSource));
+        assertEquals(docFactory, leafDocLookup.fieldFactoryCache.get(nameDoc).factory);
+        assertEquals(sourceFactory, leafDocLookup.fieldFactoryCache.get(nameSource).factory);
+        assertEquals(docAndSourceSourceFactory, leafDocLookup.fieldFactoryCache.get(nameDocAndSource).factory);
 
         assertEquals(fieldDocValues, leafDocLookup.getScriptField(nameDoc));
         assertEquals(fieldSourceValues, leafDocLookup.getScriptField(nameSource));
@@ -415,12 +415,12 @@ public class LeafDocLookupTests extends ESTestCase {
         assertEquals(docDocValues, leafDocLookup.get(nameDoc));
         assertEquals(docSourceAndDocValues, leafDocLookup.get(nameDocAndSource));
         assertEquals(3, leafDocLookup.fieldFactoryCache.size());
-        assertEquals(docFactory, leafDocLookup.fieldFactoryCache.get(nameDoc));
-        assertEquals(sourceFactory, leafDocLookup.fieldFactoryCache.get(nameSource));
-        assertEquals(docAndSourceSourceFactory, leafDocLookup.fieldFactoryCache.get(nameDocAndSource));
+        assertEquals(docFactory, leafDocLookup.fieldFactoryCache.get(nameDoc).factory);
+        assertEquals(sourceFactory, leafDocLookup.fieldFactoryCache.get(nameSource).factory);
+        assertEquals(docAndSourceSourceFactory, leafDocLookup.fieldFactoryCache.get(nameDocAndSource).factory);
         assertEquals(2, leafDocLookup.docFactoryCache.size());
-        assertEquals(docFactory, leafDocLookup.docFactoryCache.get(nameDoc));
-        assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource));
+        assertEquals(docFactory, leafDocLookup.docFactoryCache.get(nameDoc).factory);
+        assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource).factory);
     }
 
     public void testLookupPrivilegesAdvanceDoc() {

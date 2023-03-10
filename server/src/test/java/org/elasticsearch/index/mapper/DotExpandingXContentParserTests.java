@@ -20,7 +20,8 @@ public class DotExpandingXContentParserTests extends ESTestCase {
 
     private void assertXContentMatches(String dotsExpanded, String withDots) throws IOException {
         XContentParser inputParser = createParser(JsonXContent.jsonXContent, withDots);
-        XContentParser expandedParser = DotExpandingXContentParser.expandDots(inputParser, () -> false);
+        final ContentPath contentPath = new ContentPath();
+        XContentParser expandedParser = DotExpandingXContentParser.expandDots(inputParser, contentPath);
         expandedParser.allowDuplicateKeys(true);
 
         XContentBuilder actualOutput = XContentBuilder.builder(JsonXContent.jsonXContent).copyCurrentStructure(expandedParser);
@@ -28,7 +29,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
 
         XContentParser expectedParser = createParser(JsonXContent.jsonXContent, dotsExpanded);
         expectedParser.allowDuplicateKeys(true);
-        XContentParser actualParser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, withDots), () -> false);
+        XContentParser actualParser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, withDots), contentPath);
         XContentParser.Token currentToken;
         while ((currentToken = actualParser.nextToken()) != null) {
             assertEquals(currentToken, expectedParser.nextToken());
@@ -114,7 +115,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
     public void testDotsCollapsingFlatPaths() throws IOException {
         ContentPath contentPath = new ContentPath();
         XContentParser parser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, """
-            {"metrics.service.time": 10, "metrics.service.time.max": 500, "metrics.foo": "value"}"""), contentPath::isWithinLeafObject);
+            {"metrics.service.time": 10, "metrics.service.time.max": 500, "metrics.foo": "value"}"""), contentPath);
         parser.nextToken();
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals("metrics", parser.currentName());
@@ -184,7 +185,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
                 },
                 "foo" : "value"
               }
-            }"""), contentPath::isWithinLeafObject);
+            }"""), contentPath);
         parser.nextToken();
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals("metrics", parser.currentName());
@@ -222,7 +223,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
 
     public void testSkipChildren() throws IOException {
         XContentParser parser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, """
-            { "test.with.dots" : "value", "nodots" : "value2" }"""), () -> false);
+            { "test.with.dots" : "value", "nodots" : "value2" }"""), new ContentPath());
         parser.nextToken();     // start object
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals("test", parser.currentName());
@@ -245,7 +246,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
 
     public void testSkipChildrenWithinInnerObject() throws IOException {
         XContentParser parser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, """
-            { "test.with.dots" : {"obj" : {"field":"value"}}, "nodots" : "value2" }"""), () -> false);
+            { "test.with.dots" : {"obj" : {"field":"value"}}, "nodots" : "value2" }"""), new ContentPath());
 
         parser.nextToken();     // start object
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
@@ -293,7 +294,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         XContentParser expectedParser = createParser(JsonXContent.jsonXContent, jsonInput);
         XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
             createParser(JsonXContent.jsonXContent, jsonInput),
-            () -> false
+            new ContentPath()
         );
 
         assertEquals(expectedParser.getTokenLocation(), dotExpandedParser.getTokenLocation());

@@ -16,6 +16,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -27,8 +28,9 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class RemoteClusterSecurityAnonymousUserIT extends AbstractRemoteClusterSecurityTestCase {
+public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSecurityTestCase {
 
     static {
         fulfillingCluster = ElasticsearchCluster.local()
@@ -63,8 +65,9 @@ public class RemoteClusterSecurityAnonymousUserIT extends AbstractRemoteClusterS
         final String remoteAccessApiKeyId = configureRemoteClustersWithApiKey("""
             [
                {
-                 "names": ["shared-*"],
-                 "privileges": ["read", "read_cross_cluster"]
+                 "names": ["shared-*", "apm-1", ".security*"],
+                 "privileges": ["read", "read_cross_cluster"],
+                 "allow_restricted_indices": true
                }
              ]""");
 
@@ -79,7 +82,13 @@ public class RemoteClusterSecurityAnonymousUserIT extends AbstractRemoteClusterS
                 { "index": { "_index": "private-logs" } }
                 { "name": "private-logs" }
                 { "index": { "_index": "private-metrics" } }
-                { "name": "private-metrics" }\n"""));
+                { "name": "private-metrics" }
+                { "index": { "_index": "apm-1" } }
+                { "name": "apm-1" }
+                { "index": { "_index": "apm-2" } }
+                { "name": "apm-2" }
+                { "index": { "_index": "logs-apm.1" } }
+                { "name": "logs-apm.1" }\n"""));
             assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
         }
 
@@ -135,6 +144,41 @@ public class RemoteClusterSecurityAnonymousUserIT extends AbstractRemoteClusterS
                 Arrays.stream(searchResponse3.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toList()),
                 containsInAnyOrder("shared-logs", "shared-metrics")
             );
+
+            // 4. QC service account
+            final Request createServiceTokenRequest = new Request("POST", "/_security/service/elastic/kibana/credential/token");
+            final Response createServiceTokenResponse = client().performRequest(createServiceTokenRequest);
+            assertOK(createServiceTokenResponse);
+            final String serviceToken = ObjectPath.eval("token.value", responseAsMap(createServiceTokenResponse));
+
+            final Request kibanaServiceSearchRequest = new Request("GET", "/*:*/_search");
+            kibanaServiceSearchRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + serviceToken));
+            final Response kibanaServiceSearchResponse = client().performRequest(kibanaServiceSearchRequest);
+            assertOK(kibanaServiceSearchResponse);
+            final SearchResponse searchResponse4 = SearchResponse.fromXContent(responseAsParser(kibanaServiceSearchResponse));
+            assertThat(
+                Arrays.stream(searchResponse4.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toList()),
+                containsInAnyOrder("apm-1")
+            );
+
+            // 5. QC elastic superuser access system indices
+            final Request changePasswordRequest = new Request("PUT", "/_security/user/elastic/_password");
+            changePasswordRequest.setJsonEntity(Strings.format("""
+                { "password": "%s" }""", PASS));
+            assertOK(client().performRequest(changePasswordRequest));
+
+            final Request elasticUserSearchRequest = new Request("GET", "/*:.security*/_search");
+            elasticUserSearchRequest.setOptions(
+                RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue("elastic", PASS))
+            );
+            final Response elasticUserSearchResponse = client().performRequest(elasticUserSearchRequest);
+            assertOK(elasticUserSearchResponse);
+            final SearchResponse searchResponse5 = SearchResponse.fromXContent(responseAsParser(elasticUserSearchResponse));
+            assertThat(
+                Arrays.stream(searchResponse5.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toList()),
+                containsInAnyOrder(".security-7")
+            );
+            assertThat(searchResponse5.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
         }
     }
 

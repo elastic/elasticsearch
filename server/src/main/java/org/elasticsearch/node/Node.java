@@ -152,6 +152,7 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
+import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
@@ -899,6 +900,7 @@ public class Node implements Closeable {
                 clusterService.getClusterApplierService(),
                 clusterService.getClusterSettings(),
                 pluginsService.filterPlugins(DiscoveryPlugin.class),
+                pluginsService.filterPlugins(ClusterCoordinationPlugin.class),
                 clusterModule.getAllocationService(),
                 environment.configFile(),
                 gatewayMetaState,
@@ -1405,7 +1407,7 @@ public class Node implements Closeable {
         fileSettingsService.start();
         // if we are using the readiness service, listen for the file settings being applied
         if (ReadinessService.enabled(environment)) {
-            fileSettingsService.addFileSettingsChangedListener(injector.getInstance(ReadinessService.class));
+            fileSettingsService.addFileChangedListener(injector.getInstance(ReadinessService.class));
         }
 
         clusterService.addStateApplier(transportService.getTaskManager());

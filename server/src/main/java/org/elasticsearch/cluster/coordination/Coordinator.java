@@ -521,10 +521,28 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
                 final StartJoinRequest startJoinRequest = new StartJoinRequest(getLocalNode(), Math.max(getCurrentTerm(), maxTermSeen) + 1);
                 logger.debug("starting election with {}", startJoinRequest);
-                electionStrategy.onNewElection(startJoinRequest.getSourceNode(), startJoinRequest.getTerm(), getLastAcceptedState());
-                getDiscoveredNodes().forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
+                broadcastStartJoinRequest(startJoinRequest, getDiscoveredNodes());
             }
         }
+    }
+
+    private void broadcastStartJoinRequest(StartJoinRequest startJoinRequest, List<DiscoveryNode> discoveredNodes) {
+        electionStrategy.onNewElection(
+            startJoinRequest.getSourceNode(),
+            startJoinRequest.getTerm(),
+            getLastAcceptedState(),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Void ignored) {
+                    discoveredNodes.forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.debug(Strings.format("election attempt failed, dropping [%s]", startJoinRequest), e);
+                }
+            }
+        );
     }
 
     private void abdicateTo(DiscoveryNode newMaster) {
@@ -533,7 +551,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         assert newMaster.isMasterNode() : "should only abdicate to master-eligible node but was " + newMaster;
         final StartJoinRequest startJoinRequest = new StartJoinRequest(newMaster, Math.max(getCurrentTerm(), maxTermSeen) + 1);
         logger.info("abdicating to {} with term {}", newMaster, startJoinRequest.getTerm());
-        getLastAcceptedState().nodes().mastersFirstStream().forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
+        broadcastStartJoinRequest(startJoinRequest, getLastAcceptedState().nodes().mastersFirstStream().toList());
         // handling of start join messages on the local node will be dispatched to the coordination thread-pool
         assert mode == Mode.LEADER : "should still be leader after sending abdication messages " + mode;
         // explicitly move node to candidate state so that the next cluster state update task yields an onNoLongerMaster event

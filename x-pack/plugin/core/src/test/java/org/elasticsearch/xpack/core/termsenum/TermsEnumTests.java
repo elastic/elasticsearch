@@ -38,6 +38,7 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
         return Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), "false").build();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94378")
     public void testTermsEnumIPBasic() throws Exception {
         String indexName = "test";
         createIndex(indexName);

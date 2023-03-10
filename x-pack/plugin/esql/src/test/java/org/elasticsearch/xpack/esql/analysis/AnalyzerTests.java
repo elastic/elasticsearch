@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -52,9 +51,8 @@ public class AnalyzerTests extends ESTestCase {
         Analyzer analyzer = newAnalyzer(IndexResolution.valid(idx));
         var plan = analyzer.analyze(new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "idx"), null, false));
         var limit = as(plan, Limit.class);
-        var project = as(limit.child(), Project.class);
 
-        assertEquals(new EsRelation(EMPTY, idx, false), project.child());
+        assertEquals(new EsRelation(EMPTY, idx, false), limit.child());
     }
 
     public void testFailOnUnresolvedIndex() {
@@ -74,9 +72,8 @@ public class AnalyzerTests extends ESTestCase {
 
         var plan = analyzer.analyze(new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, "cluster", "idx"), null, false));
         var limit = as(plan, Limit.class);
-        var project = as(limit.child(), Project.class);
 
-        assertEquals(new EsRelation(EMPTY, idx, false), project.child());
+        assertEquals(new EsRelation(EMPTY, idx, false), limit.child());
     }
 
     public void testAttributeResolution() {
@@ -92,8 +89,7 @@ public class AnalyzerTests extends ESTestCase {
         );
 
         var limit = as(plan, Limit.class);
-        var project = as(limit.child(), Project.class);
-        var eval = as(project.child(), Eval.class);
+        var eval = as(limit.child(), Eval.class);
         assertEquals(1, eval.fields().size());
         assertEquals(new Alias(EMPTY, "e", new FieldAttribute(EMPTY, "emp_no", idx.mapping().get("emp_no"))), eval.fields().get(0));
 
@@ -122,8 +118,7 @@ public class AnalyzerTests extends ESTestCase {
         );
 
         var limit = as(plan, Limit.class);
-        var project = as(limit.child(), Project.class);
-        var eval = as(project.child(), Eval.class);
+        var eval = as(limit.child(), Eval.class);
 
         assertEquals(1, eval.fields().size());
         Alias eeField = (Alias) eval.fields().get(0);
@@ -155,8 +150,7 @@ public class AnalyzerTests extends ESTestCase {
         );
 
         var limit = as(plan, Limit.class);
-        var project = as(limit.child(), Project.class);
-        var eval = as(project.child(), Eval.class);
+        var eval = as(limit.child(), Eval.class);
         assertEquals(1, eval.fields().size());
         assertEquals(new Alias(EMPTY, "e", new ReferenceAttribute(EMPTY, "emp_no", DataTypes.INTEGER)), eval.fields().get(0));
 
@@ -739,8 +733,7 @@ public class AnalyzerTests extends ESTestCase {
             from test
             """);
         var limit = as(plan, Limit.class);
-        var project = as(limit.child(), Project.class);
-        as(project.child(), EsRelation.class);
+        as(limit.child(), EsRelation.class);
     }
 
     public void testDateFormatOnInt() {
@@ -935,22 +928,19 @@ public class AnalyzerTests extends ESTestCase {
     private void assertProjection(String query, String... names) {
         var plan = analyze(query);
         var limit = as(plan, Limit.class);
-        var project = as(limit.child(), Project.class);
-        assertThat(Expressions.names(project.projections()), contains(names));
+        assertThat(Expressions.names(limit.output()), contains(names));
     }
 
     private void assertProjectionTypes(String query, DataType... types) {
         var plan = analyze(query);
         var limit = as(plan, Limit.class);
-        var project = as(limit.child(), Project.class);
-        assertThat(project.projections().stream().map(NamedExpression::dataType).toList(), contains(types));
+        assertThat(limit.output().stream().map(NamedExpression::dataType).toList(), contains(types));
     }
 
     private void assertProjectionWithMapping(String query, String mapping, String... names) {
         var plan = analyze(query, mapping.toString());
         var limit = as(plan, Limit.class);
-        var project = as(limit.child(), Project.class);
-        assertThat(Expressions.names(project.projections()), contains(names));
+        assertThat(Expressions.names(limit.output()), contains(names));
     }
 
     private Analyzer newAnalyzer(IndexResolution indexResolution) {

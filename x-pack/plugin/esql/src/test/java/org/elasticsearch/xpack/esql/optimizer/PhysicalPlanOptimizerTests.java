@@ -53,6 +53,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.hamcrest.Matchers.contains;
@@ -61,6 +62,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
+//@TestLogging(value = "org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer:TRACE", reason = "debug")
 public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
@@ -91,7 +93,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     private static List<Tuple<String, Map<String, Object>>> settings() {
-        return List.of(new Tuple<>("default", Map.of()));
+        return asList(new Tuple<>("default", Map.of()));
     }
 
     public PhysicalPlanOptimizerTests(String name, EsqlConfiguration config) {
@@ -131,7 +133,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(filter.child(), FieldExtractExec.class);
 
         assertEquals(
-            Sets.difference(mapping.keySet(), Set.of("emp_no")), // gender has unsupported field type
+            Sets.difference(mapping.keySet(), Set.of("emp_no")),
             Sets.newHashSet(Expressions.names(restExtract.attributesToExtract()))
         );
         assertEquals(Set.of("emp_no"), Sets.newHashSet(Expressions.names(extract.attributesToExtract())));
@@ -145,12 +147,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var optimized = optimizedPlan(plan);
-        var topLimit = as(optimized, LimitExec.class);
+        var eval = as(optimized, EvalExec.class);
+        var topLimit = as(eval.child(), LimitExec.class);
         var exchange = as(topLimit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
         var restExtract = as(project.child(), FieldExtractExec.class);
-        var eval = as(restExtract.child(), EvalExec.class);
-        var limit = as(eval.child(), LimitExec.class);
+        var limit = as(restExtract.child(), LimitExec.class);
         var filter = as(limit.child(), FilterExec.class);
         var extract = as(filter.child(), FieldExtractExec.class);
 
@@ -216,6 +218,21 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var source = source(extract.child());
     }
 
+    /**
+     * Expected
+     * LimitExec[10000[INTEGER]]
+     * \_AggregateExec[[],[AVG(salary{f}#38) AS x],FINAL]
+     *   \_AggregateExec[[],[AVG(salary{f}#38) AS x],PARTIAL]
+     *     \_EvalExec[[first_name{f}#35 AS c]]
+     *       \_FilterExec[ROUND(emp_no{f}#34) > 10[INTEGER]]
+     *         \_TopNExec[[Order[last_name{f}#37,ASC,LAST]],10[INTEGER]]
+     *           \_ExchangeExec[GATHER,SINGLE_DISTRIBUTION]
+     *             \_ProjectExec[[salary{f}#38, first_name{f}#35, emp_no{f}#34, last_name{f}#37]]     -- project away _doc
+     *               \_FieldExtractExec[salary{f}#38, first_name{f}#35, emp_no{f}#34]                 -- local field extraction
+     *                 \_TopNExec[[Order[last_name{f}#37,ASC,LAST]],10[INTEGER]]
+     *                   \_FieldExtractExec[last_name{f}#37]
+     *                     \_EsQueryExec[test], query[][_doc{f}#39], limit[]
+     */
     public void testExtractorForField() {
         var plan = physicalPlan("""
             from test
@@ -229,24 +246,32 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var optimized = optimizedPlan(plan);
         var limit = as(optimized, LimitExec.class);
         var aggregateFinal = as(limit.child(), AggregateExec.class);
-        var exchange = as(aggregateFinal.child(), ExchangeExec.class);
-        var aggregatePartial = as(exchange.child(), AggregateExec.class);
-        var extract = as(aggregatePartial.child(), FieldExtractExec.class);
-        assertThat(Expressions.names(extract.attributesToExtract()), contains("salary"));
+        var aggregatePartial = as(aggregateFinal.child(), AggregateExec.class);
+        var eval = as(aggregatePartial.child(), EvalExec.class);
+        var filter = as(eval.child(), FilterExec.class);
+        var topN = as(filter.child(), TopNExec.class);
 
-        var eval = as(extract.child(), EvalExec.class);
-        extract = as(eval.child(), FieldExtractExec.class);
-        assertThat(Expressions.names(extract.attributesToExtract()), contains("first_name"));
+        var exchange = as(topN.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(Expressions.names(extract.attributesToExtract()), contains("salary", "first_name", "emp_no"));
+        var topNLocal = as(extract.child(), TopNExec.class);
+        extract = as(topNLocal.child(), FieldExtractExec.class);
 
-        var filter = as(extract.child(), FilterExec.class);
-        extract = as(filter.child(), FieldExtractExec.class);
-        assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no"));
-
-        var topN = as(extract.child(), TopNExec.class);
-        extract = as(topN.child(), FieldExtractExec.class);
         assertThat(Expressions.names(extract.attributesToExtract()), contains("last_name"));
     }
 
+    /**
+     * Expected
+     *
+     * EvalExec[[emp_no{f}#538 + 1[INTEGER] AS emp_no]]
+     * \_EvalExec[[emp_no{f}#538 + 1[INTEGER] AS e]]
+     *   \_LimitExec[10000[INTEGER]]
+     *     \_ExchangeExec[GATHER,SINGLE_DISTRIBUTION]
+     *       \_ProjectExec[[_meta_field{f}#537, emp_no{f}#538, first_name{f}#539, languages{f}#540, last_name{f}#541, salary{f}#542]]
+     *         \_FieldExtractExec[_meta_field{f}#537, emp_no{f}#538, first_name{f}#53..]
+     *           \_EsQueryExec[test], query[][_doc{f}#543], limit[10000]
+     */
     public void testExtractorMultiEvalWithDifferentNames() {
         var plan = physicalPlan("""
             from test
@@ -255,22 +280,28 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var optimized = optimizedPlan(plan);
-        var topLimit = as(optimized, LimitExec.class);
+        var eval = as(optimized, EvalExec.class);
+        eval = as(eval.child(), EvalExec.class);
+        var topLimit = as(eval.child(), LimitExec.class);
         var exchange = as(topLimit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(
             Expressions.names(extract.attributesToExtract()),
-            contains("_meta_field", "first_name", "gender", "languages", "last_name", "salary")
+            contains("_meta_field", "emp_no", "first_name", "gender", "languages", "last_name", "salary")
         );
-
-        var eval = as(extract.child(), EvalExec.class);
-        eval = as(eval.child(), EvalExec.class);
-
-        extract = as(eval.child(), FieldExtractExec.class);
-        assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no"));
     }
 
+    /**
+     * Expected
+     * EvalExec[[emp_no{r}#120 + 1[INTEGER] AS emp_no]]
+     * \_EvalExec[[emp_no{f}#125 + 1[INTEGER] AS emp_no]]
+     *   \_LimitExec[10000[INTEGER]]
+     *     \_ExchangeExec[GATHER,SINGLE_DISTRIBUTION]
+     *       \_ProjectExec[[_meta_field{f}#124, emp_no{f}#125, first_name{f}#126, languages{f}#127, last_name{f}#128, salary{f}#129]]
+     *         \_FieldExtractExec[_meta_field{f}#124, emp_no{f}#125, first_name{f}#12..]
+     *           \_EsQueryExec[test], query[][_doc{f}#130], limit[10000]
+     */
     public void testExtractorMultiEvalWithSameName() {
         var plan = physicalPlan("""
             from test
@@ -279,20 +310,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var optimized = optimizedPlan(plan);
-        var topLimit = as(optimized, LimitExec.class);
+        var eval = as(optimized, EvalExec.class);
+        eval = as(eval.child(), EvalExec.class);
+        var topLimit = as(eval.child(), LimitExec.class);
         var exchange = as(topLimit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(
             Expressions.names(extract.attributesToExtract()),
-            contains("_meta_field", "first_name", "gender", "languages", "last_name", "salary")
+            contains("_meta_field", "emp_no", "first_name", "gender", "languages", "last_name", "salary")
         );
-
-        var eval = as(extract.child(), EvalExec.class);
-        eval = as(eval.child(), EvalExec.class);
-
-        extract = as(eval.child(), FieldExtractExec.class);
-        assertThat(Expressions.names(extract.attributesToExtract()), contains("emp_no"));
     }
 
     public void testExtractorsOverridingFields() {
@@ -520,6 +547,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertNull(source.query());
     }
 
+    /**
+     * Expected
+     *
+     * ProjectExec[[_meta_field{f}#417, emp_no{f}#418, first_name{f}#419, languages{f}#420, last_name{f}#421, salary{f}#422]]
+     * \_LimitExec[10000[INTEGER]]
+     *   \_ExchangeExec[GATHER,SINGLE_DISTRIBUTION]
+     *     \_ProjectExec[[_meta_field{f}#417, emp_no{f}#418, first_name{f}#419, languages{f}#420, last_name{f}#421, salary{f}#422]]
+     *       \_FieldExtractExec[_meta_field{f}#417, emp_no{f}#418, first_name{f}#41..]
+     *         \_EsQueryExec[test], query[{...}][_doc{f}#423], limit[10000]
+     */
     public void testCombineUserAndPhysicalFilters() {
         var plan = physicalPlan("""
             from test
@@ -630,6 +667,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.limit().fold(), is(10));
     }
 
+    /**
+     * ProjectExec[[_meta_field{f}#5, emp_no{f}#6, first_name{f}#7, languages{f}#8, last_name{f}#9, salary{f}#10, nullsum{r}#3]]
+     * \_TopNExec[[Order[nullsum{r}#3,ASC,LAST]],1[INTEGER]]
+     *   \_ExchangeExec[GATHER,SINGLE_DISTRIBUTION]
+     *     \_ProjectExec[[nullsum{r}#3, _meta_field{f}#5, emp_no{f}#6, first_name{f}#7, languages{f}#8, last_name{f}#9, salary{f}#10]]
+     *       \_FieldExtractExec[_meta_field{f}#5, emp_no{f}#6, first_name{f}#7, lan..]
+     *         \_TopNExec[[Order[nullsum{r}#3,ASC,LAST]],1[INTEGER]]
+     *           \_EvalExec[[null[INTEGER] AS nullsum]]
+     *             \_EsQueryExec[test], query[][_doc{f}#11], limit[]
+     */
     public void testExtractorForEvalWithoutProject() throws Exception {
         var optimized = optimizedPlan(physicalPlan("""
             from test
@@ -666,6 +713,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var fieldExtract = as(topNLocal.child(), FieldExtractExec.class);
     }
 
+    /**
+     * Expected
+     *
+     * EvalExec[[emp_no{f}#248 * 10[INTEGER] AS emp_no_10]]
+     * \_LimitExec[10[INTEGER]]
+     *   \_ExchangeExec[GATHER,SINGLE_DISTRIBUTION]
+     *     \_ProjectExec[[_meta_field{f}#247, emp_no{f}#248, first_name{f}#249, languages{f}#250, last_name{f}#251, salary{f}#252]]
+     *       \_FieldExtractExec[_meta_field{f}#247, emp_no{f}#248, first_name{f}#24..]
+     *         \_EsQueryExec[test], query[][_doc{f}#253], limit[10]
+     */
     public void testPushLimitToSource() {
         var optimized = optimizedPlan(physicalPlan("""
             from test
@@ -673,18 +730,26 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | limit 10
             """));
 
-        var topLimit = as(optimized, LimitExec.class);
+        var eval = as(optimized, EvalExec.class);
+        var topLimit = as(eval.child(), LimitExec.class);
         var exchange = as(topLimit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
-        var fieldExtractRest = as(project.child(), FieldExtractExec.class);
-        var eval = as(fieldExtractRest.child(), EvalExec.class);
-        var fieldExtract = as(eval.child(), FieldExtractExec.class);
-        var leaves = fieldExtract.collectLeaves();
+        var extract = as(project.child(), FieldExtractExec.class);
+        var leaves = extract.collectLeaves();
         assertEquals(1, leaves.size());
         var source = as(leaves.get(0), EsQueryExec.class);
         assertThat(source.limit().fold(), is(10));
     }
 
+    /**
+     * Expected
+     * EvalExec[[emp_no{f}#357 * 10[INTEGER] AS emp_no_10]]
+     * \_LimitExec[10[INTEGER]]
+     *   \_ExchangeExec[GATHER,SINGLE_DISTRIBUTION]
+     *     \_ProjectExec[[_meta_field{f}#356, emp_no{f}#357, first_name{f}#358, languages{f}#359, last_name{f}#360, salary{f}#361]]
+     *       \_FieldExtractExec[_meta_field{f}#356, emp_no{f}#357, first_name{f}#35..]
+     *         \_EsQueryExec[test], query[{"range":{"emp_no":{"gt":0,"boost":1.0}}}][_doc{f}#362], limit[10]
+     */
     public void testPushLimitAndFilterToSource() {
         var optimized = optimizedPlan(physicalPlan("""
             from test
@@ -693,13 +758,18 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | limit 10
             """));
 
-        var topLimit = as(optimized, LimitExec.class);
+        var eval = as(optimized, EvalExec.class);
+        var topLimit = as(eval.child(), LimitExec.class);
         var exchange = as(topLimit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
-        var fieldExtractRest = as(project.child(), FieldExtractExec.class);
-        var eval = as(fieldExtractRest.child(), EvalExec.class);
-        var fieldExtract = as(eval.child(), FieldExtractExec.class);
-        var source = source(fieldExtract.child());
+        var extract = as(project.child(), FieldExtractExec.class);
+
+        assertThat(
+            Expressions.names(extract.attributesToExtract()),
+            contains("_meta_field", "emp_no", "first_name", "gender", "languages", "last_name", "salary")
+        );
+
+        var source = source(extract.child());
         assertThat(source.limit().fold(), is(10));
         assertTrue(source.query() instanceof RangeQueryBuilder);
         assertThat(source.query().toString(), containsString("""
@@ -709,6 +779,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """));
     }
 
+    /**
+     * Expected
+     * TopNExec[[Order[emp_no{f}#422,ASC,LAST]],1[INTEGER]]
+     * \_LimitExec[1[INTEGER]]
+     *   \_ExchangeExec[GATHER,SINGLE_DISTRIBUTION]
+     *     \_ProjectExec[[_meta_field{f}#421, emp_no{f}#422, first_name{f}#423, languages{f}#424, last_name{f}#425, salary{f}#426]]
+     *       \_FieldExtractExec[_meta_field{f}#421, emp_no{f}#422, first_name{f}#42..]
+     *         \_EsQueryExec[test], query[][_doc{f}#427], limit[1]
+     */
     public void testQueryWithLimitSort() throws Exception {
         var optimized = optimizedPlan(physicalPlan("""
             from test
@@ -717,14 +796,93 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """));
 
         var topN = as(optimized, TopNExec.class);
-        var exchange = as(topN.child(), ExchangeExec.class);
+        var limit = as(topN.child(), LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
-        topN = as(extract.child(), TopNExec.class);
-        extract = as(topN.child(), FieldExtractExec.class);
         var source = source(extract.child());
     }
 
+    /**
+     * Expected
+     *
+     * ProjectExec[[emp_no{f}#7, x{r}#4]]
+     * \_TopNExec[[Order[emp_no{f}#7,ASC,LAST]],5[INTEGER]]
+     *   \_ExchangeExec[]
+     *     \_ProjectExec[[emp_no{f}#7, x{r}#4]]
+     *       \_TopNExec[[Order[emp_no{f}#7,ASC,LAST]],5[INTEGER]]
+     *         \_FieldExtractExec[emp_no{f}#7]
+     *           \_EvalExec[[first_name{f}#8 AS x]]
+     *             \_FieldExtractExec[first_name{f}#8]
+     *               \_EsQueryExec[test], query[][_doc{f}#14], limit[]
+     */
+    public void testLocalProjectIncludeLocalAlias() throws Exception {
+        var optimized = optimizedPlan(physicalPlan("""
+            from test
+            | sort emp_no
+            | eval x = first_name
+            | project emp_no, x
+            | limit 5
+            """));
+
+        var project = as(optimized, ProjectExec.class);
+        var topN = as(project.child(), TopNExec.class);
+        var exchange = as(topN.child(), ExchangeExec.class);
+
+        project = as(exchange.child(), ProjectExec.class);
+        assertThat(Expressions.names(project.projections()), contains("emp_no", "x"));
+        topN = as(project.child(), TopNExec.class);
+        var extract = as(topN.child(), FieldExtractExec.class);
+        var eval = as(extract.child(), EvalExec.class);
+        extract = as(eval.child(), FieldExtractExec.class);
+    }
+
+    /**
+     * Expected
+     * ProjectExec[[languages{f}#10, salary{f}#12, x{r}#6]]
+     * \_EvalExec[[languages{f}#10 + 1[INTEGER] AS x]]
+     *   \_TopNExec[[Order[salary{f}#12,ASC,LAST]],1[INTEGER]]
+     *     \_ExchangeExec[]
+     *       \_ProjectExec[[languages{f}#10, salary{f}#12]]
+     *         \_FieldExtractExec[languages{f}#10]
+     *           \_TopNExec[[Order[salary{f}#12,ASC,LAST]],1[INTEGER]]
+     *             \_FieldExtractExec[salary{f}#12]
+     *               \_EsQueryExec[test], query[][_doc{f}#14], limit[]
+     */
+    public void testDoNotAliasesDefinedAfterTheExchange() throws Exception {
+        var optimized = optimizedPlan(physicalPlan("""
+            from test
+            | sort salary
+            | limit 1
+            | project languages, salary
+            | eval x = languages + 1
+            """));
+
+        var project = as(optimized, ProjectExec.class);
+        var eval = as(project.child(), EvalExec.class);
+        var topN = as(eval.child(), TopNExec.class);
+        var exchange = as(topN.child(), ExchangeExec.class);
+
+        project = as(exchange.child(), ProjectExec.class);
+        assertThat(Expressions.names(project.projections()), contains("languages", "salary"));
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(Expressions.names(extract.attributesToExtract()), contains("languages"));
+
+        topN = as(extract.child(), TopNExec.class);
+        extract = as(topN.child(), FieldExtractExec.class);
+        assertThat(Expressions.names(extract.attributesToExtract()), contains("salary"));
+    }
+
+    /**
+     * Expected
+     * TopNExec[[Order[emp_no{f}#299,ASC,LAST]],1[INTEGER]]
+     * \_FilterExec[emp_no{f}#299 > 10[INTEGER]]
+     *   \_LimitExec[1[INTEGER]]
+     *     \_ExchangeExec[GATHER,SINGLE_DISTRIBUTION]
+     *       \_ProjectExec[[_meta_field{f}#298, emp_no{f}#299, first_name{f}#300, languages{f}#301, last_name{f}#302, salary{f}#303]]
+     *         \_FieldExtractExec[_meta_field{f}#298, emp_no{f}#299, first_name{f}#30..]
+     *           \_EsQueryExec[test], query[][_doc{f}#304], limit[1]
+     */
     public void testQueryWithLimitWhereSort() throws Exception {
         var optimized = optimizedPlan(physicalPlan("""
             from test
@@ -734,14 +892,24 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """));
 
         var topN = as(optimized, TopNExec.class);
-        var exchange = as(topN.child(), ExchangeExec.class);
+        var filter = as(topN.child(), FilterExec.class);
+        var limit = as(filter.child(), LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
-        topN = as(extract.child(), TopNExec.class);
-        extract = as(topN.child(), FieldExtractExec.class);
         var source = source(extract.child());
     }
 
+    /**
+     * Expected
+     * TopNExec[[Order[x{r}#462,ASC,LAST]],3[INTEGER]]
+     * \_EvalExec[[emp_no{f}#465 AS x]]
+     *   \_LimitExec[3[INTEGER]]
+     *     \_ExchangeExec[GATHER,SINGLE_DISTRIBUTION]
+     *       \_ProjectExec[[_meta_field{f}#464, emp_no{f}#465, first_name{f}#466, languages{f}#467, last_name{f}#468, salary{f}#469]]
+     *         \_FieldExtractExec[_meta_field{f}#464, emp_no{f}#465, first_name{f}#46..]
+     *           \_EsQueryExec[test], query[][_doc{f}#470], limit[3]
+     */
     public void testQueryWithLimitWhereEvalSort() throws Exception {
         var optimized = optimizedPlan(physicalPlan("""
             from test
@@ -751,12 +919,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """));
 
         var topN = as(optimized, TopNExec.class);
-        var exchange = as(topN.child(), ExchangeExec.class);
+        var eval = as(topN.child(), EvalExec.class);
+        var limit = as(eval.child(), LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
-        topN = as(extract.child(), TopNExec.class);
-        var eval = as(topN.child(), EvalExec.class);
-        extract = as(eval.child(), FieldExtractExec.class);
         var source = source(extract.child());
     }
 

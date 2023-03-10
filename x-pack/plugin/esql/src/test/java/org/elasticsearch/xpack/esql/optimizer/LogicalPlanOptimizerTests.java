@@ -314,8 +314,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | eval x = emp_no + 1
             | where x + 2 < 9
             | where emp_no < 3""");
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
+        var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
 
         assertTrue(filter.condition() instanceof LessThan);
@@ -350,8 +349,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from test
             | limit 3
             | where emp_no < 3 or salary > 9""");
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
+        var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
 
         assertTrue(filter.condition() instanceof Or);
@@ -418,8 +416,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | eval x = emp_no + 100
             | limit 10""");
 
-        var project = as(plan, Project.class);
-        var eval = as(project.child(), Eval.class);
+        var eval = as(plan, Eval.class);
         as(eval.child(), Limit.class);
     }
 
@@ -440,8 +437,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | where emp_no > 10
             | limit 10""");
 
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
+        var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
         as(filter.child(), Limit.class);
     }
@@ -455,8 +451,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | eval c = emp_no + 2
             | limit 100""");
 
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
+        var limit = as(plan, Limit.class);
         var order = as(limit.child(), OrderBy.class);
         var eval = as(order.child(), Eval.class);
         var filter = as(eval.child(), Filter.class);
@@ -519,8 +514,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | sort emp_no
             | sort salary""");
 
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
+        var limit = as(plan, Limit.class);
         var orderBy = as(limit.child(), OrderBy.class);
         assertThat(orderBy.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("salary", "emp_no"));
         as(orderBy.child(), EsRelation.class);
@@ -533,8 +527,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | eval x = salary + 1
             | sort x""");
 
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
+        var limit = as(plan, Limit.class);
         var orderBy = as(limit.child(), OrderBy.class);
         assertThat(orderBy.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("x", "emp_no"));
         var eval = as(orderBy.child(), Eval.class);
@@ -548,8 +541,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | eval x = salary + 1, y = salary + 2
             | sort x""");
 
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
+        var limit = as(plan, Limit.class);
         var orderBy = as(limit.child(), OrderBy.class);
         assertThat(orderBy.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("x", "emp_no"));
         var eval = as(orderBy.child(), Eval.class);
@@ -607,8 +599,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | where emp_no > 10
             | sort salary""");
 
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
+        var limit = as(plan, Limit.class);
         var orderBy = as(limit.child(), OrderBy.class);
         assertThat(orderBy.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("salary", "emp_no"));
         var filter = as(orderBy.child(), Filter.class);
@@ -624,8 +615,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | sort x
             | limit 10""");
 
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
+        var limit = as(plan, Limit.class);
         var orderBy = as(limit.child(), OrderBy.class);
         var filter = as(orderBy.child(), Filter.class);
         var eval = as(filter.child(), Eval.class);

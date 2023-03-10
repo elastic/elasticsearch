@@ -221,8 +221,30 @@ public class RRFRankIT extends ESIntegTestCase {
         Set<Double> vectors = Arrays.stream(response.getHits().getHits())
             .map(h -> ((Number) h.field("vector_asc").getValue()).doubleValue())
             .collect(Collectors.toSet());
-        assertEquals(Set.of(491.0, 492.0, 493.0, 494.0, 495.0, 496.0, 497.0, 498.0, 499.0, 500.0,
-            501.0, 502.0, 503.0, 504.0, 505.0, 506.0, 507.0, 508.0, 509.0), vectors);
+        assertEquals(
+            Set.of(
+                491.0,
+                492.0,
+                493.0,
+                494.0,
+                495.0,
+                496.0,
+                497.0,
+                498.0,
+                499.0,
+                500.0,
+                501.0,
+                502.0,
+                503.0,
+                504.0,
+                505.0,
+                506.0,
+                507.0,
+                508.0,
+                509.0
+            ),
+            vectors
+        );
     }
 
     public void testBM25AndMultipleKnn() {
@@ -332,7 +354,7 @@ public class RRFRankIT extends ESIntegTestCase {
         Set<Long> keys = new HashSet<>();
 
         for (LongTerms.Bucket bucket : aggregation.getBuckets()) {
-            keys.add((long)bucket.getKey());
+            keys.add((long) bucket.getKey());
             assertEquals(34, bucket.getDocCount());
         }
 
@@ -364,8 +386,30 @@ public class RRFRankIT extends ESIntegTestCase {
         Set<Double> vectors = Arrays.stream(response.getHits().getHits())
             .map(h -> ((Number) h.field("vector_asc").getValue()).doubleValue())
             .collect(Collectors.toSet());
-        assertEquals(Set.of(491.0, 492.0, 493.0, 494.0, 495.0, 496.0, 497.0, 498.0, 499.0, 500.0,
-            501.0, 502.0, 503.0, 504.0, 505.0, 506.0, 507.0, 508.0, 509.0), vectors);
+        assertEquals(
+            Set.of(
+                491.0,
+                492.0,
+                493.0,
+                494.0,
+                495.0,
+                496.0,
+                497.0,
+                498.0,
+                499.0,
+                500.0,
+                501.0,
+                502.0,
+                503.0,
+                504.0,
+                505.0,
+                506.0,
+                507.0,
+                508.0,
+                509.0
+            ),
+            vectors
+        );
 
         LongTerms aggregation = response.getAggregations().get("sums");
         assertEquals(3, aggregation.getBuckets().size());
@@ -373,7 +417,7 @@ public class RRFRankIT extends ESIntegTestCase {
         Set<Long> keys = new HashSet<>();
 
         for (LongTerms.Bucket bucket : aggregation.getBuckets()) {
-            keys.add((long)bucket.getKey());
+            keys.add((long) bucket.getKey());
             assertEquals(17, bucket.getDocCount());
         }
 
@@ -449,7 +493,7 @@ public class RRFRankIT extends ESIntegTestCase {
         Set<Long> keys = new HashSet<>();
 
         for (LongTerms.Bucket bucket : aggregation.getBuckets()) {
-            keys.add((long)bucket.getKey());
+            keys.add((long) bucket.getKey());
             assertEquals(18, bucket.getDocCount());
         }
 

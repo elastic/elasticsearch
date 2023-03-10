@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 
 import java.util.function.Consumer;
@@ -39,14 +40,25 @@ public class SecondaryAuthenticator {
     private final Logger logger = LogManager.getLogger(SecondaryAuthenticator.class);
     private final SecurityContext securityContext;
     private final AuthenticationService authenticationService;
+    private final AuditTrailService auditTrailService;
 
-    public SecondaryAuthenticator(Settings settings, ThreadContext threadContext, AuthenticationService authenticationService) {
-        this(new SecurityContext(settings, threadContext), authenticationService);
+    public SecondaryAuthenticator(
+        Settings settings,
+        ThreadContext threadContext,
+        AuthenticationService authenticationService,
+        AuditTrailService auditTrailService
+    ) {
+        this(new SecurityContext(settings, threadContext), authenticationService, auditTrailService);
     }
 
-    public SecondaryAuthenticator(SecurityContext securityContext, AuthenticationService authenticationService) {
+    public SecondaryAuthenticator(
+        SecurityContext securityContext,
+        AuthenticationService authenticationService,
+        AuditTrailService auditTrailService
+    ) {
         this.securityContext = securityContext;
         this.authenticationService = authenticationService;
+        this.auditTrailService = auditTrailService;
     }
 
     /**
@@ -77,7 +89,7 @@ public class SecondaryAuthenticator {
         // auth is provided, so in that case we do no want to set anything in the context
         authenticate(
             authListener -> authenticationService.authenticate(request, false, authListener.delegateFailure((l, authentication) -> {
-                authenticationService.auditSuccess(request);
+                auditTrailService.get().authenticationSuccess(request);
                 l.onResponse(authentication);
             })),
             ActionListener.wrap(secondaryAuthentication -> {

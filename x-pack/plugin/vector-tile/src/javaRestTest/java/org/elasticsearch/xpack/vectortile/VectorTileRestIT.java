@@ -128,7 +128,7 @@ public class VectorTileRestIT extends ESRestTestCase {
               "properties": {
                 "location": {
                   "type": "geo_shape",
-                  "store" :""" + random().nextBoolean() + """
+                  "store": """ + random().nextBoolean() + """
                 },
                 "name": {
                   "type": "keyword"

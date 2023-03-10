@@ -1,0 +1,5 @@
+pr: 94420
+summary: Provide security headers when calling `_validate`
+area: Transform
+type: bug
+issues: []

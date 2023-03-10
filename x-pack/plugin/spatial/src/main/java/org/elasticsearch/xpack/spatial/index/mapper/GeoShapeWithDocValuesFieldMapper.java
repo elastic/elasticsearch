@@ -251,7 +251,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                                 );
                             } else {
                                 throw new IllegalArgumentException(
-                                    "Unexpected type class fetching [" + name() + "]: " + storedValue.getClass()
+                                    "Unexpected class fetching [" + name() + "]: " + storedValue.getClass()
                                 );
                             }
                         }

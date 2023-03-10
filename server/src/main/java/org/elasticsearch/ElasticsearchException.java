@@ -8,12 +8,19 @@
 
 package org.elasticsearch;
 
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -29,7 +36,17 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 
+import java.io.EOFException;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.DirectoryNotEmptyException;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileSystemException;
+import java.nio.file.FileSystemLoopException;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.NotDirectoryException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -262,10 +279,21 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public final void writeTo(StreamOutput out) throws IOException {
+        writeTo(out, createNestingFunction(0, () -> {}));
+    }
+
+    private static Writer<Throwable> createNestingFunction(int thisLevel, Runnable nestedExceptionLimitCallback) {
+        int nextLevel = thisLevel + 1;
+        return (o, t) -> {
+            writeException(t.getCause(), o, nextLevel, nestedExceptionLimitCallback);
+            writeStackTraces(t, o, (no, nt) -> writeException(nt, no, nextLevel, nestedExceptionLimitCallback));
+        };
+    }
+
+    protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
         out.writeOptionalString(this.getMessage());
-        out.writeException(this.getCause());
-        writeStackTraces(this, out, StreamOutput::writeException);
+        nestedExceptionsWriter.write(out, this);
         out.writeMapOfLists(headers, StreamOutput::writeString, StreamOutput::writeString);
         out.writeMapOfLists(metadata, StreamOutput::writeString, StreamOutput::writeString);
     }
@@ -707,8 +735,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     /**
      * Serializes the given exceptions stacktrace elements as well as it's suppressed exceptions to the given output stream.
      */
-    public static <T extends Throwable> T writeStackTraces(T throwable, StreamOutput out, Writer<Throwable> exceptionWriter)
-        throws IOException {
+    public static void writeStackTraces(Throwable throwable, StreamOutput out, Writer<Throwable> exceptionWriter) throws IOException {
         out.writeArray((o, v) -> {
             o.writeString(v.getClassName());
             o.writeOptionalString(v.getFileName());
@@ -716,7 +743,251 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             o.writeVInt(v.getLineNumber());
         }, throwable.getStackTrace());
         out.writeArray(exceptionWriter, throwable.getSuppressed());
-        return throwable;
+    }
+
+    /**
+     * Writes the specified {@code throwable} to {@link StreamOutput} {@code output}.
+     */
+    public static void writeException(Throwable throwable, StreamOutput output) throws IOException {
+        writeException(throwable, output, () -> {});
+    }
+
+    static void writeException(Throwable throwable, StreamOutput output, Runnable nestedExceptionLimitCallback) throws IOException {
+        writeException(throwable, output, 0, nestedExceptionLimitCallback);
+    }
+
+    private static final int MAX_NESTED_EXCEPTION_LEVEL = 100;
+
+    private static void writeException(Throwable throwable, StreamOutput output, int nestedLevel, Runnable nestedExceptionLimitCallback)
+        throws IOException {
+        if (nestedLevel > MAX_NESTED_EXCEPTION_LEVEL) {
+            nestedExceptionLimitCallback.run();
+            writeException(new IllegalStateException("too many nested exceptions"), output);
+            return;
+        }
+
+        if (throwable == null) {
+            output.writeBoolean(false);
+            return;
+        }
+
+        output.writeBoolean(true);
+
+        boolean writeCause = true;
+        boolean writeMessage = true;
+        if (throwable instanceof CorruptIndexException) {
+            output.writeVInt(1);
+            output.writeOptionalString(((CorruptIndexException) throwable).getOriginalMessage());
+            output.writeOptionalString(((CorruptIndexException) throwable).getResourceDescription());
+            writeMessage = false;
+        } else if (throwable instanceof IndexFormatTooNewException) {
+            output.writeVInt(2);
+            output.writeOptionalString(((IndexFormatTooNewException) throwable).getResourceDescription());
+            output.writeInt(((IndexFormatTooNewException) throwable).getVersion());
+            output.writeInt(((IndexFormatTooNewException) throwable).getMinVersion());
+            output.writeInt(((IndexFormatTooNewException) throwable).getMaxVersion());
+            writeMessage = false;
+            writeCause = false;
+        } else if (throwable instanceof IndexFormatTooOldException) {
+            output.writeVInt(3);
+            IndexFormatTooOldException t = (IndexFormatTooOldException) throwable;
+            output.writeOptionalString(t.getResourceDescription());
+            if (t.getVersion() == null) {
+                output.writeBoolean(false);
+                output.writeOptionalString(t.getReason());
+            } else {
+                output.writeBoolean(true);
+                output.writeInt(t.getVersion());
+                output.writeInt(t.getMinVersion());
+                output.writeInt(t.getMaxVersion());
+            }
+            writeMessage = false;
+            writeCause = false;
+        } else if (throwable instanceof NullPointerException) {
+            output.writeVInt(4);
+            writeCause = false;
+        } else if (throwable instanceof NumberFormatException) {
+            output.writeVInt(5);
+            writeCause = false;
+        } else if (throwable instanceof IllegalArgumentException) {
+            output.writeVInt(6);
+        } else if (throwable instanceof AlreadyClosedException) {
+            output.writeVInt(7);
+        } else if (throwable instanceof EOFException) {
+            output.writeVInt(8);
+            writeCause = false;
+        } else if (throwable instanceof SecurityException) {
+            output.writeVInt(9);
+        } else if (throwable instanceof StringIndexOutOfBoundsException) {
+            output.writeVInt(10);
+            writeCause = false;
+        } else if (throwable instanceof ArrayIndexOutOfBoundsException) {
+            output.writeVInt(11);
+            writeCause = false;
+        } else if (throwable instanceof FileNotFoundException) {
+            output.writeVInt(12);
+            writeCause = false;
+        } else if (throwable instanceof FileSystemException) {
+            output.writeVInt(13);
+            if (throwable instanceof NoSuchFileException) {
+                output.writeVInt(0);
+            } else if (throwable instanceof NotDirectoryException) {
+                output.writeVInt(1);
+            } else if (throwable instanceof DirectoryNotEmptyException) {
+                output.writeVInt(2);
+            } else if (throwable instanceof AtomicMoveNotSupportedException) {
+                output.writeVInt(3);
+            } else if (throwable instanceof FileAlreadyExistsException) {
+                output.writeVInt(4);
+            } else if (throwable instanceof AccessDeniedException) {
+                output.writeVInt(5);
+            } else if (throwable instanceof FileSystemLoopException) {
+                output.writeVInt(6);
+            } else {
+                output.writeVInt(7);
+            }
+            output.writeOptionalString(((FileSystemException) throwable).getFile());
+            output.writeOptionalString(((FileSystemException) throwable).getOtherFile());
+            output.writeOptionalString(((FileSystemException) throwable).getReason());
+            writeCause = false;
+        } else if (throwable instanceof IllegalStateException) {
+            output.writeVInt(14);
+        } else if (throwable instanceof LockObtainFailedException) {
+            output.writeVInt(15);
+        } else if (throwable instanceof InterruptedException) {
+            output.writeVInt(16);
+            writeCause = false;
+        } else if (throwable instanceof IOException) {
+            output.writeVInt(17);
+        } else if (throwable instanceof EsRejectedExecutionException) {
+            output.writeVInt(18);
+            output.writeBoolean(((EsRejectedExecutionException) throwable).isExecutorShutdown());
+            writeCause = false;
+        } else {
+            ElasticsearchException ex;
+            if (throwable instanceof ElasticsearchException && isRegistered(throwable.getClass(), output.getVersion())) {
+                ex = (ElasticsearchException) throwable;
+            } else {
+                ex = new NotSerializableExceptionWrapper(throwable);
+            }
+            output.writeVInt(0);
+            output.writeVInt(getId(ex.getClass()));
+            ex.writeTo(output, createNestingFunction(nestedLevel, nestedExceptionLimitCallback));
+            return;
+        }
+
+        if (writeMessage) {
+            output.writeOptionalString(throwable.getMessage());
+        }
+        if (writeCause) {
+            writeException(throwable.getCause(), output, nestedLevel + 1, nestedExceptionLimitCallback);
+        }
+        writeStackTraces(throwable, output, (o, t) -> writeException(t, o, nestedLevel + 1, nestedExceptionLimitCallback));
+    }
+
+    /**
+     * Reads a {@code Throwable} from {@link StreamInput} {@code input}.
+     */
+    @Nullable
+    @SuppressWarnings("unchecked")
+    public static <T extends Throwable> T readException(StreamInput input) throws IOException {
+        if (input.readBoolean()) {
+            int key = input.readVInt();
+            switch (key) {
+                case 0:
+                    final int ord = input.readVInt();
+                    return (T) ElasticsearchException.readException(input, ord);
+                case 1:
+                    String msg1 = input.readOptionalString();
+                    String resource1 = input.readOptionalString();
+                    return (T) readStackTrace(new CorruptIndexException(msg1, resource1, readException(input)), input);
+                case 2:
+                    String resource2 = input.readOptionalString();
+                    int version2 = input.readInt();
+                    int minVersion2 = input.readInt();
+                    int maxVersion2 = input.readInt();
+                    return (T) readStackTrace(new IndexFormatTooNewException(resource2, version2, minVersion2, maxVersion2), input);
+                case 3:
+                    String resource3 = input.readOptionalString();
+                    if (input.readBoolean()) {
+                        int version3 = input.readInt();
+                        int minVersion3 = input.readInt();
+                        int maxVersion3 = input.readInt();
+                        return (T) readStackTrace(new IndexFormatTooOldException(resource3, version3, minVersion3, maxVersion3), input);
+                    } else {
+                        String version3 = input.readOptionalString();
+                        return (T) readStackTrace(new IndexFormatTooOldException(resource3, version3), input);
+                    }
+                case 4:
+                    return (T) readStackTrace(new NullPointerException(input.readOptionalString()), input);
+                case 5:
+                    return (T) readStackTrace(new NumberFormatException(input.readOptionalString()), input);
+                case 6:
+                    return (T) readStackTrace(new IllegalArgumentException(input.readOptionalString(), readException(input)), input);
+                case 7:
+                    return (T) readStackTrace(new AlreadyClosedException(input.readOptionalString(), readException(input)), input);
+                case 8:
+                    return (T) readStackTrace(new EOFException(input.readOptionalString()), input);
+                case 9:
+                    return (T) readStackTrace(new SecurityException(input.readOptionalString(), readException(input)), input);
+                case 10:
+                    return (T) readStackTrace(new StringIndexOutOfBoundsException(input.readOptionalString()), input);
+                case 11:
+                    return (T) readStackTrace(new ArrayIndexOutOfBoundsException(input.readOptionalString()), input);
+                case 12:
+                    return (T) readStackTrace(new FileNotFoundException(input.readOptionalString()), input);
+                case 13:
+                    final int subclass = input.readVInt();
+                    final String file = input.readOptionalString();
+                    final String other = input.readOptionalString();
+                    final String reason = input.readOptionalString();
+                    input.readOptionalString(); // skip the msg - it's composed from file, other and reason
+                    final Exception exception;
+                    switch (subclass) {
+                        case 0:
+                            exception = new NoSuchFileException(file, other, reason);
+                            break;
+                        case 1:
+                            exception = new NotDirectoryException(file);
+                            break;
+                        case 2:
+                            exception = new DirectoryNotEmptyException(file);
+                            break;
+                        case 3:
+                            exception = new AtomicMoveNotSupportedException(file, other, reason);
+                            break;
+                        case 4:
+                            exception = new FileAlreadyExistsException(file, other, reason);
+                            break;
+                        case 5:
+                            exception = new AccessDeniedException(file, other, reason);
+                            break;
+                        case 6:
+                            exception = new FileSystemLoopException(file);
+                            break;
+                        case 7:
+                            exception = new FileSystemException(file, other, reason);
+                            break;
+                        default:
+                            throw new IllegalStateException("unknown FileSystemException with index " + subclass);
+                    }
+                    return (T) readStackTrace(exception, input);
+                case 14:
+                    return (T) readStackTrace(new IllegalStateException(input.readOptionalString(), readException(input)), input);
+                case 15:
+                    return (T) readStackTrace(new LockObtainFailedException(input.readOptionalString(), readException(input)), input);
+                case 16:
+                    return (T) readStackTrace(new InterruptedException(input.readOptionalString()), input);
+                case 17:
+                    return (T) readStackTrace(new IOException(input.readOptionalString(), readException(input)), input);
+                case 18:
+                    final boolean isExecutorShutdown = input.readBoolean();
+                    return (T) readStackTrace(new EsRejectedExecutionException(input.readOptionalString(), isExecutorShutdown), input);
+                default:
+                    throw new IOException("no such exception for id: " + key);
+            }
+        }
+        return null;
     }
 
     /**

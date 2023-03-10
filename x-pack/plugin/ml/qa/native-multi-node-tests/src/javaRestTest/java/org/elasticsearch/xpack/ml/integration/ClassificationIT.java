@@ -104,28 +104,18 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     @Before
     public void setupLogging() {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(
-                Settings.builder()
-                    .put("logger.org.elasticsearch.xpack.ml.process", "DEBUG")
-                    .put("logger.org.elasticsearch.xpack.ml.dataframe", "DEBUG")
-            )
-            .get();
+        updateClusterSettings(
+            Settings.builder()
+                .put("logger.org.elasticsearch.xpack.ml.process", "DEBUG")
+                .put("logger.org.elasticsearch.xpack.ml.dataframe", "DEBUG")
+        );
     }
 
     @After
     public void cleanup() {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(
-                Settings.builder()
-                    .putNull("logger.org.elasticsearch.xpack.ml.process")
-                    .putNull("logger.org.elasticsearch.xpack.ml.dataframe")
-            )
-            .get();
+        updateClusterSettings(
+            Settings.builder().putNull("logger.org.elasticsearch.xpack.ml.process").putNull("logger.org.elasticsearch.xpack.ml.dataframe")
+        );
         cleanUp();
     }
 

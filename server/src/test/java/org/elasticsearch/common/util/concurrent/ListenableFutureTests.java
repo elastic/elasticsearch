@@ -10,6 +10,7 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ReachabilityChecker;
@@ -19,14 +20,16 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class ListenableFutureTests extends ESTestCase {
 
     private ExecutorService executorService;
-    private ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+    private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
     @After
     public void stopExecutorService() throws InterruptedException {
@@ -144,5 +147,65 @@ public class ListenableFutureTests extends ESTestCase {
 
         future.addListener(reachabilityChecker.register(ActionListener.running(() -> {})));
         reachabilityChecker.ensureUnreachable();
+    }
+
+    public void testRejection() throws Exception {
+        final CyclicBarrier barrier = new CyclicBarrier(2);
+        final EsThreadPoolExecutor executorService = EsExecutors.newFixed(
+            "testRejection",
+            1,
+            1,
+            EsExecutors.daemonThreadFactory("testRejection"),
+            threadContext,
+            false
+        );
+
+        try {
+            executorService.execute(() -> {
+                try {
+                    barrier.await(10, TimeUnit.SECONDS); // notify main thread that the executor is blocked
+                    barrier.await(10, TimeUnit.SECONDS); // wait for main thread to release us
+                } catch (Exception e) {
+                    throw new AssertionError("unexpected", e);
+                }
+            });
+
+            barrier.await(10, TimeUnit.SECONDS); // wait for executor to be blocked
+
+            final var listenableFuture = new ListenableFuture<Void>();
+            final var future1 = new PlainActionFuture<Void>();
+            final var future2 = new PlainActionFuture<Void>();
+
+            listenableFuture.addListener(future1, executorService, null);
+            listenableFuture.addListener(future2, executorService, null);
+
+            final var success = randomBoolean();
+            if (success) {
+                listenableFuture.onResponse(null);
+            } else {
+                listenableFuture.onFailure(new ElasticsearchException("simulated"));
+            }
+
+            assertFalse(future1.isDone()); // still waiting in the executor queue
+            assertTrue(future2.isDone()); // rejected from the executor on this thread
+
+            barrier.await(10, TimeUnit.SECONDS); // release blocked executor
+
+            if (success) {
+                expectThrows(EsRejectedExecutionException.class, () -> future2.actionGet(0, TimeUnit.SECONDS));
+                assertNull(future1.actionGet(10, TimeUnit.SECONDS));
+            } else {
+                var exception = expectThrows(EsRejectedExecutionException.class, () -> future2.actionGet(0, TimeUnit.SECONDS));
+                assertEquals(1, exception.getSuppressed().length);
+                assertThat(exception.getSuppressed()[0], instanceOf(ElasticsearchException.class));
+                assertEquals(
+                    "simulated",
+                    expectThrows(ElasticsearchException.class, () -> future1.actionGet(10, TimeUnit.SECONDS)).getMessage()
+                );
+            }
+        } finally {
+            barrier.reset();
+            terminate(executorService);
+        }
     }
 }

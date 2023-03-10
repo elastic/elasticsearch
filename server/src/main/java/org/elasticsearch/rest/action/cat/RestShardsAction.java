@@ -40,16 +40,20 @@ import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.time.Instant;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestShardsAction extends AbstractCatAction {
 
     @Override
@@ -257,8 +261,8 @@ public class RestShardsAction extends AbstractCatAction {
     // package private for testing
     Table buildTable(RestRequest request, ClusterStateResponse state, IndicesStatsResponse stats) {
         Table table = getTableWithHeader(request);
-
-        for (ShardRouting shard : state.getState().routingTable().allShards()) {
+        for (Iterator<ShardRouting> iterator = state.getState().routingTable().allShards().iterator(); iterator.hasNext();) {
+            ShardRouting shard = iterator.next();
             ShardStats shardStats = stats.asMap().get(shard);
             CommonStats commonStats = null;
             CommitStats commitStats = null;

@@ -59,8 +59,8 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
-import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -381,7 +381,7 @@ public class Security extends Plugin
         IngestPlugin,
         NetworkPlugin,
         ClusterPlugin,
-        DiscoveryPlugin,
+        ClusterCoordinationPlugin,
         MapperPlugin,
         ExtensiblePlugin,
         SearchPlugin,

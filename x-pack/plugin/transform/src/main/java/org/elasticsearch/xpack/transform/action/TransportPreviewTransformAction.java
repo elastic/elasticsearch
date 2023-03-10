@@ -205,7 +205,11 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
 
         final SetOnce<Map<String, String>> mappings = new SetOnce<>();
 
-        final Map<String, String> filteredHeaders = getSecurityHeadersPreferringSecondary(threadPool, securityContext, clusterService.state());
+        final Map<String, String> filteredHeaders = getSecurityHeadersPreferringSecondary(
+            threadPool,
+            securityContext,
+            clusterService.state()
+        );
 
         ActionListener<SimulatePipelineResponse> pipelineResponseActionListener = ActionListener.wrap(simulatePipelineResponse -> {
             List<Map<String, Object>> docs = new ArrayList<>(simulatePipelineResponse.getResults().size());

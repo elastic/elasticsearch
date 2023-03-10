@@ -56,7 +56,11 @@ public class SecondaryAuthorizationUtilsTests extends ESTestCase {
         threadContext.setHeaders(
             Tuple.tuple(Map.of(AUTH_KEY, JOHN_HEADER, SECONDARY_AUTH_KEY, BILL_HEADER, NOT_AN_AUTH_KEY, NOT_AN_AUTH_HEADER), Map.of())
         );
-        filteredHeaders = SecondaryAuthorizationUtils.getSecurityHeadersPreferringSecondary(threadPool, securityContext, ClusterState.EMPTY_STATE);
+        filteredHeaders = SecondaryAuthorizationUtils.getSecurityHeadersPreferringSecondary(
+            threadPool,
+            securityContext,
+            ClusterState.EMPTY_STATE
+        );
         assertThat(filteredHeaders.keySet(), contains(AUTH_KEY));
     }
 

@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
@@ -1573,9 +1572,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
     }
 
     private void updateSetting(String key, String value) {
-        ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest();
-        settingsRequest.persistentSettings(Settings.builder().put(key, value));
-        assertAcked(client().admin().cluster().updateSettings(settingsRequest).actionGet());
+        updateClusterSettings(Settings.builder().put(key, value));
     }
 
     private void createRepo(String repoName, String type) {

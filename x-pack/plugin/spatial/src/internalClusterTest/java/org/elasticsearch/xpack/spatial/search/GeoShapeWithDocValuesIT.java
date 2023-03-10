@@ -167,7 +167,7 @@ public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
         assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
     }
 
-    // make sure we store the normalise geometry
+    // make sure we store the normalised geometry
     public void testStorePolygonDateLine() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties").startObject("shape");
         getGeoShapeMapping(mapping);

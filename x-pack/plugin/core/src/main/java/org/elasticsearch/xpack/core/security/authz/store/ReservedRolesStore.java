@@ -145,7 +145,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .privileges("read", "read_cross_cluster")
                             .build(),
                         RoleDescriptor.IndicesPrivileges.builder()
-                            .indices("metrics-beats.*,metrics-elasticsearch.*,metrics-enterprisesearch.*,metrics-kibana.*,metrics-logstash.*")
+                            .indices("/metrics-(beats|elasticsearch|enterprisesearch|kibana|logstash).*/")
                             .privileges("read", "read_cross_cluster")
                             .build() },
                     new RoleDescriptor.ApplicationResourcePrivileges[] {

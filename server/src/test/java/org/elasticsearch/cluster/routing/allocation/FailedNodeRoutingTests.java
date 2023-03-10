@@ -229,7 +229,7 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             roles,
-            VersionUtils.randomIndexCompatibleVersion(random())
+            VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)
         );
     }
 

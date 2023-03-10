@@ -152,6 +152,7 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
+import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
@@ -899,6 +900,7 @@ public class Node implements Closeable {
                 clusterService.getClusterApplierService(),
                 clusterService.getClusterSettings(),
                 pluginsService.filterPlugins(DiscoveryPlugin.class),
+                pluginsService.filterPlugins(ClusterCoordinationPlugin.class),
                 clusterModule.getAllocationService(),
                 environment.configFile(),
                 gatewayMetaState,

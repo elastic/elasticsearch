@@ -64,7 +64,6 @@ import org.junit.BeforeClass;
 
 import java.util.Comparator;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -860,8 +859,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
             changed = newState != clusterState;
             clusterState = newState;
         } while (changed);
-        for (Iterator<ShardRouting> iterator = clusterState.routingTable().allShards().iterator(); iterator.hasNext();) {
-            ShardRouting shardRouting = iterator.next();
+        for (ShardRouting shardRouting : clusterState.routingTable().allShardsIterator()) {
             assertTrue(shardRouting.started());
             assertThat(shardRouting.currentNodeId(), oneOf("node-0", "node-1"));
         }
@@ -983,8 +981,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
             changed = newState != clusterState;
             clusterState = newState;
         } while (changed);
-        for (Iterator<ShardRouting> iterator = clusterState.routingTable().allShards().iterator(); iterator.hasNext();) {
-            ShardRouting shardRouting = iterator.next();
+        for (ShardRouting shardRouting : clusterState.routingTable().allShardsIterator()) {
             assertTrue(shardRouting.started());
             assertThat(shardRouting.currentNodeId(), oneOf("node-0", "node-1"));
         }

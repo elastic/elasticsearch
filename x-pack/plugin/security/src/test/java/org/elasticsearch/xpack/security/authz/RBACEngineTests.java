@@ -1879,7 +1879,8 @@ public class RBACEngineTests extends ESTestCase {
                             null,
                             new IndicesPrivileges[] {
                                 IndicesPrivileges.builder().indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
-                                IndicesPrivileges.builder().indices("metricbeat-*").privileges("read", "read_cross_cluster").build() },
+                                IndicesPrivileges.builder().indices("metricbeat-*").privileges("read", "read_cross_cluster").build(),
+                                IndicesPrivileges.builder().indices("metrics-beats.*,metrics-elasticsearch.*,metrics-enterprisesearch.*,metrics-kibana.*,metrics-logstash.*").privileges("read", "read_cross_cluster").build() },
                             null,
                             null,
                             null,

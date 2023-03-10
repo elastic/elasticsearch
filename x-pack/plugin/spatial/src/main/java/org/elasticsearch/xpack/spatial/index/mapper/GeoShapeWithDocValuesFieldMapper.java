@@ -250,9 +250,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                                     WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, bytesRef.bytes, bytesRef.offset, bytesRef.length)
                                 );
                             } else {
-                                throw new IllegalArgumentException(
-                                    "Unexpected class fetching [" + name() + "]: " + storedValue.getClass()
-                                );
+                                throw new IllegalArgumentException("Unexpected class fetching [" + name() + "]: " + storedValue.getClass());
                             }
                         }
                         return formatter.apply(values);

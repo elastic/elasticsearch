@@ -6,6 +6,8 @@
 
 Geospatial analysis with speed, at scale. All with a stack that scales automatically.
 
+The Elastic Stack is more than search. Use machine learning and alerting to put your geo data to work for you.
+
 [discrete]
 [[geospatial-mapping]]
 == Geospatial mapping
@@ -43,4 +45,18 @@ Use <<search-vector-tile-api,vector tile search API>> to consume Elasticsearch g
 == Visualize
 
 Visualize geo data with {kibana-ref}/maps.html[Kibana]. Add your map to a {kibana-ref}/dashboard.html[dashboard] to view your data from all angles.
+
+[discrete]
+[[geospatial-ml]]
+== Machine learning
+
+Put machine learning to work for you and find the data that should stand out with anomaly detections. Find credit card transactions that occur in an unusual locations or a web request that has an unusual source location. {ml-docs}/geographic-anomalies.html[Location-based anomaly detections] make it easy to find and explore and compare anomalies with their typical locations.
+
+[discrete]
+[[geospatial-alerting]]
+== Alerting
+
+Let your location data drive insights and action with {kibana-ref}/geo-alerting.html[geographic alerts]. Commonly referred to as geo-fencing, track moving objects as they enter or exit a boundary to receive notifications through common business systems (email, Slack, Teams, PagerDuty, and more).
+
+Interested in learning more? Follow {kibana-ref}/asset-tracking-tutorial.html[step-by-step instructructions] for setting up tracking containment alerts to monitor moving vehicles.
 

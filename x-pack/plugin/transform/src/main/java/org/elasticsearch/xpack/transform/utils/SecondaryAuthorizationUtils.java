@@ -20,6 +20,9 @@ public final class SecondaryAuthorizationUtils {
 
     private SecondaryAuthorizationUtils() {}
 
+    /**
+     * Returns security headers preferring secondary auth if it exists.
+     */
     public static Map<String, String> getSecurityHeadersPreferringSecondary(
         ThreadPool threadPool,
         SecurityContext securityContext,

@@ -18,7 +18,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
@@ -55,7 +54,7 @@ import java.util.function.Consumer;
 public class TransformUpdaterTests extends ESTestCase {
 
     private static final String USER_NAME = "bob";
-    private final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, new ThreadContext(Settings.EMPTY)) {
+    private final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, null) {
         @Override
         public User getUser() {
             return new User(USER_NAME);

@@ -1,0 +1,5 @@
+pr: 94377
+summary: Do not include frozen indices in PIT by default
+area: Search
+type: bug
+issues: []

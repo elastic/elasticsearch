@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -42,7 +41,7 @@ public class RemoteAccessAuthenticationService {
 
     public static final RoleDescriptor CROSS_CLUSTER_INTERNAL_ROLE = new RoleDescriptor(
         "_cross_cluster_internal",
-        new String[] { ClusterStateAction.NAME },
+        new String[] { "cross_cluster_access" },
         null,
         null,
         null,
@@ -71,6 +70,17 @@ public class RemoteAccessAuthenticationService {
         final Authenticator.Context authcContext = authenticationService.newContext(action, request, false);
         final ThreadContext threadContext = authcContext.getThreadContext();
 
+        final RemoteAccessHeaders remoteAccessHeaders;
+        try {
+            // parse and add as authentication token as early as possible so that failure events in audit log include API key ID
+            remoteAccessHeaders = RemoteAccessHeaders.readFromContext(threadContext);
+            authcContext.addAuthenticationToken(remoteAccessHeaders.clusterCredentials());
+            apiKeyService.ensureEnabled();
+        } catch (Exception ex) {
+            withRequestProcessingFailure(authcContext, ex, listener);
+            return;
+        }
+
         if (getMinNodeVersion().before(VERSION_REMOTE_ACCESS_AUTHENTICATION)) {
             withRequestProcessingFailure(
                 authcContext,
@@ -81,15 +91,6 @@ public class RemoteAccessAuthenticationService {
                 ),
                 listener
             );
-            return;
-        }
-
-        final RemoteAccessHeaders remoteAccessHeaders;
-        try {
-            apiKeyService.ensureEnabled();
-            remoteAccessHeaders = RemoteAccessHeaders.readFromContext(threadContext);
-        } catch (Exception ex) {
-            withRequestProcessingFailure(authcContext, ex, listener);
             return;
         }
 
@@ -104,20 +105,25 @@ public class RemoteAccessAuthenticationService {
             )
         ) {
             final Supplier<ThreadContext.StoredContext> storedContextSupplier = threadContext.newRestorableContext(false);
-            authcContext.addAuthenticationToken(remoteAccessHeaders.clusterCredentials());
             authenticationService.authenticate(
                 authcContext,
                 new ContextPreservingActionListener<>(storedContextSupplier, ActionListener.wrap(authentication -> {
                     assert authentication.isApiKey() : "initial authentication for remote access must be by API key";
                     assert false == authentication.isRunAs() : "initial authentication for remote access cannot be run-as";
-                    final RemoteAccessAuthentication remoteAccessAuthentication = remoteAccessHeaders.remoteAccessAuthentication();
-                    validate(remoteAccessAuthentication);
-                    writeAuthToContext(
-                        authcContext,
-                        authentication.toRemoteAccess(maybeRewriteForSystemUser(remoteAccessAuthentication)),
-                        listener
-                    );
-                }, ex -> withRequestProcessingFailure(authcContext, ex, listener)))
+                    // try-catch so any failure here is wrapped by `withRequestProcessingFailure`, whereas `authenticate` failures are not
+                    // we should _not_ wrap `authenticate` failures since this produces duplicate audit events
+                    try {
+                        final RemoteAccessAuthentication remoteAccessAuthentication = remoteAccessHeaders.remoteAccessAuthentication();
+                        validate(remoteAccessAuthentication);
+                        writeAuthToContext(
+                            authcContext,
+                            authentication.toRemoteAccess(maybeRewriteForSystemUser(remoteAccessAuthentication)),
+                            listener
+                        );
+                    } catch (Exception ex) {
+                        withRequestProcessingFailure(authcContext, ex, listener);
+                    }
+                }, listener::onFailure))
             );
         }
     }
@@ -149,7 +155,20 @@ public class RemoteAccessAuthenticationService {
     }
 
     private void validate(final RemoteAccessAuthentication remoteAccessAuthentication) {
-        final Subject effectiveSubject = remoteAccessAuthentication.getAuthentication().getEffectiveSubject();
+        final Authentication authentication = remoteAccessAuthentication.getAuthentication();
+        authentication.checkConsistency();
+        final Subject effectiveSubject = authentication.getEffectiveSubject();
+        if (false == effectiveSubject.getType().equals(Subject.Type.USER)
+            && false == effectiveSubject.getType().equals(Subject.Type.SERVICE_ACCOUNT)) {
+            throw new IllegalArgumentException(
+                "subject ["
+                    + effectiveSubject.getUser().principal()
+                    + "] has type ["
+                    + effectiveSubject.getType()
+                    + "] which is not supported for remote access"
+            );
+        }
+
         for (RemoteAccessAuthentication.RoleDescriptorsBytes roleDescriptorsBytes : remoteAccessAuthentication
             .getRoleDescriptorsBytesList()) {
             final Set<RoleDescriptor> roleDescriptors = roleDescriptorsBytes.toRoleDescriptors();
@@ -168,15 +187,6 @@ public class RemoteAccessAuthenticationService {
                 }
             }
         }
-        if (false == effectiveSubject.getType().equals(Subject.Type.USER)) {
-            throw new IllegalArgumentException(
-                "subject ["
-                    + effectiveSubject.getUser().principal()
-                    + "] has type ["
-                    + effectiveSubject.getType()
-                    + "] which is not supported for remote access"
-            );
-        }
     }
 
     private Version getMinNodeVersion() {
@@ -188,6 +198,7 @@ public class RemoteAccessAuthenticationService {
         final Exception ex,
         final ActionListener<Authentication> listener
     ) {
+        logger.debug(() -> format("Failed to authenticate remote access for request [%s]", context.getRequest()), ex);
         final ElasticsearchSecurityException ese = context.getRequest()
             .exceptionProcessingRequest(ex, context.getMostRecentAuthenticationToken());
         context.addUnsuccessfulMessageToMetadata(ese);
@@ -201,7 +212,6 @@ public class RemoteAccessAuthenticationService {
     ) {
         try {
             authentication.writeToContext(context.getThreadContext());
-            // TODO specialize auditing via remoteAccessAuthenticationSuccess()?
             context.getRequest().authenticationSuccess(authentication);
         } catch (Exception e) {
             logger.debug(() -> format("Failed to store authentication [%s] for request [%s]", authentication, context.getRequest()), e);

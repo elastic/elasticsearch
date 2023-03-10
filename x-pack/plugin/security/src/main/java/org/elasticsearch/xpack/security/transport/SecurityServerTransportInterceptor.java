@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
@@ -68,6 +69,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
+import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME;
 import static org.elasticsearch.xpack.security.transport.RemoteClusterCredentialsResolver.RemoteClusterCredentials;
 
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
@@ -79,6 +81,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     static final Set<String> REMOTE_ACCESS_ACTION_ALLOWLIST;
     static {
         final Stream<String> actions = Stream.of(
+            REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
+            RemoteClusterNodesAction.NAME,
             TransportService.HANDSHAKE_ACTION_NAME,
             SearchAction.NAME,
             ClusterStateAction.NAME,
@@ -98,7 +102,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             TransportOpenPointInTimeAction.OPEN_SHARD_READER_CONTEXT_NAME,
             ResolveIndexAction.NAME,
             FieldCapabilitiesAction.NAME,
-            FieldCapabilitiesAction.NAME + "[n]"
+            FieldCapabilitiesAction.NAME + "[n]",
+            "indices:data/read/eql"
         );
         REMOTE_ACCESS_ACTION_ALLOWLIST = actions
             // Include action, and proxy equivalent (i.e., with proxy action prefix)
@@ -327,7 +332,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 assert authentication != null : "authentication must be present in security context";
                 final Subject effectiveSubject = authentication.getEffectiveSubject();
                 if (false == effectiveSubject.getType().equals(Subject.Type.USER)
-                    && false == effectiveSubject.getType().equals(Subject.Type.API_KEY)) {
+                    && false == effectiveSubject.getType().equals(Subject.Type.API_KEY)
+                    && false == effectiveSubject.getType().equals(Subject.Type.SERVICE_ACCOUNT)) {
                     logger.trace(
                         "Effective subject of request to remote cluster [{}] has an unsupported type [{}]",
                         remoteClusterAlias,

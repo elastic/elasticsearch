@@ -51,7 +51,6 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBu
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageAction;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequest;
-import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageResponse;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
@@ -780,23 +779,8 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<NodesUsageResponse> nodesUsage(final NodesUsageRequest request) {
-            return execute(NodesUsageAction.INSTANCE, request);
-        }
-
-        @Override
         public void nodesUsage(final NodesUsageRequest request, final ActionListener<NodesUsageResponse> listener) {
             execute(NodesUsageAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public NodesUsageRequestBuilder prepareNodesUsage(String... nodesIds) {
-            return new NodesUsageRequestBuilder(this, NodesUsageAction.INSTANCE).setNodesIds(nodesIds);
-        }
-
-        @Override
-        public ActionFuture<ClusterStatsResponse> clusterStats(ClusterStatsRequest request) {
-            return execute(ClusterStatsAction.INSTANCE, request);
         }
 
         @Override
@@ -807,11 +791,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public ClusterStatsRequestBuilder prepareClusterStats() {
             return new ClusterStatsRequestBuilder(this, ClusterStatsAction.INSTANCE);
-        }
-
-        @Override
-        public ActionFuture<NodesHotThreadsResponse> nodesHotThreads(NodesHotThreadsRequest request) {
-            return execute(NodesHotThreadsAction.INSTANCE, request);
         }
 
         @Override
@@ -875,18 +854,8 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<ClusterSearchShardsResponse> searchShards(final ClusterSearchShardsRequest request) {
-            return execute(ClusterSearchShardsAction.INSTANCE, request);
-        }
-
-        @Override
         public void searchShards(final ClusterSearchShardsRequest request, final ActionListener<ClusterSearchShardsResponse> listener) {
             execute(ClusterSearchShardsAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public ClusterSearchShardsRequestBuilder prepareSearchShards() {
-            return new ClusterSearchShardsRequestBuilder(this, ClusterSearchShardsAction.INSTANCE);
         }
 
         @Override
@@ -900,18 +869,8 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<PendingClusterTasksResponse> pendingClusterTasks(PendingClusterTasksRequest request) {
-            return execute(PendingClusterTasksAction.INSTANCE, request);
-        }
-
-        @Override
         public void pendingClusterTasks(PendingClusterTasksRequest request, ActionListener<PendingClusterTasksResponse> listener) {
             execute(PendingClusterTasksAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public ActionFuture<AcknowledgedResponse> putRepository(PutRepositoryRequest request) {
-            return execute(PutRepositoryAction.INSTANCE, request);
         }
 
         @Override
@@ -945,18 +904,8 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<AcknowledgedResponse> cloneSnapshot(CloneSnapshotRequest request) {
-            return execute(CloneSnapshotAction.INSTANCE, request);
-        }
-
-        @Override
         public void cloneSnapshot(CloneSnapshotRequest request, ActionListener<AcknowledgedResponse> listener) {
             execute(CloneSnapshotAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public ActionFuture<GetSnapshotsResponse> getSnapshots(GetSnapshotsRequest request) {
-            return execute(GetSnapshotsAction.INSTANCE, request);
         }
 
         @Override
@@ -970,11 +919,6 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<AcknowledgedResponse> deleteSnapshot(DeleteSnapshotRequest request) {
-            return execute(DeleteSnapshotAction.INSTANCE, request);
-        }
-
-        @Override
         public void deleteSnapshot(DeleteSnapshotRequest request, ActionListener<AcknowledgedResponse> listener) {
             execute(DeleteSnapshotAction.INSTANCE, request, listener);
         }
@@ -982,11 +926,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public DeleteSnapshotRequestBuilder prepareDeleteSnapshot(String repository, String... names) {
             return new DeleteSnapshotRequestBuilder(this, DeleteSnapshotAction.INSTANCE, repository, names);
-        }
-
-        @Override
-        public ActionFuture<AcknowledgedResponse> deleteRepository(DeleteRepositoryRequest request) {
-            return execute(DeleteRepositoryAction.INSTANCE, request);
         }
 
         @Override
@@ -1000,11 +939,6 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<VerifyRepositoryResponse> verifyRepository(VerifyRepositoryRequest request) {
-            return execute(VerifyRepositoryAction.INSTANCE, request);
-        }
-
-        @Override
         public void verifyRepository(VerifyRepositoryRequest request, ActionListener<VerifyRepositoryResponse> listener) {
             execute(VerifyRepositoryAction.INSTANCE, request, listener);
         }
@@ -1012,11 +946,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public VerifyRepositoryRequestBuilder prepareVerifyRepository(String name) {
             return new VerifyRepositoryRequestBuilder(this, VerifyRepositoryAction.INSTANCE, name);
-        }
-
-        @Override
-        public ActionFuture<GetRepositoriesResponse> getRepositories(GetRepositoriesRequest request) {
-            return execute(GetRepositoriesAction.INSTANCE, request);
         }
 
         @Override
@@ -1032,11 +961,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public CleanupRepositoryRequestBuilder prepareCleanupRepository(String repository) {
             return new CleanupRepositoryRequestBuilder(this, CleanupRepositoryAction.INSTANCE, repository);
-        }
-
-        @Override
-        public ActionFuture<CleanupRepositoryResponse> cleanupRepository(CleanupRepositoryRequest request) {
-            return execute(CleanupRepositoryAction.INSTANCE, request);
         }
 
         @Override
@@ -1057,11 +981,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public RestoreSnapshotRequestBuilder prepareRestoreSnapshot(String repository, String snapshot) {
             return new RestoreSnapshotRequestBuilder(this, RestoreSnapshotAction.INSTANCE, repository, snapshot);
-        }
-
-        @Override
-        public ActionFuture<SnapshotsStatusResponse> snapshotsStatus(SnapshotsStatusRequest request) {
-            return execute(SnapshotsStatusAction.INSTANCE, request);
         }
 
         @Override
@@ -1105,11 +1024,6 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public DeletePipelineRequestBuilder prepareDeletePipeline() {
-            return new DeletePipelineRequestBuilder(this, DeletePipelineAction.INSTANCE);
-        }
-
-        @Override
         public DeletePipelineRequestBuilder prepareDeletePipeline(String id) {
             return new DeletePipelineRequestBuilder(this, DeletePipelineAction.INSTANCE, id);
         }
@@ -1117,11 +1031,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public void getPipeline(GetPipelineRequest request, ActionListener<GetPipelineResponse> listener) {
             execute(GetPipelineAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public ActionFuture<GetPipelineResponse> getPipeline(GetPipelineRequest request) {
-            return execute(GetPipelineAction.INSTANCE, request);
         }
 
         @Override
@@ -1160,11 +1069,6 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<GetStoredScriptResponse> getStoredScript(final GetStoredScriptRequest request) {
-            return execute(GetStoredScriptAction.INSTANCE, request);
-        }
-
-        @Override
         public void getStoredScript(final GetStoredScriptRequest request, final ActionListener<GetStoredScriptResponse> listener) {
             execute(GetStoredScriptAction.INSTANCE, request, listener);
         }
@@ -1200,13 +1104,8 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public GetStoredScriptRequestBuilder prepareGetStoredScript() {
-            return new GetStoredScriptRequestBuilder(this, GetStoredScriptAction.INSTANCE);
-        }
-
-        @Override
         public GetStoredScriptRequestBuilder prepareGetStoredScript(String id) {
-            return prepareGetStoredScript().setId(id);
+            return new GetStoredScriptRequestBuilder(this, GetStoredScriptAction.INSTANCE).setId(id);
         }
 
         @Override
@@ -1221,28 +1120,13 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<AcknowledgedResponse> putStoredScript(final PutStoredScriptRequest request) {
-            return execute(PutStoredScriptAction.INSTANCE, request);
-        }
-
-        @Override
         public void deleteStoredScript(DeleteStoredScriptRequest request, ActionListener<AcknowledgedResponse> listener) {
             execute(DeleteStoredScriptAction.INSTANCE, request, listener);
         }
 
         @Override
-        public ActionFuture<AcknowledgedResponse> deleteStoredScript(DeleteStoredScriptRequest request) {
-            return execute(DeleteStoredScriptAction.INSTANCE, request);
-        }
-
-        @Override
-        public DeleteStoredScriptRequestBuilder prepareDeleteStoredScript() {
-            return new DeleteStoredScriptRequestBuilder(client, DeleteStoredScriptAction.INSTANCE);
-        }
-
-        @Override
         public DeleteStoredScriptRequestBuilder prepareDeleteStoredScript(String id) {
-            return prepareDeleteStoredScript().setId(id);
+            return new DeleteStoredScriptRequestBuilder(client, DeleteStoredScriptAction.INSTANCE).setId(id);
         }
     }
 
@@ -1612,11 +1496,6 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<GetIndexTemplatesResponse> getTemplates(final GetIndexTemplatesRequest request) {
-            return execute(GetIndexTemplatesAction.INSTANCE, request);
-        }
-
-        @Override
         public void getTemplates(final GetIndexTemplatesRequest request, final ActionListener<GetIndexTemplatesResponse> listener) {
             execute(GetIndexTemplatesAction.INSTANCE, request, listener);
         }
@@ -1624,11 +1503,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public GetIndexTemplatesRequestBuilder prepareGetTemplates(String... names) {
             return new GetIndexTemplatesRequestBuilder(this, GetIndexTemplatesAction.INSTANCE, names);
-        }
-
-        @Override
-        public ActionFuture<AcknowledgedResponse> deleteTemplate(final DeleteIndexTemplateRequest request) {
-            return execute(DeleteIndexTemplateAction.INSTANCE, request);
         }
 
         @Override
@@ -1665,11 +1539,6 @@ public abstract class AbstractClient implements Client {
         public ResizeRequestBuilder prepareResizeIndex(String sourceIndex, String targetIndex) {
             return new ResizeRequestBuilder(this, ResizeAction.INSTANCE).setSourceIndex(sourceIndex)
                 .setTargetIndex(new CreateIndexRequest(targetIndex));
-        }
-
-        @Override
-        public ActionFuture<ResizeResponse> resizeIndex(ResizeRequest request) {
-            return execute(ResizeAction.INSTANCE, request);
         }
 
         @Override

@@ -12,6 +12,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -86,20 +87,12 @@ public class EquivalenceIT extends ESIntegTestCase {
     @Before
     private void setupMaxBuckets() {
         // disables the max bucket limit for this test
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Collections.singletonMap("search.max_buckets", Integer.MAX_VALUE))
-            .get();
+        updateClusterSettings(Settings.builder().put("search.max_buckets", Integer.MAX_VALUE));
     }
 
     @After
     private void cleanupMaxBuckets() {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Collections.singletonMap("search.max_buckets", null))
-            .get();
+        updateClusterSettings(Settings.builder().putNull("search.max_buckets"));
     }
 
     // Make sure that unordered, reversed, disjoint and/or overlapping ranges are supported

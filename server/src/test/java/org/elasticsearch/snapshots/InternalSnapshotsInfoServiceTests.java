@@ -366,6 +366,9 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
                     .build(),
                 snapshotsInfoService
             );
+            assertCriticalWarnings(
+                "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release."
+            );
             applyClusterState(
                 "starting shards for " + indexName,
                 clusterState -> ESAllocationTestCase.startInitializingShardsAndReroute(allocationService, clusterState, indexName)

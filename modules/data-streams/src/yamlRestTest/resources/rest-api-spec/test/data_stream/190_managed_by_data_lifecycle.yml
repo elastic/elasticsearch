@@ -3,7 +3,10 @@
   - skip:
       version: " - 8.7.99"
       reason: "Data lifecycle in index templates was added after 8.7"
+      features: allowed_warnings
   - do:
+      allowed_warnings:
+        - "index template [template-with-lifecycle] has index patterns [dlm-managed-data-stream] matching patterns from existing older templates [global] with patterns (global => [*]); this template [template-with-lifecycle] will take precedence during new index creation"
       indices.put_index_template:
         name: template-with-lifecycle
         body:
@@ -22,6 +25,7 @@
   - do:
       indices.get_data_stream:
         name: "dlm-managed-data-stream"
+        include_defaults: true
   - match: { data_streams.0.name: dlm-managed-data-stream }
   - match: { data_streams.0.timestamp_field.name: '@timestamp' }
   - match: { data_streams.0.generation: 1 }
@@ -31,3 +35,4 @@
   - match: { data_streams.0.template: 'template-with-lifecycle' }
   - match: { data_streams.0.hidden: false }
   - match: { data_streams.0.lifecycle.data_retention: '30d' }
+  - is_true: data_streams.0.lifecycle.rollover

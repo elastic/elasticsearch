@@ -339,12 +339,9 @@ public class NativeRolesStoreTests extends ESTestCase {
         final boolean withAlias = randomBoolean();
         final String securityIndexName = SECURITY_MAIN_ALIAS + (withAlias ? "-" + randomAlphaOfLength(5) : "");
 
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder(securityIndexName).settings(indexSettings(Version.CURRENT, 1, 0)))
             .build();
-        Metadata metadata = Metadata.builder().put(IndexMetadata.builder(securityIndexName).settings(settings)).build();
 
         if (withAlias) {
             metadata = SecurityTestUtils.addAliasToMetadata(metadata, securityIndexName);

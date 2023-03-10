@@ -150,7 +150,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             : randomFrom(BALANCED_ALLOCATOR, DESIRED_BALANCE_ALLOCATOR);
     }
 
-    private static DesiredBalanceShardsAllocator createDesiredBalanceShardsAllocator(Settings settings) {
+    protected static DesiredBalanceShardsAllocator createDesiredBalanceShardsAllocator(Settings settings) {
         var queue = new DeterministicTaskQueue();
         return new DesiredBalanceShardsAllocator(
             createBuiltInClusterSettings(settings),

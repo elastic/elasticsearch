@@ -1396,7 +1396,7 @@ public class Node implements Closeable {
         fileSettingsService.start();
         // if we are using the readiness service, listen for the file settings being applied
         if (ReadinessService.enabled(environment)) {
-            fileSettingsService.addFileSettingsChangedListener(injector.getInstance(ReadinessService.class));
+            fileSettingsService.addFileChangedListener(injector.getInstance(ReadinessService.class));
         }
 
         clusterService.addStateApplier(transportService.getTaskManager());

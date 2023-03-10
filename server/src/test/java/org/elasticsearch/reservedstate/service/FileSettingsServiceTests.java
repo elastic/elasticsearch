@@ -47,7 +47,6 @@ import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -124,11 +123,11 @@ public class FileSettingsServiceTests extends ESTestCase {
     }
 
     public void testOperatorDirName() {
-        Path operatorPath = fileSettingsService.operatorSettingsDir();
+        Path operatorPath = fileSettingsService.watchedFileDir();
         assertTrue(operatorPath.startsWith(env.configFile()));
         assertTrue(operatorPath.endsWith("operator"));
 
-        Path operatorSettingsFile = fileSettingsService.operatorSettingsFile();
+        Path operatorSettingsFile = fileSettingsService.watchedFile();
         assertTrue(operatorSettingsFile.startsWith(operatorPath));
         assertTrue(operatorSettingsFile.endsWith("settings.json"));
     }
@@ -169,25 +168,25 @@ public class FileSettingsServiceTests extends ESTestCase {
         FileSettingsService service = spy(fileSettingsService);
         CountDownLatch processFileLatch = new CountDownLatch(1);
 
-        doAnswer((Answer<CompletableFuture<Void>>) invocation -> {
+        doAnswer((Answer<Void>) invocation -> {
             processFileLatch.countDown();
-            return CompletableFuture.completedFuture(null);
-        }).when(service).processFileSettings(any());
+            return null;
+        }).when(service).processFileChanges();
 
         service.start();
         service.startWatcher(clusterService.state());
         assertTrue(service.watching());
 
-        Files.createDirectories(service.operatorSettingsDir());
+        Files.createDirectories(service.watchedFileDir());
 
-        writeTestFile(service.operatorSettingsFile(), "{}");
+        writeTestFile(service.watchedFile(), "{}");
 
         // we need to wait a bit, on MacOS it may take up to 10 seconds for the Java watcher service to notice the file,
         // on Linux is instantaneous. Windows is instantaneous too.
         processFileLatch.await(30, TimeUnit.SECONDS);
 
         verify(service, Mockito.atLeast(1)).processSettingsAndNotifyListeners();
-        verify(service, Mockito.atLeast(1)).processFileSettings(any());
+        verify(service, Mockito.atLeast(1)).processFileChanges();
 
         service.stop();
         assertFalse(service.watching());
@@ -208,7 +207,7 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         final FileSettingsService service = spy(new FileSettingsService(clusterService, stateService, env));
 
-        service.addFileSettingsChangedListener(() -> settingsChanged.set(true));
+        service.addFileChangedListener(() -> settingsChanged.set(true));
 
         doAnswer((Answer<Void>) invocation -> {
             invocation.callRealMethod();
@@ -216,9 +215,9 @@ public class FileSettingsServiceTests extends ESTestCase {
             return null;
         }).when(service).processSettingsAndNotifyListeners();
 
-        Files.createDirectories(service.operatorSettingsDir());
+        Files.createDirectories(service.watchedFileDir());
         // contents of the JSON don't matter, we just need a file to exist
-        writeTestFile(service.operatorSettingsFile(), "{}");
+        writeTestFile(service.watchedFile(), "{}");
 
         service.start();
         service.startWatcher(clusterService.state());
@@ -226,7 +225,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         // wait until the watcher thread has started, and it has discovered the file
         assertTrue(latch.await(20, TimeUnit.SECONDS));
 
-        verify(service, times(1)).processFileSettings(any());
+        verify(service, times(1)).processFileChanges();
         // assert we never notified any listeners of successful application of file based settings
         assertFalse(settingsChanged.get());
 
@@ -249,7 +248,7 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         final FileSettingsService service = spy(new FileSettingsService(clusterService, stateService, env));
 
-        service.addFileSettingsChangedListener(() -> settingsChanged.set(true));
+        service.addFileChangedListener(() -> settingsChanged.set(true));
 
         doAnswer((Answer<Void>) invocation -> {
             invocation.callRealMethod();
@@ -257,9 +256,9 @@ public class FileSettingsServiceTests extends ESTestCase {
             return null;
         }).when(service).processSettingsAndNotifyListeners();
 
-        Files.createDirectories(service.operatorSettingsDir());
+        Files.createDirectories(service.watchedFileDir());
         // contents of the JSON don't matter, we just need a file to exist
-        writeTestFile(service.operatorSettingsFile(), "{}");
+        writeTestFile(service.watchedFile(), "{}");
 
         service.start();
         service.startWatcher(clusterService.state());
@@ -267,7 +266,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         // wait until the watcher thread has started, and it has discovered the file
         assertTrue(latch.await(20, TimeUnit.SECONDS));
 
-        verify(service, times(1)).processFileSettings(any());
+        verify(service, times(1)).processFileChanges();
         // assert we notified the listeners the file settings have changed, they were successfully applied
         assertTrue(settingsChanged.get());
 
@@ -302,10 +301,10 @@ public class FileSettingsServiceTests extends ESTestCase {
         service.startWatcher(clusterService.state());
         assertTrue(service.watching());
 
-        Files.createDirectories(service.operatorSettingsDir());
+        Files.createDirectories(service.watchedFileDir());
 
         // Make some fake settings file to cause the file settings service to process it
-        writeTestFile(service.operatorSettingsFile(), "{}");
+        writeTestFile(service.watchedFile(), "{}");
 
         // we need to wait a bit, on MacOS it may take up to 10 seconds for the Java watcher service to notice the file,
         // on Linux is instantaneous. Windows is instantaneous too.
@@ -347,10 +346,10 @@ public class FileSettingsServiceTests extends ESTestCase {
         service.startWatcher(clusterService.state());
         assertTrue(service.watching());
 
-        Files.createDirectories(service.operatorSettingsDir());
+        Files.createDirectories(service.watchedFileDir());
 
         // Make some fake settings file to cause the file settings service to process it
-        writeTestFile(service.operatorSettingsFile(), "{}");
+        writeTestFile(service.watchedFile(), "{}");
 
         // we need to wait a bit, on MacOS it may take up to 10 seconds for the Java watcher service to notice the file,
         // on Linux is instantaneous. Windows is instantaneous too.
@@ -368,9 +367,9 @@ public class FileSettingsServiceTests extends ESTestCase {
         var service = spy(fileSettingsService);
         doAnswer(i -> 0L).when(service).retryDelayMillis(anyInt());
 
-        Files.createDirectories(service.operatorSettingsDir());
+        Files.createDirectories(service.watchedFileDir());
 
-        var mockedPath = spy(service.operatorSettingsDir());
+        var mockedPath = spy(service.watchedFileDir());
         var prevWatchKey = mock(WatchKey.class);
         var newWatchKey = mock(WatchKey.class);
 
@@ -384,7 +383,7 @@ public class FileSettingsServiceTests extends ESTestCase {
                 eq(StandardWatchEventKinds.ENTRY_DELETE)
             );
 
-        var result = service.enableSettingsWatcher(prevWatchKey, mockedPath);
+        var result = service.enableDirectoryWatcher(prevWatchKey, mockedPath);
         assertThat(result, sameInstance(newWatchKey));
         assertTrue(result != prevWatchKey);
 

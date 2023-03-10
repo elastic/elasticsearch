@@ -118,6 +118,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
         ActionListener<AcknowledgedResponse> deleteDestIndexListener = ActionListener.wrap(unusedDeleteDestIndexResponse -> {
             final ClusterState clusterState = clusterService.state();
             TransformUpdater.updateTransform(
+                threadPool,
                 securityContext,
                 indexNameExpressionResolver,
                 clusterState,

@@ -609,8 +609,7 @@ public class Node implements Closeable {
             BigArrays bigArrays = createBigArrays(pageCacheRecycler, circuitBreakerService);
             modules.add(settingsModule);
             final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry);
-            final PersistedClusterStateService persistedClusterStateService = new PersistedClusterStateService(
-                nodeEnvironment,
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(
                 xContentRegistry,
                 clusterService.getClusterSettings(),
                 threadPool::relativeTimeInMillis
@@ -1267,6 +1266,14 @@ public class Node implements Closeable {
         }
 
         return writeLoadForecasters.get(0);
+    }
+
+    private PersistedClusterStateService newPersistedClusterStateService(
+        NamedXContentRegistry xContentRegistry,
+        ClusterSettings clusterSettings,
+        LongSupplier relativeTimeMillisSupplier
+    ) {
+        return new PersistedClusterStateService(nodeEnvironment, xContentRegistry, clusterSettings, relativeTimeMillisSupplier);
     }
 
     protected TransportService newTransportService(

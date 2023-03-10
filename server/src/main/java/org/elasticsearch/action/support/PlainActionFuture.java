@@ -223,6 +223,31 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
     }
 
     /**
+     * Return the result of this future, if it has been completed successfully, or throw the exception with which it was completed
+     * exceptionally. It is not valid to call this method if the future is incomplete.
+     */
+    public T result() {
+        if (isDone()) {
+            return FutureUtils.get(this, 0L, TimeUnit.NANOSECONDS);
+        } else {
+            assert false : "future is not complete yet";
+            throw new IllegalStateException("future is not complete yet");
+        }
+    }
+
+    /**
+     * Return the result of this future, if it has been completed successfully, or unwrap and throw the exception with which it was
+     * completed exceptionally. It is not valid to call this method if the future is incomplete.
+     */
+    public T actionResult() {
+        try {
+            return result();
+        } catch (ElasticsearchException e) {
+            throw unwrapEsException(e);
+        }
+    }
+
+    /**
      * <p>Following the contract of {@link AbstractQueuedSynchronizer} we create a
      * private subclass to hold the synchronizer.  This synchronizer is used to
      * implement the blocking and waiting calls as well as to handle state changes
@@ -385,8 +410,8 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
 
     private static RuntimeException unwrapEsException(ElasticsearchException esEx) {
         Throwable root = esEx.unwrapCause();
-        if (root instanceof RuntimeException) {
-            return (RuntimeException) root;
+        if (root instanceof RuntimeException runtimeException) {
+            return runtimeException;
         }
         return new UncategorizedExecutionException("Failed execution", root);
     }

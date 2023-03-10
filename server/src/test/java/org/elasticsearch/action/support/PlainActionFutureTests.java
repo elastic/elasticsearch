@@ -9,6 +9,7 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -23,7 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class PlainActionFutureTests extends ESTestCase {
 
     public void testInterruption() throws Exception {
-        final PlainActionFuture<Object> adapter = new PlainActionFuture<>() {
+        final PlainActionFuture<Object> future = new PlainActionFuture<>() {
             @Override
             public void onResponse(Object value) {
                 throw new AssertionError("should not be called");
@@ -34,11 +35,11 @@ public class PlainActionFutureTests extends ESTestCase {
         final Runnable runnable = () -> {
             final int method = randomIntBetween(0, 4);
             switch (method) {
-                case 0 -> adapter.actionGet();
-                case 1 -> adapter.actionGet("30s");
-                case 2 -> adapter.actionGet(30000);
-                case 3 -> adapter.actionGet(TimeValue.timeValueSeconds(30));
-                case 4 -> adapter.actionGet(30, TimeUnit.SECONDS);
+                case 0 -> future.actionGet();
+                case 1 -> future.actionGet("30s");
+                case 2 -> future.actionGet(30000);
+                case 3 -> future.actionGet(TimeValue.timeValueSeconds(30));
+                case 4 -> future.actionGet(30, TimeUnit.SECONDS);
                 default -> throw new AssertionError(method);
             }
         };
@@ -82,17 +83,43 @@ public class PlainActionFutureTests extends ESTestCase {
     }
 
     private void checkUnwrap(Exception exception, Class<? extends Exception> actionGetException, Class<? extends Exception> getException) {
-        final PlainActionFuture<Void> adapter = new PlainActionFuture<>() {
+        final PlainActionFuture<Void> future = new PlainActionFuture<>() {
             @Override
             public void onResponse(Void value) {
                 throw new AssertionError("should not be called");
             }
         };
 
-        adapter.onFailure(exception);
-        assertEquals(actionGetException, expectThrows(RuntimeException.class, adapter::actionGet).getClass());
-        assertEquals(actionGetException, expectThrows(RuntimeException.class, () -> adapter.actionGet(10, TimeUnit.SECONDS)).getClass());
-        assertEquals(getException, expectThrows(ExecutionException.class, () -> adapter.get()).getCause().getClass());
-        assertEquals(getException, expectThrows(ExecutionException.class, () -> adapter.get(10, TimeUnit.SECONDS)).getCause().getClass());
+        future.onFailure(exception);
+        assertEquals(actionGetException, expectThrows(RuntimeException.class, future::actionGet).getClass());
+        assertEquals(actionGetException, expectThrows(RuntimeException.class, () -> future.actionGet(10, TimeUnit.SECONDS)).getClass());
+        assertEquals(actionGetException, expectThrows(RuntimeException.class, future::actionResult).getClass());
+        assertEquals(getException, expectThrows(ExecutionException.class, future::get).getCause().getClass());
+        assertEquals(getException, expectThrows(ExecutionException.class, () -> future.get(10, TimeUnit.SECONDS)).getCause().getClass());
+
+        if (exception instanceof RuntimeException e) {
+            assertEquals(getException, expectThrows(Exception.class, future::result).getClass());
+            assertEquals(getException, expectThrows(Exception.class, () -> FutureUtils.get(future)).getClass());
+            assertEquals(getException, expectThrows(Exception.class, () -> FutureUtils.get(future, 10, TimeUnit.SECONDS)).getClass());
+        } else {
+            assertEquals(
+                getException,
+                expectThrows(UncategorizedExecutionException.class, ExecutionException.class, future::result).getCause().getClass()
+            );
+            assertEquals(
+                getException,
+                expectThrows(UncategorizedExecutionException.class, ExecutionException.class, () -> FutureUtils.get(future)).getCause()
+                    .getClass()
+            );
+            assertEquals(
+                getException,
+                expectThrows(
+                    UncategorizedExecutionException.class,
+                    ExecutionException.class,
+                    () -> FutureUtils.get(future, 10, TimeUnit.SECONDS)
+                ).getCause().getClass()
+            );
+        }
+
     }
 }

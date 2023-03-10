@@ -158,7 +158,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     TcpTransport.isUntrustedRemoteClusterEnabled()
                         ? new RoleDescriptor.RemoteIndicesPrivileges[] {
                             getRemoteIndicesReadPrivileges(".monitoring-*"),
-                            getRemoteIndicesReadPrivileges("metricbeat-*") }
+                            getRemoteIndicesReadPrivileges("metricbeat-*"),
+                            getRemoteIndicesReadPrivileges("/metrics-(beats|elasticsearch|enterprisesearch|kibana|logstash).*/") }
                         : null
                 )
             )

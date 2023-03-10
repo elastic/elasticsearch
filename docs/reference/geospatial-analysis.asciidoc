@@ -30,9 +30,7 @@ Data is often messy and incomplete. <<ingest,Ingest pipelines>> lets you clean, 
 [[geospatial-query]]
 == Query
 
-<<geo-queries,Geo queries>> will help you answer location-driven questions.
-
-Combine geospatial queries with full text search queries for unparalleled searching experience. For example, "Show me all subscribers that live in 5 miles of our new gym location, that joined in the last year and have running mentioned in their profile"
+<<geo-queries,Geo queries>> answer location-driven questions. Find documents that intersect with, are within, are contained by, or do not intersect your query geometry. Combine geospatial queries with full text search queries for unparalleled searching experience. For example, "Show me all subscribers that live within 5 miles of our new gym location, that joined in the last year and have running mentioned in their profile".
 
 [discrete]
 [[geospatial-aggregate]]

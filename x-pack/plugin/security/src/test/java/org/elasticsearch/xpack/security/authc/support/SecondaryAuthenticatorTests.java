@@ -169,7 +169,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
         authenticator.authenticate(AuthenticateAction.NAME, request, future);
 
-        assertThat(future.get(0, TimeUnit.MILLISECONDS), nullValue());
+        assertThat(future.result(), nullValue());
     }
 
     public void testAuthenticateRestRequestIsANoOpIfHeaderIsMissing() throws Exception {
@@ -177,7 +177,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
         authenticator.authenticateAndAttachToContext(request, future);
 
-        assertThat(future.get(0, TimeUnit.MILLISECONDS), nullValue());
+        assertThat(future.result(), nullValue());
         assertThat(SecondaryAuthentication.readFromContext(securityContext), nullValue());
     }
 
@@ -239,7 +239,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
             future.onResponse(result);
         }, e -> future.onFailure(e)));
 
-        final SecondaryAuthentication secondaryAuthentication = future.get(0, TimeUnit.MILLISECONDS);
+        final SecondaryAuthentication secondaryAuthentication = future.result();
         assertThat(secondaryAuthentication, Matchers.notNullValue());
         assertThat(secondaryAuthentication.getAuthentication(), Matchers.notNullValue());
         assertThat(secondaryAuthentication.getAuthentication().getEffectiveSubject().getUser().principal(), equalTo(user));

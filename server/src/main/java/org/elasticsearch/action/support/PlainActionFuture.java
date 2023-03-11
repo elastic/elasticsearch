@@ -227,12 +227,7 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
      * exceptionally. It is not valid to call this method if the future is incomplete.
      */
     public T result() {
-        if (isDone()) {
-            return FutureUtils.get(this, 0L, TimeUnit.NANOSECONDS);
-        } else {
-            assert false : "future is not complete yet";
-            throw new IllegalStateException("future is not complete yet");
-        }
+        return sync.result();
     }
 
     /**
@@ -342,6 +337,26 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
 
                 default:
                     throw new IllegalStateException("Error, synchronizer in invalid state: " + state);
+            }
+        }
+
+        V result() {
+            final int state = getState();
+            switch (state) {
+                case COMPLETED:
+                    if (exception instanceof RuntimeException runtimeException) {
+                        throw runtimeException;
+                    } else if (exception != null) {
+                        throw new UncategorizedExecutionException("Failed execution", new ExecutionException(exception));
+                    } else {
+                        return value;
+                    }
+                case CANCELLED:
+                    throw new CancellationException("Task was cancelled.");
+                default:
+                    final var message = "Error, synchronizer in invalid state: " + state;
+                    assert false : message;
+                    throw new IllegalStateException(message);
             }
         }
 

@@ -223,7 +223,7 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
     }
 
     /**
-     * Return the result of this future, if it has been completed successfully, or throw the exception with which it was completed
+     * @return the result of this future, if it has been completed successfully, or throw the exception with which it was completed
      * exceptionally. It is not valid to call this method if the future is incomplete.
      */
     public T result() {

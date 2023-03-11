@@ -93,9 +93,8 @@ public class ListenableActionFuture<T> extends PlainActionFuture<T> {
     }
 
     private void executeListener(final ActionListener<T> listener) {
-        // we use a timeout of 0 to by pass assertion forbidding to call actionGet() (blocking) on a network thread.
-        // here we know we will never block
-        ActionListener.completeWith(listener, () -> actionGet(0));
+        // call non-blocking actionResult() as we could be on a network or scheduler thread which we must not block
+        ActionListener.completeWith(listener, this::actionResult);
     }
 
 }

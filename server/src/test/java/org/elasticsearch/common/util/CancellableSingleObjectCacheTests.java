@@ -189,7 +189,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         testCache.get("foo", () -> false, future2);
         testCache.assertPendingRefreshes(1);
         testCache.completeNextRefresh("foo", 1);
-        assertThat(future2.actionGet(0L), equalTo(1));
+        assertThat(future2.actionResult(), equalTo(1));
     }
 
     public void testConcurrentRefreshesAndCancellation() throws InterruptedException {

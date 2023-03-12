@@ -223,8 +223,19 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
     }
 
     /**
-     * @return the result of this future, if it has been completed successfully, or throw the exception with which it was completed
-     * exceptionally. It is not valid to call this method if the future is incomplete.
+     * Return the result of this future, similarly to {@link FutureUtils#get} with a zero timeout except that this method ignoreds the
+     * interrupted status of the calling thread.
+     * <p>
+     * To match the behaviour of {@link FutureUtils#get}, if the future completed exceptionally with a {@link RuntimeException} then this
+     * method throws that exception, but if the future completed exceptionally with an exception that is not a {@link RuntimeException} then
+     * this method throws an {@link UncategorizedExecutionException} whose cause is an {@link ExecutionException} whose cause is the
+     * completing exception.
+     * <p>
+     * It is not valid to call this method if the future is incomplete.
+     *
+     * @return the result of this future, if it has been completed successfully.
+     * @throws RuntimeException if this future was completed exceptionally, wrapping checked exceptions as described above.
+     * @throws CancellationException if this future was cancelled.
      */
     public T result() {
         return sync.result();

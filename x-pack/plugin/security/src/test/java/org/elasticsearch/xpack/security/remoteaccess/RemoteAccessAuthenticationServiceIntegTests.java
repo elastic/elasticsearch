@@ -136,7 +136,7 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
         }
 
         try (var ignored = threadContext.stashContext()) {
-            Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
+            Authentication authentication = AuthenticationTestHelper.builder().remoteAccess().build();
             new RemoteAccessHeaders(
                 encodedRemoteAccessApiKey,
                 new RemoteAccessAuthentication(authentication, RoleDescriptorsIntersection.EMPTY)

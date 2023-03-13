@@ -80,7 +80,7 @@ setup:
   - is_true: 'cluster_info'
 
 ---
-"Test cluster_balance_stats contains node ID":
+"Test cluster_balance_stats contains node ID and roles":
 
   - skip:
       version: " - 8.7.99"
@@ -96,6 +96,7 @@ setup:
 
   - is_true: 'cluster_balance_stats.nodes.$node_name'
   - is_true: 'cluster_balance_stats.nodes.$node_name.node_id'
+  - is_true: 'cluster_balance_stats.nodes.$node_name.node_role'
 
 ---
 "Test get desired balance for single shard":

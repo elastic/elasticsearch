@@ -264,10 +264,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
                         shard.relocatingNodeId() != null && desiredNodeIds.contains(shard.relocatingNodeId()),
                         shardView.relocatingNodeIsDesired()
                     );
-                    assertEquals(
-                        indexMetadata.getTierPreference(),
-                        shardView.tierPreference()
-                    );
+                    assertEquals(indexMetadata.getTierPreference(), shardView.tierPreference());
                 }
                 Optional<ShardAssignment> shardAssignment = Optional.ofNullable(shardAssignments.get(indexShardRoutingTable.shardId()));
                 if (shardAssignment.isPresent()) {

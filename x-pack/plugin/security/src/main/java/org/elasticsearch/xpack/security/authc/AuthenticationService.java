@@ -146,7 +146,7 @@ public class AuthenticationService {
             allowAnonymous,
             realms
         );
-        authenticatorChain.authenticateAsync(context, authenticationListener);
+        authenticate(context, authenticationListener);
     }
 
     /**
@@ -156,8 +156,7 @@ public class AuthenticationService {
      * message, then the given fallback user will be returned instead.
      * @param action       The action of the message
      * @param transportRequest      The request to be authenticated
-     * @param fallbackUser The default user that will be assumed if no other user is attached to the message. May not
-    *                      be {@code null}.
+     * @param fallbackUser The default user that will be assumed if no other user is attached to the message. May not be {@code null}.
      */
     public void authenticate(String action, TransportRequest transportRequest, User fallbackUser, ActionListener<Authentication> listener) {
         Objects.requireNonNull(fallbackUser, "fallback user may not be null");
@@ -168,7 +167,7 @@ public class AuthenticationService {
             false,
             realms
         );
-        authenticatorChain.authenticateAsync(context, listener);
+        authenticate(context, listener);
     }
 
     /**
@@ -196,7 +195,7 @@ public class AuthenticationService {
             allowAnonymous,
             realms
         );
-        authenticatorChain.authenticateAsync(context, listener);
+        authenticate(context, listener);
     }
 
     /**
@@ -245,6 +244,20 @@ public class AuthenticationService {
                 expireAll();
             }
         }
+    }
+
+    Authenticator.Context newContext(final String action, final TransportRequest request, final boolean allowAnonymous) {
+        return new Authenticator.Context(
+            threadContext,
+            new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, request),
+            null,
+            allowAnonymous,
+            realms
+        );
+    }
+
+    void authenticate(final Authenticator.Context context, final ActionListener<Authentication> listener) {
+        authenticatorChain.authenticateAsync(context, listener);
     }
 
     // pkg private method for testing

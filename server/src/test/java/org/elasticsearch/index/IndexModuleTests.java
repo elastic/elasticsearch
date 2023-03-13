@@ -34,6 +34,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -131,6 +133,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
 public class IndexModuleTests extends ESTestCase {
@@ -301,8 +304,20 @@ public class IndexModuleTests extends ESTestCase {
 
         final ShardId shardId = new ShardId(indexSettings.getIndex(), randomIntBetween(0, 5));
         final Path dataPath = new NodeEnvironment.DataPath(homeDir).resolve(shardId);
-        final Directory directory = directoryFactory.newDirectory(indexSettings, new ShardPath(false, dataPath, dataPath, shardId));
+        Directory directory = directoryFactory.newDirectory(indexSettings, new ShardPath(false, dataPath, dataPath, shardId));
         assertThat(directory, instanceOf(WrappedDirectory.class));
+        assertThat(((WrappedDirectory) directory).shardRouting, nullValue());
+        assertThat(directory, instanceOf(FilterDirectory.class));
+
+        final ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            shardId,
+            randomIdentifier(),
+            randomBoolean(),
+            ShardRoutingState.INITIALIZING
+        );
+        directory = directoryFactory.newDirectory(indexSettings, new ShardPath(false, dataPath, dataPath, shardId), shardRouting);
+        assertThat(directory, instanceOf(WrappedDirectory.class));
+        assertThat(((WrappedDirectory) directory).shardRouting, sameInstance(shardRouting));
         assertThat(directory, instanceOf(FilterDirectory.class));
 
         indexService.close("test done", false);
@@ -901,16 +916,20 @@ public class IndexModuleTests extends ESTestCase {
     }
 
     private static final class TestDirectoryWrapper implements IndexModule.DirectoryWrapper {
+
         @Override
-        public Directory apply(Directory directory) {
-            return new WrappedDirectory(directory);
+        public Directory wrap(Directory delegate, ShardRouting shardRouting) {
+            return new WrappedDirectory(delegate, shardRouting);
         }
     }
 
     private static final class WrappedDirectory extends FilterDirectory {
 
-        protected WrappedDirectory(Directory in) {
+        final ShardRouting shardRouting;
+
+        protected WrappedDirectory(Directory in, ShardRouting shardRouting) {
             super(in);
+            this.shardRouting = shardRouting;
         }
     }
 }

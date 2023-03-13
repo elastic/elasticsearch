@@ -329,10 +329,7 @@ public abstract class TransportReplicationAction<
 
     private void handleOperationRequest(final Request request, final TransportChannel channel, Task task) {
         Releasable releasable = checkOperationLimits(request);
-        ActionListener<Response> listener = ActionListener.runBefore(
-            new ChannelActionListener<>(channel, actionName, request),
-            releasable::close
-        );
+        ActionListener<Response> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), releasable::close);
         runReroutePhase(task, request, listener, false);
     }
 
@@ -346,10 +343,7 @@ public abstract class TransportReplicationAction<
             request.sentFromLocalReroute(),
             request.localRerouteInitiatedByNodeClient()
         );
-        ActionListener<Response> listener = ActionListener.runBefore(
-            new ChannelActionListener<>(channel, transportPrimaryAction, request),
-            releasable::close
-        );
+        ActionListener<Response> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), releasable::close);
 
         try {
             new AsyncPrimaryAction(request, listener, (ReplicationTask) task).run();
@@ -589,10 +583,7 @@ public abstract class TransportReplicationAction<
         final Task task
     ) {
         Releasable releasable = checkReplicaLimits(replicaRequest.getRequest());
-        ActionListener<ReplicaResponse> listener = ActionListener.runBefore(
-            new ChannelActionListener<>(channel, transportReplicaAction, replicaRequest),
-            releasable::close
-        );
+        ActionListener<ReplicaResponse> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), releasable::close);
 
         try {
             new AsyncReplicaAction(replicaRequest, listener, (ReplicationTask) task).run();

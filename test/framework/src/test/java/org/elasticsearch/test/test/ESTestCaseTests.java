@@ -40,6 +40,7 @@ import javax.crypto.KeyGenerator;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -171,6 +172,14 @@ public class ESTestCaseTests extends ESTestCase {
     public void testRandomNonEmptySubsetOfThrowsOnEmptyCollection() {
         final var ex = expectThrows(IllegalArgumentException.class, () -> randomNonEmptySubsetOf(Collections.emptySet()));
         assertThat(ex.getMessage(), equalTo("Can't pick non-empty subset of an empty collection"));
+    }
+
+    public void testRandomNonNegativeLong() {
+        assertThat(randomNonNegativeLong(), greaterThanOrEqualTo(0L));
+    }
+
+    public void testRandomNonNegativeInt() {
+        assertThat(randomNonNegativeInt(), greaterThanOrEqualTo(0));
     }
 
     public void testRandomValueOtherThan() {

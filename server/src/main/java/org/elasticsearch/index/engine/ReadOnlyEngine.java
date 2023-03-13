@@ -213,13 +213,16 @@ public class ReadOnlyEngine extends Engine {
     }
 
     protected DirectoryReader open(IndexCommit commit) throws IOException {
-        // TODO: provide engineConfig.getLeafSorter() when opening a DirectoryReader from a commit
-        // should be available from Lucene v 8.10
         assert Transports.assertNotTransportThread("opening index commit of a read-only engine");
+        DirectoryReader directoryReader = DirectoryReader.open(
+            commit,
+            org.apache.lucene.util.Version.MIN_SUPPORTED_MAJOR,
+            engineConfig.getLeafSorter()
+        );
         if (lazilyLoadSoftDeletes) {
-            return new LazySoftDeletesDirectoryReaderWrapper(DirectoryReader.open(commit), Lucene.SOFT_DELETES_FIELD);
+            return new LazySoftDeletesDirectoryReaderWrapper(directoryReader, Lucene.SOFT_DELETES_FIELD);
         } else {
-            return new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(commit), Lucene.SOFT_DELETES_FIELD);
+            return new SoftDeletesDirectoryReaderWrapper(directoryReader, Lucene.SOFT_DELETES_FIELD);
         }
     }
 

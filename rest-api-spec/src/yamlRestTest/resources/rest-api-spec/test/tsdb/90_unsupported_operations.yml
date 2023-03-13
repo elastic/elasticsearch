@@ -14,7 +14,6 @@ setup:
                 time_series:
                   start_time: 2021-04-28T00:00:00Z
                   end_time: 2021-04-29T00:00:00Z
-                number_of_replicas: 0
                 number_of_shards: 2
             mappings:
               properties:
@@ -229,7 +228,7 @@ aggregate on _id:
         index: test
         body:
           size: 1
-          aggs: 
+          aggs:
             id:
               terms:
                 field: _id

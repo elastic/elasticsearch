@@ -215,7 +215,7 @@ public class AsyncTaskManagementService<
                     storeResults(
                         searchTask,
                         new StoredAsyncResponse<>(response, threadPool.absoluteTimeInMillis() + keepAlive.getMillis()),
-                        ActionListener.wrap(() -> acquiredListener.onResponse(response))
+                        ActionListener.running(() -> acquiredListener.onResponse(response))
                     );
                 } else {
                     taskManager.unregister(searchTask);
@@ -235,7 +235,7 @@ public class AsyncTaskManagementService<
                     storeResults(
                         searchTask,
                         new StoredAsyncResponse<>(e, threadPool.absoluteTimeInMillis() + keepAlive.getMillis()),
-                        ActionListener.wrap(() -> acquiredListener.onFailure(e))
+                        ActionListener.running(() -> acquiredListener.onFailure(e))
                     );
                 } else {
                     taskManager.unregister(searchTask);

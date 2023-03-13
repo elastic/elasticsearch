@@ -24,6 +24,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.blobcache.BlobCacheUtils.readSafe;
 import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
 
 public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
@@ -162,9 +163,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
                 range.end(),
                 cacheFileReference
             );
-
-            final byte[] copyBuffer = new byte[toIntBytes(Math.min(COPY_BUFFER_SIZE, range.length()))];
-
+            final ByteBuffer copyBuffer = writeBuffer.get();
             long totalBytesRead = 0L;
             final AtomicLong totalBytesWritten = new AtomicLong();
             long remainingBytes = range.length();
@@ -172,7 +171,8 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
             try (InputStream input = openInputStreamFromBlobStore(range.start(), range.length())) {
                 while (remainingBytes > 0L) {
                     assert totalBytesRead + remainingBytes == range.length();
-                    final int bytesRead = readSafe(input, copyBuffer, range.start(), range.end(), remainingBytes, cacheFileReference);
+                    copyBuffer.clear();
+                    final int bytesRead = readSafe(input, copyBuffer, range.start(), remainingBytes, cacheFileReference);
 
                     // The range to prewarm in cache
                     final long readStart = range.start() + totalBytesRead;
@@ -182,8 +182,11 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
                     // noinspection UnnecessaryLocalVariable
                     final ByteRange rangeToRead = rangeToWrite;
                     cacheFile.populateAndRead(rangeToWrite, rangeToRead, (channel) -> bytesRead, (channel, start, end, progressUpdater) -> {
-                        final ByteBuffer byteBuffer = ByteBuffer.wrap(copyBuffer, toIntBytes(start - readStart), toIntBytes(end - start));
-                        final int writtenBytes = positionalWrite(channel, start, byteBuffer);
+                        final int writtenBytes = positionalWrite(
+                            channel,
+                            start,
+                            copyBuffer.slice(toIntBytes(start - readStart), toIntBytes(end - start))
+                        );
                         logger.trace(
                             "prefetchPart: writing range [{}-{}] of file [{}], [{}] bytes written",
                             start,

@@ -24,10 +24,10 @@ public class GetProfilingActionIT extends ProfilingTestCase {
         assertEquals(1, response.getTotalFrames());
         assertNotNull(response.getStackTraces());
         StackTrace stackTrace = response.getStackTraces().get("QjoLteG7HX3VUUXr-J4kHQ");
-        assertArrayEquals(new int[] { 1083999 }, stackTrace.addressOrLines);
-        assertArrayEquals(new String[] { "QCCDqjSg3bMK1C4YRK6Tiw" }, stackTrace.fileIds);
-        assertArrayEquals(new String[] { "QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf" }, stackTrace.frameIds);
-        assertArrayEquals(new int[] { 2 }, stackTrace.typeIds);
+        assertEquals(List.of(1083999), stackTrace.addressOrLines);
+        assertEquals(List.of("QCCDqjSg3bMK1C4YRK6Tiw"), stackTrace.fileIds);
+        assertEquals(List.of("QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf"), stackTrace.frameIds);
+        assertEquals(List.of(2), stackTrace.typeIds);
 
         assertNotNull(response.getStackFrames());
         StackFrame stackFrame = response.getStackFrames().get("QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf");

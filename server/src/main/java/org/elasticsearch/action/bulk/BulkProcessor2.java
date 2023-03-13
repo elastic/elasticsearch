@@ -234,12 +234,13 @@ public class BulkProcessor2 {
      *
      * @param timeout The maximum time to wait for the bulk requests to complete
      * @param unit    The time unit of the {@code timeout} argument
+     * @return True if the bulk processor was able to be closed in the given time, false otherwise
      * @throws InterruptedException If the current thread is interrupted
      */
-    public void awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
+    public boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
         synchronized (mutex) {
             if (closed) {
-                return;
+                return true;
             }
             closed = true;
 
@@ -250,7 +251,18 @@ public class BulkProcessor2 {
             if (bulkRequestUnderConstruction.numberOfActions() > 0) {
                 execute();
             }
-            this.retry.awaitClose(timeout, unit);
+            return this.retry.awaitClose(timeout, unit);
+        }
+    }
+
+    /**
+     * This method flushes any requests, prevents any future retries, closes this processor, and returns once any pending requests complete.
+     */
+    public void close() {
+        try {
+            awaitClose(30, TimeUnit.SECONDS);
+        } catch (InterruptedException exc) {
+            Thread.currentThread().interrupt();
         }
     }
 

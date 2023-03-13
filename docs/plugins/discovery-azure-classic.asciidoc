@@ -1,5 +1,5 @@
 [[discovery-azure-classic]]
-=== Azure Classic Discovery Plugin
+=== Azure Classic discovery plugin
 
 The Azure Classic Discovery plugin uses the Azure Classic API to identify the
 addresses of seed hosts.
@@ -11,7 +11,7 @@ include::install_remove.asciidoc[]
 
 
 [[discovery-azure-classic-usage]]
-==== Azure Virtual Machine Discovery
+==== Azure Virtual Machine discovery
 
 Azure VM discovery allows to use the Azure APIs to perform automatic discovery.
 Here is a simple sample configuration:
@@ -376,7 +376,7 @@ sudo systemctl start elasticsearch
 If anything goes wrong, check your logs in `/var/log/elasticsearch`.
 
 [[discovery-azure-classic-scale]]
-==== Scaling Out!
+==== Scaling out!
 
 You need first to create an image of your previous machine.
 Disconnect from your machine and run locally the following commands:

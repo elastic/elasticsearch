@@ -80,7 +80,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
         for (int i = 0; i < enqueued; i++) {
             final int taskId = i;
             new Thread(() -> {
-                awaitBarrier(threadBlocker);
+                CyclicBarrierUtils.await(threadBlocker);
                 taskRunner.enqueueTask(new TestTask(() -> {
                     try {
                         Thread.sleep(randomLongBetween(0, 10));
@@ -107,8 +107,8 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
 
         final var blockBarrier = new CyclicBarrier(2);
         taskRunner.enqueueTask(new TestTask(() -> {
-            awaitBarrier(blockBarrier); // notify main thread that the runner is blocked
-            awaitBarrier(blockBarrier); // wait for main thread to finish enqueuing tasks
+            CyclicBarrierUtils.await(blockBarrier); // notify main thread that the runner is blocked
+            CyclicBarrierUtils.await(blockBarrier); // wait for main thread to finish enqueuing tasks
         }, getRandomPriority()));
 
         blockBarrier.await(10, TimeUnit.SECONDS); // wait for blocking task to start executing
@@ -123,16 +123,19 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
             final int priority = getRandomPriority();
             taskPriorities.add(priority);
             new Thread(() -> {
-                awaitBarrier(enqueuedBarrier); // wait until all threads are ready so the enqueueTask() calls are as concurrent as possible
+                // wait until all threads are ready so the enqueueTask() calls are as concurrent as possible
+                CyclicBarrierUtils.await(enqueuedBarrier);
                 taskRunner.enqueueTask(new TestTask(() -> {
                     executedPriorities.add(priority);
                     executedCountDown.countDown();
                 }, priority));
-                awaitBarrier(enqueuedBarrier); // notify main thread that the task is enqueued
+                CyclicBarrierUtils.await(enqueuedBarrier); // notify main thread that the task is enqueued
             }).start();
         }
-        awaitBarrier(enqueuedBarrier); // release all the threads at once
-        awaitBarrier(enqueuedBarrier); // wait for all threads to confirm the task is enqueued
+        // release all the threads at once
+        enqueuedBarrier.await(10, TimeUnit.SECONDS);
+        // wait for all threads to confirm the task is enqueued
+        enqueuedBarrier.await(10, TimeUnit.SECONDS);
         assertThat(taskRunner.queueSize(), equalTo(enqueued));
 
         blockBarrier.await(10, TimeUnit.SECONDS); // notify blocking task that it can continue
@@ -236,17 +239,10 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
     private void assertNoRunningTasks(PrioritizedThrottledTaskRunner<TestTask> taskRunner) {
         final var barrier = new CyclicBarrier(maxThreads + 1);
         for (int i = 0; i < maxThreads; i++) {
-            executor.execute(() -> { awaitBarrier(barrier); });
+            executor.execute(() -> CyclicBarrierUtils.await(barrier));
         }
-        awaitBarrier(barrier);
+        CyclicBarrierUtils.await(barrier);
         assertThat(taskRunner.runningTasks(), equalTo(0));
     }
 
-    private static void awaitBarrier(CyclicBarrier barrier) {
-        try {
-            barrier.await(10, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            throw new AssertionError("unexpected", e);
-        }
-    }
 }

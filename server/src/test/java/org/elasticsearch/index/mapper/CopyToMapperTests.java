@@ -693,7 +693,7 @@ public class CopyToMapperTests extends MapperServiceTestCase {
         assertEquals(0, document.getFields("keyword").length);
 
         IndexableField[] fields = document.getFields("keyword_copy");
-        assertEquals(2, fields.length);
+        assertEquals(1, fields.length);
     }
 
     public void testCopyToGeoPoint() throws Exception {

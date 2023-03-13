@@ -78,8 +78,12 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
                     if (upgradedNodeIds.isEmpty() == false) {
                         assertThat(upgradedNodeIds.size(), is(equalTo(1)));
                         String upgradedNodeId = upgradedNodeIds.get(0);
+                        logger.info("--> excluding [{}] from node [{}]", indexName, upgradedNodeId);
                         updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.exclude._id", upgradedNodeId));
                         ensureGreen(indexName);
+                        logger.info("--> finished excluding [{}] from node [{}]", indexName, upgradedNodeId);
+                    } else {
+                        logger.info("--> no upgrading nodes, not adding any exclusions for [{}]", indexName);
                     }
 
                     String primaryNodeId = getPrimaryNodeIdOfShard(indexName, 0);
@@ -92,24 +96,31 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
                     // the primary to a node in the old version, this allows adding replicas in the first mixed round.
                     logger.info("--> Primary node in first mixed round {} / {}", primaryNodeId, primaryNodeVersion);
                     if (primaryNodeVersion.after(UPGRADE_FROM_VERSION)) {
+                        logger.info("--> cancelling primary shard on node [{}]", primaryNodeId);
                         cancelShard(indexName, 0, primaryNodeId);
+                        logger.info("--> done cancelling primary shard on node [{}]", primaryNodeId);
 
                         String currentPrimaryNodeId = getPrimaryNodeIdOfShard(indexName, 0);
                         assertThat(getNodeVersion(currentPrimaryNodeId), is(equalTo(UPGRADE_FROM_VERSION)));
                     }
                 } else {
+                    logger.info("--> not in first upgrade round, removing exclusions for [{}]", indexName);
                     updateIndexSettings(indexName, Settings.builder().putNull("index.routing.allocation.exclude._id"));
+                    logger.info("--> done removing exclusions for [{}]", indexName);
                 }
 
                 // Drop replicas
+                logger.info("--> dropping replicas from [{}]", indexName);
                 updateIndexSettingsPermittingSlowlogDeprecationWarning(
                     indexName,
                     Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
                 );
+                logger.info("--> finished dropping replicas from [{}], adding them back", indexName);
                 updateIndexSettingsPermittingSlowlogDeprecationWarning(
                     indexName,
                     Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
                 );
+                logger.info("--> finished adding replicas from [{}]", indexName);
                 try {
                     ensureGreen(indexName);
                 } catch (AssertionError e) {

@@ -11,73 +11,111 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectPath;
 
-import java.util.Arrays;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class TransportGetProfilingAction extends HandledTransportAction<GetProfilingRequest, GetProfilingResponse> {
     private static final Logger log = LogManager.getLogger(TransportGetProfilingAction.class);
+
+    public static final Setting<Integer> PROFILING_MAX_STACKTRACE_QUERY_SLICES = Setting.intSetting(
+        "xpack.profiling.query.stacktrace.max_slices",
+        16,
+        1,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Integer> PROFILING_MAX_DETAIL_QUERY_SLICES = Setting.intSetting(
+        "xpack.profiling.query.details.max_slices",
+        16,
+        1,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Boolean> PROFILING_QUERY_REALTIME = Setting.boolSetting(
+        "xpack.profiling.query.realtime",
+        true,
+        Setting.Property.NodeScope
+    );
+
     private final NodeClient nodeClient;
     private final TransportService transportService;
+    private final Executor responseExecutor;
+    private final int desiredSlices;
+    private final int desiredDetailSlices;
+    private final boolean realtime;
 
     @Inject
-    public TransportGetProfilingAction(TransportService transportService, ActionFilters actionFilters, NodeClient nodeClient) {
+    public TransportGetProfilingAction(
+        Settings settings,
+        ThreadPool threadPool,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        NodeClient nodeClient
+    ) {
         super(GetProfilingAction.NAME, transportService, actionFilters, GetProfilingRequest::new);
         this.nodeClient = nodeClient;
         this.transportService = transportService;
+        this.responseExecutor = threadPool.executor(ProfilingPlugin.PROFILING_THREAD_POOL_NAME);
+        this.desiredSlices = PROFILING_MAX_STACKTRACE_QUERY_SLICES.get(settings);
+        this.desiredDetailSlices = PROFILING_MAX_DETAIL_QUERY_SLICES.get(settings);
+        this.realtime = PROFILING_QUERY_REALTIME.get(settings);
     }
 
     @Override
     protected void doExecute(Task submitTask, GetProfilingRequest request, ActionListener<GetProfilingResponse> submitListener) {
+        long start = System.nanoTime();
         Client client = new ParentTaskAssigningClient(this.nodeClient, transportService.getLocalNode(), submitTask);
         EventsIndex mediumDownsampled = EventsIndex.MEDIUM_DOWNSAMPLED;
         client.prepareSearch(mediumDownsampled.getName())
             .setSize(0)
             .setQuery(request.getQuery())
             .setTrackTotalHits(true)
-            .execute(new ActionListener<>() {
-                @Override
-                public void onResponse(SearchResponse searchResponse) {
-                    long sampleCount = searchResponse.getHits().getTotalHits().value;
-                    EventsIndex resampledIndex = mediumDownsampled.getResampledIndex(request.getSampleSize(), sampleCount);
-                    searchEventGroupByStackTrace(client, request, resampledIndex, submitListener);
+            .execute(ActionListener.wrap(searchResponse -> {
+                long sampleCount = searchResponse.getHits().getTotalHits().value;
+                EventsIndex resampledIndex = mediumDownsampled.getResampledIndex(request.getSampleSize(), sampleCount);
+                log.debug("getResampledIndex took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
+                searchEventGroupByStackTrace(client, request, resampledIndex, submitListener);
+            }, e -> {
+                // Apart from profiling-events-all, indices are created lazily. In a relatively empty cluster it can happen
+                // that there are so few data that we need to resort to the full index. As this is an edge case we'd rather
+                // fail instead of prematurely checking for existence in all cases.
+                if (e instanceof IndexNotFoundException) {
+                    String missingIndex = ((IndexNotFoundException) e).getIndex().getName();
+                    EventsIndex fullIndex = EventsIndex.FULL_INDEX;
+                    log.debug("Index [{}] does not exist. Using [{}] instead.", missingIndex, fullIndex.getName());
+                    searchEventGroupByStackTrace(client, request, fullIndex, submitListener);
+                } else {
+                    submitListener.onFailure(e);
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    // Apart from profiling-events-all, indices are created lazily. In a relatively empty cluster it can happen
-                    // that there are so few data that we need to resort to the full index. As this is an edge case we'd rather
-                    // fail instead of prematurely checking for existence in all cases.
-                    if (e instanceof IndexNotFoundException) {
-                        String missingIndex = ((IndexNotFoundException) e).getIndex().getName();
-                        EventsIndex fullIndex = EventsIndex.FULL_INDEX;
-                        log.debug("Index [{}] does not exist. Using [{}] instead.", missingIndex, fullIndex.getName());
-                        searchEventGroupByStackTrace(client, request, fullIndex, submitListener);
-                    } else {
-                        submitListener.onFailure(e);
-                    }
-                }
-            });
+            }));
     }
 
     private void searchEventGroupByStackTrace(
@@ -86,6 +124,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         EventsIndex eventsIndex,
         ActionListener<GetProfilingResponse> submitListener
     ) {
+        long start = System.nanoTime();
         GetProfilingResponseBuilder responseBuilder = new GetProfilingResponseBuilder();
         client.prepareSearch(eventsIndex.getName())
             .setTrackTotalHits(false)
@@ -101,37 +140,30 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                     .subAggregation(new SumAggregationBuilder("count").field("Stacktrace.count"))
             )
             .addAggregation(new SumAggregationBuilder("total_count").field("Stacktrace.count"))
-            .execute(new ActionListener<>() {
-                @Override
-                public void onResponse(SearchResponse searchResponse) {
-                    Sum totalCountAgg = searchResponse.getAggregations().get("total_count");
-                    long totalCount = Math.round(totalCountAgg.value());
-                    Resampler resampler = new Resampler(request, eventsIndex.getSampleRate(), totalCount);
-                    StringTerms stacktraces = searchResponse.getAggregations().get("group_by");
-                    // sort items lexicographically to access Lucene's term dictionary more efficiently when issuing an mget request.
-                    // The term dictionary is lexicographically sorted and using the same order reduces the number of page faults
-                    // needed to load it.
-                    Map<String, Integer> stackTraceEvents = new TreeMap<>();
-                    for (StringTerms.Bucket bucket : stacktraces.getBuckets()) {
-                        Sum count = bucket.getAggregations().get("count");
-                        int finalCount = resampler.adjustSampleCount((int) count.value());
-                        if (finalCount > 0) {
-                            stackTraceEvents.put(bucket.getKeyAsString(), finalCount);
-                        }
-                    }
-                    if (stackTraceEvents.isEmpty() == false) {
-                        responseBuilder.setStackTraceEvents(stackTraceEvents);
-                        retrieveStackTraces(client, responseBuilder, submitListener);
-                    } else {
-                        submitListener.onResponse(responseBuilder.build());
+            .execute(ActionListener.wrap(searchResponse -> {
+                Sum totalCountAgg = searchResponse.getAggregations().get("total_count");
+                long totalCount = Math.round(totalCountAgg.value());
+                Resampler resampler = new Resampler(request, eventsIndex.getSampleRate(), totalCount);
+                StringTerms stacktraces = searchResponse.getAggregations().get("group_by");
+                // sort items lexicographically to access Lucene's term dictionary more efficiently when issuing an mget request.
+                // The term dictionary is lexicographically sorted and using the same order reduces the number of page faults
+                // needed to load it.
+                Map<String, Integer> stackTraceEvents = new TreeMap<>();
+                for (StringTerms.Bucket bucket : stacktraces.getBuckets()) {
+                    Sum count = bucket.getAggregations().get("count");
+                    int finalCount = resampler.adjustSampleCount((int) count.value());
+                    if (finalCount > 0) {
+                        stackTraceEvents.put(bucket.getKeyAsString(), finalCount);
                     }
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    submitListener.onFailure(e);
+                log.debug("searchEventGroupByStackTrace took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
+                if (stackTraceEvents.isEmpty() == false) {
+                    responseBuilder.setStackTraceEvents(stackTraceEvents);
+                    retrieveStackTraces(client, responseBuilder, submitListener);
+                } else {
+                    submitListener.onResponse(responseBuilder.build());
                 }
-            });
+            }, submitListener::onFailure));
     }
 
     private void retrieveStackTraces(
@@ -139,81 +171,136 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         GetProfilingResponseBuilder responseBuilder,
         ActionListener<GetProfilingResponse> submitListener
     ) {
-        client.prepareMultiGet()
-            .addIds("profiling-stacktraces", responseBuilder.getStackTraceEvents().keySet())
-            .setRealtime(true)
-            .execute(new ActionListener<>() {
-                @Override
-                public void onResponse(MultiGetResponse multiGetItemResponses) {
-                    Map<String, StackTrace> stackTracePerId = new HashMap<>();
-                    // sort items lexicographically to access Lucene's term dictionary more efficiently when issuing an mget request.
-                    // The term dictionary is lexicographically sorted and using the same order reduces the number of page faults
-                    // needed to load it.
-                    Set<String> stackFrameIds = new TreeSet<>();
-                    Set<String> executableIds = new TreeSet<>();
-                    int totalFrames = 0;
-                    for (MultiGetItemResponse trace : multiGetItemResponses) {
-                        if (trace.isFailed() == false && trace.getResponse().isExists()) {
-                            String id = trace.getId();
-                            StackTrace stacktrace = StackTrace.fromSource(trace.getResponse().getSource());
-                            stackTracePerId.put(id, stacktrace);
-                            totalFrames += stacktrace.frameIds.length;
-                            stackFrameIds.addAll(Arrays.asList(stacktrace.frameIds));
-                            executableIds.addAll(Arrays.asList(stacktrace.fileIds));
-                        }
-                    }
-                    responseBuilder.setStackTraces(stackTracePerId);
-                    responseBuilder.setTotalFrames(totalFrames);
-                    retrieveStackTraceDetails(client, responseBuilder, stackFrameIds, executableIds, submitListener);
-                }
+        List<String> eventIds = new ArrayList<>(responseBuilder.getStackTraceEvents().keySet());
+        List<List<String>> slicedEventIds = sliced(eventIds, desiredSlices);
+        StackTraceHandler handler = new StackTraceHandler(client, responseBuilder, submitListener, eventIds.size(), slicedEventIds.size());
+        for (List<String> slice : slicedEventIds) {
+            client.prepareMultiGet()
+                .setRealtime(realtime)
+                .addIds("profiling-stacktraces", slice)
+                .execute(
+                    new ThreadedActionListener<>(responseExecutor, ActionListener.wrap(handler::onResponse, submitListener::onFailure))
+                );
+        }
+    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    submitListener.onFailure(e);
+    // package private for testing
+    static <T> List<List<T>> sliced(List<T> c, int slices) {
+        if (c.size() <= slices) {
+            return List.of(c);
+        }
+        List<List<T>> slicedList = new ArrayList<>();
+        int batchSize = c.size() / slices;
+        for (int slice = 0; slice < slices; slice++) {
+            int upperIndex = (slice + 1 < slices) ? (slice + 1) * batchSize : c.size();
+            List<T> ids = c.subList(slice * batchSize, upperIndex);
+            slicedList.add(ids);
+        }
+        return Collections.unmodifiableList(slicedList);
+    }
+
+    private class StackTraceHandler {
+        private final AtomicInteger remainingSlices;
+        private final Client client;
+        private final GetProfilingResponseBuilder responseBuilder;
+        private final ActionListener<GetProfilingResponse> submitListener;
+        private final Map<String, StackTrace> stackTracePerId;
+        // sort items lexicographically to access Lucene's term dictionary more efficiently when issuing an mget request.
+        // The term dictionary is lexicographically sorted and using the same order reduces the number of page faults
+        // needed to load it.
+        private final Set<String> stackFrameIds = new ConcurrentSkipListSet<>();
+        private final Set<String> executableIds = new ConcurrentSkipListSet<>();
+        private final AtomicInteger totalFrames = new AtomicInteger();
+        private final long start = System.nanoTime();
+
+        private StackTraceHandler(
+            Client client,
+            GetProfilingResponseBuilder responseBuilder,
+            ActionListener<GetProfilingResponse> submitListener,
+            int stackTraceCount,
+            int slices
+        ) {
+            this.stackTracePerId = new ConcurrentHashMap<>(stackTraceCount);
+            this.remainingSlices = new AtomicInteger(slices);
+            this.client = client;
+            this.responseBuilder = responseBuilder;
+            this.submitListener = submitListener;
+        }
+
+        public void onResponse(MultiGetResponse multiGetItemResponses) {
+            for (MultiGetItemResponse trace : multiGetItemResponses) {
+                if (trace.isFailed() == false && trace.getResponse().isExists()) {
+                    String id = trace.getId();
+                    StackTrace stacktrace = StackTrace.fromSource(trace.getResponse().getSource());
+                    stackTracePerId.put(id, stacktrace);
+                    totalFrames.addAndGet(stacktrace.frameIds.size());
+                    stackFrameIds.addAll(stacktrace.frameIds);
+                    executableIds.addAll(stacktrace.fileIds);
                 }
-            });
+            }
+            if (this.remainingSlices.decrementAndGet() == 0) {
+                responseBuilder.setStackTraces(stackTracePerId);
+                responseBuilder.setTotalFrames(totalFrames.get());
+                log.debug("retrieveStackTraces took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
+                retrieveStackTraceDetails(
+                    client,
+                    responseBuilder,
+                    new ArrayList<>(stackFrameIds),
+                    new ArrayList<>(executableIds),
+                    submitListener
+                );
+            }
+        }
     }
 
     private void retrieveStackTraceDetails(
         Client client,
         GetProfilingResponseBuilder responseBuilder,
-        Set<String> stackFrameIds,
-        Set<String> executableIds,
+        List<String> stackFrameIds,
+        List<String> executableIds,
         ActionListener<GetProfilingResponse> submitListener
     ) {
-
-        DetailsHandler handler = new DetailsHandler(responseBuilder, submitListener);
+        List<List<String>> slicedStackFrameIds = sliced(stackFrameIds, desiredDetailSlices);
+        List<List<String>> slicedExecutableIds = sliced(executableIds, desiredDetailSlices);
+        DetailsHandler handler = new DetailsHandler(
+            responseBuilder,
+            submitListener,
+            executableIds.size(),
+            stackFrameIds.size(),
+            slicedExecutableIds.size(),
+            slicedStackFrameIds.size()
+        );
 
         if (stackFrameIds.isEmpty()) {
             handler.onStackFramesResponse(new MultiGetResponse(new MultiGetItemResponse[0]));
         } else {
-            client.prepareMultiGet().addIds("profiling-stackframes", stackFrameIds).setRealtime(true).execute(new ActionListener<>() {
-                @Override
-                public void onResponse(MultiGetResponse multiGetItemResponses) {
-                    handler.onStackFramesResponse(multiGetItemResponses);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    submitListener.onFailure(e);
-                }
-            });
+            for (List<String> slice : slicedStackFrameIds) {
+                client.prepareMultiGet()
+                    .addIds("profiling-stackframes", slice)
+                    .setRealtime(realtime)
+                    .execute(
+                        new ThreadedActionListener<>(
+                            responseExecutor,
+                            ActionListener.wrap(handler::onStackFramesResponse, submitListener::onFailure)
+                        )
+                    );
+            }
         }
         // no data dependency - we can do this concurrently
         if (executableIds.isEmpty()) {
             handler.onExecutableDetailsResponse(new MultiGetResponse(new MultiGetItemResponse[0]));
         } else {
-            client.prepareMultiGet().addIds("profiling-executables", executableIds).setRealtime(true).execute(new ActionListener<>() {
-                @Override
-                public void onResponse(MultiGetResponse multiGetItemResponses) {
-                    handler.onExecutableDetailsResponse(multiGetItemResponses);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    submitListener.onFailure(e);
-                }
-            });
+            for (List<String> slice : slicedExecutableIds) {
+                client.prepareMultiGet()
+                    .addIds("profiling-executables", slice)
+                    .setRealtime(realtime)
+                    .execute(
+                        new ThreadedActionListener<>(
+                            responseExecutor,
+                            ActionListener.wrap(handler::onExecutableDetailsResponse, submitListener::onFailure)
+                        )
+                    );
+            }
         }
     }
 
@@ -270,42 +357,51 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
     private static class DetailsHandler {
         private final GetProfilingResponseBuilder builder;
         private final ActionListener<GetProfilingResponse> submitListener;
-        private volatile Map<String, String> executables;
-        private volatile Map<String, StackFrame> stackFrames;
+        private final Map<String, String> executables;
+        private final Map<String, StackFrame> stackFrames;
+        private final AtomicInteger expectedSlices;
+        private final long start = System.nanoTime();
 
-        private DetailsHandler(GetProfilingResponseBuilder builder, ActionListener<GetProfilingResponse> submitListener) {
+        private DetailsHandler(
+            GetProfilingResponseBuilder builder,
+            ActionListener<GetProfilingResponse> submitListener,
+            int executableCount,
+            int stackFrameCount,
+            int expectedExecutableSlices,
+            int expectedStackFrameSlices
+        ) {
             this.builder = builder;
             this.submitListener = submitListener;
+            this.executables = new ConcurrentHashMap<>(executableCount);
+            this.stackFrames = new ConcurrentHashMap<>(stackFrameCount);
+            // for deciding when we're finished it is irrelevant where a slice originated so we can
+            // simplify state handling by treating them equally.
+            this.expectedSlices = new AtomicInteger(expectedExecutableSlices + expectedStackFrameSlices);
         }
 
         public void onStackFramesResponse(MultiGetResponse multiGetItemResponses) {
-            Map<String, StackFrame> stackFrames = new HashMap<>();
             for (MultiGetItemResponse frame : multiGetItemResponses) {
                 if (frame.isFailed() == false && frame.getResponse().isExists()) {
                     stackFrames.put(frame.getId(), StackFrame.fromSource(frame.getResponse().getSource()));
                 }
             }
-            // publish to object state only when completely done, otherwise mayFinish() could run twice
-            this.stackFrames = stackFrames;
             mayFinish();
         }
 
         public void onExecutableDetailsResponse(MultiGetResponse multiGetItemResponses) {
-            Map<String, String> executables = new HashMap<>();
             for (MultiGetItemResponse executable : multiGetItemResponses) {
                 if (executable.isFailed() == false && executable.getResponse().isExists()) {
                     executables.put(executable.getId(), ObjectPath.eval("Executable.file.name", executable.getResponse().getSource()));
                 }
             }
-            // publish to object state only when completely done, otherwise mayFinish() could run twice
-            this.executables = executables;
             mayFinish();
         }
 
         public void mayFinish() {
-            if (executables != null && stackFrames != null) {
+            if (expectedSlices.decrementAndGet() == 0) {
                 builder.setExecutables(executables);
                 builder.setStackFrames(stackFrames);
+                log.debug("retrieveStackTraceDetails took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
                 submitListener.onResponse(builder.build());
             }
         }

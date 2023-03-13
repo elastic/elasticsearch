@@ -54,12 +54,13 @@ public enum GlobalOrdinalsBuilder {
         final long memorySizeInBytes = ordinalMap.ramBytesUsed();
         breakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(memorySizeInBytes);
 
+        TimeValue took = new TimeValue(System.nanoTime() - startTimeNS, TimeUnit.NANOSECONDS);
         if (logger.isDebugEnabled()) {
             logger.debug(
                 "global-ordinals [{}][{}] took [{}]",
                 indexFieldData.getFieldName(),
                 ordinalMap.getValueCount(),
-                new TimeValue(System.nanoTime() - startTimeNS, TimeUnit.NANOSECONDS)
+                took
             );
         }
         return new GlobalOrdinalsIndexFieldData(
@@ -68,7 +69,8 @@ public enum GlobalOrdinalsBuilder {
             atomicFD,
             ordinalMap,
             memorySizeInBytes,
-            toScriptFieldFactory
+            toScriptFieldFactory,
+            took
         );
     }
 
@@ -78,6 +80,7 @@ public enum GlobalOrdinalsBuilder {
         ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory
     ) throws IOException {
         assert indexReader.leaves().size() > 1;
+        long startTimeNS = System.nanoTime();
 
         final LeafOrdinalsFieldData[] atomicFD = new LeafOrdinalsFieldData[indexReader.leaves().size()];
         final SortedSetDocValues[] subs = new SortedSetDocValues[indexReader.leaves().size()];
@@ -99,14 +102,15 @@ public enum GlobalOrdinalsBuilder {
             subs[i] = atomicFD[i].getOrdinalsValues();
         }
         final OrdinalMap ordinalMap = OrdinalMap.build(null, subs, PackedInts.DEFAULT);
+        TimeValue took = new TimeValue(System.nanoTime() - startTimeNS, TimeUnit.NANOSECONDS);
         return new GlobalOrdinalsIndexFieldData(
             indexFieldData.getFieldName(),
             indexFieldData.getValuesSourceType(),
             atomicFD,
             ordinalMap,
             0,
-            toScriptFieldFactory
-        );
+            toScriptFieldFactory,
+            took);
     }
 
 }

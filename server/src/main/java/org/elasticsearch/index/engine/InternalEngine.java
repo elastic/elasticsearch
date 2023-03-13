@@ -2013,12 +2013,15 @@ public class InternalEngine extends Engine {
                     try {
                         translog.rollGeneration();
                         logger.trace("starting commit for flush; commitTranslog=true");
-                        lastFlushTimestamp = relativeTimeInNanosSupplier.getAsLong();
+                        long lastFlushTimestamp = relativeTimeInNanosSupplier.getAsLong();
                         commitIndexWriter(indexWriter, translog);
                         logger.trace("finished commit for flush");
                         // we need to refresh in order to clear older version values
                         refresh("version_table_flush", SearcherScope.INTERNAL, true);
                         translog.trimUnreferencedReaders();
+                        // Use the timestamp from when the flush started, but only update it in case of success, so that any exception in
+                        // the above lines would not lead the engine to think that it recently flushed, when it did not.
+                        this.lastFlushTimestamp = lastFlushTimestamp;
                     } catch (AlreadyClosedException e) {
                         failOnTragicEvent(e);
                         throw e;

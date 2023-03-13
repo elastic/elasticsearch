@@ -140,11 +140,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .indices(".monitoring-*")
                             .privileges("read", "read_cross_cluster")
                             .build(),
-                        RoleDescriptor.IndicesPrivileges.builder().indices("metricbeat-*").privileges("read", "read_cross_cluster").build(),
                         RoleDescriptor.IndicesPrivileges.builder()
                             .indices("/metrics-(beats|elasticsearch|enterprisesearch|kibana|logstash).*/")
                             .privileges("read", "read_cross_cluster")
-                            .build() },
+                            .build(),
+                        RoleDescriptor.IndicesPrivileges.builder().indices("metricbeat-*").privileges("read", "read_cross_cluster").build() },
                     new RoleDescriptor.ApplicationResourcePrivileges[] {
                         RoleDescriptor.ApplicationResourcePrivileges.builder()
                             .application("kibana-*")
@@ -158,8 +158,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     TcpTransport.isUntrustedRemoteClusterEnabled()
                         ? new RoleDescriptor.RemoteIndicesPrivileges[] {
                             getRemoteIndicesReadPrivileges(".monitoring-*"),
-                            getRemoteIndicesReadPrivileges("metricbeat-*"),
-                            getRemoteIndicesReadPrivileges("/metrics-(beats|elasticsearch|enterprisesearch|kibana|logstash).*/") }
+                            getRemoteIndicesReadPrivileges("/metrics-(beats|elasticsearch|enterprisesearch|kibana|logstash).*/"),
+                            getRemoteIndicesReadPrivileges("metricbeat-*") }
                         : null
                 )
             )

@@ -22,10 +22,8 @@ import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -104,35 +102,12 @@ public class CrossClusterAccessAuthenticationService {
                     try {
                         final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = crossClusterAccessHeaders.subjectInfo();
                         validate(crossClusterAccessSubjectInfo);
-                        writeAuthToContext(
-                            authcContext,
-                            authentication.toCrossClusterAccess(maybeSwitchToCrossClusterAccessUser(crossClusterAccessSubjectInfo)),
-                            listener
-                        );
+                        writeAuthToContext(authcContext, authentication.toCrossClusterAccess(crossClusterAccessSubjectInfo), listener);
                     } catch (Exception ex) {
                         withRequestProcessingFailure(authcContext, ex, listener);
                     }
                 }, listener::onFailure))
             );
-        }
-    }
-
-    private static CrossClusterAccessSubjectInfo maybeSwitchToCrossClusterAccessUser(
-        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo
-    ) throws IOException {
-        final Subject receivedEffectiveSubject = crossClusterAccessSubjectInfo.getAuthentication().getEffectiveSubject();
-        final User user = receivedEffectiveSubject.getUser();
-        if (SystemUser.is(user)) {
-            return CrossClusterAccessUser.crossClusterAccessSubjectInfo(
-                receivedEffectiveSubject.getTransportVersion(),
-                receivedEffectiveSubject.getRealm().getNodeName()
-            );
-        } else if (User.isInternal(user)) {
-            throw new IllegalArgumentException(
-                "received cross cluster request from an unexpected internal user [" + user.principal() + "]"
-            );
-        } else {
-            return crossClusterAccessSubjectInfo;
         }
     }
 
@@ -155,25 +130,35 @@ public class CrossClusterAccessAuthenticationService {
             );
         }
 
-        for (CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes : crossClusterAccessSubjectInfo
-            .getRoleDescriptorsBytesList()) {
-            final Set<RoleDescriptor> roleDescriptors = roleDescriptorsBytes.toRoleDescriptors();
-            for (RoleDescriptor roleDescriptor : roleDescriptors) {
-                final boolean privilegesOtherThanIndex = roleDescriptor.hasClusterPrivileges()
-                    || roleDescriptor.hasConfigurableClusterPrivileges()
-                    || roleDescriptor.hasApplicationPrivileges()
-                    || roleDescriptor.hasRunAs()
-                    || roleDescriptor.hasRemoteIndicesPrivileges();
-                if (privilegesOtherThanIndex) {
-                    throw new IllegalArgumentException(
-                        "role descriptor for cross cluster access can only contain index privileges "
-                            + "but other privileges found for subject ["
-                            + effectiveSubject.getUser().principal()
-                            + "]"
-                    );
+        final User user = effectiveSubject.getUser();
+        if (CrossClusterAccessUser.is(user)) {
+            // TODO validate
+        } else if (User.isInternal(user)) {
+            throw new IllegalArgumentException(
+                "received cross cluster request from an unexpected internal user [" + user.principal() + "]"
+            );
+        } else {
+            for (CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes : crossClusterAccessSubjectInfo
+                .getRoleDescriptorsBytesList()) {
+                final Set<RoleDescriptor> roleDescriptors = roleDescriptorsBytes.toRoleDescriptors();
+                for (RoleDescriptor roleDescriptor : roleDescriptors) {
+                    final boolean privilegesOtherThanIndex = roleDescriptor.hasClusterPrivileges()
+                        || roleDescriptor.hasConfigurableClusterPrivileges()
+                        || roleDescriptor.hasApplicationPrivileges()
+                        || roleDescriptor.hasRunAs()
+                        || roleDescriptor.hasRemoteIndicesPrivileges();
+                    if (privilegesOtherThanIndex) {
+                        throw new IllegalArgumentException(
+                            "role descriptor for cross cluster access can only contain index privileges "
+                                + "but other privileges found for subject ["
+                                + effectiveSubject.getUser().principal()
+                                + "]"
+                        );
+                    }
                 }
             }
         }
+
     }
 
     private Version getMinNodeVersion() {

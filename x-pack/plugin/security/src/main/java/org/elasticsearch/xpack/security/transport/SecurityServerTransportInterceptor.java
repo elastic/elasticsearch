@@ -46,8 +46,8 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authc.Subject;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
+import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -383,15 +383,16 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
                 final ThreadContext threadContext = securityContext.getThreadContext();
                 final var contextRestoreHandler = new ContextRestoreResponseHandler<>(threadContext.newRestorableContext(true), handler);
-                final User user = authentication.getEffectiveSubject().getUser();
+                final Subject effectiveSubject = authentication.getEffectiveSubject();
+                final User user = effectiveSubject.getUser();
                 if (SystemUser.is(user)) {
                     try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                         new CrossClusterAccessHeaders(
                             remoteClusterCredentials.credentials(),
-                            // Access control is handled differently for the system user. Privileges are defined by the fulfilling cluster,
-                            // so we pass an empty role descriptors intersection here and let the receiver resolve privileges based on the
-                            // authentication instance
-                            new CrossClusterAccessSubjectInfo(authentication, RoleDescriptorsIntersection.EMPTY)
+                            CrossClusterAccessUser.crossClusterAccessSubjectInfo(
+                                effectiveSubject.getTransportVersion(),
+                                effectiveSubject.getRealm().getNodeName()
+                            )
                         ).writeToContext(threadContext);
                         sender.sendRequest(connection, action, request, options, contextRestoreHandler);
                     } catch (IOException e) {
@@ -404,7 +405,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 } else {
                     authzService.getRoleDescriptorsIntersectionForRemoteCluster(
                         remoteClusterAlias,
-                        authentication.getEffectiveSubject(),
+                        effectiveSubject,
                         ActionListener.wrap(roleDescriptorsIntersection -> {
                             if (roleDescriptorsIntersection.isEmpty()) {
                                 throw authzService.remoteActionDenied(authentication, action, remoteClusterAlias);

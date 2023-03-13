@@ -26,7 +26,7 @@ public class IsNaNTests extends AbstractRationalUnaryPredicateTests {
 
     @Override
     protected String expectedEvaluatorSimpleToString() {
-        return "IsNaNEvaluator[field=Doubles[channel=0]]";
+        return "IsNaNEvaluator[val=Doubles[channel=0]]";
     }
 
 }

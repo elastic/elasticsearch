@@ -45,7 +45,7 @@ public class LengthTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected String expectedEvaluatorSimpleToString() {
-        return "LengthEvaluator[exp=Keywords[channel=0]]";
+        return "LengthEvaluator[val=Keywords[channel=0]]";
     }
 
     @Override

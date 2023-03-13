@@ -20,7 +20,6 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 public class SubstringTests extends AbstractScalarFunctionTestCase {
     @Override
@@ -58,6 +57,14 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
         return "SubstringEvaluator[str=Keywords[channel=0], start=Ints[channel=1], length=Ints[channel=2]]";
     }
 
+    public void testNoLengthToString() {
+        assertThat(
+            evaluator(new Substring(Source.EMPTY, field("str", DataTypes.KEYWORD), field("start", DataTypes.INTEGER), null)).get()
+                .toString(),
+            equalTo("SubstringNoLengthEvaluator[str=Keywords[channel=0], start=Ints[channel=1]]")
+        );
+    }
+
     @Override
     protected Expression constantFoldable(List<Object> data) {
         return new Substring(
@@ -66,17 +73,6 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
             new Literal(Source.EMPTY, data.get(1), DataTypes.INTEGER),
             new Literal(Source.EMPTY, data.get(2), DataTypes.INTEGER)
         );
-    }
-
-    @Override
-    protected void assertSimpleWithNulls(List<Object> data, Object value, int nullBlock) {
-        if (nullBlock == 2) {
-            String str = ((BytesRef) data.get(0)).utf8ToString();
-            int start = (Integer) data.get(1);
-            assertThat(value, equalTo(new BytesRef(str.substring(start - 1))));
-        } else {
-            assertThat(value, nullValue());
-        }
     }
 
     @Override

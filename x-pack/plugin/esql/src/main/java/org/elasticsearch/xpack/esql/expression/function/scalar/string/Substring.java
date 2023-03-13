@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -74,25 +74,43 @@ public class Substring extends ScalarFunction implements OptionalArgument, Mappa
 
     @Override
     public Object fold() {
-        BytesRef source = (BytesRef) str.fold();
-        Integer startPos = (Integer) start.fold();
-        Integer runFor = length == null ? null : (Integer) length.fold();
+        Object strVal = str.fold();
+        Object startVal = start.fold();
 
-        return process(source, startPos, runFor);
+        if (length == null) {
+            return SubstringNoLengthEvaluator.process(strVal, startVal);
+        }
+        return SubstringEvaluator.process(strVal, startVal, length.fold());
     }
 
-    public static BytesRef process(BytesRef str, Integer start, Integer length) {
-        if (str == null || str.length == 0 || start == null) {
+    @Evaluator(extraName = "NoLength")
+    static BytesRef process(BytesRef str, int start) {
+        if (str.length == 0) {
             return null;
         }
+        int codePointCount = UnicodeUtil.codePointCount(str);
+        int indexStart = indexStart(codePointCount, start);
+        return new BytesRef(str.utf8ToString().substring(indexStart));
+    }
 
-        if (length != null && length < 0) {
+    @Evaluator
+    static BytesRef process(BytesRef str, int start, int length) {
+        if (str.length == 0) {
+            return null;
+        }
+        if (length < 0) {
             throw new IllegalArgumentException("Length parameter cannot be negative, found [" + length + "]");
         }
+        int codePointCount = UnicodeUtil.codePointCount(str);
+        int indexStart = indexStart(codePointCount, start);
+        int indexEnd = Math.min(codePointCount, indexStart + length);
+        String s = str.utf8ToString();
+        return new BytesRef(s.substring(s.offsetByCodePoints(0, indexStart), s.offsetByCodePoints(0, indexEnd)));
+    }
 
+    private static int indexStart(int codePointCount, int start) {
         // esql is 1-based when it comes to string manipulation. We treat start = 0 and 1 the same
         // a negative value is relative to the end of the string
-        int codePointCount = UnicodeUtil.codePointCount(str);
         int indexStart;
         if (start > 0) {
             indexStart = start - 1;
@@ -101,12 +119,7 @@ public class Substring extends ScalarFunction implements OptionalArgument, Mappa
         } else {
             indexStart = start; // start == 0
         }
-        indexStart = Math.min(Math.max(0, indexStart), codePointCount); // sanitise string start index
-
-        int indexEnd = Math.min(codePointCount, length == null ? indexStart + codePointCount : indexStart + length);
-
-        final String s = str.utf8ToString();
-        return new BytesRef(s.substring(s.offsetByCodePoints(0, indexStart), s.offsetByCodePoints(0, indexEnd)));
+        return Math.min(Math.max(0, indexStart), codePointCount); // sanitise string start index
     }
 
     @Override
@@ -130,22 +143,10 @@ public class Substring extends ScalarFunction implements OptionalArgument, Mappa
     ) {
         Supplier<EvalOperator.ExpressionEvaluator> strSupplier = toEvaluator.apply(str);
         Supplier<EvalOperator.ExpressionEvaluator> startSupplier = toEvaluator.apply(start);
-        Supplier<EvalOperator.ExpressionEvaluator> lengthSupplier = length == null ? () -> null : toEvaluator.apply(length);
-        return () -> new SubstringEvaluator(strSupplier.get(), startSupplier.get(), lengthSupplier.get());
-    }
-
-    record SubstringEvaluator(
-        EvalOperator.ExpressionEvaluator str,
-        EvalOperator.ExpressionEvaluator start,
-        EvalOperator.ExpressionEvaluator length
-    ) implements EvalOperator.ExpressionEvaluator {
-        @Override
-        public Object computeRow(Page page, int pos) {
-            return Substring.process(
-                (BytesRef) str.computeRow(page, pos),
-                (Integer) start.computeRow(page, pos),
-                length == null ? null : (Integer) length.computeRow(page, pos)
-            );
+        if (length == null) {
+            return () -> new SubstringNoLengthEvaluator(strSupplier.get(), startSupplier.get());
         }
+        Supplier<EvalOperator.ExpressionEvaluator> lengthSupplier = toEvaluator.apply(length);
+        return () -> new SubstringEvaluator(strSupplier.get(), startSupplier.get(), lengthSupplier.get());
     }
 }

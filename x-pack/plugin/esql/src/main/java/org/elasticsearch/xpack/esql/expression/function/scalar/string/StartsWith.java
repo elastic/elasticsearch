@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -64,13 +64,11 @@ public class StartsWith extends ScalarFunction implements Mappable {
 
     @Override
     public Object fold() {
-        return process((BytesRef) str.fold(), (BytesRef) prefix.fold());
+        return StartsWithEvaluator.process(str.fold(), prefix.fold());
     }
 
-    public static Boolean process(BytesRef str, BytesRef prefix) {
-        if (str == null || prefix == null) {
-            return null;
-        }
+    @Evaluator
+    static Boolean process(BytesRef str, BytesRef prefix) {
         if (str.length < prefix.length) {
             return false;
         }
@@ -99,14 +97,5 @@ public class StartsWith extends ScalarFunction implements Mappable {
         Supplier<EvalOperator.ExpressionEvaluator> strEval = toEvaluator.apply(str);
         Supplier<EvalOperator.ExpressionEvaluator> prefixEval = toEvaluator.apply(prefix);
         return () -> new StartsWithEvaluator(strEval.get(), prefixEval.get());
-    }
-
-    record StartsWithEvaluator(EvalOperator.ExpressionEvaluator str, EvalOperator.ExpressionEvaluator prefix)
-        implements
-            EvalOperator.ExpressionEvaluator {
-        @Override
-        public Object computeRow(Page page, int pos) {
-            return StartsWith.process((BytesRef) str.computeRow(page, pos), (BytesRef) prefix.computeRow(page, pos));
-        }
     }
 }

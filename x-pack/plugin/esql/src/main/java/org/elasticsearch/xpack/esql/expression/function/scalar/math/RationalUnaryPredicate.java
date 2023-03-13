@@ -33,15 +33,4 @@ public abstract class RationalUnaryPredicate extends UnaryScalarFunction impleme
     public final DataType dataType() {
         return DataTypes.BOOLEAN;
     }
-
-    @Override
-    public Object fold() {
-        Object fieldVal = field().fold();
-        if (fieldVal == null) {
-            return null;
-        }
-        return fold(fieldVal);
-    }
-
-    protected abstract boolean fold(Object val);
 }

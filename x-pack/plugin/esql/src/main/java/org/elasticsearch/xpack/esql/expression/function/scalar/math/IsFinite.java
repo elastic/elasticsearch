@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
-import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -23,8 +23,8 @@ public class IsFinite extends RationalUnaryPredicate {
     }
 
     @Override
-    protected boolean fold(Object val) {
-        return Double.isFinite((Double) val);
+    public Object fold() {
+        return IsFiniteEvaluator.process(field().fold());
     }
 
     @Override
@@ -35,15 +35,9 @@ public class IsFinite extends RationalUnaryPredicate {
         return () -> new IsFiniteEvaluator(field.get());
     }
 
-    private record IsFiniteEvaluator(EvalOperator.ExpressionEvaluator field) implements EvalOperator.ExpressionEvaluator {
-        @Override
-        public Object computeRow(Page page, int pos) {
-            Object v = field.computeRow(page, pos);
-            if (v == null) {
-                return null;
-            }
-            return Double.isFinite((Double) v);
-        }
+    @Evaluator
+    static boolean process(double val) {
+        return Double.isFinite(val);
     }
 
     @Override

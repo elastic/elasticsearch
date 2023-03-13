@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
-import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -49,7 +49,6 @@ public class Round extends ScalarFunction implements OptionalArgument, Mappable 
         TypeResolution resolution = isNumeric(field, sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
-
         }
 
         return decimals == null ? TypeResolution.TYPE_RESOLVED : isInteger(decimals, sourceText(), SECOND);
@@ -63,18 +62,20 @@ public class Round extends ScalarFunction implements OptionalArgument, Mappable 
     @Override
     public Object fold() {
         Object fieldVal = field.fold();
-        Object decimalsVal = decimals == null ? null : decimals.fold();
-        return process(fieldVal, decimalsVal);
+        if (decimals == null) {
+            return RoundNoDecimalsEvaluator.process(fieldVal);
+        }
+        return RoundEvaluator.process(fieldVal, decimals.fold());
     }
 
-    public static Number process(Object fieldVal, Object decimalsVal) {
-        if (fieldVal == null) {
-            return null;
-        }
-        if (decimalsVal == null) {
-            decimalsVal = 0;
-        }
-        return Maths.round((Number) fieldVal, (Number) decimalsVal);
+    @Evaluator(extraName = "NoDecimals")
+    static Number processNoDecimals(Number val) {
+        return Maths.round(val, 0);
+    }
+
+    @Evaluator
+    static Number process(Number val, Number decimals) {
+        return Maths.round(val, decimals);
     }
 
     @Override
@@ -110,26 +111,11 @@ public class Round extends ScalarFunction implements OptionalArgument, Mappable 
         Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
     ) {
         Supplier<EvalOperator.ExpressionEvaluator> fieldEvaluator = toEvaluator.apply(field());
-        // round.decimals() == null means that decimals were not provided (it's an optional parameter of the Round function)
-        Supplier<EvalOperator.ExpressionEvaluator> decimalsEvaluatorSupplier = decimals != null ? toEvaluator.apply(decimals) : null;
-        if (false == field.dataType().isRational()) {
-            return fieldEvaluator;
+        if (decimals == null) {
+            return () -> new RoundNoDecimalsEvaluator(fieldEvaluator.get());
         }
-        return () -> new DecimalRoundExpressionEvaluator(
-            fieldEvaluator.get(),
-            decimalsEvaluatorSupplier == null ? null : decimalsEvaluatorSupplier.get()
-        );
-    }
-
-    record DecimalRoundExpressionEvaluator(
-        EvalOperator.ExpressionEvaluator fieldEvaluator,
-        EvalOperator.ExpressionEvaluator decimalsEvaluator
-    ) implements EvalOperator.ExpressionEvaluator {
-        @Override
-        public Object computeRow(Page page, int pos) {
-            Object decimals = decimalsEvaluator != null ? decimalsEvaluator.computeRow(page, pos) : null;
-            return Round.process(fieldEvaluator.computeRow(page, pos), decimals);
-        }
+        Supplier<EvalOperator.ExpressionEvaluator> decimalsEvaluator = toEvaluator.apply(decimals);
+        return () -> new RoundEvaluator(fieldEvaluator.get(), decimalsEvaluator.get());
     }
 
     @Override

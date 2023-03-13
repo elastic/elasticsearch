@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
-import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -27,30 +27,30 @@ public class Abs extends UnaryScalarFunction implements Mappable {
     @Override
     public Object fold() {
         Object fieldVal = field().fold();
-        if (fieldVal == null) {
-            return null;
-        }
         if (dataType() == DataTypes.DOUBLE) {
-            return transform((Double) fieldVal);
+            return AbsDoubleEvaluator.process(fieldVal);
         }
         if (dataType() == DataTypes.LONG) {
-            return transform((Long) fieldVal);
+            return AbsLongEvaluator.process(fieldVal);
         }
         if (dataType() == DataTypes.INTEGER) {
-            return transform((Integer) fieldVal);
+            return AbsIntEvaluator.process(fieldVal);
         }
         throw new UnsupportedOperationException("unsupported data type [" + dataType() + "]");
     }
 
-    static double transform(double fieldVal) {
+    @Evaluator(extraName = "Double")
+    static double process(double fieldVal) {
         return Math.abs(fieldVal);
     }
 
-    static long transform(long fieldVal) {
+    @Evaluator(extraName = "Long")
+    static long process(long fieldVal) {
         return Math.absExact(fieldVal);
     }
 
-    static int transform(int fieldVal) {
+    @Evaluator(extraName = "Int")
+    static int process(int fieldVal) {
         return Math.absExact(fieldVal);
     }
 
@@ -60,48 +60,15 @@ public class Abs extends UnaryScalarFunction implements Mappable {
     ) {
         Supplier<EvalOperator.ExpressionEvaluator> field = toEvaluator.apply(field());
         if (dataType() == DataTypes.DOUBLE) {
-            return () -> new DoubleEvaluator(field.get());
+            return () -> new AbsDoubleEvaluator(field.get());
         }
         if (dataType() == DataTypes.LONG) {
-            return () -> new LongEvaluator(field.get());
+            return () -> new AbsLongEvaluator(field.get());
         }
         if (dataType() == DataTypes.INTEGER) {
-            return () -> new IntEvaluator(field.get());
+            return () -> new AbsIntEvaluator(field.get());
         }
         throw new UnsupportedOperationException("unsupported data type [" + dataType() + "]");
-    }
-
-    private record DoubleEvaluator(EvalOperator.ExpressionEvaluator field) implements EvalOperator.ExpressionEvaluator {
-        @Override
-        public Object computeRow(Page page, int pos) {
-            Object v = field.computeRow(page, pos);
-            if (v == null) {
-                return null;
-            }
-            return transform((Double) v);
-        }
-    }
-
-    private record LongEvaluator(EvalOperator.ExpressionEvaluator field) implements EvalOperator.ExpressionEvaluator {
-        @Override
-        public Object computeRow(Page page, int pos) {
-            Object v = field.computeRow(page, pos);
-            if (v == null) {
-                return null;
-            }
-            return transform((Long) v);
-        }
-    }
-
-    private record IntEvaluator(EvalOperator.ExpressionEvaluator field) implements EvalOperator.ExpressionEvaluator {
-        @Override
-        public Object computeRow(Page page, int pos) {
-            Object v = field.computeRow(page, pos);
-            if (v == null) {
-                return null;
-            }
-            return transform((Integer) v);
-        }
     }
 
     @Override

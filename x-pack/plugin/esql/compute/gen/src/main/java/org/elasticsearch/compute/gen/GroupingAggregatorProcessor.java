@@ -65,7 +65,6 @@ public class GroupingAggregatorProcessor implements Processor {
     public boolean process(Set<? extends TypeElement> set, RoundEnvironment roundEnvironment) {
         for (TypeElement ann : set) {
             for (Element aggClass : roundEnvironment.getElementsAnnotatedWith(ann)) {
-                env.getMessager().printMessage(Diagnostic.Kind.NOTE, "generating grouping aggregation for " + aggClass);
                 try {
                     new GroupingAggregatorImplementer(env.getElementUtils(), (TypeElement) aggClass).sourceFile().writeTo(env.getFiler());
                 } catch (IOException e) {

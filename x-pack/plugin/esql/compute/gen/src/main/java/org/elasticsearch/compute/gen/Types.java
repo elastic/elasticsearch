@@ -15,6 +15,7 @@ import com.squareup.javapoet.ClassName;
 public class Types {
     private static final String PACKAGE = "org.elasticsearch.compute";
     private static final String AGGREGATION_PACKAGE = PACKAGE + ".aggregation";
+    private static final String OPERATOR_PACKAGE = PACKAGE + ".operator";
     private static final String DATA_PACKAGE = PACKAGE + ".data";
 
     static final ClassName PAGE = ClassName.get(DATA_PACKAGE, "Page");
@@ -38,4 +39,6 @@ public class Types {
 
     static final ClassName AGGREGATOR_FUNCTION = ClassName.get(AGGREGATION_PACKAGE, "AggregatorFunction");
     static final ClassName GROUPING_AGGREGATOR_FUNCTION = ClassName.get(AGGREGATION_PACKAGE, "GroupingAggregatorFunction");
+    static final ClassName EXPRESSION_EVALUATOR = ClassName.get(OPERATOR_PACKAGE, "EvalOperator", "ExpressionEvaluator");
+
 }

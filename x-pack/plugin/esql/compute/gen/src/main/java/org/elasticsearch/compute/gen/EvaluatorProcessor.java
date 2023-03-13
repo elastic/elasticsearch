@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.gen;
 
-import org.elasticsearch.compute.ann.Aggregator;
+import org.elasticsearch.compute.ann.Evaluator;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,10 +25,10 @@ import javax.lang.model.element.TypeElement;
 import javax.tools.Diagnostic;
 
 /**
- * Glues the {@link AggregatorImplementer} into the jdk's annotation
+ * Glues the {@link EvaluatorImplementer} into the jdk's annotation
  * processing framework.
  */
-public class AggregatorProcessor implements Processor {
+public class EvaluatorProcessor implements Processor {
     private ProcessingEnvironment env;
 
     @Override
@@ -38,7 +38,7 @@ public class AggregatorProcessor implements Processor {
 
     @Override
     public Set<String> getSupportedAnnotationTypes() {
-        return Set.of(Aggregator.class.getName());
+        return Set.of(Evaluator.class.getName());
     }
 
     @Override
@@ -64,11 +64,14 @@ public class AggregatorProcessor implements Processor {
     @Override
     public boolean process(Set<? extends TypeElement> set, RoundEnvironment roundEnvironment) {
         for (TypeElement ann : set) {
-            for (Element aggClass : roundEnvironment.getElementsAnnotatedWith(ann)) {
+            for (Element evaluatorMethod : roundEnvironment.getElementsAnnotatedWith(ann)) {
+                Evaluator evaluatorAnn = evaluatorMethod.getAnnotation(Evaluator.class);
                 try {
-                    new AggregatorImplementer(env.getElementUtils(), (TypeElement) aggClass).sourceFile().writeTo(env.getFiler());
+                    new EvaluatorImplementer(env.getElementUtils(), (ExecutableElement) evaluatorMethod, evaluatorAnn.extraName())
+                        .sourceFile()
+                        .writeTo(env.getFiler());
                 } catch (IOException e) {
-                    env.getMessager().printMessage(Diagnostic.Kind.ERROR, "failed generating aggregation for " + aggClass);
+                    env.getMessager().printMessage(Diagnostic.Kind.ERROR, "failed generating evaluator for " + evaluatorMethod);
                     throw new RuntimeException(e);
                 }
             }

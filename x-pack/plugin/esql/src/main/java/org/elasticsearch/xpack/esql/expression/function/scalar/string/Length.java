@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -53,14 +53,12 @@ public class Length extends UnaryScalarFunction implements Mappable {
 
     @Override
     public Object fold() {
-        return process((BytesRef) field().fold());
+        return LengthEvaluator.process(field().fold());
     }
 
-    public static Integer process(BytesRef fieldVal) {
-        if (fieldVal == null) {
-            return null;
-        }
-        return UnicodeUtil.codePointCount(fieldVal);
+    @Evaluator
+    static Integer process(BytesRef val) {
+        return UnicodeUtil.codePointCount(val);
     }
 
     @Override
@@ -84,12 +82,5 @@ public class Length extends UnaryScalarFunction implements Mappable {
     ) {
         Supplier<EvalOperator.ExpressionEvaluator> field = toEvaluator.apply(field());
         return () -> new LengthEvaluator(field.get());
-    }
-
-    record LengthEvaluator(EvalOperator.ExpressionEvaluator exp) implements EvalOperator.ExpressionEvaluator {
-        @Override
-        public Object computeRow(Page page, int pos) {
-            return Length.process(((BytesRef) exp.computeRow(page, pos)));
-        }
     }
 }

@@ -26,6 +26,6 @@ public class IsInfiniteTests extends AbstractRationalUnaryPredicateTests {
 
     @Override
     protected String expectedEvaluatorSimpleToString() {
-        return "IsInfiniteEvaluator[field=Doubles[channel=0]]";
+        return "IsInfiniteEvaluator[val=Doubles[channel=0]]";
     }
 }

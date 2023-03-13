@@ -14,6 +14,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.InvertableType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DocValuesType;
@@ -112,6 +113,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             super(field, term, ft);
         }
 
+        @Override
+        public InvertableType invertableType() {
+            return InvertableType.BINARY;
+        }
     }
 
     private static TextSearchInfo textSearchInfo(

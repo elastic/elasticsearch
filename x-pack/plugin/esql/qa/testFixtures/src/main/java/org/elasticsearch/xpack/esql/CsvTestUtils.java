@@ -19,8 +19,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.supercsv.io.CsvListReader;
 import org.supercsv.prefs.CsvPreference;
 
@@ -268,9 +267,9 @@ public final class CsvTestUtils {
         }
     }
 
-    record ActualResults(List<String> columnNames, List<Type> columnTypes, List<DataType> dataTypes, List<Page> pages) {
+    record ActualResults(List<String> columnNames, List<Type> columnTypes, List<String> dataTypes, List<Page> pages) {
         List<List<Object>> values() {
-            return TransportEsqlQueryAction.pagesToValues(dataTypes(), pages);
+            return EsqlQueryResponse.pagesToValues(dataTypes(), pages);
         }
     }
 

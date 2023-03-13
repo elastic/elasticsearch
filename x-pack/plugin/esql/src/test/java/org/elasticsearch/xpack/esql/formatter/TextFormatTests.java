@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.formatter;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.IntArrayVector;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -171,11 +175,11 @@ public class TextFormatTests extends ESTestCase {
     }
 
     public void testPlainTextEmptyCursorWithoutColumns() {
-        assertEquals(StringUtils.EMPTY, PLAIN_TEXT.format(req(), new EsqlQueryResponse(emptyList(), emptyList())));
+        assertEquals(StringUtils.EMPTY, PLAIN_TEXT.format(req(), new EsqlQueryResponse(emptyList(), emptyList(), false)));
     }
 
     private static EsqlQueryResponse emptyData() {
-        return new EsqlQueryResponse(singletonList(new ColumnInfo("name", "keyword")), emptyList());
+        return new EsqlQueryResponse(singletonList(new ColumnInfo("name", "keyword")), emptyList(), false);
     }
 
     private static EsqlQueryResponse regularData() {
@@ -183,9 +187,17 @@ public class TextFormatTests extends ESTestCase {
         List<ColumnInfo> headers = asList(new ColumnInfo("string", "keyword"), new ColumnInfo("number", "integer"));
 
         // values
-        List<List<Object>> values = asList(asList("Along The River Bank", 11 * 60 + 48), asList("Mind Train", 4 * 60 + 40));
+        List<Page> values = List.of(
+            new Page(
+                BytesRefBlock.newBlockBuilder(2)
+                    .appendBytesRef(new BytesRef("Along The River Bank"))
+                    .appendBytesRef(new BytesRef("Mind Train"))
+                    .build(),
+                new IntArrayVector(new int[] { 11 * 60 + 48, 4 * 60 + 40 }, 2).asBlock()
+            )
+        );
 
-        return new EsqlQueryResponse(headers, values);
+        return new EsqlQueryResponse(headers, values, false);
     }
 
     private static EsqlQueryResponse escapedData() {
@@ -193,9 +205,17 @@ public class TextFormatTests extends ESTestCase {
         List<ColumnInfo> headers = asList(new ColumnInfo("first", "keyword"), new ColumnInfo("\"special\"", "keyword"));
 
         // values
-        List<List<Object>> values = asList(asList("normal", "\"quo\"ted\",\n"), asList("commas", "a,b,c,\n,d,e,\t\n"));
+        List<Page> values = List.of(
+            new Page(
+                BytesRefBlock.newBlockBuilder(2).appendBytesRef(new BytesRef("normal")).appendBytesRef(new BytesRef("commas")).build(),
+                BytesRefBlock.newBlockBuilder(2)
+                    .appendBytesRef(new BytesRef("\"quo\"ted\",\n"))
+                    .appendBytesRef(new BytesRef("a,b,c,\n,d,e,\t\n"))
+                    .build()
+            )
+        );
 
-        return new EsqlQueryResponse(headers, values);
+        return new EsqlQueryResponse(headers, values, false);
     }
 
     private static RestRequest req() {

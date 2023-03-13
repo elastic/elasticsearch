@@ -39,13 +39,13 @@ import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.planner.TestPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.CsvSpecReader;
 import org.elasticsearch.xpack.ql.SpecReader;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.junit.After;
 import org.junit.Before;
@@ -204,10 +204,10 @@ public class CsvTests extends ESTestCase {
         List<Driver> drivers = new ArrayList<>();
         List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
         List<String> columnNames = Expressions.names(physicalPlan.output());
-        List<DataType> dataTypes = new ArrayList<>(columnNames.size());
+        List<String> dataTypes = new ArrayList<>(columnNames.size());
         List<Type> columnTypes = physicalPlan.output()
             .stream()
-            .peek(o -> dataTypes.add(o.dataType()))
+            .peek(o -> dataTypes.add(EsqlDataTypes.outputType(o.dataType())))
             .map(o -> Type.asType(o.dataType().name()))
             .toList();
         try {

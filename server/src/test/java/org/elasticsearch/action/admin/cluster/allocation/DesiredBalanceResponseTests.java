@@ -123,7 +123,8 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
                                     shardId,
                                     indexName,
                                     randomBoolean() ? randomDouble() : null,
-                                    randomBoolean() ? randomLong() : null
+                                    randomBoolean() ? randomLong() : null,
+                                    randomList(0, 1, () -> randomFrom("hot", "warm", "cold", "frozen"))
                                 )
                             )
                             .toList(),
@@ -286,6 +287,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
                     assertEquals(jsonShard.get("index"), shardView.index());
                     assertEquals(jsonShard.get("forecast_write_load"), shardView.forecastWriteLoad());
                     assertEquals(jsonShard.get("forecast_shard_size_in_bytes"), shardView.forecastShardSizeInBytes());
+                    assertEquals(jsonShard.get("tier_preference"), shardView.tierPreference());
                 }
 
                 Map<String, Object> jsonDesired = (Map<String, Object>) jsonDesiredShard.get("desired");

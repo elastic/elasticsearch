@@ -135,3 +135,28 @@ setup:
   - gte: { routing_table.test.0.desired.unassigned: 0 }
   - gte: { routing_table.test.0.desired.ignored: 0 }
   - is_true: 'routing_table.test.0.desired.node_ids'
+
+---
+"Test get desired balance for single shard":
+
+  - skip:
+      version: " - 8.7.99"
+      reason: "tier preference added in in 8.8.0"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        index: test
+        wait_for_status: green
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - is_true: 'routing_table.test.0.current.tier_preference'

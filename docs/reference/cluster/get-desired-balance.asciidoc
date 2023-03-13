@@ -133,7 +133,8 @@ The API returns the following result:
             "shard_id": 0,
             "index": "test",
             "forecast_write_load": 8.0,
-            "forecast_shard_size_in_bytes": 1024
+            "forecast_shard_size_in_bytes": 1024,
+            "tier_preference": ["data_content"]
           }
         ],
         "desired": {
@@ -157,7 +158,8 @@ The API returns the following result:
             "shard_id": 1,
             "index": "test",
             "forecast_write_load": null,
-            "forecast_shard_size_in_bytes": null
+            "forecast_shard_size_in_bytes": null,
+            "tier_preference": ["data_content"]
           }
         ],
         "desired": {

@@ -34,7 +34,8 @@ public final class SearchApplicationTestUtils {
             ESTestCase.randomAlphaOfLengthBetween(1, 10),
             generateRandomStringArray(10, 10, false, false),
             randomFrom(new String[] { null, randomAlphaOfLengthBetween(1, 10) }),
-            randomLongBetween(0, Long.MAX_VALUE)
+            randomLongBetween(0, Long.MAX_VALUE),
+            null
         );
     }
 }

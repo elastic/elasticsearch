@@ -79,12 +79,10 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
             // Index some documents, so we can attempt to search them from the querying cluster
             final Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
             bulkRequest.setJsonEntity(Strings.format("""
-                { "index": { "_index": "index1" } }
+                { "index": { "_index": "remote_index1" } }
                 { "foo": "bar" }
-                { "index": { "_index": "index2" } }
-                { "bar": "foo" }
-                { "index": { "_index": "prefixed_index" } }
-                { "baz": "fee" }\n"""));
+                { "index": { "_index": "remote_index2" } }
+                { "bar": "foo" }\n"""));
             assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
         }
 
@@ -102,13 +100,13 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
                   "cluster": ["manage_own_api_key"],
                   "indices": [
                     {
-                      "names": ["local_index", "index1", "not_found_index"],
+                      "names": ["local_index", "remote_index1"],
                       "privileges": ["read", "read_cross_cluster"]
                     }
                   ],
                   "remote_indices": [
                     {
-                      "names": ["index1", "not_found_index", "prefixed_index"],
+                      "names": ["remote_index1"],
                       "privileges": ["read", "read_cross_cluster"],
                       "clusters": ["my_remote_cluster"]
                     }
@@ -122,7 +120,7 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
                   "cluster": ["manage_own_api_key"],
                   "indices": [
                     {
-                      "names": ["local_index", "index1", "not_found_index"],
+                      "names": ["remote_index1"],
                       "privileges": ["read", "read_cross_cluster"]
                     }
                   ]
@@ -146,13 +144,13 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
                     "my_remote_access_role": {
                       "indices": [
                         {
-                          "names": ["local_index", "index1", "index2"],
+                          "names": ["local_index", "remote_index1", "remote_index2"],
                           "privileges": ["read", "read_cross_cluster"]
                         }
                       ],
                       "remote_indices": [
                         {
-                          "names": ["index1", "not_found_index", "prefixed_index", "index2"],
+                          "names": ["remote_index1", "remote_index2"],
                           "privileges": ["read", "read_cross_cluster"],
                           "clusters": ["my_remote_*", "non_existing_remote_cluster"]
                         }
@@ -181,7 +179,7 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
                     "/%s%s:%s/_search?ccs_minimize_roundtrips=%s",
                     alsoSearchLocally ? "local_index," : "",
                     randomFrom("my_remote_cluster", "*", "my_remote_*"),
-                    randomFrom("index1", "*"),
+                    randomFrom("remote_index1", "*"),
                     randomBoolean()
                 )
             );
@@ -195,9 +193,9 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
                 .map(SearchHit::getIndex)
                 .collect(Collectors.toList());
             if (alsoSearchLocally) {
-                assertThat(actualIndices, containsInAnyOrder("index1", "local_index"));
+                assertThat(actualIndices, containsInAnyOrder("remote_index1", "local_index"));
             } else {
-                assertThat(actualIndices, containsInAnyOrder("index1"));
+                assertThat(actualIndices, containsInAnyOrder("remote_index1"));
             }
         }
     }

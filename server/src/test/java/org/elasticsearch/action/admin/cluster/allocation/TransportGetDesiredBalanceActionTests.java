@@ -121,10 +121,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         for (int i = 0; i < randomInt(8); i++) {
             String indexName = randomAlphaOfLength(8);
-            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(0);
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName).settings(indexSettings(Version.CURRENT, 1, 0));
             if (randomBoolean()) {
                 indexMetadataBuilder.indexWriteLoadForecast(randomDoubleBetween(0.0, 8.0, true));
             }
@@ -181,7 +178,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
         }
         RoutingTable routingTable = routingTableBuilder.build();
 
-        List<ShardId> shardIds = routingTable.allShards().stream().map(ShardRouting::shardId).toList();
+        List<ShardId> shardIds = routingTable.allShards().map(ShardRouting::shardId).toList();
         Map<String, Set<ShardId>> indexShards = shardIds.stream()
             .collect(Collectors.groupingBy(e -> e.getIndex().getName(), Collectors.toSet()));
         Map<ShardId, ShardAssignment> shardAssignments = new HashMap<>();

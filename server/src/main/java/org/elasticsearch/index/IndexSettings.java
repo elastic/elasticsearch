@@ -285,10 +285,12 @@ public final class IndexSettings {
     public static final Setting<TimeValue> INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING = Setting.timeSetting(
         "index.translog.flush_threshold_age",
         /*
-         * Flush at least every 5 minutes by default. This helps ensure that replaying the translog also takes in the order of 5 minutes,
-         * and has the good property of naturally giving more translog size to the shards that are heavily indexed into.
+         * Flush at least every minute by default. This gives a first order approximation of the maximum time it takes to replay translogs
+         * of about one minute as well. In practice, this is not exactly true since replaying translogs is not as concurrent as indexing,
+         * especially as Elasticsearch bounds the maximum number of concurrent replays of translogs, but it should still be a good enough
+         * approximation.
          */
-        new TimeValue(5, TimeUnit.MINUTES),
+        new TimeValue(1, TimeUnit.MINUTES),
         new TimeValue(1, TimeUnit.SECONDS),
         new TimeValue(1, TimeUnit.HOURS),
         Property.Dynamic,

@@ -250,7 +250,7 @@ public interface AuthorizationEngine {
         final ActionListener<RoleDescriptorsIntersection> listener
     ) {
         throw new UnsupportedOperationException(
-            "retrieving remote privilege role descriptors is not supported by this authorization engine"
+            "retrieving role descriptors for remote cluster is not supported by this authorization engine"
         );
     }
 

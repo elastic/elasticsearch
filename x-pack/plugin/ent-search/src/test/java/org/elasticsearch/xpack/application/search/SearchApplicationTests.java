@@ -59,6 +59,17 @@ public class SearchApplicationTests extends ESTestCase {
               "name": "my_search_app",
               "indices": ["my_index"],
               "analytics_collection_name": "my_search_app_analytics",
+              "template": {
+                "script": {
+                  "source": {
+                    "query": {
+                      "query_string": {
+                        "query": "{{query_string}}"
+                      }
+                    }
+                  }
+                }
+              },
               "updated_at_millis": 12345
             }""");
         SearchApplication app = SearchApplication.fromXContentBytes("my_search_app", new BytesArray(content), XContentType.JSON);

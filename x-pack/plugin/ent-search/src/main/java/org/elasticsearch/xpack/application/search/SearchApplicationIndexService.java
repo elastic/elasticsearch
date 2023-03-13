@@ -166,6 +166,20 @@ public class SearchApplicationIndexService {
                     builder.field("type", "keyword");
                     builder.endObject();
 
+                    builder.startObject(SearchApplication.TEMPLATE_FIELD.getPreferredName());
+                    builder.field("type", "object");
+                    {
+                        builder.startObject("properties");
+                        {
+                            builder.startObject(SearchApplication.TEMPLATE_SCRIPT_FIELD.getPreferredName());
+                            builder.field("type", "object");
+                            builder.field("dynamic", false);
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+
                     builder.startObject(SearchApplication.BINARY_CONTENT_FIELD.getPreferredName());
                     builder.field("type", "object");
                     builder.field("enabled", "false");
@@ -275,6 +289,7 @@ public class SearchApplicationIndexService {
                     .field(SearchApplication.NAME_FIELD.getPreferredName(), app.name())
                     .field(SearchApplication.INDICES_FIELD.getPreferredName(), app.indices())
                     .field(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName(), app.analyticsCollectionName())
+                    .field(SearchApplication.TEMPLATE_FIELD.getPreferredName(), app.searchTemplate())
                     .directFieldAsBase64(
                         SearchApplication.BINARY_CONTENT_FIELD.getPreferredName(),
                         os -> writeSearchApplicationBinaryWithVersion(app, os, clusterService.state().nodes().getMinNodeVersion())

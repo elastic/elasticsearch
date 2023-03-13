@@ -48,7 +48,7 @@ public class TransportPutSearchApplicationActionTests extends ESTestCase {
             licenseState
         );
 
-        SearchApplication app = new SearchApplication("my-search-app", new String[] { "index1" }, "my-analytics-collection");
+        SearchApplication app = new SearchApplication("my-search-app", new String[] { "index1" }, "my-analytics-collection", null);
         PutSearchApplicationAction.Request request = new PutSearchApplicationAction.Request(app, true);
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();

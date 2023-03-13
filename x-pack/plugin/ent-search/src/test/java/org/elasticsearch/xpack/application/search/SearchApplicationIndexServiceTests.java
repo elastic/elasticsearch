@@ -69,7 +69,7 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testCreateSearchApplication() throws Exception {
-        final SearchApplication searchApp = new SearchApplication("my_search_app", new String[] { "index_1" }, null);
+        final SearchApplication searchApp = new SearchApplication("my_search_app", new String[] { "index_1" }, null, null);
 
         IndexResponse resp = awaitPutSearchApplication(searchApp, true);
         assertThat(resp.status(), equalTo(RestStatus.CREATED));
@@ -95,7 +95,7 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
 
     public void testUpdateSearchApplication() throws Exception {
         {
-            final SearchApplication searchApp = new SearchApplication("my_search_app", new String[] { "index_1", "index_2" }, null);
+            final SearchApplication searchApp = new SearchApplication("my_search_app", new String[] { "index_1", "index_2" }, null, null);
             IndexResponse resp = awaitPutSearchApplication(searchApp, false);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
             assertThat(resp.getIndex(), equalTo(SEARCH_APPLICATION_CONCRETE_INDEX_NAME));
@@ -107,7 +107,8 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
         final SearchApplication searchApp = new SearchApplication(
             "my_search_app",
             new String[] { "index_3", "index_4" },
-            "my_search_app_analytics_collection"
+            "my_search_app_analytics_collection",
+            null
         );
         IndexResponse newResp = awaitPutSearchApplication(searchApp, false);
         assertThat(newResp.status(), equalTo(RestStatus.OK));
@@ -119,7 +120,7 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
 
     public void testListSearchApplication() throws Exception {
         for (int i = 0; i < NUM_INDICES; i++) {
-            final SearchApplication searchApp = new SearchApplication("my_search_app_" + i, new String[] { "index_" + i }, null);
+            final SearchApplication searchApp = new SearchApplication("my_search_app_" + i, new String[] { "index_" + i }, null, null);
             IndexResponse resp = awaitPutSearchApplication(searchApp, false);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
             assertThat(resp.getIndex(), equalTo(SEARCH_APPLICATION_CONCRETE_INDEX_NAME));
@@ -157,7 +158,7 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
 
     public void testListSearchApplicationWithQuery() throws Exception {
         for (int i = 0; i < 10; i++) {
-            final SearchApplication app = new SearchApplication("my_search_app_" + i, new String[] { "index_" + i }, null);
+            final SearchApplication app = new SearchApplication("my_search_app_" + i, new String[] { "index_" + i }, null, null);
             IndexResponse resp = awaitPutSearchApplication(app, false);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
             assertThat(resp.getIndex(), equalTo(SEARCH_APPLICATION_CONCRETE_INDEX_NAME));
@@ -186,7 +187,7 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
 
     public void testDeleteSearchApplication() throws Exception {
         for (int i = 0; i < 5; i++) {
-            final SearchApplication app = new SearchApplication("my_search_app_" + i, new String[] { "index_" + i }, null);
+            final SearchApplication app = new SearchApplication("my_search_app_" + i, new String[] { "index_" + i }, null, null);
             IndexResponse resp = awaitPutSearchApplication(app, false);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
             assertThat(resp.getIndex(), equalTo(SEARCH_APPLICATION_CONCRETE_INDEX_NAME));

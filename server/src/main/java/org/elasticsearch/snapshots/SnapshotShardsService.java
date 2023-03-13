@@ -347,9 +347,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         ActionListener<ShardSnapshotResult> resultListener
     ) {
         ActionListener.run(resultListener, listener -> {
-            if (snapshotStatus.isAborted()) {
-                throw new AbortedSnapshotException();
-            }
+            snapshotStatus.ensureNotAborted();
             final IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
             if (indexShard.routingEntry().primary() == false) {
                 throw new IndexShardSnapshotFailedException(shardId, "snapshot should be performed only on primary");
@@ -369,6 +367,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             Engine.IndexCommitRef snapshotRef = null;
             try {
                 snapshotRef = indexShard.acquireIndexCommitForSnapshot();
+                snapshotStatus.ensureNotAborted();
                 repository.snapshotShard(
                     new SnapshotShardContext(
                         indexShard.store(),

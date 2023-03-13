@@ -24,26 +24,26 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.Optional;
 
-public class SlimConfig implements NlpConfig {
+public class TextExpansionConfig implements NlpConfig {
 
-    public static final String NAME = "slim";
+    public static final String NAME = "text_expansion";
 
-    public static SlimConfig fromXContentStrict(XContentParser parser) {
+    public static TextExpansionConfig fromXContentStrict(XContentParser parser) {
         return STRICT_PARSER.apply(parser, null);
     }
 
-    public static SlimConfig fromXContentLenient(XContentParser parser) {
+    public static TextExpansionConfig fromXContentLenient(XContentParser parser) {
         return LENIENT_PARSER.apply(parser, null);
     }
 
-    private static final ConstructingObjectParser<SlimConfig, Void> STRICT_PARSER = createParser(false);
-    private static final ConstructingObjectParser<SlimConfig, Void> LENIENT_PARSER = createParser(true);
+    private static final ConstructingObjectParser<TextExpansionConfig, Void> STRICT_PARSER = createParser(false);
+    private static final ConstructingObjectParser<TextExpansionConfig, Void> LENIENT_PARSER = createParser(true);
 
-    private static ConstructingObjectParser<SlimConfig, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<SlimConfig, Void> parser = new ConstructingObjectParser<>(
+    private static ConstructingObjectParser<TextExpansionConfig, Void> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<TextExpansionConfig, Void> parser = new ConstructingObjectParser<>(
             NAME,
             ignoreUnknownFields,
-            a -> new SlimConfig((VocabularyConfig) a[0], (Tokenization) a[1], (String) a[2])
+            a -> new TextExpansionConfig((VocabularyConfig) a[0], (Tokenization) a[1], (String) a[2])
         );
         parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             if (ignoreUnknownFields == false) {
@@ -67,20 +67,24 @@ public class SlimConfig implements NlpConfig {
     private final Tokenization tokenization;
     private final String resultsField;
 
-    public SlimConfig(@Nullable VocabularyConfig vocabularyConfig, @Nullable Tokenization tokenization, @Nullable String resultsField) {
+    public TextExpansionConfig(
+        @Nullable VocabularyConfig vocabularyConfig,
+        @Nullable Tokenization tokenization,
+        @Nullable String resultsField
+    ) {
         this.vocabularyConfig = Optional.ofNullable(vocabularyConfig)
             .orElse(new VocabularyConfig(InferenceIndexConstants.nativeDefinitionStore()));
         this.tokenization = tokenization == null ? Tokenization.createDefault() : tokenization;
         if (this.tokenization instanceof BertTokenization == false) {
             throw ExceptionsHelper.badRequestException(
-                "SLIM must be configured with BERT tokenizer, [{}] given",
+                "text expansion models must be configured with BERT tokenizer, [{}] given",
                 this.tokenization.getName()
             );
         }
         this.resultsField = resultsField;
     }
 
-    public SlimConfig(StreamInput in) throws IOException {
+    public TextExpansionConfig(StreamInput in) throws IOException {
         vocabularyConfig = new VocabularyConfig(in);
         tokenization = in.readNamedWriteable(Tokenization.class);
         resultsField = in.readOptionalString();
@@ -160,7 +164,7 @@ public class SlimConfig implements NlpConfig {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        SlimConfig that = (SlimConfig) o;
+        TextExpansionConfig that = (TextExpansionConfig) o;
         return Objects.equals(vocabularyConfig, that.vocabularyConfig)
             && Objects.equals(tokenization, that.tokenization)
             && Objects.equals(resultsField, that.resultsField);

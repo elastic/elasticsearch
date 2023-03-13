@@ -52,6 +52,8 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
@@ -61,6 +63,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -196,6 +199,8 @@ public class InternalEngine extends Engine {
 
     private volatile long lastFlushTimestamp;
 
+    private final ByteSizeValue totalDiskSpace;
+
     public InternalEngine(EngineConfig engineConfig) {
         this(engineConfig, IndexWriter.MAX_DOCS, LocalCheckpointTracker::new);
     }
@@ -228,6 +233,7 @@ public class InternalEngine extends Engine {
                 });
                 assert translog.getGeneration() != null;
                 this.translog = translog;
+                this.totalDiskSpace = new ByteSizeValue(Environment.getFileStore(translog.location()).getTotalSpace(), ByteSizeUnit.BYTES);
                 this.softDeletesPolicy = newSoftDeletesPolicy();
                 this.combinedDeletionPolicy = new CombinedDeletionPolicy(
                     logger,
@@ -1917,7 +1923,7 @@ public class InternalEngine extends Engine {
         // independently in a short period of time, once to reclaim IndexWriter buffer memory and then to reclaim the translog.
         final long flushThresholdSizeInBytes = Math.max(
             Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1,
-            config().getIndexSettings().getFlushThresholdSize().getBytes() / 2
+            config().getIndexSettings().getFlushThresholdSize(totalDiskSpace).getBytes() / 2
         );
         final long flushThresholdAgeInNanos = config().getIndexSettings().getFlushThresholdAge().getNanos() / 2;
         if (shouldPeriodicallyFlush(flushThresholdSizeInBytes, flushThresholdAgeInNanos)) {
@@ -1932,7 +1938,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public boolean shouldPeriodicallyFlush() {
-        final long flushThresholdSizeInBytes = config().getIndexSettings().getFlushThresholdSize().getBytes();
+        final long flushThresholdSizeInBytes = config().getIndexSettings().getFlushThresholdSize(totalDiskSpace).getBytes();
         final long flushThresholdAgeInNanos = config().getIndexSettings().getFlushThresholdAge().getNanos();
         return shouldPeriodicallyFlush(flushThresholdSizeInBytes, flushThresholdAgeInNanos);
     }

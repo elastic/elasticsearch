@@ -1096,8 +1096,18 @@ public final class IndexSettings {
     /**
      * Returns the transaction log threshold size when to forcefully flush the index and clear the transaction log.
      */
-    public ByteSizeValue getFlushThresholdSize() {
-        return flushThresholdSize;
+    public ByteSizeValue getFlushThresholdSize(ByteSizeValue totalDiskSpace) {
+        // Never return more than 1% of the total disk space as a protection for small instances that may not have much disk space.
+        long onePercentOfTotalDiskSpace = totalDiskSpace.getBytes() / 100;
+        if (onePercentOfTotalDiskSpace <= ByteSizeUnit.MB.toBytes(10)) {
+            // Paranoia: total disk usage should always be at least in the GBs. Make sure the translog is always allowed at least 10MB.
+            onePercentOfTotalDiskSpace = ByteSizeUnit.MB.toBytes(10);
+        }
+        if (onePercentOfTotalDiskSpace < flushThresholdSize.getBytes()) {
+            return new ByteSizeValue(onePercentOfTotalDiskSpace, ByteSizeUnit.BYTES);
+        } else {
+            return flushThresholdSize;
+        }
     }
 
     /**

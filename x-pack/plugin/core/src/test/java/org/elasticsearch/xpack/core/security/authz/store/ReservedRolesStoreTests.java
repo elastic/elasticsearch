@@ -1436,7 +1436,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         final String metricsPrefix = "metrics-";
         assertNoAccessAllowed(monitoringUserRole, metricsPrefix + "system.cpu-default");
-        assertOnlyReadAllowed(monitoringUserRole, metricsPrefix + "elastic_agent.filebeat-default");
+        assertNoAccessAllowed(monitoringUserRole, metricsPrefix + "elastic_agent.filebeat-default");
 
         assertOnlyReadAllowed(monitoringUserRole, metricsPrefix + "elasticsearch.stack_monitoring.cluster_stats-default");
         assertOnlyReadAllowed(monitoringUserRole, metricsPrefix + "elasticsearch.ingest_pipeline-default");

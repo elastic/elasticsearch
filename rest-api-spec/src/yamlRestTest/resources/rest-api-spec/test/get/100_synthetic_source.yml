@@ -808,3 +808,96 @@ ip with ignore_malformed:
           - hot garbage # fields saved by ignore_malformed are sorted after doc values
           - 7
   - is_false: fields
+
+
+---
+flattened field:
+  - skip:
+      version: " - 8.7.0"
+      reason: support for synthetic source on flattened fields added in 8.8.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              flattened_a:
+                type: flattened
+              flattened_object_array:
+                type: flattened
+              empty_flattened:
+                type: flattened
+              single_flattened:
+                type: flattened
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body:
+          flattened_a:
+            top1: "876"
+            dict1:
+              abc: def
+              opq: rst
+              hij: lmn
+              uvx: wyz
+              z:
+                first: one
+                second: two
+                third: [ 1, 2, 3 ]
+            list1: [ "789", "1011", "1213", "1213" ]
+          single_flattened:
+            field: value
+          flattened_object_array:
+            - 1:
+                id: 1
+                code: 1234
+            - 2:
+                id: 2
+                code: 1243
+
+  - do:
+      get:
+        index: test
+        id: 1
+
+  - match: { _index: "test" }
+  - match: { _id: "1" }
+  - match: { _version: 1 }
+  - match: { found: true }
+  - match:
+      _source:
+        flattened_a:
+          top1: "876"
+          dict1:
+            abc: def
+            opq: rst
+            hij: lmn
+            uvx: wyz
+            z:
+              first: one
+              second: two
+              # NOTE 1: synthetic source always returns de-duplicated keywords
+              third: [ "1", "2", "3" ]
+          # NOTE 2: the missing '1213' value below is not a mistake.
+          # Flattened fields use SortedSetDocValues, which means they discard duplicate key/value pairs
+          # like `key1.key8` => `c` which exists twice in the input document.
+          # NOTE 3: watch out for string vs numeric sorting
+          list1: [ "1011", "1213", "789" ]
+        single_flattened:
+          field: value
+        # NOTE 3: this field is returned as nasted objects instead of an array of objects. We have no
+        # way to distinguish if field is an array of objects or a set of nested objects.
+        flattened_object_array:
+          1:
+            id: "1"
+            code: "1234"
+          2:
+            id: "2"
+            code: "1243"
+
+  - is_false: fields

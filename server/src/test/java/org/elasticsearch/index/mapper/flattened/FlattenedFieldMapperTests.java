@@ -29,8 +29,13 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.containsString;
@@ -514,11 +519,68 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        throw new AssumptionViolatedException("not supported");
+        return new FlattenedFieldSyntheticSourceSupport();
     }
 
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    private static void randomMapExample(final TreeMap<Object, Object> example, int depth, int maxDepth) {
+        for (int i = 0; i < randomIntBetween(2, 5); i++) {
+            int j = depth >= maxDepth ? randomIntBetween(1, 2) : randomIntBetween(1, 3);
+            switch (j) {
+                case 1 -> example.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
+                case 2 -> {
+                    // NOTE: we remove duplicates from the list to avoid issues with duplicate keywords.
+                    // Moreover we make sure the list has at least 2 elements.
+                    final List<String> randomList = new ArrayList<>(
+                        new HashSet<>(randomList(2, 10, () -> String.valueOf(randomIntBetween(10000, 20000))))
+                    );
+                    if (randomList.size() == 1) {
+                        randomList.add(randomList.get(0) + 1);
+                    }
+                    Collections.sort(randomList);
+                    example.put(randomAlphaOfLength(6), randomList);
+                }
+                case 3 -> {
+                    final TreeMap<Object, Object> nested = new TreeMap<>();
+                    randomMapExample(nested, depth + 1, maxDepth);
+                    example.put(randomAlphaOfLength(10), nested);
+                }
+                default -> throw new IllegalArgumentException("value: [" + j + "] unexpected");
+            }
+        }
+    }
+
+    private static class FlattenedFieldSyntheticSourceSupport implements SyntheticSourceSupport {
+
+        @Override
+        public SyntheticSourceExample example(int maxValues) throws IOException {
+
+            // NOTE: values must be keywords and we use a TreeMap to preserve order (doc values are sorted and the result
+            // is created with keys and nested keys in sorted order).
+            final TreeMap<Object, Object> map = new TreeMap<>();
+            randomMapExample(map, 0, maxValues);
+            return new SyntheticSourceExample(map, map, this::mapping);
+        }
+
+        @Override
+        public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+            return List.of(
+                new SyntheticSourceInvalidExample(
+                    equalTo(
+                        "field [field] of type [flattened] doesn't support synthetic "
+                            + "source because it doesn't have doc values and isn't stored"
+                    ),
+                    b -> b.field("type", "flattened").field("doc_values", false)
+                )
+            );
+        }
+
+        private void mapping(XContentBuilder b) throws IOException {
+            b.field("type", "flattened");
+        }
     }
 }

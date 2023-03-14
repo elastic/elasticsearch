@@ -75,4 +75,8 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
         if (script == null) return template.script == null;
         return script.equals(template.script);
     }
+
+    public Script script() {
+        return script;
+    }
 }

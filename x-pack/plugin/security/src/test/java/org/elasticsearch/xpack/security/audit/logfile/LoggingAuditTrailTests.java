@@ -93,7 +93,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
+import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
@@ -2576,7 +2576,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertMsg(logger, checkedFields.map(), checkedArrayFields.map());
     }
 
-    public void testRemoteAccessAuthenticationSuccessTransport() throws Exception {
+    public void testCrossClusterAccessAuthenticationSuccessTransport() throws Exception {
         final TransportRequest request = randomBoolean() ? new MockRequest(threadContext) : new MockIndicesRequest(threadContext);
         final String requestId = randomRequestId();
         final Authentication remoteAuthentication = randomFrom(
@@ -2585,7 +2585,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
             AuthenticationTestHelper.builder().apiKey().metadata(Map.of(AuthenticationField.API_KEY_NAME_KEY, randomAlphaOfLength(42)))
         ).build(false);
         final Authentication authentication = AuthenticationTestHelper.builder()
-            .remoteAccess(randomAlphaOfLength(42), new RemoteAccessAuthentication(remoteAuthentication, RoleDescriptorsIntersection.EMPTY))
+            .crossClusterAccess(
+                randomAlphaOfLength(42),
+                new CrossClusterAccessSubjectInfo(remoteAuthentication, RoleDescriptorsIntersection.EMPTY)
+            )
             .build();
         final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
         final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
@@ -2601,7 +2604,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action")
             .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
             .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
-        remoteAccessAuthentication(authentication, remoteAuthentication, checkedFields, checkedLiteralFields);
+        crossClusterAccessAuthentication(authentication, remoteAuthentication, checkedFields, checkedLiteralFields);
         restOrTransportOrigin(request, threadContext, checkedFields);
         indicesRequest(request, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
@@ -2961,17 +2964,17 @@ public class LoggingAuditTrailTests extends ESTestCase {
     }
 
     private static void authentication(Authentication authentication, MapBuilder<String, String> checkedFields) {
-        assertThat("use remoteAccessAuthentication instead", authentication.isRemoteAccess(), is(false));
+        assertThat("use crossClusterAccessAuthentication instead", authentication.isCrossClusterAccess(), is(false));
         putCheckedFieldsForAuthentication(authentication, checkedFields);
     }
 
-    private static void remoteAccessAuthentication(
+    private static void crossClusterAccessAuthentication(
         Authentication authentication,
         Authentication remoteAuthentication,
         MapBuilder<String, String> checkedFields,
         MapBuilder<String, String> checkedLiteralFields
     ) {
-        assertThat("authentication must be remote access", authentication.isRemoteAccess(), is(true));
+        assertThat("authentication must be cross cluster access", authentication.isCrossClusterAccess(), is(true));
         assertThat("remote authentication cannot be run-as", remoteAuthentication.isRunAs(), is(false));
         putCheckedFieldsForAuthentication(authentication, checkedFields);
         final String expectedCrossClusterAccessLiteralField = switch (remoteAuthentication.getEffectiveSubject().getType()) {
@@ -3001,7 +3004,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
     private static void putCheckedFieldsForAuthentication(Authentication authentication, MapBuilder<String, String> checkedFields) {
         checkedFields.put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
         checkedFields.put(LoggingAuditTrail.AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
-        if (authentication.isApiKey() || authentication.isRemoteAccess()) {
+        if (authentication.isApiKey() || authentication.isCrossClusterAccess()) {
             assert false == authentication.isRunAs();
             checkedFields.put(
                 LoggingAuditTrail.API_KEY_ID_FIELD_NAME,

@@ -242,9 +242,9 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
 import org.elasticsearch.xpack.security.authc.Realms;
-import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
@@ -911,12 +911,12 @@ public class Security extends Plugin
         );
 
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
-        final RemoteAccessAuthenticationService remoteAccessAuthcService = new RemoteAccessAuthenticationService(
+        final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService = new CrossClusterAccessAuthenticationService(
             clusterService,
             apiKeyService,
             authcService.get()
         );
-        components.add(remoteAccessAuthcService);
+        components.add(crossClusterAccessAuthcService);
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(
                 settings,
@@ -926,7 +926,7 @@ public class Security extends Plugin
                 getSslService(),
                 securityContext.get(),
                 destructiveOperations,
-                remoteAccessAuthcService,
+                crossClusterAccessAuthcService,
                 remoteClusterCredentialsResolver
             )
         );

@@ -208,7 +208,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         final var createApiKeyRequest = new Request("POST", "/_security/api_key");
         createApiKeyRequest.setJsonEntity("""
             {
-              "name": "remote_access_key",
+              "name": "cross_cluster_access_key",
               "role_descriptors": {
                 "role": {
                   "cluster": ["cross_cluster_access"],
@@ -225,10 +225,10 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         final Response createApiKeyResponse = adminClient().performRequest(createApiKeyRequest);
         assertOK(createApiKeyResponse);
         final Map<String, Object> apiKeyMap = responseAsMap(createApiKeyResponse);
-        final String encodedRemoteAccessApiKey = (String) apiKeyMap.get("encoded");
+        final String encodedCrossClusterAccessApiKey = (String) apiKeyMap.get("encoded");
 
         final Settings.Builder builder = Settings.builder()
-            .put("cluster.remote." + REMOTE_CLUSTER_NAME + ".authorization", encodedRemoteAccessApiKey);
+            .put("cluster.remote." + REMOTE_CLUSTER_NAME + ".authorization", encodedCrossClusterAccessApiKey);
         if (randomBoolean()) {
             builder.put("cluster.remote." + REMOTE_CLUSTER_NAME + ".mode", "proxy")
                 .put("cluster.remote." + REMOTE_CLUSTER_NAME + ".proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0));

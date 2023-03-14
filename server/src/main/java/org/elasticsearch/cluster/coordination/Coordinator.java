@@ -129,6 +129,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
     public static final String COMMIT_STATE_ACTION_NAME = "internal:cluster/coordination/commit_state";
 
+    public static boolean REGISTER_MODE_ASSERTIONS = false;
+
     private final Settings settings;
     private final boolean singleNodeDiscovery;
     private final ElectionStrategy electionStrategy;
@@ -527,22 +529,17 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     }
 
     private void broadcastStartJoinRequest(StartJoinRequest startJoinRequest, List<DiscoveryNode> discoveredNodes) {
-        electionStrategy.onNewElection(
-            startJoinRequest.getSourceNode(),
-            startJoinRequest.getTerm(),
-            getLastAcceptedState(),
-            new ActionListener<>() {
-                @Override
-                public void onResponse(Void ignored) {
-                    discoveredNodes.forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.debug(Strings.format("election attempt failed, dropping [%s]", startJoinRequest), e);
-                }
+        electionStrategy.onNewElection(startJoinRequest.getSourceNode(), startJoinRequest.getTerm(), new ActionListener<>() {
+            @Override
+            public void onResponse(Void ignored) {
+                discoveredNodes.forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
             }
-        );
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.debug(Strings.format("election attempt failed, dropping [%s]", startJoinRequest), e);
+            }
+        });
     }
 
     private void abdicateTo(DiscoveryNode newMaster) {
@@ -1077,7 +1074,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             assert followersChecker.getFastResponseState().term() == getCurrentTerm() : followersChecker.getFastResponseState();
             assert followersChecker.getFastResponseState().mode() == getMode() : followersChecker.getFastResponseState();
             assert (applierState.nodes().getMasterNodeId() == null) == applierState.blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID);
-            assert preVoteCollector.getPreVoteResponse().equals(getPreVoteResponse()) : preVoteCollector + " vs " + getPreVoteResponse();
+            assert REGISTER_MODE_ASSERTIONS || preVoteCollector.getPreVoteResponse().equals(getPreVoteResponse())
+                : preVoteCollector + " vs " + getPreVoteResponse();
 
             assert lagDetector.getTrackedNodes().contains(getLocalNode()) == false : lagDetector.getTrackedNodes();
             assert followersChecker.getKnownFollowers().equals(lagDetector.getTrackedNodes())

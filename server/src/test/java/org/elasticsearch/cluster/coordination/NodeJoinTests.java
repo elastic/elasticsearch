@@ -365,7 +365,14 @@ public class NodeJoinTests extends ESTestCase {
         assertFalse(isLocalNodeElectedMaster());
         long newTerm = initialTerm + randomLongBetween(1, 10);
         long higherVersion = initialVersion + randomLongBetween(1, 10);
-        joinNodeAndRun(new JoinRequest(node1, TransportVersion.CURRENT, newTerm, Optional.of(new Join(node1, node0, newTerm, initialTerm, higherVersion))));
+        joinNodeAndRun(
+            new JoinRequest(
+                node1,
+                TransportVersion.CURRENT,
+                newTerm,
+                Optional.of(new Join(node1, node0, newTerm, initialTerm, higherVersion))
+            )
+        );
         assertTrue(isLocalNodeElectedMaster());
     }
 
@@ -382,12 +389,22 @@ public class NodeJoinTests extends ESTestCase {
         assertFalse(isLocalNodeElectedMaster());
         long newTerm = initialTerm + randomLongBetween(1, 10);
         joinNodeAndRun(
-            new JoinRequest(node0, TransportVersion.CURRENT, newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion)))
+            new JoinRequest(
+                node0,
+                TransportVersion.CURRENT,
+                newTerm,
+                Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))
+            )
         );
         assertTrue(isLocalNodeElectedMaster());
         assertFalse(clusterStateHasNode(node1));
         joinNodeAndRun(
-            new JoinRequest(node1, TransportVersion.CURRENT, newTerm, Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion)))
+            new JoinRequest(
+                node1,
+                TransportVersion.CURRENT,
+                newTerm,
+                Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion))
+            )
         );
         assertTrue(isLocalNodeElectedMaster());
         assertTrue(clusterStateHasNode(node1));
@@ -406,7 +423,12 @@ public class NodeJoinTests extends ESTestCase {
         long newTerm = initialTerm + randomLongBetween(1, 10);
 
         joinNodeAndRun(
-            new JoinRequest(node0, TransportVersion.CURRENT, newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion)))
+            new JoinRequest(
+                node0,
+                TransportVersion.CURRENT,
+                newTerm,
+                Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))
+            )
         );
         assertTrue(isLocalNodeElectedMaster());
 
@@ -430,19 +452,34 @@ public class NodeJoinTests extends ESTestCase {
         assertFalse(isLocalNodeElectedMaster());
         long newTerm = initialTerm + randomLongBetween(1, 10);
         Future<Void> futNode0 = joinNodeAsync(
-            new JoinRequest(node0, TransportVersion.CURRENT, newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion)))
+            new JoinRequest(
+                node0,
+                TransportVersion.CURRENT,
+                newTerm,
+                Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))
+            )
         );
         deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(futNode0.isDone());
         assertFalse(isLocalNodeElectedMaster());
         Future<Void> futNode1 = joinNodeAsync(
-            new JoinRequest(node1, TransportVersion.CURRENT, newTerm, Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion)))
+            new JoinRequest(
+                node1,
+                TransportVersion.CURRENT,
+                newTerm,
+                Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion))
+            )
         );
         deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(futNode1.isDone());
         assertFalse(isLocalNodeElectedMaster());
         joinNodeAndRun(
-            new JoinRequest(node2, TransportVersion.CURRENT, newTerm, Optional.of(new Join(node2, node0, newTerm, initialTerm, initialVersion)))
+            new JoinRequest(
+                node2,
+                TransportVersion.CURRENT,
+                newTerm,
+                Optional.of(new Join(node2, node0, newTerm, initialTerm, initialVersion))
+            )
         );
         assertTrue(isLocalNodeElectedMaster());
         assertTrue(clusterStateHasNode(node1));
@@ -466,7 +503,12 @@ public class NodeJoinTests extends ESTestCase {
         handleFollowerCheckFrom(node1, newTerm);
         long newerTerm = newTerm + randomLongBetween(1, 10);
         joinNodeAndRun(
-            new JoinRequest(node1, TransportVersion.CURRENT, newerTerm, Optional.of(new Join(node1, node0, newerTerm, initialTerm, initialVersion)))
+            new JoinRequest(
+                node1,
+                TransportVersion.CURRENT,
+                newerTerm,
+                Optional.of(new Join(node1, node0, newerTerm, initialTerm, initialVersion))
+            )
         );
         assertTrue(isLocalNodeElectedMaster());
     }

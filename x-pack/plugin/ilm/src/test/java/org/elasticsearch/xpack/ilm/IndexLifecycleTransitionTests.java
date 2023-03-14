@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.AbstractStepTestCase;
+import org.elasticsearch.xpack.core.ilm.DataTierMigrationRoutedStep;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyTests;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.MigrateAction;
 import org.elasticsearch.xpack.core.ilm.MockAction;
 import org.elasticsearch.xpack.core.ilm.MockStep;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
@@ -590,16 +592,6 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
 
         IndexMetadata meta = buildIndexMetadata("my-policy", executionState);
 
-        Map<String, LifecycleAction> actions = new HashMap<>();
-        actions.put(SetPriorityAction.NAME, new SetPriorityAction(100));
-        Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
-        Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
-        LifecyclePolicy policyWithoutRollover = new LifecyclePolicy("my-policy", phases);
-        LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(policyWithoutRollover, Collections.emptyMap(), 2L, 2L);
-
-        ClusterState existingState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder(Metadata.EMPTY_METADATA).put(meta, false).build())
-            .build();
         try (Client client = new NoOpClient(getTestName())) {
             Step.StepKey currentStepKey = new Step.StepKey("hot", RolloverAction.NAME, WaitForRolloverReadyStep.NAME);
             Step.StepKey nextStepKey = new Step.StepKey("hot", RolloverAction.NAME, RolloverStep.NAME);
@@ -624,6 +616,66 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
                     currentStepKey,
                     nextStepKey,
                     createOneStepPolicyStepRegistry("my-policy", currentStep)
+                );
+            } catch (Exception e) {
+                logger.error(e.getMessage(), e);
+                fail("validateTransition should not throw exception on valid transitions");
+            }
+        }
+    }
+
+    public void testValidateTransitionToCachedStepWhenMissingPhaseFromPolicy() {
+        // we'll test the case when the warm phase was deleted and the next step is the phase complete one
+
+        LifecycleExecutionState.Builder executionState = LifecycleExecutionState.builder()
+            .setPhase("warm")
+            .setAction("migrate")
+            .setStep("check-migration")
+            .setPhaseDefinition("""
+                {
+                  "policy" : "my-policy",
+                  "phase_definition" : {
+                    "min_age" : "20m",
+                    "actions" : {
+                      "set_priority" : {
+                        "priority" : 150
+                      }
+                    }
+                  },
+                  "version" : 1,
+                  "modified_date_in_millis" : 1578521007076
+                }""");
+
+        IndexMetadata meta = buildIndexMetadata("my-policy", executionState);
+
+        try (Client client = new NoOpClient(getTestName())) {
+            Step.StepKey currentStepKey = new Step.StepKey("warm", MigrateAction.NAME, DataTierMigrationRoutedStep.NAME);
+            Step.StepKey nextStepKey = new Step.StepKey("warm", PhaseCompleteStep.NAME, PhaseCompleteStep.NAME);
+
+            Step.StepKey waitForRolloverStepKey = new Step.StepKey("hot", RolloverAction.NAME, WaitForRolloverReadyStep.NAME);
+            Step.StepKey rolloverStepKey = new Step.StepKey("hot", RolloverAction.NAME, RolloverStep.NAME);
+            Step waitForRolloverReadyStep = new WaitForRolloverReadyStep(
+                waitForRolloverStepKey,
+                rolloverStepKey,
+                client,
+                null,
+                null,
+                null,
+                1L,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            );
+
+            try {
+                IndexLifecycleTransition.validateTransition(
+                    meta,
+                    currentStepKey,
+                    nextStepKey,
+                    createOneStepPolicyStepRegistry("my-policy", waitForRolloverReadyStep)
                 );
             } catch (Exception e) {
                 logger.error(e.getMessage(), e);

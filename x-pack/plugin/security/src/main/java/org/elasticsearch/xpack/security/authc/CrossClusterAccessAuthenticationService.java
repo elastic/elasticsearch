@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -115,7 +116,7 @@ public class CrossClusterAccessAuthenticationService {
         return authenticationService;
     }
 
-    private void validate(final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo) {
+    private void validate(final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo) throws IOException {
         final Authentication authentication = crossClusterAccessSubjectInfo.getAuthentication();
         authentication.checkConsistency();
         final Subject effectiveSubject = authentication.getEffectiveSubject();
@@ -132,7 +133,7 @@ public class CrossClusterAccessAuthenticationService {
 
         final User user = effectiveSubject.getUser();
         if (CrossClusterAccessUser.is(user)) {
-            // TODO validate
+            CrossClusterAccessUser.validateRoleDescriptors(crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList());
         } else if (User.isInternal(user)) {
             throw new IllegalArgumentException(
                 "received cross cluster request from an unexpected internal user [" + user.principal() + "]"

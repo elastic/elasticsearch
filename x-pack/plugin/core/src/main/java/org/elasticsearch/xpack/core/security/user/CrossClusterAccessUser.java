@@ -15,6 +15,9 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 
 import java.io.IOException;
+import java.util.List;
+
+import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.*;
 
 public class CrossClusterAccessUser extends User {
     public static final String NAME = UsernamesField.CROSS_CLUSTER_ACCESS_NAME;
@@ -61,5 +64,16 @@ public class CrossClusterAccessUser extends User {
             Authentication.newInternalAuthentication(INSTANCE, transportVersion, nodeName),
             new RoleDescriptorsIntersection(ROLE_DESCRIPTOR)
         );
+    }
+
+    public static void validateRoleDescriptors(List<RoleDescriptorsBytes> roleDescriptorsBytesList) throws IOException {
+        final List<RoleDescriptorsBytes> validRoleDescriptors = toRoleDescriptorsBytesList(
+            new RoleDescriptorsIntersection(ROLE_DESCRIPTOR)
+        );
+        if (false == validRoleDescriptors.equals(roleDescriptorsBytesList)) {
+            throw new IllegalArgumentException(
+                "Role descriptor bytes do not those expected for internal user [" + INSTANCE.principal() + "]"
+            );
+        }
     }
 }

@@ -101,11 +101,10 @@ public final class CrossClusterAccessSubjectInfo {
             + '}';
     }
 
-    private static List<RoleDescriptorsBytes> toRoleDescriptorsBytesList(final RoleDescriptorsIntersection roleDescriptorsIntersection)
+    public static List<RoleDescriptorsBytes> toRoleDescriptorsBytesList(final RoleDescriptorsIntersection roleDescriptorsIntersection)
         throws IOException {
         // If we ever lift this restriction, we need to ensure that the serialization of each set of role descriptors to raw bytes is
         // deterministic. We can do so by sorting the role descriptors before serializing.
-
         assert roleDescriptorsIntersection.roleDescriptorsList().stream().noneMatch(rds -> rds.size() > 1)
             : "sets with more than one role descriptor are not supported for cross cluster access authentication";
         final List<RoleDescriptorsBytes> roleDescriptorsBytesList = new ArrayList<>();

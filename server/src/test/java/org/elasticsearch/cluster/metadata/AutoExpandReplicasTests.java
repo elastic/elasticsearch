@@ -233,7 +233,12 @@ public class AutoExpandReplicasTests extends ESTestCase {
             ); // local node is the master
             allNodes.add(localNode);
             allNodes.add(oldNode);
-            ClusterState state = ClusterStateCreationUtils.state(localNode, localNode, allNodes.toArray(new DiscoveryNode[0]));
+            ClusterState state = ClusterStateCreationUtils.state(
+                localNode,
+                localNode,
+                allNodes.toArray(new DiscoveryNode[0]),
+                TransportVersion.V_7_0_0
+            );
 
             CreateIndexRequest request = new CreateIndexRequest(
                 "index",

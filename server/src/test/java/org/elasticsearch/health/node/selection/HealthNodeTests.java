@@ -71,7 +71,7 @@ public class HealthNodeTests extends ESTestCase {
     }
 
     public void testFindHealthNodeMissingNode() {
-        ClusterState state = ClusterStateCreationUtils.state(node1, node1);
+        ClusterState state = ClusterStateCreationUtils.state(node1, node1, new DiscoveryNode[0]);
         assertThat(HealthNode.findHealthNode(state), nullValue());
     }
 }

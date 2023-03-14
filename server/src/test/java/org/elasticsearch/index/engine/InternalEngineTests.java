@@ -22,6 +22,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StoredValue;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
@@ -3775,8 +3776,9 @@ public class InternalEngineTests extends EngineTestCase {
                         index.parsedDoc().rootDoc().add(new StoredField("foo", "bar") {
                             // this is a hack to add a failure during store document which triggers a tragic event
                             // and in turn fails the engine
+
                             @Override
-                            public BytesRef binaryValue() {
+                            public StoredValue storedValue() {
                                 throw new UncheckedIOException(new MockDirectoryWrapper.FakeIOException());
                             }
                         });
@@ -3816,7 +3818,7 @@ public class InternalEngineTests extends EngineTestCase {
                     doc.forEach(docIncludeExtraField::add);
                     docIncludeExtraField.add(new StoredField("foo", "bar") {
                         @Override
-                        public BytesRef binaryValue() {
+                        public StoredValue storedValue() {
                             throw tragicException;
                         }
                     });

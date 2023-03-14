@@ -55,7 +55,7 @@ import static org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT.rewrite;
  * using the client running against the "write" cluster.
  *
  */
-@TimeoutSuite(millis = 15 * TimeUnits.MINUTE) // to account for slow as hell VMs
+@TimeoutSuite(millis = 20 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static final Logger logger = LogManager.getLogger(RcsCcsCommonYamlTestSuiteIT.class);

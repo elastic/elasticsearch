@@ -81,7 +81,7 @@ public class CrossClusterAccessAuthenticationService {
             return;
         }
 
-        // This is ensured by the RemoteAccessServerTransportFilter -- validating the internal consistency here
+        // This is ensured by CrossClusterAccessServerTransportFilter -- validating for internal consistency here
         assert threadContext.getHeaders().keySet().stream().noneMatch(ClientHelper.SECURITY_HEADER_FILTERS::contains);
         try (
             ThreadContext.StoredContext ignored = threadContext.newStoredContext(

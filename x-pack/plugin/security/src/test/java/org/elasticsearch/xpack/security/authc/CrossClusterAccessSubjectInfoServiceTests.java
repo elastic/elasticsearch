@@ -20,7 +20,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
+import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -31,8 +31,8 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService.CROSS_CLUSTER_INTERNAL_ROLE;
-import static org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService.VERSION_REMOTE_ACCESS_AUTHENTICATION;
+import static org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService.CROSS_CLUSTER_INTERNAL_ROLE;
+import static org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService.VERSION_CROSS_CLUSTER_ACCESS_AUTHENTICATION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -49,7 +49,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class RemoteAccessAuthenticationServiceTests extends ESTestCase {
+public class CrossClusterAccessSubjectInfoServiceTests extends ESTestCase {
 
     private ClusterService clusterService;
     private ApiKeyService apiKeyService;
@@ -66,11 +66,11 @@ public class RemoteAccessAuthenticationServiceTests extends ESTestCase {
         clusterService = mockClusterServiceWithMinNodeVersion(VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_8_0));
         final var authcContext = mock(Authenticator.Context.class, Mockito.RETURNS_DEEP_STUBS);
         final var threadContext = new ThreadContext(Settings.EMPTY);
-        final var remoteAccessHeaders = new RemoteAccessHeaders(
-            RemoteAccessHeadersTests.randomEncodedApiKeyHeader(),
-            AuthenticationTestHelper.randomRemoteAccessAuthentication()
+        final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
+            CrossClusterAccessHeadersTests.randomEncodedApiKeyHeader(),
+            AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo()
         );
-        remoteAccessHeaders.writeToContext(threadContext);
+        crossClusterAccessHeaders.writeToContext(threadContext);
         when(authcContext.getThreadContext()).thenReturn(threadContext);
         final AuthenticationService.AuditableRequest auditableRequest = mock(AuthenticationService.AuditableRequest.class);
         final ArgumentCaptor<AuthenticationToken> authenticationTokenCapture = ArgumentCaptor.forClass(AuthenticationToken.class);
@@ -81,7 +81,7 @@ public class RemoteAccessAuthenticationServiceTests extends ESTestCase {
             i -> new ElasticsearchSecurityException("potato", (Exception) i.getArguments()[0])
         );
         when(authenticationService.newContext(anyString(), any(), anyBoolean())).thenReturn(authcContext);
-        final RemoteAccessAuthenticationService service = new RemoteAccessAuthenticationService(
+        final CrossClusterAccessAuthenticationService service = new CrossClusterAccessAuthenticationService(
             clusterService,
             apiKeyService,
             authenticationService
@@ -96,24 +96,24 @@ public class RemoteAccessAuthenticationServiceTests extends ESTestCase {
             actual.getCause().getCause().getMessage(),
             equalTo(
                 "all nodes must have version ["
-                    + VERSION_REMOTE_ACCESS_AUTHENTICATION
+                    + VERSION_CROSS_CLUSTER_ACCESS_AUTHENTICATION
                     + "] or higher to support cross cluster requests through the dedicated remote cluster port"
             )
         );
         verify(auditableRequest).exceptionProcessingRequest(
             any(Exception.class),
-            credentialsArgMatches(remoteAccessHeaders.clusterCredentials())
+            credentialsArgMatches(crossClusterAccessHeaders.credentials())
         );
         verifyNoMoreInteractions(auditableRequest);
     }
 
     public void testAuthenticationSuccessOnSuccessfulAuthentication() throws IOException, ExecutionException, InterruptedException {
         final var threadContext = new ThreadContext(Settings.EMPTY);
-        final var remoteAccessHeaders = new RemoteAccessHeaders(
-            RemoteAccessHeadersTests.randomEncodedApiKeyHeader(),
-            AuthenticationTestHelper.randomRemoteAccessAuthentication()
+        final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
+            CrossClusterAccessHeadersTests.randomEncodedApiKeyHeader(),
+            AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo()
         );
-        remoteAccessHeaders.writeToContext(threadContext);
+        crossClusterAccessHeaders.writeToContext(threadContext);
         final AuthenticationService.AuditableRequest auditableRequest = mock(AuthenticationService.AuditableRequest.class);
         final ArgumentCaptor<Authentication> authenticationCapture = ArgumentCaptor.forClass(Authentication.class);
         doNothing().when(auditableRequest).authenticationSuccess(authenticationCapture.capture());
@@ -124,7 +124,7 @@ public class RemoteAccessAuthenticationServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final ArgumentCaptor<ActionListener<Authentication>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
         doAnswer(i -> null).when(authenticationService).authenticate(eq(authcContext), listenerCaptor.capture());
-        final RemoteAccessAuthenticationService service = new RemoteAccessAuthenticationService(
+        final CrossClusterAccessAuthenticationService service = new CrossClusterAccessAuthenticationService(
             clusterService,
             apiKeyService,
             authenticationService
@@ -136,11 +136,11 @@ public class RemoteAccessAuthenticationServiceTests extends ESTestCase {
         listenerCaptor.getValue().onResponse(apiKeyAuthentication);
         future.get();
 
-        final Authentication remoteAuthentication = remoteAccessHeaders.remoteAccessAuthentication().getAuthentication();
+        final Authentication remoteAuthentication = crossClusterAccessHeaders.subjectInfo().getAuthentication();
         final Authentication expectedAuthentication;
         if (SystemUser.is(remoteAuthentication.getEffectiveSubject().getUser())) {
-            expectedAuthentication = apiKeyAuthentication.toRemoteAccess(
-                new RemoteAccessAuthentication(
+            expectedAuthentication = apiKeyAuthentication.toCrossClusterAccess(
+                new CrossClusterAccessSubjectInfo(
                     Authentication.newInternalAuthentication(
                         SystemUser.INSTANCE,
                         remoteAuthentication.getEffectiveSubject().getTransportVersion(),
@@ -150,18 +150,18 @@ public class RemoteAccessAuthenticationServiceTests extends ESTestCase {
                 )
             );
         } else {
-            expectedAuthentication = apiKeyAuthentication.toRemoteAccess(remoteAccessHeaders.remoteAccessAuthentication());
+            expectedAuthentication = apiKeyAuthentication.toCrossClusterAccess(crossClusterAccessHeaders.subjectInfo());
         }
         verify(auditableRequest).authenticationSuccess(expectedAuthentication);
         verifyNoMoreInteractions(auditableRequest);
-        verify(authcContext).addAuthenticationToken(credentialsArgMatches(remoteAccessHeaders.clusterCredentials()));
+        verify(authcContext).addAuthenticationToken(credentialsArgMatches(crossClusterAccessHeaders.credentials()));
     }
 
-    public void testExceptionProcessingRequestOnInvalidRemoteAccessAuthentication() throws IOException {
+    public void testExceptionProcessingRequestOnInvalidCrossClusterAccessSubjectInfo() throws IOException {
         final var threadContext = new ThreadContext(Settings.EMPTY);
-        final var remoteAccessHeaders = new RemoteAccessHeaders(
-            RemoteAccessHeadersTests.randomEncodedApiKeyHeader(),
-            new RemoteAccessAuthentication(
+        final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
+            CrossClusterAccessHeadersTests.randomEncodedApiKeyHeader(),
+            new CrossClusterAccessSubjectInfo(
                 Authentication.newRealmAuthentication(AuthenticationTestHelper.randomUser(), AuthenticationTestHelper.randomRealmRef()),
                 new RoleDescriptorsIntersection(
                     new RoleDescriptor(
@@ -179,7 +179,7 @@ public class RemoteAccessAuthenticationServiceTests extends ESTestCase {
                 )
             )
         );
-        remoteAccessHeaders.writeToContext(threadContext);
+        crossClusterAccessHeaders.writeToContext(threadContext);
         final AuthenticationService.AuditableRequest auditableRequest = mock(AuthenticationService.AuditableRequest.class);
         final ArgumentCaptor<Authentication> authenticationCapture = ArgumentCaptor.forClass(Authentication.class);
         doNothing().when(auditableRequest).authenticationSuccess(authenticationCapture.capture());
@@ -196,7 +196,7 @@ public class RemoteAccessAuthenticationServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final ArgumentCaptor<ActionListener<Authentication>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
         doAnswer(i -> null).when(authenticationService).authenticate(eq(authcContext), listenerCaptor.capture());
-        final RemoteAccessAuthenticationService service = new RemoteAccessAuthenticationService(
+        final CrossClusterAccessAuthenticationService service = new CrossClusterAccessAuthenticationService(
             clusterService,
             apiKeyService,
             authenticationService
@@ -212,22 +212,24 @@ public class RemoteAccessAuthenticationServiceTests extends ESTestCase {
         assertThat(actual.getCause().getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(
             actual.getCause().getCause().getMessage(),
-            containsString("role descriptor for remote access can only contain index privileges but other privileges found for subject")
+            containsString(
+                "role descriptor for cross cluster access can only contain index privileges but other privileges found for subject"
+            )
         );
         verify(auditableRequest).exceptionProcessingRequest(
             any(Exception.class),
-            credentialsArgMatches(remoteAccessHeaders.clusterCredentials())
+            credentialsArgMatches(crossClusterAccessHeaders.credentials())
         );
         verifyNoMoreInteractions(auditableRequest);
     }
 
     public void testNoInteractionWithAuditableRequestOnInitialAuthenticationFailure() throws IOException {
         final var threadContext = new ThreadContext(Settings.EMPTY);
-        final var remoteAccessHeaders = new RemoteAccessHeaders(
-            RemoteAccessHeadersTests.randomEncodedApiKeyHeader(),
-            AuthenticationTestHelper.randomRemoteAccessAuthentication()
+        final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
+            CrossClusterAccessHeadersTests.randomEncodedApiKeyHeader(),
+            AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo()
         );
-        remoteAccessHeaders.writeToContext(threadContext);
+        crossClusterAccessHeaders.writeToContext(threadContext);
         final AuthenticationService.AuditableRequest auditableRequest = mock(AuthenticationService.AuditableRequest.class);
         final Authenticator.Context authcContext = mock(Authenticator.Context.class, Mockito.RETURNS_DEEP_STUBS);
         when(authcContext.getThreadContext()).thenReturn(threadContext);
@@ -236,7 +238,7 @@ public class RemoteAccessAuthenticationServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final ArgumentCaptor<ActionListener<Authentication>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
         doAnswer(i -> null).when(authenticationService).authenticate(eq(authcContext), listenerCaptor.capture());
-        final RemoteAccessAuthenticationService service = new RemoteAccessAuthenticationService(
+        final CrossClusterAccessAuthenticationService service = new CrossClusterAccessAuthenticationService(
             clusterService,
             apiKeyService,
             authenticationService

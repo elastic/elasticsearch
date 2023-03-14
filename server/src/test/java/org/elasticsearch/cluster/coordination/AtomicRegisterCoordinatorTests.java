@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.coordination;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -513,23 +514,31 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
 
         @Override
-        public void onNewElection(DiscoveryNode sourceNode, long proposedTerm, ClusterState latestAcceptedState) {
-            final var latestClusterState = sharedStore.getLatestClusterState();
-            if (latestClusterState != null && latestClusterState.version() > latestAcceptedState.version()) {
-                throw new CoordinationStateRejectedException("The node has an stale applied cluster state version");
-            }
-
-            final var latestAcceptedClusterUUID = latestAcceptedState.metadata().clusterUUID();
-            final var proposedNewTermOwner = new TermOwner(sourceNode, proposedTerm, latestAcceptedClusterUUID);
-            final var witness = register.claimTerm(proposedNewTermOwner);
-            if (proposedNewTermOwner != witness) {
-                if (witness.clusterUUID().equals(latestAcceptedClusterUUID) == false) {
-                    assert latestAcceptedState.metadata().clusterUUIDCommitted() == false;
-                    atomicRegisterPersistedState.changeAcceptedClusterUUID(witness.clusterUUID());
+        public void onNewElection(
+            DiscoveryNode localNode,
+            long proposedTerm,
+            ClusterState latestAcceptedState,
+            ActionListener<Void> listener
+        ) {
+            ActionListener.completeWith(listener, () -> {
+                final var latestClusterState = sharedStore.getLatestClusterState();
+                if (latestClusterState != null && latestClusterState.version() > latestAcceptedState.version()) {
+                    throw new CoordinationStateRejectedException("The node has an stale applied cluster state version");
                 }
-                throw new CoordinationStateRejectedException("Term " + proposedTerm + " already claimed by another node");
-            }
-            lastWonTerm = proposedTerm;
+
+                final var latestAcceptedClusterUUID = latestAcceptedState.metadata().clusterUUID();
+                final var proposedNewTermOwner = new TermOwner(localNode, proposedTerm, latestAcceptedClusterUUID);
+                final var witness = register.claimTerm(proposedNewTermOwner);
+                if (proposedNewTermOwner != witness) {
+                    if (witness.clusterUUID().equals(latestAcceptedClusterUUID) == false) {
+                        assert latestAcceptedState.metadata().clusterUUIDCommitted() == false;
+                        atomicRegisterPersistedState.changeAcceptedClusterUUID(witness.clusterUUID());
+                    }
+                    throw new CoordinationStateRejectedException("Term " + proposedTerm + " already claimed by another node");
+                }
+                lastWonTerm = proposedTerm;
+                return null;
+            });
         }
 
         @Override

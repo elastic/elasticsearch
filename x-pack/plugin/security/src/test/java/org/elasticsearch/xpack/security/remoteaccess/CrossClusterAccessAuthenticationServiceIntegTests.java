@@ -21,14 +21,14 @@ import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
-import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
+import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
-import org.elasticsearch.xpack.security.authc.RemoteAccessHeaders;
+import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
+import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -39,14 +39,14 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY;
-import static org.elasticsearch.xpack.security.authc.RemoteAccessHeaders.REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY;
+import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
+import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTestCase {
+public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityIntegTestCase {
 
     @BeforeClass
     public static void checkFeatureFlag() {
@@ -54,27 +54,37 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
     }
 
     public void testInvalidHeaders() throws IOException {
-        final String encodedRemoteAccessApiKey = getEncodedRemoteAccessApiKey();
+        final String encodedCrossClusterAccessApiKey = getEncodedCrossClusterAccessApiKey();
         final String nodeName = internalCluster().getRandomNodeName();
         final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
-        final RemoteAccessAuthenticationService service = internalCluster().getInstance(RemoteAccessAuthenticationService.class, nodeName);
+        final CrossClusterAccessAuthenticationService service = internalCluster().getInstance(
+            CrossClusterAccessAuthenticationService.class,
+            nodeName
+        );
 
         try (var ignored = threadContext.stashContext()) {
             authenticateAndAssertExpectedErrorMessage(
                 service,
-                msg -> assertThat(msg, equalTo("remote access header [" + REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY + "] is required"))
+                msg -> assertThat(
+                    msg,
+                    equalTo("cross cluster access header [" + CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY + "] is required")
+                )
             );
         }
 
         try (var ignored = threadContext.stashContext()) {
-            new RemoteAccessHeaders(ApiKeyService.withApiKeyPrefix("abc"), AuthenticationTestHelper.randomRemoteAccessAuthentication())
-                .writeToContext(threadContext);
+            new CrossClusterAccessHeaders(
+                ApiKeyService.withApiKeyPrefix("abc"),
+                AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo()
+            ).writeToContext(threadContext);
             authenticateAndAssertExpectedErrorMessage(
                 service,
                 msg -> assertThat(
                     msg,
                     equalTo(
-                        "remote access header [" + REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY + "] value must be a valid API key credential"
+                        "cross cluster access header ["
+                            + CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY
+                            + "] value must be a valid API key credential"
                     )
                 )
             );
@@ -83,18 +93,21 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
         try (var ignored = threadContext.stashContext()) {
             final String randomApiKey = Base64.getEncoder()
                 .encodeToString((UUIDs.base64UUID() + ":" + UUIDs.base64UUID()).getBytes(StandardCharsets.UTF_8));
-            threadContext.putHeader(REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY, ApiKeyService.withApiKeyPrefix(randomApiKey));
+            threadContext.putHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, ApiKeyService.withApiKeyPrefix(randomApiKey));
             authenticateAndAssertExpectedErrorMessage(
                 service,
-                msg -> assertThat(msg, equalTo("remote access header [" + REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY + "] is required"))
+                msg -> assertThat(
+                    msg,
+                    equalTo("cross cluster access header [" + CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY + "] is required")
+                )
             );
         }
 
         try (var ignored = threadContext.stashContext()) {
             final var internalUser = randomValueOtherThan(SystemUser.INSTANCE, AuthenticationTestHelper::randomInternalUser);
-            new RemoteAccessHeaders(
-                encodedRemoteAccessApiKey,
-                new RemoteAccessAuthentication(
+            new CrossClusterAccessHeaders(
+                encodedCrossClusterAccessApiKey,
+                new CrossClusterAccessSubjectInfo(
                     AuthenticationTestHelper.builder().internal(internalUser).build(),
                     RoleDescriptorsIntersection.EMPTY
                 )
@@ -109,9 +122,9 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
         }
 
         try (var ignored = threadContext.stashContext()) {
-            new RemoteAccessHeaders(
-                encodedRemoteAccessApiKey,
-                AuthenticationTestHelper.randomRemoteAccessAuthentication(
+            new CrossClusterAccessHeaders(
+                encodedCrossClusterAccessApiKey,
+                AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(
                     new RoleDescriptorsIntersection(
                         randomValueOtherThanMany(
                             rd -> false == (rd.hasClusterPrivileges()
@@ -129,7 +142,7 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
                 msg -> assertThat(
                     msg,
                     containsString(
-                        "role descriptor for remote access can only contain index privileges but other privileges found for subject"
+                        "role descriptor for cross cluster access can only contain index privileges but other privileges found for subject"
                     )
                 )
             );
@@ -137,9 +150,9 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
 
         try (var ignored = threadContext.stashContext()) {
             Authentication authentication = AuthenticationTestHelper.builder().apiKey().build();
-            new RemoteAccessHeaders(
-                encodedRemoteAccessApiKey,
-                new RemoteAccessAuthentication(authentication, RoleDescriptorsIntersection.EMPTY)
+            new CrossClusterAccessHeaders(
+                encodedCrossClusterAccessApiKey,
+                new CrossClusterAccessSubjectInfo(authentication, RoleDescriptorsIntersection.EMPTY)
             ).writeToContext(threadContext);
 
             authenticateAndAssertExpectedErrorMessage(
@@ -151,7 +164,7 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
                             + authentication.getEffectiveSubject().getUser().principal()
                             + "] has type ["
                             + authentication.getEffectiveSubject().getType()
-                            + "] which is not supported for remote access"
+                            + "] which is not supported for cross cluster access"
                     )
                 )
             );
@@ -161,12 +174,15 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
     public void testSystemUserIsMappedToCrossClusterInternalRole() throws InterruptedException, IOException, ExecutionException {
         final String nodeName = internalCluster().getRandomNodeName();
         final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
-        final RemoteAccessAuthenticationService service = internalCluster().getInstance(RemoteAccessAuthenticationService.class, nodeName);
+        final CrossClusterAccessAuthenticationService service = internalCluster().getInstance(
+            CrossClusterAccessAuthenticationService.class,
+            nodeName
+        );
 
         try (var ignored = threadContext.stashContext()) {
-            new RemoteAccessHeaders(
-                getEncodedRemoteAccessApiKey(),
-                new RemoteAccessAuthentication(
+            new CrossClusterAccessHeaders(
+                getEncodedCrossClusterAccessApiKey(),
+                new CrossClusterAccessSubjectInfo(
                     AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build(),
                     new RoleDescriptorsIntersection(new RoleDescriptor("role", null, null, null, null, null, null, null))
                 )
@@ -179,27 +195,31 @@ public class RemoteAccessAuthenticationServiceIntegTests extends SecurityIntegTe
             assertNotNull(actualAuthentication);
             final var innerAuthentication = (Authentication) actualAuthentication.getAuthenticatingSubject()
                 .getMetadata()
-                .get(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY);
+                .get(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
             assertThat(innerAuthentication.getEffectiveSubject().getUser(), is(SystemUser.INSTANCE));
             @SuppressWarnings("unchecked")
-            List<RemoteAccessAuthentication.RoleDescriptorsBytes> rds = (List<
-                RemoteAccessAuthentication.RoleDescriptorsBytes>) actualAuthentication.getAuthenticatingSubject()
+            List<CrossClusterAccessSubjectInfo.RoleDescriptorsBytes> rds = (List<
+                CrossClusterAccessSubjectInfo.RoleDescriptorsBytes>) actualAuthentication.getAuthenticatingSubject()
                     .getMetadata()
-                    .get(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY);
+                    .get(AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY);
             assertThat(rds.size(), equalTo(1));
-            assertThat(rds.get(0).toRoleDescriptors(), equalTo(Set.of(RemoteAccessAuthenticationService.CROSS_CLUSTER_INTERNAL_ROLE)));
+            assertThat(
+                rds.get(0).toRoleDescriptors(),
+                equalTo(Set.of(CrossClusterAccessAuthenticationService.CROSS_CLUSTER_INTERNAL_ROLE))
+            );
         }
     }
 
-    private String getEncodedRemoteAccessApiKey() {
-        final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client().admin().cluster()).setName("remote_access_key").get();
+    private String getEncodedCrossClusterAccessApiKey() {
+        final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client().admin().cluster()).setName("cross_cluster_access_key")
+            .get();
         return ApiKeyService.withApiKeyPrefix(
             Base64.getEncoder().encodeToString((response.getId() + ":" + response.getKey()).getBytes(StandardCharsets.UTF_8))
         );
     }
 
     private void authenticateAndAssertExpectedErrorMessage(
-        RemoteAccessAuthenticationService service,
+        CrossClusterAccessAuthenticationService service,
         Consumer<String> errorMessageAssertion
     ) {
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();

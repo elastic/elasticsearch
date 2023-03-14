@@ -14,6 +14,8 @@ import org.apache.logging.log4j.MarkerManager;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogMessage;
 
 import java.time.ZonedDateTime;
@@ -25,11 +27,12 @@ public class EventEmitterService {
     private static final Logger logger = LogManager.getLogger(EventEmitterService.class);
     private static final Marker AUDIT_MARKER = MarkerManager.getMarker("org.elasticsearch.xpack.application.analytics");
     private final AnalyticsCollectionResolver analyticsCollectionResolver;
-    private final ClusterState clusterState;
+    private final ClusterService clusterService;
 
-    public EventEmitterService(AnalyticsCollectionResolver analyticsCollectionResolver, ClusterState clusterState) {
+    @Inject
+    public EventEmitterService(AnalyticsCollectionResolver analyticsCollectionResolver, ClusterService clusterService) {
         this.analyticsCollectionResolver = analyticsCollectionResolver;
-        this.clusterState = clusterState;
+        this.clusterService = clusterService;
     }
 
     /**
@@ -43,7 +46,7 @@ public class EventEmitterService {
         final AnalyticsCollection collection;
 
         try {
-            collection = analyticsCollectionResolver.collection(clusterState, collectionName);
+            collection = analyticsCollectionResolver.collection(clusterService.state(), collectionName);
         } catch (ResourceNotFoundException e) {
             listener.onFailure(e);
             return;

@@ -13,14 +13,19 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.application.analytics.EventEmitterService;
+import org.elasticsearch.xpack.application.analytics.PageViewAnalyticsEvent;
 
 public class TransportPostAnalyticsEventAction extends HandledTransportAction<
     PostAnalyticsEventAction.Request,
     PostAnalyticsEventAction.Response> {
 
+    private final EventEmitterService eventEmitterService;
+
     @Inject
-    public TransportPostAnalyticsEventAction(TransportService transportService, ActionFilters actionFilters) {
+    public TransportPostAnalyticsEventAction(TransportService transportService, ActionFilters actionFilters, EventEmitterService eventEmitterService,  ) {
         super(PostAnalyticsEventAction.NAME, transportService, actionFilters, PostAnalyticsEventAction.Request::new);
+        this.eventEmitterService = eventEmitterService;
     }
 
     @Override
@@ -29,6 +34,11 @@ public class TransportPostAnalyticsEventAction extends HandledTransportAction<
         PostAnalyticsEventAction.Request request,
         ActionListener<PostAnalyticsEventAction.Response> listener
     ) {
-        listener.onResponse(PostAnalyticsEventAction.Response.ACCEPTED);
+        final PageViewAnalyticsEvent pageViewAnalyticsEvent = new PageViewAnalyticsEvent(
+
+        );
+        this.eventEmitterService.emitEvent(pageViewAnalyticsEvent, ActionListener.wrap(
+            r -> listener.onResponse(PostAnalyticsEventAction.Response.ACCEPTED), listener::onFailure
+        ));
     }
 }

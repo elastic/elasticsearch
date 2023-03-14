@@ -496,18 +496,6 @@ public class ClusterStateCreationUtils {
     }
 
     /**
-     * Creates a cluster state builder where local node and master node can be specified
-     *
-     * @param localNode  node in allNodes that is the local node
-     * @param masterNode node in allNodes that is the master node. Can be null if no master exists
-     * @param allNodes   all nodes in the cluster
-     * @return cluster state builder
-     */
-    public static ClusterState.Builder stateBuilder(DiscoveryNode localNode, DiscoveryNode masterNode, DiscoveryNode... allNodes) {
-        return stateBuilder(localNode, masterNode, null, allNodes);
-    }
-
-    /**
      * Creates a cluster state where local node, master and health node can be specified
      *
      * @param localNode  node in allNodes that is the local node
@@ -517,24 +505,6 @@ public class ClusterStateCreationUtils {
      * @return cluster state
      */
     public static ClusterState state(
-        DiscoveryNode localNode,
-        DiscoveryNode masterNode,
-        DiscoveryNode healthNode,
-        DiscoveryNode... allNodes
-    ) {
-        return stateBuilder(localNode, masterNode, healthNode, allNodes).build();
-    }
-
-    /**
-     * Creates a cluster state builder where local node, master and health node can be specified
-     *
-     * @param localNode  node in allNodes that is the local node
-     * @param masterNode node in allNodes that is the master node. Can be null if no master exists
-     * @param healthNode node in allNodes that is the health node. Can be null if no health node exists
-     * @param allNodes   all nodes in the cluster
-     * @return cluster state builder
-     */
-    public static ClusterState.Builder stateBuilder(
         DiscoveryNode localNode,
         DiscoveryNode masterNode,
         DiscoveryNode healthNode,
@@ -557,7 +527,7 @@ public class ClusterStateCreationUtils {
             addHealthNode(metadataBuilder, healthNode);
         }
         state.metadata(metadataBuilder);
-        return state;
+        return state.build();
     }
 
     private static DiscoveryNode newNode(int nodeId) {

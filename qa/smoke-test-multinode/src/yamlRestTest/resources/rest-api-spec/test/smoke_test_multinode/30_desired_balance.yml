@@ -113,7 +113,7 @@ setup:
   - gte: { 'cluster_balance_stats.nodes.$node_name.actual_disk_usage_bytes' : 0 }
 
 ---
-"Test get desired balance for single shard":
+"Test tier_preference":
 
   - skip:
       version: " - 8.7.99"

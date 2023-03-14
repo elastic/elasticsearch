@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -46,10 +47,12 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
         memorySize = in.readVLong();
         evictions = in.readVLong();
         fields = in.readOptionalWriteable(FieldMemoryStats::new);
-        globalOrdinalsStats = new GlobalOrdinalsStats(
-            in.readVLong(),
-            in.readMap(StreamInput::readString, in1 -> new GlobalOrdinalsStats.GlobalOrdinalFieldStats(in.readVLong(), in.readVLong()))
-        );
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            globalOrdinalsStats = new GlobalOrdinalsStats(
+                in.readVLong(),
+                in.readMap(StreamInput::readString, in1 -> new GlobalOrdinalsStats.GlobalOrdinalFieldStats(in.readVLong(), in.readVLong()))
+            );
+        }
     }
 
     public FieldDataStats(long memorySize, long evictions, @Nullable FieldMemoryStats fields, GlobalOrdinalsStats globalOrdinalsStats) {
@@ -102,10 +105,12 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
         out.writeVLong(evictions);
         out.writeOptionalWriteable(fields);
         out.writeVLong(globalOrdinalsStats.buildTimeMillis);
-        out.writeMapValues(globalOrdinalsStats.fieldGlobalOrdinalsStats, (out1, value) -> {
-            out1.writeVLong(value.totalBuildingTime);
-            out1.writeVLong(value.valueCount);
-        });
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            out.writeMapValues(globalOrdinalsStats.fieldGlobalOrdinalsStats, (out1, value) -> {
+                out1.writeVLong(value.totalBuildingTime);
+                out1.writeVLong(value.valueCount);
+            });
+        }
     }
 
     @Override

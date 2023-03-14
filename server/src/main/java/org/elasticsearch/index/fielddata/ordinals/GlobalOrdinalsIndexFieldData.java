@@ -59,7 +59,8 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
         OrdinalMap ordinalMap,
         long memorySizeInBytes,
         ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory,
-        TimeValue took) {
+        TimeValue took
+    ) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
         this.memorySizeInBytes = memorySizeInBytes;

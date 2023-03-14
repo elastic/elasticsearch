@@ -561,7 +561,7 @@ public class NodeStatsTests extends ESTestCase {
 
         final CommonStats indicesCommonStats = new CommonStats(CommonStatsFlags.ALL);
         indicesCommonStats.getDocs().add(new DocsStats(++iota, ++iota, ++iota));
-        indicesCommonStats.getFieldData().add(new FieldDataStats(++iota, ++iota, null));
+        indicesCommonStats.getFieldData().add(new FieldDataStats(++iota, ++iota, null, null));
         indicesCommonStats.getStore().add(new StoreStats(++iota, ++iota, ++iota));
 
         final IndexingStats.Stats indexingStats = new IndexingStats.Stats(

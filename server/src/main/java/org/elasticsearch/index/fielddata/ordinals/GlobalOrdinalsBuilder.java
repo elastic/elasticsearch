@@ -56,12 +56,7 @@ public enum GlobalOrdinalsBuilder {
 
         TimeValue took = new TimeValue(System.nanoTime() - startTimeNS, TimeUnit.NANOSECONDS);
         if (logger.isDebugEnabled()) {
-            logger.debug(
-                "global-ordinals [{}][{}] took [{}]",
-                indexFieldData.getFieldName(),
-                ordinalMap.getValueCount(),
-                took
-            );
+            logger.debug("global-ordinals [{}][{}] took [{}]", indexFieldData.getFieldName(), ordinalMap.getValueCount(), took);
         }
         return new GlobalOrdinalsIndexFieldData(
             indexFieldData.getFieldName(),
@@ -110,7 +105,8 @@ public enum GlobalOrdinalsBuilder {
             ordinalMap,
             0,
             toScriptFieldFactory,
-            took);
+            took
+        );
     }
 
 }

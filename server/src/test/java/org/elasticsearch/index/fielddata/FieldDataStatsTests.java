@@ -19,7 +19,10 @@ public class FieldDataStatsTests extends ESTestCase {
 
     public void testSerialize() throws IOException {
         FieldMemoryStats map = randomBoolean() ? null : FieldMemoryStatsTests.randomFieldMemoryStats();
-        FieldDataStats stats = new FieldDataStats(randomNonNegativeLong(), randomNonNegativeLong(), map);
+        FieldDataStats.GlobalOrdinalsStats glob = randomBoolean()
+            ? null
+            : new FieldDataStats.GlobalOrdinalsStats(randomNonNegativeLong(), null);
+        FieldDataStats stats = new FieldDataStats(randomNonNegativeLong(), randomNonNegativeLong(), map, glob);
         BytesStreamOutput out = new BytesStreamOutput();
         stats.writeTo(out);
         StreamInput input = out.bytes().streamInput();

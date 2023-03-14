@@ -355,7 +355,6 @@ public class NodeJoinTests extends ESTestCase {
     public void testJoinWithHigherTermButBetterStateStillElectsMasterThroughSelfJoin() {
         DiscoveryNode node0 = newNode(0, true);
         DiscoveryNode node1 = newNode(1, true);
-        TransportVersion version1 = TransportVersionUtils.randomVersion();
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(
@@ -366,15 +365,13 @@ public class NodeJoinTests extends ESTestCase {
         assertFalse(isLocalNodeElectedMaster());
         long newTerm = initialTerm + randomLongBetween(1, 10);
         long higherVersion = initialVersion + randomLongBetween(1, 10);
-        joinNodeAndRun(new JoinRequest(node1, version1, newTerm, Optional.of(new Join(node1, node0, newTerm, initialTerm, higherVersion))));
+        joinNodeAndRun(new JoinRequest(node1, TransportVersion.CURRENT, newTerm, Optional.of(new Join(node1, node0, newTerm, initialTerm, higherVersion))));
         assertTrue(isLocalNodeElectedMaster());
     }
 
     public void testJoinElectedLeader() {
         DiscoveryNode node0 = newNode(0, true);
         DiscoveryNode node1 = newNode(1, true);
-        TransportVersion version0 = TransportVersionUtils.randomVersion();
-        TransportVersion version1 = TransportVersionUtils.randomVersion();
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(
@@ -385,12 +382,12 @@ public class NodeJoinTests extends ESTestCase {
         assertFalse(isLocalNodeElectedMaster());
         long newTerm = initialTerm + randomLongBetween(1, 10);
         joinNodeAndRun(
-            new JoinRequest(node0, version0, newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion)))
+            new JoinRequest(node0, TransportVersion.CURRENT, newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion)))
         );
         assertTrue(isLocalNodeElectedMaster());
         assertFalse(clusterStateHasNode(node1));
         joinNodeAndRun(
-            new JoinRequest(node1, version1, newTerm, Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion)))
+            new JoinRequest(node1, TransportVersion.CURRENT, newTerm, Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion)))
         );
         assertTrue(isLocalNodeElectedMaster());
         assertTrue(clusterStateHasNode(node1));
@@ -399,8 +396,6 @@ public class NodeJoinTests extends ESTestCase {
     public void testJoinElectedLeaderWithHigherTerm() {
         DiscoveryNode node0 = newNode(0, true);
         DiscoveryNode node1 = newNode(1, true);
-        TransportVersion version0 = TransportVersionUtils.randomVersion();
-        TransportVersion version1 = TransportVersionUtils.randomVersion();
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(
@@ -411,12 +406,12 @@ public class NodeJoinTests extends ESTestCase {
         long newTerm = initialTerm + randomLongBetween(1, 10);
 
         joinNodeAndRun(
-            new JoinRequest(node0, version0, newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion)))
+            new JoinRequest(node0, TransportVersion.CURRENT, newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion)))
         );
         assertTrue(isLocalNodeElectedMaster());
 
         long newerTerm = newTerm + randomLongBetween(1, 10);
-        joinNodeAndRun(new JoinRequest(node1, version1, newerTerm, Optional.empty()));
+        joinNodeAndRun(new JoinRequest(node1, TransportVersion.CURRENT, newerTerm, Optional.empty()));
         assertThat(coordinator.getCurrentTerm(), greaterThanOrEqualTo(newerTerm));
         assertTrue(isLocalNodeElectedMaster());
     }
@@ -425,9 +420,6 @@ public class NodeJoinTests extends ESTestCase {
         DiscoveryNode node0 = newNode(0, true);
         DiscoveryNode node1 = newNode(1, true);
         DiscoveryNode node2 = newNode(2, true);
-        TransportVersion version0 = TransportVersionUtils.randomVersion();
-        TransportVersion version1 = TransportVersionUtils.randomVersion();
-        TransportVersion version2 = TransportVersionUtils.randomVersion();
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(
@@ -438,19 +430,19 @@ public class NodeJoinTests extends ESTestCase {
         assertFalse(isLocalNodeElectedMaster());
         long newTerm = initialTerm + randomLongBetween(1, 10);
         Future<Void> futNode0 = joinNodeAsync(
-            new JoinRequest(node0, version0, newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion)))
+            new JoinRequest(node0, TransportVersion.CURRENT, newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion)))
         );
         deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(futNode0.isDone());
         assertFalse(isLocalNodeElectedMaster());
         Future<Void> futNode1 = joinNodeAsync(
-            new JoinRequest(node1, version1, newTerm, Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion)))
+            new JoinRequest(node1, TransportVersion.CURRENT, newTerm, Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion)))
         );
         deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(futNode1.isDone());
         assertFalse(isLocalNodeElectedMaster());
         joinNodeAndRun(
-            new JoinRequest(node2, version2, newTerm, Optional.of(new Join(node2, node0, newTerm, initialTerm, initialVersion)))
+            new JoinRequest(node2, TransportVersion.CURRENT, newTerm, Optional.of(new Join(node2, node0, newTerm, initialTerm, initialVersion)))
         );
         assertTrue(isLocalNodeElectedMaster());
         assertTrue(clusterStateHasNode(node1));
@@ -462,7 +454,6 @@ public class NodeJoinTests extends ESTestCase {
     public void testJoinFollowerWithHigherTerm() throws Exception {
         DiscoveryNode node0 = newNode(0, true);
         DiscoveryNode node1 = newNode(1, true);
-        TransportVersion version1 = TransportVersionUtils.randomVersion();
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(
@@ -475,7 +466,7 @@ public class NodeJoinTests extends ESTestCase {
         handleFollowerCheckFrom(node1, newTerm);
         long newerTerm = newTerm + randomLongBetween(1, 10);
         joinNodeAndRun(
-            new JoinRequest(node1, version1, newerTerm, Optional.of(new Join(node1, node0, newerTerm, initialTerm, initialVersion)))
+            new JoinRequest(node1, TransportVersion.CURRENT, newerTerm, Optional.of(new Join(node1, node0, newerTerm, initialTerm, initialVersion)))
         );
         assertTrue(isLocalNodeElectedMaster());
     }
@@ -657,7 +648,6 @@ public class NodeJoinTests extends ESTestCase {
 
         logger.info("Voting configuration: {}", votingConfiguration);
 
-        TransportVersion transportVersion = TransportVersionUtils.randomVersion();
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupRealMasterServiceAndCoordinator(initialTerm, initialState(localNode, initialTerm, initialVersion, votingConfiguration));
@@ -675,7 +665,7 @@ public class NodeJoinTests extends ESTestCase {
             .map(
                 node -> new JoinRequest(
                     node,
-                    transportVersion,
+                    TransportVersion.CURRENT,
                     newTerm,
                     Optional.of(new Join(node, localNode, newTerm, initialTerm, initialVersion))
                 )
@@ -692,7 +682,7 @@ public class NodeJoinTests extends ESTestCase {
                 // a correct request
                 return new JoinRequest(
                     node,
-                    transportVersion,
+                    TransportVersion.CURRENT,
                     newTerm,
                     Optional.of(new Join(node, localNode, newTerm, initialTerm, initialVersion))
                 );
@@ -700,7 +690,7 @@ public class NodeJoinTests extends ESTestCase {
                 // term too low
                 return new JoinRequest(
                     node,
-                    transportVersion,
+                    TransportVersion.CURRENT,
                     newTerm,
                     Optional.of(new Join(node, localNode, randomLongBetween(0, initialTerm), initialTerm, initialVersion))
                 );
@@ -708,7 +698,7 @@ public class NodeJoinTests extends ESTestCase {
                 // better state
                 return new JoinRequest(
                     node,
-                    transportVersion,
+                    TransportVersion.CURRENT,
                     newTerm,
                     Optional.of(new Join(node, localNode, newTerm, initialTerm, initialVersion + randomLongBetween(1, 10)))
                 );

@@ -17,10 +17,14 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse;
+import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.Optional;
 
 /**
@@ -49,10 +53,31 @@ public class WaitForNoFollowersStep extends AsyncWaitStep {
 
     @Override
     public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
+        XPackInfoRequest xPackInfoRequest = new XPackInfoRequest();
+        xPackInfoRequest.setCategories(EnumSet.of(XPackInfoRequest.Category.FEATURES));
+        getClient().execute(
+            XPackInfoAction.INSTANCE,
+            xPackInfoRequest,
+            ActionListener.wrap((xPackInfoResponse) -> {
+                XPackInfoResponse.FeatureSetsInfo featureSetsInfo = xPackInfoResponse.getFeatureSetsInfo();
+                if (featureSetsInfo != null) {
+                    XPackInfoResponse.FeatureSetsInfo.FeatureSet featureSet = featureSetsInfo.getFeatureSets().get(CCR_LEASE_KEY);
+                    if (featureSet != null && (featureSet.available() == false || featureSet.enabled() == false)){
+                        listener.onResponse(true, null);
+                        return;
+                    }
+                }
+                leaderIndexCheck(metadata, index, listener, masterTimeout);
+            }, listener::onFailure)
+        );
+    }
+
+    private void leaderIndexCheck(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
         IndicesStatsRequest request = new IndicesStatsRequest();
         request.clear();
         String indexName = index.getName();
         request.indices(indexName);
+
         getClient().admin().indices().stats(request, ActionListener.wrap((response) -> {
             IndexStats indexStats = response.getIndex(indexName);
             if (indexStats == null) {

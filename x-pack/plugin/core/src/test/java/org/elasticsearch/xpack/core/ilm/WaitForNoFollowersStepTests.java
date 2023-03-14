@@ -23,11 +23,15 @@ import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.mockito.Mockito;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ilm.WaitForNoFollowersStep.CCR_LEASE_KEY;
 import static org.hamcrest.Matchers.containsString;
@@ -64,7 +68,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         return new WaitForNoFollowersStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
     }
 
-    public void testConditionMet() {
+    public void testConditionMetWhenEnable() {
         WaitForNoFollowersStep step = createRandomInstance();
 
         String indexName = randomAlphaOfLengthBetween(5, 10);
@@ -76,6 +80,41 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
             .numberOfReplicas(randomIntBetween(1, 10))
             .build();
 
+        mockXPackInfo(true, true);
+        mockIndexStatsCall(indexName, randomIndexStats(false, numberOfShards));
+
+        final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();
+        final SetOnce<ToXContentObject> stepInfoHolder = new SetOnce<>();
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+            @Override
+            public void onResponse(boolean conditionMet, ToXContentObject infomationContext) {
+                conditionMetHolder.set(conditionMet);
+                stepInfoHolder.set(infomationContext);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("onFailure should not be called in this test, called with exception: " + e.getMessage());
+            }
+        }, MASTER_TIMEOUT);
+
+        assertTrue(conditionMetHolder.get());
+        assertNull(stepInfoHolder.get());
+    }
+
+    public void testConditionMetWhenDisabled() {
+        WaitForNoFollowersStep step = createRandomInstance();
+
+        String indexName = randomAlphaOfLengthBetween(5, 10);
+
+        int numberOfShards = randomIntBetween(1, 100);
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(numberOfShards)
+            .numberOfReplicas(randomIntBetween(1, 10))
+            .build();
+
+        mockXPackInfo(false, false);
         mockIndexStatsCall(indexName, randomIndexStats(false, numberOfShards));
 
         final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();
@@ -109,6 +148,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
             .numberOfReplicas(randomIntBetween(1, 10))
             .build();
 
+        mockXPackInfo(true, true);
         mockIndexStatsCall(indexName, randomIndexStats(true, numberOfShards));
 
         final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();
@@ -148,6 +188,8 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         ShardStats sStats = new ShardStats(null, mockShardPath(), null, null, null, null);
         ShardStats[] shardStats = new ShardStats[1];
         shardStats[0] = sStats;
+
+        mockXPackInfo(true, true);
         mockIndexStatsCall(indexName, new IndexStats(indexName, "uuid", ClusterHealthStatus.GREEN, IndexMetadata.State.OPEN, shardStats));
 
         final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();
@@ -183,6 +225,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
 
         final Exception expectedException = new RuntimeException(randomAlphaOfLength(5));
 
+        mockXPackInfo(true, true);
         Mockito.doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<IndicesStatsResponse> listener = (ActionListener<IndicesStatsResponse>) invocationOnMock.getArguments()[1];
@@ -209,6 +252,22 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         }, MASTER_TIMEOUT);
 
         assertThat(exceptionHolder.get(), equalTo(expectedException));
+    }
+
+    private void mockXPackInfo(boolean available, boolean enabled) {
+        Mockito.doAnswer(invocationOnMock -> {
+
+            @SuppressWarnings("unchecked")
+            ActionListener<XPackInfoResponse> listener = (ActionListener<XPackInfoResponse>) invocationOnMock.getArguments()[2];
+
+            Set<XPackInfoResponse.FeatureSetsInfo.FeatureSet> featureSets = new HashSet<>();
+            featureSets.add(new XPackInfoResponse.FeatureSetsInfo.FeatureSet("ccr", available, enabled));
+            XPackInfoResponse.FeatureSetsInfo featureInfos = new XPackInfoResponse.FeatureSetsInfo(featureSets);
+            XPackInfoResponse xpackInfo = new XPackInfoResponse(null, null, featureInfos);
+
+            listener.onResponse(xpackInfo);
+            return null;
+        }).when(client).execute(Mockito.same(XPackInfoAction.INSTANCE), Mockito.any(), Mockito.any());
     }
 
     private void mockIndexStatsCall(String expectedIndexName, IndexStats indexStats) {

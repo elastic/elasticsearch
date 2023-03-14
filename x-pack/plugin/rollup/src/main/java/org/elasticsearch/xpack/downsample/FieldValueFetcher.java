@@ -21,7 +21,10 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Utility class used for fetching field values by reading field data
+ * Utility class used for fetching field values by reading field data.
+ * For fields whose type is multi-valued the 'name' matches the parent field
+ * name (normally used for indexing data), while the actual sub-field
+ * name is accessible by means of {@link MappedFieldType#name()}.
  */
 class FieldValueFetcher {
 

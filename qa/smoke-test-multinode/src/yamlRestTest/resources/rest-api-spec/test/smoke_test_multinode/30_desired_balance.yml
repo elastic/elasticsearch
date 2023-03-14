@@ -135,7 +135,7 @@ setup:
   - do:
       _internal.get_desired_balance: { }
 
-  - is_true: 'routing_table.test.0.current.tier_preference'
+  - is_true: 'routing_table.test.0.current.0.tier_preference'
 
 ---
 "Test cluster_info":

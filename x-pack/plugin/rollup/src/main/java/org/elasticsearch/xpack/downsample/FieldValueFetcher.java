@@ -25,22 +25,20 @@ import java.util.List;
  */
 class FieldValueFetcher {
 
+    protected final String name;
     protected final MappedFieldType fieldType;
     protected final IndexFieldData<?> fieldData;
     protected final AbstractDownsampleFieldProducer rollupFieldProducer;
 
-    protected FieldValueFetcher(MappedFieldType fieldType, IndexFieldData<?> fieldData) {
+    protected FieldValueFetcher(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
+        this.name = name;
         this.fieldType = fieldType;
         this.fieldData = fieldData;
         this.rollupFieldProducer = createRollupFieldProducer();
     }
 
     public String name() {
-        return fieldType().name();
-    }
-
-    public MappedFieldType fieldType() {
-        return fieldType;
+        return name;
     }
 
     public FormattedDocValues getLeaf(LeafReaderContext context) {
@@ -90,11 +88,10 @@ class FieldValueFetcher {
             } else {
                 if (context.fieldExistsInIndex(field)) {
                     final IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
-                    if (context.isMultiField(field)) {
-                        fetchers.add(new MultiFieldValueFetcher(fieldType, fieldData));
-                    } else {
-                        fetchers.add(new FieldValueFetcher(fieldType, fieldData));
-                    }
+                    final String fieldName = context.isMultiField(field)
+                        ? fieldType.name().substring(0, fieldType.name().lastIndexOf('.'))
+                        : fieldType.name();
+                    fetchers.add(new FieldValueFetcher(fieldName, fieldType, fieldData));
                 }
             }
         }

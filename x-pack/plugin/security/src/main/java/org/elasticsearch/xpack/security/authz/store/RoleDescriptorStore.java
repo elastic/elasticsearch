@@ -132,6 +132,21 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         }));
     }
 
+    @Override
+    public void resolveCrossClusterAccessRoleReference(
+        RoleReference.CrossClusterAccessRoleReference crossClusterAccessRoleReference,
+        ActionListener<RolesRetrievalResult> listener
+    ) {
+        final Set<RoleDescriptor> roleDescriptors = crossClusterAccessRoleReference.getRoleDescriptorsBytes().toRoleDescriptors();
+        if (roleDescriptors.isEmpty()) {
+            listener.onResponse(RolesRetrievalResult.EMPTY);
+            return;
+        }
+        final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
+        rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
+        listener.onResponse(rolesRetrievalResult);
+    }
+
     private void resolveRoleNames(Set<String> roleNames, ActionListener<RolesRetrievalResult> listener) {
         roleDescriptors(roleNames, ActionListener.wrap(rolesRetrievalResult -> {
             logDeprecatedRoles(rolesRetrievalResult.getRoleDescriptors());

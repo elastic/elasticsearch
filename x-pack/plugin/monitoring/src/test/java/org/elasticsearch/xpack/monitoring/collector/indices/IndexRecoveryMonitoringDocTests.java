@@ -101,14 +101,18 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
             new TransportAddress(TransportAddress.META_ADDRESS, 9301),
             singletonMap("attr", "value_1"),
             singleton(DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT.minimumIndexCompatibilityVersion()
+            Version.CURRENT.minimumCompatibilityVersion()
         );
 
         final ShardId shardId = new ShardId("_index_a", "_uuid_a", 0);
-        final RecoverySource source = RecoverySource.PeerRecoverySource.INSTANCE;
         final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_index_info_a");
-        final ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, source, unassignedInfo)
-            .initialize("_node_id", "_allocation_id", 123L);
+        final ShardRouting shardRouting = ShardRouting.newUnassigned(
+            shardId,
+            false,
+            RecoverySource.PeerRecoverySource.INSTANCE,
+            unassignedInfo,
+            ShardRouting.Role.DEFAULT
+        ).initialize("_node_id", "_allocation_id", 123L);
 
         final Map<String, List<RecoveryState>> shardRecoveryStates = new HashMap<>();
         final RecoveryState recoveryState = new RecoveryState(shardRouting, discoveryNodeOne, discoveryNodeOne);
@@ -153,7 +157,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
                     "id": 0,
                     "type": "PEER",
                     "stage": "INIT",
-                    "primary": true,
+                    "primary": false,
                     "start_time_in_millis": %s,
                     "stop_time_in_millis": %s,
                     "total_time_in_millis": %s,

@@ -129,21 +129,15 @@ public class QueryPhase {
             }
 
             final LinkedList<QueryCollectorContext> collectors = new LinkedList<>();
-            // whether the chain contains a collector that filters documents
-            boolean hasFilterCollector = false;
             if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
                 // add terminate_after before the filter collectors
                 // it will only be applied on documents accepted by these filter collectors
                 collectors.add(createEarlyTerminationCollectorContext(searchContext.terminateAfter()));
-                // this collector can filter documents during the collection
-                hasFilterCollector = true;
             }
             if (searchContext.parsedPostFilter() != null) {
                 // add post filters before aggregations
                 // it will only be applied to top hits
                 collectors.add(createFilteredCollectorContext(searcher, searchContext.parsedPostFilter().query()));
-                // this collector can filter documents during the collection
-                hasFilterCollector = true;
             }
             if (searchContext.queryCollectors().isEmpty() == false) {
                 // plug in additional collectors, like aggregations
@@ -152,8 +146,6 @@ public class QueryPhase {
             if (searchContext.minimumScore() != null) {
                 // apply the minimum score after multi collector so we filter aggs as well
                 collectors.add(createMinScoreCollectorContext(searchContext.minimumScore()));
-                // this collector can filter documents during the collection
-                hasFilterCollector = true;
             }
 
             boolean timeoutSet = scrollContext == null
@@ -176,7 +168,7 @@ public class QueryPhase {
             }
 
             try {
-                boolean shouldRescore = searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, timeoutSet);
+                boolean shouldRescore = searchWithCollector(searchContext, searcher, query, collectors, timeoutSet);
                 ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
                 assert executor instanceof EWMATrackingEsThreadPoolExecutor
                     || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)
@@ -203,11 +195,10 @@ public class QueryPhase {
         ContextIndexSearcher searcher,
         Query query,
         LinkedList<QueryCollectorContext> collectors,
-        boolean hasFilterCollector,
         boolean timeoutSet
     ) throws IOException {
         // create the top docs collector last when the other collectors are known
-        final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext, hasFilterCollector);
+        final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext);
         // add the top docs collector, the first collector context in the chain
         collectors.addFirst(topDocsFactory);
 

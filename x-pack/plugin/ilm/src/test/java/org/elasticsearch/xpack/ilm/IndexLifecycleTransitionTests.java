@@ -1017,11 +1017,10 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
     public void testEligibleForRefresh() {
         IndexMetadata meta = IndexMetadata.builder("index")
             .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5))
+                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                    IndexMetadata.SETTING_INDEX_UUID,
+                    randomAlphaOfLength(5)
+                )
             )
             .build();
         assertFalse(eligibleToCheckForRefresh(meta));
@@ -1029,11 +1028,10 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         LifecycleExecutionState state = LifecycleExecutionState.builder().build();
         meta = IndexMetadata.builder("index")
             .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5))
+                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                    IndexMetadata.SETTING_INDEX_UUID,
+                    randomAlphaOfLength(5)
+                )
             )
             .putCustom(ILM_CUSTOM_METADATA_KEY, state.asMap())
             .build();
@@ -1042,11 +1040,10 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         state = LifecycleExecutionState.builder().setPhase("phase").setAction("action").setStep("step").build();
         meta = IndexMetadata.builder("index")
             .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5))
+                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                    IndexMetadata.SETTING_INDEX_UUID,
+                    randomAlphaOfLength(5)
+                )
             )
             .putCustom(ILM_CUSTOM_METADATA_KEY, state.asMap())
             .build();
@@ -1055,11 +1052,10 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         state = LifecycleExecutionState.builder().setPhaseDefinition("{}").build();
         meta = IndexMetadata.builder("index")
             .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5))
+                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                    IndexMetadata.SETTING_INDEX_UUID,
+                    randomAlphaOfLength(5)
+                )
             )
             .putCustom(ILM_CUSTOM_METADATA_KEY, state.asMap())
             .build();
@@ -1073,11 +1069,10 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             .build();
         meta = IndexMetadata.builder("index")
             .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5))
+                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                    IndexMetadata.SETTING_INDEX_UUID,
+                    randomAlphaOfLength(5)
+                )
             )
             .putCustom(ILM_CUSTOM_METADATA_KEY, state.asMap())
             .build();
@@ -1086,11 +1081,10 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         state = LifecycleExecutionState.builder().setPhase("phase").setAction("action").setStep("step").setPhaseDefinition("{}").build();
         meta = IndexMetadata.builder("index")
             .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5))
+                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                    IndexMetadata.SETTING_INDEX_UUID,
+                    randomAlphaOfLength(5)
+                )
             )
             .putCustom(ILM_CUSTOM_METADATA_KEY, state.asMap())
             .build();

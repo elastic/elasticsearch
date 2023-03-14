@@ -232,7 +232,7 @@ configurations {
 
 dependencies {
   constraints {
-      integTestImplementation('org.ow2.asm:asm:9.3')
+      integTestImplementation('org.ow2.asm:asm:9.4')
       implementation "org.yaml:snakeyaml:${versions.snakeyaml}"
   }
   components.all(JacksonAlignmentRule)
@@ -334,6 +334,10 @@ tasks.register("bootstrapPerformanceTests", Copy) {
           testGitCommit:GitInfo.gitInfo(root).revision,
           mainWrapper:"${ -> resolveMainWrapperVersion()}".toString(),
           branchWrapper:"${-> gradle.gradleVersion}".toString()])
+}
+
+tasks.named("jar") {
+  exclude("classpath.index")
 }
 
 def resolveMainWrapperVersion() {

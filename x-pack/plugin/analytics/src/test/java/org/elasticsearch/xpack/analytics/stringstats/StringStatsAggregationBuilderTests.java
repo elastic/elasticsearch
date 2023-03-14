@@ -67,7 +67,7 @@ public class StringStatsAggregationBuilderTests extends AbstractXContentSerializ
     }
 
     @Override
-    protected StringStatsAggregationBuilder mutateInstance(StringStatsAggregationBuilder instance) throws IOException {
+    protected StringStatsAggregationBuilder mutateInstance(StringStatsAggregationBuilder instance) {
         if (randomBoolean()) {
             StringStatsAggregationBuilder mutant = new StringStatsAggregationBuilder(instance.getName());
             mutant.showDistribution(instance.showDistribution() == false);

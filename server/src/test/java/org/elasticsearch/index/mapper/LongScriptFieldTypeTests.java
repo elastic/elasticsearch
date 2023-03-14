@@ -288,8 +288,10 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     ctx
                 ) {
                     @Override
+                    @SuppressWarnings("unchecked")
                     public void execute() {
-                        for (Object foo : (List<?>) lookup.source().source().get("foo")) {
+                        Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                        for (Object foo : (List<?>) source.get("foo")) {
                             emit(((Number) foo).longValue());
                         }
                     }
@@ -303,8 +305,10 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     ctx
                 ) {
                     @Override
+                    @SuppressWarnings("unchecked")
                     public void execute() {
-                        for (Object foo : (List<?>) lookup.source().source().get("foo")) {
+                        Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                        for (Object foo : (List<?>) source.get("foo")) {
                             emit(((Number) foo).longValue() + ((Number) getParams().get("param")).longValue());
                         }
                     }
@@ -320,8 +324,10 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     ctx
                 ) {
                     @Override
+                    @SuppressWarnings("unchecked")
                     public void execute() {
-                        for (Object timestamp : (List<?>) lookup.source().source().get("timestamp")) {
+                        Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                        for (Object timestamp : (List<?>) source.get("timestamp")) {
                             emit(now - ((Number) timestamp).longValue());
                         }
                     }

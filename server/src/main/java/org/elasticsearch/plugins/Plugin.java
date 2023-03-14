@@ -12,7 +12,7 @@ import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -82,6 +82,7 @@ public abstract class Plugin implements Closeable {
      * @param repositoriesServiceSupplier A supplier for the service that manages snapshot repositories; will return null when this method
      *                                    is called, but will return the repositories service once the node is initialized.
      * @param tracer                      An interface for distributed tracing
+     * @param allocationService           A service to manage shard allocation in the cluster
      */
     public Collection<Object> createComponents(
         Client client,
@@ -96,7 +97,7 @@ public abstract class Plugin implements Closeable {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationDeciders allocationDeciders
+        AllocationService allocationService
     ) {
         return Collections.emptyList();
     }

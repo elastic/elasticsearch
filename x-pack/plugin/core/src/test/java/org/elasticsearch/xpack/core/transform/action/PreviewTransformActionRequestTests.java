@@ -71,6 +71,11 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
         return new Request(config, TimeValue.parseTimeValue(randomTimeValue(), "timeout"));
     }
 
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testParsingOverwritesIdField() throws IOException {
         testParsingOverwrites("", """
             "dest": {"index": "bar","pipeline": "baz"},""", "transform-preview", "bar", "baz");

@@ -27,9 +27,19 @@ filesystem, or configure {es} to use a different location for its temporary
 directory by setting the <<es-tmpdir,`$ES_TMPDIR`>> environment variable. For
 instance:
 
+* If you are running {es} directly from a shell, set `$ES_TMPDIR` as follows:
++
 ["source","sh",subs="attributes"]
 --------------------------------------------
 export ES_TMPDIR=/usr/share/elasticsearch/tmp
+--------------------------------------------
+
+* If you are using `systemd` to run {es} as a service, add the following
+line to the `[Service]` section in a <<systemd,service override file>>:
++
+[source,text]
+--------------------------------------------
+Environment=ES_TMPDIR=/usr/share/elasticsearch/tmp
 --------------------------------------------
 
 If you need finer control over the location of these temporary files, you can

@@ -51,6 +51,7 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Tuple.tuple;
+import static org.elasticsearch.xpack.ml.aggs.frequentitemsets.FrequentItemSetsAggregationBuilder.EXECUTION_HINT_ALLOWED_MODES;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
@@ -87,7 +88,8 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
             FrequentItemSetsAggregationBuilder.DEFAULT_MINIMUM_SUPPORT,
             FrequentItemSetsAggregationBuilder.DEFAULT_MINIMUM_SET_SIZE,
             FrequentItemSetsAggregationBuilder.DEFAULT_SIZE,
-            null
+            null,
+            randomFrom(EXECUTION_HINT_ALLOWED_MODES)
         );
     }
 
@@ -134,7 +136,8 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
             minimumSupport,
             minimumSetSize,
             size,
-            null
+            null,
+            randomFrom(EXECUTION_HINT_ALLOWED_MODES)
         );
 
         testCase(iw -> {
@@ -337,7 +340,8 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
             minimumSupport,
             minimumSetSize,
             size,
-            null
+            null,
+            randomFrom(EXECUTION_HINT_ALLOWED_MODES)
         );
 
         testCase(iw -> {
@@ -552,7 +556,8 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
             minimumSupport,
             minimumSetSize,
             size,
-            null
+            null,
+            randomFrom(EXECUTION_HINT_ALLOWED_MODES)
         );
 
         testCase(iw -> {

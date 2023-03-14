@@ -90,6 +90,11 @@ public class QuantilesTests extends AbstractXContentSerializingTestCase<Quantile
         return createRandomized();
     }
 
+    @Override
+    protected Quantiles mutateInstance(Quantiles instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static Quantiles createRandomized() {
         return new Quantiles(
             randomAlphaOfLengthBetween(1, 20),

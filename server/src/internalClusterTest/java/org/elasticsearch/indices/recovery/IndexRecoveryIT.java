@@ -218,34 +218,20 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
     private void slowDownRecovery(ByteSizeValue shardSize) {
         long chunkSize = Math.max(1, shardSize.getBytes() / 10);
-        assertTrue(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        // one chunk per sec..
-                        .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), chunkSize, ByteSizeUnit.BYTES)
-                        // small chunks
-                        .put(CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkSize, ByteSizeUnit.BYTES))
-                )
-                .get()
-                .isAcknowledged()
+        updateClusterSettings(
+            Settings.builder()
+                // one chunk per sec..
+                .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), chunkSize, ByteSizeUnit.BYTES)
+                // small chunks
+                .put(CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkSize, ByteSizeUnit.BYTES))
         );
     }
 
     private void restoreRecoverySpeed() {
-        assertTrue(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "20mb")
-                        .put(CHUNK_SIZE_SETTING.getKey(), RecoverySettings.DEFAULT_CHUNK_SIZE)
-                )
-                .get()
-                .isAcknowledged()
+        updateClusterSettings(
+            Settings.builder()
+                .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "20mb")
+                .put(CHUNK_SIZE_SETTING.getKey(), RecoverySettings.DEFAULT_CHUNK_SIZE)
         );
     }
 
@@ -318,12 +304,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         // force a shard recovery from nodeA to nodeB
         final String nodeB = internalCluster().startNode();
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(INDEX_NAME)
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
-        );
+        setReplicaCount(1, INDEX_NAME);
         ensureGreen(INDEX_NAME);
 
         final RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
@@ -365,15 +346,9 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         logger.info("--> start node A");
         final String nodeA = internalCluster().startNode();
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
-                )
+        updateClusterSettings(
+            Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
         );
-
         logger.info("--> create index on node: {}", nodeA);
         createIndex(
             INDEX_NAME,
@@ -398,15 +373,11 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final String nodeB = internalCluster().startNode();
 
         logger.info("--> add replica for {} on node: {}", INDEX_NAME, nodeB);
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(INDEX_NAME)
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                        .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)
-                )
+        updateIndexSettings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0),
+            INDEX_NAME
         );
         ensureGreen(INDEX_NAME);
 
@@ -605,12 +576,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertBusy(() -> assertNodeHasThrottleTimeAndNoRecoveries.accept(nodeB));
 
         logger.info("--> bump replica count");
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(INDEX_NAME)
-            .setSettings(Settings.builder().put("number_of_replicas", 1))
-            .execute()
-            .actionGet();
+        setReplicaCount(1, INDEX_NAME);
         ensureGreen();
 
         assertBusy(() -> assertNodeHasThrottleTimeAndNoRecoveries.accept(nodeA));
@@ -881,12 +847,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertThat(client().admin().indices().prepareFlush(indexName).setForce(true).execute().get().getFailedShards(), equalTo(0));
         assertThat(client().admin().indices().prepareFlush(indexName).setForce(true).execute().get().getFailedShards(), equalTo(0));
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
-        );
+        setReplicaCount(1, indexName);
         internalCluster().startNode(randomFrom(firstNodeToStopDataPathSettings, secondNodeToStopDataPathSettings));
         ensureGreen(indexName);
 
@@ -938,7 +899,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 connection.sendRequest(requestId, action, request, options);
             });
         }
-        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.number_of_replicas", 1)).get();
+        setReplicaCount(1, "test");
 
         var allocator = internalCluster().getInstance(ShardsAllocator.class);
         if (allocator instanceof BalancedShardsAllocator) {
@@ -988,15 +949,11 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         });
         try {
             String nodeWithReplica = internalCluster().startDataOnlyNode();
-            assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareUpdateSettings(indexName)
-                    .setSettings(
-                        Settings.builder()
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                            .put("index.routing.allocation.include._name", nodeWithPrimary + "," + nodeWithReplica)
-                    )
+            updateIndexSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put("index.routing.allocation.include._name", nodeWithPrimary + "," + nodeWithReplica),
+                indexName
             );
             phase1ReadyBlocked.await();
             internalCluster().restartNode(
@@ -1004,15 +961,9 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 new InternalTestCluster.RestartCallback()
             );
             internalCluster().ensureAtLeastNumDataNodes(3);
-            assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareUpdateSettings(indexName)
-                    .setSettings(
-                        Settings.builder()
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
-                            .putNull("index.routing.allocation.include._name")
-                    )
+            updateIndexSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2).putNull("index.routing.allocation.include._name"),
+                indexName
             );
             assertFalse(client().admin().cluster().prepareHealth(indexName).setWaitForActiveShards(2).get().isTimedOut());
         } finally {
@@ -1462,12 +1413,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             IntStream.range(0, between(0, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList())
         );
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
-        );
+        setReplicaCount(1, indexName);
         ensureGreen(indexName);
         final long maxSeqNoAfterRecovery = primary.seqNoStats().getMaxSeqNo();
 
@@ -1549,9 +1495,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         });
 
         logger.info("--> remove replicas");
-        assertAcked(
-            client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder().put("index.number_of_replicas", 0))
-        );
+        setReplicaCount(0, indexName);
         ensureGreen(indexName);
 
         logger.info("--> index more documents");
@@ -1565,9 +1509,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         );
 
         logger.info("--> add replicas again");
-        assertAcked(
-            client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder().put("index.number_of_replicas", 1))
-        );
+        setReplicaCount(1, indexName);
         ensureGreen(indexName);
     }
 
@@ -1764,9 +1706,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             connection.sendRequest(requestId, action, request, options);
         });
 
-        assertAcked(
-            client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder().put("index.number_of_replicas", 1))
-        );
+        setReplicaCount(1, indexName);
         ensureGreen();
         assertTrue(fileInfoIntercepted.get());
         assertTrue(fileChunkIntercepted.get());

@@ -40,14 +40,16 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardUpdateTask;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.coordination.JoinReason;
 import org.elasticsearch.cluster.coordination.JoinTask;
-import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
-import org.elasticsearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
+import org.elasticsearch.cluster.coordination.NodeJoinExecutor;
+import org.elasticsearch.cluster.coordination.NodeLeftExecutor;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -73,7 +75,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.StoppableExecutorServiceWrapper;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -106,11 +109,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
 import static org.elasticsearch.test.CheckedFunctionUtils.anyCheckedFunction;
 import static org.elasticsearch.test.ESTestCase.between;
@@ -136,16 +140,16 @@ public class ClusterStateChanges {
     private final TransportClusterRerouteAction transportClusterRerouteAction;
     private final TransportCreateIndexAction transportCreateIndexAction;
 
-    private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
+    private final NodeLeftExecutor nodeLeftExecutor;
 
     @SuppressWarnings("unchecked")
     public ClusterStateChanges(NamedXContentRegistry xContentRegistry, ThreadPool threadPool) {
-        ClusterSettings clusterSettings = new ClusterSettings(SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterSettings clusterSettings = createBuiltInClusterSettings(SETTINGS);
         allocationService = new AllocationService(
             new AllocationDeciders(
                 new HashSet<>(
                     Arrays.asList(
-                        new SameShardAllocationDecider(SETTINGS, clusterSettings),
+                        new SameShardAllocationDecider(clusterSettings),
                         new ReplicaAfterPrimaryActiveAllocationDecider(),
                         new RandomAllocationDeciderTests.RandomAllocationDecider(getRandom())
                     )
@@ -154,7 +158,8 @@ public class ClusterStateChanges {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(SETTINGS),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
         shardFailedClusterStateTaskExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null);
         shardStartedClusterStateTaskExecutor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, null);
@@ -171,29 +176,9 @@ public class ClusterStateChanges {
             new TaskManager(SETTINGS, threadPool, Collections.emptySet())
         ) {
             @Override
-            protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
+            protected ExecutorService createThreadPoolExecutor() {
                 // run master tasks inline, no need to fork to a separate thread
-                return new PrioritizedEsThreadPoolExecutor(
-                    "fake-master",
-                    1,
-                    1,
-                    1,
-                    TimeUnit.SECONDS,
-                    r -> { throw new AssertionError("should not create new threads"); },
-                    null,
-                    null,
-                    PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
-                ) {
-                    @Override
-                    public void execute(Runnable command, final TimeValue timeout, final Runnable timeoutCallback) {
-                        command.run();
-                    }
-
-                    @Override
-                    public void execute(Runnable command) {
-                        command.run();
-                    }
-                };
+                return new StoppableExecutorServiceWrapper(EsExecutors.DIRECT_EXECUTOR_SERVICE);
             }
         };
         // mocks
@@ -347,7 +332,7 @@ public class ClusterStateChanges {
             EmptySystemIndices.INSTANCE
         );
 
-        nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService);
+        nodeLeftExecutor = new NodeLeftExecutor(allocationService);
     }
 
     private void resetMasterService() {
@@ -396,15 +381,17 @@ public class ClusterStateChanges {
         return execute(transportClusterRerouteAction, request, state);
     }
 
+    private static final JoinReason DUMMY_REASON = new JoinReason("dummy reason", null);
+
     public ClusterState addNode(ClusterState clusterState, DiscoveryNode discoveryNode) {
         return runTasks(
-            new JoinTaskExecutor(allocationService, (s, p, r) -> {}),
+            new NodeJoinExecutor(allocationService, (s, p, r) -> {}),
             clusterState,
             List.of(
                 JoinTask.singleNode(
                     discoveryNode,
-                    "dummy reason",
-                    ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); }),
+                    DUMMY_REASON,
+                    ActionListener.running(() -> { throw new AssertionError("should not complete publication"); }),
                     clusterState.term()
                 )
             )
@@ -413,7 +400,7 @@ public class ClusterStateChanges {
 
     public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes) {
         return runTasks(
-            new JoinTaskExecutor(allocationService, (s, p, r) -> {}),
+            new NodeJoinExecutor(allocationService, (s, p, r) -> {}),
             clusterState,
             List.of(
                 JoinTask.completingElection(
@@ -421,8 +408,8 @@ public class ClusterStateChanges {
                         .map(
                             node -> new JoinTask.NodeJoinTask(
                                 node,
-                                "dummy reason",
-                                ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); })
+                                DUMMY_REASON,
+                                ActionListener.running(() -> { throw new AssertionError("should not complete publication"); })
                             )
                         ),
                     clusterState.term() + between(1, 10)
@@ -433,9 +420,9 @@ public class ClusterStateChanges {
 
     public ClusterState removeNodes(ClusterState clusterState, List<DiscoveryNode> nodes) {
         return runTasks(
-            nodeRemovalExecutor,
+            nodeLeftExecutor,
             clusterState,
-            nodes.stream().map(n -> new NodeRemovalClusterStateTaskExecutor.Task(n, "dummy reason", () -> {})).toList()
+            nodes.stream().map(n -> new NodeLeftExecutor.Task(n, "dummy reason", () -> {})).toList()
         );
     }
 
@@ -538,6 +525,6 @@ public class ClusterStateChanges {
     }
 
     private ActionListener<TransportResponse.Empty> createTestListener() {
-        return ActionListener.wrap(() -> { throw new AssertionError("task should not complete"); });
+        return ActionListener.running(() -> { throw new AssertionError("task should not complete"); });
     }
 }

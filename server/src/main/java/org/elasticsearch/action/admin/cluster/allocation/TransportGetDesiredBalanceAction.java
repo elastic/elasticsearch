@@ -11,6 +11,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
+import org.elasticsearch.cluster.routing.allocation.allocator.ClusterBalanceStats;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
@@ -42,6 +44,7 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
 
     @Nullable
     private final DesiredBalanceShardsAllocator desiredBalanceShardsAllocator;
+    private final ClusterInfoService clusterInfoService;
     private final WriteLoadForecaster writeLoadForecaster;
 
     @Inject
@@ -52,6 +55,7 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ShardsAllocator shardsAllocator,
+        ClusterInfoService clusterInfoService,
         WriteLoadForecaster writeLoadForecaster
     ) {
         super(
@@ -66,6 +70,7 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
             ThreadPool.Names.MANAGEMENT
         );
         this.desiredBalanceShardsAllocator = shardsAllocator instanceof DesiredBalanceShardsAllocator allocator ? allocator : null;
+        this.clusterInfoService = clusterInfoService;
         this.writeLoadForecaster = writeLoadForecaster;
     }
 
@@ -86,6 +91,21 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
             listener.onFailure(new ResourceNotFoundException("Desired balance is not computed yet"));
             return;
         }
+        var clusterInfo = clusterInfoService.getClusterInfo();
+        listener.onResponse(
+            new DesiredBalanceResponse(
+                desiredBalanceShardsAllocator.getStats(),
+                ClusterBalanceStats.createFrom(state, clusterInfo, writeLoadForecaster),
+                createRoutingTable(state, latestDesiredBalance),
+                clusterInfo
+            )
+        );
+    }
+
+    private Map<String, Map<Integer, DesiredBalanceResponse.DesiredShards>> createRoutingTable(
+        ClusterState state,
+        DesiredBalance latestDesiredBalance
+    ) {
         Map<String, Map<Integer, DesiredBalanceResponse.DesiredShards>> routingTable = new HashMap<>();
         for (IndexRoutingTable indexRoutingTable : state.routingTable()) {
             Map<Integer, DesiredBalanceResponse.DesiredShards> indexDesiredShards = new HashMap<>();
@@ -134,7 +154,7 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
             }
             routingTable.put(indexRoutingTable.getIndex().getName(), indexDesiredShards);
         }
-        listener.onResponse(new DesiredBalanceResponse(desiredBalanceShardsAllocator.getStats(), routingTable));
+        return routingTable;
     }
 
     @Override

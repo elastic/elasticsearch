@@ -412,6 +412,11 @@ public class MockBigArrays extends BigArrays {
         public Collection<Accountable> getChildResources() {
             return Collections.singleton(Accountables.namedAccountable("delegate", in));
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            in.writeTo(out);
+        }
     }
 
     private class IntArrayWrapper extends AbstractArrayWrapper implements IntArray {

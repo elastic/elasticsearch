@@ -408,7 +408,11 @@ public class ValuesSourceConfig {
     }
 
     /**
-     * Check if this values source supports using global and segment ordinals.
+     * Check if this values source supports segment ordinals. Global ordinals might or might not be supported.
+     * <p>
+     * If this returns {@code true} then it is safe to cast it to {@link ValuesSource.Bytes.WithOrdinals}.
+     * Call {@link ValuesSource.Bytes.WithOrdinals#supportsGlobalOrdinalsMapping} to find out if global ordinals are supported.
+     *
      */
     public boolean hasOrdinals() {
         return valuesSource.hasOrdinals();

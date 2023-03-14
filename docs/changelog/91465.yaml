@@ -1,5 +1,0 @@
-pr: 91465
-summary: Support synthetic `_source` for `_doc_count` field
-area: TSDB
-type: enhancement
-issues: []

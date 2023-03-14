@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.core.textstructure.structurefinder;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.grok.Grok;
+import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -131,7 +131,7 @@ public class TextStructure implements ToXContentObject, Writeable {
     }
 
     private static String getNonNullEcsCompatibilityString(String ecsCompatibility) {
-        return (ecsCompatibility == null || ecsCompatibility.isEmpty()) ? Grok.ECS_COMPATIBILITY_MODES[0] : ecsCompatibility;
+        return (ecsCompatibility == null || ecsCompatibility.isEmpty()) ? GrokBuiltinPatterns.ECS_COMPATIBILITY_MODES[0] : ecsCompatibility;
     }
 
     private final int numLinesAnalyzed;
@@ -224,7 +224,7 @@ public class TextStructure implements ToXContentObject, Writeable {
         quote = in.readBoolean() ? (char) in.readVInt() : null;
         shouldTrimFields = in.readOptionalBoolean();
         grokPattern = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             ecsCompatibility = getNonNullEcsCompatibilityString(in.readString());
         } else {
             ecsCompatibility = getNonNullEcsCompatibilityString(null);
@@ -270,7 +270,7 @@ public class TextStructure implements ToXContentObject, Writeable {
         }
         out.writeOptionalBoolean(shouldTrimFields);
         out.writeOptionalString(grokPattern);
-        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             out.writeString(ecsCompatibility);
         }
         if (jodaTimestampFormats == null) {
@@ -755,11 +755,11 @@ public class TextStructure implements ToXContentObject, Writeable {
                     }
                     if (ecsCompatibility != null
                         && ecsCompatibility.isEmpty() == false
-                        && Grok.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
+                        && GrokBuiltinPatterns.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
                         throw new IllegalArgumentException(
                             ECS_COMPATIBILITY.getPreferredName()
                                 + "] must be one of ["
-                                + String.join(", ", Grok.ECS_COMPATIBILITY_MODES)
+                                + String.join(", ", GrokBuiltinPatterns.ECS_COMPATIBILITY_MODES)
                                 + "] if specified"
                         );
                     }

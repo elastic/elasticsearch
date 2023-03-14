@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -77,7 +78,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
                         throw new UnsupportedOperationException("cannot explain");
                     }
                 }
-            }, null, null)
+            }, null, null, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
         );
 
         assertEquals(shard.currentNodeId(), cae.getCurrentNode().getId());
@@ -143,7 +144,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         final String redIndex = randomBoolean() ? "idx1" : "idx2";
         final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(clusterState.routingTable());
         for (final IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-            final IndexRoutingTable.Builder indexBuilder = new IndexRoutingTable.Builder(indexRoutingTable.getIndex());
+            final IndexRoutingTable.Builder indexBuilder = IndexRoutingTable.builder(indexRoutingTable.getIndex());
             for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
                 IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
                 final IndexShardRoutingTable.Builder shardBuilder = new IndexShardRoutingTable.Builder(indexShardRoutingTable.shardId());

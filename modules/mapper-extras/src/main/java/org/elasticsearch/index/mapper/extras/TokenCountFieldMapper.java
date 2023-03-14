@@ -113,6 +113,7 @@ public class TokenCountFieldMapper extends FieldMapper {
                 meta,
                 null,
                 false,
+                null,
                 null
             );
         }

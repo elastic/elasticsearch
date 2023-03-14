@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -82,7 +83,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
-            .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build())
+            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.index("test")).build())
             .build();
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).localNodeId("node1").masterNodeId("node1"))
@@ -128,7 +129,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
-            .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build())
+            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.index("test")).build())
             .build();
         clusterState = ClusterState.builder(clusterState)
             .nodes(
@@ -243,7 +244,12 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
-            .routingTable(RoutingTable.builder().addAsNew(metadata.index("short_delay")).addAsNew(metadata.index("long_delay")).build())
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+                    .addAsNew(metadata.index("short_delay"))
+                    .addAsNew(metadata.index("long_delay"))
+                    .build()
+            )
             .nodes(
                 DiscoveryNodes.builder()
                     .add(newNode("node0", singleton(DiscoveryNodeRole.MASTER_ROLE)))
@@ -427,7 +433,12 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
-            .routingTable(RoutingTable.builder().addAsNew(metadata.index("foo")).addAsNew(metadata.index("bar")).build())
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+                    .addAsNew(metadata.index("foo"))
+                    .addAsNew(metadata.index("bar"))
+                    .build()
+            )
             .build();
         clusterState = ClusterState.builder(clusterState)
             .nodes(

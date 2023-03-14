@@ -10,7 +10,6 @@ package org.elasticsearch.repositories.azure;
 
 import com.azure.core.http.ProxyOptions;
 import com.azure.core.util.logging.ClientLogger;
-import com.azure.storage.common.implementation.connectionstring.StorageConnectionString;
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
 
@@ -125,10 +124,9 @@ public class AzureStorageService {
 
     // non-static, package private for testing
     RequestRetryOptions getRetryOptions(LocationMode locationMode, AzureStorageSettings azureStorageSettings) {
-        String connectString = azureStorageSettings.getConnectString();
-        StorageConnectionString storageConnectionString = StorageConnectionString.create(connectString, clientLogger);
-        String primaryUri = storageConnectionString.getBlobEndpoint().getPrimaryUri();
-        String secondaryUri = storageConnectionString.getBlobEndpoint().getSecondaryUri();
+        AzureStorageSettings.StorageEndpoint endpoint = azureStorageSettings.getStorageEndpoint();
+        String primaryUri = endpoint.primaryURI();
+        String secondaryUri = endpoint.secondaryURI();
 
         if (locationMode == LocationMode.PRIMARY_THEN_SECONDARY && secondaryUri == null) {
             throw new IllegalArgumentException("Unable to use " + locationMode + " location mode without a secondary location URI");

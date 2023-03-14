@@ -15,7 +15,6 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -33,7 +32,7 @@ public class CompositeFieldScriptTests extends ESTestCase {
                 CompositeFieldScript script = new CompositeFieldScript(
                     "composite",
                     Collections.emptyMap(),
-                    new SearchLookup(field -> null, (ft, lookup, ftd) -> null, new SourceLookup.ReaderSourceProvider()),
+                    new SearchLookup(field -> null, (ft, lookup, ftd) -> null, (ctx, doc) -> null),
                     OnScriptError.FAIL,
                     reader.leaves().get(0)
                 ) {
@@ -65,7 +64,7 @@ public class CompositeFieldScriptTests extends ESTestCase {
                 CompositeFieldScript script = new CompositeFieldScript(
                     "composite",
                     Collections.emptyMap(),
-                    new SearchLookup(field -> null, (ft, lookup, ftd) -> null, new SourceLookup.ReaderSourceProvider()),
+                    new SearchLookup(field -> null, (ft, lookup, ftd) -> null, (ctx, doc) -> null),
                     OnScriptError.FAIL,
                     reader.leaves().get(0)
                 ) {
@@ -79,7 +78,7 @@ public class CompositeFieldScriptTests extends ESTestCase {
                 StringFieldScript stringFieldScript = new StringFieldScript(
                     "composite.leaf",
                     Collections.emptyMap(),
-                    new SearchLookup(field -> null, (ft, lookup, ftd) -> null, new SourceLookup.ReaderSourceProvider()),
+                    new SearchLookup(field -> null, (ft, lookup, ftd) -> null, (ctx, doc) -> null),
                     OnScriptError.FAIL,
                     reader.leaves().get(0)
                 ) {

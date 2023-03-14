@@ -10,15 +10,10 @@ import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.XPackPlugin;
 
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Set;
@@ -36,9 +31,7 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
     }
 
     private Settings.Builder nodeSettingsBuilder(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(addRoles(super.nodeSettings(nodeOrdinal, otherSettings), Set.of(DiscoveryNodeRole.DATA_ROLE)))
-            .put("resource.reload.interval.high", "500ms"); // for license mode file watcher
+        return Settings.builder().put(addRoles(super.nodeSettings(nodeOrdinal, otherSettings), Set.of(DiscoveryNodeRole.DATA_ROLE)));
     }
 
     @Override
@@ -79,31 +72,6 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
         assertOperationMode(License.OperationMode.BASIC);
 
         wipeAllLicenses();
-    }
-
-    public void testCloudInternalLicense() throws Exception {
-        wipeAllLicenses();
-
-        int numNodes = randomIntBetween(1, 5);
-        logger.info("--> starting {} node(s)", numNodes);
-        internalCluster().startNodes(numNodes);
-        ensureGreen();
-
-        logger.info("--> put signed license");
-        LicensingClient licensingClient = new LicensingClient(client());
-        License license = TestUtils.generateSignedLicense(
-            "cloud_internal",
-            License.VERSION_CURRENT,
-            System.currentTimeMillis(),
-            TimeValue.timeValueMinutes(1)
-        );
-        putLicense(license);
-        assertThat(licensingClient.prepareGetLicense().get().license(), equalTo(license));
-        assertOperationMode(License.OperationMode.PLATINUM);
-        writeCloudInternalMode("gold");
-        assertOperationMode(License.OperationMode.GOLD);
-        writeCloudInternalMode("basic");
-        assertOperationMode(License.OperationMode.BASIC);
     }
 
     public void testClusterRestartWhileEnabled() throws Exception {
@@ -164,13 +132,4 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
             fail("No data nodes found with operation mode [" + operationMode + "]");
         });
     }
-
-    private void writeCloudInternalMode(String mode) throws Exception {
-        for (Environment environment : internalCluster().getDataOrMasterNodeInstances(Environment.class)) {
-            Path licenseModePath = XPackPlugin.resolveConfigFile(environment, "license_mode");
-            Files.createDirectories(licenseModePath.getParent());
-            Files.write(licenseModePath, mode.getBytes(StandardCharsets.UTF_8));
-        }
-    }
-
 }

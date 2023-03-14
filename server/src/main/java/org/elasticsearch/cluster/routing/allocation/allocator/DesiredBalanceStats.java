@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -26,7 +26,7 @@ public record DesiredBalanceStats(
     long computationIterations,
     long cumulativeComputationTime,
     long cumulativeReconciliationTime
-) implements Writeable, ToXContentFragment {
+) implements Writeable, ToXContentObject {
 
     public static DesiredBalanceStats readFrom(StreamInput in) throws IOException {
         return new DesiredBalanceStats(
@@ -55,7 +55,7 @@ public record DesiredBalanceStats(
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-
+        builder.startObject();
         builder.field("computation_active", computationActive);
         builder.field("computation_submitted", computationSubmitted);
         builder.field("computation_executed", computationExecuted);
@@ -64,7 +64,7 @@ public record DesiredBalanceStats(
         builder.field("computation_converged_index", lastConvergedIndex);
         builder.humanReadableField("computation_time_in_millis", "computation_time", new TimeValue(cumulativeComputationTime));
         builder.humanReadableField("reconciliation_time_in_millis", "reconciliation_time", new TimeValue(cumulativeReconciliationTime));
-
+        builder.endObject();
         return builder;
     }
 }

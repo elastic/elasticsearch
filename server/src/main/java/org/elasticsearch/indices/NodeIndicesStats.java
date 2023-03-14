@@ -8,7 +8,7 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -51,7 +51,7 @@ import java.util.Objects;
  */
 public class NodeIndicesStats implements Writeable, ToXContentFragment {
 
-    private static final Version VERSION_SUPPORTING_STATS_BY_INDEX = Version.V_8_5_0;
+    private static final TransportVersion VERSION_SUPPORTING_STATS_BY_INDEX = TransportVersion.V_8_5_0;
 
     private final CommonStats stats;
     private final Map<Index, List<IndexShardStats>> statsByShard;
@@ -72,7 +72,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
             statsByShard.put(index, indexShardStats);
         }
 
-        if (in.getVersion().onOrAfter(VERSION_SUPPORTING_STATS_BY_INDEX)) {
+        if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_STATS_BY_INDEX)) {
             statsByIndex = in.readMap(Index::new, CommonStats::new);
         } else {
             statsByIndex = new HashMap<>();
@@ -196,7 +196,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);
         out.writeMap(statsByShard, (o, k) -> k.writeTo(o), StreamOutput::writeList);
-        if (out.getVersion().onOrAfter(VERSION_SUPPORTING_STATS_BY_INDEX)) {
+        if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_STATS_BY_INDEX)) {
             out.writeMap(statsByIndex, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
         }
     }

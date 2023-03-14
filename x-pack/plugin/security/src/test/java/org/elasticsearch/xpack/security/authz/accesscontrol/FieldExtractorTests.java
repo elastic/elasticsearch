@@ -10,7 +10,6 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanTermQuery;
-import org.apache.lucene.sandbox.search.DocValuesNumbersQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
@@ -107,12 +106,6 @@ public class FieldExtractorTests extends ESTestCase {
     public void testFieldValue() {
         Set<String> fields = new HashSet<>();
         FieldExtractor.extractFields(new FieldExistsQuery("foo"), fields);
-        assertEquals(asSet("foo"), fields);
-    }
-
-    public void testDocValuesNumbers() {
-        Set<String> fields = new HashSet<>();
-        FieldExtractor.extractFields(new DocValuesNumbersQuery("foo", 5L), fields);
         assertEquals(asSet("foo"), fields);
     }
 

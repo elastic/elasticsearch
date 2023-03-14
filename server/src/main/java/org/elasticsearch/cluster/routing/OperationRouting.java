@@ -105,7 +105,8 @@ public class OperationRouting {
                 nodeCounts
             );
             if (iterator != null) {
-                set.add(iterator);
+                var searchableShards = iterator.getShardRoutings().stream().filter(ShardRouting::isSearchable).toList();
+                set.add(new PlainShardIterator(iterator.shardId(), searchableShards));
             }
         }
         return GroupShardsIterator.sortAndCreate(new ArrayList<>(set));

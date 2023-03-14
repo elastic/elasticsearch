@@ -1,6 +1,0 @@
-pr: 91021
-summary: Tie snapshot speed to node bandwidth settings
-area: Snapshot/Restore
-type: enhancement
-issues:
- - 57023

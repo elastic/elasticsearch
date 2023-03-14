@@ -42,7 +42,7 @@ class TimeseriesFieldTypeHelper {
     public boolean isTimeSeriesMetric(final String unused, final Map<String, ?> fieldMapping) {
         final String metricType = (String) fieldMapping.get(TIME_SERIES_METRIC_PARAM);
         return metricType != null
-            && List.of(TimeSeriesParams.MetricType.values()).contains(TimeSeriesParams.MetricType.valueOf(metricType));
+            && List.of(TimeSeriesParams.MetricType.values()).contains(TimeSeriesParams.MetricType.fromString(metricType));
     }
 
     public boolean isTimeSeriesDimension(final String unused, final Map<String, ?> fieldMapping) {

@@ -16,7 +16,6 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
@@ -126,7 +125,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final DocumentParser documentParser;
     private final Version indexVersionCreated;
     private final MapperRegistry mapperRegistry;
-    private final Supplier<MappingParserContext> parserContextSupplier;
+    private final MappingParserContext mappingParserContext;
 
     private volatile DocumentMapper mapper;
 
@@ -144,30 +143,23 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
         this.mapperRegistry = mapperRegistry;
-        Function<DateFormatter, MappingParserContext> parserContextFunction = dateFormatter -> new MappingParserContext(
+        this.mappingParserContext = new MappingParserContext(
             similarityService::getSimilarity,
             type -> mapperRegistry.getMapperParser(type, indexVersionCreated),
             mapperRegistry.getRuntimeFieldParsers()::get,
             indexVersionCreated,
             searchExecutionContextSupplier,
-            dateFormatter,
             scriptCompiler,
             indexAnalyzers,
             indexSettings,
             idFieldMapper
         );
-        this.documentParser = new DocumentParser(
-            parserConfiguration,
-            dateFormatter -> new MappingParserContext.DynamicTemplateParserContext(parserContextFunction.apply(dateFormatter)),
-            indexSettings,
-            indexAnalyzers
-        );
+        this.documentParser = new DocumentParser(parserConfiguration, this.mappingParserContext);
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );
-        this.parserContextSupplier = () -> parserContextFunction.apply(null);
         this.mappingParser = new MappingParser(
-            parserContextSupplier,
+            mappingParserContext,
             metadataMapperParsers,
             this::getMetadataMappers,
             this::resolveDocumentType
@@ -183,7 +175,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public MappingParserContext parserContext() {
-        return parserContextSupplier.get();
+        return this.mappingParserContext;
     }
 
     /**
@@ -360,7 +352,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason, CompressedXContent mappingSource) {
         DocumentMapper newMapper = new DocumentMapper(documentParser, mapping, mappingSource);
-        newMapper.mapping().getRoot().fixRedundantIncludes();
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;
     }

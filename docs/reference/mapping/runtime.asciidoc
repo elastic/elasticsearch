@@ -34,8 +34,8 @@ data into the Elastic Stack and access it right away. When you define a runtime
 field, you can immediately use it in search requests, aggregations, filtering,
 and sorting.
 
-If you make a runtime field an indexed field, you don't need to modify any
-queries that refer to the runtime field. Better yet, you can refer to some
+If you change a runtime field into an indexed field, you don't need to modify
+any queries that refer to the runtime field. Better yet, you can refer to some
 indices where the field is a runtime field, and other indices where the field
 is an indexed field. You have the flexibility to choose which fields to index
 and which ones to keep as runtime fields.

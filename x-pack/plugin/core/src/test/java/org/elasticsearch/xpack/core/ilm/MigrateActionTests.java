@@ -45,7 +45,7 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
     }
 
     @Override
-    protected MigrateAction mutateInstance(MigrateAction instance) throws IOException {
+    protected MigrateAction mutateInstance(MigrateAction instance) {
         return instance.isEnabled() == false ? MigrateAction.ENABLED : MigrateAction.DISABLED;
     }
 

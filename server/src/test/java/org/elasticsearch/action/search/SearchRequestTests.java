@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -22,8 +22,10 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
@@ -85,16 +87,52 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertNotSame(deserializedRequest, searchRequest);
     }
 
+    public void testSerializationMultiKNN() throws Exception {
+        SearchRequest searchRequest = createSearchRequest();
+        if (searchRequest.source() == null) {
+            searchRequest.source(new SearchSourceBuilder());
+        }
+        searchRequest.source()
+            .knnSearch(
+                List.of(
+                    new KnnSearchBuilder(randomAlphaOfLength(10), new float[] { 1, 2 }, 5, 10),
+                    new KnnSearchBuilder(randomAlphaOfLength(10), new float[] { 4, 12, 41 }, 3, 5)
+                )
+            );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> copyWriteable(
+                searchRequest,
+                namedWriteableRegistry,
+                SearchRequest::new,
+                TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_4_0, TransportVersion.V_8_6_0)
+            )
+        );
+
+        searchRequest.source().knnSearch(List.of(new KnnSearchBuilder(randomAlphaOfLength(10), new float[] { 1, 2 }, 5, 10)));
+        // Shouldn't throw because its just one KNN request
+        copyWriteable(
+            searchRequest,
+            namedWriteableRegistry,
+            SearchRequest::new,
+            TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_4_0, TransportVersion.V_8_6_0)
+        );
+    }
+
     public void testRandomVersionSerialization() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
-        Version version = VersionUtils.randomVersion(random());
-        if (version.before(Version.V_7_11_0) && searchRequest.source() != null) {
+        TransportVersion version = TransportVersionUtils.randomVersion(random());
+        if (version.before(TransportVersion.V_7_11_0) && searchRequest.source() != null) {
             // Versions before 7.11.0 don't support runtime mappings
             searchRequest.source().runtimeMappings(emptyMap());
         }
-        if (version.before(Version.V_8_4_0)) {
-            // Versionse before 8.4.0 don't support force_synthetic_source
+        if (version.before(TransportVersion.V_8_4_0)) {
+            // Versions before 8.4.0 don't support force_synthetic_source
             searchRequest.setForceSyntheticSource(false);
+        }
+        if (version.before(TransportVersion.V_8_7_0) && searchRequest.hasKnnSearch() && searchRequest.source().knnSearch().size() > 1) {
+            // Versions before 8.7.0 don't support more than one KNN clause
+            searchRequest.source().knnSearch(List.of(searchRequest.source().knnSearch().get(0)));
         }
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, version);
         assertEquals(searchRequest.isCcsMinimizeRoundtrips(), deserializedRequest.isCcsMinimizeRoundtrips());
@@ -295,7 +333,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         SearchRequest request = new SearchRequest();
         request.setForceSyntheticSource(true);
         StreamOutput out = new BytesStreamOutput();
-        out.setVersion(Version.V_8_3_0);
+        out.setTransportVersion(TransportVersion.V_8_3_0);
         Exception e = expectThrows(IllegalArgumentException.class, () -> request.writeTo(out));
         assertEquals(e.getMessage(), "force_synthetic_source is not supported before 8.4.0");
     }

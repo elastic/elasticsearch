@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -57,12 +58,36 @@ public abstract class AbstractItemSetMapReducer<
     ReduceContext extends Closeable,
     Result extends ToXContent & Writeable> implements NamedWriteable {
 
+    /**
+     * Describes how ordinals are used to optimize.
+     */
+    public enum OrdinalOptimization {
+        // don't use ordinals
+        NO_ORDINALS,
+        // use per shard global ordinals
+        GLOBAL_ORDINALS
+    }
+
+    /**
+     * Interface to lookup the real object from an ordinal
+     */
+    public interface OrdinalLookupFunction extends CheckedFunction<Object, Object, IOException> {}
+
     private final String aggregationName;
     private final String mapReducerName;
 
     protected AbstractItemSetMapReducer(String aggregationName, String mapReducerName) {
         this.aggregationName = aggregationName;
         this.mapReducerName = mapReducerName;
+    }
+
+    /**
+     * Define the ordinal optimization to use per default, default NO_ORDINALS.
+     *
+     * @return ordinal optimization to be used
+     */
+    protected OrdinalOptimization getDefaultOrdinalOptimization() {
+        return OrdinalOptimization.NO_ORDINALS;
     }
 
     /**
@@ -92,8 +117,10 @@ public abstract class AbstractItemSetMapReducer<
     /**
      * Definition of code to execute(optional) after the mapper processed all input.
      *
+     * @param mapContext context object returned from map
+     * @param ordinalLookup an ordinal lookup function to remap ordinals to values
      */
-    protected abstract MapFinalContext mapFinalize(MapContext mapContext);
+    protected abstract MapFinalContext mapFinalize(MapContext mapContext, List<OrdinalLookupFunction> ordinalLookup) throws IOException;
 
     /**
      * Definition of code to execute before the reducer processes any input.
@@ -134,8 +161,8 @@ public abstract class AbstractItemSetMapReducer<
     /**
      * Definition of code to execute after the reducer processed all input.
      *
-     * @param reduceContext the result object returned from doReduce
-     * @param fields list of fields from the input
+     * @param reduceContext      the result object returned from doReduce
+     * @param fields             list of fields from the input
      * @param isCanceledSupplier supplier to check whether the request has been canceled
      * @throws IOException
      */

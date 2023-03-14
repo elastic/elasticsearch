@@ -58,6 +58,11 @@ public class DesiredNodesMetadataSerializationTests extends ChunkedToXContentDif
         return randomDesiredNodesMetadata();
     }
 
+    @Override
+    protected Metadata.Custom mutateInstance(Metadata.Custom instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     private static DesiredNodesMetadata randomDesiredNodesMetadata() {
         return new DesiredNodesMetadata(randomDesiredNodes());
     }

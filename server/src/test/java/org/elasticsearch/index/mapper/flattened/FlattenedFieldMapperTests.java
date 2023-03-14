@@ -245,11 +245,11 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         fields = parsedDoc.rootDoc().getFields("a.b");
         assertEquals(0, fields.length);
         fields = parsedDoc.rootDoc().getFields("a.b.c");
-        assertEquals(2, fields.length);
+        assertEquals(1, fields.length);
         fields = parsedDoc.rootDoc().getFields("d");
         assertEquals(0, fields.length);
         fields = parsedDoc.rootDoc().getFields("d.e");
-        assertEquals(2, fields.length);
+        assertEquals(1, fields.length);
     }
 
     public void testMalformedJson() throws Exception {

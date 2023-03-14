@@ -31,6 +31,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -497,6 +498,82 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_26", 4.354838709);
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_42", 2.0);
+    }
+
+    public void testContinuousPivotFrom() throws Exception {
+        String indexName = "continuous_reviews_from";
+        createReviewsIndex(indexName);
+        String transformId = "continuous_pivot_from";
+        String transformIndex = "pivot_reviews_continuous_from";
+        setupDataAccessRole(DATA_ACCESS_ROLE, indexName, transformIndex);
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+        String config = Strings.format("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "dest": {
+                "index": "%s"
+              },
+              "frequency": "1s",
+              "sync": {
+                "time": {
+                  "field": "timestamp",
+                  "delay": "1s"
+                }
+              },
+              "pivot": {
+                "group_by": {
+                  "reviewer": {
+                    "terms": {
+                      "field": "user_id",
+                      "missing_bucket": true
+                    }
+                  }
+                },
+                "aggregations": {
+                  "avg_rating": {
+                    "avg": {
+                      "field": "stars"
+                    }
+                  }
+                }
+              }
+            }""", indexName, transformIndex);
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        final StringBuilder bulk = new StringBuilder();
+        bulk.append(Strings.format("""
+            {"index":{"_index":"%s"}}
+            {"user_id":"user_%s","business_id":"business_%s","stars":%s,"location":"%s","timestamp":%s}
+            """, indexName, 666, 777, 7, 888, "\"2017-01-20\""));
+        bulk.append("\r\n");
+
+        final Request bulkRequest = new Request("POST", "/_bulk");
+        bulkRequest.addParameter("refresh", "true");
+        bulkRequest.setJsonEntity(bulk.toString());
+        Map<String, Object> bulkResponse = entityAsMap(client().performRequest(bulkRequest));
+        assertThat(bulkResponse.get("errors"), equalTo(Boolean.FALSE));
+
+        startAndWaitForContinuousTransform(transformId, transformIndex, null, "2017-01-23", 1L);
+        assertTrue(indexExists(transformIndex));
+
+        assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", getAsMap(transformIndex + "/_stats")));
+
+        // get and check some users
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_0", 3.776978417);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_11", 3.846153846);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_20", 3.769230769);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_26", 3.918918918);
+
+        stopTransform(transformId, false);
+        deleteIndex(indexName);
     }
 
     public void testHistogramPivot() throws Exception {
@@ -1113,6 +1190,63 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             createPreviewResponse.getWarnings().get(0),
             allOf(containsString("Pipeline returned 100 errors, first error:"), containsString("type=script_exception"))
         );
+    }
+
+    public void testPreviewTransformWithDateHistogramOffset() throws Exception {
+        assertThat(
+            previewWithOffset("+2d"),
+            contains("2017-01-04T00:00:00.000Z", "2017-01-11T00:00:00.000Z", "2017-01-18T00:00:00.000Z", "2017-01-25T00:00:00.000Z")
+        );
+        assertThat(previewWithOffset("+1d"), contains("2017-01-10T00:00:00.000Z", "2017-01-17T00:00:00.000Z", "2017-01-24T00:00:00.000Z"));
+        assertThat(
+            previewWithOffset("0"),
+            contains("2017-01-09T00:00:00.000Z", "2017-01-16T00:00:00.000Z", "2017-01-23T00:00:00.000Z", "2017-01-30T00:00:00.000Z")
+        );
+        assertThat(
+            previewWithOffset("-1d"),
+            contains("2017-01-08T00:00:00.000Z", "2017-01-15T00:00:00.000Z", "2017-01-22T00:00:00.000Z", "2017-01-29T00:00:00.000Z")
+        );
+        assertThat(
+            previewWithOffset("-2d"),
+            contains("2017-01-07T00:00:00.000Z", "2017-01-14T00:00:00.000Z", "2017-01-21T00:00:00.000Z", "2017-01-28T00:00:00.000Z")
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> previewWithOffset(String offset) throws IOException {
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
+        final Request createPreviewRequest = createRequestWithAuth("POST", getTransformEndpoint() + "_preview", null);
+        createPreviewRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+
+        String config = Strings.format("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "pivot": {
+                "group_by": {
+                  "by_week": {
+                    "date_histogram": {
+                      "calendar_interval": "1w",
+                      "field": "timestamp",
+                      "offset": "%s"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "user.avg_rating": {
+                    "avg": {
+                      "field": "stars"
+                    }
+                  }
+                }
+              }
+            }""", REVIEWS_INDEX_NAME, offset);
+        createPreviewRequest.setJsonEntity(config);
+
+        Map<String, Object> previewTransformResponse = entityAsMap(client().performRequest(createPreviewRequest));
+        List<Map<String, Object>> preview = (List<Map<String, Object>>) previewTransformResponse.get("preview");
+        return preview.stream().map(p -> (String) p.get("by_week")).toList();
     }
 
     public void testPivotWithMaxOnDateField() throws Exception {

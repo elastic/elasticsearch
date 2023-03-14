@@ -33,7 +33,7 @@ public class RestGetHealthAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_health"), new Route(GET, "/_health/{indicator}"));
+        return List.of(new Route(GET, "/_health_report"), new Route(GET, "/_health_report/{indicator}"));
     }
 
     @Override

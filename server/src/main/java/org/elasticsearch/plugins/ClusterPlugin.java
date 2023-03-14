@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
@@ -47,6 +48,7 @@ public interface ClusterPlugin {
      * @param clusterSettings Settings for the cluster
      * @return A map of allocator implementations
      */
+    @Deprecated(forRemoval = true)
     default Map<String, Supplier<ShardsAllocator>> getShardsAllocators(Settings settings, ClusterSettings clusterSettings) {
         return Collections.emptyMap();
     }
@@ -66,6 +68,10 @@ public interface ClusterPlugin {
         ClusterSettings clusterSettings
     ) {
         return Collections.emptyList();
+    }
+
+    default ShardRoutingRoleStrategy getShardRoutingRoleStrategy() {
+        return null;
     }
 
     /**

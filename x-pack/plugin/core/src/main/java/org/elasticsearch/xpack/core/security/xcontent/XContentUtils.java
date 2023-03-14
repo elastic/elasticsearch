@@ -115,6 +115,12 @@ public class XContentUtils {
                 builder.endObject();
             }
             case SERVICE_ACCOUNT -> builder.field("service_account", authenticationSubject.getUser().principal());
+            case CROSS_CLUSTER_ACCESS -> {
+                // TODO handle cross cluster access authentication
+                final String message = "cross cluster access authentication is not yet supported";
+                assert false : message;
+                throw new UnsupportedOperationException(message);
+            }
         }
         builder.endObject();
     }

@@ -112,9 +112,8 @@ public class GeoIpProcessorNonIngestNodeIT extends AbstractGeoIpIT {
     }
 
     private void assertDatabaseLoadStatus(final String node, final boolean loaded) {
-        final IngestService ingestService = internalCluster().getInstance(IngestService.class, node);
-        final GeoIpProcessor.Factory factory = (GeoIpProcessor.Factory) ingestService.getProcessorFactories().get("geoip");
-        for (final DatabaseReaderLazyLoader loader : factory.getAllDatabases()) {
+        final DatabaseNodeService databaseNodeService = internalCluster().getInstance(DatabaseNodeService.class, node);
+        for (final DatabaseReaderLazyLoader loader : databaseNodeService.getAllDatabases()) {
             if (loaded) {
                 assertNotNull(loader.databaseReader.get());
             } else {

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
@@ -40,7 +40,7 @@ public class GetMappingsResponse extends ActionResponse implements ChunkedToXCon
 
     GetMappingsResponse(StreamInput in) throws IOException {
         super(in);
-        mappings = in.readImmutableMap(StreamInput::readString, in.getVersion().before(Version.V_8_0_0) ? i -> {
+        mappings = in.readImmutableMap(StreamInput::readString, in.getTransportVersion().before(TransportVersion.V_8_0_0) ? i -> {
             int mappingCount = i.readVInt();
             assert mappingCount == 1 || mappingCount == 0 : "Expected 0 or 1 mappings but got " + mappingCount;
             if (mappingCount == 1) {

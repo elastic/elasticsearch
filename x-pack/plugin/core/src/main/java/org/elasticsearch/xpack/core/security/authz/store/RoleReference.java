@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.authz.store;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 
 import java.util.HashSet;
 import java.util.List;
@@ -114,6 +115,36 @@ public interface RoleReference {
         public ApiKeyRoleType getRoleType() {
             return roleType;
         }
+    }
+
+    final class CrossClusterAccessRoleReference implements RoleReference {
+
+        private final CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes;
+        private RoleKey id = null;
+
+        public CrossClusterAccessRoleReference(CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes) {
+            this.roleDescriptorsBytes = roleDescriptorsBytes;
+        }
+
+        @Override
+        public RoleKey id() {
+            // Hashing can be expensive. memorize the result in case the method is called multiple times.
+            if (id == null) {
+                final String roleDescriptorsHash = roleDescriptorsBytes.digest();
+                id = new RoleKey(Set.of("cross_cluster_access:" + roleDescriptorsHash), "cross_cluster_access");
+            }
+            return id;
+        }
+
+        @Override
+        public void resolve(RoleReferenceResolver resolver, ActionListener<RolesRetrievalResult> listener) {
+            resolver.resolveCrossClusterAccessRoleReference(this, listener);
+        }
+
+        public CrossClusterAccessSubjectInfo.RoleDescriptorsBytes getRoleDescriptorsBytes() {
+            return roleDescriptorsBytes;
+        }
+
     }
 
     /**

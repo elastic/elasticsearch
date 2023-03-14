@@ -168,6 +168,11 @@ public class SnapshotStatusTests extends AbstractChunkedSerializingTestCase<Snap
     }
 
     @Override
+    protected SnapshotStatus mutateInstance(SnapshotStatus instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         // Do not place random fields in the indices field or shards field since their fields correspond to names.
         return (s) -> s.endsWith("shards") || s.endsWith("indices");

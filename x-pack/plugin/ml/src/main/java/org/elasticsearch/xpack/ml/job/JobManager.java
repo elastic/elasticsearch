@@ -688,7 +688,7 @@ public class JobManager {
         CheckedConsumer<Boolean, Exception> updateHandler = response -> {
             if (response) {
                 ModelSizeStats revertedModelSizeStats = new ModelSizeStats.Builder(modelSizeStats).setLogTime(new Date()).build();
-                jobResultsPersister.persistModelSizeStats(
+                jobResultsPersister.persistModelSizeStatsWithoutRetries(
                     revertedModelSizeStats,
                     WriteRequest.RefreshPolicy.IMMEDIATE,
                     ActionListener.wrap(modelSizeStatsResponseHandler, actionListener::onFailure)

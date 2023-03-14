@@ -33,6 +33,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -44,9 +45,14 @@ import static org.mockito.Mockito.when;
 public class ParametrizedMapperTests extends MapperServiceTestCase {
 
     public enum DummyEnumType {
-        name1,
-        name2,
-        name3
+        NAME1,
+        NAME2,
+        NAME3;
+
+        @Override
+        public final String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
     }
 
     public static class TestPlugin extends Plugin implements MapperPlugin {
@@ -127,7 +133,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             "enum_field",
             true,
             m -> toType(m).enumField,
-            DummyEnumType.name1,
+            DummyEnumType.NAME1,
             DummyEnumType.class
         );
 
@@ -135,9 +141,9 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             "restricted_enum_field",
             true,
             m -> toType(m).restrictedEnumField,
-            DummyEnumType.name1,
+            DummyEnumType.NAME1,
             DummyEnumType.class,
-            EnumSet.of(DummyEnumType.name1, DummyEnumType.name2)
+            EnumSet.of(DummyEnumType.NAME1, DummyEnumType.NAME2)
         );
 
         protected Builder(String name) {
@@ -261,14 +267,13 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             name -> null,
             version,
             () -> null,
-            null,
             ScriptCompiler.NONE,
             mapperService.getIndexAnalyzers(),
             mapperService.getIndexSettings(),
             mapperService.getIndexSettings().getMode().idFieldMapperWithoutFieldData()
         );
         if (fromDynamicTemplate) {
-            pc = new MappingParserContext.DynamicTemplateParserContext(pc);
+            pc = pc.createDynamicTemplateContext(null);
         }
         return (TestMapper) new TypeParser().parse("field", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true), pc)
             .build(MapperBuilderContext.root(false));
@@ -648,13 +653,13 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             String mapping = """
                 {"type":"test_mapper","required":"a","enum_field":"name3"}""";
             TestMapper mapper = fromMapping(mapping);
-            assertEquals(DummyEnumType.name3, mapper.enumField);
+            assertEquals(DummyEnumType.NAME3, mapper.enumField);
         }
         {
             String mapping = """
                 {"type":"test_mapper","required":"a"}""";
             TestMapper mapper = fromMapping(mapping);
-            assertEquals(DummyEnumType.name1, mapper.enumField);
+            assertEquals(DummyEnumType.NAME1, mapper.enumField);
         }
     }
 
@@ -675,13 +680,13 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             String mapping = """
                 {"type":"test_mapper","required":"a","restricted_enum_field":"name2"}""";
             TestMapper mapper = fromMapping(mapping);
-            assertEquals(DummyEnumType.name2, mapper.restrictedEnumField);
+            assertEquals(DummyEnumType.NAME2, mapper.restrictedEnumField);
         }
         {
             String mapping = """
                 {"type":"test_mapper","required":"a"}""";
             TestMapper mapper = fromMapping(mapping);
-            assertEquals(DummyEnumType.name1, mapper.restrictedEnumField);
+            assertEquals(DummyEnumType.NAME1, mapper.restrictedEnumField);
         }
     }
 
@@ -699,5 +704,4 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         })));
         assertThat(e.getMessage(), containsString("int_value"));
     }
-
 }

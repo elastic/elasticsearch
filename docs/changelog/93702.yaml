@@ -1,0 +1,5 @@
+pr: 93702
+summary: Add origin of synonym rules to exception message
+area: Analysis
+type: enhancement
+issues: []

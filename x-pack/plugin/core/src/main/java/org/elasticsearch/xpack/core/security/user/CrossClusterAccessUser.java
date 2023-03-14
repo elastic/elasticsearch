@@ -72,7 +72,7 @@ public class CrossClusterAccessUser extends User {
         );
         if (false == validRoleDescriptors.equals(roleDescriptorsBytesList)) {
             throw new IllegalArgumentException(
-                "Role descriptor bytes do not those expected for internal user [" + INSTANCE.principal() + "]"
+                "role descriptor bytes do not match those expected for internal user [" + INSTANCE.principal() + "]"
             );
         }
     }

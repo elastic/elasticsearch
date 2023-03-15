@@ -743,8 +743,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
     private String generateAccessToken(TransportVersion version) throws Exception {
         TokenService tokenService = internalCluster().getInstance(TokenService.class);
-        String accessTokenString = UUIDs.randomBase64UUID();
-        return tokenService.prependVersionAndEncodeAccessToken(version, accessTokenString);
+        return TokenServiceTests.generateAccessToken(tokenService, version);
     }
 
     private String generateInvalidShortAccessToken(TransportVersion version) throws Exception {

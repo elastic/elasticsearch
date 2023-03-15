@@ -1002,7 +1002,7 @@ public class TokenServiceTests extends ESTestCase {
         return anotherDataNode;
     }
 
-    private String generateAccessToken(TokenService tokenService, TransportVersion version) throws Exception {
+    protected static String generateAccessToken(TokenService tokenService, TransportVersion version) throws Exception {
         String accessTokenString = UUIDs.randomBase64UUID();
         if (version.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
             accessTokenString = TokenService.hashTokenString(accessTokenString);

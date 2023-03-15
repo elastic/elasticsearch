@@ -346,17 +346,21 @@ public final class TokenService {
                     indexTokenRequest,
                     ActionListener.wrap(indexResponse -> {
                         if (indexResponse.getResult() == Result.CREATED) {
-                            final String versionedAccessToken = prependVersionAndEncodeAccessToken(tokenVersion, accessToken);
-                            if (tokenVersion.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
-                                final String versionedRefreshToken = refreshToken != null
-                                    ? prependVersionAndEncodeRefreshToken(tokenVersion, refreshToken)
-                                    : null;
-                                listener.onResponse(new CreateTokenResult(versionedAccessToken, versionedRefreshToken, authentication));
-                            } else {
-                                // prior versions of the refresh token are not version-prepended, as nodes on those
-                                // versions don't expect it.
-                                // Such nodes might exist in a mixed cluster during a rolling upgrade.
-                                listener.onResponse(new CreateTokenResult(versionedAccessToken, refreshToken, authentication));
+                            try {
+                                final String versionedAccessToken = prependVersionAndEncodeAccessToken(tokenVersion, accessToken);
+                                if (tokenVersion.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
+                                    final String versionedRefreshToken = refreshToken != null
+                                        ? prependVersionAndEncodeRefreshToken(tokenVersion, refreshToken)
+                                        : null;
+                                    listener.onResponse(new CreateTokenResult(versionedAccessToken, versionedRefreshToken, authentication));
+                                } else {
+                                    // prior versions of the refresh token are not version-prepended, as nodes on those
+                                    // versions don't expect it.
+                                    // Such nodes might exist in a mixed cluster during a rolling upgrade.
+                                    listener.onResponse(new CreateTokenResult(versionedAccessToken, refreshToken, authentication));
+                                }
+                            } catch (ElasticsearchSecurityException e) {
+                                listener.onFailure(traceLog("create token", e));
                             }
                         } else {
                             listener.onFailure(
@@ -508,11 +512,12 @@ public final class TokenService {
                     getUserTokenFromId(accessToken, version, listener);
                 }
             } else {
-                throw new ElasticsearchSecurityException(
-                    "Attempt to decode tokens with version [{}] which is older than the minimum supported version [{}]",
+                logger.warn(
+                    "Attempt to decode token with version [{}] which is older than the minimum supported version [{}]",
                     version,
                     VERSION_ACCESS_TOKENS_AS_UUIDS
                 );
+                listener.onResponse(null);
             }
         } catch (Exception e) {
             // could happen with a token that is not ours

@@ -45,6 +45,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -64,6 +66,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -90,7 +93,9 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
@@ -211,13 +216,6 @@ public class TokenServiceTests extends ESTestCase {
         // License state (enabled by default)
         licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
-
-        // version 7.2 was an "inflection" point in the Token Service development (access_tokens as UUIDS, multiple concurrent refreshes,
-        // tokens docs on a separate index), let's test the TokenService works in a mixed cluster with nodes with versions prior to these
-        // developments
-        if (randomBoolean()) {
-            oldNode = addAnotherDataNodeWithVersion(this.clusterService, randomFrom(Version.V_7_0_0, Version.V_7_1_0));
-        }
     }
 
     @After
@@ -294,45 +292,6 @@ public class TokenServiceTests extends ESTestCase {
             tokenService.tryAuthenticateToken(bearerToken, future);
             UserToken serialized = future.get();
             assertThat(serialized, nullValue());
-        }
-    }
-
-    public void testPassphraseWorks() throws Exception {
-        TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
-        // This test only makes sense in mixed clusters with pre v7.1.0 nodes where the Key is actually used
-        if (null == oldNode) {
-            oldNode = addAnotherDataNodeWithVersion(this.clusterService, randomFrom(Version.V_7_0_0, Version.V_7_1_0));
-        }
-        Authentication authentication = AuthenticationTestHelper.builder()
-            .user(new User("joe", "admin"))
-            .realmRef(new RealmRef("native_realm", "native", "node1"))
-            .build(false);
-        PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
-        final String userTokenId = UUIDs.randomBase64UUID();
-        final String refreshToken = UUIDs.randomBase64UUID();
-        tokenService.createOAuth2Tokens(userTokenId, refreshToken, authentication, authentication, Collections.emptyMap(), tokenFuture);
-        final String accessToken = tokenFuture.get().getAccessToken();
-        assertNotNull(accessToken);
-        mockGetTokenFromId(tokenService, userTokenId, authentication, false);
-
-        ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
-        storeTokenHeader(requestContext, accessToken);
-
-        try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
-            PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(requestContext);
-            tokenService.tryAuthenticateToken(bearerToken, future);
-            UserToken serialized = future.get();
-            assertAuthentication(authentication, serialized.getAuthentication());
-        }
-
-        try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
-            // verify a second separate token service with its own passphrase cannot verify
-            TokenService anotherService = createTokenService(tokenServiceEnabledSettings, systemUTC());
-            PlainActionFuture<UserToken> future = new PlainActionFuture<>();
-            final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(requestContext);
-            anotherService.tryAuthenticateToken(bearerToken, future);
-            assertNull(future.get());
         }
     }
 
@@ -639,7 +598,7 @@ public class TokenServiceTests extends ESTestCase {
         }
     }
 
-    public void testNotValidPre72Tokens() throws Exception {
+    public void testTokensOlderThanV72AreIgnored() throws Exception {
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
         // mock another random token so that we don't find a token in TokenService#getUserTokenFromId
         Authentication authentication = AuthenticationTestHelper.builder()
@@ -1049,7 +1008,19 @@ public class TokenServiceTests extends ESTestCase {
         String accessTokenString = UUIDs.randomBase64UUID();
         if (version.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
             accessTokenString = TokenService.hashTokenString(accessTokenString);
+            return tokenService.prependVersionAndEncodeAccessToken(version, accessTokenString);
+        } else {
+            // This is not actually a real token, but it just needs to start with the right version
+            try (ByteArrayOutputStream os = new ByteArrayOutputStream(); StreamOutput out = new OutputStreamStreamOutput(os)) {
+                out.setTransportVersion(version);
+                TransportVersion.writeVersion(version, out);
+                byte[] dummy = new byte[4];
+                out.writeByteArray(dummy); // SALT
+                out.writeByteArray(dummy); // HASH
+                out.writeByteArray(dummy); // IV
+                out.writeByteArray(dummy); // encrypted bytes
+                return Base64.getEncoder().encodeToString(os.toByteArray());
+            }
         }
-        return tokenService.prependVersionAndEncodeAccessToken(version, accessTokenString);
     }
 }

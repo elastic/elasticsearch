@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Request;
@@ -31,7 +30,6 @@ import org.elasticsearch.test.TestSecurityClient.TokenInvalidation;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
-import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
@@ -650,11 +648,6 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             assertBusy(() -> assertFalse(tokenService.isExpirationInProgress()));
         }
         super.deleteSecurityIndex();
-    }
-
-    public void testMetadataIsNotSentToClient() {
-        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().setCustoms(true).get();
-        assertFalse(clusterStateResponse.getState().customs().containsKey(TokenMetadata.TYPE));
     }
 
     public void testCreatorRealmCaptureWillWorkWithClientRunAs() throws IOException {

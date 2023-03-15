@@ -29,8 +29,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
-import static org.mockito.ArgumentMatchers.eq;
-
 public class IndexEngineTests extends AbstractEngineTestCase {
 
     public void testPeriodicallyFlushesRegardlessOfIndexing() throws Exception {
@@ -41,7 +39,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             Mockito.doAnswer(invocation -> {
                 latch.countDown();
                 return invocation.callRealMethod();
-            }).when(engine).flush(eq(false), eq(false));
+            }).when(engine).performScheduledFlush();
             engine.onSettingsChanged(); // Refresh the reference on the scheduledFlush method
 
             assertTrue(latch.await(10, TimeUnit.SECONDS));
@@ -51,7 +49,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
     public void testAdjustsPeriodicFlushingIntervalInCaseOfManualFlushes() throws Exception {
         long flushInterval = TimeUnit.MILLISECONDS.toNanos(10);
         var settings = Settings.builder()
-            .put(IndexEngine.INDEX_FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(flushInterval))
+            .put(IndexEngine.INDEX_FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueNanos(flushInterval))
             .build();
         try (var engine = Mockito.spy(newIndexEngine(copy(indexConfig(), settings, System::nanoTime)));) {
             int numberOfFlushes = randomIntBetween(5, 10);
@@ -61,7 +59,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 assertTrue(System.nanoTime() - engine.getLastFlushNanos() >= flushInterval);
                 latch.countDown();
                 return invocation.callRealMethod();
-            }).when(engine).flush(eq(false), eq(false));
+            }).when(engine).performScheduledFlush();
             engine.onSettingsChanged(); // Refresh the reference on the scheduledFlush method
 
             Thread manualFlushThread = new Thread(() -> {
@@ -81,6 +79,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
 
             assertTrue(latch.await(10, TimeUnit.SECONDS));
             manualFlushThread.interrupt();
+            manualFlushThread.join();
         }
     }
 
@@ -95,7 +94,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                     throw new IOException("Flush Exception");
                 }
                 return invocation.callRealMethod();
-            }).when(engine).flush(eq(false), eq(false));
+            }).when(engine).performScheduledFlush();
             engine.onSettingsChanged(); // Refresh the reference on the scheduledFlush method
 
             assertTrue(latch.await(10, TimeUnit.SECONDS));

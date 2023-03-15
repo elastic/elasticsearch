@@ -42,7 +42,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
         return false; // need real http
     }
 
-    public void testRetrieveRemoteAccessRoleDescriptorsIntersection() throws IOException, InterruptedException {
+    public void testGetRoleDescriptorsIntersectionForRemoteCluster() throws IOException, InterruptedException {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
         final String concreteClusterAlias = randomAlphaOfLength(10);
@@ -85,7 +85,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                 nodeName
             )
         );
-        final RoleDescriptorsIntersection actual = authorizeThenRetrieveRemoteAccessDescriptors(
+        final RoleDescriptorsIntersection actual = authorizeThenGetRoleDescriptorsIntersectionForRemoteCluster(
             threadContext,
             authzService,
             authentication,
@@ -121,7 +121,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
         );
     }
 
-    private RoleDescriptorsIntersection authorizeThenRetrieveRemoteAccessDescriptors(
+    private RoleDescriptorsIntersection authorizeThenGetRoleDescriptorsIntersectionForRemoteCluster(
         final ThreadContext threadContext,
         final AuthorizationService authzService,
         final Authentication authentication,
@@ -142,7 +142,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                 AuthenticateAction.INSTANCE.name(),
                 AuthenticateRequest.INSTANCE,
                 ActionTestUtils.assertNoFailureListener(nothing -> {
-                    authzService.retrieveRemoteAccessRoleDescriptorsIntersection(
+                    authzService.getRoleDescriptorsIntersectionForRemoteCluster(
                         concreteClusterAlias,
                         authentication.getEffectiveSubject(),
                         new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(newValue -> {

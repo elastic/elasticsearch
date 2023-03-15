@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.application.analytics.event;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -61,8 +62,12 @@ public class PageData implements Writeable, ToXContentObject {
         builder.startObject();
         {
             builder.field(URL_FIELD.getPreferredName(), url);
-            builder.field(TITLE_FIELD.getPreferredName(), title);
-            builder.field(REFERRER_FIELD.getPreferredName(), referrer);
+
+            if (Strings.isNullOrEmpty(title) == false)
+                builder.field(TITLE_FIELD.getPreferredName(), title);
+
+            if (Strings.isNullOrEmpty(referrer) == false)
+                builder.field(REFERRER_FIELD.getPreferredName(), referrer);
         }
         builder.endObject();
         return builder;

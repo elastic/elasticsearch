@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.application.analytics.AnalyticsCollection;
 import java.io.IOException;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 
 public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
 
@@ -37,12 +38,19 @@ public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
         Type(String typeName) {
             this.typeName = typeName;
         }
+
+        @Override
+        public String toString() {
+            return typeName.toLowerCase(Locale.ROOT);
+        }
     }
 
     public static ConstructingObjectParser<? extends AnalyticsEvent, AnalyticsCollection> getParser(Type eventType) {
         if (eventType == Type.PAGEVIEW) return PageViewAnalyticsEvent.PARSER;
 
         if (eventType == Type.SEARCH) return SearchAnalyticsEvent.PARSER;
+
+        if (eventType == Type.INTERACTION) return InteractionAnalyticsEvent.PARSER;
 
         throw new IllegalArgumentException(Strings.format("%s is not a supported event type", eventType));
     }
@@ -76,9 +84,7 @@ public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
         {
             builder.field("@timestamp", getTimestamp());
 
-            builder.startObject("event")
-                .field("action", getType())
-                .endObject();
+            builder.startObject("event").field("action", getType()).endObject();
 
             builder.startObject("data_stream");
             {

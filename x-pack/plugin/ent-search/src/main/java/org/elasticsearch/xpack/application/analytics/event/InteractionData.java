@@ -44,11 +44,11 @@ public class InteractionData implements Writeable, ToXContentObject {
     }
     private final Type type;
 
-    private InteractionData(Type type) {
+    public InteractionData(Type type) {
         this.type = type;
     }
 
-    private InteractionData(StreamInput in) throws IOException {
+    public InteractionData(StreamInput in) throws IOException {
         this(in.readEnum(Type.class));
     }
 

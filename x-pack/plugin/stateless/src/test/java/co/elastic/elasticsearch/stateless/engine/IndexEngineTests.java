@@ -23,24 +23,25 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.mockito.Mockito;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
+import static org.mockito.ArgumentMatchers.eq;
+
 public class IndexEngineTests extends AbstractEngineTestCase {
 
     public void testPeriodicallyFlushesRegardlessOfIndexing() throws Exception {
-        var settings = Settings.builder()
-            .put(IndexEngine.INDEX_FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueNanos(TimeUnit.MILLISECONDS.toNanos(10)))
-            .build();
+        var settings = Settings.builder().put(IndexEngine.INDEX_FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(10)).build();
         try (var engine = Mockito.spy(newIndexEngine(copy(indexConfig(), settings, System::nanoTime)));) {
             int numberOfFlushes = randomIntBetween(1, 10);
             CountDownLatch latch = new CountDownLatch(numberOfFlushes);
             Mockito.doAnswer(invocation -> {
                 latch.countDown();
                 return invocation.callRealMethod();
-            }).when(engine).scheduledFlush();
+            }).when(engine).flush(eq(false), eq(false));
             engine.onSettingsChanged(); // Refresh the reference on the scheduledFlush method
 
             assertTrue(latch.await(10, TimeUnit.SECONDS));
@@ -50,7 +51,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
     public void testAdjustsPeriodicFlushingIntervalInCaseOfManualFlushes() throws Exception {
         long flushInterval = TimeUnit.MILLISECONDS.toNanos(10);
         var settings = Settings.builder()
-            .put(IndexEngine.INDEX_FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueNanos(flushInterval))
+            .put(IndexEngine.INDEX_FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(flushInterval))
             .build();
         try (var engine = Mockito.spy(newIndexEngine(copy(indexConfig(), settings, System::nanoTime)));) {
             int numberOfFlushes = randomIntBetween(5, 10);
@@ -60,7 +61,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 assertTrue(System.nanoTime() - engine.getLastFlushNanos() >= flushInterval);
                 latch.countDown();
                 return invocation.callRealMethod();
-            }).when(engine).scheduledFlush();
+            }).when(engine).flush(eq(false), eq(false));
             engine.onSettingsChanged(); // Refresh the reference on the scheduledFlush method
 
             Thread manualFlushThread = new Thread(() -> {
@@ -80,6 +81,24 @@ public class IndexEngineTests extends AbstractEngineTestCase {
 
             assertTrue(latch.await(10, TimeUnit.SECONDS));
             manualFlushThread.interrupt();
+        }
+    }
+
+    public void testPeriodicFlushGracefullyHandlesException() throws Exception {
+        var settings = Settings.builder().put(IndexEngine.INDEX_FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(10)).build();
+        try (var engine = Mockito.spy(newIndexEngine(copy(indexConfig(), settings, System::nanoTime)));) {
+            int numberOfFlushes = 2;
+            CountDownLatch latch = new CountDownLatch(numberOfFlushes);
+            Mockito.doAnswer(invocation -> {
+                latch.countDown();
+                if (latch.getCount() > 0) {
+                    throw new IOException("Flush Exception");
+                }
+                return invocation.callRealMethod();
+            }).when(engine).flush(eq(false), eq(false));
+            engine.onSettingsChanged(); // Refresh the reference on the scheduledFlush method
+
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
         }
     }
 

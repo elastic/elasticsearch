@@ -273,7 +273,7 @@ public class FanOutListenerTests extends ESTestCase {
             assertFalse(listener.isDone());
             listener.onResponse(expectedResult);
             assertTrue(listener.isDone());
-            assertSame(expectedResult, listener.result());
+            assertSame(expectedResult, listener.rawResult());
 
             try (var ignored = threadContext.stashContext()) {
                 final var headerValue = randomAlphaOfLength(10);

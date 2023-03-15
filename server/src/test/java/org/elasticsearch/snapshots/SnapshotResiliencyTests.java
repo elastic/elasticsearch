@@ -482,10 +482,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
             () -> testClusterNodes.randomMasterNode()
                 .map(
                     master -> snapshotDeleteResponded.get()
-                              && master.clusterService.state()
-                                  .custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
-                                  .getEntries()
-                                  .isEmpty()
+                        && master.clusterService.state()
+                            .custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
+                            .getEntries()
+                            .isEmpty()
                 )
                 .orElse(false),
             TimeUnit.MINUTES.toMillis(1L)

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.support;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 
@@ -29,8 +30,13 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
  * </ul>
  */
 public class ListenableActionFuture<T> extends FanOutListener<T> {
-    @Override
     public T result() {
-        return super.actionResult();
+        try {
+            return super.rawResult();
+        } catch (ElasticsearchException e) {
+            throw wrapAsExecutionException(e.unwrapCause());
+        } catch (Exception e) {
+            throw wrapAsExecutionException(e);
+        }
     }
 }

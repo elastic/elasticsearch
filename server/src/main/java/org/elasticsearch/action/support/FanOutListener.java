@@ -10,7 +10,6 @@ package org.elasticsearch.action.support;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -155,7 +154,7 @@ public class FanOutListener<T> implements ActionListener<T> {
      * @throws IllegalStateException if this listener is not complete yet and assertions are disabled.
      */
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public T result() throws Exception {
+    public T rawResult() throws Exception {
         final var refValue = ref.get();
         if (refValue instanceof SuccessResult result) {
             return (T) result.result();
@@ -167,19 +166,11 @@ public class FanOutListener<T> implements ActionListener<T> {
         }
     }
 
-    public T actionResult() {
-        try {
-            return result();
-        } catch (ElasticsearchException e) {
-            final var root = e.unwrapCause();
-            if (root instanceof RuntimeException runtimeException) {
-                throw runtimeException;
-            }
-            throw new UncategorizedExecutionException("Failed execution", root);
-        } catch (RuntimeException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new UncategorizedExecutionException("Failed execution", new ExecutionException(e));
+    protected static RuntimeException wrapAsExecutionException(Throwable t) {
+        if (t instanceof RuntimeException runtimeException) {
+            return runtimeException;
+        } else {
+            return new UncategorizedExecutionException("Failed execution", new ExecutionException(t));
         }
     }
 

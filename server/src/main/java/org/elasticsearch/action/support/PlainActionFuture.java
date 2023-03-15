@@ -433,7 +433,7 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
         }
     }
 
-    private static RuntimeException unwrapEsException(ElasticsearchException esEx) {
+    public static RuntimeException unwrapEsException(ElasticsearchException esEx) {
         Throwable root = esEx.unwrapCause();
         if (root instanceof RuntimeException runtimeException) {
             return runtimeException;

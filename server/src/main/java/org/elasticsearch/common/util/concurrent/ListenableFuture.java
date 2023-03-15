@@ -14,8 +14,6 @@ import org.elasticsearch.action.support.FanOutListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
 
-import java.util.concurrent.ExecutionException;
-
 /**
  * An {@link ActionListener} which allows for the result to fan out to a (dynamic) collection of other listeners, added using {@link
  * #addListener}. Listeners added before completion are retained until completion; listeners added after completion are completed
@@ -36,14 +34,11 @@ import java.util.concurrent.ExecutionException;
  * </ul>
  */
 public final class ListenableFuture<V> extends FanOutListener<V> {
-    @Override
     public V result() {
         try {
-            return super.result();
-        } catch (RuntimeException e) {
-            throw e;
+            return super.rawResult();
         } catch (Exception e) {
-            throw new UncategorizedExecutionException("Failed execution", new ExecutionException(e));
+            throw wrapAsExecutionException(e);
         }
     }
 }

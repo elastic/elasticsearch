@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * <li>The methods on this class are immune to interrupts.
  * </ul>
  */
-public /* TODO final */ class FanOutListener<T> implements ActionListener<T> {
+public class FanOutListener<T> implements ActionListener<T> {
 
     private static final Logger logger = LogManager.getLogger(FanOutListener.class);
     private static final Object EMPTY = new Object();

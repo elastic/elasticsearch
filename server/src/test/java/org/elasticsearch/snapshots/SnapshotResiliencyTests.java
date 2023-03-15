@@ -276,7 +276,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         }
     }
 
-    public void testSuccessfulSnapshotAndRestore() throws Exception {
+    public void testSuccessfulSnapshotAndRestore() {
         setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
 
         String repoName = "repo";
@@ -363,7 +363,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertEquals(0, snapshotInfo.failedShards());
     }
 
-    private SnapshotInfo getSnapshotInfo(Repository repository, SnapshotId snapshotId) throws Exception {
+    private SnapshotInfo getSnapshotInfo(Repository repository, SnapshotId snapshotId) {
         final StepListener<SnapshotInfo> listener = new StepListener<>();
         repository.getSnapshotInfo(snapshotId, listener);
         deterministicTaskQueue.runAllRunnableTasks();
@@ -482,10 +482,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
             () -> testClusterNodes.randomMasterNode()
                 .map(
                     master -> snapshotDeleteResponded.get()
-                        && master.clusterService.state()
-                            .custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
-                            .getEntries()
-                            .isEmpty()
+                              && master.clusterService.state()
+                                  .custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
+                                  .getEntries()
+                                  .isEmpty()
                 )
                 .orElse(false),
             TimeUnit.MINUTES.toMillis(1L)
@@ -502,7 +502,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertThat(snapshotIds, hasSize(0));
     }
 
-    public void testConcurrentSnapshotCreateAndDelete() throws Exception {
+    public void testConcurrentSnapshotCreateAndDelete() {
         setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
 
         String repoName = "repo";
@@ -567,7 +567,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertEquals(0, snapshotInfo.failedShards());
     }
 
-    public void testConcurrentSnapshotCreateAndDeleteOther() throws Exception {
+    public void testConcurrentSnapshotCreateAndDeleteOther() {
         setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
 
         String repoName = "repo";
@@ -695,7 +695,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertThat(snapshotIds, empty());
     }
 
-    public void testConcurrentSnapshotRestoreAndDeleteOther() throws Exception {
+    public void testConcurrentSnapshotRestoreAndDeleteOther() {
         setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
 
         String repoName = "repo";
@@ -808,7 +808,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         });
     }
 
-    public void testConcurrentSnapshotDeleteAndDeleteIndex() throws Exception {
+    public void testConcurrentSnapshotDeleteAndDeleteIndex() throws IOException {
         setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
 
         String repoName = "repo";
@@ -1062,7 +1062,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertThat(snapshotIds, either(hasSize(1)).or(hasSize(0)));
     }
 
-    public void testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates() throws Exception {
+    public void testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates() {
         setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
 
         String repoName = "repo";
@@ -1159,7 +1159,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertEquals(0, snapshotInfo.failedShards());
     }
 
-    public void testRunConcurrentSnapshots() throws Exception {
+    public void testRunConcurrentSnapshots() {
         setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
 
         final String repoName = "repo";

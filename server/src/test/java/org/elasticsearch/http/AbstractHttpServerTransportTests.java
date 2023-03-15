@@ -364,16 +364,13 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     .build()
             );
             MockLogAppender appender = new MockLogAppender();
-            final String traceLoggerName = "org.elasticsearch.http.HttpTracer";
-            try {
-                appender.start();
-                Loggers.addAppender(LogManager.getLogger(traceLoggerName), appender);
+            try (var ignored = appender.capturing(HttpTracer.class)) {
 
                 final String opaqueId = UUIDs.randomBase64UUID(random());
                 appender.addExpectation(
                     new MockLogAppender.PatternSeenEventExpectation(
                         "received request",
-                        traceLoggerName,
+                        HttpTracerTests.HTTP_TRACER_LOGGER,
                         Level.TRACE,
                         "\\[\\d+\\]\\[" + opaqueId + "\\]\\[OPTIONS\\]\\[/internal/test\\] received request from \\[.*"
                     )
@@ -384,7 +381,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 appender.addExpectation(
                     new MockLogAppender.PatternSeenEventExpectation(
                         "sent response",
-                        traceLoggerName,
+                        HttpTracerTests.HTTP_TRACER_LOGGER,
                         Level.TRACE,
                         "\\[\\d+\\]\\["
                             + opaqueId
@@ -399,7 +396,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 appender.addExpectation(
                     new MockLogAppender.UnseenEventExpectation(
                         "received other request",
-                        traceLoggerName,
+                        HttpTracerTests.HTTP_TRACER_LOGGER,
                         Level.TRACE,
                         "\\[\\d+\\]\\[" + opaqueId + "\\]\\[OPTIONS\\]\\[/internal/testNotSeen\\] received request from \\[.*"
                     )
@@ -420,7 +417,9 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     .withInboundException(inboundException)
                     .build();
 
-                transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
+                try (var httpChannel = fakeRestRequest.getHttpChannel()) {
+                    transport.incomingRequest(fakeRestRequest.getHttpRequest(), httpChannel);
+                }
 
                 final Exception inboundExceptionExcludedPath;
                 if (randomBoolean()) {
@@ -437,11 +436,10 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     .withInboundException(inboundExceptionExcludedPath)
                     .build();
 
-                transport.incomingRequest(fakeRestRequestExcludedPath.getHttpRequest(), fakeRestRequestExcludedPath.getHttpChannel());
+                try (var httpChannel = fakeRestRequestExcludedPath.getHttpChannel()) {
+                    transport.incomingRequest(fakeRestRequestExcludedPath.getHttpRequest(), httpChannel);
+                }
                 appender.assertAllExpectationsMatched();
-            } finally {
-                Loggers.removeAppender(LogManager.getLogger(traceLoggerName), appender);
-                appender.stop();
             }
         }
     }

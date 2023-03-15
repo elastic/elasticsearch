@@ -82,6 +82,7 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.rest.action.RestReloadAnalyzersAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackUsageAction;
+import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
@@ -273,6 +274,7 @@ public class XPackPlugin extends XPackClientPlugin
         return metadata.custom(LicensesMetadata.TYPE) != null
             || metadata.custom(MlMetadata.TYPE) != null
             || metadata.custom(WatcherMetadata.TYPE) != null
+            || clusterState.custom(TokenMetadata.TYPE) != null
             || metadata.custom(TransformMetadata.TYPE) != null;
     }
 

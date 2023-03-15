@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.util.Collections;
@@ -63,7 +64,12 @@ public class XPackPluginTests extends ESTestCase {
         }
         ClusterState.Builder clusterStateBuilder = ClusterState.builder(ClusterName.DEFAULT);
 
-        compatible = nodesCompatible;
+        if (randomBoolean()) {
+            clusterStateBuilder.putCustom(TokenMetadata.TYPE, new TokenMetadata(Collections.emptyList(), new byte[0]));
+            compatible = true;
+        } else {
+            compatible = nodesCompatible;
+        }
 
         ClusterState clusterState = clusterStateBuilder.nodes(discoveryNodes.build()).build();
 

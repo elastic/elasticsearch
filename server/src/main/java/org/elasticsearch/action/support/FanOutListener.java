@@ -20,19 +20,14 @@ import org.elasticsearch.core.Nullable;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * An {@link ActionListener} to which other {@link ActionListener} instances can subscribe, such that when this listener is completed it
  * fans-out its result to the subscribed listeners.
  *
- * Similar to {@link ListenableActionFuture} and {@link ListenableFuture}, except that:
- * <ul>
- * <li>This implementation is not a {@link Future} so it has no support for a blocking wait for completion (although you can, for instance,
- * subscribe a {@link PlainActionFuture} and block on that if desired).
- * <li>The methods on this class are immune to interrupts.
- * </ul>
+ * Similar to {@link ListenableActionFuture} and {@link ListenableFuture} except for its handling of exceptions: if this listener is
+ * completed exceptionally then the exception is passed to subscribed listeners without modification.
  */
 public class FanOutListener<T> implements ActionListener<T> {
 
@@ -66,7 +61,7 @@ public class FanOutListener<T> implements ActionListener<T> {
      * Listeners which subscribe without an explicit {@link ThreadContext} and are not completed immediately will be completed in the
      * {@link ThreadContext} of the thread which completes this listener.
      */
-    public void addListener(ActionListener<T> listener) {
+    public final void addListener(ActionListener<T> listener) {
         addListener(listener, EsExecutors.DIRECT_EXECUTOR_SERVICE, null);
     }
 
@@ -91,7 +86,7 @@ public class FanOutListener<T> implements ActionListener<T> {
      *                      the given thread context.
      */
     @SuppressWarnings({ "rawtypes" })
-    public void addListener(ActionListener<T> listener, Executor executor, @Nullable ThreadContext threadContext) {
+    public final void addListener(ActionListener<T> listener, Executor executor, @Nullable ThreadContext threadContext) {
         if (tryComplete(ref.get(), listener)) {
             return;
         }
@@ -131,12 +126,12 @@ public class FanOutListener<T> implements ActionListener<T> {
     }
 
     @Override
-    public void onResponse(T result) {
+    public final void onResponse(T result) {
         setResult(new SuccessResult<T>(result));
     }
 
     @Override
-    public void onFailure(Exception exception) {
+    public final void onFailure(Exception exception) {
         setResult(new FailureResult(exception, wrapException(exception)));
     }
 
@@ -147,7 +142,7 @@ public class FanOutListener<T> implements ActionListener<T> {
     /**
      * @return {@code true} if and only if this listener has been completed (either successfully or exceptionally).
      */
-    public boolean isDone() {
+    public final boolean isDone() {
         return isDone(ref.get());
     }
 
@@ -158,7 +153,7 @@ public class FanOutListener<T> implements ActionListener<T> {
      * @throws IllegalStateException if this listener is not complete yet and assertions are disabled.
      */
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public T rawResult() throws Exception {
+    public final T rawResult() throws Exception {
         final var refValue = ref.get();
         if (refValue instanceof SuccessResult result) {
             return (T) result.result();

@@ -15,13 +15,19 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 
+import java.util.concurrent.ExecutionException;
+
 /**
  * An {@link ActionListener} which allows for the result to fan out to a (dynamic) collection of other listeners, added using {@link
  * #addListener}. Listeners added before completion are retained until completion; listeners added after completion are completed
  * immediately.
  *
- * Similar to {@link ListenableFuture}, except that if this listener is completed exceptionally then it unwraps any layers of {@link
- * ElasticsearchWrapperException} layers before converting the exception to a {@link RuntimeException}.
+ * Similar to {@link ListenableFuture} and {@link FanOutListener} except for its handling of exceptions: if this listener is completed
+ * exceptionally with an {@link ElasticsearchException} that is also an {@link ElasticsearchWrapperException} then it is unwrapped using
+ * {@link ExceptionsHelper#unwrapCause}; if the resulting exception is a checked exception then it is wrapped in an {@link
+ * UncategorizedExecutionException}. Moreover if this listener is completed exceptionally with a checked exception then it wraps the
+ * exception in an {@link UncategorizedExecutionException} whose cause is an {@link ExecutionException}, whose cause in turn is the checked
+ * exception. This matches the behaviour of {@link PlainActionFuture#actionGet}.
  */
 // The name {@link ListenableActionFuture} dates back a long way and could be improved - TODO find a better name
 public final class ListenableActionFuture<T> extends FanOutListener<T> {

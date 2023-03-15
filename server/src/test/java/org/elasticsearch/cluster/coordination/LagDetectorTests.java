@@ -250,14 +250,17 @@ public class LagDetectorTests extends ESTestCase {
         assertThat(failedNodes, empty()); // nodes added after a lag detector was started are also ignored
     }
 
-    @TestLogging(reason = "testing LagDetector logging", value = "org.elasticsearch.cluster.coordination.LagDetector:DEBUG")
+    // literal name because it appears in the docs so must not be changed without care
+    private static final String LOGGER_NAME = "org.elasticsearch.cluster.coordination.LagDetector";
+
+    @TestLogging(reason = "testing LagDetector logging", value = LOGGER_NAME + ":DEBUG")
     public void testHotThreadsChunkedLoggingEncoding() {
         final var node = new DiscoveryNode("test", buildNewFakeTransportAddress(), Version.CURRENT);
         final var expectedBody = randomUnicodeOfLengthBetween(1, 20000);
         assertEquals(
             expectedBody,
             ChunkedLoggingStreamTests.getDecodedLoggedBody(
-                LogManager.getLogger(LagDetector.class),
+                LogManager.getLogger(LOGGER_NAME),
                 Level.DEBUG,
                 "hot threads from node ["
                     + node.descriptionWithoutAttributes()

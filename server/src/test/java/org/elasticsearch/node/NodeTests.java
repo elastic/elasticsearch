@@ -27,6 +27,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine.Searcher;
@@ -37,6 +38,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
+import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsServiceTests;
 import org.elasticsearch.plugins.RecoveryPlannerPlugin;
@@ -68,6 +70,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
@@ -635,6 +638,46 @@ public class NodeTests extends ESTestCase {
             BytesReference.bytes(b),
             RestRequest.parseContentType(mediaTypeList)
         ).withPath("/foo").withHeaders(Map.of("Content-Type", mediaTypeList, "Accept", mediaTypeList)).build();
+    }
+
+    private static class BaseTestClusterCoordinationPlugin extends Plugin implements ClusterCoordinationPlugin {
+
+        public PersistedClusterStateService persistedClusterStateService;
+
+        @Override
+        public Optional<PersistedClusterStateServiceFactory> getPersistedClusterStateServiceFactory() {
+            return Optional.of(
+                (nodeEnvironment, namedXContentRegistry, clusterSettings, relativeTimeMillisSupplier) -> persistedClusterStateService =
+                    new PersistedClusterStateService(nodeEnvironment, namedXContentRegistry, clusterSettings, relativeTimeMillisSupplier)
+            );
+        }
+    }
+
+    public static class TestClusterCoordinationPlugin1 extends BaseTestClusterCoordinationPlugin {}
+
+    public static class TestClusterCoordinationPlugin2 extends BaseTestClusterCoordinationPlugin {}
+
+    public void testPluggablePersistedClusterStateServiceValidation() throws IOException {
+        assertThat(
+            expectThrows(
+                IllegalStateException.class,
+                () -> new MockNode(
+                    baseSettings().build(),
+                    List.of(TestClusterCoordinationPlugin1.class, TestClusterCoordinationPlugin2.class, getTestTransportPlugin())
+                )
+            ).getMessage(),
+            containsString("multiple persisted-state-service factories found")
+        );
+
+        try (Node node = new MockNode(baseSettings().build(), List.of(TestClusterCoordinationPlugin1.class, getTestTransportPlugin()))) {
+
+            for (final var plugin : node.getPluginsService().filterPlugins(BaseTestClusterCoordinationPlugin.class)) {
+                assertSame(
+                    Objects.requireNonNull(plugin.persistedClusterStateService),
+                    node.injector().getInstance(PersistedClusterStateService.class)
+                );
+            }
+        }
     }
 
 }

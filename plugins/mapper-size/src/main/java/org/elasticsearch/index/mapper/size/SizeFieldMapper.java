@@ -20,6 +20,7 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
+import java.util.Collections;
 import java.util.List;
 
 public class SizeFieldMapper extends MetadataFieldMapper {
@@ -50,7 +51,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
 
     private static class SizeFieldType extends NumberFieldType {
         SizeFieldType() {
-            super(NAME, NumberType.INTEGER);
+            super(NAME, NumberType.INTEGER, true, true, true, false, null, Collections.emptyMap(), null, false, null, null);
         }
 
         @Override

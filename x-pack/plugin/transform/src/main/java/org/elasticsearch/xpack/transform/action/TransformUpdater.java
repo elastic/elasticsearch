@@ -204,10 +204,9 @@ public class TransformUpdater {
         TimeValue timeout,
         ActionListener<Map<String, String>> listener
     ) {
-        ClientHelper.executeWithHeadersAsync(
-            config.getHeaders(),
-            ClientHelper.TRANSFORM_ORIGIN,
+        ClientHelper.executeAsyncWithOrigin(
             client,
+            ClientHelper.TRANSFORM_ORIGIN,
             ValidateTransformAction.INSTANCE,
             new ValidateTransformAction.Request(config, deferValidation, timeout),
             ActionListener.wrap(response -> listener.onResponse(response.getDestIndexMappings()), listener::onFailure)

@@ -107,7 +107,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         Setting.Property.NodeScope
     );
 
-    private static final FeatureFlag UNTRUSTED_REMOTE_CLUSTER_FEATURE_FLAG = new FeatureFlag("untrusted_remote_cluster");
+    private static final FeatureFlag UNTRUSTED_REMOTE_CLUSTER_FEATURE_FLAG = FeatureFlag.legacyRegisteredFlag("untrusted_remote_cluster");
 
     public static boolean isUntrustedRemoteClusterEnabled() {
         return UNTRUSTED_REMOTE_CLUSTER_FEATURE_FLAG.isEnabled();

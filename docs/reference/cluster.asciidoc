@@ -119,3 +119,5 @@ include::cluster/get-desired-nodes.asciidoc[]
 include::cluster/delete-desired-nodes.asciidoc[]
 
 include::cluster/get-desired-balance.asciidoc[]
+
+include::cluster/delete-desired-balance.asciidoc[]

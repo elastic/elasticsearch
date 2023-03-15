@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.operator;
 
+import org.elasticsearch.action.admin.cluster.allocation.DeleteDesiredBalanceAction;
 import org.elasticsearch.action.admin.cluster.allocation.GetDesiredBalanceAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
@@ -52,7 +53,8 @@ public class OperatorOnlyRegistry {
         DeleteDesiredNodesAction.NAME,
         GetDesiredNodesAction.NAME,
         UpdateDesiredNodesAction.NAME,
-        GetDesiredBalanceAction.NAME
+        GetDesiredBalanceAction.NAME,
+        DeleteDesiredBalanceAction.NAME
     );
 
     private final ClusterSettings clusterSettings;

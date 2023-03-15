@@ -13,15 +13,17 @@ import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogMessage;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.application.analytics.action.PostAnalyticsEventAction;
+import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
-import java.util.Map;
+import java.io.IOException;
 
 public class EventEmitterService {
     private static final Logger logger = LogManager.getLogger(EventEmitterService.class);
@@ -35,44 +37,30 @@ public class EventEmitterService {
         this.clusterService = clusterService;
     }
 
-    /**
-     * Emits an {@link AnalyticsEvent} to the appropriate collection.
-     *
-     * @param event The {@link AnalyticsEvent} to emit.
-     * @param listener The {@link ActionListener} to notify when the event has been emitted.
-     */
-    public void emitEvent(final AnalyticsEvent event, final ActionListener<Void> listener) {
-        final String collectionName = getAnalyticsEventCollectionName(event);
-        final AnalyticsCollection collection;
+    public void emitEvent(
+        final PostAnalyticsEventAction.Request request,
+        final ActionListener<PostAnalyticsEventAction.Response> listener
+    ) {
 
         try {
-            collection = analyticsCollectionResolver.collection(clusterService.state(), collectionName);
-        } catch (ResourceNotFoundException e) {
+            logger.info(AUDIT_MARKER, prepareFormattedEvent(request));
+            listener.onResponse(PostAnalyticsEventAction.Response.ACCEPTED);
+        } catch (Exception e) {
             listener.onFailure(e);
-            return;
         }
-
-        logger.info(AUDIT_MARKER, prepareFormattedEvent(collection, event));
-
-        listener.onResponse(null);
     }
 
-    private static ESLogMessage prepareFormattedEvent(AnalyticsCollection collection, AnalyticsEvent event) {
-        Map<String, Object> json = new HashMap<>();
-
-        json.put("event.dataset", collection.getEventDataStream());
-        json.put("@timestamp", getTimestamp());
-
-        return event.toESLogMessage(json);
+    private AnalyticsEvent parseAnalyticsEvent(PostAnalyticsEventAction.Request request) throws ResourceNotFoundException, IOException {
+        return AnalyticsEvent.getParser(request.eventType())
+            .parse(
+                request.xContentType().xContent().createParser(XContentParserConfiguration.EMPTY, request.payload().streamInput()),
+                analyticsCollectionResolver.collection(clusterService.state(), request.collectionName())
+            );
     }
 
-    private static String getAnalyticsEventCollectionName(final AnalyticsEvent event) {
-        return event.getCollectionName();
-    }
-
-    private static String getTimestamp() {
-        ZonedDateTime currentTime = ZonedDateTime.now();
-
-        return currentTime.format(DateTimeFormatter.ISO_INSTANT);
+    private String prepareFormattedEvent(PostAnalyticsEventAction.Request request) throws ResourceNotFoundException, IOException {
+        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        parseAnalyticsEvent(request).toXContent(builder, ToXContent.EMPTY_PARAMS);
+        return BytesReference.bytes(builder).utf8ToString();
     }
 }

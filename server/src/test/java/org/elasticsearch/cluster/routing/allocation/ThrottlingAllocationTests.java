@@ -47,7 +47,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
@@ -416,8 +415,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         if (snapshotIndices.isEmpty() == false) {
             // Some indices are restored from snapshot, the RestoreInProgress must be set accordingly
             Map<ShardId, RestoreInProgress.ShardRestoreStatus> restoreShards = new HashMap<>();
-            for (Iterator<ShardRouting> iterator = routingTable.allShards().iterator(); iterator.hasNext();) {
-                ShardRouting shard = iterator.next();
+            for (ShardRouting shard : routingTable.allShardsIterator()) {
                 if (shard.primary() && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
                     final ShardId shardId = shard.shardId();
                     restoreShards.put(shardId, new RestoreInProgress.ShardRestoreStatus(node1.getId(), RestoreInProgress.State.INIT));

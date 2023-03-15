@@ -200,11 +200,11 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
      * @return All the shards
      */
     public Stream<ShardRouting> allShards() {
-        return indicesRouting.values().stream().flatMap(this::allShards);
+        return indicesRouting.values().stream().flatMap(IndexRoutingTable::allShards).flatMap(IndexShardRoutingTable::allShards);
     }
 
-    public Stream<ShardRouting> allShards(IndexRoutingTable indexRoutingTable) {
-        return indexRoutingTable.allShards().flatMap(IndexShardRoutingTable::allShards);
+    public Iterable<ShardRouting> allShardsIterator() {
+        return () -> allShards().iterator();
     }
 
     /**

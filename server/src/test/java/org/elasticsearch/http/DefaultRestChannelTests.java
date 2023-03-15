@@ -8,8 +8,10 @@
 
 package org.elasticsearch.http;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -30,6 +32,9 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
@@ -41,6 +46,7 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.channels.ClosedChannelException;
 import java.util.Collections;
 import java.util.List;
@@ -464,6 +470,108 @@ public class DefaultRestChannelTests extends ESTestCase {
             HttpResponse response = requestCaptor.getValue();
             assertThat(response, instanceOf(TestHttpResponse.class));
             assertThat(((TestHttpResponse) response).content().length(), equalTo(0));
+        }
+    }
+
+    @TestLogging(reason = "Get HttpTracer to output trace logs", value = "org.elasticsearch.http.HttpTracer:TRACE")
+    public void testHttpTracerSendResponseSuccess() {
+        final ListenableActionFuture<Void> sendResponseFuture = new ListenableActionFuture<>();
+        final HttpChannel httpChannel = new FakeRestRequest.FakeHttpChannel(InetSocketAddress.createUnresolved("127.0.0.1", 9200)) {
+            @Override
+            public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
+                sendResponseFuture.addListener(listener);
+            }
+        };
+
+        final HttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+        final RestRequest restRequest = RestRequest.request(parserConfig(), httpRequest, httpChannel);
+        final RestChannel channel = new DefaultRestChannel(
+            httpChannel,
+            httpRequest,
+            restRequest,
+            bigArrays,
+            HttpHandlingSettings.fromSettings(Settings.EMPTY),
+            threadPool.getThreadContext(),
+            new CorsHandler(CorsHandler.buildConfig(Settings.EMPTY)),
+            new HttpTracer(),
+            tracer
+        );
+
+        final MockLogAppender sendingResponseMockLog = new MockLogAppender();
+        try (var ignored = sendingResponseMockLog.capturing(HttpTracer.class)) {
+            sendingResponseMockLog.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "no response should be logged",
+                    HttpTracer.class.getName(),
+                    Level.TRACE,
+                    "[*][*][OK][*][*] sent response to [org.elasticsearch.http.DefaultRestChannelTests$*] success [*]"
+                )
+            );
+
+            channel.sendResponse(new RestResponse(RestStatus.OK, "ignored"));
+
+            assertThat(sendResponseFuture.isDone(), equalTo(false));
+            sendingResponseMockLog.assertAllExpectationsMatched();
+        }
+
+        final MockLogAppender sendingResponseCompleteMockLog = new MockLogAppender();
+        try (var ignored = sendingResponseCompleteMockLog.capturing(HttpTracer.class)) {
+            sendingResponseCompleteMockLog.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "response should be logged",
+                    HttpTracer.class.getName(),
+                    Level.TRACE,
+                    "[*][*][OK][*][*] sent response to [org.elasticsearch.http.DefaultRestChannelTests$*] success [true]"
+                )
+            );
+
+            if (randomBoolean()) {
+                sendResponseFuture.onResponse(null);
+            } else {
+                sendResponseFuture.onFailure(new IOException("test"));
+            }
+
+            assertThat(sendResponseFuture.isDone(), equalTo(true));
+            sendingResponseCompleteMockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    @TestLogging(reason = "Get HttpTracer to output trace logs", value = "org.elasticsearch.http.HttpTracer:TRACE")
+    public void testHttpTracerSendResponseFailure() {
+        final HttpChannel httpChannel = new FakeRestRequest.FakeHttpChannel(InetSocketAddress.createUnresolved("127.0.0.1", 9200)) {
+            @Override
+            public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
+                throw new RuntimeException("send response failed");
+            }
+        };
+
+        final HttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+        final RestRequest restRequest = RestRequest.request(parserConfig(), httpRequest, httpChannel);
+        final RestChannel channel = new DefaultRestChannel(
+            httpChannel,
+            httpRequest,
+            restRequest,
+            bigArrays,
+            HttpHandlingSettings.fromSettings(Settings.EMPTY),
+            threadPool.getThreadContext(),
+            new CorsHandler(CorsHandler.buildConfig(Settings.EMPTY)),
+            new HttpTracer(),
+            tracer
+        );
+
+        MockLogAppender mockLogAppender = new MockLogAppender();
+        try (var ignored = mockLogAppender.capturing(HttpTracer.class)) {
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "response should be logged with success = false",
+                    HttpTracer.class.getName(),
+                    Level.TRACE,
+                    "[*][*][OK][*][*] sent response to [org.elasticsearch.http.DefaultRestChannelTests$*] success [false]"
+                )
+            );
+
+            expectThrows(RuntimeException.class, () -> channel.sendResponse(new RestResponse(RestStatus.OK, "ignored")));
+            mockLogAppender.assertAllExpectationsMatched();
         }
     }
 

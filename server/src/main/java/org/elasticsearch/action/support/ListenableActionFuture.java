@@ -30,7 +30,7 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
  * </ul>
  */
 public class ListenableActionFuture<T> extends FanOutListener<T> {
-    public T result() {
+    public T actionResult() {
         try {
             return super.rawResult();
         } catch (ElasticsearchException e) {

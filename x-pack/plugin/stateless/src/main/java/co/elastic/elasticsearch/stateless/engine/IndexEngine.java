@@ -92,7 +92,7 @@ public class IndexEngine extends InternalEngine {
             } else {
                 try (ReleasableLock releasableLock = flushLock.tryAcquire()) {
                     if (releasableLock != null) {
-                        flush(false, false);
+                        performScheduledFlush();
                     }
                 }
             }
@@ -106,6 +106,11 @@ public class IndexEngine extends InternalEngine {
                 cancellableFlushTask = engineConfig.getThreadPool().schedule(this::scheduleFlush, nextFlushDelay, ThreadPool.Names.FLUSH);
             }
         }
+    }
+
+    // visible for testing
+    void performScheduledFlush() {
+        flush(false, false);
     }
 
     @Override

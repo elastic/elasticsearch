@@ -8,10 +8,12 @@
 
 package org.elasticsearch.action.support;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 
 /**
  * An {@link ActionListener} which allows for the result to fan out to a (dynamic) collection of other listeners, added using {@link
@@ -33,6 +35,15 @@ public final class ListenableActionFuture<T> extends FanOutListener<T> {
 
     @Override
     protected RuntimeException wrapException(Exception exception) {
-        return wrapAsExecutionException(ExceptionsHelper.unwrapCause(exception));
+        if (exception instanceof ElasticsearchException elasticsearchException) {
+            final var rootCause = ExceptionsHelper.unwrapCause(elasticsearchException);
+            if (rootCause instanceof RuntimeException runtimeException) {
+                return runtimeException;
+            } else {
+                return new UncategorizedExecutionException("Failed execution", rootCause);
+            }
+        } else {
+            return wrapAsExecutionException(exception);
+        }
     }
 }

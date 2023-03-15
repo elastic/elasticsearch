@@ -287,8 +287,10 @@ public class FanOutListener<T> implements ActionListener<T> {
                 if (wrappedException != innerException) {
                     innerException.addSuppressed(wrappedException);
                 }
-                logger.error(Strings.format("exception thrown while handling another exception in listener [%s]", listener),
-                    innerException);
+                logger.error(
+                    Strings.format("exception thrown while handling another exception in listener [%s]", listener),
+                    innerException
+                );
                 assert false : innerException;
                 // nothing more can be done here
             }

@@ -32,7 +32,7 @@ public final class ListenableFuture<V> extends FanOutListener<V> {
     }
 
     @Override
-    protected Exception wrapException(Exception exception) {
+    protected RuntimeException wrapException(Exception exception) {
         return wrapAsExecutionException(exception);
     }
 }

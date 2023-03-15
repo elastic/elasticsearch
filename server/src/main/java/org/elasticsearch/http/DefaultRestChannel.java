@@ -176,17 +176,16 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                 .forEach((key, values) -> tracer.setAttribute(traceId, "http.response.headers." + key, String.join("; ", values)));
 
             ActionListener<Void> listener = ActionListener.releasing(Releasables.wrap(toClose));
-
             if (httpLogger != null) {
-                final String finalContentLength = contentLength;
-                final String finalOpaque = opaque;
+                final var finalContentLength = contentLength;
+                final var finalOpaque = opaque;
                 listener = ActionListener.runAfter(
                     listener,
                     () -> httpLogger.logResponse(restResponse, httpChannel, finalContentLength, finalOpaque, request.getRequestId(), true)
                 );
             }
 
-            try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                 httpChannel.sendResponse(httpResponse, listener);
             }
             success = true;
@@ -194,7 +193,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             if (success == false) {
                 Releasables.close(toClose);
                 if (httpLogger != null) {
-                    httpLogger.logResponse(restResponse, httpChannel, contentLength, opaque, request.getRequestId(), success);
+                    httpLogger.logResponse(restResponse, httpChannel, contentLength, opaque, request.getRequestId(), false);
                 }
             }
         }

@@ -268,16 +268,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 new GlobalCheckpointSyncAction.Request(shardId),
                 ActionListener.wrap(r -> {}, e -> {
                     if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
-                        getLogger().info(() -> format("%s global checkpoint sync failed", shardId), e);
+                        logger.info(() -> format("%s global checkpoint sync failed", shardId), e);
                     }
                 })
             );
         }
-    }
-
-    // overrideable by tests
-    static Logger getLogger() {
-        return logger;
     }
 
     /**
@@ -709,7 +704,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
 
         @Override
-        public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
+        public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
             handleRecoveryFailure(shardRouting, sendShardFailure, e);
         }
     }

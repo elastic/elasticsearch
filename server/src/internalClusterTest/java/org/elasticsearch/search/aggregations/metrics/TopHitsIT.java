@@ -991,11 +991,10 @@ public class TopHitsIT extends ESIntegTestCase {
     }
 
     public void testUseMaxDocInsteadOfSize() throws Exception {
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("idx")
-            .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH))
-            .get();
+        updateIndexSettings(
+            Settings.builder().put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH),
+            "idx"
+        );
         SearchResponse response = client().prepareSearch("idx")
             .addAggregation(
                 terms("terms").executionHint(randomExecutionHint())
@@ -1006,11 +1005,7 @@ public class TopHitsIT extends ESIntegTestCase {
             )
             .get();
         assertNoFailures(response);
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("idx")
-            .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), null))
-            .get();
+        updateIndexSettings(Settings.builder().putNull(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey()), "idx");
     }
 
     public void testTooHighResultWindow() throws Exception {
@@ -1052,11 +1047,7 @@ public class TopHitsIT extends ESIntegTestCase {
             containsString("the top hits aggregator [hits]'s from + size must be less than or equal to: [100] but was [110]")
         );
 
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("idx")
-            .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), 110))
-            .get();
+        updateIndexSettings(Settings.builder().put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), 110), "idx");
         response = client().prepareSearch("idx")
             .addAggregation(
                 terms("terms").executionHint(randomExecutionHint())
@@ -1073,11 +1064,7 @@ public class TopHitsIT extends ESIntegTestCase {
             )
             .get();
         assertNoFailures(response);
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("idx")
-            .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), null))
-            .get();
+        updateIndexSettings(Settings.builder().putNull(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey()), "idx");
     }
 
     public void testNoStoredFields() throws Exception {

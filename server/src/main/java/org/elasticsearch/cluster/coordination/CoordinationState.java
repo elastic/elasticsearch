@@ -108,7 +108,7 @@ public class CoordinationState {
     }
 
     public boolean isPublishQuorum(VoteCollection votes) {
-        return votes.isQuorum(getLastCommittedConfiguration()) && votes.isQuorum(lastPublishedConfiguration);
+        return electionStrategy.isPublishQuorum(votes, getLastCommittedConfiguration(), lastPublishedConfiguration);
     }
 
     public boolean containsJoinVoteFor(DiscoveryNode node) {
@@ -165,7 +165,7 @@ public class CoordinationState {
      * @throws CoordinationStateRejectedException if the arguments were incompatible with the current state of this object.
      */
     public Join handleStartJoin(StartJoinRequest startJoinRequest) {
-        if (startJoinRequest.getTerm() <= getCurrentTerm()) {
+        if (electionStrategy.shouldJoinLeaderInTerm(getCurrentTerm(), startJoinRequest.getTerm()) == false) {
             logger.debug(
                 "handleStartJoin: ignoring [{}] as term provided is not greater than current term [{}]",
                 startJoinRequest,
@@ -332,8 +332,7 @@ public class CoordinationState {
             );
         }
 
-        if (clusterState.getLastAcceptedConfiguration().equals(getLastAcceptedConfiguration()) == false
-            && getLastCommittedConfiguration().equals(getLastAcceptedConfiguration()) == false) {
+        if (electionStrategy.isInvalidReconfiguration(clusterState, getLastAcceptedConfiguration(), getLastCommittedConfiguration())) {
             logger.debug("handleClientValue: only allow reconfiguration while not already reconfiguring");
             throw new CoordinationStateRejectedException("only allow reconfiguration while not already reconfiguring");
         }
@@ -500,6 +499,7 @@ public class CoordinationState {
             applyCommit.getVersion()
         );
 
+        assert getLastAcceptedTerm() == applyCommit.getTerm() && getLastAcceptedVersion() == applyCommit.getVersion();
         persistedState.markLastAcceptedStateAsCommitted();
         assert getLastCommittedConfiguration().equals(getLastAcceptedConfiguration());
     }

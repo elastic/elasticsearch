@@ -600,14 +600,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
                 .get()
         );
         logger.info("--> update the settings to prevent allocation to the data node");
-        assertTrue(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", node))
-                .get()
-                .isAcknowledged()
-        );
+        updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", node), indexName);
         logger.info("--> full cluster restart");
         internalCluster().fullRestart();
         logger.info("--> checking that the primary shard is force allocated to the data node despite being blocked by the exclude filter");
@@ -643,14 +636,8 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         final Set<String> replicaNodes = new HashSet<>(internalCluster().startDataOnlyNodes(numberOfReplicas));
         ensureGreen();
         String timeout = randomFrom("0s", "1s", "2s");
-        assertAcked(
-            client(master).admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put("indices.replication.retry_timeout", timeout).put("cluster.routing.allocation.enable", "none")
-                )
-                .get()
+        updateClusterSettings(
+            Settings.builder().put("indices.replication.retry_timeout", timeout).put("cluster.routing.allocation.enable", "none")
         );
         logger.info("--> Indexing with gap in seqno to ensure that some operations will be replayed in resync");
         long numDocs = scaledRandomIntBetween(5, 50);
@@ -685,13 +672,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             }
             assertThat(state.metadata().index("test").inSyncAllocationIds(shardId.id()), hasSize(numberOfReplicas + 1));
         }, 1, TimeUnit.MINUTES);
-        assertAcked(
-            client(master).admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.enable", "all"))
-                .get()
-        );
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.enable", "all"));
         partition.stopDisrupting();
         partition.ensureHealthy(internalCluster());
         logger.info("--> stop disrupting network and re-enable allocation");

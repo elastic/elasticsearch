@@ -296,7 +296,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     public void notifyListener(RecoveryFailedException e, boolean sendShardFailure) {
-        listener.onRecoveryFailure(state(), e, sendShardFailure);
+        listener.onRecoveryFailure(e, sendShardFailure);
     }
 
     /** mark the current recovery as done */

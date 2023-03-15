@@ -1,0 +1,192 @@
+---
+setup:
+  - do:
+      indices.create:
+          index:  eql_test
+          body:
+            mappings:
+              runtime:
+                day_of_week:
+                  type: keyword
+                  script:
+                    source: "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: eql_test
+              _id:    "1"
+          - event:
+              - category: process
+            "@timestamp": "2020-02-03T12:34:56Z"
+            user: SYSTEM
+            id: 123
+            valid: false
+            raw_message: "199.72.81.55 - - [01/Jul/1995:00:00:01 -0400] GET /history/apollo/ HTTP/1.0 200 6245"
+          - index:
+              _index: eql_test
+              _id:    "2"
+          - event:
+              - category: process
+            "@timestamp": "2020-02-04T12:34:56Z"
+            user: SYSTEM
+            id: 123
+            valid: true
+            raw_message: "199.72.81.123 - - [01/Jul/1995:00:00:02 -0400] GET /history/apollo/a HTTP/1.0 200 500"
+          - index:
+              _index: eql_test
+              _id:    "3"
+          - event:
+              - category: process
+            "@timestamp": "2020-02-05T12:34:56Z"
+            user: SYSTEM
+            id: 123
+            valid: true
+            raw_message: "199.72.81.34 - - [01/Jul/1995:00:00:03 -0400] GET /history/apollo/b HTTP/1.0 200 1500"
+          - index:
+              _index: eql_test
+              _id:    "4"
+          - event:
+              - category: process
+            "@timestamp": "2020-02-05T12:34:57Z"
+            user: SYSTEM
+            id: 123
+
+
+---
+"Execute EQL events query with search time keyword runtime field":
+  - do:
+      eql.search:
+        index: eql_test
+        body:
+          query: 'process where is_valid=="YES"'
+          fields: [{"field":"@timestamp","format":"epoch_millis"},"id","valid","is_valid"]
+          runtime_mappings: {"is_valid": {"type":"keyword","script":"if (doc['valid'].size()==0 || doc['valid'].value == false) emit('NO'); else emit('YES')"}}
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 2}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.events.0._id: "2"}
+  - match: {hits.events.0.fields.@timestamp: ["1580819696000"]}
+  - match: {hits.events.0.fields.id: [123]}
+  - match: {hits.events.0.fields.valid: [true]}
+  - match: {hits.events.0.fields.is_valid: ["YES"]}
+  - match: {hits.events.1._id: "3"}
+  - match: {hits.events.1.fields.@timestamp: ["1580906096000"]}
+  - match: {hits.events.1.fields.id: [123]}
+  - match: {hits.events.1.fields.valid: [true]}
+  - match: {hits.events.1.fields.is_valid: ["YES"]}
+
+---
+"Execute EQL events query with search time ip runtime field":
+  - do:
+      eql.search:
+        index: eql_test
+        filter_path: "hits.events._source.raw_message,hits.events.fields.address,hits.events._id"
+        body:
+          query: 'process where true'
+          fields: ["address"]
+          runtime_mappings: {"address": {"type": "ip","script": "if (doc[\"raw_message.keyword\"].size() == 0) return; else {Matcher m = /\\d+\\.\\d+\\.\\d+\\.\\d+/.matcher(doc[\"raw_message.keyword\"].value);if (m.find()) emit(m.group());}"}}
+
+  - match: {hits.events.0._id: "1"}
+  - match: {hits.events.0.fields.address: ["199.72.81.55"]}
+  - match: {hits.events.0._source.raw_message: "199.72.81.55 - - [01/Jul/1995:00:00:01 -0400] GET /history/apollo/ HTTP/1.0 200 6245"}
+  - match: {hits.events.1._id: "2"}
+  - match: {hits.events.1.fields.address: ["199.72.81.123"]}
+  - match: {hits.events.1._source.raw_message: "199.72.81.123 - - [01/Jul/1995:00:00:02 -0400] GET /history/apollo/a HTTP/1.0 200 500"}
+  - match: {hits.events.2._id: "3"}
+  - match: {hits.events.2.fields.address: ["199.72.81.34"]}
+  - match: {hits.events.2._source.raw_message: "199.72.81.34 - - [01/Jul/1995:00:00:03 -0400] GET /history/apollo/b HTTP/1.0 200 1500"}
+  - match: {hits.events.3._id: "4"}
+  - match: {hits.events.3.fields.address: null}
+  - match: {hits.events.3._source.raw_message: null}
+
+---
+"Execute EQL events query with search time runtime field overriding mapping level runtime field":
+  - do:
+      eql.search:
+        index: eql_test
+        body:
+          query: 'process where user == "SYSTEM"'
+          fields: ["id","day_of_week"]
+          runtime_mappings: {"day_of_week": {"type":"long","script":"emit(doc['@timestamp'].value.dayOfWeekEnum.getValue())"}}
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 4}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.events.0._id: "1"}
+  - match: {hits.events.0._source.user: "SYSTEM"}
+  - match: {hits.events.0._source.valid: false}
+  - match: {hits.events.0.fields.id: [123]}
+  - match: {hits.events.0.fields.day_of_week: [1]}
+  - match: {hits.events.1._id: "2"}
+  - match: {hits.events.1._source.valid: true}
+  - match: {hits.events.1.fields.id: [123]}
+  - match: {hits.events.1.fields.day_of_week: [2]}
+  - match: {hits.events.2._id: "3"}
+  - match: {hits.events.2._source.valid: true}
+  - match: {hits.events.2.fields.id: [123]}
+  - match: {hits.events.2.fields.day_of_week: [3]}
+  - match: {hits.events.3._id: "4"}
+  - match: {hits.events.3.fields.id: [123]}
+  - match: {hits.events.3.fields.day_of_week: [3]}
+
+---
+"Execute EQL sequence with search time runtime fields overriding mapping level runtime field":
+  - do:
+      eql.search:
+        index: eql_test
+        body:
+          query: 'sequence by user [process where user == "SYSTEM"] [process where true] [process where day_of_week == 3]'
+          fields: ["day_of_week"]
+          runtime_mappings: {"day_of_week": {"type":"long","script":"emit(doc['@timestamp'].value.dayOfWeekEnum.getValue())"}}
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 2}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.sequences.0.join_keys.0: "SYSTEM"}
+  - match: {hits.sequences.0.events.0._id: "1"}
+  - match: {hits.sequences.0.events.0._source.@timestamp: "2020-02-03T12:34:56Z"}
+  - match: {hits.sequences.0.events.0.fields.day_of_week: [1]}
+  - match: {hits.sequences.0.events.1._id: "2"}
+  - match: {hits.sequences.0.events.1._source.@timestamp: "2020-02-04T12:34:56Z"}
+  - match: {hits.sequences.0.events.1.fields.day_of_week: [2]}
+  - match: {hits.sequences.0.events.2._id: "3"}
+  - match: {hits.sequences.0.events.2._source.@timestamp: "2020-02-05T12:34:56Z"}
+  - match: {hits.sequences.0.events.2.fields.day_of_week: [3]}
+  - match: {hits.sequences.1.join_keys.0: "SYSTEM"}
+  - match: {hits.sequences.1.events.0._id: "2"}
+  - match: {hits.sequences.1.events.0._source.@timestamp: "2020-02-04T12:34:56Z"}
+  - match: {hits.sequences.1.events.0.fields.day_of_week: [2]}
+  - match: {hits.sequences.1.events.1._id: "3"}
+  - match: {hits.sequences.1.events.1._source.@timestamp: "2020-02-05T12:34:56Z"}
+  - match: {hits.sequences.1.events.1.fields.day_of_week: [3]}
+  - match: {hits.sequences.1.events.2._id: "4"}
+  - match: {hits.sequences.1.events.2._source.@timestamp: "2020-02-05T12:34:57Z"}
+  - match: {hits.sequences.1.events.2.fields.day_of_week: [3]}
+
+---
+"Validate valid runtime mappings request":
+  - do:
+      eql.search:
+        index: eql_test
+        body:
+          query: 'process where user == "SYSTEM"'
+          fields: ["id","day_of_week"]
+          runtime_mappings: {"day_of_week": {"script":"emit(doc['@timestamp'].value.dayOfWeekEnum.getValue())"}}
+      catch: bad_request
+  - match: { error.root_cause.0.type: "action_request_validation_exception" }
+  - match: { error.root_cause.0.reason: "Validation Failed: 1: No type specified for runtime field [day_of_week];" }
+
+
+  - do:
+      eql.search:
+        index: eql_test
+        body:
+          query: 'process where user == "SYSTEM"'
+          fields: ["id","day_of_week"]
+          runtime_mappings: {"day_of_week": [{"type":"long","script":"emit(doc['@timestamp'].value.dayOfWeekEnum.getValue())"}]}
+      catch: bad_request
+  - match: { error.root_cause.0.type: "action_request_validation_exception" }
+  - match: { error.root_cause.0.reason: "Validation Failed: 1: Expected map for runtime field [day_of_week] definition but got [String];" }

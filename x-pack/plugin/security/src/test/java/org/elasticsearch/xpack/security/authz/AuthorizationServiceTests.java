@@ -257,7 +257,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         auditTrail = mock(AuditTrail.class);
         MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
-        auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
+        auditTrailService = new AuditTrailService(auditTrail, licenseState);
         threadContext = new ThreadContext(settings);
         securityContext = new SecurityContext(settings, threadContext);
         threadPool = mock(ThreadPool.class);
@@ -3037,8 +3037,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
     }
 
-    public void testActionDeniedForRemoteAccessAuthentication() {
-        final Authentication authentication = AuthenticationTestHelper.builder().remoteAccess().build();
+    public void testActionDeniedForCrossClusterAccessAuthentication() {
+        final Authentication authentication = AuthenticationTestHelper.builder().crossClusterAccess().build();
         final AuthorizationInfo authorizationInfo = mock(AuthorizationInfo.class);
         when(authorizationInfo.asMap()).thenReturn(
             Map.of(PRINCIPAL_ROLES_FIELD_NAME, randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(5, 8)))

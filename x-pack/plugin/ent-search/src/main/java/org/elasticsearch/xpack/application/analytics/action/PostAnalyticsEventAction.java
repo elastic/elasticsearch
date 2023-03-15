@@ -116,7 +116,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             return Objects.equals(collectionName, that.collectionName)
                 && Objects.equals(eventType, that.eventType)
                 && Objects.equals(xContentType, that.xContentType)
-                && payload.utf8ToString() == that.payload.utf8ToString();
+                && payload.utf8ToString().equals(that.payload.utf8ToString());
 
         }
 

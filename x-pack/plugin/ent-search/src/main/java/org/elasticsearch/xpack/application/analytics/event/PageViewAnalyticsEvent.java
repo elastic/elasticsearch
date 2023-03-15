@@ -33,7 +33,7 @@ public class PageViewAnalyticsEvent extends AnalyticsEvent {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> PageData.PARSER.parse(p, null), PAGE_FIELD);
     }
 
-    private PageData pageData;
+    private final PageData pageData;
 
     public PageViewAnalyticsEvent(AnalyticsCollection analyticsCollection, SessionData sessionData, UserData userData, PageData pageData) {
         super(analyticsCollection, sessionData, userData);

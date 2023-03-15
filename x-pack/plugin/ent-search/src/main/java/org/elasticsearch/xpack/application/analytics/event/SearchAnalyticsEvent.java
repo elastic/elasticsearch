@@ -32,7 +32,7 @@ public class SearchAnalyticsEvent extends AnalyticsEvent {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> SearchData.PARSER.parse(p, null), SEARCH_FIELD);
     }
 
-    private SearchData searchData;
+    private final SearchData searchData;
 
     public SearchAnalyticsEvent(AnalyticsCollection analyticsCollection, SessionData sessionData, UserData userData, SearchData pageData) {
         super(analyticsCollection, sessionData, userData);

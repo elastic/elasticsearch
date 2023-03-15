@@ -587,15 +587,6 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                         InputStream in = new ByteArrayInputStream(qbSource.bytes, qbSource.offset, qbSource.length);
                         StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in, qbSource.length), registry)
                     ) {
-                        TransportVersion transportVersion;
-                        if (indexVersion.before(Version.V_8_8_0)) {
-                            transportVersion = TransportVersion.fromId(indexVersion.id);
-                        } else {
-                            // doesn't matter what the stream transport version is, we're just reading a single vint here
-                            transportVersion = TransportVersion.readVersion(input);
-                        }
-
-                        input.setTransportVersion(transportVersion);
                         // Query builder's content is stored via BinaryFieldMapper, which has a custom encoding
                         // to encode multiple binary values into a single binary doc values field.
                         // This is the reason we need to first need to read the number of values and
@@ -604,6 +595,17 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                         assert numValues == 1;
                         int valueLength = input.readVInt();
                         assert valueLength > 0;
+
+                        // set the transportversion here - only reading vints so far, so can change the version freely at this point
+                        TransportVersion transportVersion;
+                        if (indexVersion.before(Version.V_8_8_0)) {
+                            transportVersion = TransportVersion.fromId(indexVersion.id);
+                        } else {
+                            // doesn't matter what the stream transport version is, we're just reading a single vint here
+                            transportVersion = TransportVersion.readVersion(input);
+                        }
+                        input.setTransportVersion(transportVersion);
+
                         QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
                         assert in.read() == -1;
                         queryBuilder = Rewriteable.rewrite(queryBuilder, context);

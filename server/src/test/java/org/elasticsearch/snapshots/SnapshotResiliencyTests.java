@@ -270,7 +270,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 (BlobStoreRepository) testClusterNodes.randomMasterNodeSafe().repositoriesService.repository("repo")
             );
             deterministicTaskQueue.runAllRunnableTasks();
-            assertNull(future.actionGet(0));
+            assertNull(future.result());
         } finally {
             testClusterNodes.nodes.values().forEach(TestClusterNodes.TestClusterNode::stop);
         }

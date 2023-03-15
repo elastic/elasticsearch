@@ -10,13 +10,16 @@ package org.elasticsearch.action.support;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.Nullable;
 
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
@@ -161,6 +164,22 @@ public /* TODO final */ class FanOutListener<T> implements ActionListener<T> {
         } else {
             assert false : "not done";
             throw new IllegalStateException("listener is not done, cannot get result yet");
+        }
+    }
+
+    public T actionResult() {
+        try {
+            return result();
+        } catch (ElasticsearchException e) {
+            final var root = e.unwrapCause();
+            if (root instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            throw new UncategorizedExecutionException("Failed execution", root);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new UncategorizedExecutionException("Failed execution", new ExecutionException(e));
         }
     }
 

@@ -89,12 +89,16 @@ public final class StepListener<Response> implements ActionListener<Response> {
     }
 
     /**
-     * Gets the result of this step. This method will throw {@link IllegalStateException} if this step is not completed yet.
+     * @return the result of this step, if it has been completed successfully, or throw the exception with which it was completed
+     * exceptionally. It is not valid to call this method if the step is incomplete.
      */
-    public Response result() throws Exception {
+    public Response result() {
         return delegate.result();
     }
 
+    /**
+     * @return whether this step is complete yet.
+     */
     public boolean isDone() {
         return delegate.isDone();
     }

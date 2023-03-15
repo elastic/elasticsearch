@@ -28,6 +28,9 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
  * thread context to be captured at subscription time.
  * </ul>
  */
-// TODO replace with superclass
-@Deprecated(forRemoval = true)
-public class ListenableActionFuture<T> extends FanOutListener<T> {}
+public class ListenableActionFuture<T> extends FanOutListener<T> {
+    @Override
+    public T result() {
+        return super.actionResult();
+    }
+}

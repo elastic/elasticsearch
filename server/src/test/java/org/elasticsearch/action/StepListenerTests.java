@@ -130,7 +130,7 @@ public class StepListenerTests extends ESTestCase {
         Collections.shuffle(stepListeners, random());
 
         final StepListener<Integer> combined = stepListeners.get(0).thenCombine(stepListeners.get(1), Math::max);
-        assertThat(combined.isDone(), equalTo(false));
+        assertFalse(combined.isDone());
 
         final List<Integer> results = Collections.synchronizedList(new ArrayList<>(stepListeners.size()));
         final CountDownLatch latch = new CountDownLatch(stepListeners.size());
@@ -155,7 +155,7 @@ public class StepListenerTests extends ESTestCase {
         }
 
         latch.await();
-        assertThat(combined.isDone(), equalTo(true));
+        assertTrue(combined.isDone());
         if (failed.get() == false) {
             assertThat(combined.result(), equalTo(results.stream().reduce(Math::max).get()));
         } else {

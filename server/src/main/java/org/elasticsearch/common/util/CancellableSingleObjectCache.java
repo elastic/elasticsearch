@@ -139,7 +139,7 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
                 final var future = currentCachedItem.getFuture();
                 if (future.isDone()) {
                     try {
-                        listener.onResponse(future.result());
+                        listener.onResponse(future.actionResult());
                         return;
                     } catch (TaskCancelledException e) {
                         // previous task was cancelled before completion, therefore we must perform our own one-shot refresh
@@ -226,7 +226,7 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
                 if (future.isDone()) {
                     // No need to bother with ref counting & cancellation any more, just complete the listener.
                     // We know it wasn't cancelled because there are still references.
-                    ActionListener.completeWith(listener, future::result);
+                    ActionListener.completeWith(listener, future::actionResult);
                 } else {
                     // Refresh is still pending; it's not cancelled because there are still references.
                     future.addListener(ContextPreservingActionListener.wrapPreservingContext(listener, threadContext));

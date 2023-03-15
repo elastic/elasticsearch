@@ -24,6 +24,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -78,7 +79,8 @@ public class MockGatewayMetaState extends GatewayMetaState {
                 xContentRegistry,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 () -> 0L
-            )
+            ),
+            List.of()
         );
     }
 }

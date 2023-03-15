@@ -596,14 +596,13 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                         int valueLength = input.readVInt();
                         assert valueLength > 0;
 
-                        // set the transportversion here - only reading vints so far, so can change the version freely at this point
                         TransportVersion transportVersion;
                         if (indexVersion.before(Version.V_8_8_0)) {
                             transportVersion = TransportVersion.fromId(indexVersion.id);
                         } else {
-                            // doesn't matter what the stream transport version is, we're just reading a single vint here
                             transportVersion = TransportVersion.readVersion(input);
                         }
+                        // set the transportversion here - only read vints so far, so can change the version freely at this point
                         input.setTransportVersion(transportVersion);
 
                         QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);

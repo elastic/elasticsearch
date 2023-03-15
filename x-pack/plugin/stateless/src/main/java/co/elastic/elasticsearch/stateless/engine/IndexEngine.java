@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.common.settings.Setting;
@@ -80,25 +81,31 @@ public class IndexEngine extends InternalEngine {
         if (isClosed.get()) {
             return;
         }
-        TimeValue nextFlushDelay;
-        long sinceLastFlushNanos = relativeTimeInNanosSupplier.getAsLong() - lastFlushNanos.get();
-        if (sinceLastFlushNanos < indexFlushInterval.nanos()) {
-            // Try to maintain flushes happening within the indexFlushInterval in case of an unscheduled flush
-            nextFlushDelay = TimeValue.timeValueNanos(indexFlushInterval.nanos() - sinceLastFlushNanos);
-        } else {
-            try (ReleasableLock releasableLock = flushLock.tryAcquire()) {
-                if (releasableLock != null) {
-                    scheduledFlush();
+
+        TimeValue nextFlushDelay = indexFlushInterval;
+
+        try {
+            long sinceLastFlushNanos = relativeTimeInNanosSupplier.getAsLong() - lastFlushNanos.get();
+            if (sinceLastFlushNanos < indexFlushInterval.nanos()) {
+                // Try to maintain flushes happening within the indexFlushInterval in case of an unscheduled flush
+                nextFlushDelay = TimeValue.timeValueNanos(indexFlushInterval.nanos() - sinceLastFlushNanos);
+            } else {
+                try (ReleasableLock releasableLock = flushLock.tryAcquire()) {
+                    if (releasableLock != null) {
+                        flush(false, false);
+                    }
                 }
             }
-            nextFlushDelay = indexFlushInterval;
+        } catch (AlreadyClosedException e) {
+            // Ignore already closed exceptions as this is a known race
+        } catch (Exception e) {
+            logger.warn("unexpected exception performing scheduled flush", e);
+        } finally {
+            // Do not schedule another flush if closed
+            if (isClosed.get() == false) {
+                cancellableFlushTask = engineConfig.getThreadPool().schedule(this::scheduleFlush, nextFlushDelay, ThreadPool.Names.FLUSH);
+            }
         }
-        cancellableFlushTask = engineConfig.getThreadPool().schedule(this::scheduleFlush, nextFlushDelay, ThreadPool.Names.FLUSH);
-    }
-
-    // visible for testing
-    void scheduledFlush() {
-        flush();
     }
 
     @Override

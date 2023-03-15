@@ -192,10 +192,10 @@ public class ListenableFutureTests extends ESTestCase {
             barrier.await(10, TimeUnit.SECONDS); // release blocked executor
 
             if (success) {
-                expectThrows(EsRejectedExecutionException.class, () -> future2.actionGet(0, TimeUnit.SECONDS));
+                expectThrows(EsRejectedExecutionException.class, future2::result);
                 assertNull(future1.actionGet(10, TimeUnit.SECONDS));
             } else {
-                var exception = expectThrows(EsRejectedExecutionException.class, () -> future2.actionGet(0, TimeUnit.SECONDS));
+                var exception = expectThrows(EsRejectedExecutionException.class, future2::result);
                 assertEquals(1, exception.getSuppressed().length);
                 assertThat(exception.getSuppressed()[0], instanceOf(ElasticsearchException.class));
                 assertEquals(

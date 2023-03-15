@@ -18,7 +18,6 @@ import org.elasticsearch.core.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 
 /**
  * An {@link ActionListener} which allows for the result to fan out to a (dynamic) collection of other listeners, added using {@link
@@ -107,8 +106,8 @@ public final class ListenableFuture<V> extends PlainActionFuture<V> {
 
     private void notifyListener(ActionListener<V> listener) {
         assert done;
-        // call get() in a non-blocking fashion as we could be on a network or scheduler thread which we must not block
-        ActionListener.completeWith(listener, () -> FutureUtils.get(ListenableFuture.this, 0L, TimeUnit.NANOSECONDS));
+        // call non-blocking result() as we could be on a network or scheduler thread which we must not block
+        ActionListener.completeWith(listener, this::result);
     }
 
     @Override

@@ -31,7 +31,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY;
 
 /**
  * Transport action that tests whether the currently authenticated user has the specified
@@ -62,10 +62,10 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
         final String username = request.username();
         final Authentication authentication = securityContext.getAuthentication();
         final Subject subject = authentication.getEffectiveSubject();
-        if (authentication.isRemoteAccess()) {
+        if (authentication.isCrossClusterAccess()) {
             final Subject innerSubject = ((Authentication) authentication.getAuthenticatingSubject()
                 .getMetadata()
-                .get(REMOTE_ACCESS_AUTHENTICATION_KEY)).getEffectiveSubject();
+                .get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY)).getEffectiveSubject();
             if (innerSubject.getUser().principal().equals(username) == false) {
                 listener.onFailure(new IllegalArgumentException("users may only check the privileges of their own account"));
                 return;

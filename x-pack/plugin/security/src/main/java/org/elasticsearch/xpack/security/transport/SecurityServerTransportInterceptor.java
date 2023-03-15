@@ -438,9 +438,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 } else if (action.equals(ClusterStateAction.NAME)) {
                     // Use system user for cluster state requests (CCR has many calls of cluster state with end-user context)
                     try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-                        new RemoteAccessHeaders(
-                            remoteClusterCredentials.authorization(),
-                            new RemoteAccessAuthentication(
+                        new CrossClusterAccessHeaders(
+                            remoteClusterCredentials.credentials(),
+                            new CrossClusterAccessSubjectInfo(
                                 Authentication.newInternalAuthentication(
                                     SystemUser.INSTANCE,
                                     authentication.getEffectiveSubject().getTransportVersion(),

@@ -8,7 +8,8 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchWrapperException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 
@@ -17,26 +18,21 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
  * #addListener}. Listeners added before completion are retained until completion; listeners added after completion are completed
  * immediately.
  *
- * Similar to {@link ListenableFuture}, with the following differences:
- *
- * <ul>
- * <li>This listener will silently ignore additional completions, whereas {@link ListenableFuture} must not be completed more than once.
- * <li>This listener completes the retained listeners on directly the completing thread, so you must use {@link ThreadedActionListener} if
- * dispatching is needed. In contrast, {@link ListenableFuture} allows to dispatch only the retained listeners, while immediately-completed
- * listeners are completed on the subscribing thread.
- * <li>This listener completes the retained listeners in the context of the completing thread, so you must remember to use {@link
- * ContextPreservingActionListener} to capture the thread context yourself if needed. In contrast, {@link ListenableFuture} allows for the
- * thread context to be captured at subscription time.
- * </ul>
+ * Similar to {@link ListenableFuture}, except that if this listener is completed exceptionally then it unwraps any layers of {@link
+ * ElasticsearchWrapperException} layers before converting the exception to a {@link RuntimeException}.
  */
-public class ListenableActionFuture<T> extends FanOutListener<T> {
+// The name {@link ListenableActionFuture} dates back a long way and could be improved - TODO find a better name
+public final class ListenableActionFuture<T> extends FanOutListener<T> {
     public T actionResult() {
         try {
             return super.rawResult();
-        } catch (ElasticsearchException e) {
-            throw wrapAsExecutionException(e.unwrapCause());
         } catch (Exception e) {
-            throw wrapAsExecutionException(e);
+            throw wrapException(e);
         }
+    }
+
+    @Override
+    protected RuntimeException wrapException(Exception exception) {
+        return wrapAsExecutionException(ExceptionsHelper.unwrapCause(exception));
     }
 }

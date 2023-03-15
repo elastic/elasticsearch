@@ -137,7 +137,11 @@ public class FanOutListener<T> implements ActionListener<T> {
 
     @Override
     public void onFailure(Exception exception) {
-        setResult(new FailureResult(exception));
+        setResult(new FailureResult(exception, wrapException(exception)));
+    }
+
+    protected Exception wrapException(Exception exception) {
+        return exception;
     }
 
     /**
@@ -275,16 +279,17 @@ public class FanOutListener<T> implements ActionListener<T> {
         }
     }
 
-    private record FailureResult(Exception exception) {
+    private record FailureResult(Exception exception, Exception wrappedException) {
         public void complete(ActionListener<?> listener) {
             try {
-                listener.onFailure(exception);
+                listener.onFailure(wrappedException);
             } catch (Exception innerException) {
-                if (exception != innerException) {
-                    exception.addSuppressed(innerException);
+                if (wrappedException != innerException) {
+                    innerException.addSuppressed(wrappedException);
                 }
-                logger.error(Strings.format("exception thrown while handling another exception in listener [%s]", listener), exception);
-                assert false : exception;
+                logger.error(Strings.format("exception thrown while handling another exception in listener [%s]", listener),
+                    innerException);
+                assert false : innerException;
                 // nothing more can be done here
             }
         }

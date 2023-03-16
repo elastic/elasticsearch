@@ -9,14 +9,18 @@
 package org.elasticsearch.http;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStream;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.logging.ChunkedLoggingStreamTests;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -48,6 +52,7 @@ import org.mockito.ArgumentCaptor;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.ClosedChannelException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -573,6 +578,91 @@ public class DefaultRestChannelTests extends ESTestCase {
             expectThrows(RuntimeException.class, () -> channel.sendResponse(new RestResponse(RestStatus.OK, "ignored")));
             mockLogAppender.assertAllExpectationsMatched();
         }
+    }
+
+    @TestLogging(
+        reason = "testing trace logging",
+        value = HttpTracerTests.HTTP_TRACER_LOGGER + ":TRACE," + HttpTracerTests.HTTP_BODY_TRACER_LOGGER + ":TRACE"
+    )
+    public void testResponseBodyTracing() {
+        doAnswer(invocationOnMock -> {
+            ActionListener<?> listener = invocationOnMock.getArgument(1);
+            listener.onResponse(null);
+            return null;
+        }).when(httpChannel).sendResponse(any(HttpResponse.class), anyActionListener());
+
+        HttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/") {
+            @Override
+            public HttpResponse createResponse(RestStatus status, ChunkedRestResponseBody content) {
+                try (var bso = new BytesStreamOutput()) {
+                    while (content.isDone() == false) {
+                        try (var bytes = content.encodeChunk(1 << 14, BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
+                            bytes.writeTo(bso);
+                        }
+                    }
+                    return new TestHttpResponse(status, bso.bytes());
+                } catch (IOException e) {
+                    throw new AssertionError("unexpected", e);
+                }
+            }
+        };
+
+        final RestRequest request = RestRequest.request(parserConfig(), httpRequest, httpChannel);
+        DefaultRestChannel channel = new DefaultRestChannel(
+            httpChannel,
+            request.getHttpRequest(),
+            request,
+            bigArrays,
+            HttpHandlingSettings.fromSettings(Settings.EMPTY),
+            threadPool.getThreadContext(),
+            CorsHandler.fromSettings(Settings.EMPTY),
+            new HttpTracer(),
+            tracer
+        );
+
+        var responseBody = new BytesArray(randomUnicodeOfLengthBetween(1, 100).getBytes(StandardCharsets.UTF_8));
+        assertEquals(
+            responseBody,
+            ChunkedLoggingStreamTests.getDecodedLoggedBody(
+                LogManager.getLogger(HttpTracerTests.HTTP_BODY_TRACER_LOGGER),
+                Level.TRACE,
+                "[" + request.getRequestId() + "] response body",
+                ReferenceDocs.HTTP_TRACER,
+                () -> channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, responseBody))
+            )
+        );
+
+        assertEquals(
+            responseBody,
+            ChunkedLoggingStreamTests.getDecodedLoggedBody(
+                LogManager.getLogger(HttpTracerTests.HTTP_BODY_TRACER_LOGGER),
+                Level.TRACE,
+                "[" + request.getRequestId() + "] response body",
+                ReferenceDocs.HTTP_TRACER,
+                () -> channel.sendResponse(new RestResponse(RestStatus.OK, new ChunkedRestResponseBody() {
+
+                    boolean isDone;
+
+                    @Override
+                    public boolean isDone() {
+                        return isDone;
+                    }
+
+                    @Override
+                    public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) {
+                        assertFalse(isDone);
+                        isDone = true;
+                        return ReleasableBytesReference.wrap(responseBody);
+                    }
+
+                    @Override
+                    public String getResponseContentTypeString() {
+                        return RestResponse.TEXT_CONTENT_TYPE;
+                    }
+                }))
+            )
+        );
+
     }
 
     private TestHttpResponse executeRequest(final Settings settings, final String host) {

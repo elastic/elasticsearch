@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.*;
@@ -58,12 +59,15 @@ public class CrossClusterAccessUser extends User {
         return INSTANCE.equals(user);
     }
 
-    public static CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo(TransportVersion transportVersion, String nodeName)
-        throws IOException {
-        return new CrossClusterAccessSubjectInfo(
-            Authentication.newInternalAuthentication(INSTANCE, transportVersion, nodeName),
-            new RoleDescriptorsIntersection(ROLE_DESCRIPTOR)
-        );
+    public static CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo(TransportVersion transportVersion, String nodeName) {
+        try {
+            return new CrossClusterAccessSubjectInfo(
+                Authentication.newInternalAuthentication(INSTANCE, transportVersion, nodeName),
+                new RoleDescriptorsIntersection(ROLE_DESCRIPTOR)
+            );
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     public static void validateRoleDescriptors(List<RoleDescriptorsBytes> roleDescriptorsBytesList) throws IOException {

@@ -227,14 +227,21 @@ public class SSLConfigurationSettings {
     public static final Function<String, Setting.AffixSetting<Optional<SslVerificationMode>>> VERIFICATION_MODE_SETTING_REALM =
         VERIFICATION_MODE::realm;
 
+    public enum IntendedUse {
+        SERVER,
+        CLIENT,
+        BOTH
+    }
+
     /**
      * @param prefix The prefix under which each setting should be defined. Must be either the empty string (<code>""</code>) or a string
      *               ending in <code>"."</code>
-     * @param acceptNonSecurePasswords Whether legacy (non-secure passwords should be accepted
+     * @param acceptNonSecurePasswords Whether legacy (non-secure passwords) should be accepted
+     * @param intendedUse The intended use of this SSL configuration, can be server, client or both
      * @see #withoutPrefix
      * @see #withPrefix
      */
-    private SSLConfigurationSettings(String prefix, boolean acceptNonSecurePasswords) {
+    private SSLConfigurationSettings(String prefix, boolean acceptNonSecurePasswords, IntendedUse intendedUse) {
         assert prefix != null : "Prefix cannot be null (but can be blank)";
 
         x509KeyPair = X509KeyPairSettings.withPrefix(prefix, acceptNonSecurePasswords);
@@ -260,10 +267,14 @@ public class SSLConfigurationSettings {
             truststoreType,
             trustRestrictionsPath,
             trustRestrictionsX509Fields,
-            caPaths,
-            clientAuth,
-            verificationMode
+            caPaths
         );
+        switch (intendedUse) {
+            case CLIENT -> enabled.add(verificationMode);
+            case SERVER -> enabled.add(clientAuth);
+            case BOTH -> enabled.addAll(List.of(verificationMode, clientAuth));
+            default -> throw new IllegalArgumentException("invalid intended use [" + intendedUse + "]");
+        }
         final List<Setting<?>> disabled = new ArrayList<>();
         if (acceptNonSecurePasswords) {
             enabled.add(legacyTruststorePassword);
@@ -289,10 +300,10 @@ public class SSLConfigurationSettings {
     /**
      * Construct settings that are un-prefixed. That is, they can be used to read from a {@link Settings} object where the configuration
      * keys are the root names of the <code>Settings</code>.
-     * @param acceptNonSecurePasswords
+     * @param acceptNonSecurePasswords Whether legacy (non-secure passwords) should be accepted
      */
     public static SSLConfigurationSettings withoutPrefix(boolean acceptNonSecurePasswords) {
-        return new SSLConfigurationSettings("", acceptNonSecurePasswords);
+        return new SSLConfigurationSettings("", acceptNonSecurePasswords, IntendedUse.BOTH);
     }
 
     /**
@@ -300,11 +311,24 @@ public class SSLConfigurationSettings {
      * keys are prefixed-children of the <code>Settings</code>.
      *
      * @param prefix A string that must end in <code>"ssl."</code>
-     * @param acceptNonSecurePasswords
+     * @param acceptNonSecurePasswords Whether legacy (non-secure passwords) should be accepted
      */
     public static SSLConfigurationSettings withPrefix(String prefix, boolean acceptNonSecurePasswords) {
         assert prefix.endsWith(".") : "The ssl config prefix (" + prefix + ") should end in '.'";
-        return new SSLConfigurationSettings(prefix, acceptNonSecurePasswords);
+        return new SSLConfigurationSettings(prefix, acceptNonSecurePasswords, IntendedUse.BOTH);
+    }
+
+    /**
+     * Construct settings that have a prefixed. That is, they can be used to read from a {@link Settings} object where the configuration
+     * keys are prefixed-children of the <code>Settings</code>.
+     *
+     * @param prefix A string that must end in <code>"ssl."</code>
+     * @param acceptNonSecurePasswords Whether legacy (non-secure passwords) should be accepted
+     * @param intendedUse The intended use of this SSL configuration, can be server, client or both
+     */
+    public static SSLConfigurationSettings withPrefix(String prefix, boolean acceptNonSecurePasswords, IntendedUse intendedUse) {
+        assert prefix.endsWith(".") : "The ssl config prefix (" + prefix + ") should end in '.'";
+        return new SSLConfigurationSettings(prefix, acceptNonSecurePasswords, intendedUse);
     }
 
     private static Collection<SslSetting<?>> settings() {

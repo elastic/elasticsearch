@@ -49,9 +49,9 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     GetFeatureUpgradeStatusResponse> {
 
     /**
-     * This version is only valid for >=8.0.0 and should be changed on backport.
+     * Once all feature migrations for 8.x -> 9.x have been tested, we can bump this to Version.V_8_0_0
      */
-    public static final Version NO_UPGRADE_REQUIRED_VERSION = Version.V_8_0_0;
+    public static final Version NO_UPGRADE_REQUIRED_VERSION = Version.V_7_0_0;
 
     private final SystemIndices systemIndices;
     PersistentTasksService persistentTasksService;
@@ -77,6 +77,9 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
             GetFeatureUpgradeStatusResponse::new,
             ThreadPool.Names.SAME
         );
+
+        assert Version.CURRENT.major == 8 : "Once we begin working on 9.x, we need to update our migration classes";
+
         this.systemIndices = systemIndices;
         this.persistentTasksService = persistentTasksService;
     }

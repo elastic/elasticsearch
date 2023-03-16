@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -222,8 +223,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         if (role.isUsingDocumentOrFieldLevelSecurity() && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException("field and document level security"));
         } else if (role.hasRemoteIndicesPrivileges()
-            // TODO here a node version is mixed with a transportVersion. We should look into this once Node's Version is refactored
-            && clusterService.state().nodes().getMinNodeVersion().transportVersion.before(RoleDescriptor.VERSION_REMOTE_INDICES)) {
+            && clusterService.state().nodes().getMinNodeVersion().before(RoleDescriptor.VERSION_REMOTE_INDICES)) {
                 listener.onFailure(
                     new IllegalStateException(
                         "all nodes must have version ["
@@ -326,7 +326,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                 .setTerminateAfter(1)
                         )
                         .request(),
-                    new ActionListener.Delegating<MultiSearchResponse, Map<String, Object>>(listener) {
+                    new DelegatingActionListener<MultiSearchResponse, Map<String, Object>>(listener) {
                         @Override
                         public void onResponse(MultiSearchResponse items) {
                             Item[] responses = items.getResponses();

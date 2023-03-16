@@ -69,10 +69,7 @@ public final class DocumentParser {
         } catch (Exception e) {
             throw wrapInMapperParsingException(source, e);
         }
-        String remainingPath = context.path().pathAsText("");
-        if (remainingPath.isEmpty() == false) {
-            throwOnLeftoverPathElements(remainingPath);
-        }
+        assert context.path.atRoot() : "found leftover path elements: " + context.path.pathAsText("");
 
         return new ParsedDocument(
             context.version(),
@@ -90,10 +87,6 @@ public final class DocumentParser {
                 return idMapper.documentDescription(this);
             }
         };
-    }
-
-    private static void throwOnLeftoverPathElements(String remainingPath) {
-        throw new IllegalStateException("found leftover path elements: " + remainingPath);
     }
 
     private static void internalParseDocument(
@@ -313,7 +306,7 @@ public final class DocumentParser {
                     break;
                 default:
                     if (token.isValue()) {
-                        parseValue(context, mapper, currentFieldName, token);
+                        parseValue(context, mapper, currentFieldName);
                     }
                     break;
             }
@@ -551,7 +544,7 @@ public final class DocumentParser {
                 throwEOFOnParseArray(mapper, arrayFieldName);
             } else {
                 assert token.isValue();
-                parseValue(context, mapper, lastFieldName, token);
+                parseValue(context, mapper, lastFieldName);
             }
         }
     }
@@ -566,12 +559,8 @@ public final class DocumentParser {
         );
     }
 
-    private static void parseValue(
-        final DocumentParserContext context,
-        ObjectMapper parentMapper,
-        String currentFieldName,
-        XContentParser.Token token
-    ) throws IOException {
+    private static void parseValue(final DocumentParserContext context, ObjectMapper parentMapper, String currentFieldName)
+        throws IOException {
         if (currentFieldName == null) {
             throwOnNoFieldName(context, parentMapper);
         }
@@ -579,7 +568,7 @@ public final class DocumentParser {
         if (mapper != null) {
             parseObjectOrField(context, mapper);
         } else {
-            parseDynamicValue(context, parentMapper, currentFieldName, token);
+            parseDynamicValue(context, parentMapper, currentFieldName);
         }
     }
 
@@ -605,12 +594,8 @@ public final class DocumentParser {
         }
     }
 
-    private static void parseDynamicValue(
-        final DocumentParserContext context,
-        ObjectMapper parentMapper,
-        String currentFieldName,
-        XContentParser.Token token
-    ) throws IOException {
+    private static void parseDynamicValue(final DocumentParserContext context, ObjectMapper parentMapper, String currentFieldName)
+        throws IOException {
         ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);
         if (dynamic == ObjectMapper.Dynamic.STRICT) {
             throw new StrictDynamicMappingException(parentMapper.fullPath(), currentFieldName);
@@ -619,7 +604,7 @@ public final class DocumentParser {
             failIfMatchesRoutingPath(context, parentMapper, currentFieldName);
             return;
         }
-        dynamic.getDynamicFieldsBuilder().createDynamicFieldFromValue(context, token, currentFieldName);
+        dynamic.getDynamicFieldsBuilder().createDynamicFieldFromValue(context, currentFieldName);
     }
 
     private static void failIfMatchesRoutingPath(DocumentParserContext context, ObjectMapper parentMapper, String currentFieldName) {
@@ -806,7 +791,7 @@ public final class DocumentParser {
      * and how they are stored in the lucene index.
      */
     private static class InternalDocumentParserContext extends DocumentParserContext {
-        private final ContentPath path = new ContentPath(0);
+        private final ContentPath path = new ContentPath();
         private final XContentParser parser;
         private final LuceneDocument document;
         private final List<LuceneDocument> documents = new ArrayList<>();
@@ -822,7 +807,7 @@ public final class DocumentParser {
         ) throws IOException {
             super(mappingLookup, mappingParserContext, source);
             if (mappingLookup.getMapping().getRoot().subobjects()) {
-                this.parser = DotExpandingXContentParser.expandDots(parser, this.path::isWithinLeafObject);
+                this.parser = DotExpandingXContentParser.expandDots(parser, this.path);
             } else {
                 this.parser = parser;
             }

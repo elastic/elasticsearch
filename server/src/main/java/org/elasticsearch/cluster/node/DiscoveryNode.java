@@ -63,6 +63,16 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * Check if the serverless feature flag is present and set to {@code true}, indicating that the node is
+     * part of a serverless deployment.
+     *
+     * @return true if the serverless feature flag is present and set
+     */
+    public static boolean isServerless() {
+        return DiscoveryNodeRole.hasServerlessFeatureFlag();
+    }
+
     static final String COORDINATING_ONLY = "coordinating_only";
     public static final TransportVersion EXTERNAL_ID_VERSION = TransportVersion.V_8_3_0;
     public static final Comparator<DiscoveryNode> DISCOVERY_NODE_COMPARATOR = Comparator.comparing(DiscoveryNode::getName)
@@ -630,6 +640,21 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         builder.field("version", version);
         builder.endObject();
         return builder;
+    }
+
+    public DiscoveryNode withTransportAddress(TransportAddress transportAddress) {
+        return new DiscoveryNode(
+            getName(),
+            getId(),
+            getEphemeralId(),
+            getHostName(),
+            getHostAddress(),
+            transportAddress,
+            getAttributes(),
+            getRoles(),
+            getVersion(),
+            getExternalId()
+        );
     }
 
     /**

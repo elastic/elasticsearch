@@ -197,6 +197,6 @@ public class ShardFollowTask extends ImmutableFollowParameters implements Persis
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.CURRENT.minimumCompatibilityVersion();
+        return TransportVersion.MINIMUM_COMPATIBLE;
     }
 }

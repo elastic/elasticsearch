@@ -3061,7 +3061,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     recoveryTargetService.startRecovery(this, recoveryState.getSourceNode(), recoveryListener);
                 } catch (Exception e) {
                     failShard("corrupted preexisting index", e);
-                    recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true);
+                    recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), true);
                 }
                 break;
             case SNAPSHOT:
@@ -3144,7 +3144,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (r) {
                 recoveryListener.onRecoveryDone(recoveryState, getTimestampRange());
             }
-        }, e -> recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true)), action));
+        }, e -> recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), true)), action));
     }
 
     /**
@@ -3269,14 +3269,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 this.warmer.warm(reader);
             }
         };
-        final boolean isTimeseriesIndex = mapperService == null ? false : mapperService.mappingLookup().hasTimestampField();
+        final boolean isTimeBasedIndex = mapperService == null ? false : mapperService.mappingLookup().hasTimestampField();
         return new EngineConfig(
             shardId,
             threadPool,
             indexSettings,
             warmer,
             store,
-            indexSettings.getMergePolicy(),
+            indexSettings.getMergePolicy(isTimeBasedIndex),
             buildIndexAnalyzer(mapperService),
             similarityService.similarity(mapperService == null ? null : mapperService::fieldType),
             codecService,
@@ -3293,7 +3293,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             replicationTracker::getRetentionLeases,
             this::getOperationPrimaryTerm,
             snapshotCommitSupplier,
-            isTimeseriesIndex ? TIMESERIES_LEAF_READERS_SORTER : null,
+            isTimeBasedIndex ? TIMESERIES_LEAF_READERS_SORTER : null,
             relativeTimeInNanosSupplier,
             indexCommitListener,
             routingEntry().isPromotableToPrimary()
@@ -3901,7 +3901,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         markSearcherAccessed(); // move the shard into non-search idle
         final Translog.Location location = pendingRefreshLocation.get();
         if (location != null) {
-            addRefreshListener(location, (b) -> {
+            addRefreshListener(location, (result) -> {
                 pendingRefreshLocation.compareAndSet(location, null);
                 listener.accept(true);
             });

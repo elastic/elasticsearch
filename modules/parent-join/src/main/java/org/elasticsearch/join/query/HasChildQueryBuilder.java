@@ -22,7 +22,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.search.NoRewriteMatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -426,7 +425,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                     // blow up since for this query to work we have to have a DirectoryReader otherwise
                     // we can't load global ordinals - for this to work we simply check if the reader has no leaves
                     // and rewrite to match nothing
-                    return new NoRewriteMatchNoDocsQuery("Can't load against an empty reader");
+                    return new MatchNoDocsQuery("Can't load against an empty reader");
                 }
                 throw new IllegalStateException(
                     "can't load global ordinals for reader of type: " + reader.getClass() + " must be a DirectoryReader"

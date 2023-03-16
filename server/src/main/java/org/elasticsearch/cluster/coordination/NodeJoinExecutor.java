@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
@@ -42,10 +43,20 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
 
     private final AllocationService allocationService;
     private final RerouteService rerouteService;
+    private final Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection;
 
     public NodeJoinExecutor(AllocationService allocationService, RerouteService rerouteService) {
+        this(allocationService, rerouteService, Function.identity());
+    }
+
+    public NodeJoinExecutor(
+        AllocationService allocationService,
+        RerouteService rerouteService,
+        Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection
+    ) {
         this.allocationService = allocationService;
         this.rerouteService = rerouteService;
+        this.maybeReconfigureAfterMasterElection = maybeReconfigureAfterMasterElection;
     }
 
     @Override
@@ -214,7 +225,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
 
     protected ClusterState.Builder becomeMasterAndTrimConflictingNodes(
         ClusterState currentState,
-        List<TaskContext<JoinTask>> taskContexts,
+        List<? extends TaskContext<JoinTask>> taskContexts,
         long term
     ) {
         assert currentState.nodes().getMasterNodeId() == null : currentState;
@@ -256,6 +267,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         logger.trace("becomeMasterAndTrimConflictingNodes: {}", tmpState.nodes());
         allocationService.cleanCaches();
         tmpState = PersistentTasksCustomMetadata.disassociateDeadNodes(tmpState);
+        tmpState = maybeReconfigureAfterMasterElection.apply(tmpState);
         return ClusterState.builder(allocationService.disassociateDeadNodes(tmpState, false, "removed dead nodes on election"));
     }
 

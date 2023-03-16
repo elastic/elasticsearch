@@ -54,6 +54,7 @@ import static org.elasticsearch.cluster.ClusterModule.BALANCED_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -120,10 +121,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         for (int i = 0; i < randomInt(8); i++) {
             String indexName = randomAlphaOfLength(8);
-            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(0);
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName).settings(indexSettings(Version.CURRENT, 1, 0));
             if (randomBoolean()) {
                 indexMetadataBuilder.indexWriteLoadForecast(randomDoubleBetween(0.0, 8.0, true));
             }
@@ -180,7 +178,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
         }
         RoutingTable routingTable = routingTableBuilder.build();
 
-        List<ShardId> shardIds = routingTable.allShards().stream().map(ShardRouting::shardId).toList();
+        List<ShardId> shardIds = routingTable.allShards().map(ShardRouting::shardId).toList();
         Map<String, Set<ShardId>> indexShards = shardIds.stream()
             .collect(Collectors.groupingBy(e -> e.getIndex().getName(), Collectors.toSet()));
         Map<ShardId, ShardAssignment> shardAssignments = new HashMap<>();
@@ -207,7 +205,8 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
             randomInt(Integer.MAX_VALUE)
         );
         when(desiredBalanceShardsAllocator.getStats()).thenReturn(desiredBalanceStats);
-        when(clusterInfoService.getClusterInfo()).thenReturn(ClusterInfo.EMPTY);
+        ClusterInfo clusterInfo = ClusterInfo.EMPTY;
+        when(clusterInfoService.getClusterInfo()).thenReturn(clusterInfo);
 
         var clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadataBuilder.build())
@@ -220,8 +219,9 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
         ArgumentCaptor<DesiredBalanceResponse> desiredBalanceResponseCaptor = ArgumentCaptor.forClass(DesiredBalanceResponse.class);
         verify(listener).onResponse(desiredBalanceResponseCaptor.capture());
         DesiredBalanceResponse desiredBalanceResponse = desiredBalanceResponseCaptor.getValue();
-        assertEquals(desiredBalanceStats, desiredBalanceResponse.getStats());
-        assertNotNull(desiredBalanceResponse.getClusterBalanceStats());
+        assertThat(desiredBalanceResponse.getStats(), equalTo(desiredBalanceStats));
+        assertThat(desiredBalanceResponse.getClusterBalanceStats(), notNullValue());
+        assertThat(desiredBalanceResponse.getClusterInfo(), equalTo(clusterInfo));
         assertEquals(indexShards.keySet(), desiredBalanceResponse.getRoutingTable().keySet());
         for (var e : desiredBalanceResponse.getRoutingTable().entrySet()) {
             String index = e.getKey();

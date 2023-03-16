@@ -132,7 +132,9 @@ public class TransportVersion implements Comparable<TransportVersion> {
     public static final TransportVersion V_8_6_0 = new TransportVersion(8_06_00_99, "e209c5ed-3488-4415-b561-33492ca3b789");
     public static final TransportVersion V_8_6_1 = new TransportVersion(8_06_01_99, "9f113acb-1b21-4fda-bef9-2a3e669b5c7b");
     public static final TransportVersion V_8_6_2 = new TransportVersion(8_06_02_99, "5a82fb68-b265-4a06-97c5-53496f823f51");
+    public static final TransportVersion V_8_6_3 = new TransportVersion(8_06_03_99, "640b4f56-74a5-4d0e-bfb2-0a6395128d7f");
     public static final TransportVersion V_8_7_0 = new TransportVersion(8_07_00_99, "f1ee7a85-4fa6-43f5-8679-33e2b750448b");
+    public static final TransportVersion V_8_8_0 = new TransportVersion(8_08_00_99, "f64fe576-0767-4ec3-984e-3e30b33b6c46");
     /*
      * READ THE JAVADOC ABOVE BEFORE ADDING NEW TRANSPORT VERSIONS
      * Detached transport versions added below here. Starts at ES major version 10 equivalent.
@@ -148,7 +150,7 @@ public class TransportVersion implements Comparable<TransportVersion> {
      */
 
     /** Reference to the current transport version */
-    public static final TransportVersion CURRENT = V_8_7_0;
+    public static final TransportVersion CURRENT = V_8_8_0;
 
     /** Reference to the earliest compatible transport version to this version of the codebase */
     // TODO: can we programmatically calculate or check this? Don't want to introduce circular ref between Version/TransportVersion
@@ -194,6 +196,10 @@ public class TransportVersion implements Comparable<TransportVersion> {
         VERSION_IDS = getAllVersionIds(TransportVersion.class);
     }
 
+    static Collection<TransportVersion> getAllVersions() {
+        return VERSION_IDS.values();
+    }
+
     public static TransportVersion readVersion(StreamInput in) throws IOException {
         return fromId(in.readVInt());
     }
@@ -225,13 +231,6 @@ public class TransportVersion implements Comparable<TransportVersion> {
         return version1.id > version2.id ? version1 : version2;
     }
 
-    /**
-     * returns a sorted collection of declared transport version constants
-     */
-    public static Collection<TransportVersion> getAllVersions() {
-        return VERSION_IDS.values();
-    }
-
     public final int id;
     private final String uniqueId;
 
@@ -241,31 +240,10 @@ public class TransportVersion implements Comparable<TransportVersion> {
     }
 
     /**
-     * Placeholder method for code compatibility with code calling {@code CURRENT.minimumCompatibilityVersion}.
+     * Returns {@code true} if the specified version is compatible with this running version of Elasticsearch.
      */
-    @Deprecated(forRemoval = true)
-    public TransportVersion minimumCompatibilityVersion() {
-        assert this.equals(CURRENT) : "Should be CURRENT, but was: " + this;
-        return MINIMUM_COMPATIBLE;
-    }
-
-    @Deprecated(forRemoval = true)
-    public boolean isCompatible(TransportVersion version) {
-        return onOrAfter(version.calculateMinimumCompatVersion()) && version.onOrAfter(calculateMinimumCompatVersion());
-    }
-
-    private TransportVersion minimumCompatibleVersion;
-
-    /**
-     * Placeholder for code calling {@code minimumCompatibilityVersion} on arbitrary Version instances.
-     * Code calling this should be refactored to not do this.
-     */
-    @Deprecated(forRemoval = true)
-    public TransportVersion calculateMinimumCompatVersion() {
-        if (minimumCompatibleVersion == null) {
-            minimumCompatibleVersion = Version.findVersion(this).minimumCompatibilityVersion().transportVersion;
-        }
-        return minimumCompatibleVersion;
+    public static boolean isCompatible(TransportVersion version) {
+        return version.onOrAfter(MINIMUM_COMPATIBLE);
     }
 
     public boolean after(TransportVersion version) {

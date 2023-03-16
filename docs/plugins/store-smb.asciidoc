@@ -1,5 +1,5 @@
 [[store-smb]]
-=== Store SMB Plugin
+=== Store SMB plugin
 
 The Store SMB plugin works around for a bug in Windows SMB and Java on windows.
 

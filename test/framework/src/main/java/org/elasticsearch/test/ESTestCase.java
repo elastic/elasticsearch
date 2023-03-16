@@ -182,7 +182,7 @@ import static org.hamcrest.Matchers.startsWith;
 @ThreadLeakScope(Scope.SUITE)
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
-@ThreadLeakFilters(filters = { GraalVMThreadsFilter.class })
+@ThreadLeakFilters(filters = { GraalVMThreadsFilter.class, NettyGlobalThreadsFilter.class })
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 // we suppress pretty much all the lucene codecs for now, except asserting
 // assertingcodec is the winner for a codec here: it finds bugs and gives clear exceptions.
@@ -417,13 +417,11 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @BeforeClass
     public static void setContentType() throws Exception {
-        Requests.CONTENT_TYPE = randomFrom(XContentType.values());
         Requests.INDEX_CONTENT_TYPE = randomFrom(XContentType.values());
     }
 
     @AfterClass
     public static void restoreContentType() {
-        Requests.CONTENT_TYPE = XContentType.SMILE;
         Requests.INDEX_CONTENT_TYPE = XContentType.JSON;
     }
 
@@ -819,8 +817,14 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @return a <code>long</code> between <code>0</code> and <code>Long.MAX_VALUE</code> (inclusive) chosen uniformly at random.
      */
     public static long randomNonNegativeLong() {
-        long randomLong = randomLong();
-        return randomLong == Long.MIN_VALUE ? 0 : Math.abs(randomLong);
+        return randomLong() & Long.MAX_VALUE;
+    }
+
+    /**
+     * @return an <code>int</code> between <code>0</code> and <code>Integer.MAX_VALUE</code> (inclusive) chosen uniformly at random.
+     */
+    public static int randomNonNegativeInt() {
+        return randomInt() & Integer.MAX_VALUE;
     }
 
     public static float randomFloat() {
@@ -1273,6 +1277,12 @@ public abstract class ESTestCase extends LuceneTestCase {
         return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
     }
 
+    /** Return consistent index settings for the provided index version, shard- and replica-count. */
+    public static Settings.Builder indexSettings(Version indexVersionCreated, int shards, int replicas) {
+        return settings(indexVersionCreated).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas);
+    }
+
     /**
      * Returns size random values
      */
@@ -1477,20 +1487,6 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /**
      * Same as {@link #copyWriteable(Writeable, NamedWriteableRegistry, Writeable.Reader)} but also allows to provide
-     * a {@link Version} argument which will be used to write and read back the object.
-     */
-    @Deprecated
-    public static <T extends Writeable> T copyWriteable(
-        T original,
-        NamedWriteableRegistry namedWriteableRegistry,
-        Writeable.Reader<T> reader,
-        Version version
-    ) throws IOException {
-        return copyWriteable(original, namedWriteableRegistry, reader, version.transportVersion);
-    }
-
-    /**
-     * Same as {@link #copyWriteable(Writeable, NamedWriteableRegistry, Writeable.Reader)} but also allows to provide
      * a {@link TransportVersion} argument which will be used to write and read back the object.
      */
     public static <T extends Writeable> T copyWriteable(
@@ -1516,22 +1512,6 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /**
      * Same as {@link #copyNamedWriteable(NamedWriteable, NamedWriteableRegistry, Class)} but also allows to provide
-     * a {@link Version} argument which will be used to write and read back the object.
-     * @return
-     */
-    @SuppressWarnings("unchecked")
-    @Deprecated
-    public static <C extends NamedWriteable, T extends C> C copyNamedWriteable(
-        T original,
-        NamedWriteableRegistry namedWriteableRegistry,
-        Class<C> categoryClass,
-        Version version
-    ) throws IOException {
-        return copyNamedWriteable(original, namedWriteableRegistry, categoryClass, version.transportVersion);
-    }
-
-    /**
-     * Same as {@link #copyNamedWriteable(NamedWriteable, NamedWriteableRegistry, Class)} but also allows to provide
      * a {@link TransportVersion} argument which will be used to write and read back the object.
      * @return
      */
@@ -1549,17 +1529,6 @@ public abstract class ESTestCase extends LuceneTestCase {
             in -> in.readNamedWriteable(categoryClass),
             version
         );
-    }
-
-    @Deprecated
-    protected static <T> T copyInstance(
-        T original,
-        NamedWriteableRegistry namedWriteableRegistry,
-        Writeable.Writer<T> writer,
-        Writeable.Reader<T> reader,
-        Version version
-    ) throws IOException {
-        return copyInstance(original, namedWriteableRegistry, writer, reader, version.transportVersion);
     }
 
     protected static <T> T copyInstance(

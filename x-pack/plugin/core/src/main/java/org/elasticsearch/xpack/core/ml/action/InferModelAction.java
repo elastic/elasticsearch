@@ -75,7 +75,8 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             return builder;
         }
 
-        public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(10);
+        public static final TimeValue DEFAULT_TIMEOUT_FOR_API = TimeValue.timeValueSeconds(10);
+        public static final TimeValue DEFAULT_TIMEOUT_FOR_INGEST = TimeValue.MAX_VALUE;
 
         private final String modelId;
         private final List<Map<String, Object>> objectsToInfer;
@@ -86,8 +87,15 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         // and do know which field the model expects to find its
         // input and so cannot construct a document.
         private final List<String> textInput;
+        private boolean highPriority;
 
-        public static Request forDocs(
+        /**
+         * Build a request from a list of documents as maps.
+         * The inference timeout (how long the request waits in
+         * the inference queue for) is set to a high value {@code #DEFAULT_TIMEOUT_FOR_INGEST}
+         * to prefer slow ingest over dropping documents.
+         */
+        public static Request forIngestDocs(
             String modelId,
             List<Map<String, Object>> docs,
             InferenceConfigUpdate update,
@@ -98,18 +106,24 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
                 update,
                 ExceptionsHelper.requireNonNull(Collections.unmodifiableList(docs), DOCS),
                 null,
-                DEFAULT_TIMEOUT,
+                DEFAULT_TIMEOUT_FOR_INGEST,
                 previouslyLicensed
             );
         }
 
+        /**
+         * Build a request from a list of strings, each string
+         * is one evaluation of the model.
+         * The inference timeout (how long the request waits in
+         * the inference queue for) is set to {@code #DEFAULT_TIMEOUT_FOR_API}
+         */
         public static Request forTextInput(String modelId, InferenceConfigUpdate update, List<String> textInput) {
             return new Request(
                 modelId,
                 update,
                 List.of(),
                 ExceptionsHelper.requireNonNull(textInput, "inference text input"),
-                DEFAULT_TIMEOUT,
+                DEFAULT_TIMEOUT_FOR_API,
                 false
             );
         }
@@ -146,6 +160,9 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             } else {
                 textInput = null;
             }
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+                highPriority = in.readBoolean();
+            }
         }
 
         public int numberOfDocuments() {
@@ -180,8 +197,17 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             return inferenceTimeout;
         }
 
-        public void setInferenceTimeout(TimeValue inferenceTimeout) {
+        public Request setInferenceTimeout(TimeValue inferenceTimeout) {
             this.inferenceTimeout = inferenceTimeout;
+            return this;
+        }
+
+        public boolean isHighPriority() {
+            return highPriority;
+        }
+
+        public void setHighPriority(boolean highPriority) {
+            this.highPriority = highPriority;
         }
 
         @Override
@@ -202,6 +228,9 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
                 out.writeOptionalStringCollection(textInput);
             }
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+                out.writeBoolean(highPriority);
+            }
         }
 
         @Override
@@ -214,7 +243,8 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
                 && Objects.equals(previouslyLicensed, that.previouslyLicensed)
                 && Objects.equals(inferenceTimeout, that.inferenceTimeout)
                 && Objects.equals(objectsToInfer, that.objectsToInfer)
-                && Objects.equals(textInput, that.textInput);
+                && Objects.equals(textInput, that.textInput)
+                && (highPriority == that.highPriority);
         }
 
         @Override
@@ -224,7 +254,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId, objectsToInfer, update, previouslyLicensed, inferenceTimeout, textInput);
+            return Objects.hash(modelId, objectsToInfer, update, previouslyLicensed, inferenceTimeout, textInput, highPriority);
         }
 
         public static class Builder {

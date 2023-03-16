@@ -413,7 +413,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 SpanMultiTermQueryWrapper<?> spanMulti = new SpanMultiTermQueryWrapper<>(
                     new PrefixQuery(new Term(name(), indexedValueForSearch(value)))
                 );
-                spanMulti.setRewriteMethod(method);
+                if (method != null) {
+                    spanMulti.setRewriteMethod(method);
+                }
                 return spanMulti;
             }
         }
@@ -464,8 +466,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 automata.add(Automata.makeAnyChar());
             }
             Automaton automaton = Operations.concatenate(automata);
-            AutomatonQuery query = new AutomatonQuery(new Term(name(), value + "*"), automaton);
-            query.setRewriteMethod(method);
+            AutomatonQuery query = method == null
+                ? new AutomatonQuery(new Term(name(), value + "*"), automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, false)
+                : new AutomatonQuery(new Term(name(), value + "*"), automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, false, method);
             return new BooleanQuery.Builder().add(query, BooleanClause.Occur.SHOULD)
                 .add(new TermQuery(new Term(parentField, value)), BooleanClause.Occur.SHOULD)
                 .build();
@@ -649,7 +652,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 SpanMultiTermQueryWrapper<?> spanMulti = new SpanMultiTermQueryWrapper<>(
                     new PrefixQuery(new Term(name(), indexedValueForSearch(value)))
                 );
-                spanMulti.setRewriteMethod(method);
+                if (method != null) {
+                    spanMulti.setRewriteMethod(method);
+                }
                 return spanMulti;
             }
         }

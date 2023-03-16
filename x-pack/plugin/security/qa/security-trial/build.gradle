@@ -22,7 +22,7 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   setting 'xpack.security.transport.ssl.enabled', 'false'
   setting 'xpack.security.authc.token.enabled', 'true'
   setting 'xpack.security.authc.api_key.enabled', 'true'
-  setting 'xpack.security.remote_cluster.ssl.enabled', 'false'
+  setting 'xpack.security.remote_cluster_client.ssl.enabled', 'false'
 
   rolesFile file('src/javaRestTest/resources/roles.yml')
   user username: "admin_user", password: "admin-password"

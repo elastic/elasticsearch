@@ -8,7 +8,7 @@
 
 package org.elasticsearch.health.node.selection;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;
 
@@ -30,7 +30,7 @@ public class HealthNodeTaskParamsTests extends AbstractNamedWriteableTestCase<He
     }
 
     @Override
-    protected HealthNodeTaskParams copyInstance(HealthNodeTaskParams instance, Version version) throws IOException {
+    protected HealthNodeTaskParams copyInstance(HealthNodeTaskParams instance, TransportVersion version) throws IOException {
         return new HealthNodeTaskParams();
     }
 

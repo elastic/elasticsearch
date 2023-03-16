@@ -16,9 +16,8 @@ import org.elasticsearch.core.Booleans;
 import java.util.function.Function;
 
 /**
- * <p>
  * A utility class for registering feature flags in Elasticsearch code.
- * </p>
+ * <br/>
  * Typical usage:
  * <pre>{
  *    public static final FeatureFlag XYZZY_FEATURE_FLAG = new FeatureFlag("xyzzy");
@@ -76,7 +75,7 @@ public class FeatureFlag {
                     "Feature flag " + name + " (via system property '" + propertyName + "') cannot be disabled in snapshot builds"
                 );
             }
-            logger.info("The current build is a snapshot, feature flag [{}] is enabled");
+            logger.info("The current build is a snapshot, feature flag [{}] is enabled", name);
         } else {
             enabled = parseSystemProperty(getSystemProperty, propertyName, false);
             logger.debug("The current build is a not snapshot, feature flag [{}] is {}", name, enabled ? "enabled" : "disabled");

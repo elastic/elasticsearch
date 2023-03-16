@@ -21,8 +21,6 @@ The API returns the following result:
 
 [source,console-result]
 --------------------------------------------------
-{
-  "acknowledged": true
-}
+{ }
 --------------------------------------------------
 // TEST[skip:Can't reliably test desired balance]

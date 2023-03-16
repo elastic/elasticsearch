@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -16,7 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.core.Booleans;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -66,7 +65,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         }
     }
 
-    private static final boolean FEATURE_FLAG_ENABLED;
+    private static final FeatureFlag DLM_FEATURE_FLAG = new FeatureFlag("dlm");
 
     public static final DataLifecycle EMPTY = new DataLifecycle();
     public static final String DLM_ORIGIN = "data_lifecycle";
@@ -81,11 +80,6 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     );
 
     static {
-        final String property = System.getProperty("es.dlm_feature_flag_enabled");
-        if (Build.CURRENT.isSnapshot() && property != null) {
-            throw new IllegalArgumentException("es.dlm_feature_flag_enabled is only supported in non-snapshot builds");
-        }
-        FEATURE_FLAG_ENABLED = Booleans.parseBoolean(property, false);
         PARSER.declareField(
             ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), DATA_RETENTION_FIELD.getPreferredName()),
@@ -95,7 +89,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     }
 
     public static boolean isEnabled() {
-        return Build.CURRENT.isSnapshot() || FEATURE_FLAG_ENABLED;
+        return DLM_FEATURE_FLAG.isEnabled();
     }
 
     @Nullable

@@ -22,7 +22,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
-import org.elasticsearch.action.support.FanOutListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
@@ -403,7 +402,7 @@ public class RecoverySourceHandler {
         CancellableThreads cancellableThreads
     ) {
         cancellableThreads.execute(() -> {
-            final var listener = new FanOutListener<Releasable>();
+            final var listener = new ListenableFuture<Releasable>();
             final var future = new PlainActionFuture<Releasable>();
             listener.addListener(future);
 

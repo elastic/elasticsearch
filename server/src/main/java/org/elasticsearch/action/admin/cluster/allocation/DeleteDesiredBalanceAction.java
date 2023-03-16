@@ -8,15 +8,15 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
-public class DeleteDesiredBalanceAction extends ActionType<AcknowledgedResponse> {
+public class DeleteDesiredBalanceAction extends ActionType<ActionResponse.Empty> {
 
     public static final DeleteDesiredBalanceAction INSTANCE = new DeleteDesiredBalanceAction();
     public static final String NAME = "cluster:admin/desired_balance/reset";
 
     DeleteDesiredBalanceAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME, in -> ActionResponse.Empty.INSTANCE);
     }
 }

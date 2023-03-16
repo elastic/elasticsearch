@@ -27,6 +27,7 @@ import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.test.TestSecurityClient.OAuth2Token;
 import org.elasticsearch.test.TestSecurityClient.TokenInvalidation;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
@@ -339,11 +340,12 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
     public void testInvalidateNotValidRefreshTokens() throws Exception {
         // Perform a request to invalidate a refresh token, before the tokens index is created
+        var version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_7_2_0, TransportVersion.CURRENT);
+        var uuid = UUIDs.randomBase64UUID();
+        var refreshToken = version.onOrAfter(TransportVersion.V_8_8_0) ? getTokenService().buildRefreshToken(uuid) : uuid;
         ResponseException e = expectThrows(
             ResponseException.class,
-            () -> invalidateRefreshToken(
-                TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.CURRENT, UUIDs.randomBase64UUID())
-            )
+            () -> invalidateRefreshToken(TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.V_8_7_0, refreshToken))
         );
         assertThat(e.getResponse(), hasStatusCode(RestStatus.BAD_REQUEST));
         // Create a token to trigger index creation
@@ -741,13 +743,17 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         return super.getSecurityClient(options).invalidateRefreshToken(refreshToken);
     }
 
+    private static TokenService getTokenService() {
+        return internalCluster().getInstance(TokenService.class);
+    }
+
     private String generateAccessToken(TransportVersion version) throws Exception {
-        TokenService tokenService = internalCluster().getInstance(TokenService.class);
+        TokenService tokenService = getTokenService();
         return TokenServiceTests.generateAccessToken(tokenService, version);
     }
 
     private String generateInvalidShortAccessToken(TransportVersion version) throws Exception {
-        TokenService tokenService = internalCluster().getInstance(TokenService.class);
+        TokenService tokenService = getTokenService();
         String accessTokenString = randomAlphaOfLength(32); // UUIDs are 36
         return tokenService.prependVersionAndEncodeAccessToken(version, accessTokenString);
     }

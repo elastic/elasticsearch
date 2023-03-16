@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
@@ -32,10 +33,6 @@ public abstract class ElectionStrategy {
             return true;
         }
     };
-
-    protected ElectionStrategy() {
-
-    }
 
     /**
      * Whether there is an election quorum from the point of view of the given local node under the provided voting configurations
@@ -95,7 +92,9 @@ public abstract class ElectionStrategy {
         VoteCollection joinVotes
     );
 
-    public void onNewElection(DiscoveryNode sourceNode, long proposedTerm, ClusterState latestAcceptedState) {}
+    public void onNewElection(DiscoveryNode localNode, long proposedTerm, ClusterState latestAcceptedState, ActionListener<Void> listener) {
+        listener.onResponse(null);
+    }
 
     public boolean isInvalidReconfiguration(
         ClusterState clusterState,
@@ -106,7 +105,5 @@ public abstract class ElectionStrategy {
             && lastCommittedConfiguration.equals(lastAcceptedConfiguration) == false;
     }
 
-    public void beforeCommit(long term, long version) {
-
-    }
+    public void beforeCommit(long term, long version) {}
 }

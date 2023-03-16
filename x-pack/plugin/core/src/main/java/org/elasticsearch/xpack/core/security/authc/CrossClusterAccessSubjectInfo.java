@@ -36,29 +36,31 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public final class RemoteAccessAuthentication {
-    public static final String REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY = "_remote_access_authentication";
+public final class CrossClusterAccessSubjectInfo {
+    public static final String CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY = "_cross_cluster_access_subject_info";
     private final Authentication authentication;
     private final List<RoleDescriptorsBytes> roleDescriptorsBytesList;
 
-    public RemoteAccessAuthentication(Authentication authentication, RoleDescriptorsIntersection roleDescriptorsIntersection)
+    public CrossClusterAccessSubjectInfo(Authentication authentication, RoleDescriptorsIntersection roleDescriptorsIntersection)
         throws IOException {
         this(authentication, toRoleDescriptorsBytesList(roleDescriptorsIntersection));
     }
 
-    private RemoteAccessAuthentication(Authentication authentication, List<RoleDescriptorsBytes> roleDescriptorsBytesList) {
+    private CrossClusterAccessSubjectInfo(Authentication authentication, List<RoleDescriptorsBytes> roleDescriptorsBytesList) {
         this.authentication = authentication;
         this.roleDescriptorsBytesList = roleDescriptorsBytesList;
     }
 
     public void writeToContext(final ThreadContext ctx) throws IOException {
-        ctx.putHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY, encode());
+        ctx.putHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY, encode());
     }
 
-    public static RemoteAccessAuthentication readFromContext(final ThreadContext ctx) throws IOException {
-        final String header = ctx.getHeader(REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY);
+    public static CrossClusterAccessSubjectInfo readFromContext(final ThreadContext ctx) throws IOException {
+        final String header = ctx.getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY);
         if (header == null) {
-            throw new IllegalArgumentException("remote access header [" + REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY + "] is required");
+            throw new IllegalArgumentException(
+                "cross cluster access header [" + CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY + "] is required"
+            );
         }
         return decode(header);
     }
@@ -76,7 +78,7 @@ public final class RemoteAccessAuthentication {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        RemoteAccessAuthentication that = (RemoteAccessAuthentication) o;
+        CrossClusterAccessSubjectInfo that = (CrossClusterAccessSubjectInfo) o;
 
         if (false == authentication.equals(that.authentication)) return false;
         return roleDescriptorsBytesList.equals(that.roleDescriptorsBytesList);
@@ -91,7 +93,7 @@ public final class RemoteAccessAuthentication {
 
     @Override
     public String toString() {
-        return "RemoteAccessAuthentication{"
+        return "CrossClusterAccessSubjectInfo{"
             + "authentication="
             + authentication
             + ", roleDescriptorsBytesList="
@@ -103,8 +105,9 @@ public final class RemoteAccessAuthentication {
         throws IOException {
         // If we ever lift this restriction, we need to ensure that the serialization of each set of role descriptors to raw bytes is
         // deterministic. We can do so by sorting the role descriptors before serializing.
+
         assert roleDescriptorsIntersection.roleDescriptorsList().stream().noneMatch(rds -> rds.size() > 1)
-            : "sets with more than one role descriptor are not supported for remote access authentication";
+            : "sets with more than one role descriptor are not supported for cross cluster access authentication";
         final List<RoleDescriptorsBytes> roleDescriptorsBytesList = new ArrayList<>();
         for (Set<RoleDescriptor> roleDescriptors : roleDescriptorsIntersection.roleDescriptorsList()) {
             roleDescriptorsBytesList.add(RoleDescriptorsBytes.fromRoleDescriptors(roleDescriptors));
@@ -121,7 +124,7 @@ public final class RemoteAccessAuthentication {
         return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
     }
 
-    public static RemoteAccessAuthentication decode(final String header) throws IOException {
+    public static CrossClusterAccessSubjectInfo decode(final String header) throws IOException {
         Objects.requireNonNull(header);
         final byte[] bytes = Base64.getDecoder().decode(header);
         final StreamInput in = StreamInput.wrap(bytes);
@@ -129,22 +132,23 @@ public final class RemoteAccessAuthentication {
         in.setTransportVersion(version);
         final Authentication authentication = new Authentication(in);
         final List<RoleDescriptorsBytes> roleDescriptorsBytesList = in.readImmutableList(RoleDescriptorsBytes::new);
-        return new RemoteAccessAuthentication(authentication, roleDescriptorsBytesList);
+        return new CrossClusterAccessSubjectInfo(authentication, roleDescriptorsBytesList);
     }
 
     /**
-     * Returns a copy of the passed-in metadata map, with the relevant remote access fields included. Does not modify the original map.
+     * Returns a copy of the passed-in metadata map, with the relevant cross cluster access fields included.
+     * Does not modify the original map.
      */
-    public Map<String, Object> copyWithRemoteAccessEntries(final Map<String, Object> authenticationMetadata) {
-        assert false == authenticationMetadata.containsKey(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY)
-            : "metadata already contains [" + AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY + "] entry";
-        assert false == authenticationMetadata.containsKey(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY)
-            : "metadata already contains [" + AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY + "] entry";
-        assert false == getAuthentication().isRemoteAccess()
-            : "authentication included in remote access header cannot itself be remote access";
+    public Map<String, Object> copyWithCrossClusterAccessEntries(final Map<String, Object> authenticationMetadata) {
+        assert false == authenticationMetadata.containsKey(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY)
+            : "metadata already contains [" + AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY + "] entry";
+        assert false == authenticationMetadata.containsKey(AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY)
+            : "metadata already contains [" + AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY + "] entry";
+        assert false == getAuthentication().isCrossClusterAccess()
+            : "authentication included in cross cluster access header cannot itself be cross cluster access";
         final Map<String, Object> copy = new HashMap<>(authenticationMetadata);
-        copy.put(AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY, getAuthentication());
-        copy.put(AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY, getRoleDescriptorsBytesList());
+        copy.put(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY, getAuthentication());
+        copy.put(AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY, getRoleDescriptorsBytesList());
         return Collections.unmodifiableMap(copy);
     }
 

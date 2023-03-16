@@ -7,12 +7,37 @@
 
 package org.elasticsearch.xpack.transform.utils;
 
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
+
+import java.util.Map;
 
 public final class SecondaryAuthorizationUtils {
 
     private SecondaryAuthorizationUtils() {}
+
+    /**
+     * Returns security headers preferring secondary auth if it exists.
+     */
+    public static Map<String, String> getSecurityHeadersPreferringSecondary(
+        ThreadPool threadPool,
+        SecurityContext securityContext,
+        ClusterState clusterState
+    ) {
+        SetOnce<Map<String, String>> filteredHeadersHolder = new SetOnce<>();
+        useSecondaryAuthIfAvailable(securityContext, () -> {
+            Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
+                threadPool.getThreadContext(),
+                clusterState
+            );
+            filteredHeadersHolder.set(filteredHeaders);
+        });
+        return filteredHeadersHolder.get();
+    }
 
     /**
      * This executes the supplied runnable inside the secondary auth context if it exists;
@@ -23,9 +48,10 @@ public final class SecondaryAuthorizationUtils {
             return;
         }
         SecondaryAuthentication secondaryAuth = securityContext.getSecondaryAuthentication();
-        if (secondaryAuth != null) {
-            runnable = secondaryAuth.wrap(runnable);
+        if (secondaryAuth == null) {
+            runnable.run();
+            return;
         }
-        runnable.run();
+        secondaryAuth.wrap(runnable).run();
     }
 }

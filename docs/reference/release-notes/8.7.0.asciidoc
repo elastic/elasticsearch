@@ -53,6 +53,7 @@ Health::
 * Take into account `max_headroom` in disk watermark calculations {es-pull}93157[#93157] (issue: {es-issue}93155[#93155])
 
 ILM+SLM::
+* Allow ILM step transition to the phase terminal step {es-pull}91754[#91754]
 * Avoiding `BulkProcessor` deadlock in ILMHistoryStore {es-pull}91238[#91238] (issues: {es-issue}68468[#68468], {es-issue}50440[#50440])
 * Fixed changing only the `forceMerge` flag in `SearchableSnapshotAction` wouldn't update the policy {es-pull}93847[#93847]
 * Preventing ILM and SLM runtime state from being stored in a snapshot {es-pull}92252[#92252]
@@ -62,6 +63,7 @@ Infra/CLI::
 
 Infra/Core::
 * Add `jdk.internal.reflect` permission to es codebase {es-pull}92387[#92387] (issue: {es-issue}92356[#92356])
+* Add checks for exception loops through suppressed exceptions only {es-pull}93944[#93944] (issue: {es-issue}93943[#93943])
 * Ensure one-shot wrappers release their delegates {es-pull}92928[#92928]
 * Fix `InputStream#readAllBytes` on `InputStreamIndexInput` {es-pull}92680[#92680]
 * Fix indices resolver for datemath with colon {es-pull}92973[#92973]
@@ -77,6 +79,9 @@ Infra/REST API::
 
 Infra/Scripting::
 * Fix NPE when method was called on an array type {es-pull}91713[#91713] (issue: {es-issue}87562[#87562])
+
+Infra/Settings::
+* Fix parse failures for ILM operator settings {es-pull}94477[#94477] (issue: {es-issue}94465[#94465])
 
 Ingest Node::
 * Better names and types for ingest stats {es-pull}93533[#93533] (issue: {es-issue}80763[#80763])
@@ -120,6 +125,9 @@ Rollup::
 Search::
 * Annotated highlighter does not match when search contains both annotation and annotated term {es-pull}92920[#92920] (issue: {es-issue}91944[#91944])
 * Clear field caps index responses on cancelled {es-pull}93716[#93716] (issue: {es-issue}93029[#93029])
+* Do not include frozen indices in PIT by default {es-pull}94377[#94377]
+* Fix NPE thrown by prefix query in strange scenarios {es-pull}94369[#94369]
+* Fix metadata `_size` when it comes to stored fields extraction {es-pull}94483[#94483] (issue: {es-issue}94468[#94468])
 * Fix missing override for matches in `ProfileWeight` {es-pull}92360[#92360]
 * Nested path info shouldn't be added during `copy_to` {es-pull}93340[#93340] (issue: {es-issue}93117[#93117])
 * Use all profiling events on startup {es-pull}92087[#92087]

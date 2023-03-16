@@ -873,11 +873,15 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .build(),
                 // For src/dest indices of the Cloud Security Posture packages that ships a transform
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("logs-cloud_security_posture.findings-*")
+                    .indices("logs-cloud_security_posture.findings-*", "logs-cloud_security_posture.vulnerabilities-*")
                     .privileges("read", "view_index_metadata")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("logs-cloud_security_posture.findings_latest-default*", "logs-cloud_security_posture.scores-default*")
+                    .indices(
+                        "logs-cloud_security_posture.findings_latest-default*",
+                        "logs-cloud_security_posture.scores-default*",
+                        "logs-cloud_security_posture.vulnerabilities_latest-default*"
+                    )
                     .privileges("create_index", "read", "index", "delete", IndicesAliasesAction.NAME, UpdateSettingsAction.NAME)
                     .build() },
             null,

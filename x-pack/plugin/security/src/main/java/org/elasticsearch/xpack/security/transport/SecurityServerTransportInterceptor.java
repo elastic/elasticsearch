@@ -382,14 +382,14 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
                 final User user = authentication.getEffectiveSubject().getUser();
                 if (SystemUser.is(user)) {
-                    final CrossClusterAccessHeaders headers = new CrossClusterAccessHeaders(
+                    final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
                         remoteClusterCredentials.credentials(),
                         CrossClusterAccessUser.crossClusterAccessSubjectInfo(
                             authentication.getEffectiveSubject().getTransportVersion(),
                             authentication.getEffectiveSubject().getRealm().getNodeName()
                         )
                     );
-                    sendWithCrossClusterAccessHeaders(headers, connection, action, request, options, handler);
+                    sendWithCrossClusterAccessHeaders(crossClusterAccessHeaders, connection, action, request, options, handler);
                 } else if (User.isInternal(user)) {
                     final String message = "internal user [" + user.principal() + "] should not be used for cross cluster requests";
                     assert false : message;
@@ -402,11 +402,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                             if (roleDescriptorsIntersection.isEmpty()) {
                                 throw authzService.remoteActionDenied(authentication, action, remoteClusterAlias);
                             }
-                            final var headers = new CrossClusterAccessHeaders(
+                            final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
                                 remoteClusterCredentials.credentials(),
                                 new CrossClusterAccessSubjectInfo(authentication, roleDescriptorsIntersection)
                             );
-                            sendWithCrossClusterAccessHeaders(headers, connection, action, request, options, handler);
+                            sendWithCrossClusterAccessHeaders(crossClusterAccessHeaders, connection, action, request, options, handler);
                         }, e -> handler.handleException(new SendRequestTransportException(connection.getNode(), action, e)))
                     );
                 }

@@ -76,16 +76,6 @@ public class TransportDeleteDesiredBalanceAction extends TransportMasterNodeActi
         }
     }
 
-    public ClusterState execute(ClusterStateTaskExecutor.BatchExecutionContext<ResetDesiredBalanceTask> batchExecutionContext) {
-        var state = batchExecutionContext.initialState();
-        desiredBalanceShardsAllocator.resetDesiredBalance();
-        state = allocationService.reroute(state, "reset-desired-balance", ActionListener.noop());
-        for (var taskContext : batchExecutionContext.taskContexts()) {
-            taskContext.success(() -> taskContext.getTask().listener.onResponse(ActionResponse.Empty.INSTANCE));
-        }
-        return state;
-    }
-
     public final class ResetDesiredBalanceClusterExecutor implements ClusterStateTaskExecutor<ResetDesiredBalanceTask> {
 
         @Override

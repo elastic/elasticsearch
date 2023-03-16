@@ -13,7 +13,6 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -71,8 +70,8 @@ public class FinalPipelineIT extends ESIntegTestCase {
 
         final GetPipelineResponse response = client().admin()
             .cluster()
-            .getPipeline(new GetPipelineRequest("default_pipeline", "final_pipeline", "request_pipeline"))
-            .actionGet();
+            .prepareGetPipeline("default_pipeline", "final_pipeline", "request_pipeline")
+            .get();
         for (final PipelineConfiguration pipeline : response.pipelines()) {
             client().admin().cluster().deletePipeline(new DeletePipelineRequest(pipeline.getId())).actionGet();
         }

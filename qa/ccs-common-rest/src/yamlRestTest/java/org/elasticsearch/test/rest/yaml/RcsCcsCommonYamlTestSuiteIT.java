@@ -55,7 +55,7 @@ import static org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT.rewrite;
  * using the client running against the "write" cluster.
  *
  */
-@TimeoutSuite(millis = 15 * TimeUnits.MINUTE) // to account for slow as hell VMs
+@TimeoutSuite(millis = 20 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static final Logger logger = LogManager.getLogger(RcsCcsCommonYamlTestSuiteIT.class);
@@ -72,6 +72,8 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("analysis-common")
         .module("vector-tile")
         .module("x-pack-analytics")
+        .module("x-pack-eql")
+        .module("x-pack-sql")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.security.transport.ssl.enabled", "false")
@@ -117,6 +119,11 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()))
             )
             .build();
+    }
+
+    @Override
+    protected boolean resetFeatureStates() {
+        return false;
     }
 
     @Override
@@ -201,10 +208,10 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         final var createApiKeyRequest = new Request("POST", "/_security/api_key");
         createApiKeyRequest.setJsonEntity("""
             {
-              "name": "remote_access_key",
+              "name": "cross_cluster_access_key",
               "role_descriptors": {
                 "role": {
-                  "cluster": ["cluster:internal/remote_cluster/handshake", "cluster:internal/remote_cluster/nodes"],
+                  "cluster": ["cross_cluster_access"],
                   "index": [
                     {
                       "names": ["*"],
@@ -218,10 +225,10 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         final Response createApiKeyResponse = adminClient().performRequest(createApiKeyRequest);
         assertOK(createApiKeyResponse);
         final Map<String, Object> apiKeyMap = responseAsMap(createApiKeyResponse);
-        final String encodedRemoteAccessApiKey = (String) apiKeyMap.get("encoded");
+        final String encodedCrossClusterAccessApiKey = (String) apiKeyMap.get("encoded");
 
         final Settings.Builder builder = Settings.builder()
-            .put("cluster.remote." + REMOTE_CLUSTER_NAME + ".authorization", encodedRemoteAccessApiKey);
+            .put("cluster.remote." + REMOTE_CLUSTER_NAME + ".authorization", encodedCrossClusterAccessApiKey);
         if (randomBoolean()) {
             builder.put("cluster.remote." + REMOTE_CLUSTER_NAME + ".mode", "proxy")
                 .put("cluster.remote." + REMOTE_CLUSTER_NAME + ".proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0));

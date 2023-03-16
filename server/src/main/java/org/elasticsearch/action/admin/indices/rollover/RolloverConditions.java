@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
@@ -254,6 +255,64 @@ public class RolloverConditions implements Writeable, ToXContentObject {
         }
         builder.endObject();
         return builder;
+    }
+
+    /**
+     * Parses a cluster setting configuration, it expects it to have the following format: "condition1=value1,condition2=value2"
+     * @throws SettingsException if the input is invalid, if there are unknown conditions or invalid format values.
+     * @throws IllegalArgumentException if the input is null or blank.
+     */
+    public static RolloverConditions parseSetting(String input, String setting) {
+        if (Strings.isNullOrBlank(input)) {
+            throw new IllegalArgumentException("The rollover conditions cannot be null or blank");
+        }
+        String[] sConditions = input.split(",");
+        RolloverConditions.Builder builder = newBuilder();
+        for (String sCondition : sConditions) {
+            String[] keyValue = sCondition.split("=");
+            if (keyValue.length != 2) {
+                throw new SettingsException("Invalid condition: '{}', format must be 'condition=value'", sCondition);
+            }
+            var condition = keyValue[0];
+            var value = keyValue[1];
+            if (MAX_SIZE_FIELD.getPreferredName().equals(condition)) {
+                builder.addMaxIndexSizeCondition(ByteSizeValue.parseBytesSizeValue(value, setting));
+            } else if (MAX_PRIMARY_SHARD_SIZE_FIELD.getPreferredName().equals(condition)) {
+                builder.addMaxPrimaryShardSizeCondition(ByteSizeValue.parseBytesSizeValue(value, setting));
+            } else if (MAX_AGE_FIELD.getPreferredName().equals(condition)) {
+                builder.addMaxIndexAgeCondition(TimeValue.parseTimeValue(value, setting));
+            } else if (MAX_DOCS_FIELD.getPreferredName().equals(condition)) {
+                builder.addMaxIndexDocsCondition(parseLong(value, setting));
+            } else if (MAX_PRIMARY_SHARD_DOCS_FIELD.getPreferredName().equals(condition)) {
+                builder.addMaxPrimaryShardDocsCondition(parseLong(value, setting));
+            } else if (MIN_SIZE_FIELD.getPreferredName().equals(condition)) {
+                builder.addMinIndexSizeCondition(ByteSizeValue.parseBytesSizeValue(value, setting));
+            } else if (MIN_PRIMARY_SHARD_SIZE_FIELD.getPreferredName().equals(condition)) {
+                builder.addMinPrimaryShardSizeCondition(ByteSizeValue.parseBytesSizeValue(value, setting));
+            } else if (MIN_AGE_FIELD.getPreferredName().equals(condition)) {
+                builder.addMinIndexAgeCondition(TimeValue.parseTimeValue(value, setting));
+            } else if (MIN_DOCS_FIELD.getPreferredName().equals(condition)) {
+                builder.addMinIndexDocsCondition(parseLong(value, setting));
+            } else if (MIN_PRIMARY_SHARD_DOCS_FIELD.getPreferredName().equals(condition)) {
+                builder.addMinPrimaryShardDocsCondition(parseLong(value, condition));
+            } else {
+                throw new SettingsException("Unknown condition: '{}'", condition);
+            }
+        }
+        return builder.build();
+    }
+
+    private static Long parseLong(String sValue, String settingName) {
+        try {
+            return Long.parseLong(sValue);
+        } catch (NumberFormatException e) {
+            throw new SettingsException(
+                "Invalid value '{}' in setting '{}', the value is expected to be of type long",
+                sValue,
+                settingName,
+                e.getMessage()
+            );
+        }
     }
 
     @Override

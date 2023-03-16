@@ -267,13 +267,7 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
         logger.info("Add new index 3 shards 1 replica");
 
         metadata = Metadata.builder(clusterState.metadata())
-            .put(
-                IndexMetadata.builder("test1")
-                    .settings(
-                        settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                    )
-            )
+            .put(IndexMetadata.builder("test1").settings(indexSettings(Version.CURRENT, 3, 1)))
             .build();
         RoutingTable updatedRoutingTable = RoutingTable.builder(
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,

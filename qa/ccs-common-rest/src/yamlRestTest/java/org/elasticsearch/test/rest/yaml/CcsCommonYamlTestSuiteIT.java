@@ -23,6 +23,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -75,6 +76,8 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("mapper-extras")
         .module("vector-tile")
         .module("x-pack-analytics")
+        .module("x-pack-eql")
+        .module("x-pack-sql")
         .setting("xpack.security.enabled", "false")
         // geohex_grid requires gold license
         .setting("xpack.license.self_generated.type", "trial")
@@ -111,6 +114,13 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         "async_search.get",
         "async_search.status",
         "async_search.delete",
+        "eql.search",
+        "eql.get",
+        "eql.get_status",
+        "eql.delete",
+        "sql.query",
+        "sql.clear_cursor",
+        "sql.translate",
         "open_point_in_time",
         "close_point_in_time"
     );
@@ -233,6 +243,19 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                             }
                         }
                     }
+                } else if (lastAPIDoSection.equals("sql.query") || lastAPIDoSection.equals("sql.translate")) {
+                    DoSection doSection = ((DoSection) section);
+                    List<Map<String, Object>> bodies = doSection.getApiCallSection().getBodies();
+                    for (Map<String, Object> body : bodies) {
+                        if (body.containsKey("query")) {
+                            final String query = (String) body.get("query");
+                            // Prefix the index name after FROM with the remote cluster alias
+                            // Split and join the old query string to take care of any excessive whitespaces
+                            final String rewrittenQuery = Strings.arrayToDelimitedString(query.split("\\s+"), " ")
+                                .replace("FROM ", "FROM " + REMOTE_CLUSTER_NAME + ":");
+                            body.put("query", rewrittenQuery);
+                        }
+                    }
                 }
             }
             modifiedExecutableSections.add(rewrittenSection);
@@ -350,6 +373,12 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 || apiName.equals("async_search.get")
                 || apiName.equals("async_search.delete")
                 || apiName.equals("async_search.status")
+                || apiName.equals("eql.get")
+                || apiName.equals("eql.get_status")
+                || apiName.equals("eql.delete")
+                || apiName.equals("sql.query")
+                || apiName.equals("sql.clear_cursor")
+                || apiName.equals("sql.translate")
                 || apiName.equals("close_point_in_time")) {
                 return false;
             }

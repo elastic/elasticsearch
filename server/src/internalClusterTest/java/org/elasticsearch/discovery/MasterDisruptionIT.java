@@ -47,6 +47,8 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
      */
     public void testMasterNodeGCs() throws Exception {
         List<String> nodes = startCluster(3);
+        // NOTE: this assume must happen after starting the cluster, so that cleanup will have something to cleanup.
+        assumeFalse("jdk20 removed thread suspend/resume", Runtime.version().feature() >= 20);
 
         String oldMasterNode = internalCluster().getMasterName();
         // a very long GC, but it's OK as we remove the disruption when it has had an effect

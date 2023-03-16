@@ -31,87 +31,49 @@
             }
           }
         },
-        "http": {
+        "session": {
           "properties": {
-            "request": {
-              "properties": {
-                "referrer": {
-                  "ignore_above": 1024,
-                  "type": "keyword"
-                }
-              }
+            "id": {
+              "ignore_above": 1024,
+              "type": "keyword"
             }
           }
         },
-        "labels": {
-          "type": "object"
-        },
-        "url": {
+        "user": {
           "properties": {
-            "domain": {
+            "id": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            }
+          }
+        },
+        "page": {
+          "properties": {
+            "url": {
               "ignore_above": 1024,
               "type": "keyword"
             },
-            "extension": {
+            "title": {
               "ignore_above": 1024,
               "type": "keyword"
             },
-            "fragment": {
+            "referrer": {
               "ignore_above": 1024,
               "type": "keyword"
-            },
-            "full": {
-              "fields": {
-                "text": {
-                  "norms": false,
-                  "type": "text"
-                }
-              },
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "original": {
-              "fields": {
-                "text": {
-                  "norms": false,
-                  "type": "text"
-                }
-              },
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "password": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "path": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "port": {
-              "type": "long"
-            },
+            }
+          }
+        },
+        "search": {
+          "properties": {
             "query": {
               "ignore_above": 1024,
               "type": "keyword"
-            },
-            "registered_domain": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "scheme": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "subdomain": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "top_level_domain": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "username": {
+            }
+          }
+        },
+        "interaction": {
+          "properties": {
+            "type": {
               "ignore_above": 1024,
               "type": "keyword"
             }

@@ -69,6 +69,7 @@ public class DocumentField implements Writeable, Iterable<Object> {
         if (values == null) {
             throw new NullPointerException("values must not be null");
         } else {
+            // copy to avoid field value cache clear
             this.values = List.copyOf(values);
         }
         this.ignoredValues = Objects.requireNonNull(ignoredValues, "ignoredValues must not be null");

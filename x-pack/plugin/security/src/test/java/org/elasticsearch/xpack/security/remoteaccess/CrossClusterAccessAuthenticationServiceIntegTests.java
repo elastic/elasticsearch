@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.security.remoteaccess;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.search.SearchRequest;
@@ -19,14 +21,11 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
@@ -35,7 +34,6 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
-import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
@@ -52,6 +50,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
     }
 
+    @Repeat(iterations = 50)
     public void testInvalidHeaders() throws IOException {
         final String encodedCrossClusterAccessApiKey = getEncodedCrossClusterAccessApiKey();
         final String nodeName = internalCluster().getRandomNodeName();
@@ -103,7 +102,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
         }
 
         try (var ignored = threadContext.stashContext()) {
-            final var internalUser = randomValueOtherThan(SystemUser.INSTANCE, AuthenticationTestHelper::randomInternalUser);
+            final var internalUser = randomValueOtherThan(CrossClusterAccessUser.INSTANCE, AuthenticationTestHelper::randomInternalUser);
             new CrossClusterAccessHeaders(
                 encodedCrossClusterAccessApiKey,
                 new CrossClusterAccessSubjectInfo(
@@ -123,15 +122,18 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
         try (var ignored = threadContext.stashContext()) {
             new CrossClusterAccessHeaders(
                 encodedCrossClusterAccessApiKey,
-                AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(
-                    new RoleDescriptorsIntersection(
-                        randomValueOtherThanMany(
-                            rd -> false == (rd.hasClusterPrivileges()
-                                || rd.hasApplicationPrivileges()
-                                || rd.hasConfigurableClusterPrivileges()
-                                || rd.hasRunAs()
-                                || rd.hasRemoteIndicesPrivileges()),
-                            () -> RoleDescriptorTests.randomRoleDescriptor()
+                randomValueOtherThanMany(
+                    cca -> CrossClusterAccessUser.is(cca.getAuthentication().getEffectiveSubject().getUser()),
+                    () -> AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(
+                        new RoleDescriptorsIntersection(
+                            randomValueOtherThanMany(
+                                rd -> false == (rd.hasClusterPrivileges()
+                                    || rd.hasApplicationPrivileges()
+                                    || rd.hasConfigurableClusterPrivileges()
+                                    || rd.hasRunAs()
+                                    || rd.hasRemoteIndicesPrivileges()),
+                                () -> RoleDescriptorTests.randomRoleDescriptor()
+                            )
                         )
                     )
                 )
@@ -168,48 +170,19 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
                 )
             );
         }
-    }
-
-    public void testSystemUserIsMappedToCrossClusterInternalRole() throws InterruptedException, IOException, ExecutionException {
-        final String nodeName = internalCluster().getRandomNodeName();
-        final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
-        final CrossClusterAccessAuthenticationService service = internalCluster().getInstance(
-            CrossClusterAccessAuthenticationService.class,
-            nodeName
-        );
 
         try (var ignored = threadContext.stashContext()) {
+            Authentication authentication = AuthenticationTestHelper.builder().internal(CrossClusterAccessUser.INSTANCE).build();
             new CrossClusterAccessHeaders(
-                getEncodedCrossClusterAccessApiKey(),
-                new CrossClusterAccessSubjectInfo(
-                    AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build(),
-                    randomBoolean()
-                        ? RoleDescriptorsIntersection.EMPTY
-                        : new RoleDescriptorsIntersection(new RoleDescriptor("role", null, null, null, null, null, null, null))
-                )
+                encodedCrossClusterAccessApiKey,
+                new CrossClusterAccessSubjectInfo(authentication, RoleDescriptorsIntersection.EMPTY)
             ).writeToContext(threadContext);
 
-            final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-            service.authenticate(ClusterStateAction.NAME, new SearchRequest(), future);
-            final Authentication actualAuthentication = future.get();
-
-            assertNotNull(actualAuthentication);
-            final var innerAuthentication = (Authentication) actualAuthentication.getAuthenticatingSubject()
-                .getMetadata()
-                .get(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
-            assertThat(innerAuthentication.getEffectiveSubject().getUser(), equalTo(CrossClusterAccessUser.INSTANCE));
-            @SuppressWarnings("unchecked")
-            final List<CrossClusterAccessSubjectInfo.RoleDescriptorsBytes> rds = (List<
-                CrossClusterAccessSubjectInfo.RoleDescriptorsBytes>) actualAuthentication.getAuthenticatingSubject()
-                    .getMetadata()
-                    .get(AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY);
-            assertThat(
-                rds,
-                equalTo(
-                    CrossClusterAccessUser.crossClusterAccessSubjectInfo(
-                        actualAuthentication.getEffectiveSubject().getTransportVersion(),
-                        actualAuthentication.getEffectiveSubject().getRealm().getNodeName()
-                    ).getRoleDescriptorsBytesList()
+            authenticateAndAssertExpectedErrorMessage(
+                service,
+                msg -> assertThat(
+                    msg,
+                    containsString("role descriptor bytes do not match those expected for internal user [_cross_cluster_access]")
                 )
             );
         }

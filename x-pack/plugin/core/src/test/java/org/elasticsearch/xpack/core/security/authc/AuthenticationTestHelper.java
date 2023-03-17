@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -244,9 +245,17 @@ public class AuthenticationTestHelper {
             // TODO add apikey() once we have querying-cluster-side API key support
             final Authentication authentication = ESTestCase.randomFrom(
                 AuthenticationTestHelper.builder().realm(),
-                AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE)
+                AuthenticationTestHelper.builder().internal(CrossClusterAccessUser.INSTANCE)
             ).build();
-            return new CrossClusterAccessSubjectInfo(authentication, roleDescriptorsIntersection);
+            // TODO this is too sneaky
+            if (CrossClusterAccessUser.is(authentication.getEffectiveSubject().getUser())) {
+                return CrossClusterAccessUser.crossClusterAccessSubjectInfo(
+                    authentication.getEffectiveSubject().getTransportVersion(),
+                    authentication.getEffectiveSubject().getRealm().getNodeName()
+                );
+            } else {
+                return new CrossClusterAccessSubjectInfo(authentication, roleDescriptorsIntersection);
+            }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -255,25 +264,18 @@ public class AuthenticationTestHelper {
     public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo() {
         return randomCrossClusterAccessSubjectInfo(
             new RoleDescriptorsIntersection(
-                List.of(
-                    // TODO randomize to add a second set once we have querying-cluster-side API key support
-                    Set.of(
-                        new RoleDescriptor(
-                            "_remote_user",
-                            null,
-                            new RoleDescriptor.IndicesPrivileges[] {
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices("index1")
-                                    .privileges("read", "read_cross_cluster")
-                                    .build() },
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null
-                        )
-                    )
+                // TODO randomize to add a second set once we have querying-cluster-side API key support
+                new RoleDescriptor(
+                    "_remote_user",
+                    null,
+                    new RoleDescriptor.IndicesPrivileges[] {
+                        RoleDescriptor.IndicesPrivileges.builder().indices("index1").privileges("read", "read_cross_cluster").build() },
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
                 )
             )
         );

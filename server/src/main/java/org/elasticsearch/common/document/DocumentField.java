@@ -66,7 +66,11 @@ public class DocumentField implements Writeable, Iterable<Object> {
 
     public DocumentField(String name, List<Object> values, List<Object> ignoredValues, List<LookupField> lookupFields) {
         this.name = Objects.requireNonNull(name, "name must not be null");
-        this.values = Objects.requireNonNull(values, "values must not be null");
+        if (values == null) {
+            throw new NullPointerException("values must not be null");
+        } else {
+            this.values = List.copyOf(values);
+        }
         this.ignoredValues = Objects.requireNonNull(ignoredValues, "ignoredValues must not be null");
         this.lookupFields = Objects.requireNonNull(lookupFields, "lookupFields must not be null");
         assert lookupFields.isEmpty() || (values.isEmpty() && ignoredValues.isEmpty())

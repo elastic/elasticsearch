@@ -57,7 +57,7 @@ Combine aggregations to perform complex geospatial analysis. For example, to cal
 [[geospatial-integrate]]
 == Integrate
 
-Use <<search-vector-tile-api,vector tile search API>> to consume Elasticsearch geo data within existing GIS infrastructure.
+Use <<search-vector-tile-api,vector tile search API>> to consume {es} geo data within existing GIS infrastructure.
 
 [discrete]
 [[geospatial-visualize]]

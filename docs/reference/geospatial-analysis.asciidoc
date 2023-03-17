@@ -12,7 +12,7 @@ Not sure where to get started with {es} and geo? Then, you have come to the righ
 [[geospatial-mapping]]
 == Geospatial mapping
 
-{es} supports two types of geo data: <<geo_point>> fields which support lat/lon pairs, and <<geo_shape>> fields, which support points, lines, circles, polygons, multi-polygons, and so on. Use <<explicit-mapping,explicit mapping>> to index geo data fields.
+{es} supports two types of geo data: <<geo-point, geo_point>> fields which support lat/lon pairs, and <<geo-shape, geo_shape>> fields, which support points, lines, circles, polygons, multi-polygons, and so on. Use <<explicit-mapping,explicit mapping>> to index geo data fields.
 
 Have an index with lat/lon pairs but no geo_point mapping? Use <<runtime-mapping-fields,runtime fields>> to make a geo_point field without reindexing.
 

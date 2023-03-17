@@ -72,7 +72,7 @@ necessary to complete the analysis at the cost of using more CPU.
 Note that the process may use additional threads for operational
 functionality other than the analysis itself.
 
-`_meta`::::
+`_meta`::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=meta]
 

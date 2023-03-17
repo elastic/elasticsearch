@@ -9,9 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
-import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
@@ -20,21 +18,17 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -42,9 +36,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
-import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 
 public class DesiredBalanceSimulationTests extends ESAllocationTestCase {
 
@@ -55,39 +46,37 @@ public class DesiredBalanceSimulationTests extends ESAllocationTestCase {
         logger.info("Initial stats {}", stats(data));
 
         Settings settings = Settings.builder()
-//            .put(
-//                ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(),
-//                ClusterModule.DESIRED_BALANCE_ALLOCATOR
-//            )
+            // .put(
+            // ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(),
+            // ClusterModule.DESIRED_BALANCE_ALLOCATOR
+            // )
             .put(
                 ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
                 ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE
             )
-            .put(
-                ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.getKey(),
-                50
-            )
+            .put(ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.getKey(), 50)
             .build();
 
-//        var allocator = createShardsAllocator(settings);
-//        var allocation = new RoutingAllocation(
-//            randomAllocationDeciders(settings, ClusterSettings.createBuiltInClusterSettings(settings)),
-//            data.clusterState.mutableRoutingNodes(),
-//            data.clusterState,
-//            data.clusterInfo,
-//            SnapshotShardSizeInfo.EMPTY,
-//            0L
-//        );
-//        allocator.allocate(allocation, ActionListener.noop());
-//
-//        logger.info("Same: {}, initializing: {}",
-//            data.clusterState.getRoutingNodes().equals(allocation.routingNodes()),
-//            RoutingNodesHelper.shardsWithState(allocation.routingNodes(), INITIALIZING).size()
-//        );
+        // var allocator = createShardsAllocator(settings);
+        // var allocation = new RoutingAllocation(
+        // randomAllocationDeciders(settings, ClusterSettings.createBuiltInClusterSettings(settings)),
+        // data.clusterState.mutableRoutingNodes(),
+        // data.clusterState,
+        // data.clusterInfo,
+        // SnapshotShardSizeInfo.EMPTY,
+        // 0L
+        // );
+        // allocator.allocate(allocation, ActionListener.noop());
+        //
+        // logger.info("Same: {}, initializing: {}",
+        // data.clusterState.getRoutingNodes().equals(allocation.routingNodes()),
+        // RoutingNodesHelper.shardsWithState(allocation.routingNodes(), INITIALIZING).size()
+        // );
 
         var service = createAllocationService(settings, () -> data.clusterInfo);
         var newClusterState = applyStartedShardsUntilNoChange(data.clusterState, service);
 
+        logger.info("Routing nodes updated: {}", newClusterState.getRoutingNodes().equals(data.clusterState.getRoutingNodes()) == false);
         logger.info("Updated stats {}", stats(newClusterState, data.clusterInfo));
     }
 
@@ -153,6 +142,7 @@ public class DesiredBalanceSimulationTests extends ESAllocationTestCase {
 
         var writeLoadForecast = new HashMap<String, Double>();
         var shardSizeForecast = new HashMap<String, Long>();
+        var tierPrefference = new HashMap<String, String>();
         try (
             var parser = createParser(JsonXContent.jsonXContent, DesiredBalanceSimulationTests.class.getResourceAsStream("routing.json"))
         ) {
@@ -169,6 +159,10 @@ public class DesiredBalanceSimulationTests extends ESAllocationTestCase {
                 }
                 if (indexNode.containsKey("shard_size_forecast")) {
                     shardSizeForecast.put(indexName, ((Number) indexNode.get("shard_size_forecast")).longValue());
+                }
+                var tier = (String) get(indexNode, "settings", "index", "routing", "allocation", "include", "_tier_preference");
+                if (tier != null) {
+                    tierPrefference.put(indexName, tier);
                 }
             }
         }
@@ -191,6 +185,7 @@ public class DesiredBalanceSimulationTests extends ESAllocationTestCase {
                 int replicas = 0;
                 Double forecastWriteLoad = null;
                 Long forecastShardSizeInBytes = null;
+                String tier = null;
 
                 var indexMetadataBuilder = IndexMetadata.builder(index.getName())
                     .settings(Settings.builder().put("index.version.created", Version.CURRENT).build());
@@ -208,6 +203,9 @@ public class DesiredBalanceSimulationTests extends ESAllocationTestCase {
                     }
                     if (shardNode.containsKey("forecast_shard_size_in_bytes")) {
                         forecastShardSizeInBytes = (Long) shardNode.get("forecast_shard_size_in_bytes");
+                    }
+                    if (shardNode.containsKey("tier")) {
+                        tier = (String) shardNode.get("tier");
                     }
 
                     var inSyncIds = new HashSet<String>();
@@ -229,17 +227,13 @@ public class DesiredBalanceSimulationTests extends ESAllocationTestCase {
                             (boolean) shardCopy.get("primary"),
                             ShardRoutingState.valueOf((String) shardCopy.get("state"))
                         );
-                        indexRoutingTableBuilder.addShard(
-                            shardRouting
-                        );
+                        indexRoutingTableBuilder.addShard(shardRouting);
                         inSyncIds.add(shardRouting.allocationId().getId());
                     }
                     indexMetadataBuilder.putInSyncAllocationIds(shardId.id(), inSyncIds);
                 }
 
-                indexMetadataBuilder
-                    .numberOfShards(primaries)
-                    .numberOfReplicas(replicas);
+                indexMetadataBuilder.numberOfShards(primaries).numberOfReplicas(replicas);
                 if (forecastWriteLoad != null) {
                     indexMetadataBuilder.indexWriteLoadForecast(forecastWriteLoad);
                 } else if (writeLoadForecast.containsKey(index.getName())) {
@@ -249,6 +243,13 @@ public class DesiredBalanceSimulationTests extends ESAllocationTestCase {
                     indexMetadataBuilder.shardSizeInBytesForecast(forecastShardSizeInBytes);
                 } else if (shardSizeForecast.containsKey(index.getName())) {
                     indexMetadataBuilder.shardSizeInBytesForecast(shardSizeForecast.get(index.getName()));
+                }
+                if (tier != null) {
+                    // indexMetadataBuilder.applySettingUpdate(builder -> builder.put(DataTier.TIER_PREFERENCE_SETTING.getKey(), tier));
+                } else if (tierPrefference.containsKey(index.getName())) {
+                    indexMetadataBuilder.applySettingUpdate(
+                        builder -> builder.put(DataTier.TIER_PREFERENCE_SETTING.getKey(), tierPrefference.get(index.getName()))
+                    );
                 }
 
                 metadataBuilder.put(indexMetadataBuilder.build(), false);
@@ -266,6 +267,16 @@ public class DesiredBalanceSimulationTests extends ESAllocationTestCase {
                 new ClusterInfo(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, Map.of(), Map.of(), Map.of())
             );
         }
+    }
+
+    private static Object get(Object json, String... path) {
+        for (String key : path) {
+            json = ((Map<String, Object>) json).get(key);
+            if (json == null) {
+                return null;
+            }
+        }
+        return json;
     }
 
     private ClusterBalanceStats stats(Data data) {

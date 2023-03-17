@@ -48,7 +48,8 @@ setup:
               "index": "index-dest"
             },
             "analysis": {"outlier_detection":{}},
-            "analyzed_fields": [ "obj1.*", "obj2.*" ]
+            "analyzed_fields": [ "obj1.*", "obj2.*" ],
+            "_meta" : {"my_custom_tag":"custom", "version":7}
           }
   - match: { id: "simple-outlier-detection-with-query" }
   - match: { source.index: ["index-source"] }
@@ -62,6 +63,8 @@ setup:
     }
   }}
   - match: { analyzed_fields: {"includes" : ["obj1.*", "obj2.*" ], "excludes": [] } }
+  - match: { _meta.my_custom_tag: "custom" }
+  - match: { _meta.version: 7 }
   - is_true: create_time
   - is_true: version
   - is_true: authorization.roles

@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigTests.randomMeta;
 import static org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigTests.randomValidId;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -58,6 +59,9 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractXContentSeriali
         }
         if (randomBoolean()) {
             builder.setMaxNumThreads(randomIntBetween(1, 20));
+        }
+        if (randomBoolean()) {
+            builder.setMeta(randomMeta());
         }
         return builder.build();
     }

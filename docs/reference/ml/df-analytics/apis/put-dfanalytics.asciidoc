@@ -253,6 +253,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-max-optimization-rounds]
 (Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=max-trees]
 
+`_meta`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=meta]
+
 `num_top_classes`::::
 (Optional, integer)
 Defines the number of categories for which the predicted probabilities are

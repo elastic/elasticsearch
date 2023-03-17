@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.security.remoteaccess;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.search.SearchRequest;
@@ -50,7 +48,6 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
     }
 
-    @Repeat(iterations = 50)
     public void testInvalidHeaders() throws IOException {
         final String encodedCrossClusterAccessApiKey = getEncodedCrossClusterAccessApiKey();
         final String nodeName = internalCluster().getRandomNodeName();

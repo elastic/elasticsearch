@@ -18,7 +18,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.*;
+import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.RoleDescriptorsBytes;
+import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.toRoleDescriptorsBytesList;
 
 public class CrossClusterAccessUser extends User {
     public static final String NAME = UsernamesField.CROSS_CLUSTER_ACCESS_NAME;

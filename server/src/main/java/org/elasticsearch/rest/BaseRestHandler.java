@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.stream.Collectors;
 
 /**
  * Base handler for REST requests.
@@ -80,7 +81,10 @@ public abstract class BaseRestHandler implements RestHandler {
 
         // validate unconsumed params, but we must exclude params used to format the response
         // use a sorted set so the unconsumed parameters appear in a reliable sorted order
-        final SortedSet<String> unconsumedParams = new TreeSet<>(request.unconsumedParams());
+        final SortedSet<String> unconsumedParams = request.unconsumedParams()
+            .stream()
+            .filter(p -> responseParams(request.getRestApiVersion()).contains(p) == false)
+            .collect(Collectors.toCollection(TreeSet::new));
 
         // validate the non-response params
         if (unconsumedParams.isEmpty() == false) {

@@ -9,8 +9,8 @@
 package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.StatsLevel;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
@@ -23,8 +23,6 @@ import org.elasticsearch.core.TimeValue;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.action.StatsLevel.genIllegalClusterLevelException;
 
 public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthRequest> implements IndicesRequest.Replaceable {
 
@@ -41,7 +39,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
      * Only used by the high-level REST Client. Controls the details level of the health information returned.
      * The default value is 'cluster'.
      */
-    private StatsLevel level = StatsLevel.CLUSTER;
+    private ClusterStatsLevel level = ClusterStatsLevel.CLUSTER;
 
     public ClusterHealthRequest() {}
 
@@ -239,7 +237,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
      * Set the level of detail for the health information to be returned.
      * Only used by the high-level REST Client.
      */
-    public void level(StatsLevel level) {
+    public void level(ClusterStatsLevel level) {
         this.level = Objects.requireNonNull(level, "level must not be null");
     }
 
@@ -247,16 +245,12 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
      * Get the level of detail for the health information to be returned.
      * Only used by the high-level REST Client.
      */
-    public StatsLevel level() {
+    public ClusterStatsLevel level() {
         return level;
     }
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
-        if (level == StatsLevel.NODE) {
-            validationException = genIllegalClusterLevelException(level.name());
-        }
-        return validationException;
+        return null;
     }
 }

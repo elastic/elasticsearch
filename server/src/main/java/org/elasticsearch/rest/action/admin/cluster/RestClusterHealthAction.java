@@ -9,7 +9,7 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.StatsLevel;
+import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -87,14 +87,8 @@ public class RestClusterHealthAction extends BaseRestHandler {
         if (request.param("wait_for_events") != null) {
             clusterHealthRequest.waitForEvents(Priority.valueOf(request.param("wait_for_events").toUpperCase(Locale.ROOT)));
         }
-        String level = request.param("level", StatsLevel.CLUSTER.name());
-        StatsLevel statsLevel;
-        try {
-            statsLevel = StatsLevel.valueOf(level);
-        } catch (IllegalArgumentException e) {
-            throw StatsLevel.genIllegalClusterLevelException(level);
-        }
-        clusterHealthRequest.level(statsLevel);
+        String level = request.param("level", ClusterStatsLevel.CLUSTER.name());
+        clusterHealthRequest.level(ClusterStatsLevel.valueOf(level));
         return clusterHealthRequest;
     }
 

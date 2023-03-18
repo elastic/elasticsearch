@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.cluster.node.stats;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.StatsLevel;
+import org.elasticsearch.action.NodeStatsLevel;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,8 +27,6 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.action.StatsLevel.genIllegalNodeLevelException;
-
 /**
  * A request to get node (cluster) level stats.
  */
@@ -36,7 +34,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
     private CommonStatsFlags indices = new CommonStatsFlags();
     private final Set<String> requestedMetrics = new HashSet<>();
-    private StatsLevel level = StatsLevel.NODE;
+    private NodeStatsLevel level = NodeStatsLevel.NODE;
 
     public NodesStatsRequest() {
         super((String[]) null);
@@ -108,9 +106,13 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         return this;
     }
 
-    public NodesStatsRequest level(StatsLevel level) {
+    public NodesStatsRequest level(NodeStatsLevel level) {
         this.level = level;
         return this;
+    }
+
+    public NodeStatsLevel level() {
+        return level;
     }
 
     /**
@@ -183,11 +185,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
-        if (level == StatsLevel.CLUSTER) {
-            validationException = genIllegalNodeLevelException(level.name());
-        }
-        return validationException;
+        return null;
     }
 
     /**

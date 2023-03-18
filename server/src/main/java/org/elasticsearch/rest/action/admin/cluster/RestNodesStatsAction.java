@@ -9,7 +9,7 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.StatsLevel;
+import org.elasticsearch.action.NodeStatsLevel;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -88,14 +88,8 @@ public class RestNodesStatsAction extends BaseRestHandler {
 
         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(nodesIds);
         nodesStatsRequest.timeout(request.param("timeout"));
-        String level = request.param("level", StatsLevel.NODE.name());
-        StatsLevel statsLevel;
-        try {
-            statsLevel = StatsLevel.valueOf(level);
-        } catch (IllegalArgumentException e) {
-            throw StatsLevel.genIllegalNodeLevelException(level);
-        }
-        nodesStatsRequest.level(statsLevel);
+        String level = request.param("level", NodeStatsLevel.NODE.name());
+        nodesStatsRequest.level(NodeStatsLevel.valueOf(level));
 
         if (metrics.size() == 1 && metrics.contains("_all")) {
             if (request.hasParam("index_metric")) {

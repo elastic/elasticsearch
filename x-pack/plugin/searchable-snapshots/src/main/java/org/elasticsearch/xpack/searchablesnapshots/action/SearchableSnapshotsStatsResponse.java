@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.action;
 
-import org.elasticsearch.action.StatsLevel;
+import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -78,7 +78,7 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
 
     @Override
     protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
-        final StatsLevel level = StatsLevel.valueOf(params.param("level", StatsLevel.INDICES.name()));
+        final ClusterStatsLevel level = ClusterStatsLevel.valueOf(params.param("level", ClusterStatsLevel.INDICES.name()));
 
         builder.startArray("total");
         for (CacheIndexInputStats cis : getTotal()) {
@@ -86,7 +86,7 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
         }
         builder.endArray();
 
-        if (level == StatsLevel.INDICES || level == StatsLevel.SHARDS) {
+        if (level == ClusterStatsLevel.INDICES || level == ClusterStatsLevel.SHARDS) {
             builder.startObject("indices");
             final List<Index> indices = getStats().stream()
                 .filter(shardStats -> shardStats.getStats().isEmpty() == false)
@@ -111,7 +111,7 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
                     }
                     builder.endArray();
 
-                    if (level == StatsLevel.SHARDS) {
+                    if (level == ClusterStatsLevel.SHARDS) {
                         builder.startObject("shards");
                         {
                             List<SearchableSnapshotShardStats> listOfStats = getStats().stream()

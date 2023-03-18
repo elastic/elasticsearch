@@ -4054,7 +4054,6 @@ public class IndexShardTests extends IndexShardTestCase {
                 IdFieldMapper.NAME,
                 VersionFieldMapper.NAME,
                 SeqNoFieldMapper.NAME,
-                SeqNoFieldMapper.NAME,
                 SeqNoFieldMapper.PRIMARY_TERM_NAME,
                 SeqNoFieldMapper.TOMBSTONE_NAME
             )
@@ -4072,7 +4071,6 @@ public class IndexShardTests extends IndexShardTestCase {
                 VersionFieldMapper.NAME,
                 SourceFieldMapper.NAME,
                 SeqNoFieldMapper.TOMBSTONE_NAME,
-                SeqNoFieldMapper.NAME,
                 SeqNoFieldMapper.NAME,
                 SeqNoFieldMapper.PRIMARY_TERM_NAME
             )

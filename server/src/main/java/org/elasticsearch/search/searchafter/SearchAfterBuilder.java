@@ -66,19 +66,19 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
         if (values.length == 0) {
             throw new IllegalArgumentException("Values must contains at least one value.");
         }
-        for (int i = 0; i < values.length; i++) {
-            if (values[i] == null) continue;
-            if (values[i] instanceof String) continue;
-            if (values[i] instanceof Text) continue;
-            if (values[i] instanceof Long) continue;
-            if (values[i] instanceof Integer) continue;
-            if (values[i] instanceof Short) continue;
-            if (values[i] instanceof Byte) continue;
-            if (values[i] instanceof Double) continue;
-            if (values[i] instanceof Float) continue;
-            if (values[i] instanceof Boolean) continue;
-            if (values[i] instanceof BigInteger) continue;
-            throw new IllegalArgumentException("Can't handle " + SEARCH_AFTER + " field value of type [" + values[i].getClass() + "]");
+        for (Object value : values) {
+            if (value == null) continue;
+            if (value instanceof String) continue;
+            if (value instanceof Text) continue;
+            if (value instanceof Long) continue;
+            if (value instanceof Integer) continue;
+            if (value instanceof Short) continue;
+            if (value instanceof Byte) continue;
+            if (value instanceof Double) continue;
+            if (value instanceof Float) continue;
+            if (value instanceof Boolean) continue;
+            if (value instanceof BigInteger) continue;
+            throw new IllegalArgumentException("Can't handle " + SEARCH_AFTER + " field value of type [" + value.getClass() + "]");
         }
         sortValues = new Object[values.length];
         System.arraycopy(values, 0, sortValues, 0, values.length);
@@ -101,7 +101,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
             );
         }
 
-        if (collapseField != null && (sortFields.length > 1 || sortFields[0].getField().equals(collapseField) == false)) {
+        if (collapseField != null && (sortFields.length > 1 || sortFields[0].getField() == null || sortFields[0].getField().equals(collapseField) == false)) {
             throw new IllegalArgumentException(
                 "Cannot use [collapse] in conjunction with ["
                     + SEARCH_AFTER.getPreferredName()
@@ -152,23 +152,17 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
     private static Object convertValueFromSortType(String fieldName, SortField.Type sortType, Object value, DocValueFormat format) {
         try {
             switch (sortType) {
-                case DOC:
+                case DOC, INT:
                     if (value instanceof Number) {
                         return ((Number) value).intValue();
                     }
                     return Integer.parseInt(value.toString());
 
-                case SCORE:
+                case SCORE, FLOAT:
                     if (value instanceof Number) {
                         return ((Number) value).floatValue();
                     }
                     return Float.parseFloat(value.toString());
-
-                case INT:
-                    if (value instanceof Number) {
-                        return ((Number) value).intValue();
-                    }
-                    return Integer.parseInt(value.toString());
 
                 case DOUBLE:
                     if (value instanceof Number) {
@@ -186,12 +180,6 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
                         false,
                         () -> { throw new IllegalStateException("now() is not allowed in [search_after] key"); }
                     );
-
-                case FLOAT:
-                    if (value instanceof Number) {
-                        return ((Number) value).floatValue();
-                    }
-                    return Float.parseFloat(value.toString());
 
                 case STRING_VAL:
                 case STRING:

@@ -1189,9 +1189,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.sorts() != null) {
             try {
                 Optional<SortAndFormats> optionalSort = SortBuilder.buildSort(source.sorts(), context.getSearchExecutionContext());
-                if (optionalSort.isPresent()) {
-                    context.sort(optionalSort.get());
-                }
+                optionalSort.ifPresent(context::sort);
             } catch (IOException e) {
                 throw new SearchException(shardTarget, "failed to create sort elements", e);
             }

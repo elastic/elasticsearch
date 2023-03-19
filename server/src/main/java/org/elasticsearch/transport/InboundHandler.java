@@ -209,6 +209,7 @@ public class InboundHandler {
                 requestId,
                 version,
                 header.getCompressionScheme(),
+                ResponseStatsConsumer.NONE,
                 header.isHandshake(),
                 message.takeBreakerReleaseControl()
             );
@@ -219,25 +220,38 @@ public class InboundHandler {
                 channel.close();
             }
         } else {
-            final TransportChannel transportChannel = new TcpTransportChannel(
-                outboundHandler,
-                channel,
-                action,
-                requestId,
-                version,
-                header.getCompressionScheme(),
-                header.isHandshake(),
-                message.takeBreakerReleaseControl()
-            );
             try {
                 messageListener.onRequestReceived(requestId, action);
                 if (message.isShortCircuit()) {
+                    final TransportChannel transportChannel = new TcpTransportChannel(
+                        outboundHandler,
+                        channel,
+                        action,
+                        requestId,
+                        version,
+                        header.getCompressionScheme(),
+                        ResponseStatsConsumer.NONE,
+                        header.isHandshake(),
+                        message.takeBreakerReleaseControl()
+                    );
                     sendErrorResponse(action, transportChannel, message.getException());
                 } else {
                     final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
                     assertRemoteVersion(stream, header.getVersion());
                     final RequestHandlerRegistry<T> reg = requestHandlers.getHandler(action);
                     assert reg != null;
+                    reg.addRequestStats(header.getNetworkMessageSize() + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
+                    final TransportChannel transportChannel = new TcpTransportChannel(
+                        outboundHandler,
+                        channel,
+                        action,
+                        requestId,
+                        version,
+                        header.getCompressionScheme(),
+                        reg,
+                        header.isHandshake(),
+                        message.takeBreakerReleaseControl()
+                    );
                     final T request;
                     try {
                         request = reg.newRequest(stream);
@@ -310,6 +324,17 @@ public class InboundHandler {
                     }
                 }
             } catch (Exception e) {
+                final TransportChannel transportChannel = new TcpTransportChannel(
+                    outboundHandler,
+                    channel,
+                    action,
+                    requestId,
+                    version,
+                    header.getCompressionScheme(),
+                    ResponseStatsConsumer.NONE,
+                    header.isHandshake(),
+                    message.takeBreakerReleaseControl()
+                );
                 sendErrorResponse(action, transportChannel, e);
             }
         }

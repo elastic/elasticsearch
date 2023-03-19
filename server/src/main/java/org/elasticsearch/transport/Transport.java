@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -288,6 +289,15 @@ public interface Transport extends LifecycleComponent {
         @SuppressWarnings("unchecked")
         public <T extends TransportRequest> RequestHandlerRegistry<T> getHandler(String action) {
             return (RequestHandlerRegistry<T>) requestHandlers.get(action);
+        }
+
+        public List<TransportActionStats> getStats() {
+            return requestHandlers.values()
+                .stream()
+                .filter(reg -> reg.getStats().requestCount() > 0 || reg.getStats().responseCount() > 0)
+                .sorted(Comparator.comparing(RequestHandlerRegistry::getAction))
+                .map(RequestHandlerRegistry::getStats)
+                .toList();
         }
     }
 }

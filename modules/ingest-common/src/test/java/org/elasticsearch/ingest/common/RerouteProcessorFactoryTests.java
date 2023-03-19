@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -17,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class RerouteProcessorFactoryTests extends ESTestCase {
 
@@ -40,7 +42,7 @@ public class RerouteProcessorFactoryTests extends ESTestCase {
         RerouteProcessor processor = create(Map.of("destination", "foo"));
         assertThat(processor.getDataStreamDataset(), equalTo(List.of()));
         assertThat(processor.getDataStreamNamespace(), equalTo(List.of()));
-        assertThat(processor.getDestination(), equalTo("foo"));
+        assertThat(processor.getDestination().newInstance(Map.of()).execute(), equalTo("foo"));
     }
 
     public void testDestinationAndDataset() {
@@ -50,7 +52,6 @@ public class RerouteProcessorFactoryTests extends ESTestCase {
         );
         assertThat(e.getMessage(), Matchers.equalTo("[destination] can only be set if dataset and namespace are not set"));
     }
-
 
     private static RerouteProcessor create(String dataset, String namespace) throws Exception {
         Map<String, Object> config = new HashMap<>();
@@ -64,6 +65,6 @@ public class RerouteProcessorFactoryTests extends ESTestCase {
     }
 
     private static RerouteProcessor create(Map<String, Object> config) throws Exception {
-        return new RerouteProcessor.Factory().create(null, null, null, new HashMap<>(config));
+        return new RerouteProcessor.Factory(mock(ScriptService.class)).create(null, null, null, new HashMap<>(config));
     }
 }

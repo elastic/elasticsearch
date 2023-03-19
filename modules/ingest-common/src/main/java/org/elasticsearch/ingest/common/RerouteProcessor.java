@@ -8,12 +8,14 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateScript;
 
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -33,25 +35,25 @@ public final class RerouteProcessor extends AbstractProcessor {
     private static final char[] DISALLOWED_IN_NAMESPACE = new char[] { '\\', '/', '*', '?', '\"', '<', '>', '|', ' ', ',', '#', ':' };
     private static final int MAX_LENGTH = 100;
     private static final char REPLACEMENT_CHAR = '_';
-    private final List<String> dataset;
-    private final List<String> namespace;
-    private final String destination;
+    private final List<TemplateScript.Factory> dataset;
+    private final List<TemplateScript.Factory> namespace;
+    private final TemplateScript.Factory destination;
     private final boolean skipIfTargetUnchanged;
 
-    RerouteProcessor(List<String> dataset, List<String> namespace) {
+    RerouteProcessor(List<TemplateScript.Factory> dataset, List<TemplateScript.Factory> namespace) {
         this(null, null, dataset, namespace, null, false);
     }
 
-    RerouteProcessor(String destination) {
+    RerouteProcessor(TemplateScript.Factory destination) {
         this(null, null, null, null, destination, false);
     }
 
     RerouteProcessor(
         String tag,
         String description,
-        List<String> dataset,
-        List<String> namespace,
-        String destination,
+        List<TemplateScript.Factory> dataset,
+        List<TemplateScript.Factory> namespace,
+        TemplateScript.Factory destination,
         boolean skipIfTargetUnchanged
     ) {
         super(tag, description);
@@ -84,7 +86,7 @@ public final class RerouteProcessor extends AbstractProcessor {
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         if (destination != null) {
-            ingestDocument.reroute(destination);
+            ingestDocument.reroute(ingestDocument.renderTemplate(destination));
             return ingestDocument;
         }
         final String currentTarget = ingestDocument.getFieldValue(IngestDocument.Metadata.INDEX.getFieldName(), String.class);
@@ -153,31 +155,25 @@ public final class RerouteProcessor extends AbstractProcessor {
 
     private String determineDataStreamField(
         IngestDocument ingestDocument,
-        List<String> valueSources,
+        List<TemplateScript.Factory> valueSources,
         String fromCurrentTarget,
         Function<String, String> sanitization,
         String dataStreamFieldName
     ) {
-        String result = null;
-        for (Iterator<String> iterator = valueSources.iterator(); iterator.hasNext(); ) {
-            String value = iterator.next();
-            if (value.startsWith("{") && value.endsWith("}")) {
-                String fieldReference = value.substring(1, value.length() - 1);
-                result = sanitization.apply(ingestDocument.getFieldValue(fieldReference, String.class, true));
-            } else {
-                result = value;
-            }
-            if (result != null) {
+        String result = "";
+        for (TemplateScript.Factory value : valueSources) {
+            result = ingestDocument.renderTemplate(value);
+            if (Strings.isNullOrEmpty(result) == false) {
                 break;
             }
         }
-        if (result == null) {
-            result = sanitization.apply(ingestDocument.getFieldValue(dataStreamFieldName, String.class, true));
+        if (Strings.isNullOrEmpty(result)) {
+            result = ingestDocument.getFieldValue(dataStreamFieldName, String.class, true);
         }
-        if (result == null) {
+        if (Strings.isNullOrEmpty(result)) {
             result = fromCurrentTarget;
         }
-        return result;
+        return sanitization.apply(result);
     }
 
     @Override
@@ -185,19 +181,25 @@ public final class RerouteProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    public List<String> getDataStreamDataset() {
+    public List<TemplateScript.Factory> getDataStreamDataset() {
         return dataset;
     }
 
-    public List<String> getDataStreamNamespace() {
+    public List<TemplateScript.Factory> getDataStreamNamespace() {
         return namespace;
     }
 
-    public String getDestination() {
+    public TemplateScript.Factory getDestination() {
         return destination;
     }
 
     public static final class Factory implements Processor.Factory {
+
+        private final ScriptService scriptService;
+
+        public Factory(ScriptService scriptService) {
+            this.scriptService = scriptService;
+        }
 
         @Override
         public RerouteProcessor create(
@@ -207,30 +209,50 @@ public final class RerouteProcessor extends AbstractProcessor {
             Map<String, Object> config
         ) throws Exception {
             List<String> dataset = ConfigurationUtils.readOptionalListOrString(TYPE, tag, config, "dataset");
-            dataset.stream()
-                .filter(ds -> ds.startsWith("{") == false)
-                .filter(ds -> Objects.equals(sanitizeDataset(ds), ds) == false)
-                .findAny()
-                .ifPresent(ds -> {
-                    throw newConfigurationException(TYPE, tag, "dataset", "'" + ds + "' contains disallowed characters");
-                });
+            validateDataStreamValue(tag, dataset, "dataset", RerouteProcessor::sanitizeDataset);
+            List<TemplateScript.Factory> datasetTemplate = dataset.stream()
+                .map(ds -> ConfigurationUtils.compileTemplate(TYPE, tag, "dataset", ds, scriptService))
+                .toList();
             List<String> namespace = ConfigurationUtils.readOptionalListOrString(TYPE, tag, config, "namespace");
-            namespace.stream()
-                .filter(ns -> ns.startsWith("{") == false)
-                .filter(ns -> Objects.equals(sanitizeNamespace(ns), ns) == false)
-                .findAny()
-                .ifPresent(ns -> {
-                    throw newConfigurationException(TYPE, tag, "namespace", "'" + ns + "' contains disallowed characters");
-                });
-
+            validateDataStreamValue(tag, namespace, "namespace", RerouteProcessor::sanitizeNamespace);
+            List<TemplateScript.Factory> namespaceTemplate = namespace.stream()
+                .map(nsp -> ConfigurationUtils.compileTemplate(TYPE, tag, "namespace", nsp, scriptService))
+                .toList();
             String destination = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "destination");
+            TemplateScript.Factory destinationTemplate = null;
+            if (destination != null) {
+                destinationTemplate = ConfigurationUtils.compileTemplate(
+                    TYPE,
+                    tag,
+                    "destination",
+                    destination,
+                    scriptService
+                );
+            }
+
             if (destination != null && (dataset.isEmpty() == false || namespace.isEmpty() == false)) {
                 throw newConfigurationException(TYPE, tag, "destination", "can only be set if dataset and namespace are not set");
             }
             boolean skipIfTargetUnchanged = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "skip_if_target_unchanged", false);
 
+            return new RerouteProcessor(tag, description, datasetTemplate, namespaceTemplate, destinationTemplate, skipIfTargetUnchanged);
+        }
 
-            return new RerouteProcessor(tag, description, dataset, namespace, destination, skipIfTargetUnchanged);
+        private static void validateDataStreamValue(
+            String tag,
+            List<String> dataset,
+            String dataStreamComponent,
+            Function<String, String> sanitizer
+        ) {
+            dataset.stream()
+                .filter(ds -> ds.contains("{{") == false)
+                .filter(ds -> Objects.equals(sanitizer.apply(ds), ds) == false)
+                .findAny()
+                .ifPresent(
+                    ds -> {
+                        throw newConfigurationException(TYPE, tag, dataStreamComponent, "'" + ds + "' contains disallowed characters");
+                    }
+                );
         }
     }
 }

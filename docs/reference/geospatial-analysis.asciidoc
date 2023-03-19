@@ -51,7 +51,7 @@ Geospatial metric aggregations:
 * <<search-aggregations-metrics-geocentroid-aggregation, Geo-centroid aggregation>> computes the weighted centroid from all coordinate values for geo fields.
 * <<search-aggregations-metrics-geo-line,Geo-line aggregation>> aggregates all geo_point values within a bucket into a LineString ordered by the chosen sort field. Use geo_line aggregation to create {kibana-ref}/asset-tracking-tutorial.html[vehicle tracks]. 
 
-Combine aggregations to perform complex geospatial analysis. For example, to calculate the most recent GPS tracks per flight, use a <<terms aggregation,search-aggregations-bucket-terms-aggregation>> to group documents into buckets per aircraft. Then use geo-line aggregation to compute a track for each aircraft. In another example, use geotile grid aggregation to group documents into a grid. Then use geo-centroid aggregation to find the weighted centroid of each grid cell.
+Combine aggregations to perform complex geospatial analysis. For example, to calculate the most recent GPS tracks per flight, use a <<search-aggregations-bucket-terms-aggregation,terms aggregation>> to group documents into buckets per aircraft. Then use geo-line aggregation to compute a track for each aircraft. In another example, use geotile grid aggregation to group documents into a grid. Then use geo-centroid aggregation to find the weighted centroid of each grid cell.
 
 [discrete]
 [[geospatial-integrate]]

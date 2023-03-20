@@ -859,8 +859,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
             changed = newState != clusterState;
             clusterState = newState;
         } while (changed);
-
-        for (final var shardRouting : clusterState.routingTable().allShards()) {
+        for (ShardRouting shardRouting : clusterState.routingTable().allShardsIterator()) {
             assertTrue(shardRouting.started());
             assertThat(shardRouting.currentNodeId(), oneOf("node-0", "node-1"));
         }
@@ -982,8 +981,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
             changed = newState != clusterState;
             clusterState = newState;
         } while (changed);
-
-        for (final var shardRouting : clusterState.routingTable().allShards()) {
+        for (ShardRouting shardRouting : clusterState.routingTable().allShardsIterator()) {
             assertTrue(shardRouting.started());
             assertThat(shardRouting.currentNodeId(), oneOf("node-0", "node-1"));
         }

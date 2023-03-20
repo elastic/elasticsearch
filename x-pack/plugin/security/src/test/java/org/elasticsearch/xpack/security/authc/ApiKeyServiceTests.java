@@ -2037,11 +2037,10 @@ public class ApiKeyServiceTests extends ESTestCase {
         );
 
         // Selecting random unsupported version.
-        final TransportVersion minNodeVersion = randomFrom(
+        final Version minNodeVersion = randomFrom(
             Version.getDeclaredVersions(Version.class)
                 .stream()
-                .filter(v -> v.transportVersion.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES))
-                .map(v -> v.transportVersion)
+                .filter(v -> v.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES))
                 .toList()
         );
 
@@ -2068,14 +2067,15 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     public void testMaybeRemoveRemoteIndicesPrivilegesWithSupportedVersion() {
         final String apiKeyId = randomAlphaOfLengthBetween(5, 8);
-        final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(randomList(1, 3, () -> randomRoleDescriptorWithRemoteIndexPrivileges()));
+        final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(
+            randomList(1, 3, ApiKeyServiceTests::randomRoleDescriptorWithRemoteIndexPrivileges)
+        );
 
         // Selecting random supported version.
-        final TransportVersion minNodeVersion = randomFrom(
+        final Version minNodeVersion = randomFrom(
             Version.getDeclaredVersions(Version.class)
                 .stream()
-                .filter(v -> v.transportVersion.onOrAfter(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES))
-                .map(v -> v.transportVersion)
+                .filter(v -> v.onOrAfter(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES))
                 .toList()
         );
 

@@ -1977,7 +1977,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(role.names()[0], containsString("user_role_"));
     }
 
-    public void testGetRoleForRemoteAccessAuthentication() throws Exception {
+    public void testGetRoleForCrossClusterAccessAuthentication() throws Exception {
         final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
         doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
         final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
@@ -2049,8 +2049,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             version
         );
         final boolean emptyRemoteRole = randomBoolean();
-        Authentication authentication = apiKeyAuthentication.toRemoteAccess(
-            AuthenticationTestHelper.randomRemoteAccessAuthentication(
+        Authentication authentication = apiKeyAuthentication.toCrossClusterAccess(
+            AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(
                 emptyRemoteRole
                     ? RoleDescriptorsIntersection.EMPTY
                     : new RoleDescriptorsIntersection(
@@ -2090,24 +2090,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         // Smoke-test for authorization
         final Metadata indexMetadata = Metadata.builder()
-            .put(
-                IndexMetadata.builder("index1")
-                    .settings(
-                        Settings.builder()
-                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    )
-            )
-            .put(
-                IndexMetadata.builder("index2")
-                    .settings(
-                        Settings.builder()
-                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    )
-            )
+            .put(IndexMetadata.builder("index1").settings(indexSettings(Version.CURRENT, 1, 1)))
+            .put(IndexMetadata.builder("index2").settings(indexSettings(Version.CURRENT, 1, 1)))
             .build();
         final var emptyCache = new FieldPermissionsCache(Settings.EMPTY);
         assertThat(

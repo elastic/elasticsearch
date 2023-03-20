@@ -87,7 +87,8 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
                 clusterService,
                 getClock(),
                 threadPool,
-                threadPool::absoluteTimeInMillis
+                threadPool::absoluteTimeInMillis,
+                new DataLifecycleErrorStore()
             )
         );
         dataLifecycleInitialisationService.get().init();

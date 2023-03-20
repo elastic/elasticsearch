@@ -11,6 +11,7 @@ package org.elasticsearch.repositories;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService;
@@ -23,7 +24,7 @@ import org.elasticsearch.snapshots.SnapshotId;
  * Wraps a {@link org.elasticsearch.index.engine.Engine.IndexCommitRef} that is released once this instances is completed by invoking
  * either its {@link #onResponse(ShardSnapshotResult)} or {@link #onFailure(Exception)} callback.
  */
-public final class SnapshotShardContext extends ActionListener.Delegating<ShardSnapshotResult, ShardSnapshotResult> {
+public final class SnapshotShardContext extends DelegatingActionListener<ShardSnapshotResult, ShardSnapshotResult> {
 
     private final Store store;
     private final MapperService mapperService;

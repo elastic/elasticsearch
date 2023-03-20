@@ -10,8 +10,6 @@ setup:
         body:
           settings:
             index:
-              number_of_replicas: 0
-              number_of_shards: 2
               mode: time_series
               routing_path: [ metricset, k8s.pod.uid ]
               time_series:
@@ -62,8 +60,6 @@ setup:
         body:
           settings:
             index:
-              number_of_replicas: 0
-              number_of_shards: 2
               mode: time_series
               routing_path: [ k8s.pod.uid ]
               time_series:

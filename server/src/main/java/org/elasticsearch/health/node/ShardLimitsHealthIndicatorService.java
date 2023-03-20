@@ -109,7 +109,7 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
         // RED and YELLOW status indicates that the cluster might have issues. finalStatus has the worst between *normal and frozen* nodes,
         // so we have to check each of the groups in order of provide the right message.
         if (finalStatus.indicatesHealthProblem()) {
-            symptomBuilder.append("Cluster is close to reaching the maximum of shards for ");
+            symptomBuilder.append("Cluster is close to reaching the maximum number of shards for ");
             if (normalNodes.status == frozenNodes.status) {
                 symptomBuilder.append(NORMAL_GROUP).append(" and ").append(FROZEN_GROUP);
                 diagnoses = List.of(SHARD_LIMITS_REACHED_NORMAL_NODES, SHARD_LIMITS_REACHED_FROZEN_NODES);

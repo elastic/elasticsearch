@@ -41,13 +41,13 @@ import static org.elasticsearch.indices.ShardLimitValidator.NORMAL_GROUP;
 public class ShardLimitsHealthIndicatorService implements HealthIndicatorService {
 
     private static final String NAME = "shard_limits";
-    private final String UPGRADE_BLOCKED = "The cluster has too many used shards to be able to upgrade";
-    private final List<HealthIndicatorImpact> INDICATOR_IMPACTS = List.of(
+    private static final String UPGRADE_BLOCKED = "The cluster has too many used shards to be able to upgrade";
+    private static final String HELP_GUIDE = "https://ela.st/max-shard-limit-reached";
+    static final List<HealthIndicatorImpact> INDICATOR_IMPACTS = List.of(
         new HealthIndicatorImpact(NAME, "upgrade_blocked", 1, UPGRADE_BLOCKED, List.of(ImpactArea.DEPLOYMENT_MANAGEMENT))
     );
 
-    private final String HELP_GUIDE = "https://ela.st/max-shard-limit-reached";
-    private final Diagnosis SHARD_LIMITS_REACHED_NORMAL_NODES = new Diagnosis(
+    static final Diagnosis SHARD_LIMITS_REACHED_NORMAL_NODES = new Diagnosis(
         new Diagnosis.Definition(
             NAME,
             "increase_max_shards_per_node",
@@ -59,7 +59,7 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
         ),
         null
     );
-    private final Diagnosis SHARD_LIMITS_REACHED_FROZEN_NODES = new Diagnosis(
+    static final Diagnosis SHARD_LIMITS_REACHED_FROZEN_NODES = new Diagnosis(
         new Diagnosis.Definition(
             NAME,
             "increase_max_shards_per_node_frozen",

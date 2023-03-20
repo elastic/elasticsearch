@@ -82,7 +82,7 @@ public class RRFRankContextBuilder extends RankContextBuilder<RRFRankContextBuil
      */
     @Override
     public ActionRequestValidationException validate(ActionRequestValidationException validationException, SearchSourceBuilder source) {
-        if (source.size() >= windowSize) {
+        if (source.size() > windowSize) {
             validationException = addValidationError(
                 "[window_size] must be greater than or equal to [size] for [rrf]",
                 validationException

@@ -10,6 +10,8 @@ package org.elasticsearch.search.fetch;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -21,16 +23,25 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
 
     private final QuerySearchResult queryResult;
     private final FetchSearchResult fetchResult;
+    private final RefCounted refCounted;
 
     public QueryFetchSearchResult(StreamInput in) throws IOException {
         super(in);
         queryResult = new QuerySearchResult(in);
         fetchResult = new FetchSearchResult(in);
+        refCounted = AbstractRefCounted.of(() -> {
+            queryResult.decRef();
+            fetchResult.decRef();
+        });
     }
 
     public QueryFetchSearchResult(QuerySearchResult queryResult, FetchSearchResult fetchResult) {
         this.queryResult = queryResult;
         this.fetchResult = fetchResult;
+        refCounted = AbstractRefCounted.of(() -> {
+            queryResult.decRef();
+            fetchResult.decRef();
+        });
     }
 
     @Override
@@ -75,21 +86,21 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
 
     @Override
     public void incRef() {
-        queryResult.incRef();
+        refCounted.incRef();
     }
 
     @Override
     public boolean tryIncRef() {
-        return queryResult.tryIncRef();
+        return refCounted.tryIncRef();
     }
 
     @Override
     public boolean decRef() {
-        return queryResult.decRef();
+        return refCounted.decRef();
     }
 
     @Override
     public boolean hasReferences() {
-        return queryResult.hasReferences();
+        return refCounted.hasReferences();
     }
 }

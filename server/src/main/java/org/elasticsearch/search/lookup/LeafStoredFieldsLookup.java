@@ -22,8 +22,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-import static java.util.Collections.singletonMap;
-
 @SuppressWarnings({ "unchecked", "rawtypes" })
 public class LeafStoredFieldsLookup implements Map<Object, FieldLookup> {
 
@@ -133,11 +131,11 @@ public class LeafStoredFieldsLookup implements Map<Object, FieldLookup> {
             data = new FieldLookup(fieldType);
             cachedFieldData.put(name, data);
         }
-        if (data.fields() == null) {
+        if (data.isLoaded() == false) {
             List<Object> values = new ArrayList<>(2);
             SingleFieldsVisitor visitor = new SingleFieldsVisitor(data.fieldType(), values);
             storedFields.document(docId, visitor);
-            data.fields(singletonMap(data.fieldType().name(), values));
+            data.setValues(values);
         }
         return data;
     }

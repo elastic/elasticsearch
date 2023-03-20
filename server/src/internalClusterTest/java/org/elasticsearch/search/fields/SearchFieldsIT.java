@@ -138,7 +138,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
         static Object fieldsScript(Map<String, Object> vars, String fieldName) {
             Map<?, ?> fields = (Map<?, ?>) vars.get("_fields");
             FieldLookup fieldLookup = (FieldLookup) fields.get(fieldName);
-            return fieldLookup.getValue();
+            List<Object> values = fieldLookup.getValues();
+            return values.isEmpty() ? null : values.get(0);
         }
 
         static Object sourceScript(Map<String, Object> vars, String path) {

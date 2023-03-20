@@ -8,8 +8,7 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import com.carrotsearch.randomizedtesting.RandomizedContext;
-
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -24,14 +23,12 @@ import org.elasticsearch.gateway.ClusterStateUpdaters;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -40,16 +37,6 @@ import static org.elasticsearch.cluster.coordination.CoordinationStateTests.clus
 
 @TestLogging(reason = "these tests do a lot of log-worthy things but we usually don't care", value = "org.elasticsearch:FATAL")
 public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
-    private AtomicRegister atomicRegister;
-    private SharedStore sharedStore;
-
-    @Before
-    public void setUpNewRegister() {
-        // TODO: Move this into the cluster instance
-        atomicRegister = new AtomicRegister();
-        sharedStore = new SharedStore(atomicRegister);
-    }
-
     @Override
     @AwaitsFix(bugUrl = "ES-5644")
     public void testExpandsConfigurationWhenGrowingFromThreeToFiveNodesAndShrinksBackToThreeOnFailure() {
@@ -214,32 +201,9 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     }
 
     @Override
-    public void testRepeatableTests() throws Exception {
-        final Callable<Long> test = () -> {
-            resetNodeIndexBeforeEachTest();
-            try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
-                cluster.runRandomly();
-                final long afterRunRandomly = value(cluster.getAnyNode().getLastAppliedClusterState());
-                cluster.stabilise();
-                final long afterStabilisation = value(cluster.getAnyNode().getLastAppliedClusterState());
-                return afterRunRandomly ^ afterStabilisation;
-            }
-        };
-        final long seed = randomLong();
-        logger.info("First run with seed [{}]", seed);
-        final long result1 = RandomizedContext.current().runWithPrivateRandomness(seed, test);
-
-        // Reset the register between runs to get repeatable results
-        atomicRegister = new AtomicRegister();
-        sharedStore = new SharedStore(atomicRegister);
-
-        logger.info("Second run with seed [{}]", seed);
-        final long result2 = RandomizedContext.current().runWithPrivateRandomness(seed, test);
-        assertEquals(result1, result2);
-    }
-
-    @Override
     protected CoordinatorStrategy getCoordinatorStrategy() {
+        var atomicRegister = new AtomicRegister();
+        var sharedStore = new SharedStore(atomicRegister);
         return new AtomicRegisterCoordinatorStrategy(atomicRegister, sharedStore);
     }
 
@@ -513,23 +477,31 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
 
         @Override
-        public void onNewElection(DiscoveryNode sourceNode, long proposedTerm, ClusterState latestAcceptedState) {
-            final var latestClusterState = sharedStore.getLatestClusterState();
-            if (latestClusterState != null && latestClusterState.version() > latestAcceptedState.version()) {
-                throw new CoordinationStateRejectedException("The node has an stale applied cluster state version");
-            }
-
-            final var latestAcceptedClusterUUID = latestAcceptedState.metadata().clusterUUID();
-            final var proposedNewTermOwner = new TermOwner(sourceNode, proposedTerm, latestAcceptedClusterUUID);
-            final var witness = register.claimTerm(proposedNewTermOwner);
-            if (proposedNewTermOwner != witness) {
-                if (witness.clusterUUID().equals(latestAcceptedClusterUUID) == false) {
-                    assert latestAcceptedState.metadata().clusterUUIDCommitted() == false;
-                    atomicRegisterPersistedState.changeAcceptedClusterUUID(witness.clusterUUID());
+        public void onNewElection(
+            DiscoveryNode localNode,
+            long proposedTerm,
+            ClusterState latestAcceptedState,
+            ActionListener<Void> listener
+        ) {
+            ActionListener.completeWith(listener, () -> {
+                final var latestClusterState = sharedStore.getLatestClusterState();
+                if (latestClusterState != null && latestClusterState.version() > latestAcceptedState.version()) {
+                    throw new CoordinationStateRejectedException("The node has an stale applied cluster state version");
                 }
-                throw new CoordinationStateRejectedException("Term " + proposedTerm + " already claimed by another node");
-            }
-            lastWonTerm = proposedTerm;
+
+                final var latestAcceptedClusterUUID = latestAcceptedState.metadata().clusterUUID();
+                final var proposedNewTermOwner = new TermOwner(localNode, proposedTerm, latestAcceptedClusterUUID);
+                final var witness = register.claimTerm(proposedNewTermOwner);
+                if (proposedNewTermOwner != witness) {
+                    if (witness.clusterUUID().equals(latestAcceptedClusterUUID) == false) {
+                        assert latestAcceptedState.metadata().clusterUUIDCommitted() == false;
+                        atomicRegisterPersistedState.changeAcceptedClusterUUID(witness.clusterUUID());
+                    }
+                    throw new CoordinationStateRejectedException("Term " + proposedTerm + " already claimed by another node");
+                }
+                lastWonTerm = proposedTerm;
+                return null;
+            });
         }
 
         @Override

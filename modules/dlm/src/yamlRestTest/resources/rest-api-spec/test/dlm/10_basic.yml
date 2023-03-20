@@ -2,7 +2,7 @@ setup:
   - skip:
       features: allowed_warnings
       version: " - 8.7.99"
-      reason: "data lifecycles only supported in 8.7+"
+      reason: "data lifecycles only supported in 8.8+"
   - do:
       allowed_warnings:
         - "index template [my-lifecycle] has index patterns [data-stream-with-lifecycle] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-lifecycle] will take precedence during new index creation"
@@ -53,7 +53,7 @@ setup:
 
   - do:
       indices.put_data_lifecycle:
-        name: "data-stream-with-lifecycle"
+        name: "*"
         body:
           lifecycle:
             data_retention: '30d'
@@ -62,9 +62,11 @@ setup:
   - do:
       indices.get_data_lifecycle:
         name: "*"
-  - length: { data_streams: 1 }
+  - length: { data_streams: 2 }
   - match: { data_streams.0.name: data-stream-with-lifecycle }
   - match: { data_streams.0.lifecycle.data_retention: '30d' }
+  - match: { data_streams.1.name: simple-data-stream1 }
+  - match: { data_streams.1.lifecycle.data_retention: '30d' }
 
 
 ---
@@ -72,9 +74,36 @@ setup:
 
   - do:
       indices.get_data_lifecycle:
-        name: "*"
+        name: "data-stream-with-lifecycle"
         include_defaults: true
   - length: { data_streams: 1}
   - match: { data_streams.0.name: data-stream-with-lifecycle }
   - match: { data_streams.0.lifecycle.data_retention: '10d' }
   - is_true: data_streams.0.lifecycle.rollover
+
+---
+"Delete data lifecycle from the data streams":
+  - do:
+      indices.put_data_lifecycle:
+        name: "simple-data-stream1"
+        body:
+          lifecycle:
+            data_retention: '30d'
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_lifecycle:
+        name: "*"
+  - length: { data_streams: 2 }
+
+  - do:
+      indices.delete_data_lifecycle:
+        name: "simple-data-stream1"
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_lifecycle:
+        name: "*"
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.name: data-stream-with-lifecycle }
+  - match: { data_streams.0.lifecycle.data_retention: '10d' }

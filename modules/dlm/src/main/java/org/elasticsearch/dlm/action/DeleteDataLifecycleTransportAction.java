@@ -25,12 +25,12 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 
-public class PutDataLifecycleTransportAction extends AcknowledgedTransportMasterNodeAction<PutDataLifecycleAction.Request> {
+public class DeleteDataLifecycleTransportAction extends AcknowledgedTransportMasterNodeAction<DeleteDataLifecycleAction.Request> {
 
     private final ModifyDataLifecycleService modifyDataLifecycleService;
 
     @Inject
-    public PutDataLifecycleTransportAction(
+    public DeleteDataLifecycleTransportAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -39,12 +39,12 @@ public class PutDataLifecycleTransportAction extends AcknowledgedTransportMaster
         ModifyDataLifecycleService modifyDataLifecycleService
     ) {
         super(
-            PutDataLifecycleAction.NAME,
+            DeleteDataLifecycleAction.NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            PutDataLifecycleAction.Request::new,
+            DeleteDataLifecycleAction.Request::new,
             indexNameExpressionResolver,
             ThreadPool.Names.SAME
         );
@@ -54,7 +54,7 @@ public class PutDataLifecycleTransportAction extends AcknowledgedTransportMaster
     @Override
     protected void masterOperation(
         Task task,
-        PutDataLifecycleAction.Request request,
+        DeleteDataLifecycleAction.Request request,
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
@@ -64,11 +64,11 @@ public class PutDataLifecycleTransportAction extends AcknowledgedTransportMaster
             request.getNames(),
             request.indicesOptions()
         );
-        modifyDataLifecycleService.setLifecycle(dataStreamNames, request.getLifecycle(), request.ackTimeout(), listener);
+        modifyDataLifecycleService.removeLifecycle(dataStreamNames, request.ackTimeout(), listener);
     }
 
     @Override
-    protected ClusterBlockException checkBlock(PutDataLifecycleAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(DeleteDataLifecycleAction.Request request, ClusterState state) {
         ClusterBlockException globalBlock = state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
         if (globalBlock != null) {
             return globalBlock;

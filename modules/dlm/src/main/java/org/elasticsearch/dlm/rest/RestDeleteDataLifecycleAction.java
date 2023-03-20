@@ -10,7 +10,7 @@ package org.elasticsearch.dlm.rest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.dlm.action.GetDataLifecycleAction;
+import org.elasticsearch.dlm.action.DeleteDataLifecycleAction;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -19,29 +19,32 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 @ServerlessScope(Scope.PUBLIC)
-public class RestGetDataLifecycleAction extends BaseRestHandler {
+public class RestDeleteDataLifecycleAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "get_data_lifecycles_action";
+        return "delete_data_lifecycles_action";
     }
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_data_stream/_lifecycle"), new Route(GET, "/_data_stream/{name}/_lifecycle"));
+        return List.of(new Route(DELETE, "/_data_stream/_lifecycle"), new Route(DELETE, "/_data_stream/{name}/_lifecycle"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        GetDataLifecycleAction.Request getDataLifecycleRequest = new GetDataLifecycleAction.Request(
+        DeleteDataLifecycleAction.Request deleteDataLifecycleRequest = new DeleteDataLifecycleAction.Request(
             Strings.splitStringByCommaToArray(request.param("name"))
         );
-        getDataLifecycleRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
-        getDataLifecycleRequest.indicesOptions(IndicesOptions.fromRequest(request, getDataLifecycleRequest.indicesOptions()));
-        return channel -> client.execute(GetDataLifecycleAction.INSTANCE, getDataLifecycleRequest, new RestToXContentListener<>(channel));
+        deleteDataLifecycleRequest.indicesOptions(IndicesOptions.fromRequest(request, deleteDataLifecycleRequest.indicesOptions()));
+        return channel -> client.execute(
+            DeleteDataLifecycleAction.INSTANCE,
+            deleteDataLifecycleRequest,
+            new RestToXContentListener<>(channel)
+        );
     }
 
     @Override

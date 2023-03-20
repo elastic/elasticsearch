@@ -14,11 +14,8 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -26,12 +23,15 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-public class PutDataLifecycleAction extends ActionType<AcknowledgedResponse> {
+/**
+ * Removes the data lifecycle configuration from the requested data streams.
+ */
+public class DeleteDataLifecycleAction extends ActionType<AcknowledgedResponse> {
 
-    public static final PutDataLifecycleAction INSTANCE = new PutDataLifecycleAction();
-    public static final String NAME = "indices:admin/data_lifecycle/put";
+    public static final DeleteDataLifecycleAction INSTANCE = new DeleteDataLifecycleAction();
+    public static final String NAME = "indices:admin/data_lifecycle/delete";
 
-    private PutDataLifecycleAction() {
+    private DeleteDataLifecycleAction() {
         super(NAME, AcknowledgedResponse::readFrom);
     }
 
@@ -39,38 +39,29 @@ public class PutDataLifecycleAction extends ActionType<AcknowledgedResponse> {
 
         private String[] names;
         private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
-        private final DataLifecycle lifecycle;
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.names = in.readStringArray();
-            lifecycle = new DataLifecycle(in);
+            this.names = in.readOptionalStringArray();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeStringArray(names);
-            out.writeWriteable(lifecycle);
+            out.writeOptionalStringArray(names);
         }
 
-        public Request(String[] names, DataLifecycle lifecycle) {
+        public Request(String[] names) {
             this.names = names;
-            this.lifecycle = lifecycle;
         }
 
         public String[] getNames() {
             return names;
         }
 
-        public DataLifecycle getLifecycle() {
-            return lifecycle;
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("lifecycle", lifecycle);
             builder.endObject();
             return builder;
         }
@@ -78,14 +69,6 @@ public class PutDataLifecycleAction extends ActionType<AcknowledgedResponse> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        public static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
-            "data_stream_actions",
-            args -> new Request(null, ((DataLifecycle) args[0]))
-        );
-        static {
-            PARSER.declareObject(ConstructingObjectParser.constructorArg(), DataLifecycle.PARSER, new ParseField("lifecycle"));
         }
 
         @Override
@@ -113,21 +96,19 @@ public class PutDataLifecycleAction extends ActionType<AcknowledgedResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Arrays.equals(names, request.names)
-                && Objects.equals(indicesOptions, request.indicesOptions)
-                && lifecycle.equals(request.lifecycle);
+            return Arrays.equals(names, request.names) && Objects.equals(indicesOptions, request.indicesOptions);
         }
 
         @Override
         public int hashCode() {
-            int result = Objects.hash(indicesOptions, lifecycle);
+            int result = Objects.hash(indicesOptions);
             result = 31 * result + Arrays.hashCode(names);
             return result;
         }
 
         @Override
-        public IndicesRequest indices(String... names) {
-            this.names = names;
+        public IndicesRequest indices(String... indices) {
+            this.names = indices;
             return this;
         }
     }

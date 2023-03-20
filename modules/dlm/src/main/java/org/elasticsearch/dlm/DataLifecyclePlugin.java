@@ -26,10 +26,13 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.dlm.action.DeleteDataLifecycleAction;
+import org.elasticsearch.dlm.action.DeleteDataLifecycleTransportAction;
 import org.elasticsearch.dlm.action.GetDataLifecycleAction;
 import org.elasticsearch.dlm.action.GetDataLifecycleTransportAction;
 import org.elasticsearch.dlm.action.PutDataLifecycleAction;
 import org.elasticsearch.dlm.action.PutDataLifecycleTransportAction;
+import org.elasticsearch.dlm.rest.RestDeleteDataLifecycleAction;
 import org.elasticsearch.dlm.rest.RestGetDataLifecycleAction;
 import org.elasticsearch.dlm.rest.RestPutDataLifecycleAction;
 import org.elasticsearch.env.Environment;
@@ -129,9 +132,14 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        var getDataStreamsAction = new ActionHandler<>(GetDataLifecycleAction.INSTANCE, GetDataLifecycleTransportAction.class);
+        if (DataLifecycle.isEnabled() == false) {
+            return List.of();
+        }
+
         var putDataStreamsAction = new ActionHandler<>(PutDataLifecycleAction.INSTANCE, PutDataLifecycleTransportAction.class);
-        return List.of(getDataStreamsAction, putDataStreamsAction);
+        var getDataStreamsAction = new ActionHandler<>(GetDataLifecycleAction.INSTANCE, GetDataLifecycleTransportAction.class);
+        var deleteDataStreamsAction = new ActionHandler<>(DeleteDataLifecycleAction.INSTANCE, DeleteDataLifecycleTransportAction.class);
+        return List.of(putDataStreamsAction, getDataStreamsAction, deleteDataStreamsAction);
     }
 
     @Override
@@ -144,8 +152,13 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        var getDataStreamsAction = new RestGetDataLifecycleAction();
+        if (DataLifecycle.isEnabled() == false) {
+            return List.of();
+        }
+
         var putDataStreamsAction = new RestPutDataLifecycleAction();
-        return List.of(getDataStreamsAction, putDataStreamsAction);
+        var getDataStreamsAction = new RestGetDataLifecycleAction();
+        var deleteDataStreamsAction = new RestDeleteDataLifecycleAction();
+        return List.of(putDataStreamsAction, getDataStreamsAction, deleteDataStreamsAction);
     }
 }

@@ -25,7 +25,7 @@
           "parts":{
             "name":{
               "type":"list",
-              "description":"A comma-separated list of data streams to get; use `*` to get all data streams"
+              "description":"A comma-separated list of data streams whose lifecycle will be updated; use `*` to set the lifecycle to all data streams"
             }
           }
         }

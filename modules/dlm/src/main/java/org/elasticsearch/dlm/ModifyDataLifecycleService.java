@@ -27,18 +27,16 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.dlm.action.PutDataLifecycleAction;
 
 import java.util.List;
 
 public class ModifyDataLifecycleService {
 
-    private final ClusterStateTaskExecutor<ModifyLifecycleTask> executor;
     private final MasterServiceTaskQueue<ModifyLifecycleTask> taskQueue;
 
     @Inject
     public ModifyDataLifecycleService(ClusterService clusterService) {
-        this.executor = new SimpleBatchedAckListenerTaskExecutor<>() {
+        ClusterStateTaskExecutor<ModifyLifecycleTask> executor = new SimpleBatchedAckListenerTaskExecutor<>() {
 
             @Override
             public Tuple<ClusterState, ClusterStateAckListener> executeTask(
@@ -51,20 +49,22 @@ public class ModifyDataLifecycleService {
                 );
             }
         };
-        this.taskQueue = clusterService.createTaskQueue("modify-lifecycle", Priority.LOW, this.executor);
+        this.taskQueue = clusterService.createTaskQueue("modify-lifecycle", Priority.LOW, executor);
     }
 
     public void setLifecycle(
         final List<String> dataStreamNames,
-        PutDataLifecycleAction.Request request,
+        DataLifecycle lifecycle,
+        TimeValue ackTimeout,
         final ActionListener<AcknowledgedResponse> listener
     ) {
         // TODO use request.masterNodeTimeout() as timeout?
-        taskQueue.submitTask(
-            "set-lifecycle",
-            new ModifyLifecycleTask(dataStreamNames, request.getLifecycle(), request.ackTimeout(), listener),
-            null
-        );
+        taskQueue.submitTask("set-lifecycle", new ModifyLifecycleTask(dataStreamNames, lifecycle, ackTimeout, listener), null);
+    }
+
+    public void removeLifecycle(List<String> dataStreamNames, TimeValue ackTimeout, ActionListener<AcknowledgedResponse> listener) {
+        // TODO use request.masterNodeTimeout() as timeout?
+        taskQueue.submitTask("delete-lifecycle", new ModifyLifecycleTask(dataStreamNames, null, ackTimeout, listener), null);
     }
 
     public ClusterState modifyLifecycle(ClusterState currentState, List<String> dataStreamNames, @Nullable DataLifecycle dataLifecycle) {

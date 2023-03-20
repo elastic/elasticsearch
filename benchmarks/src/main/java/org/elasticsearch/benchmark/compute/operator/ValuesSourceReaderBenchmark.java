@@ -17,19 +17,33 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ValueSourceInfo;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.TopNOperator;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.script.field.KeywordDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -72,9 +86,12 @@ public class ValuesSourceReaderBenchmark {
             benchmark.setupIndex();
             try {
                 for (String layout : ValuesSourceReaderBenchmark.class.getField("layout").getAnnotationsByType(Param.class)[0].value()) {
-                    benchmark.layout = layout;
-                    benchmark.setupPages();
-                    benchmark.benchmark();
+                    for (String name : ValuesSourceReaderBenchmark.class.getField("name").getAnnotationsByType(Param.class)[0].value()) {
+                        benchmark.layout = layout;
+                        benchmark.name = name;
+                        benchmark.setupPages();
+                        benchmark.benchmark();
+                    }
                 }
             } finally {
                 benchmark.teardownIndex();
@@ -84,22 +101,54 @@ public class ValuesSourceReaderBenchmark {
         }
     }
 
-    private static List<ValueSourceInfo> info(IndexReader reader, String name) {
-        SortedNumericIndexFieldData fd = new SortedNumericIndexFieldData(
-            name,
-            IndexNumericFieldData.NumericType.LONG,
-            CoreValuesSourceType.NUMERIC,
-            null
-        );
+    private static ValueSourceInfo info(IndexReader reader, String name) {
+        return switch (name) {
+            case "long" -> numericInfo(reader, name, IndexNumericFieldData.NumericType.LONG, ElementType.LONG);
+            case "int" -> numericInfo(reader, name, IndexNumericFieldData.NumericType.INT, ElementType.INT);
+            case "double" -> {
+                SortedDoublesIndexFieldData fd = new SortedDoublesIndexFieldData(
+                    name,
+                    IndexNumericFieldData.NumericType.DOUBLE,
+                    CoreValuesSourceType.NUMERIC,
+                    null
+                );
+                FieldContext context = new FieldContext(name, fd, null);
+                yield new ValueSourceInfo(
+                    CoreValuesSourceType.NUMERIC,
+                    CoreValuesSourceType.NUMERIC.getField(context, null),
+                    ElementType.DOUBLE,
+                    reader
+                );
+            }
+            case "keyword" -> {
+                SortedSetOrdinalsIndexFieldData fd = new SortedSetOrdinalsIndexFieldData(
+                    new IndexFieldDataCache.None(),
+                    "keyword",
+                    CoreValuesSourceType.KEYWORD,
+                    new NoneCircuitBreakerService(),
+                    (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
+                );
+                FieldContext context = new FieldContext(name, fd, null);
+                yield new ValueSourceInfo(
+                    CoreValuesSourceType.KEYWORD,
+                    CoreValuesSourceType.KEYWORD.getField(context, null),
+                    ElementType.BYTES_REF,
+                    reader
+                );
+            }
+            default -> throw new IllegalArgumentException("can't read [" + name + "]");
+        };
+    }
+
+    private static ValueSourceInfo numericInfo(
+        IndexReader reader,
+        String name,
+        IndexNumericFieldData.NumericType numericType,
+        ElementType elementType
+    ) {
+        SortedNumericIndexFieldData fd = new SortedNumericIndexFieldData(name, numericType, CoreValuesSourceType.NUMERIC, null);
         FieldContext context = new FieldContext(name, fd, null);
-        return List.of(
-            new ValueSourceInfo(
-                CoreValuesSourceType.NUMERIC,
-                CoreValuesSourceType.NUMERIC.getField(context, null),
-                ElementType.LONG,
-                reader
-            )
-        );
+        return new ValueSourceInfo(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.NUMERIC.getField(context, null), elementType, reader);
     }
 
     /**
@@ -117,6 +166,9 @@ public class ValuesSourceReaderBenchmark {
     @Param({ "in_order", "shuffled", "shuffled_singles" })
     public String layout;
 
+    @Param({ "long", "int", "double", "keyword" })
+    public String name;
+
     private Directory directory;
     private IndexReader reader;
     private List<Page> pages;
@@ -124,19 +176,42 @@ public class ValuesSourceReaderBenchmark {
     @Benchmark
     @OperationsPerInvocation(INDEX_SIZE)
     public void benchmark() {
-        ValuesSourceReaderOperator op = new ValuesSourceReaderOperator(info(reader, "f1"), 0);
+        ValuesSourceReaderOperator op = new ValuesSourceReaderOperator(List.of(info(reader, name)), 0);
         long sum = 0;
         for (Page page : pages) {
             op.addInput(page);
-            LongBlock values = op.getOutput().getBlock(3);
-            for (int p = 0; p < values.getPositionCount(); p++) {
-                sum += values.getLong(p);
+            switch (name) {
+                case "long" -> {
+                    LongVector values = op.getOutput().<LongBlock>getBlock(1).asVector();
+                    for (int p = 0; p < values.getPositionCount(); p++) {
+                        sum += values.getLong(p);
+                    }
+                }
+                case "int" -> {
+                    IntVector values = op.getOutput().<IntBlock>getBlock(1).asVector();
+                    for (int p = 0; p < values.getPositionCount(); p++) {
+                        sum += values.getInt(p);
+                    }
+                }
+                case "double" -> {
+                    DoubleVector values = op.getOutput().<DoubleBlock>getBlock(1).asVector();
+                    for (int p = 0; p < values.getPositionCount(); p++) {
+                        sum += values.getDouble(p);
+                    }
+                }
+                case "keyword" -> {
+                    BytesRef scratch = new BytesRef();
+                    BytesRefVector values = op.getOutput().<BytesRefBlock>getBlock(1).asVector();
+                    for (int p = 0; p < values.getPositionCount(); p++) {
+                        sum += Integer.parseInt(values.getBytesRef(p, scratch).utf8ToString());
+                    }
+                }
             }
         }
         long expected = INDEX_SIZE;
         expected = expected * (expected - 1) / 2;
         if (expected != sum) {
-            throw new AssertionError("[" + layout + "] expected [" + expected + "] but was [" + sum + "]");
+            throw new AssertionError("[" + layout + "][" + name + "] expected [" + expected + "] but was [" + sum + "]");
         }
     }
 
@@ -150,7 +225,18 @@ public class ValuesSourceReaderBenchmark {
         directory = new ByteBuffersDirectory();
         try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
             for (int i = 0; i < INDEX_SIZE; i++) {
-                iw.addDocument(List.of(new NumericDocValuesField("f1", i), new NumericDocValuesField("f2", i)));
+                iw.addDocument(
+                    List.of(
+                        new NumericDocValuesField("long", i),
+                        new NumericDocValuesField("int", i),
+                        new NumericDocValuesField("double", NumericUtils.doubleToSortableLong(i)),
+                        new KeywordFieldMapper.KeywordField(
+                            "keyword",
+                            new BytesRef(Integer.toString(i)),
+                            KeywordFieldMapper.Defaults.FIELD_TYPE
+                        )
+                    )
+                );
                 if (i % COMMIT_INTERVAL == 0) {
                     iw.commit();
                 }
@@ -174,8 +260,8 @@ public class ValuesSourceReaderBenchmark {
                         pages.add(
                             new Page(
                                 new DocVector(
-                                    IntBlock.newConstantBlockWith(ctx.ord, end - begin).asVector(),
                                     IntBlock.newConstantBlockWith(0, end - begin).asVector(),
+                                    IntBlock.newConstantBlockWith(ctx.ord, end - begin).asVector(),
                                     docs.build(),
                                     true
                                 ).asBlock()

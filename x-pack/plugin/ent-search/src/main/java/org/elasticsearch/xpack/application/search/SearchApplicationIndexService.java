@@ -374,6 +374,7 @@ public class SearchApplicationIndexService {
                 .docValueField(SearchApplication.NAME_FIELD.getPreferredName())
                 .docValueField(SearchApplication.INDICES_FIELD.getPreferredName())
                 .docValueField(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName())
+                .docValueField(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName())
                 .storedFields(Collections.singletonList("_none_"))
                 .sort(SearchApplication.NAME_FIELD.getPreferredName(), SortOrder.ASC);
             final SearchRequest req = new SearchRequest(SEARCH_APPLICATION_ALIAS_NAME).source(source);

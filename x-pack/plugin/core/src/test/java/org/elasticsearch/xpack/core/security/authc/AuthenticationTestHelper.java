@@ -73,7 +73,7 @@ public class AuthenticationTestHelper {
         AuthenticationField.ATTACH_REALM_TYPE,
         AuthenticationField.FALLBACK_REALM_TYPE,
         ServiceAccountSettings.REALM_TYPE,
-        AuthenticationField.REMOTE_ACCESS_REALM_TYPE
+        AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_TYPE
     );
 
     private static final Set<User> INTERNAL_USERS = Set.of(
@@ -238,16 +238,18 @@ public class AuthenticationTestHelper {
         );
     }
 
-    public static RemoteAccessAuthentication randomRemoteAccessAuthentication(RoleDescriptorsIntersection roleDescriptorsIntersection) {
+    public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo(
+        RoleDescriptorsIntersection roleDescriptorsIntersection
+    ) {
         try {
-            final Authentication authentication = randomRemoteAccessSupportedAuthenticationSubject();
-            return new RemoteAccessAuthentication(authentication, roleDescriptorsIntersection);
+            final Authentication authentication = randomCrossClusterAccessSupportedAuthenticationSubject();
+            return new CrossClusterAccessSubjectInfo(authentication, roleDescriptorsIntersection);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
-    private static Authentication randomRemoteAccessSupportedAuthenticationSubject() {
+    private static Authentication randomCrossClusterAccessSupportedAuthenticationSubject() {
         return ESTestCase.randomFrom(
             AuthenticationTestHelper.builder().realm(),
             AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE),
@@ -255,8 +257,8 @@ public class AuthenticationTestHelper {
         ).build();
     }
 
-    public static RemoteAccessAuthentication randomRemoteAccessAuthentication() {
-        final Authentication authentication = randomRemoteAccessSupportedAuthenticationSubject();
+    public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo() {
+        final Authentication authentication = randomCrossClusterAccessSupportedAuthenticationSubject();
         final int numberOfRoleDescriptors;
         if (authentication.isApiKey()) {
             // In case of API keys, we can have either 1 (only owner's - aka limited-by) or 2 role descriptors.
@@ -284,7 +286,7 @@ public class AuthenticationTestHelper {
             );
         }
         try {
-            return new RemoteAccessAuthentication(authentication, new RoleDescriptorsIntersection(roleDescriptors));
+            return new CrossClusterAccessSubjectInfo(authentication, new RoleDescriptorsIntersection(roleDescriptors));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -299,7 +301,7 @@ public class AuthenticationTestHelper {
         private final Map<String, Object> metadata = new HashMap<>();
         private Boolean isServiceAccount;
         private Boolean isRealmUnderDomain;
-        private RemoteAccessAuthentication remoteAccessAuthentication;
+        private CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo;
 
         private AuthenticationTestBuilder() {}
 
@@ -393,19 +395,19 @@ public class AuthenticationTestHelper {
             }
         }
 
-        public AuthenticationTestBuilder remoteAccess() {
-            return remoteAccess(ESTestCase.randomAlphaOfLength(20), randomRemoteAccessAuthentication());
+        public AuthenticationTestBuilder crossClusterAccess() {
+            return crossClusterAccess(ESTestCase.randomAlphaOfLength(20), randomCrossClusterAccessSubjectInfo());
         }
 
-        public AuthenticationTestBuilder remoteAccess(
-            final String remoteAccessApiKeyId,
-            final RemoteAccessAuthentication remoteAccessAuthentication
+        public AuthenticationTestBuilder crossClusterAccess(
+            final String crossClusterAccessApiKeyId,
+            final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo
         ) {
             if (authenticatingAuthentication != null) {
-                throw new IllegalArgumentException("cannot use remote access authentication as run-as target");
+                throw new IllegalArgumentException("cannot use cross cluster access authentication as run-as target");
             }
-            apiKey(remoteAccessApiKeyId);
-            this.remoteAccessAuthentication = Objects.requireNonNull(remoteAccessAuthentication);
+            apiKey(crossClusterAccessApiKeyId);
+            this.crossClusterAccessSubjectInfo = Objects.requireNonNull(crossClusterAccessSubjectInfo);
             return this;
         }
 
@@ -437,8 +439,8 @@ public class AuthenticationTestHelper {
         }
 
         public AuthenticationTestBuilder runAs() {
-            if (remoteAccessAuthentication != null) {
-                throw new IllegalArgumentException("cannot convert to run-as for remote access authentication");
+            if (crossClusterAccessSubjectInfo != null) {
+                throw new IllegalArgumentException("cannot convert to run-as for cross cluster access authentication");
             }
             if (authenticatingAuthentication != null) {
                 throw new IllegalArgumentException("cannot convert to run-as again for run-as authentication");
@@ -502,11 +504,11 @@ public class AuthenticationTestHelper {
                             AuthenticationResult.success(user, metadata),
                             ESTestCase.randomAlphaOfLengthBetween(3, 8)
                         );
-                        // Remote access is authenticated via API key, but the underlying authentication instance has a different structure,
-                        // and a different subject type. If remoteAccessAuthentication is set, we transform the API key authentication
-                        // instance into a remote access authentication instance.
-                        authentication = remoteAccessAuthentication != null
-                            ? apiKeyAuthentication.toRemoteAccess(remoteAccessAuthentication)
+                        // Cross cluster access is authenticated via API key, but the underlying authentication instance has a different
+                        // structure, and a different subject type. If crossClusterAccessSubjectInfo is set, we transform the API key
+                        // authentication instance into a cross cluster access authentication instance.
+                        authentication = crossClusterAccessSubjectInfo != null
+                            ? apiKeyAuthentication.toCrossClusterAccess(crossClusterAccessSubjectInfo)
                             : apiKeyAuthentication;
                     }
                     case TOKEN -> {

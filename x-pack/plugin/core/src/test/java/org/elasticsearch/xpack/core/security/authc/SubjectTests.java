@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.RoleDescriptorsBytes;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
@@ -37,10 +36,10 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AP
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_REALM_NAME;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.Subject.FLEET_SERVER_ROLE_DESCRIPTOR_BYTES_V_7_14;
-import static org.elasticsearch.xpack.core.security.authz.store.RoleReference.RemoteAccessRoleReference;
+import static org.elasticsearch.xpack.core.security.authz.store.RoleReference.CrossClusterAccessRoleReference;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
@@ -151,7 +150,7 @@ public class SubjectTests extends ESTestCase {
         }
     }
 
-    public void testGetRoleReferencesForRemoteAccess() {
+    public void testGetRoleReferencesForCrossClusterAccess() {
         Map<String, Object> authMetadata = new HashMap<>();
         final String apiKeyId = randomAlphaOfLength(12);
         authMetadata.put(AuthenticationField.API_KEY_ID_KEY, apiKeyId);
@@ -169,14 +168,14 @@ public class SubjectTests extends ESTestCase {
         );
         authMetadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleBytes);
 
-        final RemoteAccessAuthentication remoteAccessAuthentication = randomBoolean()
-            ? AuthenticationTestHelper.randomRemoteAccessAuthentication(RoleDescriptorsIntersection.EMPTY)
-            : AuthenticationTestHelper.randomRemoteAccessAuthentication();
-        authMetadata = remoteAccessAuthentication.copyWithRemoteAccessEntries(authMetadata);
+        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = randomBoolean()
+            ? AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(RoleDescriptorsIntersection.EMPTY)
+            : AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo();
+        authMetadata = crossClusterAccessSubjectInfo.copyWithCrossClusterAccessEntries(authMetadata);
 
         final Subject subject = new Subject(
             new User("joe"),
-            new Authentication.RealmRef(REMOTE_ACCESS_REALM_NAME, REMOTE_ACCESS_REALM_TYPE, "node"),
+            new Authentication.RealmRef(CROSS_CLUSTER_ACCESS_REALM_NAME, CROSS_CLUSTER_ACCESS_REALM_TYPE, "node"),
             TransportVersion.CURRENT,
             authMetadata
         );
@@ -184,7 +183,7 @@ public class SubjectTests extends ESTestCase {
         final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(getAnonymousUser());
         // Number of role references depends on the authentication and its number of roles.
         // Test setup can randomly authentication with 0, 1 or 2 (in case of API key) role descriptors,
-        final int numberOfRemoteRoleDescriptors = remoteAccessAuthentication.getRoleDescriptorsBytesList().size();
+        final int numberOfRemoteRoleDescriptors = crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList().size();
         assertThat(numberOfRemoteRoleDescriptors, anyOf(equalTo(0), equalTo(1), equalTo(2)));
         final List<RoleReference> roleReferences = roleReferenceIntersection.getRoleReferences();
         if (emptyRoleBytes) {
@@ -192,26 +191,32 @@ public class SubjectTests extends ESTestCase {
 
                 assertThat(
                     roleReferences,
-                    contains(isA(RemoteAccessRoleReference.class), isA(RemoteAccessRoleReference.class), isA(ApiKeyRoleReference.class))
-                );
-
-                final RemoteAccessRoleReference remoteAccessRoleReference1 = (RemoteAccessRoleReference) roleReferences.get(0);
-                assertThat(
-                    remoteAccessRoleReference1.getRoleDescriptorsBytes(),
-                    equalTo(
-                        remoteAccessAuthentication.getRoleDescriptorsBytesList().isEmpty()
-                            ? RoleDescriptorsBytes.EMPTY
-                            : remoteAccessAuthentication.getRoleDescriptorsBytesList().get(0)
+                    contains(
+                        isA(CrossClusterAccessRoleReference.class),
+                        isA(CrossClusterAccessRoleReference.class),
+                        isA(ApiKeyRoleReference.class)
                     )
                 );
 
-                final RemoteAccessRoleReference remoteAccessRoleReference2 = (RemoteAccessRoleReference) roleReferences.get(1);
+                final CrossClusterAccessRoleReference crossClusterAccessRoleReference1 = (CrossClusterAccessRoleReference) roleReferences
+                    .get(0);
                 assertThat(
-                    remoteAccessRoleReference2.getRoleDescriptorsBytes(),
+                    crossClusterAccessRoleReference1.getRoleDescriptorsBytes(),
                     equalTo(
-                        remoteAccessAuthentication.getRoleDescriptorsBytesList().isEmpty()
-                            ? RoleDescriptorsBytes.EMPTY
-                            : remoteAccessAuthentication.getRoleDescriptorsBytesList().get(1)
+                        crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList().isEmpty()
+                            ? CrossClusterAccessSubjectInfo.RoleDescriptorsBytes.EMPTY
+                            : crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList().get(0)
+                    )
+                );
+
+                final CrossClusterAccessRoleReference crossClusterAccessRoleReference2 = (CrossClusterAccessRoleReference) roleReferences
+                    .get(1);
+                assertThat(
+                    crossClusterAccessRoleReference2.getRoleDescriptorsBytes(),
+                    equalTo(
+                        crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList().isEmpty()
+                            ? CrossClusterAccessSubjectInfo.RoleDescriptorsBytes.EMPTY
+                            : crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList().get(1)
                     )
                 );
 
@@ -221,15 +226,16 @@ public class SubjectTests extends ESTestCase {
 
             } else {
 
-                assertThat(roleReferences, contains(isA(RemoteAccessRoleReference.class), isA(ApiKeyRoleReference.class)));
+                assertThat(roleReferences, contains(isA(CrossClusterAccessRoleReference.class), isA(ApiKeyRoleReference.class)));
 
-                final RemoteAccessRoleReference remoteAccessRoleReference = (RemoteAccessRoleReference) roleReferences.get(0);
+                final CrossClusterAccessRoleReference crossClusterAccessRoleReference = (CrossClusterAccessRoleReference) roleReferences
+                    .get(0);
                 assertThat(
-                    remoteAccessRoleReference.getRoleDescriptorsBytes(),
+                    crossClusterAccessRoleReference.getRoleDescriptorsBytes(),
                     equalTo(
-                        remoteAccessAuthentication.getRoleDescriptorsBytesList().isEmpty()
-                            ? RoleDescriptorsBytes.EMPTY
-                            : remoteAccessAuthentication.getRoleDescriptorsBytesList().get(0)
+                        crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList().isEmpty()
+                            ? CrossClusterAccessSubjectInfo.RoleDescriptorsBytes.EMPTY
+                            : crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList().get(0)
                     )
                 );
 
@@ -242,30 +248,32 @@ public class SubjectTests extends ESTestCase {
                 assertThat(
                     roleReferences,
                     contains(
-                        isA(RemoteAccessRoleReference.class),
-                        isA(RemoteAccessRoleReference.class),
+                        isA(CrossClusterAccessRoleReference.class),
+                        isA(CrossClusterAccessRoleReference.class),
                         isA(ApiKeyRoleReference.class),
                         isA(ApiKeyRoleReference.class)
                     )
                 );
 
-                final RemoteAccessRoleReference remoteAccessRoleReference1 = (RemoteAccessRoleReference) roleReferences.get(0);
+                final CrossClusterAccessRoleReference crossClusterAccessRoleReference1 = (CrossClusterAccessRoleReference) roleReferences
+                    .get(0);
                 assertThat(
-                    remoteAccessRoleReference1.getRoleDescriptorsBytes(),
+                    crossClusterAccessRoleReference1.getRoleDescriptorsBytes(),
                     equalTo(
-                        remoteAccessAuthentication.getRoleDescriptorsBytesList().isEmpty()
-                            ? RoleDescriptorsBytes.EMPTY
-                            : remoteAccessAuthentication.getRoleDescriptorsBytesList().get(0)
+                        crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList().isEmpty()
+                            ? CrossClusterAccessSubjectInfo.RoleDescriptorsBytes.EMPTY
+                            : crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList().get(0)
                     )
                 );
 
-                final RemoteAccessRoleReference remoteAccessRoleReference2 = (RemoteAccessRoleReference) roleReferences.get(1);
+                final CrossClusterAccessRoleReference crossClusterAccessRoleReference2 = (CrossClusterAccessRoleReference) roleReferences
+                    .get(1);
                 assertThat(
-                    remoteAccessRoleReference2.getRoleDescriptorsBytes(),
+                    crossClusterAccessRoleReference2.getRoleDescriptorsBytes(),
                     equalTo(
-                        remoteAccessAuthentication.getRoleDescriptorsBytesList().isEmpty()
-                            ? RoleDescriptorsBytes.EMPTY
-                            : remoteAccessAuthentication.getRoleDescriptorsBytesList().get(1)
+                        crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList().isEmpty()
+                            ? CrossClusterAccessSubjectInfo.RoleDescriptorsBytes.EMPTY
+                            : crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList().get(1)
                     )
                 );
 
@@ -283,16 +291,17 @@ public class SubjectTests extends ESTestCase {
             } else {
                 assertThat(
                     roleReferences,
-                    contains(isA(RemoteAccessRoleReference.class), isA(ApiKeyRoleReference.class), isA(ApiKeyRoleReference.class))
+                    contains(isA(CrossClusterAccessRoleReference.class), isA(ApiKeyRoleReference.class), isA(ApiKeyRoleReference.class))
                 );
 
-                final RemoteAccessRoleReference remoteAccessRoleReference = (RemoteAccessRoleReference) roleReferences.get(0);
+                final CrossClusterAccessRoleReference crossClusterAccessRoleReference = (CrossClusterAccessRoleReference) roleReferences
+                    .get(0);
                 assertThat(
-                    remoteAccessRoleReference.getRoleDescriptorsBytes(),
+                    crossClusterAccessRoleReference.getRoleDescriptorsBytes(),
                     equalTo(
-                        remoteAccessAuthentication.getRoleDescriptorsBytesList().isEmpty()
-                            ? RoleDescriptorsBytes.EMPTY
-                            : remoteAccessAuthentication.getRoleDescriptorsBytesList().get(0)
+                        crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList().isEmpty()
+                            ? CrossClusterAccessSubjectInfo.RoleDescriptorsBytes.EMPTY
+                            : crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList().get(0)
                     )
                 );
 

@@ -84,7 +84,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
 
     /**
      * Which license types are permitted to be uploaded to the cluster
-     * @see LicenseService#ALLOWED_LICENSE_TYPES_SETTING
+     * @see LicenseSettings#ALLOWED_LICENSE_TYPES_SETTING
      */
     private final List<License.LicenseType> allowedLicenseTypes;
 
@@ -121,7 +121,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         this.clock = clock;
         this.scheduler = new SchedulerEngine(settings, clock);
         this.xPacklicenseState = xPacklicenseState;
-        this.allowedLicenseTypes = ALLOWED_LICENSE_TYPES_SETTING.get(settings);
+        this.allowedLicenseTypes = LicenseSettings.ALLOWED_LICENSE_TYPES_SETTING.get(settings);
         this.scheduler.register(this);
         populateExpirationCallbacks();
 
@@ -333,12 +333,15 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
     @Override
     public void startTrialLicense(PostStartTrialRequest request, final ActionListener<PostStartTrialResponse> listener) {
         License.LicenseType requestedType = License.LicenseType.parse(request.getType());
-        if (VALID_TRIAL_TYPES.contains(requestedType) == false) {
+        if (LicenseSettings.VALID_TRIAL_TYPES.contains(requestedType) == false) {
             throw new IllegalArgumentException(
                 "Cannot start trial of type ["
                     + requestedType.getTypeName()
                     + "]. Valid trial types are ["
-                    + VALID_TRIAL_TYPES.stream().map(License.LicenseType::getTypeName).sorted().collect(Collectors.joining(","))
+                    + LicenseSettings.VALID_TRIAL_TYPES.stream()
+                        .map(License.LicenseType::getTypeName)
+                        .sorted()
+                        .collect(Collectors.joining(","))
                     + "]"
             );
         }
@@ -469,7 +472,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
 
     protected String getExpiryWarning(long licenseExpiryDate, long currentTime) {
         final long diff = licenseExpiryDate - currentTime;
-        if (LICENSE_EXPIRATION_WARNING_PERIOD.getMillis() > diff) {
+        if (LicenseSettings.LICENSE_EXPIRATION_WARNING_PERIOD.getMillis() > diff) {
             final long days = TimeUnit.MILLISECONDS.toDays(diff);
             final String expiryMessage = (days == 0 && diff > 0)
                 ? "expires today"
@@ -504,7 +507,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         long time = clock.millis();
         if (license != null) {
             final boolean active;
-            if (LicenseUtils.getExpiryDate(license) == BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
+            if (LicenseUtils.getExpiryDate(license) == LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
                 active = true;
             } else {
                 active = time >= license.issueDate() && time < LicenseUtils.getExpiryDate(license);
@@ -568,7 +571,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
             } else if (time < LicenseUtils.getExpiryDate(license)) {
                 // Re-check the license every day during the warning period up to the license expiration.
                 // This will cause the warning message to be updated that is emitted on soon-expiring license use.
-                long nextTime = LicenseUtils.getExpiryDate(license) - LICENSE_EXPIRATION_WARNING_PERIOD.getMillis();
+                long nextTime = LicenseUtils.getExpiryDate(license) - LicenseSettings.LICENSE_EXPIRATION_WARNING_PERIOD.getMillis();
                 while (nextTime <= time) {
                     nextTime += TimeValue.timeValueDays(1).getMillis();
                 }

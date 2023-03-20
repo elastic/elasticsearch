@@ -231,10 +231,10 @@ field may have a different name.
 [[troubleshooting-searches-latest-data]]
 === Check the latest value
 
-For time-series data, confirm there is non-filtered data within the attempted 
-time range. For example, if you are trying to query the lastest data for field 
-`@timestamp` then you can run the following to see if the max `@timestamp` 
-falls within the attempted range:
+For time-series data, confirm there is non-filtered data within the attempted
+time range. For example, if you are trying to query the latest data for the
+`@timestamp` field, run the following to see if the max `@timestamp` falls
+within the attempted range:
 
 [source,console]
 ----

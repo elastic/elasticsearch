@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Settings related to the license. Note - implementations of {@link LicenseService} are not required to honor all settings here.
+ * Settings related to the license.
  */
 public abstract class LicenseSettings {
     public static final Setting<License.LicenseType> SELF_GENERATED_LICENSE_TYPE = new Setting<>(

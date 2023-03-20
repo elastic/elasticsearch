@@ -44,11 +44,21 @@ public class FieldLookup {
         valuesLoaded = false;
     }
 
+    // exposed by painless
     public List<Object> getValues() {
+        assert valuesLoaded;
         return values;
     }
 
+    // exposed by painless
     public Object getValue() {
-        return values.get(0);
+        assert valuesLoaded;
+        return values.isEmpty() ? null : values.get(0);
+    }
+
+    // exposed by painless
+    public boolean isEmpty() {
+        assert valuesLoaded;
+        return values.isEmpty();
     }
 }

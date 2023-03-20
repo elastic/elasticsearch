@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -21,7 +22,6 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -68,15 +68,7 @@ public class Concat extends ScalarFunction implements Mappable {
 
     @Override
     public BytesRef fold() {
-        BytesRefBuilder result = new BytesRefBuilder();
-        for (Expression v : children()) {
-            BytesRef val = (BytesRef) v.fold();
-            if (val == null) {
-                return null;
-            }
-            result.append(val);
-        }
-        return result.get();
+        return ConcatEvaluator.fold(new BytesRefBuilder(), children());
     }
 
     @Override
@@ -84,34 +76,19 @@ public class Concat extends ScalarFunction implements Mappable {
         Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
     ) {
         List<Supplier<EvalOperator.ExpressionEvaluator>> values = children().stream().map(toEvaluator).toList();
-        return () -> new Evaluator(values.stream().map(Supplier::get).toArray(EvalOperator.ExpressionEvaluator[]::new));
+        return () -> new ConcatEvaluator(
+            new BytesRefBuilder(),
+            values.stream().map(Supplier::get).toArray(EvalOperator.ExpressionEvaluator[]::new)
+        );
     }
 
-    private class Evaluator implements EvalOperator.ExpressionEvaluator {
-        private final BytesRefBuilder evaluated = new BytesRefBuilder();
-        private final EvalOperator.ExpressionEvaluator[] values;
-
-        Evaluator(EvalOperator.ExpressionEvaluator[] values) {
-            this.values = values;
+    @Evaluator
+    static BytesRef process(@Fixed(includeInToString = false) BytesRefBuilder scratch, BytesRef[] values) {
+        scratch.clear();
+        for (int i = 0; i < values.length; i++) {
+            scratch.append(values[i]);
         }
-
-        @Override
-        public BytesRef computeRow(Page page, int position) {
-            evaluated.clear();
-            for (int i = 0; i < values.length; i++) {
-                BytesRef val = (BytesRef) values[i].computeRow(page, position);
-                if (val == null) {
-                    return null;
-                }
-                evaluated.append(val);
-            }
-            return evaluated.get();
-        }
-
-        @Override
-        public String toString() {
-            return "Concat{values=" + Arrays.toString(values) + '}';
-        }
+        return scratch.get();
     }
 
     @Override

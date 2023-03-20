@@ -2,41 +2,41 @@
 // or more contributor license agreements. Licensed under the Elastic License
 // 2.0; you may not use this file except in compliance with the Elastic License
 // 2.0.
-package org.elasticsearch.xpack.esql.expression.function.scalar.math;
+package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
-import java.lang.Number;
 import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.expression.Expression;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Round}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateFormat}.
  * This class is generated. Do not edit it.
  */
-public final class RoundEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluator {
   private final EvalOperator.ExpressionEvaluator val;
 
-  private final EvalOperator.ExpressionEvaluator decimals;
+  private final EvalOperator.ExpressionEvaluator formatter;
 
-  public RoundEvaluator(EvalOperator.ExpressionEvaluator val,
-      EvalOperator.ExpressionEvaluator decimals) {
+  public DateFormatEvaluator(EvalOperator.ExpressionEvaluator val,
+      EvalOperator.ExpressionEvaluator formatter) {
     this.val = val;
-    this.decimals = decimals;
+    this.formatter = formatter;
   }
 
-  static Number fold(Expression val, Expression decimals) {
+  static BytesRef fold(Expression val, Expression formatter) {
     Object valVal = val.fold();
     if (valVal == null) {
       return null;
     }
-    Object decimalsVal = decimals.fold();
-    if (decimalsVal == null) {
+    Object formatterVal = formatter.fold();
+    if (formatterVal == null) {
       return null;
     }
-    return Round.process((Number) valVal, (Number) decimalsVal);
+    return DateFormat.process((long) valVal, (BytesRef) formatterVal);
   }
 
   @Override
@@ -45,15 +45,15 @@ public final class RoundEvaluator implements EvalOperator.ExpressionEvaluator {
     if (valVal == null) {
       return null;
     }
-    Object decimalsVal = decimals.computeRow(page, position);
-    if (decimalsVal == null) {
+    Object formatterVal = formatter.computeRow(page, position);
+    if (formatterVal == null) {
       return null;
     }
-    return Round.process((Number) valVal, (Number) decimalsVal);
+    return DateFormat.process((long) valVal, (BytesRef) formatterVal);
   }
 
   @Override
   public String toString() {
-    return "RoundEvaluator[" + "val=" + val + ", decimals=" + decimals + "]";
+    return "DateFormatEvaluator[" + "val=" + val + ", formatter=" + formatter + "]";
   }
 }

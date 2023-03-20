@@ -61,11 +61,10 @@ public class Round extends ScalarFunction implements OptionalArgument, Mappable 
 
     @Override
     public Object fold() {
-        Object fieldVal = field.fold();
         if (decimals == null) {
-            return RoundNoDecimalsEvaluator.process(fieldVal);
+            return RoundNoDecimalsEvaluator.fold(field);
         }
-        return RoundEvaluator.process(fieldVal, decimals.fold());
+        return RoundEvaluator.fold(field, decimals);
     }
 
     @Evaluator(extraName = "NoDecimals")

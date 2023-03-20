@@ -11,6 +11,7 @@ import java.lang.String;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.ql.expression.Expression;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StartsWith}.
@@ -27,10 +28,12 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
     this.prefix = prefix;
   }
 
-  static Boolean process(Object strVal, Object prefixVal) {
+  static Boolean fold(Expression str, Expression prefix) {
+    Object strVal = str.fold();
     if (strVal == null) {
       return null;
     }
+    Object prefixVal = prefix.fold();
     if (prefixVal == null) {
       return null;
     }
@@ -40,8 +43,14 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public Object computeRow(Page page, int position) {
     Object strVal = str.computeRow(page, position);
+    if (strVal == null) {
+      return null;
+    }
     Object prefixVal = prefix.computeRow(page, position);
-    return process(strVal, prefixVal);
+    if (prefixVal == null) {
+      return null;
+    }
+    return StartsWith.process((BytesRef) strVal, (BytesRef) prefixVal);
   }
 
   @Override

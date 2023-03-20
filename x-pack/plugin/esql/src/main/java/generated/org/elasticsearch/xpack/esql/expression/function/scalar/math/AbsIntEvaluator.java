@@ -10,6 +10,7 @@ import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.ql.expression.Expression;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Abs}.
@@ -22,7 +23,8 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
     this.fieldVal = fieldVal;
   }
 
-  static Integer process(Object fieldValVal) {
+  static Integer fold(Expression fieldVal) {
+    Object fieldValVal = fieldVal.fold();
     if (fieldValVal == null) {
       return null;
     }
@@ -32,7 +34,10 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public Object computeRow(Page page, int position) {
     Object fieldValVal = fieldVal.computeRow(page, position);
-    return process(fieldValVal);
+    if (fieldValVal == null) {
+      return null;
+    }
+    return Abs.process((int) fieldValVal);
   }
 
   @Override

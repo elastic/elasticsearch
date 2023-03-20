@@ -24,7 +24,7 @@ public class IsInfinite extends RationalUnaryPredicate {
 
     @Override
     public Object fold() {
-        return IsInfiniteEvaluator.process(field().fold());
+        return IsInfiniteEvaluator.fold(field());
     }
 
     @Override

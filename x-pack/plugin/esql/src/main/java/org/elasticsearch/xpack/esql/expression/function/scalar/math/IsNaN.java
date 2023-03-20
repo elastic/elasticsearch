@@ -24,7 +24,7 @@ public class IsNaN extends RationalUnaryPredicate {
 
     @Override
     public Object fold() {
-        return IsNaNEvaluator.process(field().fold());
+        return IsNaNEvaluator.fold(field());
     }
 
     @Override

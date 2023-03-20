@@ -10,6 +10,7 @@ import java.lang.String;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.ql.expression.Expression;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Substring}.
@@ -26,10 +27,12 @@ public final class SubstringNoLengthEvaluator implements EvalOperator.Expression
     this.start = start;
   }
 
-  static BytesRef process(Object strVal, Object startVal) {
+  static BytesRef fold(Expression str, Expression start) {
+    Object strVal = str.fold();
     if (strVal == null) {
       return null;
     }
+    Object startVal = start.fold();
     if (startVal == null) {
       return null;
     }
@@ -39,8 +42,14 @@ public final class SubstringNoLengthEvaluator implements EvalOperator.Expression
   @Override
   public Object computeRow(Page page, int position) {
     Object strVal = str.computeRow(page, position);
+    if (strVal == null) {
+      return null;
+    }
     Object startVal = start.computeRow(page, position);
-    return process(strVal, startVal);
+    if (startVal == null) {
+      return null;
+    }
+    return Substring.process((BytesRef) strVal, (int) startVal);
   }
 
   @Override

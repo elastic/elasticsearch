@@ -10,6 +10,7 @@ import java.lang.String;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.ql.expression.Expression;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Substring}.
@@ -29,13 +30,16 @@ public final class SubstringEvaluator implements EvalOperator.ExpressionEvaluato
     this.length = length;
   }
 
-  static BytesRef process(Object strVal, Object startVal, Object lengthVal) {
+  static BytesRef fold(Expression str, Expression start, Expression length) {
+    Object strVal = str.fold();
     if (strVal == null) {
       return null;
     }
+    Object startVal = start.fold();
     if (startVal == null) {
       return null;
     }
+    Object lengthVal = length.fold();
     if (lengthVal == null) {
       return null;
     }
@@ -45,9 +49,18 @@ public final class SubstringEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public Object computeRow(Page page, int position) {
     Object strVal = str.computeRow(page, position);
+    if (strVal == null) {
+      return null;
+    }
     Object startVal = start.computeRow(page, position);
+    if (startVal == null) {
+      return null;
+    }
     Object lengthVal = length.computeRow(page, position);
-    return process(strVal, startVal, lengthVal);
+    if (lengthVal == null) {
+      return null;
+    }
+    return Substring.process((BytesRef) strVal, (int) startVal, (int) lengthVal);
   }
 
   @Override

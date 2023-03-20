@@ -41,4 +41,6 @@ public class Types {
     static final ClassName GROUPING_AGGREGATOR_FUNCTION = ClassName.get(AGGREGATION_PACKAGE, "GroupingAggregatorFunction");
     static final ClassName EXPRESSION_EVALUATOR = ClassName.get(OPERATOR_PACKAGE, "EvalOperator", "ExpressionEvaluator");
 
+    static final ClassName EXPRESSION = ClassName.get("org.elasticsearch.xpack.ql.expression", "Expression");
+
 }

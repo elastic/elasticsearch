@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.gen;
 
 import org.elasticsearch.compute.ann.Experimental;
+import org.elasticsearch.compute.ann.Fixed;
 
 import java.util.List;
 import java.util.Set;
@@ -34,7 +35,12 @@ public class ConsumeProcessor implements Processor {
 
     @Override
     public Set<String> getSupportedAnnotationTypes() {
-        return Set.of("org.elasticsearch.core.Nullable", Experimental.class.getName(), "org.elasticsearch.common.inject.Inject");
+        return Set.of(
+            "org.elasticsearch.core.Nullable",
+            Experimental.class.getName(),
+            "org.elasticsearch.common.inject.Inject",
+            Fixed.class.getName()
+        );
     }
 
     @Override

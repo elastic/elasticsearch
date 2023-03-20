@@ -10,6 +10,7 @@ import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.ql.expression.Expression;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link IsInfinite}.
@@ -22,7 +23,8 @@ public final class IsInfiniteEvaluator implements EvalOperator.ExpressionEvaluat
     this.val = val;
   }
 
-  static Boolean process(Object valVal) {
+  static Boolean fold(Expression val) {
+    Object valVal = val.fold();
     if (valVal == null) {
       return null;
     }
@@ -32,7 +34,10 @@ public final class IsInfiniteEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public Object computeRow(Page page, int position) {
     Object valVal = val.computeRow(page, position);
-    return process(valVal);
+    if (valVal == null) {
+      return null;
+    }
+    return IsInfinite.process((double) valVal);
   }
 
   @Override

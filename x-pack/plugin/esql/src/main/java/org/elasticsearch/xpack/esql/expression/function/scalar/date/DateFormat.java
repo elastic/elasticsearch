@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -75,41 +76,20 @@ public class DateFormat extends ScalarFunction implements OptionalArgument, Mapp
 
     @Override
     public Object fold() {
-        return process((Long) field.fold(), foldedFormatter());
-    }
-
-    private DateFormatter foldedFormatter() {
         if (format == null) {
-            return UTC_DATE_TIME_FORMATTER;
-        } else {
-            return DateFormatter.forPattern((String) format.fold());
+            return DateFormatConstantEvaluator.fold(field, UTC_DATE_TIME_FORMATTER);
         }
+        return DateFormatEvaluator.fold(field, format);
     }
 
-    private static BytesRef process(Long fieldVal, DateFormatter formatter) {
-        if (fieldVal == null) {
-            return null;
-        } else {
-            return new BytesRef(formatter.formatMillis(fieldVal));
-        }
+    @Evaluator(extraName = "Constant")
+    static BytesRef process(long val, @Fixed DateFormatter formatter) {
+        return new BytesRef(formatter.formatMillis(val));
     }
 
-    record DateFormatEvaluator(EvalOperator.ExpressionEvaluator exp, EvalOperator.ExpressionEvaluator formatEvaluator)
-        implements
-            EvalOperator.ExpressionEvaluator {
-        @Override
-        public Object computeRow(Page page, int pos) {
-            return process(((Long) exp.computeRow(page, pos)), toFormatter(formatEvaluator.computeRow(page, pos)));
-        }
-    }
-
-    record ConstantDateFormatEvaluator(EvalOperator.ExpressionEvaluator exp, DateFormatter formatter)
-        implements
-            EvalOperator.ExpressionEvaluator {
-        @Override
-        public Object computeRow(Page page, int pos) {
-            return process(((Long) exp.computeRow(page, pos)), formatter);
-        }
+    @Evaluator
+    static BytesRef process(long val, BytesRef formatter) {
+        return process(val, toFormatter(formatter));
     }
 
     @Override
@@ -118,14 +98,14 @@ public class DateFormat extends ScalarFunction implements OptionalArgument, Mapp
     ) {
         Supplier<EvalOperator.ExpressionEvaluator> fieldEvaluator = toEvaluator.apply(field);
         if (format == null) {
-            return () -> new ConstantDateFormatEvaluator(fieldEvaluator.get(), UTC_DATE_TIME_FORMATTER);
+            return () -> new DateFormatConstantEvaluator(fieldEvaluator.get(), UTC_DATE_TIME_FORMATTER);
         }
         if (format.dataType() != DataTypes.KEYWORD) {
             throw new IllegalArgumentException("unsupported data type for format [" + format.dataType() + "]");
         }
         if (format.foldable()) {
             DateFormatter formatter = toFormatter(format.fold());
-            return () -> new ConstantDateFormatEvaluator(fieldEvaluator.get(), formatter);
+            return () -> new DateFormatConstantEvaluator(fieldEvaluator.get(), formatter);
         }
         Supplier<EvalOperator.ExpressionEvaluator> formatEvaluator = toEvaluator.apply(format);
         return () -> new DateFormatEvaluator(fieldEvaluator.get(), formatEvaluator.get());

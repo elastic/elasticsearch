@@ -11,6 +11,7 @@ import java.lang.String;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.ql.expression.Expression;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Length}.
@@ -23,7 +24,8 @@ public final class LengthEvaluator implements EvalOperator.ExpressionEvaluator {
     this.val = val;
   }
 
-  static Integer process(Object valVal) {
+  static Integer fold(Expression val) {
+    Object valVal = val.fold();
     if (valVal == null) {
       return null;
     }
@@ -33,7 +35,10 @@ public final class LengthEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public Object computeRow(Page page, int position) {
     Object valVal = val.computeRow(page, position);
-    return process(valVal);
+    if (valVal == null) {
+      return null;
+    }
+    return Length.process((BytesRef) valVal);
   }
 
   @Override

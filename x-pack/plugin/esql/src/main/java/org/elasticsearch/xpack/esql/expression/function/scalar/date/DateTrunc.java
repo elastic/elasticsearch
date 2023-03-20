@@ -8,7 +8,8 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.planner.Mappable;
@@ -64,11 +65,12 @@ public class DateTrunc extends BinaryDateTimeFunction implements Mappable {
 
     @Override
     public Object fold() {
-        return process((Long) timestampField().fold(), createRounding(interval().fold()));
+        return DateTruncEvaluator.fold(timestampField(), createRounding(interval().fold()));
     }
 
-    public static Long process(Long fieldVal, Rounding.Prepared rounding) {
-        return fieldVal != null && rounding != null ? rounding.round(fieldVal) : null;
+    @Evaluator
+    static long process(long fieldVal, @Fixed Rounding.Prepared rounding) {
+        return rounding.round(fieldVal);
     }
 
     @Override
@@ -154,26 +156,17 @@ public class DateTrunc extends BinaryDateTimeFunction implements Mappable {
         if (interval.foldable() == false) {
             throw new IllegalArgumentException("Function [" + sourceText() + "] has invalid interval [" + interval().sourceText() + "].");
         }
+        Object foldedInterval;
         try {
-            Object foldedInterval = interval.fold();
+            foldedInterval = interval.fold();
             if (foldedInterval == null) {
                 throw new IllegalArgumentException("Interval cannot not be null");
             }
-            return () -> new ConstantDateTruncEvaluator(fieldEvaluator.get(), DateTrunc.createRounding(foldedInterval, zoneId()));
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException(
                 "Function [" + sourceText() + "] has invalid interval [" + interval().sourceText() + "]. " + e.getMessage()
             );
         }
-    }
-
-    private record ConstantDateTruncEvaluator(EvalOperator.ExpressionEvaluator field, Rounding.Prepared rounding)
-        implements
-            EvalOperator.ExpressionEvaluator {
-        @Override
-        public Object computeRow(Page page, int pos) {
-            Object ts = field.computeRow(page, pos);
-            return DateTrunc.process((Long) ts, rounding);
-        }
+        return () -> new DateTruncEvaluator(fieldEvaluator.get(), DateTrunc.createRounding(foldedInterval, zoneId()));
     }
 }

@@ -64,7 +64,7 @@ public class StartsWith extends ScalarFunction implements Mappable {
 
     @Override
     public Object fold() {
-        return StartsWithEvaluator.process(str.fold(), prefix.fold());
+        return StartsWithEvaluator.fold(str, prefix);
     }
 
     @Evaluator

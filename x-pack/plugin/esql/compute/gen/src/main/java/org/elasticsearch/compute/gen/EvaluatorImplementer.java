@@ -7,20 +7,30 @@
 
 package org.elasticsearch.compute.gen;
 
+import com.squareup.javapoet.ArrayTypeName;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
+import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
-import java.util.stream.Collectors;
+import org.elasticsearch.compute.ann.Fixed;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.ArrayType;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 
+import static org.elasticsearch.compute.gen.Types.EXPRESSION;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.PAGE;
 
@@ -57,11 +67,21 @@ public class EvaluatorImplementer {
         builder.addSuperinterface(EXPRESSION_EVALUATOR);
 
         for (VariableElement v : processFunction.getParameters()) {
-            builder.addField(EXPRESSION_EVALUATOR, v.getSimpleName().toString(), Modifier.PRIVATE, Modifier.FINAL);
+            if (v.getAnnotation(Fixed.class) == null) {
+                String name = v.getSimpleName().toString();
+                TypeName type = EXPRESSION_EVALUATOR;
+                if (v.asType().getKind() == TypeKind.ARRAY) {
+                    builder.addField(TypeName.get(v.asType()), name + "Val", Modifier.PRIVATE, Modifier.FINAL);
+                    type = ArrayTypeName.of(type);
+                }
+                builder.addField(type, name, Modifier.PRIVATE, Modifier.FINAL);
+            } else {
+                builder.addField(TypeName.get(v.asType()), v.getSimpleName().toString(), Modifier.PRIVATE, Modifier.FINAL);
+            }
         }
 
         builder.addMethod(ctor());
-        builder.addMethod(process());
+        builder.addMethod(fold());
         builder.addMethod(computeRow());
         builder.addMethod(toStringMethod());
         return builder.build();
@@ -71,39 +91,50 @@ public class EvaluatorImplementer {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
         for (VariableElement v : processFunction.getParameters()) {
             String name = v.getSimpleName().toString();
-            builder.addParameter(EXPRESSION_EVALUATOR, name);
-            builder.addStatement("this.$L = $L", name, name);
+            if (v.getAnnotation(Fixed.class) == null) {
+                TypeName type = EXPRESSION_EVALUATOR;
+                if (v.asType().getKind() == TypeKind.ARRAY) {
+                    TypeMirror componentType = ((ArrayType) v.asType()).getComponentType();
+                    builder.addStatement("this.$LVal = new $T[$L.length]", name, componentType, name);
+                    type = ArrayTypeName.of(type);
+                }
+                builder.addParameter(type, name);
+                builder.addStatement("this.$L = $L", name, name);
+            } else {
+                builder.addParameter(TypeName.get(v.asType()), name);
+                builder.addStatement("this.$L = $L", name, name);
+            }
         }
         return builder.build();
     }
 
-    private MethodSpec process() {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder("process")
+    private MethodSpec fold() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("fold")
             .addModifiers(Modifier.STATIC)
             .returns(TypeName.get(processFunction.getReturnType()).box());
 
         for (VariableElement v : processFunction.getParameters()) {
             String name = v.getSimpleName().toString();
-            builder.addParameter(Object.class, name + "Val");
+            if (v.getAnnotation(Fixed.class) != null) {
+                builder.addParameter(TypeName.get(v.asType()), name);
+                continue;
+            }
+            if (v.asType().getKind() == TypeKind.ARRAY) {
+                TypeMirror componentType = ((ArrayType) v.asType()).getComponentType();
+                builder.addParameter(ParameterizedTypeName.get(ClassName.get(List.class), EXPRESSION), name);
+                builder.addStatement("$T $LVal = new $T[$L.size()]", v.asType(), name, componentType, name);
+                builder.beginControlFlow("for (int i = 0; i < $LVal.length; i++)", name);
+                builder.addStatement("$LVal[i] = ($T) $L.get(i).fold()", name, componentType, name);
+                builder.beginControlFlow("if ($LVal[i] == null)", name).addStatement("return null").endControlFlow();
+                builder.endControlFlow();
+                continue;
+            }
+            builder.addParameter(EXPRESSION, name);
+            builder.addStatement("Object $LVal = $L.fold()", name, name);
             builder.beginControlFlow("if ($LVal == null)", name).addStatement("return null").endControlFlow();
         }
 
-        StringBuilder pattern = new StringBuilder();
-        pattern.append("return $T.$N(");
-        int i = 0;
-        Object[] args = new Object[2 + 2 * processFunction.getParameters().size()];
-        args[i++] = declarationType;
-        args[i++] = processFunction.getSimpleName();
-        for (VariableElement v : processFunction.getParameters()) {
-            if (i > 3) {
-                pattern.append(", ");
-            }
-            pattern.append("($T) $LVal");
-            args[i++] = v.asType();
-            args[i++] = v.getSimpleName();
-        }
-
-        builder.addStatement(pattern.append(")").toString(), args);
+        invokeProcess(builder);
         return builder.build();
     }
 
@@ -113,13 +144,21 @@ public class EvaluatorImplementer {
 
         for (VariableElement v : processFunction.getParameters()) {
             String name = v.getSimpleName().toString();
-            builder.addStatement("Object $LVal = $L.computeRow(page, position)", name, name);
+            if (v.getAnnotation(Fixed.class) == null) {
+                if (v.asType().getKind() == TypeKind.ARRAY) {
+                    TypeMirror componentType = ((ArrayType) v.asType()).getComponentType();
+                    builder.beginControlFlow("for (int i = 0; i < $LVal.length; i++)", name);
+                    builder.addStatement("$LVal[i] = ($T) $L[i].computeRow(page, position)", name, componentType, name);
+                    builder.beginControlFlow("if ($LVal[i] == null)", name).addStatement("return null").endControlFlow();
+                    builder.endControlFlow();
+                } else {
+                    builder.addStatement("Object $LVal = $L.computeRow(page, position)", name, name);
+                    builder.beginControlFlow("if ($LVal == null)", name).addStatement("return null").endControlFlow();
+                }
+            }
         }
 
-        builder.addStatement(
-            "return process(" + processFunction.getParameters().stream().map(p -> "$LVal").collect(Collectors.joining(", ")) + ")",
-            processFunction.getParameters().stream().map(p -> p.getSimpleName()).toArray()
-        );
+        invokeProcess(builder);
         return builder.build();
     }
 
@@ -129,17 +168,52 @@ public class EvaluatorImplementer {
 
         StringBuilder pattern = new StringBuilder();
         pattern.append("return $S");
-        int i = 0;
-        Object[] args = new Object[2 + 2 * processFunction.getParameters().size()];
-        args[i++] = implementation.simpleName() + "[";
+        List<Object> args = new ArrayList<>();
+        args.add(implementation.simpleName() + "[");
         for (VariableElement v : processFunction.getParameters()) {
-            pattern.append(" + $S + $L");
-            args[i++] = (i > 2 ? ", " : "") + v.getSimpleName() + "=";
-            args[i++] = v.getSimpleName();
+            Fixed fixed = v.getAnnotation(Fixed.class);
+            if (fixed != null && false == fixed.includeInToString()) {
+                continue;
+            }
+            args.add((args.size() > 2 ? ", " : "") + v.getSimpleName() + "=");
+            if (v.asType().getKind() == TypeKind.ARRAY) {
+                pattern.append(" + $S + $T.toString($L)");
+                args.add(Arrays.class);
+            } else {
+                pattern.append(" + $S + $L");
+            }
+            args.add(v.getSimpleName());
         }
         pattern.append(" + $S");
-        args[i] = "]";
-        builder.addStatement(pattern.toString(), args);
+        args.add("]");
+        builder.addStatement(pattern.toString(), args.toArray());
         return builder.build();
+    }
+
+    private void invokeProcess(MethodSpec.Builder builder) {
+        StringBuilder pattern = new StringBuilder();
+        List<Object> args = new ArrayList<>();
+        pattern.append("return $T.$N(");
+        args.add(declarationType);
+        args.add(processFunction.getSimpleName());
+        for (VariableElement v : processFunction.getParameters()) {
+            if (args.size() > 2) {
+                pattern.append(", ");
+            }
+            if (v.getAnnotation(Fixed.class) == null) {
+                if (v.asType().getKind() == TypeKind.ARRAY) {
+                    pattern.append("$LVal");
+                    args.add(v.getSimpleName());
+                } else {
+                    pattern.append("($T) $LVal");
+                    args.add(v.asType());
+                    args.add(v.getSimpleName());
+                }
+            } else {
+                pattern.append("$L");
+                args.add(v.getSimpleName());
+            }
+        }
+        builder.addStatement(pattern.append(")").toString(), args.toArray());
     }
 }

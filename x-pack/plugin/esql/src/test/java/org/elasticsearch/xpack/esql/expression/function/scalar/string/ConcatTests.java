@@ -46,7 +46,7 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected String expectedEvaluatorSimpleToString() {
-        return "Concat{values=[Keywords[channel=0], Keywords[channel=1]]}";
+        return "ConcatEvaluator[values=[Keywords[channel=0], Keywords[channel=1]]]";
     }
 
     @Override

@@ -93,28 +93,24 @@ public class DateTruncTests extends ESTestCase {
     public void testDateTruncFunction() {
         long ts = toMillis("2023-02-17T10:25:33.38Z");
 
-        assertEquals(toMillis("2023-02-17T00:00:00.00Z"), (long) process(ts, createRounding(Period.ofDays(1))));
-        assertEquals(toMillis("2023-02-01T00:00:00.00Z"), (long) process(ts, createRounding(Period.ofMonths(1))));
-        assertEquals(toMillis("2023-01-01T00:00:00.00Z"), (long) process(ts, createRounding(Period.ofYears(1))));
+        assertEquals(toMillis("2023-02-17T00:00:00.00Z"), process(ts, createRounding(Period.ofDays(1))));
+        assertEquals(toMillis("2023-02-01T00:00:00.00Z"), process(ts, createRounding(Period.ofMonths(1))));
+        assertEquals(toMillis("2023-01-01T00:00:00.00Z"), process(ts, createRounding(Period.ofYears(1))));
 
-        assertEquals(toMillis("2023-02-12T00:00:00.00Z"), (long) process(ts, createRounding(Period.ofDays(10))));
+        assertEquals(toMillis("2023-02-12T00:00:00.00Z"), process(ts, createRounding(Period.ofDays(10))));
         // 7 days period should return weekly rounding
-        assertEquals(toMillis("2023-02-13T00:00:00.00Z"), (long) process(ts, createRounding(Period.ofDays(7))));
+        assertEquals(toMillis("2023-02-13T00:00:00.00Z"), process(ts, createRounding(Period.ofDays(7))));
         // 3 months period should return quarterly
-        assertEquals(toMillis("2023-01-01T00:00:00.00Z"), (long) process(ts, createRounding(Period.ofMonths(3))));
+        assertEquals(toMillis("2023-01-01T00:00:00.00Z"), process(ts, createRounding(Period.ofMonths(3))));
 
-        assertEquals(toMillis("2023-02-17T10:00:00.00Z"), (long) process(ts, createRounding(Duration.ofHours(1))));
-        assertEquals(toMillis("2023-02-17T10:25:00.00Z"), (long) process(ts, createRounding(Duration.ofMinutes(1))));
-        assertEquals(toMillis("2023-02-17T10:25:33.00Z"), (long) process(ts, createRounding(Duration.ofSeconds(1))));
+        assertEquals(toMillis("2023-02-17T10:00:00.00Z"), process(ts, createRounding(Duration.ofHours(1))));
+        assertEquals(toMillis("2023-02-17T10:25:00.00Z"), process(ts, createRounding(Duration.ofMinutes(1))));
+        assertEquals(toMillis("2023-02-17T10:25:33.00Z"), process(ts, createRounding(Duration.ofSeconds(1))));
 
-        assertEquals(toMillis("2023-02-17T09:00:00.00Z"), (long) process(ts, createRounding(Duration.ofHours(3))));
-        assertEquals(toMillis("2023-02-17T10:15:00.00Z"), (long) process(ts, createRounding(Duration.ofMinutes(15))));
-        assertEquals(toMillis("2023-02-17T10:25:30.00Z"), (long) process(ts, createRounding(Duration.ofSeconds(30))));
-        assertEquals(toMillis("2023-02-17T10:25:30.00Z"), (long) process(ts, createRounding(Duration.ofSeconds(30))));
-
-        assertNull(process(ts, null));
-        assertNull(process(null, null));
-        assertNull(process(null, createRounding(Period.ofDays(1))));
+        assertEquals(toMillis("2023-02-17T09:00:00.00Z"), process(ts, createRounding(Duration.ofHours(3))));
+        assertEquals(toMillis("2023-02-17T10:15:00.00Z"), process(ts, createRounding(Duration.ofMinutes(15))));
+        assertEquals(toMillis("2023-02-17T10:25:30.00Z"), process(ts, createRounding(Duration.ofSeconds(30))));
+        assertEquals(toMillis("2023-02-17T10:25:30.00Z"), process(ts, createRounding(Duration.ofSeconds(30))));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> process(ts, createRounding(Period.ofDays(-1))));
         assertThat(e.getMessage(), containsString("Zero or negative time interval is not supported"));

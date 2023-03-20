@@ -53,7 +53,7 @@ public class Length extends UnaryScalarFunction implements Mappable {
 
     @Override
     public Object fold() {
-        return LengthEvaluator.process(field().fold());
+        return LengthEvaluator.fold(field());
     }
 
     @Evaluator

@@ -123,6 +123,10 @@ public class DataFrameAnalyticsConfigUpdate implements Writeable, ToXContentObje
         return maxNumThreads;
     }
 
+    public Map<String, Object> getMeta() {
+        return meta;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -169,6 +173,9 @@ public class DataFrameAnalyticsConfigUpdate implements Writeable, ToXContentObje
         }
         if (maxNumThreads != null) {
             builder.setMaxNumThreads(maxNumThreads);
+        }
+        if (meta != null) {
+            builder.setMeta(meta);
         }
         return builder;
     }

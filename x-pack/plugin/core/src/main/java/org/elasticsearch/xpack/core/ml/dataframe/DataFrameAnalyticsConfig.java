@@ -247,6 +247,10 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         return maxNumThreads;
     }
 
+    public Map<String, Object> getMeta() {
+        return meta;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         final boolean forInternalStorage = params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false);

@@ -42,9 +42,13 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
 
     private static final String NAME = "shard_limits";
     private static final String UPGRADE_BLOCKED = "The cluster has too many used shards to be able to upgrade";
+    private static final String UPGRADE_AT_RISK = "The cluster is running low on room to add new shards hence upgrade is at risk";
     private static final String HELP_GUIDE = "https://ela.st/max-shard-limit-reached";
-    static final List<HealthIndicatorImpact> INDICATOR_IMPACTS = List.of(
+    static final List<HealthIndicatorImpact> RED_INDICATOR_IMPACTS = List.of(
         new HealthIndicatorImpact(NAME, "upgrade_blocked", 1, UPGRADE_BLOCKED, List.of(ImpactArea.DEPLOYMENT_MANAGEMENT))
+    );
+    static final List<HealthIndicatorImpact> YELLOW_INDICATOR_IMPACTS = List.of(
+        new HealthIndicatorImpact(NAME, "upgrade_at_risk", 2, UPGRADE_AT_RISK, List.of(ImpactArea.DEPLOYMENT_MANAGEMENT))
     );
 
     static final Diagnosis SHARD_LIMITS_REACHED_NORMAL_NODES = new Diagnosis(
@@ -98,7 +102,6 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
 
     private HealthIndicatorResult mergeIndicators(StatusResult normalNodes, StatusResult frozenNodes) {
         HealthStatus finalStatus = HealthStatus.merge(Stream.of(normalNodes.status, frozenNodes.status));
-        List<HealthIndicatorImpact> indicatorImpacts = List.of();
         List<Diagnosis> diagnoses = List.of();
         var symptomBuilder = new StringBuilder();
 
@@ -124,8 +127,13 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
             }
 
             symptomBuilder.append(" nodes.");
-            indicatorImpacts = INDICATOR_IMPACTS;
         }
+
+        var indicatorImpacts = switch (finalStatus) {
+            case RED -> RED_INDICATOR_IMPACTS;
+            case YELLOW -> YELLOW_INDICATOR_IMPACTS;
+            default -> List.<HealthIndicatorImpact>of();
+        };
 
         return createIndicator(
             finalStatus,

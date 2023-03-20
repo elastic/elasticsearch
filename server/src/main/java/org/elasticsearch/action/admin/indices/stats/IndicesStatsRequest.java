@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -269,11 +268,6 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
     public IndicesStatsRequest includeUnloadedSegments(boolean includeUnloadedSegments) {
         flags.includeUnloadedSegments(includeUnloadedSegments);
         return this;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     @Override

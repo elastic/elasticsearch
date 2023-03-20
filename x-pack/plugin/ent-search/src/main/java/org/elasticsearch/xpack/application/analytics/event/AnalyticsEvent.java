@@ -7,112 +7,96 @@
 
 package org.elasticsearch.xpack.application.analytics.event;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Strings;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.application.analytics.AnalyticsCollection;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.application.analytics.event.parser.InteractionEvent;
+import org.elasticsearch.xpack.application.analytics.event.parser.PageViewEvent;
+import org.elasticsearch.xpack.application.analytics.event.parser.SearchEvent;
 
 import java.io.IOException;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 
-public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
+public class AnalyticsEvent implements Writeable, ToXContentObject {
+    private final AnalyticsContext analyticsContext;
 
-    public static final ParseField SESSION_FIELD = new ParseField("session");
+    private final Map<String, Object> payload;
 
-    public static final ParseField USER_FIELD = new ParseField("user");
-
-    public enum Type {
-        PAGEVIEW("pageview"),
-        SEARCH("search"),
-        INTERACTION("interaction");
-
-        private final String typeName;
-
-        Type(String typeName) {
-            this.typeName = typeName;
-        }
-
-        @Override
-        public String toString() {
-            return typeName.toLowerCase(Locale.ROOT);
-        }
-    }
-
-    public static ConstructingObjectParser<? extends AnalyticsEvent, AnalyticsCollection> getParser(Type eventType) {
-        if (eventType == Type.PAGEVIEW) return PageViewAnalyticsEvent.PARSER;
-
-        if (eventType == Type.SEARCH) return SearchAnalyticsEvent.PARSER;
-
-        if (eventType == Type.INTERACTION) return InteractionAnalyticsEvent.PARSER;
-
-        throw new IllegalArgumentException(Strings.format("%s is not a supported event type", eventType));
-    }
-
-    private final AnalyticsCollection analyticsCollection;
-
-    private final SessionData sessionData;
-
-    private final UserData userData;
-
-    public AnalyticsEvent(AnalyticsCollection analyticsCollection, SessionData sessionData, UserData userData) {
-        this.analyticsCollection = analyticsCollection;
-        this.sessionData = sessionData;
-        this.userData = userData;
+    public AnalyticsEvent(AnalyticsContext analyticsContext, Map<String, Object> payload) {
+        this.analyticsContext = analyticsContext;
+        this.payload = payload;
     }
 
     public AnalyticsEvent(StreamInput in) throws IOException {
-        this(new AnalyticsCollection(in), new SessionData(in), new UserData(in));
+        this(new AnalyticsContext(in), XContentHelper.convertToMap(in.readBytesReference(), true, XContentType.JSON).v2());
+    }
+
+    public static AnalyticsEvent fromPayload(AnalyticsContext context, XContentType xContentType, BytesReference payload)
+        throws IOException {
+        XContentParser parser = xContentType.xContent().createParser(XContentParserConfiguration.EMPTY, payload.streamInput());
+        AnalyticsEventType eventType = context.eventType();
+
+        if (eventType == AnalyticsEventType.PAGEVIEW) return PageViewEvent.parse(parser, context);
+
+        if (eventType == AnalyticsEventType.SEARCH) return SearchEvent.parse(parser, context);
+
+        if (eventType == AnalyticsEventType.INTERACTION) return InteractionEvent.parse(parser, context);
+
+        throw new IllegalArgumentException(org.elasticsearch.core.Strings.format("%s is not a supported event type", eventType));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        analyticsCollection.writeTo(out);
-        sessionData.writeTo(out);
-        userData.writeTo(out);
+        analyticsContext.writeTo(out);
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            builder.field("@timestamp", getTimestamp());
+            builder.field("@timestamp", analyticsContext.eventTime());
 
-            builder.startObject("event").field("action", getType()).endObject();
+            builder.startObject("event");
+            {
+                builder.field("action", analyticsContext.eventType());
+            }
+            builder.endObject();
 
             builder.startObject("data_stream");
             {
                 builder.field("type", "behavioral_analytics");
                 builder.field("dataset", "events");
-                builder.field("namespace", analyticsCollection.getName());
+                builder.field("namespace", analyticsContext.eventCollection().getName());
 
             }
             builder.endObject();
 
-            builder.field(SESSION_FIELD.getPreferredName(), sessionData);
-            builder.field(USER_FIELD.getPreferredName(), sessionData);
-            addFieldsToXContent(builder, params);
+            // Render additional fields from the event payload (session, user, page, ...)
+            builder.mapContents(payload);
         }
         builder.endObject();
 
         return builder;
     }
 
-    public void addFieldsToXContent(XContentBuilder builder, Params params) throws IOException {
-
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        AnalyticsEvent that = (AnalyticsEvent) o;
+        return Objects.equals(analyticsContext, that.analyticsContext) && Objects.equals(payload, that.payload);
     }
 
-    protected abstract Type getType();
-
-    private String getTimestamp() {
-        ZonedDateTime currentTime = ZonedDateTime.now();
-
-        return currentTime.format(DateTimeFormatter.ISO_INSTANT);
+    @Override
+    public int hashCode() {
+        return Objects.hash(analyticsContext, payload);
     }
 }

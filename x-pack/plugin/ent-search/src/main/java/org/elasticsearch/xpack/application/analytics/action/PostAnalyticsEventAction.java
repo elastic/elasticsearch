@@ -15,11 +15,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
+import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventType;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -43,21 +44,29 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
 
         private final String eventType;
 
+        private final long eventTime;
+
         private final BytesReference payload;
 
         private final XContentType xContentType;
 
-        public Request(String collectionName, String eventType, BytesReference payload, XContentType xContentType) {
+        public Request(String collectionName, String eventType, XContentType xContentType, BytesReference payload) {
+            this(collectionName, eventType, System.currentTimeMillis(), xContentType, payload);
+        }
+
+        public Request(String collectionName, String eventType, long eventTime, XContentType xContentType, BytesReference payload) {
             this.collectionName = collectionName;
             this.eventType = eventType;
-            this.payload = payload;
+            this.eventTime = eventTime;
             this.xContentType = xContentType;
+            this.payload = payload;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.collectionName = in.readString();
             this.eventType = in.readString();
+            this.eventTime = in.readLong();
             this.xContentType = in.readEnum(XContentType.class);
             this.payload = in.readBytesReference();
         }
@@ -66,8 +75,12 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             return collectionName;
         }
 
-        public AnalyticsEvent.Type eventType() {
-            return AnalyticsEvent.Type.valueOf(eventType.toUpperCase(Locale.ROOT));
+        public AnalyticsEventType eventType() {
+            return AnalyticsEventType.valueOf(eventType.toUpperCase(Locale.ROOT));
+        }
+
+        public long eventTime() {
+            return eventTime;
         }
 
         public BytesReference payload() {
@@ -91,7 +104,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             }
 
             try {
-                AnalyticsEvent.Type.valueOf(eventType.toUpperCase(Locale.ROOT));
+                AnalyticsEventType.valueOf(eventType.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
                 validationException = addValidationError(Strings.format("Invalid event type: %s", eventType), validationException);
             }
@@ -104,7 +117,8 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             super.writeTo(out);
             out.writeString(collectionName);
             out.writeString(eventType);
-            out.writeEnum(xContentType);
+            out.writeLong(eventTime);
+            XContentHelper.writeTo(out, xContentType);
             out.writeBytesReference(payload);
         }
 
@@ -116,13 +130,12 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             return Objects.equals(collectionName, that.collectionName)
                 && Objects.equals(eventType, that.eventType)
                 && Objects.equals(xContentType, that.xContentType)
-                && payload.utf8ToString().equals(that.payload.utf8ToString());
-
+                && Objects.equals(payload, that.payload);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(collectionName, eventType, xContentType, payload.utf8ToString());
+            return Objects.hash(collectionName, eventType, xContentType, payload);
         }
     }
 

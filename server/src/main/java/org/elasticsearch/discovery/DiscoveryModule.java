@@ -35,6 +35,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
+import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.transport.TransportService;
 
@@ -99,7 +100,8 @@ public class DiscoveryModule {
         MasterService masterService,
         ClusterApplier clusterApplier,
         ClusterSettings clusterSettings,
-        List<DiscoveryPlugin> plugins,
+        List<DiscoveryPlugin> discoveryPlugins,
+        List<ClusterCoordinationPlugin> clusterCoordinationPlugins,
         AllocationService allocationService,
         Path configFile,
         GatewayMetaState gatewayMetaState,
@@ -113,12 +115,15 @@ public class DiscoveryModule {
         hostProviders.put("file", () -> new FileBasedSeedHostsProvider(configFile));
         final Map<String, ElectionStrategy> electionStrategies = new HashMap<>();
         electionStrategies.put(DEFAULT_ELECTION_STRATEGY, ElectionStrategy.DEFAULT_INSTANCE);
-        for (DiscoveryPlugin plugin : plugins) {
+        for (DiscoveryPlugin plugin : discoveryPlugins) {
             plugin.getSeedHostProviders(transportService, networkService).forEach((key, value) -> {
                 if (hostProviders.put(key, value) != null) {
                     throw new IllegalArgumentException("Cannot register seed provider [" + key + "] twice");
                 }
             });
+        }
+
+        for (ClusterCoordinationPlugin plugin : clusterCoordinationPlugins) {
             BiConsumer<DiscoveryNode, ClusterState> joinValidator = plugin.getJoinValidator();
             if (joinValidator != null) {
                 joinValidators.add(joinValidator);

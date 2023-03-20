@@ -28,7 +28,7 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
 public class ClusterStateUpdaters {
     private static final Logger logger = LogManager.getLogger(ClusterStateUpdaters.class);
 
-    static ClusterState setLocalNode(final ClusterState clusterState, DiscoveryNode localNode) {
+    public static ClusterState setLocalNode(final ClusterState clusterState, DiscoveryNode localNode) {
         return ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build())
             .build();

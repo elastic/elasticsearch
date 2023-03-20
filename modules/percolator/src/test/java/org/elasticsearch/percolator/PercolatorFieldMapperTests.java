@@ -670,7 +670,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                     XContentType.JSON
                 )
             );
-        assertThat(doc.rootDoc().getFields().size(), equalTo(16)); // also includes all other meta fields
+        assertThat(doc.rootDoc().getFields().size(), equalTo(15)); // also includes all other meta fields
         BytesRef queryBuilderAsBytes = doc.rootDoc().getField("query_field1.query_builder_field").binaryValue();
         assertQueryBuilder(queryBuilderAsBytes, queryBuilder);
 
@@ -711,7 +711,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                     XContentType.JSON
                 )
             );
-        assertThat(doc.rootDoc().getFields().size(), equalTo(11)); // also includes all other meta fields
+        assertThat(doc.rootDoc().getFields().size(), equalTo(10)); // also includes all other meta fields
         IndexableField queryBuilderField = doc.rootDoc().getField("object_field.query_field.query_builder_field");
         assertTrue(queryBuilderField.fieldType().omitNorms());
         IndexableField extractionResultField = doc.rootDoc().getField("object_field.query_field.extraction_result");
@@ -735,7 +735,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                     XContentType.JSON
                 )
             );
-        assertThat(doc.rootDoc().getFields().size(), equalTo(11)); // also includes all other meta fields
+        assertThat(doc.rootDoc().getFields().size(), equalTo(10)); // also includes all other meta fields
         queryBuilderAsBytes = doc.rootDoc().getField("object_field.query_field.query_builder_field").binaryValue();
         assertQueryBuilder(queryBuilderAsBytes, queryBuilder);
 

@@ -17,7 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -60,7 +60,7 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
             }
 
             @Override
-            protected LicenseService getLicenseService() {
+            protected ClusterStateLicenseService getLicenseService() {
                 return thisVar.getLicenseService();
             }
 

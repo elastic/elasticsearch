@@ -245,42 +245,45 @@ public class AuthenticationTestHelper {
     ) {
         try {
             // TODO add apikey() once we have querying-cluster-side API key support
-            final Authentication authentication = ESTestCase.randomFrom(
-                AuthenticationTestHelper.builder().realm(),
-                AuthenticationTestHelper.builder().internal(CrossClusterAccessUser.INSTANCE)
-            ).build();
-            // TODO this is too sneaky
-            if (CrossClusterAccessUser.is(authentication.getEffectiveSubject().getUser())) {
-                return CrossClusterAccessUser.crossClusterAccessSubjectInfo(
-                    authentication.getEffectiveSubject().getTransportVersion(),
-                    authentication.getEffectiveSubject().getRealm().getNodeName()
-                );
-            } else {
-                return new CrossClusterAccessSubjectInfo(authentication, roleDescriptorsIntersection);
-            }
+            final Authentication authentication = AuthenticationTestHelper.builder().realm().build();
+            return new CrossClusterAccessSubjectInfo(authentication, roleDescriptorsIntersection);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
-    public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo() {
-        return randomCrossClusterAccessSubjectInfo(
-            new RoleDescriptorsIntersection(
-                // TODO randomize to add a second set once we have querying-cluster-side API key support
-                new RoleDescriptor(
-                    "_remote_user",
-                    null,
-                    new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder().indices("index1").privileges("read", "read_cross_cluster").build() },
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-                )
-            )
+    public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfoForInternalUser() {
+        final Authentication authentication = AuthenticationTestHelper.builder().internal(CrossClusterAccessUser.INSTANCE).build();
+        return CrossClusterAccessUser.crossClusterAccessSubjectInfo(
+            authentication.getEffectiveSubject().getTransportVersion(),
+            authentication.getEffectiveSubject().getRealm().getNodeName()
         );
+    }
+
+    public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo() {
+        final String type = ESTestCase.randomFrom("realm", "internal");
+        return switch (type) {
+            case "realm" -> randomCrossClusterAccessSubjectInfo(
+                new RoleDescriptorsIntersection(
+                    // TODO randomize to add a second set once we have querying-cluster-side API key support
+                    new RoleDescriptor(
+                        "_remote_user",
+                        null,
+                        new RoleDescriptor.IndicesPrivileges[] {
+                            RoleDescriptor.IndicesPrivileges.builder().indices("index1").privileges("read", "read_cross_cluster").build() },
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                    )
+                )
+            );
+            case "internal" -> randomCrossClusterAccessSubjectInfoForInternalUser();
+            default -> throw new IllegalArgumentException("Unknown type " + type);
+        };
+
     }
 
     public static class AuthenticationTestBuilder {

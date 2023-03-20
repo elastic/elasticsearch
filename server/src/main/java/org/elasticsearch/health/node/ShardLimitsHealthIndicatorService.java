@@ -9,10 +9,13 @@
 package org.elasticsearch.health.node;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
+import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.indices.ShardLimitValidator;
 
@@ -38,6 +41,36 @@ import static org.elasticsearch.indices.ShardLimitValidator.NORMAL_GROUP;
 public class ShardLimitsHealthIndicatorService implements HealthIndicatorService {
 
     private static final String NAME = "shard_limits";
+    private final String UPGRADE_BLOCKED = "The cluster has too many used shards to be able to upgrade";
+    private final List<HealthIndicatorImpact> INDICATOR_IMPACTS = List.of(
+        new HealthIndicatorImpact(NAME, "upgrade_blocked", 1, UPGRADE_BLOCKED, List.of(ImpactArea.DEPLOYMENT_MANAGEMENT))
+    );
+
+    private final String HELP_GUIDE = "https://ela.st/max-shard-limit-reached";
+    private final Diagnosis SHARD_LIMITS_REACHED_NORMAL_NODES = new Diagnosis(
+        new Diagnosis.Definition(
+            NAME,
+            "increase_max_shards_per_node",
+            "The current value of `"
+                + ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey()
+                + "` does not allow to add more shards to the cluster.",
+            "Consider increasing the currently set value or remove indices to clear up resources " + HELP_GUIDE,
+            HELP_GUIDE
+        ),
+        null
+    );
+    private final Diagnosis SHARD_LIMITS_REACHED_FROZEN_NODES = new Diagnosis(
+        new Diagnosis.Definition(
+            NAME,
+            "increase_max_shards_per_node_frozen",
+            "The current value of `"
+                + ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey()
+                + "` does not allow to add more shards to the cluster.",
+            "Consider increasing the currently set value or remove indices to clear up resources " + HELP_GUIDE,
+            HELP_GUIDE
+        ),
+        null
+    );
 
     private final ClusterService clusterService;
 
@@ -65,30 +98,41 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
 
     private HealthIndicatorResult mergeIndicators(StatusResult normalNodes, StatusResult frozenNodes) {
         HealthStatus finalStatus = HealthStatus.merge(Stream.of(normalNodes.status, frozenNodes.status));
+        List<HealthIndicatorImpact> indicatorImpacts = List.of();
+        List<Diagnosis> diagnoses = List.of();
         var symptomBuilder = new StringBuilder();
 
         if (finalStatus == HealthStatus.GREEN) {
             symptomBuilder.append("The cluster has enough room to add new shards.");
         }
 
-        if (finalStatus == HealthStatus.RED) {
+        // RED and YELLOW status indicates that the cluster might have issues. finalStatus has the worst between *normal and frozen* nodes,
+        // so we have to check each of the groups in order of provide the right message.
+        if (finalStatus.indicatesHealthProblem()) {
             symptomBuilder.append("Cluster is close to reaching the maximum of shards for ");
             if (normalNodes.status == frozenNodes.status) {
-                symptomBuilder.append("normal and frozen");
-            } else if (normalNodes.status == HealthStatus.RED) {
+                symptomBuilder.append(NORMAL_GROUP).append(" and ").append(FROZEN_GROUP);
+                diagnoses = List.of(SHARD_LIMITS_REACHED_NORMAL_NODES, SHARD_LIMITS_REACHED_FROZEN_NODES);
+
+            } else if (normalNodes.status.indicatesHealthProblem()) {
                 symptomBuilder.append(NORMAL_GROUP);
-            } else {
+                diagnoses = List.of(SHARD_LIMITS_REACHED_NORMAL_NODES);
+
+            } else if (frozenNodes.status.indicatesHealthProblem()) {
                 symptomBuilder.append(FROZEN_GROUP);
+                diagnoses = List.of(SHARD_LIMITS_REACHED_FROZEN_NODES);
             }
+
             symptomBuilder.append(" nodes.");
+            indicatorImpacts = INDICATOR_IMPACTS;
         }
 
         return createIndicator(
             finalStatus,
             symptomBuilder.toString(),
             buildDetails(normalNodes.result, frozenNodes.result),
-            List.of(),
-            List.of()
+            indicatorImpacts,
+            diagnoses
         );
     }
 
@@ -127,18 +171,18 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
         return (builder, params) -> {
             builder.startObject();
             {
-                builder.startObject("normal_nodes");
+                builder.startObject(NORMAL_GROUP + "_nodes");
                 builder.field("max_shards_in_cluster", normalNodes.maxShardsInCluster());
                 if (normalNodes.currentUsedShards().isPresent()) {
-                    builder.field("current_used_shards_in_group", normalNodes.currentUsedShards().get());
+                    builder.field("current_used_shards", normalNodes.currentUsedShards().get());
                 }
                 builder.endObject();
             }
             {
-                builder.startObject("frozen_nodes");
+                builder.startObject(FROZEN_GROUP + "_nodes");
                 builder.field("max_shards_in_cluster", frozenNodes.maxShardsInCluster());
                 if (frozenNodes.currentUsedShards().isPresent()) {
-                    builder.field("current_used_shards_in_group", frozenNodes.currentUsedShards().get());
+                    builder.field("current_used_shards", frozenNodes.currentUsedShards().get());
                 }
                 builder.endObject();
             }

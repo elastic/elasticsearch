@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.application.search;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -29,7 +28,7 @@ public class SearchTemplate implements ToXContentObject, Writeable {
         this.script = in.readOptionalWriteable(Script::new);
     }
 
-    public SearchTemplate(@Nullable Script script) {
+    public SearchTemplate(Script script) {
         this.script = script;
     }
 

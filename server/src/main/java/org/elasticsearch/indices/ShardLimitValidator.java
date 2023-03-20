@@ -206,13 +206,41 @@ public class ShardLimitValidator {
      * @param state             The cluster state, used to get cluster settings and to get the number of open shards already in the cluster
      */
     public static Result checkShardLimitForNormalNodes(int numberOfNewShards, int replicas, ClusterState state) {
-        final int maxShardsPerNode = SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(state.getMetadata().settings());
+        return checkShardLimitForNormalNodes(
+            SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(state.getMetadata().settings()),
+            numberOfNewShards,
+            replicas,
+            state
+        );
+    }
+
+    public static Result checkShardLimitForNormalNodes(
+        int maxShardsPerNodeSetting,
+        int numberOfNewShards,
+        int replicas,
+        ClusterState state
+    ) {
         return checkShardLimit(
             numberOfNewShards * (1 + replicas),
             state,
-            maxShardsPerNode,
+            maxShardsPerNodeSetting,
             nodeCount(state, ShardLimitValidator::hasNonFrozen),
             NORMAL_GROUP
+        );
+    }
+
+    public static Result checkShardLimitForFrozenNodes(
+        int maxShardsPerNodeSetting,
+        int numberOfNewShards,
+        int replicas,
+        ClusterState state
+    ) {
+        return checkShardLimit(
+            numberOfNewShards * (1 + replicas),
+            state,
+            maxShardsPerNodeSetting,
+            nodeCount(state, ShardLimitValidator::hasFrozen),
+            FROZEN_GROUP
         );
     }
 

@@ -9,7 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -61,23 +61,9 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
 
     public static class Defaults {
 
-        public static final FieldType FIELD_TYPE = new FieldType();
-        public static final FieldType NESTED_FIELD_TYPE;
+        public static final FieldType FIELD_TYPE = StringField.TYPE_STORED;
+        public static final FieldType NESTED_FIELD_TYPE = StringField.TYPE_NOT_STORED;
 
-        static {
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            FIELD_TYPE.setStored(true);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.freeze();
-
-            NESTED_FIELD_TYPE = new FieldType();
-            NESTED_FIELD_TYPE.setTokenized(false);
-            NESTED_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            NESTED_FIELD_TYPE.setStored(false);
-            NESTED_FIELD_TYPE.setOmitNorms(true);
-            NESTED_FIELD_TYPE.freeze();
-        }
     }
 
     public static final ProvidedIdFieldMapper NO_FIELD_DATA = new ProvidedIdFieldMapper(() -> false);

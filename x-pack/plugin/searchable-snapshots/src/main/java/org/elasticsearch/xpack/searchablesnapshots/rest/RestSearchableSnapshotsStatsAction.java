@@ -40,11 +40,7 @@ public class RestSearchableSnapshotsStatsAction extends BaseRestHandler {
         // level parameter invalidation
         ClusterStatsLevel.of(restRequest.param("level", ClusterStatsLevel.INDICES.getLevel()));
 
-        return channel -> client.execute(
-            SearchableSnapshotsStatsAction.INSTANCE,
-            statsRequest,
-            new RestToXContentListener<>(channel)
-        );
+        return channel -> client.execute(SearchableSnapshotsStatsAction.INSTANCE, statsRequest, new RestToXContentListener<>(channel));
     }
 
     private static final Set<String> RESPONSE_PARAMS = Collections.singleton("level");

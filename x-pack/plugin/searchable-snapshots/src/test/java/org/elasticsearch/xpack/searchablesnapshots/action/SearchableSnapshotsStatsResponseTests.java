@@ -55,8 +55,9 @@ public class SearchableSnapshotsStatsResponseTests extends ESTestCase {
         params.put("level", ClusterStatsLevel.CLUSTER.getLevel());
 
         // cluster is valid
-        RestRequest request =
-            new FakeRestRequest.Builder(xContentRegistry()).withPath("/_searchable_snapshots/stats").withParams(params).build();
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_searchable_snapshots/stats")
+            .withParams(params)
+            .build();
         action.prepareRequest(request, mock(NodeClient.class));
 
         // indices is valid
@@ -78,16 +79,14 @@ public class SearchableSnapshotsStatsResponseTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> action.prepareRequest(invalidLevelRequest1, mock(NodeClient.class))
         );
-        assertThat(e, hasToString(containsString(
-            "level parameter must be one of [cluster] or [indices] or [shards] but was [node]")));
+        assertThat(e, hasToString(containsString("level parameter must be one of [cluster] or [indices] or [shards] but was [node]")));
 
         params.put("level", "invalid");
-        final RestRequest invalidLevelRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats").withParams(params).build();
+        final RestRequest invalidLevelRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats")
+            .withParams(params)
+            .build();
 
-        e = expectThrows(
-            IllegalArgumentException.class,
-            () -> action.prepareRequest(invalidLevelRequest, mock(NodeClient.class))
-        );
+        e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(invalidLevelRequest, mock(NodeClient.class)));
         assertThat(e, hasToString(containsString("level parameter must be one of [cluster] or [indices] or [shards] but was [invalid]")));
     }
 

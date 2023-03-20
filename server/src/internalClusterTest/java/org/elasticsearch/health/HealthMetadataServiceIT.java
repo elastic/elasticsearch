@@ -53,7 +53,7 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
                 ByteSizeValue randomBytes = ByteSizeValue.ofBytes(randomLongBetween(6, 19));
                 String customWatermark = percentageMode ? randomIntBetween(86, 94) + "%" : randomBytes.toString();
                 ByteSizeValue customMaxHeadroom = percentageMode ? randomBytes : ByteSizeValue.MINUS_ONE;
-                var customShardLimits = new HealthMetadata.ShardLimits(randomIntBetween(0, 1000), randomIntBetween(1001, 2000));
+                var customShardLimits = new HealthMetadata.ShardLimits(randomIntBetween(1, 1000), randomIntBetween(1001, 2000));
                 String nodeName = startNode(internalCluster, customWatermark, customMaxHeadroom.toString(), customShardLimits);
                 watermarkByNode.put(nodeName, customWatermark);
                 maxHeadroomByNode.put(nodeName, customMaxHeadroom);
@@ -95,7 +95,7 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
             String initialWatermark = percentageMode ? randomIntBetween(86, 94) + "%" : randomBytes.toString();
             ByteSizeValue initialMaxHeadroom = percentageMode ? randomBytes : ByteSizeValue.MINUS_ONE;
             HealthMetadata.ShardLimits initialShardLimits = new HealthMetadata.ShardLimits(
-                randomIntBetween(0, 1000),
+                randomIntBetween(1, 1000),
                 randomIntBetween(1001, 2000)
             );
             for (int i = 0; i < numberOfNodes; i++) {

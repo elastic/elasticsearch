@@ -11,11 +11,14 @@ package org.elasticsearch.search.fetch.subphase;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -332,11 +335,37 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         BytesReference matchBytes = XContentHelper.toXContent(matchQueryBuilder, XContentType.JSON, false);
         TermQueryBuilder termQueryBuilder = termQuery("content", "amet").queryName("abc");
         BytesReference termBytes = XContentHelper.toXContent(termQueryBuilder, XContentType.JSON, false);
-        QueryBuilder[] queries = new QueryBuilder[] { wrapperQuery(matchBytes), constantScoreQuery(wrapperQuery(termBytes)) };
+        QueryBuilder[] queries = new QueryBuilder[]{wrapperQuery(matchBytes), constantScoreQuery(wrapperQuery(termBytes))};
         for (QueryBuilder query : queries) {
             SearchResponse searchResponse = client().prepareSearch().setQuery(query).get();
             assertHitCount(searchResponse, 1L);
             assertThat(searchResponse.getHits().getAt(0).getMatchedQueries()[0], equalTo("abc"));
         }
+    }
+
+    public void testMatchedWithRescoreQuery() throws Exception {
+        createIndex("test");
+        ensureGreen();
+
+        client().prepareIndex("test").setId("1").setSource("content", "hello world").get();
+        client().prepareIndex("test").setId("2").setSource("content", "hello you").get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch()
+            .setQuery(new MatchAllQueryBuilder().queryName("all"))
+            .setRescorer(
+                new QueryRescorerBuilder(
+                    new MatchPhraseQueryBuilder("content", "hello you")
+                        .boost(10)
+                        .queryName("rescore_phrase")
+                )
+            )
+            .get();
+        assertHitCount(searchResponse, 2L);
+        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().length, equalTo(2));
+        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries(), equalTo(new String[]{"all", "rescore_phrase"}));
+
+        assertThat(searchResponse.getHits().getAt(1).getMatchedQueries().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(1).getMatchedQueries(), equalTo(new String[]{"all"}));
     }
 }

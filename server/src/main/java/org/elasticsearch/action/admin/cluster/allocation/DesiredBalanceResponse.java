@@ -209,23 +209,39 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
         }
 
         public static ShardView from(StreamInput in) throws IOException {
-            var view = new ShardView(
-                ShardRoutingState.fromValue(in.readByte()),
-                in.readBoolean(),
-                in.readOptionalString(),
-                in.readBoolean(),
-                in.readOptionalString(),
-                in.readBoolean(),
-                in.readVInt(),
-                in.readString(),
-                in.getTransportVersion().onOrAfter(ADD_FORECASTS_VERSION) ? in.readOptionalDouble() : null,
-                in.getTransportVersion().onOrAfter(ADD_FORECASTS_VERSION) ? in.readOptionalLong() : null,
-                in.getTransportVersion().onOrAfter(ADD_TIER_PREFERENCE) ? in.readStringList() : List.of()
-            );
+            ShardRoutingState state = ShardRoutingState.fromValue(in.readByte());
+            boolean primary = in.readBoolean();
+            String node = in.readOptionalString();
+            boolean nodeIsDesired = in.readBoolean();
+            String relocatingNode = in.readOptionalString();
+            Boolean relocatingNodeIsDesired;
+            if (in.getTransportVersion().onOrAfter(NULLABLE_RELOCATING_NODE_IS_DESIRED)) {
+                relocatingNodeIsDesired = in.readOptionalBoolean();
+            } else {
+                boolean wireRelocatingNodeIsDesired = in.readBoolean();
+                relocatingNodeIsDesired = relocatingNode == null ? null : wireRelocatingNodeIsDesired;
+            }
+            int shardId = in.readVInt();
+            String index = in.readString();
+            Double forecastWriteLoad = in.getTransportVersion().onOrAfter(ADD_FORECASTS_VERSION) ? in.readOptionalDouble() : null;
+            Long forecastShardSizeInBytes = in.getTransportVersion().onOrAfter(ADD_FORECASTS_VERSION) ? in.readOptionalLong() : null;
             if (in.getTransportVersion().onOrAfter(ADD_FORECASTS_VERSION) == false) {
                 in.readOptionalWriteable(AllocationId::new);
             }
-            return view;
+            List<String> tierPreference = in.getTransportVersion().onOrAfter(ADD_TIER_PREFERENCE) ? in.readStringList() : List.of();
+            return new ShardView(
+                state,
+                primary,
+                node,
+                nodeIsDesired,
+                relocatingNode,
+                relocatingNodeIsDesired,
+                shardId,
+                index,
+                forecastWriteLoad,
+                forecastShardSizeInBytes,
+                tierPreference
+            );
         }
 
         @Override

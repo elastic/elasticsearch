@@ -8,7 +8,6 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -140,11 +139,6 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         if (indicesStatsRequest.segments()) {
             indicesStatsRequest.includeSegmentFileSizes(request.paramAsBoolean("include_segment_file_sizes", false));
             indicesStatsRequest.includeUnloadedSegments(request.paramAsBoolean("include_unloaded_segments", false));
-        }
-
-        ActionRequestValidationException validationException = indicesStatsRequest.validate();
-        if (validationException != null) {
-            throw validationException;
         }
 
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()

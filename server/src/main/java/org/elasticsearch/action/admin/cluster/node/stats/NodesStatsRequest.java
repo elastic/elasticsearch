@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -159,11 +158,6 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         super.writeTo(out);
         indices.writeTo(out);
         out.writeStringArray(requestedMetrics.toArray(String[]::new));
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     /**

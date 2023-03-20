@@ -8,7 +8,6 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -49,10 +48,6 @@ public class RestClusterHealthAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final ClusterHealthRequest clusterHealthRequest = fromRequest(request);
-        ActionRequestValidationException validationException = clusterHealthRequest.validate();
-        if (validationException != null) {
-            throw validationException;
-        }
         return channel -> client.admin().cluster().health(clusterHealthRequest, new RestStatusToXContentListener<>(channel));
     }
 

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.rest;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -40,11 +39,6 @@ public class RestSearchableSnapshotsStatsAction extends BaseRestHandler {
         SearchableSnapshotsStatsRequest statsRequest = new SearchableSnapshotsStatsRequest(indices);
         // level parameter invalidation
         ClusterStatsLevel.of(restRequest.param("level", ClusterStatsLevel.INDICES.getLevel()));
-
-        ActionRequestValidationException validationException = statsRequest.validate();
-        if (validationException != null) {
-            throw validationException;
-        }
 
         return channel -> client.execute(
             SearchableSnapshotsStatsAction.INSTANCE,

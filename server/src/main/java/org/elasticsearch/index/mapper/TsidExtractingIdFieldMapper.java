@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -34,7 +33,6 @@ import java.util.Locale;
  * {@code _tsid} and {@code @timestamp}.
  */
 public class TsidExtractingIdFieldMapper extends IdFieldMapper {
-    public static final FieldType FIELD_TYPE = StringField.TYPE_STORED;
     /**
      * Maximum length of the {@code _tsid} in the {@link #documentDescription}.
      */

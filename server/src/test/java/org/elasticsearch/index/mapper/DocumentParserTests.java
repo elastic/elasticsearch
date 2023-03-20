@@ -467,14 +467,14 @@ public class DocumentParserTests extends MapperServiceTestCase {
         // Nested document:
         assertNotNull(result.docs().get(0).getField(IdFieldMapper.NAME));
         assertEquals(Uid.encodeId("1"), result.docs().get(0).getField(IdFieldMapper.NAME).binaryValue());
-        assertEquals(ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE, result.docs().get(0).getField(IdFieldMapper.NAME).fieldType());
+        assertEquals(StringField.TYPE_NOT_STORED, result.docs().get(0).getField(IdFieldMapper.NAME).fieldType());
         assertNotNull(result.docs().get(0).getField(NestedPathFieldMapper.NAME));
         assertEquals("foo", result.docs().get(0).getField(NestedPathFieldMapper.NAME).stringValue());
         assertEquals("value1", result.docs().get(0).getField("foo.bar").binaryValue().utf8ToString());
         // Root document:
         assertNotNull(result.docs().get(1).getField(IdFieldMapper.NAME));
         assertEquals(Uid.encodeId("1"), result.docs().get(1).getField(IdFieldMapper.NAME).binaryValue());
-        assertEquals(ProvidedIdFieldMapper.Defaults.FIELD_TYPE, result.docs().get(1).getField(IdFieldMapper.NAME).fieldType());
+        assertEquals(StringField.TYPE_STORED, result.docs().get(1).getField(IdFieldMapper.NAME).fieldType());
         assertNull(result.docs().get(1).getField(NestedPathFieldMapper.NAME));
         assertEquals("value2", result.docs().get(1).getField("baz").binaryValue().utf8ToString());
     }
@@ -1186,7 +1186,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         ParsedDocument doc = mapper.parse(source("1", b -> b.field(field, "true"), null, Map.of(field, "booleans")));
         IndexableField[] fields = doc.rootDoc().getFields(field);
         assertThat(fields, arrayWithSize(1));
-        assertThat(fields[0].fieldType(), sameInstance(BooleanFieldMapper.Defaults.FIELD_TYPE));
+        assertThat(fields[0].fieldType(), sameInstance(StringField.TYPE_NOT_STORED));
         MapperParsingException error = expectThrows(
             MapperParsingException.class,
             () -> mapper.parse(source("1", b -> b.field(field, "hello"), null, Map.of(field, "foo_bar")))
@@ -1230,7 +1230,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         ParsedDocument doc = mapper.parse(source("1", b -> b.field(field, "true"), null, Map.of(field, "booleans")));
         IndexableField[] fields = doc.rootDoc().getFields(field);
         assertThat(fields, arrayWithSize(1));
-        assertThat(fields[0].fieldType(), sameInstance(BooleanFieldMapper.Defaults.FIELD_TYPE));
+        assertThat(fields[0].fieldType(), sameInstance(StringField.TYPE_NOT_STORED));
     }
 
     public void testDynamicDottedFieldNameLongArrayWithExistingParent() throws Exception {

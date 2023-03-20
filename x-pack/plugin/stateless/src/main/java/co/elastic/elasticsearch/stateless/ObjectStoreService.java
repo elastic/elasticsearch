@@ -71,7 +71,9 @@ import java.util.Objects;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -486,7 +488,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                     successSize.addAndGet(r.length());
                 };
 
-                final ActionListener<Void> uploadSegmentsFileListener = releaseCommitListener.delegateFailure((l, v) ->
+                final ActionListener<Void> allCommitFilesListener = releaseCommitListener.delegateFailure((l, v) ->
                 // Note that the segments_N file is uploaded last after all other files of the commit have been successfully uploaded, and
                 // only if none of the other files failed to upload, so that a process listing the content of the bucket in the object store
                 // will be able to access a consistent set of commit files (assuming read after write consistency).
@@ -505,26 +507,30 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                     )
                 ));
 
-                try (var listeners = new RefCountingListener(uploadSegmentsFileListener)) {
-                    // Use a basic upload strategy where every file is always uploaded in a dedicated FileTask. Here we could split large
-                    // files into multiple FileChunkTask of similar sizes and/or combine multiple small files into one single FileTask. We
-                    // could also prioritize FileTask depending on the index.
-                    additionalFiles.stream()
-                        .filter(file -> file.startsWith(IndexFileNames.SEGMENTS) == false)
-                        .forEach(
-                            file -> uploadTaskRunner.enqueueTask(
-                                new FileUploadTask(
-                                    shardId,
-                                    generation,
-                                    timeInNanos,
-                                    file,
-                                    reference.getDirectory(),
-                                    blobContainer,
-                                    listeners.acquire(addResult)
-                                )
-                            )
-                        );
-                }
+                final ActionListener<Void> additionalFilesListener = allCommitFilesListener.delegateFailure((l, v) -> {
+                    try {
+                        // TODO: A list call is as expensive as a put. We should hold a cache here locally of
+                        // the currently uploaded files to prevent unnecessary list calls. This will require
+                        // a listener on shard close to clean-up necessary cached data. ES-5739 tracks this.
+                        Map<String, BlobMetadata> blobMetadataMap = blobContainer.listBlobs();
+                        List<String> missingFiles = reference.getCommitFiles()
+                            .keySet()
+                            .stream()
+                            .filter(s -> s.startsWith(IndexFileNames.SEGMENTS) == false)
+                            .filter(Predicate.not(blobMetadataMap::containsKey))
+                            .collect(Collectors.toList());
+                        if (missingFiles.isEmpty()) {
+                            l.onResponse(null);
+                        } else {
+                            enqueueFileUploads(missingFiles, blobContainer, addResult, l);
+                        }
+                    } catch (IOException e) {
+                        l.onFailure(e);
+                    }
+
+                });
+
+                enqueueFileUploads(additionalFiles, blobContainer, addResult, additionalFilesListener);
 
                 success = true;
             } catch (Exception e) {
@@ -534,6 +540,34 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                 if (success == false) {
                     IOUtils.closeWhileHandlingException(reference, releasable);
                 }
+            }
+        }
+
+        private void enqueueFileUploads(
+            Collection<String> additionalFiles,
+            BlobContainer blobContainer,
+            Consumer<FileUploadTask.Result> addResult,
+            ActionListener<Void> listener
+        ) {
+            try (var listeners = new RefCountingListener(listener)) {
+                // Use a basic upload strategy where every file is always uploaded in a dedicated FileTask. Here we could split large
+                // files into multiple FileChunkTask of similar sizes and/or combine multiple small files into one single FileTask. We
+                // could also prioritize FileTask depending on the index.
+                additionalFiles.stream()
+                    .filter(file -> file.startsWith(IndexFileNames.SEGMENTS) == false)
+                    .forEach(
+                        file -> uploadTaskRunner.enqueueTask(
+                            new FileUploadTask(
+                                shardId,
+                                generation,
+                                timeInNanos,
+                                file,
+                                reference.getDirectory(),
+                                blobContainer,
+                                listeners.acquire(addResult)
+                            )
+                        )
+                    );
             }
         }
 

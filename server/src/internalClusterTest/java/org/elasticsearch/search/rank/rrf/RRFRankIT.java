@@ -164,7 +164,7 @@ public class RRFRankIT extends ESIntegTestCase {
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001);
         SearchResponse response = client().prepareSearch("nrd_index")
             .setRankContextBuilder(new RRFRankContextBuilder().windowSize(101).rankConstant(1))
-            .setTrackTotalHits(true)
+            .setTrackTotalHits(false)
             .setKnnSearch(List.of(knnSearch))
             .setQuery(
                 QueryBuilders.boolQuery()
@@ -184,6 +184,7 @@ public class RRFRankIT extends ESIntegTestCase {
             .setSize(11)
             .get();
 
+        assertNull(response.getHits().getTotalHits());
         assertEquals(11, response.getHits().getHits().length);
 
         SearchHit hit = response.getHits().getAt(0);
@@ -211,6 +212,7 @@ public class RRFRankIT extends ESIntegTestCase {
             .setSize(19)
             .get();
 
+        assertEquals(51, response.getHits().getTotalHits().value);
         assertEquals(19, response.getHits().getHits().length);
 
         SearchHit hit = response.getHits().getAt(0);
@@ -254,7 +256,7 @@ public class RRFRankIT extends ESIntegTestCase {
         KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001);
         SearchResponse response = client().prepareSearch("nrd_index")
             .setRankContextBuilder(new RRFRankContextBuilder().windowSize(51).rankConstant(1))
-            .setTrackTotalHits(true)
+            .setTrackTotalHits(false)
             .setKnnSearch(List.of(knnSearchAsc, knnSearchDesc))
             .setQuery(
                 QueryBuilders.boolQuery()
@@ -275,6 +277,7 @@ public class RRFRankIT extends ESIntegTestCase {
             .setSize(19)
             .get();
 
+        assertNull(response.getHits().getTotalHits());
         assertEquals(19, response.getHits().getHits().length);
 
         SearchHit hit = response.getHits().getAt(0);
@@ -344,6 +347,7 @@ public class RRFRankIT extends ESIntegTestCase {
             .addAggregation(AggregationBuilders.terms("sums").field("int"))
             .get();
 
+        assertEquals(101, response.getHits().getTotalHits().value);
         assertEquals(11, response.getHits().getHits().length);
 
         SearchHit hit = response.getHits().getAt(0);
@@ -367,7 +371,7 @@ public class RRFRankIT extends ESIntegTestCase {
             } else if (2L == (long) bucket.getKey()) {
                 assertEquals(33, bucket.getDocCount());
             } else {
-                throw new IllegalStateException("unexpected bucket key [" + bucket.getKey() + "]");
+                throw new IllegalArgumentException("unexpected bucket key [" + bucket.getKey() + "]");
             }
         }
     }
@@ -379,7 +383,7 @@ public class RRFRankIT extends ESIntegTestCase {
         KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001);
         SearchResponse response = client().prepareSearch("nrd_index")
             .setRankContextBuilder(new RRFRankContextBuilder().windowSize(51).rankConstant(1))
-            .setTrackTotalHits(true)
+            .setTrackTotalHits(false)
             .setKnnSearch(List.of(knnSearchAsc, knnSearchDesc))
             .addFetchField("vector_asc")
             .addFetchField("text")
@@ -387,6 +391,7 @@ public class RRFRankIT extends ESIntegTestCase {
             .addAggregation(AggregationBuilders.terms("sums").field("int"))
             .get();
 
+        assertNull(response.getHits().getTotalHits());
         assertEquals(19, response.getHits().getHits().length);
 
         SearchHit hit = response.getHits().getAt(0);
@@ -433,7 +438,7 @@ public class RRFRankIT extends ESIntegTestCase {
             } else if (2L == (long) bucket.getKey()) {
                 assertEquals(17, bucket.getDocCount());
             } else {
-                throw new IllegalStateException("unexpected bucket key [" + bucket.getKey() + "]");
+                throw new IllegalArgumentException("unexpected bucket key [" + bucket.getKey() + "]");
             }
         }
     }
@@ -467,6 +472,7 @@ public class RRFRankIT extends ESIntegTestCase {
             .addAggregation(AggregationBuilders.terms("sums").field("int"))
             .get();
 
+        assertEquals(51, response.getHits().getTotalHits().value);
         assertEquals(19, response.getHits().getHits().length);
 
         SearchHit hit = response.getHits().getAt(0);
@@ -520,7 +526,7 @@ public class RRFRankIT extends ESIntegTestCase {
             } else if (2L == (long) bucket.getKey()) {
                 assertEquals(17, bucket.getDocCount());
             } else {
-                throw new IllegalStateException("unexpected bucket key [" + bucket.getKey() + "]");
+                throw new IllegalArgumentException("unexpected bucket key [" + bucket.getKey() + "]");
             }
         }
     }

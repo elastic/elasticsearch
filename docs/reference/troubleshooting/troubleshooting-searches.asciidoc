@@ -65,6 +65,9 @@ PUT my-index-000001
 {
   "mappings": {
     "properties": {
+      "@timestamp": {
+        "type": "date"
+      },
       "my-field": {
         "type": "keyword"
       },

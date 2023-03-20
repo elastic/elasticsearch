@@ -25,7 +25,6 @@ import org.elasticsearch.gateway.ClusterStateUpdaters;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.After;
 import org.junit.Before;
 
 import java.util.HashMap;
@@ -50,16 +49,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         // TODO: Move this into the cluster instance
         atomicRegister = new AtomicRegister();
         sharedStore = new SharedStore(atomicRegister);
-    }
-
-    @Before
-    public void enableRegisterBasedModeAssertions() {
-        Coordinator.REGISTER_MODE_ASSERTIONS = true;
-    }
-
-    @After
-    public void disableRegisterBasedModeAssertions() {
-        Coordinator.REGISTER_MODE_ASSERTIONS = false;
     }
 
     @Override
@@ -357,7 +346,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             var reconfigurator = new SingleNodeReconfigurator(settings, clusterSettings);
             var quorumStrategy = new AtomicRegisterElectionStrategy(
                 atomicRegister,
-                sharedStore,
                 atomicHeartBeat::isLeaderInTermAlive,
                 (AtomicRegisterPersistedState) persistedState
             );
@@ -442,18 +430,15 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     static class AtomicRegisterElectionStrategy extends ElectionStrategy {
         private final Function<Long, Optional<DiscoveryNode>> getLeaderForTermIfAlive;
         private final AtomicRegister register;
-        private final SharedStore sharedStore;
         private final AtomicRegisterPersistedState atomicRegisterPersistedState;
         private long lastWonTerm = -1;
 
         AtomicRegisterElectionStrategy(
             AtomicRegister register,
-            SharedStore sharedStore,
             Function<Long, Optional<DiscoveryNode>> getLeaderForTermIfAlive,
             AtomicRegisterPersistedState atomicRegisterPersistedState
         ) {
             this.getLeaderForTermIfAlive = getLeaderForTermIfAlive;
-            this.sharedStore = sharedStore;
             this.register = register;
             this.atomicRegisterPersistedState = atomicRegisterPersistedState;
         }
@@ -513,7 +498,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
 
         @Override
-        public void onNewElection(DiscoveryNode localNode, long proposedTerm, ActionListener<Void> listener) {
+        public void onNewElection(DiscoveryNode localNode, long proposedTerm, ActionListener<ClusterState> listener) {
             ActionListener.completeWith(listener, () -> {
                 final var proposedNewTermOwner = new TermOwner(localNode, proposedTerm);
                 final var witness = register.claimTerm(proposedNewTermOwner);
@@ -521,8 +506,8 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                     throw new CoordinationStateRejectedException("Term " + proposedTerm + " already claimed by another node");
                 }
                 lastWonTerm = proposedTerm;
-                atomicRegisterPersistedState.updateLatestAcceptedStateIfStale();
-                return null;
+
+                return atomicRegisterPersistedState.getLatestStoredStateIfAppliedStateIsStale();
             });
         }
 
@@ -684,14 +669,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             sharedStore.writeClusterState(state);
         }
 
-        void changeAcceptedClusterUUID(String clusterUUID) {
-            if (latestAcceptedState.metadata().clusterUUID().equals(clusterUUID) == false) {
-                latestAcceptedState = ClusterState.builder(latestAcceptedState)
-                    .metadata(Metadata.builder(latestAcceptedState.metadata()).clusterUUID(clusterUUID).build())
-                    .build();
-            }
-        }
-
         long getInitialTermBeforeJoiningALeader() {
             return initialTermBeforeJoiningALeader;
         }
@@ -701,23 +678,27 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             assertTrue(openPersistedStates.remove(this));
         }
 
-        public void updateLatestAcceptedStateIfStale() {
+        public ClusterState getLatestStoredStateIfAppliedStateIsStale() {
             var latestClusterState = sharedStore.getLatestClusterState();
-            if (latestClusterState == null) {
-                return;
+            if (isLatestAcceptedStateStale(latestClusterState) == false) {
+                return null;
             }
-            if (latestClusterState.term() > latestAcceptedState.term()
-                || (latestClusterState.term() == latestAcceptedState.term()
-                    && latestClusterState.version() > latestAcceptedState.version())) {
-                latestAcceptedState = ClusterStateUpdaters.addStateNotRecoveredBlock(
-                    ClusterState.builder(new ClusterName("elasticsearch"))
-                        .metadata(latestClusterState.state())
-                        .version(latestClusterState.version())
-                        .blocks(latestAcceptedState.blocks())
-                        .nodes(latestAcceptedState.nodes())
-                        .build()
-                );
-            }
+
+            return ClusterStateUpdaters.addStateNotRecoveredBlock(
+                ClusterState.builder(new ClusterName("elasticsearch"))
+                    .metadata(latestClusterState.state())
+                    .version(latestClusterState.version())
+                    .blocks(latestAcceptedState.blocks())
+                    .nodes(DiscoveryNodes.builder(latestAcceptedState.nodes()).masterNodeId(null))
+                    .build()
+            );
+        }
+
+        boolean isLatestAcceptedStateStale(PersistentClusterState latestClusterState) {
+            return latestClusterState != null
+                && (latestClusterState.term() > latestAcceptedState.term()
+                    || (latestClusterState.term() == latestAcceptedState.term()
+                        && latestClusterState.version() > latestAcceptedState.version()));
         }
     }
 }

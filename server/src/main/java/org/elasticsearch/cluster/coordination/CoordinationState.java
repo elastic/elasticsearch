@@ -504,6 +504,10 @@ public class CoordinationState {
         assert getLastCommittedConfiguration().equals(getLastAcceptedConfiguration());
     }
 
+    void setLatestAcceptedState(ClusterState clusterState) {
+        persistedState.setLastAcceptedState(clusterState);
+    }
+
     public void invariant() {
         assert getLastAcceptedTerm() <= getCurrentTerm();
         assert electionWon() == isElectionQuorum(joinVotes);

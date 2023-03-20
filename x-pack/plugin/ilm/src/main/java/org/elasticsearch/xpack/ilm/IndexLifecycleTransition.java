@@ -94,16 +94,16 @@ public final class IndexLifecycleTransition {
         }
 
         final Set<Step.StepKey> cachedStepKeys = stepRegistry.parseStepKeysFromPhase(
-            lifecycleState.getPhaseDefinition(),
-            lifecycleState.getPhase()
+            lifecycleState.phaseDefinition(),
+            lifecycleState.phase()
         );
         boolean isNewStepCached = cachedStepKeys != null && cachedStepKeys.contains(newStepKey);
 
         // Always allow moving to the terminal step or to a step that's present in the cached phase, even if it doesn't exist in the policy
         if (isNewStepCached == false
-            && (stepRegistry.stepExists(indexPolicySetting, newStepKey) == false
+            && (stepRegistry.stepExists(policyName, newStepKey) == false
                 && newStepKey.equals(TerminalPolicyStep.KEY) == false
-                && newStepKey.equals(PhaseCompleteStep.stepKey(lifecycleState.getPhase())) == false)) {
+                && newStepKey.equals(PhaseCompleteStep.stepKey(lifecycleState.phase())) == false)) {
             throw new IllegalArgumentException(
                 "step ["
                     + newStepKey

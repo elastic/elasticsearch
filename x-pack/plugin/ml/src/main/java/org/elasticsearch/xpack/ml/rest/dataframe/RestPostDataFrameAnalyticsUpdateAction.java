@@ -13,12 +13,14 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.UpdateDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
+import static org.elasticsearch.xpack.ml.rest.dataframe.RestPutDataFrameAnalyticsAction.MAX_REQUEST_SIZE;
 
 public class RestPostDataFrameAnalyticsUpdateAction extends BaseRestHandler {
 
@@ -34,6 +36,14 @@ public class RestPostDataFrameAnalyticsUpdateAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+        if (restRequest.contentLength() > MAX_REQUEST_SIZE.getBytes()) {
+            throw ExceptionsHelper.badRequestException(
+                "Request is too large: was [{}b], expected at most [{}]",
+                restRequest.contentLength(),
+                MAX_REQUEST_SIZE
+            );
+        }
+
         String id = restRequest.param(DataFrameAnalyticsConfig.ID.getPreferredName());
         XContentParser parser = restRequest.contentParser();
         UpdateDataFrameAnalyticsAction.Request updateRequest = UpdateDataFrameAnalyticsAction.Request.parseRequest(id, parser);

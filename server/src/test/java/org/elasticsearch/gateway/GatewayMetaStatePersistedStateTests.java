@@ -537,7 +537,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             () -> 0L
         ) {
             @Override
-            Directory createDirectory(Path path) {
+            protected Directory createDirectory(Path path) {
                 final MockDirectoryWrapper wrapper = newMockFSDirectory(path);
                 wrapper.setAllowRandomFileNotFoundException(randomBoolean());
                 wrapper.setRandomIOExceptionRate(ioExceptionRate.get());

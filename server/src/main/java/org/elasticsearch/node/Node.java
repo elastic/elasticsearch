@@ -213,7 +213,6 @@ import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
-import javax.net.ssl.SNIHostName;
 import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.File;
@@ -242,6 +241,8 @@ import java.util.function.LongSupplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import javax.net.ssl.SNIHostName;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;

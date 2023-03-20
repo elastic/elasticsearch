@@ -179,7 +179,6 @@ public class PointInTimeIT extends ESIntegTestCase {
                 final Set<String> assignedNodes = clusterService().state()
                     .routingTable()
                     .allShards()
-                    .stream()
                     .filter(shr -> shr.index().getName().equals("test") && shr.assignedToNode())
                     .map(ShardRouting::currentNodeId)
                     .collect(Collectors.toSet());

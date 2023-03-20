@@ -23,26 +23,26 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY;
+import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RemoteAccessAuthenticationTests extends ESTestCase {
+public class CrossClusterAccessSubjectInfoTests extends ESTestCase {
 
     public void testWriteReadContextRoundtrip() throws IOException {
         final ThreadContext ctx = new ThreadContext(Settings.EMPTY);
         final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection = randomRoleDescriptorsIntersection();
-        final var expectedRemoteAccessAuthentication = new RemoteAccessAuthentication(
+        final var expectedCrossClusterAccessSubjectInfo = new CrossClusterAccessSubjectInfo(
             AuthenticationTestHelper.builder().build(),
             expectedRoleDescriptorsIntersection
         );
 
-        expectedRemoteAccessAuthentication.writeToContext(ctx);
-        final RemoteAccessAuthentication actual = RemoteAccessAuthentication.readFromContext(ctx);
+        expectedCrossClusterAccessSubjectInfo.writeToContext(ctx);
+        final CrossClusterAccessSubjectInfo actual = CrossClusterAccessSubjectInfo.readFromContext(ctx);
 
-        assertThat(actual.getAuthentication(), equalTo(expectedRemoteAccessAuthentication.getAuthentication()));
+        assertThat(actual.getAuthentication(), equalTo(expectedCrossClusterAccessSubjectInfo.getAuthentication()));
         final List<Set<RoleDescriptor>> roleDescriptorsList = new ArrayList<>();
-        for (RemoteAccessAuthentication.RoleDescriptorsBytes rdb : actual.getRoleDescriptorsBytesList()) {
+        for (CrossClusterAccessSubjectInfo.RoleDescriptorsBytes rdb : actual.getRoleDescriptorsBytesList()) {
             Set<RoleDescriptor> roleDescriptors = rdb.toRoleDescriptors();
             roleDescriptorsList.add(roleDescriptors);
         }
@@ -54,17 +54,21 @@ public class RemoteAccessAuthenticationTests extends ESTestCase {
         final Set<RoleDescriptor> expectedRoleDescriptors = Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 3));
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.map(expectedRoleDescriptors.stream().collect(Collectors.toMap(RoleDescriptor::getName, Function.identity())));
-        final Set<RoleDescriptor> actualRoleDescriptors = new RemoteAccessAuthentication.RoleDescriptorsBytes(BytesReference.bytes(builder))
-            .toRoleDescriptors();
+        final Set<RoleDescriptor> actualRoleDescriptors = new CrossClusterAccessSubjectInfo.RoleDescriptorsBytes(
+            BytesReference.bytes(builder)
+        ).toRoleDescriptors();
         assertThat(actualRoleDescriptors, equalTo(expectedRoleDescriptors));
     }
 
     public void testThrowsOnMissingEntry() {
         var actual = expectThrows(
             IllegalArgumentException.class,
-            () -> RemoteAccessAuthentication.readFromContext(new ThreadContext(Settings.EMPTY))
+            () -> CrossClusterAccessSubjectInfo.readFromContext(new ThreadContext(Settings.EMPTY))
         );
-        assertThat(actual.getMessage(), equalTo("remote access header [" + REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY + "] is required"));
+        assertThat(
+            actual.getMessage(),
+            equalTo("cross cluster access header [" + CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY + "] is required")
+        );
     }
 
     public static RoleDescriptorsIntersection randomRoleDescriptorsIntersection() {

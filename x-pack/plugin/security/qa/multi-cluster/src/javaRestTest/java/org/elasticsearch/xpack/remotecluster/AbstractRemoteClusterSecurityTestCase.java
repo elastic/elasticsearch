@@ -105,7 +105,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
 
         // Update remote cluster settings on QC with the API key
         final Settings.Builder builder = Settings.builder()
-            .put("cluster.remote.my_remote_cluster.authorization", encodedCrossClusterAccessApiKey);
+            .put("cluster.remote.my_remote_cluster.credentials", encodedCrossClusterAccessApiKey);
         ;
         if (isProxyMode) {
             builder.put("cluster.remote.my_remote_cluster.mode", "proxy")

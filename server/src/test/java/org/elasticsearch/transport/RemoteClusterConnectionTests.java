@@ -577,7 +577,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     settings = Settings.builder()
                         .put(settings)
                         .put(
-                            RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(clusterAlias).getKey(),
+                            RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(clusterAlias).getKey(),
                             randomAlphaOfLength(20)
                         )
                         .build();

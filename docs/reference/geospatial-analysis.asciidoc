@@ -81,5 +81,5 @@ Put machine learning to work for you and find the data that should stand out wit
 
 Let your location data drive insights and action with {kibana-ref}/geo-alerting.html[geographic alerts]. Commonly referred to as geo-fencing, track moving objects as they enter or exit a boundary to receive notifications through common business systems (email, Slack, Teams, PagerDuty, and more).
 
-Interested in learning more? Follow {kibana-ref}/asset-tracking-tutorial.html[step-by-step instructructions] for setting up tracking containment alerts to monitor moving vehicles.
+Interested in learning more? Follow {kibana-ref}/asset-tracking-tutorial.html[step-by-step instructions] for setting up tracking containment alerts to monitor moving vehicles.
 

@@ -69,7 +69,7 @@ import static org.mockito.Mockito.when;
  * https://openjdk.java.net/jeps/252
  * We run ES with -Djava.locale.providers=SPI,COMPAT and same option has to be applied when running this test from IDE
  */
-public class LicenseServiceTests extends ESTestCase {
+public class ClusterStateLicenseServiceTests extends ESTestCase {
 
     // must use member mock for generic
     @Mock
@@ -90,7 +90,7 @@ public class LicenseServiceTests extends ESTestCase {
     public void testLogExpirationWarning() {
         long time = LocalDate.of(2018, 11, 15).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
         final boolean expired = randomBoolean();
-        final LicenseService service = new LicenseService(
+        final ClusterStateLicenseService service = new ClusterStateLicenseService(
             Settings.EMPTY,
             mock(ThreadPool.class),
             mockDefaultClusterService(),
@@ -185,7 +185,7 @@ public class LicenseServiceTests extends ESTestCase {
 
         final Clock clock = randomBoolean() ? Clock.systemUTC() : Clock.systemDefaultZone();
         final var taskExecutorCaptor = ArgumentCaptor.forClass(StartBasicClusterTask.Executor.class);
-        final LicenseService service = new LicenseService(
+        final ClusterStateLicenseService service = new ClusterStateLicenseService(
             settings,
             mock(ThreadPool.class),
             clusterService,
@@ -281,7 +281,13 @@ public class LicenseServiceTests extends ESTestCase {
         final Clock clock = randomBoolean() ? Clock.systemUTC() : Clock.systemDefaultZone();
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final ThreadPool threadPool = mock(ThreadPool.class);
-        final LicenseService service = new LicenseService(settings, threadPool, clusterService, clock, licenseState);
+        final ClusterStateLicenseService service = new ClusterStateLicenseService(
+            settings,
+            threadPool,
+            clusterService,
+            clock,
+            licenseState
+        );
 
         final PutLicenseRequest request = new PutLicenseRequest();
         request.license(toSpec(license), XContentType.JSON);
@@ -353,7 +359,7 @@ public class LicenseServiceTests extends ESTestCase {
     private void assertExpiryWarning(long adjustment, String msg) {
         long now = System.currentTimeMillis();
         long expiration = now + adjustment;
-        final LicenseService service = new LicenseService(
+        final ClusterStateLicenseService service = new ClusterStateLicenseService(
             Settings.EMPTY,
             mock(ThreadPool.class),
             mockDefaultClusterService(),

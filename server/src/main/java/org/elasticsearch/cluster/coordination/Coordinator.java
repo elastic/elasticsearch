@@ -531,7 +531,9 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             @Override
             public void onResponse(ClusterState latestClusterState) {
                 if (latestClusterState != null) {
-                    ensureTermAtLeast(latestClusterState.nodes().getMasterNode(), latestClusterState.term());
+                    if (latestClusterState.term() > getCurrentTerm()) {
+                        updateCurrentTerm(latestClusterState.term());
+                    }
                     coordinationState.get().setLatestAcceptedState(latestClusterState);
                     preVoteCollector.update(getPreVoteResponse(), null);
                 }
@@ -543,6 +545,13 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 logger.debug(Strings.format("election attempt failed, dropping [%s]", startJoinRequest), e);
             }
         });
+    }
+
+    private void updateCurrentTerm(long term) {
+        coordinationState.get().setCurrentTerm(term);
+        peerFinder.setCurrentTerm(getCurrentTerm());
+        followersChecker.updateFastResponseState(getCurrentTerm(), mode);
+        preVoteCollector.update(getPreVoteResponse(), null);
     }
 
     private void abdicateTo(DiscoveryNode newMaster) {

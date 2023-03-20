@@ -508,6 +508,10 @@ public class CoordinationState {
         persistedState.setLastAcceptedState(clusterState);
     }
 
+    void setCurrentTerm(long term) {
+        persistedState.setCurrentTerm(term);
+    }
+
     public void invariant() {
         assert getLastAcceptedTerm() <= getCurrentTerm();
         assert electionWon() == isElectionQuorum(joinVotes);

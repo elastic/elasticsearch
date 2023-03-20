@@ -79,7 +79,7 @@ public class LimitedRoleTests extends ESTestCase {
         assertThat(npe.getMessage(), containsString("limited by role is required to create limited role"));
     }
 
-    public void testGetRemoteAccessRoleDescriptorsIntersection() {
+    public void testGetRoleDescriptorsIntersectionForRemoteCluster() {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
         String remoteClusterPrefix = randomAlphaOfLengthBetween(6, 8);
@@ -188,11 +188,11 @@ public class LimitedRoleTests extends ESTestCase {
         );
 
         // for the existing remote cluster alias, check that the result is equal to the expected intersection
-        assertThat(role.getRemoteAccessRoleDescriptorsIntersection(remoteClusterAlias), equalTo(expected));
+        assertThat(role.getRoleDescriptorsIntersectionForRemoteCluster(remoteClusterAlias), equalTo(expected));
 
         // and for a random cluster alias, check that it returns empty intersection
         assertThat(
-            role.getRemoteAccessRoleDescriptorsIntersection(randomAlphaOfLengthBetween(5, 7)),
+            role.getRoleDescriptorsIntersectionForRemoteCluster(randomAlphaOfLengthBetween(5, 7)),
             equalTo(RoleDescriptorsIntersection.EMPTY)
         );
     }
@@ -211,7 +211,7 @@ public class LimitedRoleTests extends ESTestCase {
         return IndexPrivilege.get(Set.of(randomFrom(IndexPrivilege.names())));
     }
 
-    public void testGetRemoteAccessRoleDescriptorsIntersectionReturnsEmpty() {
+    public void testGetRoleDescriptorsIntersectionForRemoteClusterReturnsEmpty() {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
         String remoteClusterAlias = randomAlphaOfLengthBetween(5, 8);
@@ -283,7 +283,7 @@ public class LimitedRoleTests extends ESTestCase {
         }
 
         Role role = baseRole.build().limitedBy(limitedByRole1.build().limitedBy(limitedByRole2.build()));
-        assertThat(role.getRemoteAccessRoleDescriptorsIntersection(remoteClusterAlias).roleDescriptorsList().isEmpty(), equalTo(true));
+        assertThat(role.getRoleDescriptorsIntersectionForRemoteCluster(remoteClusterAlias).roleDescriptorsList().isEmpty(), equalTo(true));
     }
 
     public void testAuthorize() {

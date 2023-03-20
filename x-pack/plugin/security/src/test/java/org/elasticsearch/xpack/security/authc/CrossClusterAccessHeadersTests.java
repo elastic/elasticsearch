@@ -20,36 +20,36 @@ import java.util.Base64;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
-import static org.elasticsearch.xpack.security.authc.RemoteAccessHeaders.REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY;
+import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RemoteAccessHeadersTests extends ESTestCase {
+public class CrossClusterAccessHeadersTests extends ESTestCase {
 
     public void testWriteReadContextRoundtrip() throws IOException {
         final ThreadContext ctx = new ThreadContext(Settings.EMPTY);
-        final var expected = new RemoteAccessHeaders(
+        final var expected = new CrossClusterAccessHeaders(
             randomEncodedApiKeyHeader(),
-            AuthenticationTestHelper.randomRemoteAccessAuthentication(randomRoleDescriptorsIntersection())
+            AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(randomRoleDescriptorsIntersection())
         );
 
         expected.writeToContext(ctx);
-        final RemoteAccessHeaders actual = RemoteAccessHeaders.readFromContext(ctx);
+        final CrossClusterAccessHeaders actual = CrossClusterAccessHeaders.readFromContext(ctx);
 
-        assertThat(actual.remoteAccessAuthentication(), equalTo(expected.remoteAccessAuthentication()));
-        assertThat(actual.clusterCredentials().getId(), equalTo(expected.clusterCredentials().getId()));
-        assertThat(actual.clusterCredentials().getKey().toString(), equalTo(expected.clusterCredentials().getKey().toString()));
+        assertThat(actual.subjectInfo(), equalTo(expected.subjectInfo()));
+        assertThat(actual.credentials().getId(), equalTo(expected.credentials().getId()));
+        assertThat(actual.credentials().getKey().toString(), equalTo(expected.credentials().getKey().toString()));
     }
 
     public void testClusterCredentialsReturnsValidApiKey() {
         final String id = UUIDs.randomBase64UUID();
         final String key = UUIDs.randomBase64UUID();
         final String encodedApiKey = encodedApiKeyWithPrefix(id, key);
-        final var headers = new RemoteAccessHeaders(
+        final var headers = new CrossClusterAccessHeaders(
             encodedApiKey,
-            AuthenticationTestHelper.randomRemoteAccessAuthentication(randomRoleDescriptorsIntersection())
+            AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(randomRoleDescriptorsIntersection())
         );
 
-        final ApiKeyService.ApiKeyCredentials actual = headers.clusterCredentials();
+        final ApiKeyService.ApiKeyCredentials actual = headers.credentials();
 
         assertThat(actual.getId(), equalTo(id));
         assertThat(actual.getKey().toString(), equalTo(key));
@@ -57,26 +57,28 @@ public class RemoteAccessHeadersTests extends ESTestCase {
 
     public void testReadOnInvalidApiKeyValueThrows() throws IOException {
         final ThreadContext ctx = new ThreadContext(Settings.EMPTY);
-        final var expected = new RemoteAccessHeaders(
+        final var expected = new CrossClusterAccessHeaders(
             randomFrom("ApiKey abc", "ApiKey id:key", "ApiKey ", "ApiKey  "),
-            AuthenticationTestHelper.randomRemoteAccessAuthentication(randomRoleDescriptorsIntersection())
+            AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(randomRoleDescriptorsIntersection())
         );
 
         expected.writeToContext(ctx);
-        var actual = expectThrows(IllegalArgumentException.class, () -> RemoteAccessHeaders.readFromContext(ctx));
+        var actual = expectThrows(IllegalArgumentException.class, () -> CrossClusterAccessHeaders.readFromContext(ctx));
 
         assertThat(
             actual.getMessage(),
-            equalTo("remote access header [" + REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY + "] value must be a valid API key credential")
+            equalTo(
+                "cross cluster access header [" + CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY + "] value must be a valid API key credential"
+            )
         );
     }
 
     public void testReadOnHeaderWithMalformedPrefixThrows() throws IOException {
         final ThreadContext ctx = new ThreadContext(Settings.EMPTY);
-        AuthenticationTestHelper.randomRemoteAccessAuthentication(randomRoleDescriptorsIntersection()).writeToContext(ctx);
+        AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(randomRoleDescriptorsIntersection()).writeToContext(ctx);
         final String encodedApiKey = encodedApiKey(UUIDs.randomBase64UUID(), UUIDs.randomBase64UUID());
         ctx.putHeader(
-            REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY,
+            CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY,
             randomFrom(
                 // missing space
                 "ApiKey" + encodedApiKey,
@@ -87,11 +89,13 @@ public class RemoteAccessHeadersTests extends ESTestCase {
             )
         );
 
-        var actual = expectThrows(IllegalArgumentException.class, () -> RemoteAccessHeaders.readFromContext(ctx));
+        var actual = expectThrows(IllegalArgumentException.class, () -> CrossClusterAccessHeaders.readFromContext(ctx));
 
         assertThat(
             actual.getMessage(),
-            equalTo("remote access header [" + REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY + "] value must be a valid API key credential")
+            equalTo(
+                "cross cluster access header [" + CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY + "] value must be a valid API key credential"
+            )
         );
     }
 

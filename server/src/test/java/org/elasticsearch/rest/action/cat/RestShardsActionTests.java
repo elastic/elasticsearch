@@ -76,7 +76,7 @@ public class RestShardsActionTests extends ESTestCase {
 
         ClusterStateResponse state = mock(ClusterStateResponse.class);
         RoutingTable routingTable = mock(RoutingTable.class);
-        when(routingTable.allShards()).thenReturn(shardRoutings.stream());
+        when(routingTable.allShardsIterator()).thenReturn(shardRoutings);
         ClusterState clusterState = mock(ClusterState.class);
         when(clusterState.routingTable()).thenReturn(routingTable);
         when(clusterState.nodes()).thenReturn(discoveryNodes);

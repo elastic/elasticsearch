@@ -1,0 +1,5 @@
+pr: 94552
+summary: Add new `ShardLimits` Health Indicator Service
+area: Health
+type: feature
+issues: []

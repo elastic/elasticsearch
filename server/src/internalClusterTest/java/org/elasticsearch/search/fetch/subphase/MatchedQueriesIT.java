@@ -335,7 +335,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         BytesReference matchBytes = XContentHelper.toXContent(matchQueryBuilder, XContentType.JSON, false);
         TermQueryBuilder termQueryBuilder = termQuery("content", "amet").queryName("abc");
         BytesReference termBytes = XContentHelper.toXContent(termQueryBuilder, XContentType.JSON, false);
-        QueryBuilder[] queries = new QueryBuilder[]{wrapperQuery(matchBytes), constantScoreQuery(wrapperQuery(termBytes))};
+        QueryBuilder[] queries = new QueryBuilder[] { wrapperQuery(matchBytes), constantScoreQuery(wrapperQuery(termBytes)) };
         for (QueryBuilder query : queries) {
             SearchResponse searchResponse = client().prepareSearch().setQuery(query).get();
             assertHitCount(searchResponse, 1L);
@@ -354,18 +354,14 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(new MatchAllQueryBuilder().queryName("all"))
             .setRescorer(
-                new QueryRescorerBuilder(
-                    new MatchPhraseQueryBuilder("content", "hello you")
-                        .boost(10)
-                        .queryName("rescore_phrase")
-                )
+                new QueryRescorerBuilder(new MatchPhraseQueryBuilder("content", "hello you").boost(10).queryName("rescore_phrase"))
             )
             .get();
         assertHitCount(searchResponse, 2L);
         assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().length, equalTo(2));
-        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries(), equalTo(new String[]{"all", "rescore_phrase"}));
+        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries(), equalTo(new String[] { "all", "rescore_phrase" }));
 
         assertThat(searchResponse.getHits().getAt(1).getMatchedQueries().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(1).getMatchedQueries(), equalTo(new String[]{"all"}));
+        assertThat(searchResponse.getHits().getAt(1).getMatchedQueries(), equalTo(new String[] { "all" }));
     }
 }

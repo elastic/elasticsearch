@@ -410,7 +410,8 @@ public class SearchApplicationIndexService {
         return new SearchApplicationListItem(
             resourceName,
             documentFields.get(SearchApplication.INDICES_FIELD.getPreferredName()).getValues().toArray(String[]::new),
-            documentFields.get(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName()).getValue()
+            documentFields.get(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName()).getValue(),
+            System.currentTimeMillis()
         );
     }
 

@@ -249,6 +249,14 @@ public class PolicyStepsRegistry {
      * ILM makes use of some implicit steps that belong to actions that we automatically inject
      * (eg. unfollow and migrate) or special purpose steps like the phase `complete` step.
      *
+     * The {@code phaseDef} is *mostly* a valid json we store in the lifecycle execution state. However,
+     * we have a few of exceptional cases:
+     * - null is treated as the `new` phase (see {@code InitializePolicyContextStep})
+     * - the `new` phase is not stored as json but ... "new"
+     * - there's a legacy step, the {@code TerminalPolicyStep} which is also not stored as json but as "completed"
+     * (note: this step exists only for BWC reasons as these days we move to the {@code PhaseCompleteStep} when reaching
+     * the end of the phase)
+     *
      * This method returns **all** the steps that are part of the phase definition including the implicit steps.
      *
      * Returns null if there's a parsing error.
@@ -273,6 +281,15 @@ public class PolicyStepsRegistry {
         }
     }
 
+    /**
+     * The {@code phaseDef} is *mostly* a valid json we store in the lifecycle execution state. However,
+     * we have a few of exceptional cases:
+     * - null is treated as the `new` phase (see {@code InitializePolicyContextStep})
+     * - the `new` phase is not stored as json but ... "new"
+     * - there's a legacy step, the {@code TerminalPolicyStep} which is also not stored as json but as "completed"
+     * (note: this step exists only for BWC reasons as these days we move to the {@code PhaseCompleteStep} when reaching
+     * the end of the phase)
+     */
     private List<Step> parseStepsFromPhase(String policy, String currentPhase, String phaseDef) throws IOException {
         final PhaseExecutionInfo phaseExecutionInfo;
         LifecyclePolicyMetadata policyMetadata = lifecyclePolicyMap.get(policy);

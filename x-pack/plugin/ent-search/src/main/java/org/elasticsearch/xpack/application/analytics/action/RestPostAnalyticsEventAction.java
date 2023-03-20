@@ -38,8 +38,8 @@ public class RestPostAnalyticsEventAction extends BaseRestHandler {
         PostAnalyticsEventAction.Request request = new PostAnalyticsEventAction.Request(
             restRequest.param("collection_name"),
             restRequest.param("event_type"),
-            sourceTuple.v2(),
-            sourceTuple.v1()
+            sourceTuple.v1(),
+            sourceTuple.v2()
         );
 
         return channel -> client.execute(PostAnalyticsEventAction.INSTANCE, request, new RestToXContentListener<>(channel));

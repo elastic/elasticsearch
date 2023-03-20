@@ -14,20 +14,19 @@ import org.apache.logging.log4j.MarkerManager;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.application.analytics.action.PostAnalyticsEventAction;
+import org.elasticsearch.xpack.application.analytics.event.AnalyticsContext;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 
 import java.io.IOException;
 
 public class EventEmitterService {
     private static final Logger logger = LogManager.getLogger(EventEmitterService.class);
-    private static final Marker AUDIT_MARKER = MarkerManager.getMarker("org.elasticsearch.xpack.application.analytics");
+    private static final Marker ANALYTICS_MARKER = MarkerManager.getMarker("org.elasticsearch.xpack.application.analytics");
     private final AnalyticsCollectionResolver analyticsCollectionResolver;
     private final ClusterService clusterService;
 
@@ -41,9 +40,9 @@ public class EventEmitterService {
         final PostAnalyticsEventAction.Request request,
         final ActionListener<PostAnalyticsEventAction.Response> listener
     ) {
-
         try {
-            logger.info(AUDIT_MARKER, prepareFormattedEvent(request));
+            AnalyticsEvent event = parseAnalyticsEvent(request);
+            logger.info(ANALYTICS_MARKER, formatEvent(event));
             listener.onResponse(PostAnalyticsEventAction.Response.ACCEPTED);
         } catch (Exception e) {
             listener.onFailure(e);
@@ -51,16 +50,13 @@ public class EventEmitterService {
     }
 
     private AnalyticsEvent parseAnalyticsEvent(PostAnalyticsEventAction.Request request) throws ResourceNotFoundException, IOException {
-        return AnalyticsEvent.getParser(request.eventType())
-            .parse(
-                request.xContentType().xContent().createParser(XContentParserConfiguration.EMPTY, request.payload().streamInput()),
-                analyticsCollectionResolver.collection(clusterService.state(), request.collectionName())
-            );
+        AnalyticsCollection analyticsCollection = analyticsCollectionResolver.collection(clusterService.state(), request.collectionName());
+        AnalyticsContext context = new AnalyticsContext(analyticsCollection, request.eventType(), request.eventTime());
+
+        return AnalyticsEvent.fromPayload(context, request.xContentType(), request.payload());
     }
 
-    private String prepareFormattedEvent(PostAnalyticsEventAction.Request request) throws ResourceNotFoundException, IOException {
-        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
-        parseAnalyticsEvent(request).toXContent(builder, ToXContent.EMPTY_PARAMS);
-        return BytesReference.bytes(builder).utf8ToString();
+    private String formatEvent(AnalyticsEvent event) throws ResourceNotFoundException, IOException {
+        return Strings.toString(event.toXContent(JsonXContent.contentBuilder(), ToXContent.EMPTY_PARAMS));
     }
 }

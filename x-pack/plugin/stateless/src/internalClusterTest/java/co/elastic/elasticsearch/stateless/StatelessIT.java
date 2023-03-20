@@ -21,6 +21,7 @@ import co.elastic.elasticsearch.stateless.engine.TranslogMetadata;
 import co.elastic.elasticsearch.stateless.engine.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.engine.TranslogReplicatorReader;
 
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -47,6 +48,7 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -94,6 +96,50 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         indexDocuments(indexName);
     }
 
+    public void testUploadToObjectStoreWillAlwaysEnsureCompleteCommitFileSetIsUploaded() throws IOException {
+        startMasterOnlyNode();
+        final int numberOfShards = randomIntBetween(1, 5);
+        startIndexNodes(numberOfShards);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                .build()
+        );
+        ensureGreen(indexName);
+
+        assertObjectStoreConsistentWithIndexShards();
+
+        indexDocuments(indexName);
+
+        final Map<Index, Integer> indices = resolveIndices();
+        assertThat(indices.isEmpty(), is(false));
+
+        for (Map.Entry<Index, Integer> entry : indices.entrySet()) {
+            assertThat(entry.getValue(), greaterThan(0));
+            for (int shardId = 0; shardId < entry.getValue(); shardId++) {
+                IndexShard indexShard = findIndexShard(entry.getKey(), shardId);
+                var blobContainer = internalCluster().getDataNodeInstance(ObjectStoreService.class)
+                    .getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
+                // Delete about 25% of the files
+                List<String> toDelete = blobContainer.listBlobs()
+                    .keySet()
+                    .stream()
+                    .filter(s -> s.startsWith(IndexFileNames.SEGMENTS) == false)
+                    .filter(i -> randomIntBetween(0, 3) == 0)
+                    .collect(Collectors.toList());
+                blobContainer.deleteBlobsIgnoringIfNotExists(toDelete.listIterator());
+            }
+        }
+
+        indexDocs(indexName, randomIntBetween(1, 100));
+        client().admin().indices().prepareFlush(indexName).setForce(true).get();
+        assertObjectStoreConsistentWithIndexShards();
+    }
+
     public void testTranslogAccessibilityViaObjectStore() throws Exception {
         startMasterOnlyNode();
         final int numberOfShards = randomIntBetween(1, 5);
@@ -122,7 +168,6 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
                 DiscoveryNode indexNode = findIndexNode(entry.getKey(), shardId);
                 IndexShard indexShard = findIndexShard(entry.getKey(), shardId);
                 var blobContainer = internalCluster().getDataNodeInstance(ObjectStoreService.class).getTranslogBlobContainer(indexNode);
-                var translogReplicator = internalCluster().getInstance(TranslogReplicator.class, indexNode.getName());
                 final ShardId objShardId = new ShardId(entry.getKey(), shardId);
 
                 // Check that the translog is correctly written to the object store
@@ -367,9 +412,9 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         for (int i = 0; i < iters; i++) {
             indexDocs(indexName, randomIntBetween(1, 100));
             switch (randomInt(2)) {
-                case 0 -> client().admin().indices().prepareFlush().setForce(randomBoolean()).get();
-                case 1 -> client().admin().indices().prepareRefresh().get();
-                case 2 -> client().admin().indices().prepareForceMerge().get();
+                case 0 -> client().admin().indices().prepareFlush(indexName).setForce(randomBoolean()).get();
+                case 1 -> client().admin().indices().prepareRefresh(indexName).get();
+                case 2 -> client().admin().indices().prepareForceMerge(indexName).get();
             }
             assertObjectStoreConsistentWithIndexShards();
         }

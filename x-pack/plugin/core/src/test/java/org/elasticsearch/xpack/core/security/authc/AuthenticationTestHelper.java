@@ -81,7 +81,8 @@ public class AuthenticationTestHelper {
         XPackUser.INSTANCE,
         XPackSecurityUser.INSTANCE,
         AsyncSearchUser.INSTANCE,
-        SecurityProfileUser.INSTANCE
+        SecurityProfileUser.INSTANCE,
+        CrossClusterAccessUser.INSTANCE
     );
 
     public static AuthenticationTestBuilder builder() {
@@ -234,7 +235,8 @@ public class AuthenticationTestHelper {
             UsernamesField.XPACK_ROLE,
             UsernamesField.ASYNC_SEARCH_ROLE,
             UsernamesField.XPACK_SECURITY_ROLE,
-            UsernamesField.SECURITY_PROFILE_ROLE
+            UsernamesField.SECURITY_PROFILE_ROLE,
+            UsernamesField.CROSS_CLUSTER_ACCESS_ROLE
         );
     }
 

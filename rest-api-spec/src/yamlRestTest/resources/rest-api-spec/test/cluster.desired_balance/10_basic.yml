@@ -80,7 +80,7 @@ setup:
   - is_true: 'cluster_info'
 
 ---
-"Test cluster_balance_stats contains node ID":
+"Test cluster_balance_stats contains node ID and roles":
 
   - skip:
       version: " - 8.7.99"
@@ -96,6 +96,7 @@ setup:
 
   - is_true: 'cluster_balance_stats.nodes.$node_name'
   - is_true: 'cluster_balance_stats.nodes.$node_name.node_id'
+  - is_true: 'cluster_balance_stats.nodes.$node_name.roles'
 
 ---
 "Test get desired balance for single shard":
@@ -135,3 +136,28 @@ setup:
   - gte: { routing_table.test.0.desired.unassigned: 0 }
   - gte: { routing_table.test.0.desired.ignored: 0 }
   - is_true: 'routing_table.test.0.desired.node_ids'
+
+---
+"Test tier_preference":
+
+  - skip:
+      version: " - 8.7.99"
+      reason: "tier preference added in in 8.8.0"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        index: test
+        wait_for_status: green
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - is_true: 'routing_table.test.0.current.0.tier_preference'

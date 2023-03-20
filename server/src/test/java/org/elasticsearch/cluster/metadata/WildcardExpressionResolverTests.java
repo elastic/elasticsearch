@@ -721,11 +721,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
 
     private static IndexMetadata.Builder indexBuilder(String index, boolean hidden) {
         return IndexMetadata.builder(index)
-            .settings(
-                settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexMetadata.INDEX_HIDDEN_SETTING.getKey(), hidden)
-            );
+            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.INDEX_HIDDEN_SETTING.getKey(), hidden));
     }
 
     private static IndexMetadata.Builder indexBuilder(String index) {

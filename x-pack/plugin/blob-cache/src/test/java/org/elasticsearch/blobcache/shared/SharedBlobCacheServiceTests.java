@@ -307,6 +307,18 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         assertThat(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.get(settings), equalTo(ByteSizeValue.ofBytes(-1)));
     }
 
+    public void testSearchNodeCacheSizeDefaults() {
+        final Settings settings = Settings.builder()
+            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
+            .build();
+
+        RelativeByteSizeValue relativeCacheSize = SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.get(settings);
+        assertThat(relativeCacheSize.isAbsolute(), is(false));
+        assertThat(relativeCacheSize.isNonZeroSize(), is(true));
+        assertThat(relativeCacheSize.calculateValue(ByteSizeValue.ofBytes(10000), null), equalTo(ByteSizeValue.ofBytes(9000)));
+        assertThat(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.get(settings), equalTo(ByteSizeValue.ofGb(100)));
+    }
+
     public void testMaxHeadroomRejectedForAbsoluteCacheSize() {
         String cacheSize = ByteSizeValue.ofBytes(size(500)).getStringRep();
         final Settings settings = Settings.builder()

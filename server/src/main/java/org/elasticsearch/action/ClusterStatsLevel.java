@@ -25,7 +25,7 @@ public enum ClusterStatsLevel {
 
     public static ClusterStatsLevel of(String level) {
         for (ClusterStatsLevel value : values()) {
-            if (value.getLevel().equals(level)) {
+            if (value.getLevel().equalsIgnoreCase(level)) {
                 return value;
             }
         }

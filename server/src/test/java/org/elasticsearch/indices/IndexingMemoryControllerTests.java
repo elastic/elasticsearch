@@ -7,18 +7,12 @@
  */
 package org.elasticsearch.indices;
 
-import org.apache.lucene.search.ReferenceManager;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
-import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -43,6 +37,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class IndexingMemoryControllerTests extends IndexShardTestCase {
 
@@ -97,7 +92,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         protected void checkIdle(IndexShard shard, long inactiveTimeNS) {}
 
         @Override
-        public void writeIndexingBufferAsync(IndexShard shard) {
+        public void enqueueWriteIndexingBuffer(IndexShard shard) {
             long bytes = indexBufferRAMBytesUsed.put(shard, 0L);
             writingBytes.put(shard, writingBytes.get(shard) + bytes);
             indexBufferRAMBytesUsed.put(shard, 0L);
@@ -355,7 +350,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         AtomicInteger flushes = new AtomicInteger();
         IndexingMemoryController imc = new IndexingMemoryController(settings, threadPool, iterable) {
             @Override
-            protected void writeIndexingBufferAsync(IndexShard shard) {
+            protected void enqueueWriteIndexingBuffer(IndexShard shard) {
                 assertEquals(shard, shardRef.get());
                 flushes.incrementAndGet();
                 shard.writeIndexingBuffer();
@@ -373,40 +368,6 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    EngineConfig configWithRefreshListener(EngineConfig config, ReferenceManager.RefreshListener listener) {
-        final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>(config.getInternalRefreshListener());
-        ;
-        internalRefreshListener.add(listener);
-        return new EngineConfig(
-            config.getShardId(),
-            config.getThreadPool(),
-            config.getIndexSettings(),
-            config.getWarmer(),
-            config.getStore(),
-            config.getMergePolicy(),
-            config.getAnalyzer(),
-            config.getSimilarity(),
-            new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE),
-            config.getEventListener(),
-            config.getQueryCache(),
-            config.getQueryCachingPolicy(),
-            config.getTranslogConfig(),
-            config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(),
-            internalRefreshListener,
-            config.getIndexSort(),
-            config.getCircuitBreakerService(),
-            config.getGlobalCheckpointSupplier(),
-            config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(),
-            config.getSnapshotCommitSupplier(),
-            config.getLeafSorter(),
-            config.getRelativeTimeInNanosSupplier(),
-            config.getIndexCommitListener(),
-            config.isPromotableToPrimary()
-        );
-    }
-
     ThreadPoolStats.Stats getRefreshThreadPoolStats() {
         final ThreadPoolStats stats = threadPool.stats();
         for (ThreadPoolStats.Stats s : stats) {
@@ -417,32 +378,19 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         throw new AssertionError("refresh thread pool stats not found [" + stats + "]");
     }
 
-    public void testSkipRefreshIfShardIsRefreshingAlready() throws Exception {
-        SetOnce<CountDownLatch> refreshLatch = new SetOnce<>();
-        ReferenceManager.RefreshListener refreshListener = new ReferenceManager.RefreshListener() {
+    public void testSkipIfPendingAlready() throws Exception {
+        final CountDownLatch latch = new CountDownLatch(1);
+        IndexShard shard = newStartedShard(randomBoolean(), Settings.EMPTY, config -> new InternalEngine(config) {
             @Override
-            public void beforeRefresh() {
-                if (refreshLatch.get() != null) {
-                    try {
-                        refreshLatch.get().await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+            public void writeIndexingBuffer() throws IOException {
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
                 }
+                super.writeIndexingBuffer();
             }
-
-            @Override
-            public void afterRefresh(boolean didRefresh) {
-
-            }
-        };
-        IndexShard shard = newStartedShard(
-            randomBoolean(),
-            Settings.EMPTY,
-            config -> new InternalEngine(configWithRefreshListener(config, refreshListener))
-        );
-        refreshLatch.set(new CountDownLatch(1)); // block refresh
-        final RefreshStats refreshStats = shard.refreshStats();
+        });
         final IndexingMemoryController controller = new IndexingMemoryController(
             Settings.builder()
                 .put("indices.memory.interval", "200h") // disable it
@@ -461,21 +409,24 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
                 return 0L;
             }
         };
-        int iterations = randomIntBetween(10, 100);
         ThreadPoolStats.Stats beforeStats = getRefreshThreadPoolStats();
+        int iterations = randomIntBetween(1000, 2000);
         for (int i = 0; i < iterations; i++) {
             controller.forceCheck();
         }
         assertBusy(() -> {
             ThreadPoolStats.Stats stats = getRefreshThreadPoolStats();
-            assertThat(stats.getCompleted(), equalTo(beforeStats.getCompleted() + iterations - 1));
+            assertThat(stats.getActive(), greaterThanOrEqualTo(1));
         });
-        refreshLatch.get().countDown(); // allow refresh
+        latch.countDown();
         assertBusy(() -> {
             ThreadPoolStats.Stats stats = getRefreshThreadPoolStats();
-            assertThat(stats.getCompleted(), equalTo(beforeStats.getCompleted() + iterations));
+            assertThat(stats.getQueue(), equalTo(0));
         });
-        assertThat(shard.refreshStats().getTotal(), equalTo(refreshStats.getTotal() + 1));
+        ThreadPoolStats.Stats afterStats = getRefreshThreadPoolStats();
+        // The number of completed tasks should be in the order of the size of the refresh thread pool, way below the number of iterations,
+        // since we would not queue a shard to write its indexing buffer if it's already in the queue.
+        assertThat(afterStats.getCompleted() - beforeStats.getCompleted(), lessThan(100L));
         closeShards(shard);
     }
 }

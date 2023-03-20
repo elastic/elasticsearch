@@ -1698,6 +1698,9 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         indexDoc(shard, "_doc", "test");
         shard.writeIndexingBuffer();
+        // This did not actually run a refresh, it called IndexWriter#flushNextBuffer()
+        assertThat(shard.refreshStats().getTotal(), equalTo(refreshCount + 1));
+        shard.refresh("force");
         assertThat(shard.refreshStats().getTotal(), equalTo(refreshCount + 2));
         closeShards(shard);
     }
@@ -1722,9 +1725,10 @@ public class IndexShardTests extends IndexShardTestCase {
             assertThat(shard.refreshStats().getExternalTotal(), equalTo(shard.refreshStats().getTotal() - 1 - extraInternalRefreshes));
         }
         indexDoc(shard, "_doc", "test");
+        // This runs IndexWriter#flushNextBuffer internally
         shard.writeIndexingBuffer();
         assertThat(shard.refreshStats().getExternalTotal(), equalTo(externalRefreshCount));
-        assertThat(shard.refreshStats().getExternalTotal(), equalTo(shard.refreshStats().getTotal() - 2 - extraInternalRefreshes));
+        assertThat(shard.refreshStats().getExternalTotal(), equalTo(shard.refreshStats().getTotal() - 1 - extraInternalRefreshes));
         closeShards(shard);
     }
 

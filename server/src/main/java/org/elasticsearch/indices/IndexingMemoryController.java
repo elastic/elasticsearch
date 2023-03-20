@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -29,11 +28,16 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.io.Closeable;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Deque;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.PriorityQueue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -104,6 +108,9 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
     );
 
     private final ShardsIndicesStatusChecker statusChecker;
+
+    private final Set<IndexShard> pendingWriteIndexingBufferSet = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Deque<IndexShard> pendingWriteIndexingBufferQueue = new ConcurrentLinkedDeque<>();
 
     IndexingMemoryController(Settings settings, ThreadPool threadPool, Iterable<IndexShard> indexServices) {
         this.indexShards = indexServices;
@@ -183,19 +190,39 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         return shard.getWritingBytes();
     }
 
-    /** ask this shard to refresh, in the background, to free up heap */
-    protected void writeIndexingBufferAsync(IndexShard shard) {
-        threadPool.executor(ThreadPool.Names.REFRESH).execute(new AbstractRunnable() {
-            @Override
-            public void doRun() {
-                shard.writeIndexingBuffer();
-            }
+    /** Record that the given shard needs to write its indexing buffer. */
+    protected void enqueueWriteIndexingBuffer(IndexShard shard) {
+        if (pendingWriteIndexingBufferSet.add(shard) == false) {
+            // There is already a queued task for the same shard and there is no evidence that adding another one is required since we'd
+            // need the first one to start running to know about the number of bytes still not being written.
+            return;
+        }
+        pendingWriteIndexingBufferQueue.addLast(shard);
+    }
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.warn(() -> "failed to write indexing buffer for shard [" + shard.shardId() + "]; ignoring", e);
-            }
-        });
+    /**
+     * Write pending indexing buffers. This should run on indexing threads in order to naturally apply back pressure on indexing. Lucene has
+     * similar logic in DocumentsWriter#postUpdate.
+     */
+    private void writePendingIndexingBuffers() {
+        for (IndexShard shard = pendingWriteIndexingBufferQueue.pollFirst(); shard != null; shard = pendingWriteIndexingBufferQueue
+            .pollFirst()) {
+            // Remove the shard from the set first, so that multiple threads can run writeIndexingBuffer concurrently on the same shard.
+            pendingWriteIndexingBufferSet.remove(shard);
+            shard.writeIndexingBuffer();
+        }
+    }
+
+    private void writePendingIndexingBuffersAsync() {
+        for (IndexShard shard = pendingWriteIndexingBufferQueue.pollFirst(); shard != null; shard = pendingWriteIndexingBufferQueue
+            .pollFirst()) {
+            final IndexShard finalShard = shard;
+            threadPool.executor(ThreadPool.Names.REFRESH).execute(() -> {
+                // Remove the shard from the set first, so that multiple threads can run writeIndexingBuffer concurrently on the same shard.
+                pendingWriteIndexingBufferSet.remove(finalShard);
+                finalShard.writeIndexingBuffer();
+            });
+        }
     }
 
     /** force checker to run now */
@@ -216,11 +243,15 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
     @Override
     public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
         recordOperationBytes(index, result);
+        // Piggy back on indexing threads to write segments.
+        writePendingIndexingBuffers();
     }
 
     @Override
     public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
         recordOperationBytes(delete, result);
+        // Piggy back on indexing threads to write segments.
+        writePendingIndexingBuffers();
     }
 
     /** called by IndexShard to record estimated bytes written to translog for the operation */
@@ -256,13 +287,13 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         public void bytesWritten(int bytes) {
             long totalBytes = bytesWrittenSinceCheck.addAndGet(bytes);
             assert totalBytes >= 0;
-            while (totalBytes > indexingBuffer.getBytes() / 30) {
+            while (totalBytes > indexingBuffer.getBytes() / 128) {
 
                 if (runLock.tryLock()) {
                     try {
                         // Must pull this again because it may have changed since we first checked:
                         totalBytes = bytesWrittenSinceCheck.get();
-                        if (totalBytes > indexingBuffer.getBytes() / 30) {
+                        if (totalBytes > indexingBuffer.getBytes() / 128) {
                             bytesWrittenSinceCheck.addAndGet(-totalBytes);
                             // NOTE: this is only an approximate check, because bytes written is to the translog,
                             // vs indexing memory buffer which is typically smaller but can be larger in extreme
@@ -286,6 +317,9 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
 
         @Override
         public void run() {
+            // If there are any remainders from the previous check, schedule them now. Most of the time, indexing threads would have taken
+            // care of these indexing buffers before, and we wouldn't need to do it here.
+            writePendingIndexingBuffersAsync();
             runLock.lock();
             try {
                 runUnlocked();
@@ -393,7 +427,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
                         largest.shard.shardId(),
                         ByteSizeValue.ofBytes(largest.bytesUsed)
                     );
-                    writeIndexingBufferAsync(largest.shard);
+                    enqueueWriteIndexingBuffer(largest.shard);
                     totalBytesUsed -= largest.bytesUsed;
                     if (doThrottle && throttled.contains(largest.shard) == false) {
                         logger.info("now throttling indexing for shard [{}]: segment writing can't keep up", largest.shard.shardId());
@@ -401,6 +435,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
                         activateThrottling(largest.shard);
                     }
                 }
+
             }
 
             if (doThrottle == false) {

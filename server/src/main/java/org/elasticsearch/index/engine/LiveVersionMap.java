@@ -413,20 +413,20 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
 
     @Override
     public long ramBytesUsed() {
-        return maps.current.ramBytesUsed.get() + ramBytesUsedTombstones.get();
+        return maps.current.ramBytesUsed.get() + maps.old.ramBytesUsed.get() + ramBytesUsedTombstones.get();
     }
 
     /**
-     * Returns how much RAM would be freed up by refreshing. This is {@link #ramBytesUsed} except does not include tombstones because they
-     * don't clear on refresh.
+     * Returns how much RAM would be freed up by refreshing. This is the RAM usage of the current version map. It doesn't include tombstones
+     * since they don't get cleared on refresh, nor the old version map that is being reclaimed.
      */
     long ramBytesUsedForRefresh() {
         return maps.current.ramBytesUsed.get();
     }
 
     /**
-     * Returns how much RAM is current being freed up by refreshing.  This is {@link #ramBytesUsed()}
-     * except does not include tombstones because they don't clear on refresh.
+     * Returns how much RAM is current being freed up by refreshing. This is the RAM usage of the previous version map that needs to stay
+     * around until operations are safely recorded in the Lucene index.
      */
     long getRefreshingBytes() {
         return maps.old.ramBytesUsed.get();

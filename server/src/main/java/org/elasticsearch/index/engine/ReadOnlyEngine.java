@@ -433,7 +433,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void writeIndexingBuffer() throws EngineException {}
+    public void writeIndexingBuffer() {}
 
     @Override
     public boolean shouldPeriodicallyFlush() {

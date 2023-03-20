@@ -1957,15 +1957,25 @@ thread, represented as a histogram.
 .Properties of `inbound_handling_time_histogram`
 [%collapsible]
 =======
+`ge`::
+(string)
+The inclusive lower bound of the bucket as a human-readable string. May be
+omitted on the first bucket if this bucket has no lower bound.
+
 `ge_millis`::
 (integer)
-The inclusive lower bound of the bucket in milliseconds. Omitted on the first
-bucket since this bucket has no lower bound.
+The inclusive lower bound of the bucket in milliseconds. May be omitted on the
+first bucket if this bucket has no lower bound.
+
+`lt`::
+(string)
+The exclusive upper bound of the bucket as a human-readable string. May be
+omitted on the last bucket if this bucket has no upper bound.
 
 `lt_millis`::
 (integer)
-The exclusive upper bound of the bucket in milliseconds. Omitted on the last
-bucket since this bucket has no upper bound.
+The exclusive upper bound of the bucket in milliseconds. May be omitted on the
+last bucket if this bucket has no upper bound.
 
 `count`::
 (integer)
@@ -1981,15 +1991,25 @@ transport thread, represented as a histogram.
 .Properties of `outbound_handling_time_histogram`
 [%collapsible]
 =======
+`ge`::
+(string)
+The inclusive lower bound of the bucket as a human-readable string. May be
+omitted on the first bucket if this bucket has no lower bound.
+
 `ge_millis`::
 (integer)
-The inclusive lower bound of the bucket in milliseconds. Omitted on the first
-bucket since this bucket has no lower bound.
+The inclusive lower bound of the bucket in milliseconds. May be omitted on the
+first bucket if this bucket has no lower bound.
+
+`lt`::
+(string)
+The exclusive upper bound of the bucket as a human-readable string. May be
+omitted on the last bucket if this bucket has no upper bound.
 
 `lt_millis`::
 (integer)
-The exclusive upper bound of the bucket in milliseconds. Omitted on the last
-bucket since this bucket has no upper bound.
+The exclusive upper bound of the bucket in milliseconds. May be omitted on the
+last bucket if this bucket has no upper bound.
 
 `count`::
 (integer)

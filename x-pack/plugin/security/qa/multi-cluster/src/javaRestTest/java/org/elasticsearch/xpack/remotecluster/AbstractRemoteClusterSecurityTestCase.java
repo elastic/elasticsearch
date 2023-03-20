@@ -96,16 +96,16 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     }
 
     /**
-     * Returns API key ID of remote access API key.
+     * Returns API key ID of cross cluster access API key.
      */
     protected String configureRemoteClustersWithApiKey(String indicesPrivilegesJson, boolean isProxyMode) throws Exception {
         // Create API key on FC
-        final Map<String, Object> apiKeyMap = createRemoteAccessApiKey(indicesPrivilegesJson);
-        final String encodedRemoteAccessApiKey = (String) apiKeyMap.get("encoded");
+        final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey(indicesPrivilegesJson);
+        final String encodedCrossClusterAccessApiKey = (String) apiKeyMap.get("encoded");
 
         // Update remote cluster settings on QC with the API key
         final Settings.Builder builder = Settings.builder()
-            .put("cluster.remote.my_remote_cluster.authorization", encodedRemoteAccessApiKey);
+            .put("cluster.remote.my_remote_cluster.authorization", encodedCrossClusterAccessApiKey);
         ;
         if (isProxyMode) {
             builder.put("cluster.remote.my_remote_cluster.mode", "proxy")
@@ -133,12 +133,12 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         return (String) apiKeyMap.get("id");
     }
 
-    protected Map<String, Object> createRemoteAccessApiKey(String indicesPrivilegesJson) throws IOException {
+    protected Map<String, Object> createCrossClusterAccessApiKey(String indicesPrivilegesJson) throws IOException {
         // Create API key on FC
         final var createApiKeyRequest = new Request("POST", "/_security/api_key");
         createApiKeyRequest.setJsonEntity(Strings.format("""
             {
-              "name": "remote_access_key",
+              "name": "cross_cluster_access_key",
               "role_descriptors": {
                 "role": {
                   "cluster": ["cross_cluster_access"],

@@ -2988,8 +2988,8 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         Consumer<IndexShard> assertListenerCalled = shard -> {
             AtomicBoolean called = new AtomicBoolean();
-            shard.addRefreshListener(null, b -> {
-                assertFalse(b);
+            shard.addRefreshListener(null, forced -> {
+                assertFalse(forced);
                 called.set(true);
             });
 
@@ -4054,7 +4054,6 @@ public class IndexShardTests extends IndexShardTestCase {
                 IdFieldMapper.NAME,
                 VersionFieldMapper.NAME,
                 SeqNoFieldMapper.NAME,
-                SeqNoFieldMapper.NAME,
                 SeqNoFieldMapper.PRIMARY_TERM_NAME,
                 SeqNoFieldMapper.TOMBSTONE_NAME
             )
@@ -4072,7 +4071,6 @@ public class IndexShardTests extends IndexShardTestCase {
                 VersionFieldMapper.NAME,
                 SourceFieldMapper.NAME,
                 SeqNoFieldMapper.TOMBSTONE_NAME,
-                SeqNoFieldMapper.NAME,
                 SeqNoFieldMapper.NAME,
                 SeqNoFieldMapper.PRIMARY_TERM_NAME
             )

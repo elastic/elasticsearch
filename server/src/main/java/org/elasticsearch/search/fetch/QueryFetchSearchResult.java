@@ -27,6 +27,7 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
 
     public QueryFetchSearchResult(StreamInput in) throws IOException {
         super(in);
+        // TODO: Delegate refcounting to QuerySearchResult (see https://github.com/elastic/elasticsearch/pull/94023)
         queryResult = new QuerySearchResult(in);
         fetchResult = new FetchSearchResult(in);
         refCounted = AbstractRefCounted.of(() -> {

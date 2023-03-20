@@ -55,15 +55,10 @@ import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.BoostingQueryBuilder;
-import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
-import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.ByteArrayOutputStream;
@@ -398,19 +393,7 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         configureContext(executionContext, isMapUnmappedFieldAsText());
 
-        XContentParser parser = context.parser();
-        QueryBuilder queryBuilder;
-        try {
-            // make sure that we don't expand dots in field names while parsing, otherwise queries will
-            // fail parsing due to unsupported inner objects
-            context.path().setWithinLeafObject(true);
-            queryBuilder = parseTopLevelQuery(parser);
-        } catch (IOException e) {
-            throw new ParsingException(parser.getTokenLocation(), "Failed to parse", e);
-        } finally {
-            context.path().setWithinLeafObject(false);
-        }
-        verifyQuery(queryBuilder);
+        QueryBuilder queryBuilder = parseQueryBuilder(context);
         // Fetching of terms, shapes and indexed scripts happen during this rewrite:
         PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
         Rewriteable.rewriteAndFetch(queryBuilder, executionContext, future);
@@ -422,6 +405,26 @@ public class PercolatorFieldMapper extends FieldMapper {
         QueryBuilder queryBuilderForProcessing = queryBuilder.rewrite(new SearchExecutionContext(executionContext));
         Query query = queryBuilderForProcessing.toQuery(executionContext);
         processQuery(query, context);
+    }
+
+    static QueryBuilder parseQueryBuilder(DocumentParserContext context) {
+        XContentParser parser = context.parser();
+        try {
+            // make sure that we don't expand dots in field names while parsing, otherwise queries will
+            // fail parsing due to unsupported inner objects
+            context.path().setWithinLeafObject(true);
+            return parseTopLevelQuery(parser, queryName -> {
+                if (queryName.equals("has_child")) {
+                    throw new IllegalArgumentException("the [has_child] query is unsupported inside a percolator query");
+                } else if (queryName.equals("has_parent")) {
+                    throw new IllegalArgumentException("the [has_parent] query is unsupported inside a percolator query");
+                }
+            });
+        } catch (IOException e) {
+            throw new ParsingException(parser.getTokenLocation(), "Failed to parse", e);
+        } finally {
+            context.path().setWithinLeafObject(false);
+        }
     }
 
     static void createQueryBuilderField(
@@ -525,39 +528,6 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     boolean isMapUnmappedFieldAsText() {
         return mapUnmappedFieldsAsText;
-    }
-
-    /**
-     * Fails if a percolator contains an unsupported query. The following queries are not supported:
-     * 1) a has_child query
-     * 2) a has_parent query
-     */
-    static void verifyQuery(QueryBuilder queryBuilder) {
-        if (queryBuilder.getName().equals("has_child")) {
-            throw new IllegalArgumentException("the [has_child] query is unsupported inside a percolator query");
-        } else if (queryBuilder.getName().equals("has_parent")) {
-            throw new IllegalArgumentException("the [has_parent] query is unsupported inside a percolator query");
-        } else if (queryBuilder instanceof BoolQueryBuilder boolQueryBuilder) {
-            List<QueryBuilder> clauses = new ArrayList<>();
-            clauses.addAll(boolQueryBuilder.filter());
-            clauses.addAll(boolQueryBuilder.must());
-            clauses.addAll(boolQueryBuilder.mustNot());
-            clauses.addAll(boolQueryBuilder.should());
-            for (QueryBuilder clause : clauses) {
-                verifyQuery(clause);
-            }
-        } else if (queryBuilder instanceof ConstantScoreQueryBuilder constantScoreQueryBuilder) {
-            verifyQuery(constantScoreQueryBuilder.innerQuery());
-        } else if (queryBuilder instanceof FunctionScoreQueryBuilder functionScoreQueryBuilder) {
-            verifyQuery(functionScoreQueryBuilder.query());
-        } else if (queryBuilder instanceof BoostingQueryBuilder boostingQueryBuilder) {
-            verifyQuery(boostingQueryBuilder.negativeQuery());
-            verifyQuery(boostingQueryBuilder.positiveQuery());
-        } else if (queryBuilder instanceof DisMaxQueryBuilder disMaxQueryBuilder) {
-            for (QueryBuilder innerQueryBuilder : disMaxQueryBuilder.innerQueries()) {
-                verifyQuery(innerQueryBuilder);
-            }
-        }
     }
 
     static byte[] encodeRange(String rangeFieldName, byte[] minEncoded, byte[] maxEncoded) {

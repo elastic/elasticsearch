@@ -11,7 +11,6 @@ package org.elasticsearch.repositories;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -26,8 +25,6 @@ import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.function.Consumer;
-import java.util.function.Function;
 
 /**
  * Represents a repository that exists in the cluster state but could not be instantiated on a node, typically due to invalid configuration.
@@ -146,15 +143,6 @@ public class InvalidRepository extends AbstractLifecycleComponent implements Rep
     @Override
     public void updateState(ClusterState state) {
 
-    }
-
-    @Override
-    public void executeConsistentStateUpdate(
-        Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
-        String source,
-        Consumer<Exception> onFailure
-    ) {
-        onFailure.accept(createCreationException());
     }
 
     @Override

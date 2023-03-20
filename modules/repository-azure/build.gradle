@@ -26,6 +26,7 @@ versions << [
   'azureCoreHttpNetty': '1.12.7',
   'azureJackson': '2.13.4',
   'azureJacksonDatabind': '2.13.4.2',
+  'azureAvro': '12.5.3',
 
   'jakartaActivation': '1.2.1',
   'jakartaXMLBind': '2.3.2',
@@ -72,10 +73,10 @@ dependencies {
   api "org.reactivestreams:reactive-streams:${versions.reactiveStreams}"
 
   implementation project(":modules:transport-netty4")
+  implementation("org.slf4j:slf4j-api:${versions.slf4j}")
 
-  runtimeOnly("org.slf4j:slf4j-api:${versions.slf4j}")
+  runtimeOnly "com.azure:azure-storage-internal-avro:${versions.azureAvro}"
   runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}")
-
 
   testImplementation project(':test:fixtures:azure-fixture')
 }
@@ -107,11 +108,6 @@ tasks.named("dependencyLicenses").configure {
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
-    'com.azure.storage.internal.avro.implementation.AvroObject',
-    'com.azure.storage.internal.avro.implementation.AvroReader',
-    'com.azure.storage.internal.avro.implementation.AvroReaderFactory',
-    'com.azure.storage.internal.avro.implementation.schema.AvroSchema',
-
     // from reactory-netty metric collection
     'io.micrometer.core.instrument.Clock',
     'io.micrometer.core.instrument.Counter',

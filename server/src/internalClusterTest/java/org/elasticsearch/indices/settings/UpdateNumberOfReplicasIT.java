@@ -78,14 +78,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
             .index("test")
             .getSettingsVersion();
         logger.info("Increasing the number of replicas from 1 to 2");
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(Settings.builder().put("index.number_of_replicas", 2))
-                .execute()
-                .actionGet()
-        );
+        setReplicaCount(2, "test");
         logger.info("Running Cluster Health");
         clusterHealth = client().admin()
             .cluster()
@@ -149,13 +142,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         }
 
         logger.info("Decreasing number of replicas from 2 to 0");
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(Settings.builder().put("index.number_of_replicas", 0))
-                .get()
-        );
+        setReplicaCount(0, "test");
 
         logger.info("Running Cluster Health");
         clusterHealth = client().admin()
@@ -501,12 +488,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
             .index("test")
             .getSettingsVersion();
         logger.info("--> update the auto expand replicas to 0-3");
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test")
-            .setSettings(Settings.builder().put("auto_expand_replicas", "0-3"))
-            .execute()
-            .actionGet();
+        updateIndexSettings(Settings.builder().put("auto_expand_replicas", "0-3"), "test");
 
         logger.info("--> running cluster health");
         clusterHealth = client().admin()

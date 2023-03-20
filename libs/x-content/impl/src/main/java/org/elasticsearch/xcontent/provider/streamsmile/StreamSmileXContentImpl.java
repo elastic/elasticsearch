@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.xcontent.provider.smile;
+package org.elasticsearch.xcontent.provider.streamsmile;
 
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.provider.smile.SmileXContentParser;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,38 +30,38 @@ import java.io.Reader;
 import java.util.Set;
 
 /**
- * A Smile based content implementation using Jackson.
+ * A Smile based content implementation using Jackson that escapes the stream separator.
  */
-public final class SmileXContentImpl implements XContent {
+public final class StreamSmileXContentImpl implements XContent {
 
     public static XContentBuilder getContentBuilder() throws IOException {
-        return XContentBuilder.builder(smileXContent);
+        return XContentBuilder.builder(streamSmileXContent);
     }
 
-    static final SmileFactory smileFactory;
-    private static final SmileXContentImpl smileXContent;
+    static final SmileFactory streamSmileFactory;
+    private static final StreamSmileXContentImpl streamSmileXContent;
 
-    public static XContent smileXContent() {
-        return smileXContent;
+    public static XContent streamSmileXContent() {
+        return streamSmileXContent;
     }
 
     static {
-        smileFactory = new SmileFactory();
-        // for now, this is an overhead, might make sense for web sockets
-        smileFactory.configure(SmileGenerator.Feature.ENCODE_BINARY_AS_7BIT, false);
-        smileFactory.configure(SmileFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
+        streamSmileFactory = new SmileFactory();
+        // Encode binary data in 7 bits so it can be safely streamed
+        streamSmileFactory.configure(SmileGenerator.Feature.ENCODE_BINARY_AS_7BIT, true);
+        streamSmileFactory.configure(SmileFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
         // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.dataformat.smile.SmileGenerator#close() method
-        smileFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
-        smileFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
-        smileFactory.configure(JsonParser.Feature.USE_FAST_DOUBLE_PARSER, true);
-        smileXContent = new SmileXContentImpl();
+        streamSmileFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
+        streamSmileFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
+        streamSmileFactory.configure(JsonParser.Feature.USE_FAST_DOUBLE_PARSER, true);
+        streamSmileXContent = new StreamSmileXContentImpl();
     }
 
-    private SmileXContentImpl() {}
+    private StreamSmileXContentImpl() {}
 
     @Override
     public XContentType type() {
-        return XContentType.SMILE;
+        return XContentType.STREAM_SMILE;
     }
 
     @Override
@@ -70,44 +71,44 @@ public final class SmileXContentImpl implements XContent {
 
     @Override
     public boolean detectContent(byte[] bytes, int offset, int length) {
-        return length > 3
+        return length > 2
             && bytes[offset] == SmileConstants.HEADER_BYTE_1
             && bytes[offset + 1] == SmileConstants.HEADER_BYTE_2
             && bytes[offset + 2] == SmileConstants.HEADER_BYTE_3
-            && (bytes[offset + 3] & SmileConstants.HEADER_BIT_HAS_RAW_BINARY) == SmileConstants.HEADER_BIT_HAS_RAW_BINARY;
+            && (bytes[offset + 3] & SmileConstants.HEADER_BIT_HAS_RAW_BINARY) != SmileConstants.HEADER_BIT_HAS_RAW_BINARY;
     }
 
     @Override
     public boolean detectContent(CharSequence chars) {
-        return chars.length() > 3
+        return chars.length() > 2
             && chars.charAt(0) == SmileConstants.HEADER_BYTE_1
             && chars.charAt(1) == SmileConstants.HEADER_BYTE_2
             && chars.charAt(2) == SmileConstants.HEADER_BYTE_3
-            && ((byte) chars.charAt(3) & SmileConstants.HEADER_BIT_HAS_RAW_BINARY) == SmileConstants.HEADER_BIT_HAS_RAW_BINARY;
+            && ((byte) chars.charAt(3) & SmileConstants.HEADER_BIT_HAS_RAW_BINARY) != SmileConstants.HEADER_BIT_HAS_RAW_BINARY;
     }
 
     @Override
     public XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes) throws IOException {
-        return new SmileXContentGenerator(smileFactory.createGenerator(os, JsonEncoding.UTF8), os, includes, excludes);
+        return new StreamSmileXContentGenerator(streamSmileFactory.createGenerator(os, JsonEncoding.UTF8), os, includes, excludes);
     }
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, String content) throws IOException {
-        return new SmileXContentParser(config, smileFactory.createParser(content));
+        return new StreamSmileXContentParser(config, streamSmileFactory.createParser(content));
     }
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, InputStream is) throws IOException {
-        return new SmileXContentParser(config, smileFactory.createParser(is));
+        return new StreamSmileXContentParser(config, streamSmileFactory.createParser(is));
     }
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, byte[] data, int offset, int length) throws IOException {
-        return new SmileXContentParser(config, smileFactory.createParser(data, offset, length));
+        return new StreamSmileXContentParser(config, streamSmileFactory.createParser(data, offset, length));
     }
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, Reader reader) throws IOException {
-        return new SmileXContentParser(config, smileFactory.createParser(reader));
+        return new SmileXContentParser(config, streamSmileFactory.createParser(reader));
     }
 }

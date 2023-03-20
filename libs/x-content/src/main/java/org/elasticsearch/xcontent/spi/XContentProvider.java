@@ -55,6 +55,11 @@ public interface XContentProvider {
     FormatProvider getSmileXContent();
 
     /**
+     * Returns the STREAM_SMILE format provider.
+     */
+    FormatProvider getStreamSmileXContent();
+
+    /**
      * Returns the YAML format provider.
      */
     FormatProvider getYamlXContent();

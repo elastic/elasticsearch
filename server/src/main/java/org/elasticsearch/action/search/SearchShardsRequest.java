@@ -20,7 +20,7 @@ import org.elasticsearch.tasks.TaskId;
 import java.io.IOException;
 import java.util.Map;
 
-public final class SearchShardsRequest extends ActionRequest implements IndicesRequest {
+public final class SearchShardsRequest extends ActionRequest implements IndicesRequest.Replaceable {
     private final SearchRequest searchRequest;
 
     public SearchShardsRequest(SearchRequest searchRequest) {
@@ -51,6 +51,12 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
     @Override
     public IndicesOptions indicesOptions() {
         return searchRequest.indicesOptions();
+    }
+
+    @Override
+    public IndicesRequest indices(String... indices) {
+        searchRequest.indices(indices);
+        return this;
     }
 
     @Override

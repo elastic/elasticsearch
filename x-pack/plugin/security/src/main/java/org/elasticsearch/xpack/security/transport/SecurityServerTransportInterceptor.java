@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchShardsAction;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -99,6 +100,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             SearchTransportService.QUERY_CAN_MATCH_NAME,
             SearchTransportService.QUERY_CAN_MATCH_NODE_NAME,
             TransportOpenPointInTimeAction.OPEN_SHARD_READER_CONTEXT_NAME,
+            SearchShardsAction.NAME,
             ResolveIndexAction.NAME,
             FieldCapabilitiesAction.NAME,
             FieldCapabilitiesAction.NAME + "[n]",

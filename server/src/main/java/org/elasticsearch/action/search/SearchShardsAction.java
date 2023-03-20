@@ -11,7 +11,7 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.ActionType;
 
 public class SearchShardsAction extends ActionType<SearchShardsResponse> {
-    public static final String NAME = "indices:data/read/seach_shards";
+    public static final String NAME = "indices:data/read/search_shards";
     public static final SearchShardsAction INSTANCE = new SearchShardsAction();
 
     private SearchShardsAction() {

@@ -445,6 +445,7 @@ public class Constants {
         "indices:data/read/scroll",
         "indices:data/read/scroll/clear",
         "indices:data/read/search",
+        "indices:data/read/search_shards",
         "indices:data/read/search/template",
         "indices:data/read/shard_multi_search",
         "indices:data/read/sql",

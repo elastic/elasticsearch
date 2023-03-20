@@ -39,6 +39,8 @@ include::query-dsl.asciidoc[]
 
 include::aggregations.asciidoc[]
 
+include::geospatial-analysis.asciidoc[]
+
 include::eql/eql.asciidoc[]
 
 include::sql/index.asciidoc[]
@@ -58,8 +60,6 @@ include::high-availability.asciidoc[]
 include::snapshot-restore/index.asciidoc[]
 
 include::{xes-repo-dir}/security/index.asciidoc[]
-
-include::geospatial-analysis.asciidoc[]
 
 include::{xes-repo-dir}/watcher/index.asciidoc[]
 

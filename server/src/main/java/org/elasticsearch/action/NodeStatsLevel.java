@@ -29,7 +29,6 @@ public enum NodeStatsLevel {
                 return value;
             }
         }
-        throw new IllegalArgumentException(
-            "level parameter must be one of [node] or [indices] or [shards] but was [" + level + "]");
+        throw new IllegalArgumentException("level parameter must be one of [node] or [indices] or [shards] but was [" + level + "]");
     }
 }

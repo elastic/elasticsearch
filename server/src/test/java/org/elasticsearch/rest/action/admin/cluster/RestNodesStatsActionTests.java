@@ -16,7 +16,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
@@ -173,8 +172,7 @@ public class RestNodesStatsActionTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> action.prepareRequest(invalidLevelRequest1, mock(NodeClient.class))
         );
-        assertThat(e, hasToString(containsString(
-            "level parameter must be one of [node] or [indices] or [shards] but was [cluster]")));
+        assertThat(e, hasToString(containsString("level parameter must be one of [node] or [indices] or [shards] but was [cluster]")));
 
         params.put("level", "invalid");
         final RestRequest invalidLevelRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats")
@@ -182,7 +180,6 @@ public class RestNodesStatsActionTests extends ESTestCase {
             .build();
 
         e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(invalidLevelRequest, mock(NodeClient.class)));
-        assertThat(e, hasToString(containsString(
-            "level parameter must be one of [node] or [indices] or [shards] but was [invalid]")));
+        assertThat(e, hasToString(containsString("level parameter must be one of [node] or [indices] or [shards] but was [invalid]")));
     }
 }

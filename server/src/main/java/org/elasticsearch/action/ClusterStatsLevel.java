@@ -29,7 +29,6 @@ public enum ClusterStatsLevel {
                 return value;
             }
         }
-        throw new IllegalArgumentException(
-            "level parameter must be one of [cluster] or [indices] or [shards] but was [" + level + "]");
+        throw new IllegalArgumentException("level parameter must be one of [cluster] or [indices] or [shards] but was [" + level + "]");
     }
 }

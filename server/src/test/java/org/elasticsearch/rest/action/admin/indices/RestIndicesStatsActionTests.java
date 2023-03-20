@@ -99,8 +99,7 @@ public class RestIndicesStatsActionTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> action.prepareRequest(invalidLevelRequest1, mock(NodeClient.class))
         );
-        assertThat(e, hasToString(containsString(
-            "level parameter must be one of [cluster] or [indices] or [shards] but was [node]")));
+        assertThat(e, hasToString(containsString("level parameter must be one of [cluster] or [indices] or [shards] but was [node]")));
 
         params.put("level", "invalid");
         final RestRequest invalidLevelRequest2 = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats")
@@ -108,7 +107,6 @@ public class RestIndicesStatsActionTests extends ESTestCase {
             .build();
 
         e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(invalidLevelRequest2, mock(NodeClient.class)));
-        assertThat(e, hasToString(containsString(
-            "level parameter must be one of [cluster] or [indices] or [shards] but was [invalid]")));
+        assertThat(e, hasToString(containsString("level parameter must be one of [cluster] or [indices] or [shards] but was [invalid]")));
     }
 }

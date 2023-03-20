@@ -9,7 +9,6 @@
 package org.elasticsearch.action.admin.cluster.node.stats;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.NodeStatsLevel;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,7 +33,6 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
     private CommonStatsFlags indices = new CommonStatsFlags();
     private final Set<String> requestedMetrics = new HashSet<>();
-    private NodeStatsLevel level = NodeStatsLevel.NODE;
 
     public NodesStatsRequest() {
         super((String[]) null);
@@ -104,15 +102,6 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
             this.indices.clear();
         }
         return this;
-    }
-
-    public NodesStatsRequest level(NodeStatsLevel level) {
-        this.level = level;
-        return this;
-    }
-
-    public NodeStatsLevel level() {
-        return level;
     }
 
     /**

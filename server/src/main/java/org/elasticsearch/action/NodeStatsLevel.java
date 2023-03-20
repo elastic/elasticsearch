@@ -9,7 +9,27 @@
 package org.elasticsearch.action;
 
 public enum NodeStatsLevel {
-    NODE,
-    INDICES,
-    SHARDS
+    NODE("node"),
+    INDICES("indices"),
+    SHARDS("shards");
+
+    private final String level;
+
+    NodeStatsLevel(String level) {
+        this.level = level;
+    }
+
+    public String getLevel() {
+        return level;
+    }
+
+    public static NodeStatsLevel of(String level) {
+        for (NodeStatsLevel value : values()) {
+            if (value.getLevel().equals(level)) {
+                return value;
+            }
+        }
+        throw new IllegalArgumentException(
+            "level parameter must be one of [node] or [indices] or [shards] but was [" + level + "]");
+    }
 }

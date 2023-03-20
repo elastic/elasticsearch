@@ -9,7 +9,6 @@
 package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,7 +19,6 @@ import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * A request to get indices level stats. Allow to enable different stats to be returned.
@@ -33,7 +31,6 @@ import java.util.Objects;
 public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
 
     private CommonStatsFlags flags = new CommonStatsFlags();
-    private ClusterStatsLevel level = ClusterStatsLevel.INDICES;
 
     public IndicesStatsRequest() {
         super((String[]) null);
@@ -254,15 +251,6 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
     public IndicesStatsRequest bulk(boolean bulk) {
         flags.set(Flag.Bulk, bulk);
         return this;
-    }
-
-    public IndicesStatsRequest level(ClusterStatsLevel level) {
-        this.level = Objects.requireNonNull(level, "level must not be null");
-        return this;
-    }
-
-    public ClusterStatsLevel level() {
-        return level;
     }
 
     public boolean bulk() {

@@ -9,7 +9,6 @@
 package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -21,7 +20,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
-import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthRequest> implements IndicesRequest.Replaceable {
@@ -35,11 +33,6 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     private ActiveShardCount waitForActiveShards = ActiveShardCount.NONE;
     private String waitForNodes = "";
     private Priority waitForEvents = null;
-    /**
-     * Only used by the high-level REST Client. Controls the details level of the health information returned.
-     * The default value is 'cluster'.
-     */
-    private ClusterStatsLevel level = ClusterStatsLevel.CLUSTER;
 
     public ClusterHealthRequest() {}
 
@@ -231,22 +224,6 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
 
     public Priority waitForEvents() {
         return this.waitForEvents;
-    }
-
-    /**
-     * Set the level of detail for the health information to be returned.
-     * Only used by the high-level REST Client.
-     */
-    public void level(ClusterStatsLevel level) {
-        this.level = Objects.requireNonNull(level, "level must not be null");
-    }
-
-    /**
-     * Get the level of detail for the health information to be returned.
-     * Only used by the high-level REST Client.
-     */
-    public ClusterStatsLevel level() {
-        return level;
     }
 
     @Override

@@ -16,6 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
@@ -147,23 +148,23 @@ public class RestNodesStatsActionTests extends ESTestCase {
     public void testLevelValidation() throws IOException {
         final HashMap<String, String> params = new HashMap<>();
         params.put("metric", "_all");
-        params.put("level", NodeStatsLevel.NODE.name());
+        params.put("level", NodeStatsLevel.NODE.getLevel());
 
         // node is valid
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats").withParams(params).build();
         action.prepareRequest(request, mock(NodeClient.class));
 
         // indices is valid
-        params.put("level", NodeStatsLevel.INDICES.name());
+        params.put("level", NodeStatsLevel.INDICES.getLevel());
         request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats").withParams(params).build();
         action.prepareRequest(request, mock(NodeClient.class));
 
         // shards is valid
-        params.put("level", NodeStatsLevel.SHARDS.name());
+        params.put("level", NodeStatsLevel.SHARDS.getLevel());
         request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats").withParams(params).build();
         action.prepareRequest(request, mock(NodeClient.class));
 
-        params.put("level", ClusterStatsLevel.CLUSTER.name());
+        params.put("level", ClusterStatsLevel.CLUSTER.getLevel());
         final RestRequest invalidLevelRequest1 = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats")
             .withParams(params)
             .build();
@@ -172,7 +173,8 @@ public class RestNodesStatsActionTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> action.prepareRequest(invalidLevelRequest1, mock(NodeClient.class))
         );
-        assertThat(e, hasToString(containsString("No enum constant org.elasticsearch.action.StatsNodeLevel.CLUSTER")));
+        assertThat(e, hasToString(containsString(
+            "level parameter must be one of [node] or [indices] or [shards] but was [cluster]")));
 
         params.put("level", "invalid");
         final RestRequest invalidLevelRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats")
@@ -180,6 +182,7 @@ public class RestNodesStatsActionTests extends ESTestCase {
             .build();
 
         e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(invalidLevelRequest, mock(NodeClient.class)));
-        assertThat(e, hasToString(containsString("No enum constant org.elasticsearch.action.StatsNodeLevel.invalid")));
+        assertThat(e, hasToString(containsString(
+            "level parameter must be one of [node] or [indices] or [shards] but was [invalid]")));
     }
 }

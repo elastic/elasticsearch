@@ -12,11 +12,8 @@ import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
-import java.util.Objects;
 
 public class SearchableSnapshotsStatsRequest extends BroadcastRequest<SearchableSnapshotsStatsRequest> {
-
-    private ClusterStatsLevel level = ClusterStatsLevel.INDICES;
 
     SearchableSnapshotsStatsRequest(StreamInput in) throws IOException {
         super(in);
@@ -28,13 +25,5 @@ public class SearchableSnapshotsStatsRequest extends BroadcastRequest<Searchable
 
     public SearchableSnapshotsStatsRequest(String[] indices, IndicesOptions indicesOptions) {
         super(indices, indicesOptions);
-    }
-
-    public void level(ClusterStatsLevel level) {
-        this.level = Objects.requireNonNull(level, "level must not be null");
-    }
-
-    public ClusterStatsLevel level() {
-        return level;
     }
 }

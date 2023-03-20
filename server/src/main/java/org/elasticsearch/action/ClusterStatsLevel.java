@@ -9,7 +9,27 @@
 package org.elasticsearch.action;
 
 public enum ClusterStatsLevel {
-    CLUSTER,
-    INDICES,
-    SHARDS
+    CLUSTER("cluster"),
+    INDICES("indices"),
+    SHARDS("shards");
+
+    private final String level;
+
+    ClusterStatsLevel(String level) {
+        this.level = level;
+    }
+
+    public String getLevel() {
+        return level;
+    }
+
+    public static ClusterStatsLevel of(String level) {
+        for (ClusterStatsLevel value : values()) {
+            if (value.getLevel().equals(level)) {
+                return value;
+            }
+        }
+        throw new IllegalArgumentException(
+            "level parameter must be one of [cluster] or [indices] or [shards] but was [" + level + "]");
+    }
 }

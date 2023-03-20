@@ -17,6 +17,10 @@ import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.indices.ShardLimitValidator;
 
 import java.util.List;
+import java.util.stream.Stream;
+
+import static org.elasticsearch.indices.ShardLimitValidator.FROZEN_GROUP;
+import static org.elasticsearch.indices.ShardLimitValidator.NORMAL_GROUP;
 
 /**
  *  This indicator reports health data about the shard limit across the cluster.
@@ -49,93 +53,103 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
     @Override
     public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
         var healthMetadata = HealthMetadata.getFromClusterState(clusterService.state());
-
         if (healthMetadata == null || healthMetadata.getShardLimitsMetadata() == null) {
             return unknownIndicator();
         }
 
-        var normalNodesIndicator = calculateForNormalNodes(healthMetadata.getShardLimitsMetadata());
-        var frozenNodesIndicator = calculateForFrozenNodes(healthMetadata.getShardLimitsMetadata());
-
-        return mergeIndicators(normalNodesIndicator, frozenNodesIndicator);
+        return mergeIndicators(
+            calculateForNormalNodes(healthMetadata.getShardLimitsMetadata()),
+            calculateForFrozenNodes(healthMetadata.getShardLimitsMetadata())
+        );
     }
 
-    private HealthIndicatorResult mergeIndicators(HealthIndicatorResult normalNodesIndicator, HealthIndicatorResult frozenNodesIndicator) {
-        // TODO: implement
-        return unknownIndicator();
+    private HealthIndicatorResult mergeIndicators(StatusResult normalNodes, StatusResult frozenNodes) {
+        HealthStatus finalStatus = HealthStatus.merge(Stream.of(normalNodes.status, frozenNodes.status));
+        var symptomBuilder = new StringBuilder();
+
+        if (finalStatus == HealthStatus.GREEN) {
+            symptomBuilder.append("The cluster has enough room to add new shards.");
+        }
+
+        if (finalStatus == HealthStatus.RED) {
+            symptomBuilder.append("Cluster is close to reaching the maximum of shards for ");
+            if (normalNodes.status == frozenNodes.status) {
+                symptomBuilder.append("normal and frozen");
+            } else if (normalNodes.status == HealthStatus.RED) {
+                symptomBuilder.append(NORMAL_GROUP);
+            } else {
+                symptomBuilder.append(FROZEN_GROUP);
+            }
+            symptomBuilder.append(" nodes.");
+        }
+
+        return createIndicator(
+            finalStatus,
+            symptomBuilder.toString(),
+            buildDetails(normalNodes.result, frozenNodes.result),
+            List.of(),
+            List.of()
+        );
     }
 
-    private HealthIndicatorResult calculateForNormalNodes(HealthMetadata.ShardLimits shardLimits) {
+    private StatusResult calculateForNormalNodes(HealthMetadata.ShardLimits shardLimits) {
         int maxShardsPerNodeSetting = shardLimits.maxShardsPerNode();
         var result = ShardLimitValidator.checkShardLimitForNormalNodes(maxShardsPerNodeSetting, 5, 1, clusterService.state());
 
         if (result.canAddShards() == false) {
-            return createIndicator(
-                HealthStatus.RED,
-                "Cluster is close to reach the maximum number of shards (room available is lower than " + result.totalShardsToAdd() + ")",
-                HealthIndicatorDetails.EMPTY,
-                List.of(),
-                List.of()
-            );
+            return new StatusResult(HealthStatus.RED, result);
         }
 
         result = ShardLimitValidator.checkShardLimitForNormalNodes(maxShardsPerNodeSetting, 10, 1, clusterService.state());
-
         if (result.canAddShards() == false) {
-            return createIndicator(
-                HealthStatus.YELLOW,
-                "Cluster is close to reach the maximum number of shards (room available is lower than " + result.totalShardsToAdd() + ")",
-                HealthIndicatorDetails.EMPTY,
-                List.of(),
-                List.of()
-            );
+            return new StatusResult(HealthStatus.YELLOW, result);
         }
 
-        return createIndicator(
-            HealthStatus.GREEN,
-            "The cluster has enough room to add new shards to normal nodes.",
-            HealthIndicatorDetails.EMPTY,
-            List.of(),
-            List.of()
-        );
+        return new StatusResult(HealthStatus.GREEN, result);
     }
 
-    private HealthIndicatorResult calculateForFrozenNodes(HealthMetadata.ShardLimits shardLimits) {
+    private StatusResult calculateForFrozenNodes(HealthMetadata.ShardLimits shardLimits) {
         int maxShardsPerNodeSetting = shardLimits.maxShardsPerNodeFrozen();
         var result = ShardLimitValidator.checkShardLimitForFrozenNodes(maxShardsPerNodeSetting, 5, 1, clusterService.state());
-
         if (result.canAddShards() == false) {
-            return createIndicator(
-                HealthStatus.RED,
-                "Cluster is close to reach the maximum number of shards (room available is lower than " + result.totalShardsToAdd() + ")",
-                HealthIndicatorDetails.EMPTY,
-                List.of(),
-                List.of()
-            );
+            return new StatusResult(HealthStatus.RED, result);
         }
 
         result = ShardLimitValidator.checkShardLimitForFrozenNodes(maxShardsPerNodeSetting, 10, 1, clusterService.state());
-
         if (result.canAddShards() == false) {
-            return createIndicator(
-                HealthStatus.YELLOW,
-                "Cluster is close to reach the maximum number of shards (room available is lower than " + result.totalShardsToAdd() + ")",
-                HealthIndicatorDetails.EMPTY,
-                List.of(),
-                List.of()
-            );
+            return new StatusResult(HealthStatus.YELLOW, result);
         }
 
-        return createIndicator(
-            HealthStatus.GREEN,
-            "The cluster has enough room to add new shards to frozen nodes.",
-            HealthIndicatorDetails.EMPTY,
-            List.of(),
-            List.of()
-        );
+        return new StatusResult(HealthStatus.GREEN, result);
+    }
+
+    static HealthIndicatorDetails buildDetails(ShardLimitValidator.Result normalNodes, ShardLimitValidator.Result frozenNodes) {
+        return (builder, params) -> {
+            builder.startObject();
+            {
+                builder.startObject("normal_nodes");
+                builder.field("max_shards_in_cluster", normalNodes.maxShardsInCluster());
+                if (normalNodes.currentUsedShards().isPresent()) {
+                    builder.field("current_used_shards_in_group", normalNodes.currentUsedShards().get());
+                }
+                builder.endObject();
+            }
+            {
+                builder.startObject("frozen_nodes");
+                builder.field("max_shards_in_cluster", frozenNodes.maxShardsInCluster());
+                if (frozenNodes.currentUsedShards().isPresent()) {
+                    builder.field("current_used_shards_in_group", frozenNodes.currentUsedShards().get());
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            return builder;
+        };
     }
 
     private HealthIndicatorResult unknownIndicator() {
         return createIndicator(HealthStatus.UNKNOWN, "No shard limits data.", HealthIndicatorDetails.EMPTY, List.of(), List.of());
     }
+
+    private record StatusResult(HealthStatus status, ShardLimitValidator.Result result) {}
 }

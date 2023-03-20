@@ -123,13 +123,9 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
                             shard.state(),
                             shard.primary(),
                             shard.currentNodeId(),
-                            shard.currentNodeId() != null
-                                && shardAssignment != null
-                                && shardAssignment.nodeIds().contains(shard.currentNodeId()),
+                            isDesired(shard.currentNodeId(), shardAssignment),
                             shard.relocatingNodeId(),
-                            shard.relocatingNodeId() != null
-                                && shardAssignment != null
-                                && shardAssignment.nodeIds().contains(shard.relocatingNodeId()),
+                            shard.relocatingNodeId() != null ? isDesired(shard.relocatingNodeId(), shardAssignment) : null,
                             shard.shardId().id(),
                             shard.getIndexName(),
                             forecastedWriteLoad.isPresent() ? forecastedWriteLoad.getAsDouble() : null,
@@ -156,6 +152,10 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
             routingTable.put(indexRoutingTable.getIndex().getName(), indexDesiredShards);
         }
         return routingTable;
+    }
+
+    private static boolean isDesired(@Nullable String nodeId, @Nullable ShardAssignment assignment) {
+        return nodeId != null && assignment != null && assignment.nodeIds().contains(nodeId);
     }
 
     @Override

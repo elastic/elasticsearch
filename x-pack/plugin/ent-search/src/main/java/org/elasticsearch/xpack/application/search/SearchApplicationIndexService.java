@@ -411,7 +411,7 @@ public class SearchApplicationIndexService {
             resourceName,
             documentFields.get(SearchApplication.INDICES_FIELD.getPreferredName()).getValues().toArray(String[]::new),
             documentFields.get(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName()).getValue(),
-            System.currentTimeMillis()
+            documentFields.get(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName()).getValue()
         );
     }
 

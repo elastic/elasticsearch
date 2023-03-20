@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
@@ -121,10 +122,11 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         for (int i = 0; i < randomInt(8); i++) {
             String indexName = randomAlphaOfLength(8);
-            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(0);
+            Settings.Builder settings = indexSettings(Version.CURRENT, 1, 0);
+            if (randomBoolean()) {
+                settings.put(DataTier.TIER_PREFERENCE_SETTING.getKey(), randomFrom("data_hot", "data_warm", "data_cold"));
+            }
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName).settings(settings);
             if (randomBoolean()) {
                 indexMetadataBuilder.indexWriteLoadForecast(randomDoubleBetween(0.0, 8.0, true));
             }
@@ -181,7 +183,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
         }
         RoutingTable routingTable = routingTableBuilder.build();
 
-        List<ShardId> shardIds = routingTable.allShards().stream().map(ShardRouting::shardId).toList();
+        List<ShardId> shardIds = routingTable.allShards().map(ShardRouting::shardId).toList();
         Map<String, Set<ShardId>> indexShards = shardIds.stream()
             .collect(Collectors.groupingBy(e -> e.getIndex().getName(), Collectors.toSet()));
         Map<ShardId, ShardAssignment> shardAssignments = new HashMap<>();
@@ -262,6 +264,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
                         shard.relocatingNodeId() != null ? desiredNodeIds.contains(shard.relocatingNodeId()) : null,
                         shardView.relocatingNodeIsDesired()
                     );
+                    assertEquals(indexMetadata.getTierPreference(), shardView.tierPreference());
                 }
                 Optional<ShardAssignment> shardAssignment = Optional.ofNullable(shardAssignments.get(indexShardRoutingTable.shardId()));
                 if (shardAssignment.isPresent()) {

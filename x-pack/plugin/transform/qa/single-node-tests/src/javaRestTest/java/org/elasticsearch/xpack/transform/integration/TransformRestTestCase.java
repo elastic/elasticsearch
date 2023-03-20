@@ -562,6 +562,15 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         return entityAsMap(response);
     }
 
+    protected Map<String, Object> getTransformConfig(String transformId, String authHeader) throws IOException {
+        Request getRequest = createRequestWithAuth("GET", getTransformEndpoint() + transformId, authHeader);
+        Map<String, Object> transforms = entityAsMap(client().performRequest(getRequest));
+        assertEquals(1, XContentMapValues.extractValue("count", transforms));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> transformConfig = ((List<Map<String, Object>>) transforms.get("transforms")).get(0);
+        return transformConfig;
+    }
+
     protected static String getTransformState(String transformId) throws IOException {
         Map<?, ?> transformStatsAsMap = getTransformStateAndStats(transformId);
         return transformStatsAsMap == null ? null : (String) XContentMapValues.extractValue("state", transformStatsAsMap);
@@ -584,8 +593,15 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected static void deleteTransform(String transformId) throws IOException {
+        deleteTransform(transformId, false);
+    }
+
+    protected static void deleteTransform(String transformId, boolean deleteDestIndex) throws IOException {
         Request request = new Request("DELETE", getTransformEndpoint() + transformId);
         request.addParameter("ignore", "404"); // Ignore 404s because they imply someone was racing us to delete this
+        if (deleteDestIndex) {
+            request.addParameter(TransformField.DELETE_DEST_INDEX.getPreferredName(), Boolean.TRUE.toString());
+        }
         adminClient().performRequest(request);
     }
 
@@ -611,7 +627,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         Map<?, ?> transformStatsAsMap = (Map<?, ?>) ((List<?>) entityAsMap(statsResponse).get("transforms")).get(0);
 
         // assert that the transform did not fail
-        assertNotEquals("failed", XContentMapValues.extractValue("state", transformStatsAsMap));
+        assertNotEquals("Stats were: " + transformStatsAsMap, "failed", XContentMapValues.extractValue("state", transformStatsAsMap));
         return (int) XContentMapValues.extractValue("checkpointing.last.checkpoint", transformStatsAsMap);
     }
 
@@ -623,7 +639,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
               "indices": [
                 {
                   "names": [ %s ],
-                  "privileges": [ "create_index", "read", "write", "view_index_metadata" ]
+                  "privileges": [ "create_index", "delete_index", "read", "write", "view_index_metadata" ]
                 }
               ]
             }""", indicesStr));

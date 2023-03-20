@@ -486,11 +486,10 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     private Settings.Builder getBaseIndexSettings() {
-        return Settings.builder()
-            .put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
+        return indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+            LifecycleSettings.LIFECYCLE_NAME,
+            lifecycleName
+        );
     }
 
     public void testAllocateActionDefinesRoutingRules() {

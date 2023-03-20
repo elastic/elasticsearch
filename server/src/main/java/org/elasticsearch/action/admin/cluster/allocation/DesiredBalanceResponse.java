@@ -195,10 +195,12 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
         int shardId,
         String index,
         @Nullable Double forecastWriteLoad,
-        @Nullable Long forecastShardSizeInBytes
+        @Nullable Long forecastShardSizeInBytes,
+        List<String> tierPreference
     ) implements Writeable, ToXContentObject {
 
         private static final TransportVersion ADD_FORECASTS_VERSION = TransportVersion.V_8_7_0;
+        private static final TransportVersion ADD_TIER_PREFERENCE = TransportVersion.V_8_8_0;
         private static final TransportVersion NULLABLE_RELOCATING_NODE_IS_DESIRED = TransportVersion.V_8_8_0;
 
         public ShardView {
@@ -207,24 +209,23 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
         }
 
         public static ShardView from(StreamInput in) throws IOException {
-            var shardView = new ShardView(
+            var view = new ShardView(
                 ShardRoutingState.fromValue(in.readByte()),
                 in.readBoolean(),
                 in.readOptionalString(),
                 in.readBoolean(),
                 in.readOptionalString(),
-                in.getTransportVersion().onOrAfter(NULLABLE_RELOCATING_NODE_IS_DESIRED)
-                    ? in.readOptionalBoolean()
-                    : (Boolean) in.readBoolean(), // need to cast to Boolean otherwise above is cast to boolean that may cause NPE
+                in.readBoolean(),
                 in.readVInt(),
                 in.readString(),
                 in.getTransportVersion().onOrAfter(ADD_FORECASTS_VERSION) ? in.readOptionalDouble() : null,
-                in.getTransportVersion().onOrAfter(ADD_FORECASTS_VERSION) ? in.readOptionalLong() : null
+                in.getTransportVersion().onOrAfter(ADD_FORECASTS_VERSION) ? in.readOptionalLong() : null,
+                in.getTransportVersion().onOrAfter(ADD_TIER_PREFERENCE) ? in.readStringList() : List.of()
             );
             if (in.getTransportVersion().onOrAfter(ADD_FORECASTS_VERSION) == false) {
                 in.readOptionalWriteable(AllocationId::new);
             }
-            return shardView;
+            return view;
         }
 
         @Override
@@ -247,6 +248,9 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
             } else {
                 out.writeMissingWriteable(AllocationId.class);
             }
+            if (out.getTransportVersion().onOrAfter(ADD_TIER_PREFERENCE)) {
+                out.writeStringCollection(tierPreference);
+            }
         }
 
         @Override
@@ -262,6 +266,7 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
                 .field("relocating_node_is_desired", relocatingNodeIsDesired)
                 .field("forecast_write_load", forecastWriteLoad)
                 .field("forecast_shard_size_in_bytes", forecastShardSizeInBytes)
+                .field("tier_preference", tierPreference)
                 .endObject();
         }
     }
@@ -290,5 +295,4 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
                 .endObject();
         }
     }
-
 }

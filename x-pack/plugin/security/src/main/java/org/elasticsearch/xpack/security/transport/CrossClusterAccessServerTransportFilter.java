@@ -14,30 +14,30 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
+import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY;
-import static org.elasticsearch.xpack.security.authc.RemoteAccessHeaders.REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY;
+import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
+import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
 
-final class RemoteAccessServerTransportFilter extends ServerTransportFilter {
+final class CrossClusterAccessServerTransportFilter extends ServerTransportFilter {
     // pkg-private for testing
     static final Set<String> ALLOWED_TRANSPORT_HEADERS;
     static {
         final Set<String> allowedHeaders = new HashSet<>(
-            Set.of(REMOTE_CLUSTER_AUTHORIZATION_HEADER_KEY, REMOTE_ACCESS_AUTHENTICATION_HEADER_KEY)
+            Set.of(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY)
         );
         allowedHeaders.addAll(Task.HEADERS_TO_COPY);
         ALLOWED_TRANSPORT_HEADERS = Set.copyOf(allowedHeaders);
     }
 
-    private final RemoteAccessAuthenticationService remoteAccessAuthcService;
+    private final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService;
 
-    RemoteAccessServerTransportFilter(
-        RemoteAccessAuthenticationService remoteAccessAuthcService,
+    CrossClusterAccessServerTransportFilter(
+        CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
         AuthorizationService authzService,
         ThreadContext threadContext,
         boolean extractClientCert,
@@ -45,14 +45,14 @@ final class RemoteAccessServerTransportFilter extends ServerTransportFilter {
         SecurityContext securityContext
     ) {
         super(
-            remoteAccessAuthcService.getAuthenticationService(),
+            crossClusterAccessAuthcService.getAuthenticationService(),
             authzService,
             threadContext,
             extractClientCert,
             destructiveOperations,
             securityContext
         );
-        this.remoteAccessAuthcService = remoteAccessAuthcService;
+        this.crossClusterAccessAuthcService = crossClusterAccessAuthcService;
     }
 
     @Override
@@ -61,7 +61,7 @@ final class RemoteAccessServerTransportFilter extends ServerTransportFilter {
         final TransportRequest request,
         final ActionListener<Authentication> authenticationListener
     ) {
-        if (false == SecurityServerTransportInterceptor.REMOTE_ACCESS_ACTION_ALLOWLIST.contains(securityAction)) {
+        if (false == SecurityServerTransportInterceptor.CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST.contains(securityAction)) {
             authenticationListener.onFailure(
                 new IllegalArgumentException(
                     "action ["
@@ -76,7 +76,7 @@ final class RemoteAccessServerTransportFilter extends ServerTransportFilter {
                 authenticationListener.onFailure(ex);
                 return;
             }
-            remoteAccessAuthcService.authenticate(securityAction, request, authenticationListener);
+            crossClusterAccessAuthcService.authenticate(securityAction, request, authenticationListener);
         }
     }
 

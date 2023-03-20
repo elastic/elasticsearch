@@ -129,7 +129,8 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
                             shard.shardId().id(),
                             shard.getIndexName(),
                             forecastedWriteLoad.isPresent() ? forecastedWriteLoad.getAsDouble() : null,
-                            forecastedShardSizeInBytes.isPresent() ? forecastedShardSizeInBytes.getAsLong() : null
+                            forecastedShardSizeInBytes.isPresent() ? forecastedShardSizeInBytes.getAsLong() : null,
+                            indexMetadata.getTierPreference()
                         )
                     );
                 }

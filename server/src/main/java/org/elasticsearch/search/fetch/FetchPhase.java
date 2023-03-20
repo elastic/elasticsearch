@@ -25,6 +25,8 @@ import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsPhase;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.FieldLookup;
+import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.profile.ProfileResult;
@@ -94,6 +96,31 @@ public class FetchPhase {
         }
     }
 
+    private static class PreloadedFieldLookupProvider implements LeafFieldLookupProvider {
+
+        Map<String, List<Object>> storedFields;
+        LeafFieldLookupProvider backUpLoader;
+        Supplier<LeafFieldLookupProvider> loaderSupplier;
+
+        @Override
+        public void populateFieldLookup(FieldLookup fieldLookup, int doc) throws IOException {
+            String field = fieldLookup.fieldType().name();
+            if (storedFields.containsKey(field)) {
+                fieldLookup.setValues(storedFields.get(field));
+            }
+            // stored field not preloaded, go and get it directly
+            if (backUpLoader == null) {
+                backUpLoader = loaderSupplier.get();
+            }
+            backUpLoader.populateFieldLookup(fieldLookup, doc);
+        }
+
+        void setNextReader(LeafReaderContext ctx) {
+            backUpLoader = null;
+            loaderSupplier = () -> LeafFieldLookupProvider.fromStoredFields().apply(ctx);
+        }
+    }
+
     private SearchHits buildSearchHits(SearchContext context, Profiler profiler) {
 
         FetchContext fetchContext = new FetchContext(context);
@@ -101,10 +128,7 @@ public class FetchPhase {
 
         List<FetchSubPhaseProcessor> processors = getProcessors(context.shardTarget(), fetchContext, profiler);
 
-        StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.NO_REQUIREMENTS;
-        for (FetchSubPhaseProcessor proc : processors) {
-            storedFieldsSpec = storedFieldsSpec.merge(proc.storedFieldsSpec());
-        }
+        StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.build(processors, FetchSubPhaseProcessor::storedFieldsSpec);
         storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(false, false, sourceLoader.requiredStoredFields()));
 
         StoredFieldLoader storedFieldLoader = profiler.storedFields(buildStoredFieldsLoader(storedFieldsSpec));
@@ -113,7 +137,8 @@ public class FetchPhase {
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
 
         PreloadedSourceProvider sourceProvider = new PreloadedSourceProvider();
-        context.getSearchExecutionContext().setSourceProvider(sourceProvider);
+        PreloadedFieldLookupProvider fieldLookupProvider = new PreloadedFieldLookupProvider();
+        context.getSearchExecutionContext().setLookupProviders(sourceProvider, ctx -> fieldLookupProvider);
 
         FetchPhaseDocsIterator docsIterator = new FetchPhaseDocsIterator() {
 
@@ -129,6 +154,7 @@ public class FetchPhase {
                 this.leafNestedDocuments = nestedDocuments.getLeafNestedDocuments(ctx);
                 this.leafStoredFieldLoader = storedFieldLoader.getLoader(ctx, docsInLeaf);
                 this.leafSourceLoader = sourceLoader.leaf(ctx.reader(), docsInLeaf);
+                fieldLookupProvider.setNextReader(ctx);
                 for (FetchSubPhaseProcessor processor : processors) {
                     processor.setNextReader(ctx);
                 }
@@ -151,6 +177,7 @@ public class FetchPhase {
                     leafSourceLoader
                 );
                 sourceProvider.source = hit.source();
+                fieldLookupProvider.storedFields = hit.loadedFields();
                 for (FetchSubPhaseProcessor processor : processors) {
                     processor.process(hit);
                 }

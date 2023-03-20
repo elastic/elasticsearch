@@ -70,6 +70,7 @@ import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.LeafDocLookup;
+import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
@@ -412,7 +413,7 @@ public class SearchExecutionContextTests extends ESTestCase {
 
         // Setting the source provider explicitly then gives us a new SearchLookup that can use source
         Source source = Source.fromMap(Map.of("field", "value"), XContentType.JSON);
-        sec.setSourceProvider((ctx, doc) -> source);
+        sec.setLookupProviders((ctx, doc) -> source, LeafFieldLookupProvider.fromStoredFields());
         SearchLookup searchLookup1 = sec.lookup();
         assertNotSame(searchLookup, searchLookup1);
         assertSame(source, searchLookup1.getSource(null, 0));

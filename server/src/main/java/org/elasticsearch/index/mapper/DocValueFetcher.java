@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
@@ -50,4 +51,8 @@ public final class DocValueFetcher implements ValueFetcher {
         return result;
     }
 
+    @Override
+    public StoredFieldsSpec storedFieldsSpec() {
+        return StoredFieldsSpec.NO_REQUIREMENTS;
+    }
 }

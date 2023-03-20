@@ -22,7 +22,7 @@ public class FieldLookup {
         this.fieldType = fieldType;
     }
 
-    MappedFieldType fieldType() {
+    public MappedFieldType fieldType() {
         return fieldType;
     }
 

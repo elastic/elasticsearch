@@ -15,7 +15,7 @@ import java.util.List;
 public class FieldLookup {
 
     private final MappedFieldType fieldType;
-    private List<Object> values = new ArrayList<>();
+    private final List<Object> values = new ArrayList<>();
     private boolean valuesLoaded = false;
 
     FieldLookup(MappedFieldType fieldType) {
@@ -30,7 +30,7 @@ public class FieldLookup {
      * Sets the post processed values.
      */
     public void setValues(List<Object> values) {
-        this.values.clear();
+        assert valuesLoaded == false : "Call clear() before calling setValues()";
         this.values.addAll(values);
         this.valuesLoaded = true;
     }
@@ -46,5 +46,9 @@ public class FieldLookup {
 
     public List<Object> getValues() {
         return values;
+    }
+
+    public Object getValue() {
+        return values.get(0);
     }
 }

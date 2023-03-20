@@ -24,6 +24,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
 import org.elasticsearch.aggregations.bucket.adjacency.ParsedAdjacencyMatrix;
 import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
@@ -843,7 +844,9 @@ public class RestHighLevelClient implements Closeable {
 
         Optional<String> versionValidation;
         try {
-            versionValidation = getVersionValidationFuture().get();
+            final var future = new PlainActionFuture<Optional<String>>();
+            getVersionValidationFuture().addListener(future);
+            versionValidation = future.get();
         } catch (InterruptedException | ExecutionException e) {
             // Unlikely to happen
             throw new ElasticsearchException(e);

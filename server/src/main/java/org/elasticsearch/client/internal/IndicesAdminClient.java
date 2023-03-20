@@ -545,11 +545,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     PutIndexTemplateRequestBuilder preparePutTemplate(String name);
 
     /**
-     * Deletes index template.
-     */
-    ActionFuture<AcknowledgedResponse> deleteTemplate(DeleteIndexTemplateRequest request);
-
-    /**
      * Deletes an index template.
      */
     void deleteTemplate(DeleteIndexTemplateRequest request, ActionListener<AcknowledgedResponse> listener);
@@ -560,11 +555,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param name The name of the template.
      */
     DeleteIndexTemplateRequestBuilder prepareDeleteTemplate(String name);
-
-    /**
-     * Gets index template.
-     */
-    ActionFuture<GetIndexTemplatesResponse> getTemplates(GetIndexTemplatesRequest request);
 
     /**
      * Gets an index template.
@@ -621,11 +611,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * Resize an index using an explicit request allowing to specify the settings, mappings and aliases of the target index of the index.
      */
     ResizeRequestBuilder prepareResizeIndex(String sourceIndex, String targetIndex);
-
-    /**
-     * Resize an index using an explicit request allowing to specify the settings, mappings and aliases of the target index of the index.
-     */
-    ActionFuture<ResizeResponse> resizeIndex(ResizeRequest request);
 
     /**
      * Shrinks an index using an explicit request allowing to specify the settings, mappings and aliases of the target index of the index.

@@ -318,8 +318,8 @@ public class MetadataCreateIndexService {
     }
 
     private void normalizeRequestSetting(CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest) {
-        Settings.Builder updatedSettingsBuilder = Settings.builder();
-        Settings build = updatedSettingsBuilder.put(createIndexClusterStateRequest.settings())
+        Settings build = Settings.builder()
+            .put(createIndexClusterStateRequest.settings())
             .normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX)
             .build();
         indexScopedSettings.validate(build, true);

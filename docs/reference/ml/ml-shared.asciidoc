@@ -405,7 +405,7 @@ The value that is compared against the `applies_to` field using the `operator`.
 end::custom-rules-conditions-value[]
 
 tag::custom-settings[]
-Advanced configuration option. Contains custom meta data about the job. For
+Advanced configuration option. Contains custom metadata about the job. For
 example, it can contain custom URL information as shown in
 {ml-docs}/ml-configuring-url.html[Adding custom URLs to {ml} results].
 end::custom-settings[]
@@ -1310,6 +1310,11 @@ tag::max-trees-trained-models[]
 The maximum number of decision trees in the forest. The maximum value is 2000.
 By default, this value is calculated during hyperparameter optimization.
 end::max-trees-trained-models[]
+
+tag::meta[]
+Advanced configuration option. Contains custom metadata about the job. For
+example, it can contain custom URL information.
+end::meta[]
 
 tag::method[]
 The method that {oldetection} uses. Available methods are `lof`, `ldof`,

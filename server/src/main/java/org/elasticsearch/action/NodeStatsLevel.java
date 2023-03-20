@@ -25,7 +25,7 @@ public enum NodeStatsLevel {
 
     public static NodeStatsLevel of(String level) {
         for (NodeStatsLevel value : values()) {
-            if (value.getLevel().equals(level)) {
+            if (value.getLevel().equalsIgnoreCase(level)) {
                 return value;
             }
         }

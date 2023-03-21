@@ -171,20 +171,6 @@ public class SearchApplicationIndexService {
                     builder.field("type", "long");
                     builder.endObject();
 
-                    builder.startObject(SearchApplication.TEMPLATE_FIELD.getPreferredName());
-                    builder.field("type", "object");
-                    {
-                        builder.startObject("properties");
-                        {
-                            builder.startObject(SearchApplication.TEMPLATE_SCRIPT_FIELD.getPreferredName());
-                            builder.field("type", "object");
-                            builder.field("dynamic", false);
-                            builder.endObject();
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
-
                     builder.startObject(SearchApplication.BINARY_CONTENT_FIELD.getPreferredName());
                     builder.field("type", "object");
                     builder.field("enabled", "false");

@@ -123,7 +123,6 @@ public class SearchApplication implements Writeable, ToXContentObject {
     public static final ParseField ANALYTICS_COLLECTION_NAME_FIELD = new ParseField("analytics_collection_name");
     public static final ParseField TEMPLATE_FIELD = new ParseField("template");
     public static final ParseField TEMPLATE_SCRIPT_FIELD = new ParseField("script");
-    public static final ParseField TEMPLATE_PARAMS_FIELD = new ParseField("params");
     public static final ParseField UPDATED_AT_MILLIS_FIELD = new ParseField("updated_at_millis");
     public static final ParseField BINARY_CONTENT_FIELD = new ParseField("binary_content");
 

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.security.remoteaccess;
+package org.elasticsearch.xpack.security.crossclusteraccess;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;

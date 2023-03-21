@@ -67,7 +67,7 @@ public class TransportPutAnalyticsCollectionAction extends TransportMasterNodeAc
         ClusterState state,
         ActionListener<PutAnalyticsCollectionAction.Response> listener
     ) {
-        LicenseUtils.runIfSupportedLicence(
+        LicenseUtils.runIfSupportedLicense(
             licenseState,
             () -> analyticsCollectionService.putAnalyticsCollection(state, request, listener),
             listener::onFailure

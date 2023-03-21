@@ -49,7 +49,7 @@ public abstract class SearchApplicationTransportAction<Request extends ActionReq
 
     @Override
     public final void doExecute(Task task, final Request request, ActionListener<Response> listener) {
-        LicenseUtils.runIfSupportedLicence(licenseState, () -> doExecute(request, listener), listener::onFailure);
+        LicenseUtils.runIfSupportedLicense(licenseState, () -> doExecute(request, listener), listener::onFailure);
     }
 
     protected abstract void doExecute(Request request, ActionListener<Response> listener);

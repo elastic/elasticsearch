@@ -40,7 +40,7 @@ public class TransportGetAnalyticsCollectionActionTests extends ESTestCase {
     public void testWithSupportedLicense() {
         AnalyticsCollectionService analyticsCollectionService = mock(AnalyticsCollectionService.class);
 
-        TransportGetAnalyticsCollectionAction transportAction = createTransportAction(mockLicenceState(true), analyticsCollectionService);
+        TransportGetAnalyticsCollectionAction transportAction = createTransportAction(mockLicenseState(true), analyticsCollectionService);
         GetAnalyticsCollectionAction.Request request = mock(GetAnalyticsCollectionAction.Request.class);
 
         ClusterState clusterState = mock(ClusterState.class);
@@ -55,7 +55,7 @@ public class TransportGetAnalyticsCollectionActionTests extends ESTestCase {
     public void testWithUnsupportedLicense() {
         AnalyticsCollectionService analyticsCollectionService = mock(AnalyticsCollectionService.class);
 
-        TransportGetAnalyticsCollectionAction transportAction = createTransportAction(mockLicenceState(false), analyticsCollectionService);
+        TransportGetAnalyticsCollectionAction transportAction = createTransportAction(mockLicenseState(false), analyticsCollectionService);
         GetAnalyticsCollectionAction.Request request = mock(GetAnalyticsCollectionAction.Request.class);
 
         ClusterState clusterState = mock(ClusterState.class);

@@ -55,7 +55,7 @@ public class TransportPutAnalyticsCollectionActionTests extends ESTestCase {
     public void testWithUnsupportedLicense() {
         AnalyticsCollectionService analyticsCollectionService = mock(AnalyticsCollectionService.class);
 
-        TransportPutAnalyticsCollectionAction transportAction = createTransportAction(mockLicenceState(false), analyticsCollectionService);
+        TransportPutAnalyticsCollectionAction transportAction = createTransportAction(mockLicenseState(false), analyticsCollectionService);
         PutAnalyticsCollectionAction.Request request = mock(PutAnalyticsCollectionAction.Request.class);
 
         ClusterState clusterState = mock(ClusterState.class);
@@ -79,7 +79,7 @@ public class TransportPutAnalyticsCollectionActionTests extends ESTestCase {
         verify(analyticsCollectionService, never()).putAnalyticsCollection(any(), any(), any());
     }
 
-    private MockLicenseState mockLicenceState(boolean supported) {
+    private MockLicenseState mockLicenseState(boolean supported) {
         MockLicenseState licenseState = mock(MockLicenseState.class);
 
         when(licenseState.isAllowed(LicenseUtils.LICENSED_ENT_SEARCH_FEATURE)).thenReturn(supported);

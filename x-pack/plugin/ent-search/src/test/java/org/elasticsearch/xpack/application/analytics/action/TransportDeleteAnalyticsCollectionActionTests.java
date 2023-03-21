@@ -42,7 +42,7 @@ public class TransportDeleteAnalyticsCollectionActionTests extends ESTestCase {
         AnalyticsCollectionService analyticsCollectionService = mock(AnalyticsCollectionService.class);
 
         TransportDeleteAnalyticsCollectionAction transportAction = createTransportAction(
-            mockLicenceState(true),
+            mockLicenseState(true),
             analyticsCollectionService
         );
         DeleteAnalyticsCollectionAction.Request request = mock(DeleteAnalyticsCollectionAction.Request.class);
@@ -60,7 +60,7 @@ public class TransportDeleteAnalyticsCollectionActionTests extends ESTestCase {
         AnalyticsCollectionService analyticsCollectionService = mock(AnalyticsCollectionService.class);
 
         TransportDeleteAnalyticsCollectionAction transportAction = createTransportAction(
-            mockLicenceState(false),
+            mockLicenseState(false),
             analyticsCollectionService
         );
         DeleteAnalyticsCollectionAction.Request request = mock(DeleteAnalyticsCollectionAction.Request.class);
@@ -83,7 +83,7 @@ public class TransportDeleteAnalyticsCollectionActionTests extends ESTestCase {
         verify(analyticsCollectionService, never()).deleteAnalyticsCollection(any(), any(), any());
     }
 
-    private MockLicenseState mockLicenceState(boolean supported) {
+    private MockLicenseState mockLicenseState(boolean supported) {
         MockLicenseState licenseState = mock(MockLicenseState.class);
 
         when(licenseState.isAllowed(LicenseUtils.LICENSED_ENT_SEARCH_FEATURE)).thenReturn(supported);

@@ -67,7 +67,7 @@ public class TransportDeleteAnalyticsCollectionAction extends AcknowledgedTransp
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        LicenseUtils.runIfSupportedLicence(
+        LicenseUtils.runIfSupportedLicense(
             licenseState,
             () -> analyticsCollectionService.deleteAnalyticsCollection(state, request, listener),
             listener::onFailure

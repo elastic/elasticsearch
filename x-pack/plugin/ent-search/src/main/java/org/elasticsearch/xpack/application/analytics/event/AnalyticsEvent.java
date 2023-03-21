@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.application.analytics.event.parser.InteractionEvent;
 import org.elasticsearch.xpack.application.analytics.event.parser.PageViewEvent;
 import org.elasticsearch.xpack.application.analytics.event.parser.SearchEvent;
@@ -56,6 +57,7 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         analyticsContext.writeTo(out);
+        out.writeBytesReference(BytesReference.bytes(JsonXContent.contentBuilder().map(payload)));
     }
 
     @Override

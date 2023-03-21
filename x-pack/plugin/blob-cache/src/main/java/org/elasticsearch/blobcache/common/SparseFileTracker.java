@@ -7,9 +7,9 @@
 
 package org.elasticsearch.blobcache.common;
 
-import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 
 import java.util.ArrayList;

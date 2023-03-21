@@ -50,7 +50,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
 import static org.elasticsearch.discovery.DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE;
-import static org.elasticsearch.license.LicenseService.LICENSE_EXPIRATION_WARNING_PERIOD;
+import static org.elasticsearch.license.LicenseSettings.LICENSE_EXPIRATION_WARNING_PERIOD;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -69,7 +69,7 @@ import static org.mockito.Mockito.when;
  * https://openjdk.java.net/jeps/252
  * We run ES with -Djava.locale.providers=SPI,COMPAT and same option has to be applied when running this test from IDE
  */
-public class LicenseServiceTests extends ESTestCase {
+public class ClusterStateLicenseServiceTests extends ESTestCase {
 
     // must use member mock for generic
     @Mock
@@ -90,7 +90,7 @@ public class LicenseServiceTests extends ESTestCase {
     public void testLogExpirationWarning() {
         long time = LocalDate.of(2018, 11, 15).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
         final boolean expired = randomBoolean();
-        final LicenseService service = new LicenseService(
+        final ClusterStateLicenseService service = new ClusterStateLicenseService(
             Settings.EMPTY,
             mock(ThreadPool.class),
             mockDefaultClusterService(),
@@ -106,7 +106,7 @@ public class LicenseServiceTests extends ESTestCase {
     }
 
     /**
-     * Tests loading a license when {@link LicenseService#ALLOWED_LICENSE_TYPES_SETTING} is on its default value (all license types)
+     * Tests loading a license when {@link LicenseSettings#ALLOWED_LICENSE_TYPES_SETTING} is on its default value (all license types)
      */
     public void testRegisterLicenseWithoutTypeRestrictions() throws Exception {
         assertRegisterValidLicense(
@@ -116,13 +116,13 @@ public class LicenseServiceTests extends ESTestCase {
     }
 
     /**
-     * Tests loading a license when {@link LicenseService#ALLOWED_LICENSE_TYPES_SETTING} is set,
+     * Tests loading a license when {@link LicenseSettings#ALLOWED_LICENSE_TYPES_SETTING} is set,
      * and the uploaded license type matches
      */
     public void testSuccessfullyRegisterLicenseMatchingTypeRestrictions() throws Exception {
         final List<License.LicenseType> allowed = randomSubsetOf(
-            randomIntBetween(1, LicenseService.ALLOWABLE_UPLOAD_TYPES.size() - 1),
-            LicenseService.ALLOWABLE_UPLOAD_TYPES
+            randomIntBetween(1, LicenseSettings.ALLOWABLE_UPLOAD_TYPES.size() - 1),
+            LicenseSettings.ALLOWABLE_UPLOAD_TYPES
         );
         final List<String> allowedNames = allowed.stream().map(License.LicenseType::getTypeName).toList();
         final Settings settings = Settings.builder().putList("xpack.license.upload.types", allowedNames).build();
@@ -130,19 +130,19 @@ public class LicenseServiceTests extends ESTestCase {
     }
 
     /**
-     * Tests loading a license when {@link LicenseService#ALLOWED_LICENSE_TYPES_SETTING} is set,
+     * Tests loading a license when {@link LicenseSettings#ALLOWED_LICENSE_TYPES_SETTING} is set,
      * and the uploaded license type does not match
      */
     public void testFailToRegisterLicenseNotMatchingTypeRestrictions() throws Exception {
         final List<License.LicenseType> allowed = randomSubsetOf(
-            randomIntBetween(1, LicenseService.ALLOWABLE_UPLOAD_TYPES.size() - 2),
-            LicenseService.ALLOWABLE_UPLOAD_TYPES
+            randomIntBetween(1, LicenseSettings.ALLOWABLE_UPLOAD_TYPES.size() - 2),
+            LicenseSettings.ALLOWABLE_UPLOAD_TYPES
         );
         final List<String> allowedNames = allowed.stream().map(License.LicenseType::getTypeName).toList();
         final Settings settings = Settings.builder().putList("xpack.license.upload.types", allowedNames).build();
         final License.LicenseType notAllowed = randomValueOtherThanMany(
             test -> allowed.contains(test),
-            () -> randomFrom(LicenseService.ALLOWABLE_UPLOAD_TYPES)
+            () -> randomFrom(LicenseSettings.ALLOWABLE_UPLOAD_TYPES)
         );
         assertRegisterDisallowedLicenseType(settings, notAllowed);
     }
@@ -163,7 +163,7 @@ public class LicenseServiceTests extends ESTestCase {
      */
     public void testLicenseWithOverridenExpiryInPastIsExpired() throws IOException {
         UUID licenseId = UUID.fromString("12345678-abcd-0000-0000-000000000000"); // Special test UUID
-        License.LicenseType type = randomFrom(LicenseService.ALLOWABLE_UPLOAD_TYPES);
+        License.LicenseType type = randomFrom(LicenseSettings.ALLOWABLE_UPLOAD_TYPES);
         License testLicense = sign(buildLicense(licenseId, type, TimeValue.timeValueDays(randomIntBetween(1, 100)).millis()));
 
         tryRegisterLicense(Settings.EMPTY, testLicense, future -> {
@@ -185,7 +185,7 @@ public class LicenseServiceTests extends ESTestCase {
 
         final Clock clock = randomBoolean() ? Clock.systemUTC() : Clock.systemDefaultZone();
         final var taskExecutorCaptor = ArgumentCaptor.forClass(StartBasicClusterTask.Executor.class);
-        final LicenseService service = new LicenseService(
+        final ClusterStateLicenseService service = new ClusterStateLicenseService(
             settings,
             mock(ThreadPool.class),
             clusterService,
@@ -213,8 +213,8 @@ public class LicenseServiceTests extends ESTestCase {
             when(taskContext.getTask()).thenReturn(taskCaptor.getValue());
 
             int maxNodes = randomValueOtherThan(
-                LicenseService.SELF_GENERATED_LICENSE_MAX_NODES,
-                () -> randomIntBetween(1, LicenseService.SELF_GENERATED_LICENSE_MAX_NODES)
+                LicenseSettings.SELF_GENERATED_LICENSE_MAX_NODES,
+                () -> randomIntBetween(1, LicenseSettings.SELF_GENERATED_LICENSE_MAX_NODES)
             );
             License oldLicense = sign(buildLicense(License.LicenseType.BASIC, TimeValue.timeValueDays(randomIntBetween(1, 100)), maxNodes));
             ClusterState oldState = ClusterState.EMPTY_STATE.copyAndUpdateMetadata(
@@ -281,7 +281,13 @@ public class LicenseServiceTests extends ESTestCase {
         final Clock clock = randomBoolean() ? Clock.systemUTC() : Clock.systemDefaultZone();
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final ThreadPool threadPool = mock(ThreadPool.class);
-        final LicenseService service = new LicenseService(settings, threadPool, clusterService, clock, licenseState);
+        final ClusterStateLicenseService service = new ClusterStateLicenseService(
+            settings,
+            threadPool,
+            clusterService,
+            clock,
+            licenseState
+        );
 
         final PutLicenseRequest request = new PutLicenseRequest();
         request.license(toSpec(license), XContentType.JSON);
@@ -353,7 +359,7 @@ public class LicenseServiceTests extends ESTestCase {
     private void assertExpiryWarning(long adjustment, String msg) {
         long now = System.currentTimeMillis();
         long expiration = now + adjustment;
-        final LicenseService service = new LicenseService(
+        final ClusterStateLicenseService service = new ClusterStateLicenseService(
             Settings.EMPTY,
             mock(ThreadPool.class),
             mockDefaultClusterService(),

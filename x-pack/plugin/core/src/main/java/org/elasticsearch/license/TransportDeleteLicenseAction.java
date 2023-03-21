@@ -24,13 +24,13 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportDeleteLicenseAction extends AcknowledgedTransportMasterNodeAction<DeleteLicenseRequest> {
 
-    private final LicenseService licenseService;
+    private final ClusterStateLicenseService clusterStateLicenseService;
 
     @Inject
     public TransportDeleteLicenseAction(
         TransportService transportService,
         ClusterService clusterService,
-        LicenseService licenseService,
+        ClusterStateLicenseService clusterStateLicenseService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
@@ -45,7 +45,7 @@ public class TransportDeleteLicenseAction extends AcknowledgedTransportMasterNod
             indexNameExpressionResolver,
             ThreadPool.Names.MANAGEMENT
         );
-        this.licenseService = licenseService;
+        this.clusterStateLicenseService = clusterStateLicenseService;
     }
 
     @Override
@@ -60,7 +60,7 @@ public class TransportDeleteLicenseAction extends AcknowledgedTransportMasterNod
         ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) throws ElasticsearchException {
-        licenseService.removeLicense(
+        clusterStateLicenseService.removeLicense(
             listener.delegateFailure(
                 (l, postStartBasicResponse) -> l.onResponse(AcknowledgedResponse.of(postStartBasicResponse.isAcknowledged()))
             )

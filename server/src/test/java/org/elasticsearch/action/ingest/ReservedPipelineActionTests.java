@@ -112,6 +112,7 @@ public class ReservedPipelineActionTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             new IngestInfo(Collections.singletonList(new ProcessorInfo("set"))),
             null,
             null

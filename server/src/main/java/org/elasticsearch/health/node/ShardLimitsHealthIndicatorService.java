@@ -20,6 +20,7 @@ import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.indices.ShardLimitValidator;
 
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.indices.ShardLimitValidator.FROZEN_GROUP;
@@ -51,29 +52,24 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
         new HealthIndicatorImpact(NAME, "upgrade_at_risk", 2, UPGRADE_AT_RISK, List.of(ImpactArea.DEPLOYMENT_MANAGEMENT))
     );
 
-    static final Diagnosis SHARD_LIMITS_REACHED_NORMAL_NODES = new Diagnosis(
+    private static final Function<String, Diagnosis> SHARD_LIMITS_REACHED_FN = settingName -> new Diagnosis(
         new Diagnosis.Definition(
             NAME,
             "increase_max_shards_per_node",
-            "The current value of `"
-                + ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey()
-                + "` does not allow to add more shards to the cluster.",
-            "Consider increasing the currently set value or remove indices to clear up resources " + HELP_GUIDE,
+            "The current value of the setting `"
+                + settingName
+                + "` is either about to be or already reached which will not allow adding more shards to the cluster.",
+            "Consider increasing the currently configured value or removing indices to clear up resources " + HELP_GUIDE,
             HELP_GUIDE
         ),
         null
     );
-    static final Diagnosis SHARD_LIMITS_REACHED_FROZEN_NODES = new Diagnosis(
-        new Diagnosis.Definition(
-            NAME,
-            "increase_max_shards_per_node_frozen",
-            "The current value of `"
-                + ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey()
-                + "` does not allow to add more shards to the cluster.",
-            "Consider increasing the currently set value or remove indices to clear up resources " + HELP_GUIDE,
-            HELP_GUIDE
-        ),
-        null
+
+    static final Diagnosis SHARD_LIMITS_REACHED_NORMAL_NODES = SHARD_LIMITS_REACHED_FN.apply(
+        ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey()
+    );
+    static final Diagnosis SHARD_LIMITS_REACHED_FROZEN_NODES = SHARD_LIMITS_REACHED_FN.apply(
+        ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey()
     );
 
     private final ClusterService clusterService;

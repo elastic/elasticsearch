@@ -41,10 +41,10 @@ import static org.elasticsearch.indices.ShardLimitValidator.NORMAL_GROUP;
  */
 public class ShardLimitsHealthIndicatorService implements HealthIndicatorService {
 
-    private static final String NAME = "shard_limits";
     private static final String UPGRADE_BLOCKED = "The cluster has too many used shards to be able to upgrade";
     private static final String UPGRADE_AT_RISK = "The cluster is running low on room to add new shards hence upgrade is at risk";
     private static final String HELP_GUIDE = "https://ela.st/max-shard-limit-reached";
+    static final String NAME = "shard_limits";
     static final List<HealthIndicatorImpact> RED_INDICATOR_IMPACTS = List.of(
         new HealthIndicatorImpact(NAME, "upgrade_blocked", 1, UPGRADE_BLOCKED, List.of(ImpactArea.DEPLOYMENT_MANAGEMENT))
     );
@@ -97,8 +97,8 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
     }
 
     private HealthIndicatorResult mergeIndicators(StatusResult normalNodes, StatusResult frozenNodes) {
-        HealthStatus finalStatus = HealthStatus.merge(Stream.of(normalNodes.status, frozenNodes.status));
-        List<Diagnosis> diagnoses = List.of();
+        var finalStatus = HealthStatus.merge(Stream.of(normalNodes.status, frozenNodes.status));
+        var diagnoses = List.<Diagnosis>of();
         var symptomBuilder = new StringBuilder();
 
         if (finalStatus == HealthStatus.GREEN) {

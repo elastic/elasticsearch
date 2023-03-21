@@ -741,7 +741,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 defaultPipelineSlot = new PipelineSlot(defaultPipeline, pipeline(defaultPipeline), false);
             }
             if (finalPipeline != null) {
-                finalPipelineSlot = new PipelineSlot(finalPipeline, pipeline(finalPipeline), false);
+                finalPipelineSlot = new PipelineSlot(finalPipeline, pipeline(finalPipeline), true);
             }
 
             if (defaultPipeline != null && finalPipeline != null) {

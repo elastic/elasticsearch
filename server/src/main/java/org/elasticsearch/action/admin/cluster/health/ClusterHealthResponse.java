@@ -55,6 +55,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     private static final String RELOCATING_SHARDS = "relocating_shards";
     private static final String INITIALIZING_SHARDS = "initializing_shards";
     private static final String UNASSIGNED_SHARDS = "unassigned_shards";
+    private static final String INDICES = "indices";
 
     private static final ConstructingObjectParser<ClusterHealthResponse, Void> PARSER = new ConstructingObjectParser<>(
         "cluster_health_response",
@@ -132,7 +133,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         PARSER.declareDouble(constructorArg(), new ParseField(ACTIVE_SHARDS_PERCENT_AS_NUMBER));
         PARSER.declareString(constructorArg(), new ParseField(STATUS));
         // Can be absent if LEVEL == 'cluster'
-        PARSER.declareNamedObjects(optionalConstructorArg(), INDEX_PARSER, new ParseField(ClusterStatsLevel.INDICES.getLevel()));
+        PARSER.declareNamedObjects(optionalConstructorArg(), INDEX_PARSER, new ParseField(INDICES));
 
         // ClusterHealthResponse fields
         PARSER.declareString(constructorArg(), new ParseField(CLUSTER_NAME));
@@ -356,11 +357,11 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         builder.humanReadableField(TASK_MAX_WAIT_TIME_IN_QUEUE_IN_MILLIS, TASK_MAX_WAIT_TIME_IN_QUEUE, getTaskMaxWaitingTime());
         builder.percentageField(ACTIVE_SHARDS_PERCENT_AS_NUMBER, ACTIVE_SHARDS_PERCENT, getActiveShardsPercent());
 
-        ClusterStatsLevel level = ClusterStatsLevel.of(params.param("level", ClusterStatsLevel.CLUSTER.getLevel()));
+        ClusterStatsLevel level = ClusterStatsLevel.of(params, ClusterStatsLevel.CLUSTER);
         boolean outputIndices = level == ClusterStatsLevel.INDICES || level == ClusterStatsLevel.SHARDS;
 
         if (outputIndices) {
-            builder.startObject(ClusterStatsLevel.INDICES.getLevel());
+            builder.startObject(INDICES);
             for (ClusterIndexHealth indexHealth : clusterStateHealth.getIndices().values()) {
                 indexHealth.toXContent(builder, params);
             }

@@ -78,7 +78,7 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
 
     @Override
     protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
-        final ClusterStatsLevel level = ClusterStatsLevel.of(params.param("level", ClusterStatsLevel.INDICES.getLevel()));
+        final ClusterStatsLevel level = ClusterStatsLevel.of(params, ClusterStatsLevel.INDICES);
 
         builder.startArray("total");
         for (CacheIndexInputStats cis : getTotal()) {

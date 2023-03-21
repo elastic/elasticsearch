@@ -87,7 +87,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         indicesStatsRequest.indicesOptions(IndicesOptions.fromRequest(request, defaultIndicesOption));
         indicesStatsRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         // level parameter validation
-        ClusterStatsLevel.of(request.param("level", ClusterStatsLevel.INDICES.getLevel()));
+        ClusterStatsLevel.of(request, ClusterStatsLevel.INDICES);
 
         Set<String> metrics = Strings.tokenizeByCommaToSet(request.param("metric", "_all"));
         // short cut, if no metrics have been specified in URI

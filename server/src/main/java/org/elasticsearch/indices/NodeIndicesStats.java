@@ -217,7 +217,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        final NodeStatsLevel level = NodeStatsLevel.of(params.param("level", NodeStatsLevel.NODE.getLevel()));
+        final NodeStatsLevel level = NodeStatsLevel.of(params, NodeStatsLevel.NODE);
 
         // "node" level
         builder.startObject(Fields.INDICES);

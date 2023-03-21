@@ -179,7 +179,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
 
     @Override
     protected Iterator<ToXContent> customXContentChunks(ToXContent.Params params) {
-        final ClusterStatsLevel level = ClusterStatsLevel.of(params.param("level", ClusterStatsLevel.INDICES.getLevel()));
+        final ClusterStatsLevel level = ClusterStatsLevel.of(params, ClusterStatsLevel.INDICES);
         if (level == ClusterStatsLevel.INDICES || level == ClusterStatsLevel.SHARDS) {
             return Iterators.concat(Iterators.single(((builder, p) -> {
                 commonStats(builder, p);

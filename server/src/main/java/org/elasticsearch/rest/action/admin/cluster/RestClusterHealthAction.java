@@ -83,7 +83,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
             clusterHealthRequest.waitForEvents(Priority.valueOf(request.param("wait_for_events").toUpperCase(Locale.ROOT)));
         }
         // level parameter validation
-        ClusterStatsLevel.of(request.param("level", ClusterStatsLevel.CLUSTER.getLevel()));
+        ClusterStatsLevel.of(request, ClusterStatsLevel.CLUSTER);
         return clusterHealthRequest;
     }
 

@@ -57,15 +57,17 @@ public final class CountDownActionListener extends DelegatingActionListener<Void
 
     @Override
     public void onFailure(Exception e) {
-        if (failure.compareAndSet(null, e) == false) {
-            failure.accumulateAndGet(e, (current, update) -> {
-                // we have to avoid self-suppression!
-                if (update != current) {
-                    current.addSuppressed(update);
-                }
-                return current;
-            });
-        }
+        failure.accumulateAndGet(e, (current, update) -> {
+            if (current == null) {
+                return update;
+            }
+
+            // we have to avoid self-suppression!
+            if (update != current) {
+                current.addSuppressed(update);
+            }
+            return current;
+        });
         if (countDown()) {
             super.onFailure(failure.get());
         }

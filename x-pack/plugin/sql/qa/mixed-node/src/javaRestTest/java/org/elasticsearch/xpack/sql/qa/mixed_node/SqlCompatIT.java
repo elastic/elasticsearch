@@ -137,7 +137,8 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         return Strings.toString(json);
     }
 
-    public void testCursorFromOldNodeFailsOnNewNode() throws IOException {
+    public void testHistoricCursorFromOldNodeFailsOnNewNode() throws IOException {
+        assumeTrue("BwC checks only enabled for <=8.7.0", bwcVersion.before(Version.V_8_8_0));
         assertCursorNotCompatibleAcrossVersions(bwcVersion, oldNodesClient, Version.CURRENT, newNodesClient);
     }
 

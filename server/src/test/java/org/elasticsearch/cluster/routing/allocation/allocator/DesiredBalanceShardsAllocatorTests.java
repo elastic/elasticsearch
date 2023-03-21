@@ -15,12 +15,11 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -40,13 +39,10 @@ import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ClusterServiceUtils;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Queue;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -62,7 +58,7 @@ import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClu
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
-public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
+public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
     private static final String LOCAL_NODE_ID = "node-1";
     private static final String OTHER_NODE_ID = "node-2";
@@ -107,8 +103,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         var deterministicTaskQueue = new DeterministicTaskQueue();
         var threadPool = deterministicTaskQueue.getThreadPool();
 
-        var localNode = createDiscoveryNode(LOCAL_NODE_ID);
-        var otherNode = createDiscoveryNode(OTHER_NODE_ID);
+        var localNode = newNode(LOCAL_NODE_ID);
+        var otherNode = newNode(OTHER_NODE_ID);
         var initialState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
             .nodes(DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
@@ -205,7 +201,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         var listenersCalled = new CountDownLatch(2);
         var clusterStateUpdatesExecuted = new CountDownLatch(2);
 
-        var discoveryNode = createDiscoveryNode("node-0");
+        var discoveryNode = newNode("node-0");
         var initialState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(discoveryNode).localNodeId(discoveryNode.getId()).masterNodeId(discoveryNode.getId()))
             .build();
@@ -306,8 +302,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         var newMasterElected = new CountDownLatch(1);
         var clusterStateUpdatesExecuted = new CountDownLatch(1);
 
-        var node1 = createDiscoveryNode(LOCAL_NODE_ID);
-        var node2 = createDiscoveryNode(OTHER_NODE_ID);
+        var node1 = newNode(LOCAL_NODE_ID);
+        var node2 = newNode(OTHER_NODE_ID);
         var initial = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).localNodeId(node1.getId()).masterNodeId(node1.getId()))
             .build();
@@ -399,17 +395,6 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             clusterService.close();
             terminate(threadPool);
         }
-    }
-
-    private static DiscoveryNode createDiscoveryNode(String nodeId) {
-        return new DiscoveryNode(
-            nodeId,
-            nodeId,
-            buildNewFakeTransportAddress(),
-            Map.of(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
-        );
     }
 
     private static IndexMetadata createIndex(String name) {

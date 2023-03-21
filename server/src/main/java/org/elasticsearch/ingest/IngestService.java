@@ -198,7 +198,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     /**
      * Resolves the potential pipelines (default and final) from the requests or templates associated to the index and then **mutates**
      * the {@link org.elasticsearch.action.index.IndexRequest} passed object with the pipeline information.
-     *
+     * <p>
      * Also, this method marks the request as `isPipelinesResolved = true`: Due to the request could be rerouted from a coordinating node
      * to an ingest node, we have to be able to avoid double resolving the pipelines and also able to distinguish that either the pipeline
      * comes as part of the request or resolved from this method. All this is made to later be able to reject the request in case the
@@ -1236,7 +1236,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     /**
      * Checks whether an IndexRequest has at least one pipeline defined.
-     *
+     * <p>
      * This method assumes that the pipelines are beforehand resolved.
      */
     public static boolean hasPipeline(IndexRequest indexRequest) {

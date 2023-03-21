@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
+import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
@@ -22,6 +23,8 @@ import org.elasticsearch.action.ingest.GetPipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
@@ -52,13 +55,13 @@ import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.stream.Stream;
 
 /**
  * Translates cluster privilege names into concrete implementations
@@ -146,6 +149,11 @@ public class ClusterPrivilegeResolver {
 
     private static final Set<String> MANAGE_SEARCH_APPLICATION_PATTERN = Set.of("cluster:admin/xpack/application/search_application/*");
 
+    private static final Set<String> CROSS_CLUSTER_ACCESS_PATTERN = Set.of(
+        RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
+        RemoteClusterNodesAction.NAME
+    );
+    
     private static final Set<String> MANAGE_ENRICH_AUTOMATON = Set.of("cluster:admin/xpack/enrich/*");
 
     public static final NamedClusterPrivilege NONE = new ActionClusterPrivilege("none", Set.of(), Set.of());
@@ -261,9 +269,13 @@ public class ClusterPrivilegeResolver {
         "manage_behavioral_analytics",
         MANAGE_BEHAVIORAL_ANALYTICS_PATTERN
     );
+    public static final NamedClusterPrivilege CROSS_CLUSTER_ACCESS = new ActionClusterPrivilege(
+        "cross_cluster_access",
+        CROSS_CLUSTER_ACCESS_PATTERN
+    );
 
     private static final Map<String, NamedClusterPrivilege> VALUES = sortByAccessLevel(
-        List.of(
+        Stream.of(
             NONE,
             ALL,
             MONITOR,
@@ -308,8 +320,9 @@ public class ClusterPrivilegeResolver {
             MANAGE_LOGSTASH_PIPELINES,
             CANCEL_TASK,
             MANAGE_SEARCH_APPLICATION,
-            MANAGE_BEHAVIORAL_ANALYTICS
-        )
+            MANAGE_BEHAVIORAL_ANALYTICS,
+            TcpTransport.isUntrustedRemoteClusterEnabled() ? CROSS_CLUSTER_ACCESS : null
+        ).filter(Objects::nonNull).toList()
     );
 
     /**

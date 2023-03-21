@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -47,7 +48,7 @@ public final class ClientHelper {
     );
 
     public static void assertNoAuthorizationHeader(Map<String, String> headers) {
-        if (org.elasticsearch.Assertions.ENABLED) {
+        if (Assertions.ENABLED) {
             for (String header : headers.keySet()) {
                 if (authorizationHeaderPattern.matcher(header).find()) {
                     assert false : "headers contain \"Authorization\"";

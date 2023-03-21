@@ -25,6 +25,8 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
@@ -54,6 +56,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestSearchAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in search requests is deprecated.";

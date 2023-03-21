@@ -47,6 +47,7 @@ public class NodeInfoTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             null
         );
 

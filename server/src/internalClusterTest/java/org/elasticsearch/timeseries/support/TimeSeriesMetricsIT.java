@@ -11,7 +11,7 @@ package org.elasticsearch.timeseries.support;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -485,9 +485,9 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
         int bucketBatchSize,
         int docBatchSize,
         TimeValue staleness,
-        BiConsumer<ListenableActionFuture<R>, TimeSeriesMetrics> handle
+        BiConsumer<PlainActionFuture<R>, TimeSeriesMetrics> handle
     ) {
-        ListenableActionFuture<R> result = new ListenableActionFuture<>();
+        PlainActionFuture<R> result = new PlainActionFuture<>();
         new TimeSeriesMetricsService(client(), bucketBatchSize, docBatchSize, staleness).newMetrics(
             new String[] { "tsdb" },
             IndicesOptions.STRICT_EXPAND_OPEN,

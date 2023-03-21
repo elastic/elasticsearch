@@ -11,7 +11,6 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
@@ -427,11 +426,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         final String nodeBId = getNodeId(nodeB);
         ensureGreen("index");
 
-        client().admin()
-            .cluster()
-            .updateSettings(
-                new ClusterUpdateSettingsRequest().persistentSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"))
-            );
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"));
 
         assertThat(client().admin().indices().prepareFlush("index").get().getSuccessfulShards(), equalTo(2));
         assertThat(client().admin().indices().prepareRefresh("index").get().getSuccessfulShards(), equalTo(2));

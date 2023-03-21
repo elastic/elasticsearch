@@ -824,10 +824,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
         );
 
         for (int i = 0; i < requiredSettings.size(); i++) {
-            final Settings.Builder settings = Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
+            final Settings.Builder settings = indexSettings(Version.CURRENT, 1, 0);
             for (int j = 0; j < requiredSettings.size(); j++) {
                 if (i != j) {
                     settings.put(requiredSettings.get(j).getKey(), randomAlphaOfLength(10));

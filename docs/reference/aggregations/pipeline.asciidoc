@@ -47,7 +47,6 @@ For example, the path `"my_bucket>my_stats.avg"` will path to the `avg` value in
 contained in the `"my_bucket"` bucket aggregation.
 
 Here are some more examples:
-+
 --
  * `multi_bucket["foo"]>single_bucket>multi_metric.avg` will go to the `avg` metric in the `"multi_metric"` agg under the
     single bucket `"single_bucket"` within the `"foo"` bucket of the `"multi_bucket"` multi-bucket aggregation.

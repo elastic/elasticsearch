@@ -881,9 +881,9 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     /**
      * Finds the parent data streams, if any, for the specified concrete indices.
      */
-    public Map<String, IndexAbstraction.DataStream> findDataStreams(String... concreteIndices) {
+    public Map<String, DataStream> findDataStreams(String... concreteIndices) {
         assert concreteIndices != null;
-        final ImmutableOpenMap.Builder<String, IndexAbstraction.DataStream> builder = ImmutableOpenMap.builder();
+        final ImmutableOpenMap.Builder<String, DataStream> builder = ImmutableOpenMap.builder();
         final SortedMap<String, IndexAbstraction> lookup = getIndicesLookup();
         for (String indexName : concreteIndices) {
             IndexAbstraction index = lookup.get(indexName);
@@ -2439,7 +2439,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 return Collections.emptySortedMap();
             }
             SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
-            Map<String, IndexAbstraction.DataStream> indexToDataStreamLookup = new HashMap<>();
+            Map<String, DataStream> indexToDataStreamLookup = new HashMap<>();
             final var dataStreams = dataStreamMetadata.dataStreams();
             for (DataStreamAlias alias : dataStreamMetadata.getDataStreamAliases().values()) {
                 IndexAbstraction existing = indicesLookup.put(alias.getName(), makeDsAliasAbstraction(dataStreams, alias));
@@ -2448,12 +2448,11 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             for (DataStream dataStream : dataStreams.values()) {
                 assert dataStream.getIndices().isEmpty() == false;
 
-                final IndexAbstraction.DataStream dsAbstraction = new IndexAbstraction.DataStream(dataStream);
-                IndexAbstraction existing = indicesLookup.put(dataStream.getName(), dsAbstraction);
+                IndexAbstraction existing = indicesLookup.put(dataStream.getName(), dataStream);
                 assert existing == null : "duplicate data stream for " + dataStream.getName();
 
                 for (Index i : dataStream.getIndices()) {
-                    indexToDataStreamLookup.put(i.getName(), dsAbstraction);
+                    indexToDataStreamLookup.put(i.getName(), dataStream);
                 }
             }
 
@@ -2461,7 +2460,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             for (var entry : indices.entrySet()) {
                 final String name = entry.getKey();
                 final IndexMetadata indexMetadata = entry.getValue();
-                final IndexAbstraction.DataStream parent = indexToDataStreamLookup.get(name);
+                final DataStream parent = indexToDataStreamLookup.get(name);
                 assert parent == null || parent.getIndices().stream().anyMatch(index -> name.equals(index.getName()))
                     : "Expected data stream [" + parent.getName() + "] to contain index " + indexMetadata.getIndex();
                 IndexAbstraction existing = indicesLookup.put(name, new ConcreteIndex(indexMetadata, parent));

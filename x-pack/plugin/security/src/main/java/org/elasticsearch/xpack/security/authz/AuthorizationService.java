@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
@@ -207,7 +208,7 @@ public class AuthorizationService {
         authorizationEngine.getUserPrivileges(authorizationInfo, wrapPreservingContext(listener, threadContext));
     }
 
-    public void retrieveRemoteAccessRoleDescriptorsIntersection(
+    public void getRoleDescriptorsIntersectionForRemoteCluster(
         final String remoteClusterAlias,
         final Subject subject,
         final ActionListener<RoleDescriptorsIntersection> listener
@@ -215,7 +216,7 @@ public class AuthorizationService {
         if (isInternal(subject.getUser())) {
             final String message = "the user ["
                 + subject.getUser().principal()
-                + "] is an internal user and we should never try to retrieve its remote access roles descriptors";
+                + "] is an internal user and we should never try to retrieve its roles descriptors towards a remote cluster";
             assert false : message;
             listener.onFailure(new IllegalArgumentException(message));
             return;
@@ -228,7 +229,7 @@ public class AuthorizationService {
             subject,
             wrapPreservingContext(
                 listener.delegateFailure(
-                    (delegatedLister, resolvedAuthzInfo) -> authorizationEngine.getRemoteAccessRoleDescriptorsIntersection(
+                    (delegatedLister, resolvedAuthzInfo) -> authorizationEngine.getRoleDescriptorsIntersectionForRemoteCluster(
                         remoteClusterAlias,
                         resolvedAuthzInfo,
                         wrapPreservingContext(delegatedLister, threadContext)
@@ -594,7 +595,7 @@ public class AuthorizationService {
         } else {
             final Iterator<RequestInterceptor> requestInterceptorIterator = requestInterceptors.iterator();
             requestInterceptorIterator.next()
-                .intercept(requestInfo, authorizationEngine, authorizationInfo, new ActionListener.Delegating<>(listener) {
+                .intercept(requestInfo, authorizationEngine, authorizationInfo, new DelegatingActionListener<>(listener) {
                     @Override
                     public void onResponse(Void unused) {
                         if (requestInterceptorIterator.hasNext()) {

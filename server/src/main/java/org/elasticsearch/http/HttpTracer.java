@@ -20,6 +20,7 @@ import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.OutputStream;
 import java.util.List;
 
 import static org.elasticsearch.core.Strings.format;
@@ -75,9 +76,21 @@ class HttpTracer {
                 ),
                 e
             );
+            if (isBodyTracerEnabled()) {
+                try (var stream = HttpBodyTracer.getBodyOutputStream(restRequest.getRequestId(), HttpBodyTracer.Type.REQUEST)) {
+                    restRequest.content().writeTo(stream);
+                } catch (Exception e2) {
+                    assert false : e2; // no real IO here
+                }
+            }
+
             return this;
         }
         return null;
+    }
+
+    boolean isBodyTracerEnabled() {
+        return HttpBodyTracer.isEnabled();
     }
 
     /**
@@ -119,5 +132,9 @@ class HttpTracer {
 
     private void setTracerLogExclude(List<String> tracerLogExclude) {
         this.tracerLogExclude = tracerLogExclude.toArray(Strings.EMPTY_ARRAY);
+    }
+
+    OutputStream openResponseBodyLoggingStream(long requestId) {
+        return HttpBodyTracer.getBodyOutputStream(requestId, HttpBodyTracer.Type.RESPONSE);
     }
 }

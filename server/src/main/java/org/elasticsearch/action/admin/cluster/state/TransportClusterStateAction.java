@@ -172,7 +172,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                     // If the requested index is part of a data stream then that data stream should also be included:
                     IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(filteredIndex);
                     if (indexAbstraction.getParentDataStream() != null) {
-                        DataStream dataStream = indexAbstraction.getParentDataStream().getDataStream();
+                        DataStream dataStream = indexAbstraction.getParentDataStream();
                         // Also the IMD of other backing indices need to be included, otherwise the cluster state api
                         // can't create a valid cluster state instance:
                         for (Index backingIndex : dataStream.getIndices()) {

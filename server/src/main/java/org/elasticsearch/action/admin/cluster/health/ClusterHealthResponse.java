@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
@@ -356,8 +357,8 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         builder.humanReadableField(TASK_MAX_WAIT_TIME_IN_QUEUE_IN_MILLIS, TASK_MAX_WAIT_TIME_IN_QUEUE, getTaskMaxWaitingTime());
         builder.percentageField(ACTIVE_SHARDS_PERCENT_AS_NUMBER, ACTIVE_SHARDS_PERCENT, getActiveShardsPercent());
 
-        String level = params.param("level", "cluster");
-        boolean outputIndices = "indices".equals(level) || "shards".equals(level);
+        ClusterStatsLevel level = ClusterStatsLevel.of(params, ClusterStatsLevel.CLUSTER);
+        boolean outputIndices = level == ClusterStatsLevel.INDICES || level == ClusterStatsLevel.SHARDS;
 
         if (outputIndices) {
             builder.startObject(INDICES);

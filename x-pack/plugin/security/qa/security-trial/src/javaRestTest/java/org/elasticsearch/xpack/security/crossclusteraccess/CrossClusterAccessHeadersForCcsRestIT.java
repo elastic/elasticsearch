@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.security.remoteaccess;
+package org.elasticsearch.xpack.security.crossclusteraccess;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;

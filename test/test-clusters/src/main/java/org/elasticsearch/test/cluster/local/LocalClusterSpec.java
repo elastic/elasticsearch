@@ -104,7 +104,8 @@ public class LocalClusterSpec implements ClusterSpec {
             String keystorePassword,
             Map<String, Resource> extraConfigFiles,
             Map<String, String> systemProperties,
-            Map<String, String> secrets) {
+            Map<String, String> secrets
+        ) {
             this.cluster = cluster;
             this.name = name;
             this.version = version;
@@ -294,7 +295,8 @@ public class LocalClusterSpec implements ClusterSpec {
                         n.keystorePassword,
                         n.extraConfigFiles,
                         n.systemProperties,
-                        n.secrets)
+                        n.secrets
+                    )
                 )
                 .toList();
 

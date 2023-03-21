@@ -74,12 +74,12 @@ teardown:
   - match: { results.1.name: "test-search-application-1" }
   - match: { results.1.indices: [ "test-index1" ] }
   - match: { results.1.analytics_collection_name: "test-analytics1" }
-  - match: { results.0.updated_at_millis: $updatedAtMillis1 }
+  - match: { results.1.updated_at_millis: $updatedAtMillis1 }
 
   - match: { results.2.name: "test-search-application-2" }
   - match: { results.2.indices: [ "test-index2" ] }
   - match: { results.2.analytics_collection_name: "test-analytics2" }
-  - match: { results.0.updated_at_millis: $updatedAtMillis2 }
+  - match: { results.2.updated_at_millis: $updatedAtMillis2 }
 
 ---
 "Pagination - From":
@@ -99,7 +99,7 @@ teardown:
   - match: { results.1.name: "test-search-application-2" }
   - match: { results.1.indices: [ "test-index2" ] }
   - match: { results.1.analytics_collection_name: "test-analytics2" }
-  - match: { results.0.updated_at_millis: $updatedAtMillis1 }
+  - match: { results.1.updated_at_millis: $updatedAtMillis1 }
 
 ---
 "Pagination - Size":
@@ -119,7 +119,7 @@ teardown:
   - match: { results.1.name: "test-search-application-1" }
   - match: { results.1.indices: [ "test-index1" ] }
   - match: { results.1.analytics_collection_name: "test-analytics1" }
-  - match: { results.0.updated_at_millis: $updatedAtMillis1 }
+  - match: { results.1.updated_at_millis: $updatedAtMillis1 }
 
 
 ---
@@ -140,7 +140,7 @@ teardown:
   - match: { results.1.name: "test-search-application-2" }
   - match: { results.1.indices: [ "test-index2" ] }
   - match: { results.1.analytics_collection_name: "test-analytics2" }
-  - match: { results.0.updated_at_millis: $updatedAtMillis1 }
+  - match: { results.1.updated_at_millis: $updatedAtMillis1 }
 
 ---
 "Empty query results":

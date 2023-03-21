@@ -47,6 +47,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -701,67 +702,76 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return new PipelineIterator(pipelineId, finalPipelineId);
     }
 
-    private class PipelineIterator implements Iterator<String> {
+    /**
+     * A triple for tracking the non-null id of a pipeline, the pipeline itself, and whether the pipeline is a final pipeline.
+     *
+     * @param id the non-null id of the pipeline
+     * @param pipeline a possibly-null reference to the pipeline for the given pipeline id
+     * @param isFinal true if the pipeline is a final pipeline
+     */
+    private record PipelineSlot(String id, @Nullable Pipeline pipeline, boolean isFinal) {
+        public PipelineSlot {
+            Objects.requireNonNull(id);
+        }
+    }
+
+    private class PipelineIterator implements Iterator<PipelineSlot> {
+
         private final String defaultPipeline;
         private final String finalPipeline;
-        private final Iterator<String> pipelineIds;
-        private String current;
+        private final Iterator<PipelineSlot> pipelineSlotIterator;
 
         private PipelineIterator(String defaultPipeline, String finalPipeline) {
             this.defaultPipeline = NOOP_PIPELINE_NAME.equals(defaultPipeline) ? null : defaultPipeline;
             this.finalPipeline = NOOP_PIPELINE_NAME.equals(finalPipeline) ? null : finalPipeline;
-            this.pipelineIds = iterator();
+            this.pipelineSlotIterator = iterator();
         }
 
         public PipelineIterator withoutDefaultPipeline() {
             return new PipelineIterator(null, finalPipeline);
         }
 
-        private Iterator<String> iterator() {
-            if (defaultPipeline != null && finalPipeline != null) {
-                return List.of(defaultPipeline, finalPipeline).iterator();
+        private Iterator<PipelineSlot> iterator() {
+            PipelineSlot defaultPipelineSlot = null, finalPipelineSlot = null;
+            if (defaultPipeline != null) {
+                defaultPipelineSlot = new PipelineSlot(defaultPipeline, pipeline(defaultPipeline), false);
             }
             if (finalPipeline != null) {
-                return List.of(finalPipeline).iterator();
+                finalPipelineSlot = new PipelineSlot(finalPipeline, pipeline(finalPipeline), false);
             }
-            if (defaultPipeline != null) {
-                return List.of(defaultPipeline).iterator();
+
+            if (defaultPipeline != null && finalPipeline != null) {
+                return List.of(defaultPipelineSlot, finalPipelineSlot).iterator();
+            } else if (finalPipeline != null) {
+                return List.of(finalPipelineSlot).iterator();
+            } else if (defaultPipeline != null) {
+                return List.of(defaultPipelineSlot).iterator();
+            } else {
+                return Collections.emptyIterator();
             }
-            return Collections.emptyIterator();
+        }
+
+        private Pipeline pipeline(String id) {
+            if (id == null) {
+                return null;
+            }
+
+            final PipelineHolder holder = pipelines.get(id);
+            if (holder == null) {
+                return null;
+            }
+
+            return holder.pipeline;
         }
 
         @Override
         public boolean hasNext() {
-            return pipelineIds.hasNext();
+            return pipelineSlotIterator.hasNext();
         }
 
         @Override
-        public String next() {
-            current = pipelineIds.next();
-            return current;
-        }
-
-        public Pipeline currentPipeline() {
-            if (current == null) {
-                throw new IllegalStateException("Invoked before next");
-            }
-            final PipelineHolder holder = pipelines.get(current);
-            if (holder == null) {
-                throw new IllegalArgumentException("pipeline with id [" + current + "] does not exist");
-            }
-            return holder.pipeline;
-        }
-
-        /**
-         * Whether the {@linkplain #currentPipeline() current pipeline} of this iterator represents the
-         * {@linkplain IndexRequest#getFinalPipeline() final pipeline of the index request}.
-         */
-        public boolean isCurrentPipelineFinalPipeline() {
-            return hasFinalPipeline() && hasNext() == false;
-        }
-
-        private boolean hasFinalPipeline() {
-            return finalPipeline != null;
+        public PipelineSlot next() {
+            return pipelineSlotIterator.next();
         }
     }
 
@@ -773,13 +783,19 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final Set<String> indexRecursionDetection
     ) {
         assert pipelines.hasNext();
-        final String pipelineId = pipelines.next();
+        PipelineSlot slot = pipelines.next();
+        final String pipelineId = slot.id();
+        final Pipeline pipeline = slot.pipeline();
+        final boolean isFinalPipeline = slot.isFinal();
 
         // reset the reroute flag, at the start of a new pipeline execution this document hasn't been rerouted yet
         ingestDocument.resetReroute();
 
         try {
-            final Pipeline pipeline = pipelines.currentPipeline();
+            if (pipeline == null) {
+                throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
+            }
+
             final String originalIndex = indexRequest.indices()[0];
             executePipeline(ingestDocument, pipeline, (keep, e) -> {
                 assert keep != null;
@@ -833,7 +849,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
                 if (Objects.equals(originalIndex, newIndex) == false) {
                     // final pipelines cannot change the target index (either directly or by way of a reroute)
-                    if (pipelines.isCurrentPipelineFinalPipeline()) {
+                    if (isFinalPipeline) {
                         listener.onFailure(
                             new IllegalStateException(
                                 format(

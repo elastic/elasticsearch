@@ -648,7 +648,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             continue;
                         }
 
-                        PipelineIterator pipelines = getPipelines(indexRequest);
+                        PipelineIterator pipelines = getAndResetPipelines(indexRequest);
                         if (pipelines.hasNext() == false) {
                             i++;
                             continue;
@@ -694,7 +694,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         });
     }
 
-    private PipelineIterator getPipelines(IndexRequest indexRequest) {
+    /**
+     * Returns the pipelines of the request, and updates the request so that it no longer references
+     * any pipelines (both the default and final pipeline are set to the noop pipeline).
+     */
+    private PipelineIterator getAndResetPipelines(IndexRequest indexRequest) {
         final String pipelineId = indexRequest.getPipeline();
         indexRequest.setPipeline(NOOP_PIPELINE_NAME);
         final String finalPipelineId = indexRequest.getFinalPipeline();
@@ -885,7 +889,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     indexRequest.setPipeline(null);
                     indexRequest.isPipelineResolved(false);
                     resolvePipelinesAndUpdateIndexRequest(null, indexRequest, state.metadata());
-                    newPipelines = getPipelines(indexRequest);
+                    newPipelines = getAndResetPipelines(indexRequest);
 
                     // for backwards compatibility, when a pipeline changes the target index for a document without using the reroute
                     // mechanism, do not invoke the default pipeline of the new target index

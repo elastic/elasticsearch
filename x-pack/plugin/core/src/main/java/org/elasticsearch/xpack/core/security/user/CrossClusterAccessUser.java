@@ -16,10 +16,6 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.List;
-
-import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.RoleDescriptorsBytes;
-import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.toRoleDescriptorsBytesList;
 
 public class CrossClusterAccessUser extends User {
     public static final String NAME = UsernamesField.CROSS_CLUSTER_ACCESS_NAME;
@@ -60,25 +56,26 @@ public class CrossClusterAccessUser extends User {
         return INSTANCE.equals(user);
     }
 
-    public static CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo(TransportVersion transportVersion, String nodeName) {
+    public static CrossClusterAccessSubjectInfo subjectInfoWithRoleDescriptors(TransportVersion transportVersion, String nodeName) {
+        return subjectInfo(transportVersion, nodeName, new RoleDescriptorsIntersection(ROLE_DESCRIPTOR));
+    }
+
+    public static CrossClusterAccessSubjectInfo subjectInfoWithEmptyRoleDescriptors(TransportVersion transportVersion, String nodeName) {
+        return subjectInfo(transportVersion, nodeName, RoleDescriptorsIntersection.EMPTY);
+    }
+
+    private static CrossClusterAccessSubjectInfo subjectInfo(
+        TransportVersion transportVersion,
+        String nodeName,
+        RoleDescriptorsIntersection roleDescriptorsIntersection
+    ) {
         try {
             return new CrossClusterAccessSubjectInfo(
                 Authentication.newInternalAuthentication(INSTANCE, transportVersion, nodeName),
-                new RoleDescriptorsIntersection(ROLE_DESCRIPTOR)
+                roleDescriptorsIntersection
             );
         } catch (IOException e) {
             throw new UncheckedIOException(e);
-        }
-    }
-
-    public static void validateRoleDescriptors(List<RoleDescriptorsBytes> roleDescriptorsBytesList) throws IOException {
-        final List<RoleDescriptorsBytes> validRoleDescriptors = toRoleDescriptorsBytesList(
-            new RoleDescriptorsIntersection(ROLE_DESCRIPTOR)
-        );
-        if (false == validRoleDescriptors.equals(roleDescriptorsBytesList)) {
-            throw new IllegalArgumentException(
-                "role descriptor bytes do not match those expected for internal user [" + INSTANCE.principal() + "]"
-            );
         }
     }
 }

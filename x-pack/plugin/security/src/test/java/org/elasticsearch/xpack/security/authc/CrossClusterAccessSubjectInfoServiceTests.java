@@ -140,7 +140,7 @@ public class CrossClusterAccessSubjectInfoServiceTests extends ESTestCase {
         final Authentication expectedAuthentication;
         if (SystemUser.is(remoteAuthentication.getEffectiveSubject().getUser())) {
             expectedAuthentication = apiKeyAuthentication.toCrossClusterAccess(
-                CrossClusterAccessUser.crossClusterAccessSubjectInfo(
+                CrossClusterAccessUser.subjectInfoWithRoleDescriptors(
                     remoteAuthentication.getEffectiveSubject().getTransportVersion(),
                     remoteAuthentication.getEffectiveSubject().getRealm().getNodeName()
                 )

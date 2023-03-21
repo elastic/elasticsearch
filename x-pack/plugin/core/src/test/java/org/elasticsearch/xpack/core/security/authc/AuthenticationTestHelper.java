@@ -254,7 +254,7 @@ public class AuthenticationTestHelper {
 
     public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfoForInternalUser() {
         final Authentication authentication = AuthenticationTestHelper.builder().internal(CrossClusterAccessUser.INSTANCE).build();
-        return CrossClusterAccessUser.crossClusterAccessSubjectInfo(
+        return CrossClusterAccessUser.subjectInfoWithRoleDescriptors(
             authentication.getEffectiveSubject().getTransportVersion(),
             authentication.getEffectiveSubject().getRealm().getNodeName()
         );

@@ -384,7 +384,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 if (SystemUser.is(user)) {
                     final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
                         remoteClusterCredentials.credentials(),
-                        CrossClusterAccessUser.crossClusterAccessSubjectInfo(
+                        CrossClusterAccessUser.subjectInfoWithEmptyRoleDescriptors(
                             authentication.getEffectiveSubject().getTransportVersion(),
                             authentication.getEffectiveSubject().getRealm().getNodeName()
                         )

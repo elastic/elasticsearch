@@ -167,22 +167,6 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
                 )
             );
         }
-
-        try (var ignored = threadContext.stashContext()) {
-            Authentication authentication = AuthenticationTestHelper.builder().internal(CrossClusterAccessUser.INSTANCE).build();
-            new CrossClusterAccessHeaders(
-                encodedCrossClusterAccessApiKey,
-                new CrossClusterAccessSubjectInfo(authentication, RoleDescriptorsIntersection.EMPTY)
-            ).writeToContext(threadContext);
-
-            authenticateAndAssertExpectedErrorMessage(
-                service,
-                msg -> assertThat(
-                    msg,
-                    containsString("role descriptor bytes do not match those expected for internal user [_cross_cluster_access]")
-                )
-            );
-        }
     }
 
     private String getEncodedCrossClusterAccessApiKey() {

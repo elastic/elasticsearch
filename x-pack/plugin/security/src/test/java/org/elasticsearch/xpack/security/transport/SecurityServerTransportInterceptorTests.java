@@ -672,7 +672,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             assertThat(
                 sentCrossClusterAccessSubjectInfo.get(),
                 equalTo(
-                    CrossClusterAccessUser.crossClusterAccessSubjectInfo(
+                    CrossClusterAccessUser.subjectInfoWithEmptyRoleDescriptors(
                         authentication.getEffectiveSubject().getTransportVersion(),
                         authentication.getEffectiveSubject().getRealm().getNodeName()
                     )

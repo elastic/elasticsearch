@@ -374,18 +374,58 @@ public class RemoteClusterConnectionTests extends ESTestCase {
     }
 
     public void testGetConnectionInfo() throws Exception {
+        doTestGetConnectionInfo(false);
+        doTestGetConnectionInfo(true);
+    }
+
+    private void doTestGetConnectionInfo(boolean hasClusterCredentials) throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        final Settings seedTransportSettings;
+        if (hasClusterCredentials) {
+            seedTransportSettings = Settings.builder()
+                .put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), "true")
+                .put(RemoteClusterPortSettings.PORT.getKey(), "0")
+                .build();
+        } else {
+            seedTransportSettings = Settings.EMPTY;
+        }
         try (
-            MockTransportService transport1 = startTransport("seed_node", knownNodes, Version.CURRENT, TransportVersion.CURRENT);
-            MockTransportService transport2 = startTransport("seed_node_1", knownNodes, Version.CURRENT, TransportVersion.CURRENT);
-            MockTransportService transport3 = startTransport("discoverable_node", knownNodes, Version.CURRENT, TransportVersion.CURRENT)
+            MockTransportService transport1 = startTransport(
+                "seed_node",
+                knownNodes,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                threadPool,
+                seedTransportSettings
+            );
+            MockTransportService transport2 = startTransport(
+                "seed_node_1",
+                knownNodes,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                threadPool,
+                seedTransportSettings
+            );
+            MockTransportService transport3 = startTransport(
+                "discoverable_node",
+                knownNodes,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                threadPool,
+                seedTransportSettings
+            )
         ) {
             DiscoveryNode node1 = transport1.getLocalDiscoNode();
             DiscoveryNode node2 = transport3.getLocalDiscoNode();
             DiscoveryNode node3 = transport2.getLocalDiscoNode();
-            knownNodes.add(transport1.getLocalDiscoNode());
-            knownNodes.add(transport3.getLocalDiscoNode());
-            knownNodes.add(transport2.getLocalDiscoNode());
+            if (hasClusterCredentials) {
+                node1 = node1.withTransportAddress(transport1.boundRemoteAccessAddress().publishAddress());
+                node2 = node2.withTransportAddress(transport3.boundRemoteAccessAddress().publishAddress());
+                node3 = node3.withTransportAddress(transport2.boundRemoteAccessAddress().publishAddress());
+            }
+            knownNodes.add(node1);
+            knownNodes.add(node2);
+            knownNodes.add(node3);
             Collections.shuffle(knownNodes, random());
             List<String> seedNodes = addresses(node3, node1, node2);
             Collections.shuffle(seedNodes, random());
@@ -407,6 +447,15 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     .put(buildSniffSettings(clusterAlias, seedNodes))
                     .put(SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER.getKey(), maxNumConnections)
                     .build();
+                if (hasClusterCredentials) {
+                    settings = Settings.builder()
+                        .put(settings)
+                        .put(
+                            RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(clusterAlias).getKey(),
+                            randomAlphaOfLength(20)
+                        )
+                        .build();
+                }
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service)) {
                     // test no nodes connected
                     RemoteConnectionInfo remoteConnectionInfo = assertSerialization(connection.getConnectionInfo());
@@ -416,6 +465,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     assertEquals(3, sniffInfo.seedNodes.size());
                     assertEquals(maxNumConnections, sniffInfo.maxConnectionsPerCluster);
                     assertEquals(clusterAlias, remoteConnectionInfo.clusterAlias);
+                    assertEquals(hasClusterCredentials, remoteConnectionInfo.hasClusterCredentials);
                 }
             }
         }
@@ -436,22 +486,26 @@ public class RemoteClusterConnectionTests extends ESTestCase {
             modeInfo2 = new ProxyConnectionStrategy.ProxyModeInfo(remoteAddresses.get(0), serverName, 18, 17);
         }
 
-        RemoteConnectionInfo stats = new RemoteConnectionInfo("test_cluster", modeInfo1, TimeValue.timeValueMinutes(30), false);
+        RemoteConnectionInfo stats = new RemoteConnectionInfo("test_cluster", modeInfo1, TimeValue.timeValueMinutes(30), false, false);
         assertSerialization(stats);
 
-        RemoteConnectionInfo stats1 = new RemoteConnectionInfo("test_cluster", modeInfo1, TimeValue.timeValueMinutes(30), true);
+        RemoteConnectionInfo stats1 = new RemoteConnectionInfo("test_cluster", modeInfo1, TimeValue.timeValueMinutes(30), true, false);
         assertSerialization(stats1);
         assertNotEquals(stats, stats1);
 
-        stats1 = new RemoteConnectionInfo("test_cluster_1", modeInfo1, TimeValue.timeValueMinutes(30), false);
+        stats1 = new RemoteConnectionInfo("test_cluster_1", modeInfo1, TimeValue.timeValueMinutes(30), false, false);
         assertSerialization(stats1);
         assertNotEquals(stats, stats1);
 
-        stats1 = new RemoteConnectionInfo("test_cluster", modeInfo1, TimeValue.timeValueMinutes(325), false);
+        stats1 = new RemoteConnectionInfo("test_cluster", modeInfo1, TimeValue.timeValueMinutes(325), false, false);
         assertSerialization(stats1);
         assertNotEquals(stats, stats1);
 
-        stats1 = new RemoteConnectionInfo("test_cluster", modeInfo2, TimeValue.timeValueMinutes(30), false);
+        stats1 = new RemoteConnectionInfo("test_cluster", modeInfo2, TimeValue.timeValueMinutes(30), false, false);
+        assertSerialization(stats1);
+        assertNotEquals(stats, stats1);
+
+        stats1 = new RemoteConnectionInfo("test_cluster", modeInfo1, TimeValue.timeValueMinutes(30), false, true);
         assertSerialization(stats1);
         assertNotEquals(stats, stats1);
     }
@@ -481,8 +535,15 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         } else {
             modeInfo = new ProxyConnectionStrategy.ProxyModeInfo(remoteAddresses.get(0), serverName, 18, 16);
         }
+        final boolean hasClusterCredentials = randomBoolean();
 
-        RemoteConnectionInfo stats = new RemoteConnectionInfo("test_cluster", modeInfo, TimeValue.timeValueMinutes(30), true);
+        RemoteConnectionInfo stats = new RemoteConnectionInfo(
+            "test_cluster",
+            modeInfo,
+            TimeValue.timeValueMinutes(30),
+            true,
+            hasClusterCredentials
+        );
         stats = assertSerialization(stats);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
@@ -490,7 +551,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         builder.endObject();
 
         if (sniff) {
-            assertEquals(XContentHelper.stripWhitespace("""
+            assertEquals(XContentHelper.stripWhitespace(Strings.format("""
                 {
                   "test_cluster": {
                     "connected": true,
@@ -499,11 +560,11 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     "num_nodes_connected": 2,
                     "max_connections_per_cluster": 3,
                     "initial_connect_timeout": "30m",
-                    "skip_unavailable": true
+                    "skip_unavailable": true%s
                   }
-                }"""), Strings.toString(builder));
+                }""", hasClusterCredentials ? ",\"cluster_credentials\":\"::es_redacted::\"" : "")), Strings.toString(builder));
         } else {
-            assertEquals(XContentHelper.stripWhitespace("""
+            assertEquals(XContentHelper.stripWhitespace(Strings.format("""
                 {
                   "test_cluster": {
                     "connected": true,
@@ -513,9 +574,9 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     "num_proxy_sockets_connected": 16,
                     "max_proxy_socket_connections": 18,
                     "initial_connect_timeout": "30m",
-                    "skip_unavailable": true
+                    "skip_unavailable": true%s
                   }
-                }"""), Strings.toString(builder));
+                }""", hasClusterCredentials ? ",\"cluster_credentials\":\"::es_redacted::\"" : "")), Strings.toString(builder));
         }
     }
 

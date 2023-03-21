@@ -39,9 +39,9 @@ public class LicenseTLSTests extends AbstractLicenseServiceTestCase {
         inetAddress = InetAddress.getLoopbackAddress();
 
         setInitialState(null, licenseState, settings);
-        licenseService.start();
+        clusterStateLicenseService.start();
         PlainActionFuture<PutLicenseResponse> responseFuture = new PlainActionFuture<>();
-        licenseService.registerLicense(request, responseFuture);
+        clusterStateLicenseService.registerLicense(request, responseFuture);
         verify(clusterService).submitUnbatchedStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
 
         inetAddress = TransportAddress.META_ADDRESS;
@@ -49,11 +49,11 @@ public class LicenseTLSTests extends AbstractLicenseServiceTestCase {
             .put("xpack.security.enabled", true)
             .put(DISCOVERY_TYPE_SETTING.getKey(), SINGLE_NODE_DISCOVERY_TYPE)
             .build();
-        licenseService.stop();
+        clusterStateLicenseService.stop();
         licenseState = new XPackLicenseState(() -> 0);
         setInitialState(null, licenseState, settings);
-        licenseService.start();
-        licenseService.registerLicense(request, responseFuture);
+        clusterStateLicenseService.start();
+        clusterStateLicenseService.registerLicense(request, responseFuture);
         verify(clusterService, times(2)).submitUnbatchedStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
     }
 

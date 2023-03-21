@@ -38,8 +38,8 @@ public abstract class LicenseSettings {
         Setting.Property.NodeScope
     );
     // pkg private for tests
-    public static final TimeValue NON_BASIC_SELF_GENERATED_LICENSE_DURATION = TimeValue.timeValueHours(30 * 24);
-    public static final Set<License.LicenseType> VALID_TRIAL_TYPES = Set.of(
+    static final TimeValue NON_BASIC_SELF_GENERATED_LICENSE_DURATION = TimeValue.timeValueHours(30 * 24);
+    static final Set<License.LicenseType> VALID_TRIAL_TYPES = Set.of(
         License.LicenseType.GOLD,
         License.LicenseType.PLATINUM,
         License.LicenseType.ENTERPRISE,
@@ -48,14 +48,13 @@ public abstract class LicenseSettings {
     /**
      * Period before the license expires when warning starts being added to the response header
      */
-    public static final TimeValue LICENSE_EXPIRATION_WARNING_PERIOD = TimeValue.timeValueDays(7);
-    public static final long BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS =
-        XPackInfoResponse.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
+    static final TimeValue LICENSE_EXPIRATION_WARNING_PERIOD = TimeValue.timeValueDays(7);
+    static final long BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS = XPackInfoResponse.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
     /**
      * Max number of nodes licensed by generated trial license
      */
-    public static final int SELF_GENERATED_LICENSE_MAX_NODES = 1000;
-    public static final int SELF_GENERATED_LICENSE_MAX_RESOURCE_UNITS = SELF_GENERATED_LICENSE_MAX_NODES;
+    static final int SELF_GENERATED_LICENSE_MAX_NODES = 1000;
+    static final int SELF_GENERATED_LICENSE_MAX_RESOURCE_UNITS = SELF_GENERATED_LICENSE_MAX_NODES;
 
     private static List<License.LicenseType> getAllowableUploadTypes() {
         return Stream.of(License.LicenseType.values()).filter(t -> t != License.LicenseType.BASIC).toList();

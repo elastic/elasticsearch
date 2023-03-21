@@ -17,15 +17,19 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.analytics.AnalyticsCollectionService;
+import org.elasticsearch.xpack.application.utils.LicenseUtils;
 
 public class TransportDeleteAnalyticsCollectionAction extends AcknowledgedTransportMasterNodeAction<
     DeleteAnalyticsCollectionAction.Request> {
 
     private final AnalyticsCollectionService analyticsCollectionService;
+
+    private final XPackLicenseState licenseState;
 
     @Inject
     public TransportDeleteAnalyticsCollectionAction(
@@ -34,7 +38,8 @@ public class TransportDeleteAnalyticsCollectionAction extends AcknowledgedTransp
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        AnalyticsCollectionService analyticsCollectionService
+        AnalyticsCollectionService analyticsCollectionService,
+        XPackLicenseState licenseState
     ) {
         super(
             DeleteAnalyticsCollectionAction.NAME,
@@ -47,6 +52,7 @@ public class TransportDeleteAnalyticsCollectionAction extends AcknowledgedTransp
             ThreadPool.Names.SAME
         );
         this.analyticsCollectionService = analyticsCollectionService;
+        this.licenseState = licenseState;
     }
 
     @Override
@@ -61,6 +67,10 @@ public class TransportDeleteAnalyticsCollectionAction extends AcknowledgedTransp
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        analyticsCollectionService.deleteAnalyticsCollection(state, request, listener.map(v -> AcknowledgedResponse.TRUE));
+        LicenseUtils.runIfSupportedLicence(
+            licenseState,
+            () -> analyticsCollectionService.deleteAnalyticsCollection(state, request, listener),
+            listener::onFailure
+        );
     }
 }

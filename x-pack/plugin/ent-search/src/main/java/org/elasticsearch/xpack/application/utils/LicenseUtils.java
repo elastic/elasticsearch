@@ -14,6 +14,8 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.XPackField;
 
+import java.util.function.Consumer;
+
 public final class LicenseUtils {
     public static final LicensedFeature.Momentary LICENSED_ENT_SEARCH_FEATURE = LicensedFeature.momentary(
         null,
@@ -35,5 +37,13 @@ public final class LicenseUtils {
             licenseStatus
         );
         return e;
+    }
+
+    public static void runIfSupportedLicence(XPackLicenseState licenseState, Runnable onSuccess, Consumer<Exception> onFailure) {
+        if (supportedLicense(licenseState)) {
+            onSuccess.run();
+        } else {
+            onFailure.accept(newComplianceException(licenseState));
+        }
     }
 }

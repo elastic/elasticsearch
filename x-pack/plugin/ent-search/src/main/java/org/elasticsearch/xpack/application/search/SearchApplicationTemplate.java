@@ -21,14 +21,14 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class SearchTemplate implements ToXContentObject, Writeable {
+public class SearchApplicationTemplate implements ToXContentObject, Writeable {
     private final Script script;
 
-    public SearchTemplate(StreamInput in) throws IOException {
+    public SearchApplicationTemplate(StreamInput in) throws IOException {
         this.script = in.readOptionalWriteable(Script::new);
     }
 
-    public SearchTemplate(Script script) {
+    public SearchApplicationTemplate(Script script) {
         this.script = script;
     }
 
@@ -45,13 +45,13 @@ public class SearchTemplate implements ToXContentObject, Writeable {
         out.writeOptionalWriteable(script);
     }
 
-    public static SearchTemplate parse(XContentParser parser) {
+    public static SearchApplicationTemplate parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    private static final ConstructingObjectParser<SearchTemplate, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<SearchApplicationTemplate, Void> PARSER = new ConstructingObjectParser<>(
         "search_template",
-        p -> new SearchTemplate((Script) p[0])
+        p -> new SearchApplicationTemplate((Script) p[0])
     );
 
     static {
@@ -67,7 +67,7 @@ public class SearchTemplate implements ToXContentObject, Writeable {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        SearchTemplate template = (SearchTemplate) o;
+        SearchApplicationTemplate template = (SearchApplicationTemplate) o;
         if (script == null) return template.script == null;
         return script.equals(template.script);
     }

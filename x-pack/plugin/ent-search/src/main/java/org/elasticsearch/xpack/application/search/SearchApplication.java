@@ -42,6 +42,47 @@ public class SearchApplication implements Writeable, ToXContentObject {
 
     private final String name;
     private final String[] indices;
+    private long updatedAtMillis = System.currentTimeMillis();
+    private final String analyticsCollectionName;
+    private final SearchApplicationTemplate searchApplicationTemplate;
+
+    /**
+     * Public constructor.
+     *
+     * @param name                    The name of the search application.
+     * @param indices                 The list of indices targeted by this search application.
+     * @param analyticsCollectionName The name of the associated analytics collection.
+     */
+    public SearchApplication(
+        String name,
+        String[] indices,
+        @Nullable String analyticsCollectionName,
+        @Nullable SearchApplicationTemplate searchApplicationTemplate
+    ) {
+        this.name = name;
+        this.indices = indices;
+        Arrays.sort(indices);
+
+        this.analyticsCollectionName = analyticsCollectionName;
+        this.searchApplicationTemplate = searchApplicationTemplate;
+    }
+
+    public SearchApplication(StreamInput in) throws IOException {
+        this.name = in.readString();
+        this.indices = in.readStringArray();
+        this.analyticsCollectionName = in.readOptionalString();
+        this.updatedAtMillis = in.readLong();
+        this.searchApplicationTemplate = in.readOptionalWriteable(SearchApplicationTemplate::new);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        out.writeStringArray(indices);
+        out.writeOptionalString(analyticsCollectionName);
+        out.writeLong(updatedAtMillis);
+        out.writeOptionalWriteable(searchApplicationTemplate);
+    }
 
     private static final ConstructingObjectParser<SearchApplication, String> PARSER = new ConstructingObjectParser<>(
         "search_application",
@@ -61,47 +102,12 @@ public class SearchApplication implements Writeable, ToXContentObject {
             final String analyticsCollectionName = (String) params[2];
             final Long maybeUpdatedAtMillis = (Long) params[3];
             long updatedAtMillis = (maybeUpdatedAtMillis != null ? maybeUpdatedAtMillis : System.currentTimeMillis());
-            final SearchTemplate template = (SearchTemplate) params[4];
+            final SearchApplicationTemplate template = (SearchApplicationTemplate) params[4];
 
             SearchApplication newApp = new SearchApplication(resourceName, indices, analyticsCollectionName, updatedAtMillis, template);
             return newApp;
         }
     );
-    private final String analyticsCollectionName;
-    private final long updatedAtMillis;
-    private final SearchTemplate searchTemplate;
-
-
-    public SearchApplication(StreamInput in) throws IOException {
-        this.name = in.readString();
-        this.indices = in.readStringArray();
-        this.analyticsCollectionName = in.readOptionalString();
-        this.updatedAtMillis = in.readLong();
-        this.searchTemplate = in.readOptionalWriteable(SearchTemplate::new);
-    }
-
-    /**
-     * Public constructor.
-     *
-     * @param name                    The name of the search application.
-     * @param indices                 The list of indices targeted by this search application.
-     * @param analyticsCollectionName The name of the associated analytics collection.
-     * @param updatedAtMillis         Last updated time in milliseconds for the search application.
-     */
-    public SearchApplication(String name, String[] indices, @Nullable String analyticsCollectionName, long updatedAtMilli, @Nullable SearchTemplate searchTemplate) {
-        if (Strings.isNullOrEmpty(name)) {
-            throw new IllegalArgumentException("Search Application name cannot be null or blank");
-        }
-        this.name = name;
-
-        Objects.requireNonNull(indices, "Search Application indices cannot be null");
-        this.indices = indices.clone();
-        Arrays.sort(this.indices);
-
-        this.analyticsCollectionName = analyticsCollectionName;
-        this.updatedAtMillis = updatedAtMillis;
-        this.searchTemplate = searchTemplate;
-    }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
@@ -126,7 +132,7 @@ public class SearchApplication implements Writeable, ToXContentObject {
         PARSER.declareStringArray(constructorArg(), INDICES_FIELD);
         PARSER.declareStringOrNull(optionalConstructorArg(), ANALYTICS_COLLECTION_NAME_FIELD);
         PARSER.declareLong(optionalConstructorArg(), UPDATED_AT_MILLIS_FIELD);
-        PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> SearchTemplate.parse(p), null, TEMPLATE_FIELD);
+        PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> SearchApplicationTemplate.parse(p), null, TEMPLATE_FIELD);
     }
 
     /**
@@ -172,7 +178,7 @@ public class SearchApplication implements Writeable, ToXContentObject {
             builder.field(ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName(), analyticsCollectionName);
         }
         builder.field(UPDATED_AT_MILLIS_FIELD.getPreferredName(), updatedAtMillis);
-        builder.field(TEMPLATE_FIELD.getPreferredName(), searchTemplate);
+        builder.field(TEMPLATE_FIELD.getPreferredName(), searchApplicationTemplate);
         builder.endObject();
         return builder;
     }
@@ -213,8 +219,8 @@ public class SearchApplication implements Writeable, ToXContentObject {
         return updatedAtMillis;
     }
 
-    public @Nullable SearchTemplate searchTemplate() {
-        return searchTemplate;
+    public @Nullable SearchApplicationTemplate searchTemplate() {
+        return searchApplicationTemplate;
     }
 
     @Override
@@ -226,12 +232,12 @@ public class SearchApplication implements Writeable, ToXContentObject {
             && Arrays.equals(indices, app.indices)
             && Objects.equals(analyticsCollectionName, app.analyticsCollectionName)
             && updatedAtMillis == app.updatedAtMillis()
-            && Objects.equals(searchTemplate, app.searchTemplate);
+            && Objects.equals(searchApplicationTemplate, app.searchApplicationTemplate);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(name, analyticsCollectionName, updatedAtMillis, searchTemplate);
+        int result = Objects.hash(name, analyticsCollectionName, updatedAtMillis, searchApplicationTemplate);
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }

@@ -9,6 +9,7 @@ INLINESTATS : 'inlinestats' -> pushMode(EXPRESSION);
 WHERE : 'where' -> pushMode(EXPRESSION);
 SORT : 'sort' -> pushMode(EXPRESSION);
 LIMIT : 'limit' -> pushMode(EXPRESSION);
+DROP : 'drop' -> pushMode(SOURCE_IDENTIFIERS);
 PROJECT : 'project' -> pushMode(SOURCE_IDENTIFIERS);
 SHOW : 'show' -> pushMode(EXPRESSION);
 UNKNOWN_CMD : ~[ \r\n\t[\]/]+ -> pushMode(EXPRESSION);

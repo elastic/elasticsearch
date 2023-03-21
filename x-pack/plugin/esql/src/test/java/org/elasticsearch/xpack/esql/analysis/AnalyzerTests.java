@@ -248,31 +248,42 @@ public class AnalyzerTests extends ESTestCase {
             """, "first_name", "_meta_field", "emp_no", "gender", "languages", "salary", "last_name");
     }
 
-    public void testProjectExcludeName() {
+    public void testProjectThenDropName() {
         assertProjection("""
             from test
-            | project *name, -first_name
+            | project *name
+            | drop first_name
             """, "last_name");
     }
 
-    public void testProjectKeepAndExcludeName() {
+    public void testProjectAfterDropName() {
         assertProjection("""
             from test
-            | project last_name, -first_name
+            | drop first_name
+            | project *name
             """, "last_name");
     }
 
-    public void testProjectExcludePattern() {
+    public void testProjectKeepAndDropName() {
         assertProjection("""
             from test
-            | project *, -*_name
+            | drop first_name
+            | project last_name
+            """, "last_name");
+    }
+
+    public void testProjectDropPattern() {
+        assertProjection("""
+            from test
+            | project *
+            | drop *_name
             """, "_meta_field", "emp_no", "gender", "languages", "salary");
     }
 
-    public void testProjectExcludeNoStarPattern() {
+    public void testProjectDropNoStarPattern() {
         assertProjection("""
             from test
-            | project -*_name
+            | drop *_name
             """, "_meta_field", "emp_no", "gender", "languages", "salary");
     }
 
@@ -283,10 +294,11 @@ public class AnalyzerTests extends ESTestCase {
             """, "first_name", "last_name", "_meta_field", "gender", "languages", "salary", "emp_no");
     }
 
-    public void testProjectExcludePatternAndKeepOthers() {
+    public void testProjectDropPatternAndKeepOthers() {
         assertProjection("""
             from test
-            | project -l*, first_name, salary
+            | drop l*
+            | project first_name, salary
             """, "first_name", "salary");
     }
 
@@ -301,7 +313,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testErrorOnNoMatchingPatternExclusion() {
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test
-            | project -*nonExisting
+            | drop *nonExisting
             """));
         assertThat(e.getMessage(), containsString("No match found for [*nonExisting]"));
     }
@@ -375,11 +387,11 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("No match found for [un*]"));
     }
 
-    public void testExcludeUnsupportedFieldExplicit() {
+    public void testDropUnsupportedFieldExplicit() {
         assertProjectionWithMapping(
             """
                 from test
-                | project -unsupported
+                | drop unsupported
                 """,
             "mapping-multi-field-variation.json",
             "bool",
@@ -405,25 +417,25 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
-    public void testExcludeMultipleUnsupportedFieldsExplicitly() {
+    public void testDropMultipleUnsupportedFieldsExplicitly() {
         verifyUnsupported("""
             from test
-            | project -languages, -gender
+            | drop languages, gender
             """, "Unknown column [languages]");
     }
 
-    public void testExcludePatternUnsupportedFields() {
+    public void testDropPatternUnsupportedFields() {
         assertProjection("""
             from test
-            | project -*ala*
+            | drop *ala*
             """, "_meta_field", "emp_no", "first_name", "gender", "languages", "last_name");
     }
 
-    public void testExcludeUnsupportedPattern() {
+    public void testDropUnsupportedPattern() {
         assertProjectionWithMapping(
             """
                 from test
-                | project -un*
+                | drop un*
                 """,
             "mapping-multi-field-variation.json",
             "bool",
@@ -522,22 +534,22 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
-    public void testProjectAwayNestedField() {
+    public void testDropNestedField() {
         verifyUnsupported(
             """
                 from test
-                | project -dep, some.string, -dep.dep_id.keyword
+                | drop dep, dep.dep_id.keyword
                 """,
-            "Found 2 problems\n" + "line 2:11: Unknown column [dep]\n" + "line 2:30: Unknown column [dep.dep_id.keyword]",
+            "Found 2 problems\n" + "line 2:8: Unknown column [dep]\n" + "line 2:13: Unknown column [dep.dep_id.keyword]",
             "mapping-multi-field-with-nested.json"
         );
     }
 
-    public void testProjectAwayNestedWildcardField() {
+    public void testDropNestedWildcardField() {
         verifyUnsupported("""
             from test
-            | project -dep.*, some.string
-            """, "Found 1 problem\n" + "line 2:11: No match found for [dep.*]", "mapping-multi-field-with-nested.json");
+            | drop dep.*
+            """, "Found 1 problem\n" + "line 2:8: No match found for [dep.*]", "mapping-multi-field-with-nested.json");
     }
 
     public void testSupportedDeepHierarchy() {
@@ -547,11 +559,11 @@ public class AnalyzerTests extends ESTestCase {
             """, "mapping-multi-field-with-nested.json", "some.dotted.field", "some.string.normalized");
     }
 
-    public void testExcludeSupportedDottedField() {
+    public void testDropSupportedDottedField() {
         assertProjectionWithMapping(
             """
                 from test
-                | project -some.dotted.field
+                | drop some.dotted.field
                 """,
             "mapping-multi-field-variation.json",
             "bool",
@@ -609,11 +621,11 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
-    public void testExcludeWildcardDottedField() {
+    public void testDropWildcardDottedField() {
         assertProjectionWithMapping(
             """
                 from test
-                | project -some.ambiguous.*
+                | drop some.ambiguous.*
                 """,
             "mapping-multi-field-with-nested.json",
             "binary",
@@ -641,11 +653,11 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
-    public void testExcludeWildcardDottedField2() {
+    public void testDropWildcardDottedField2() {
         assertProjectionWithMapping(
             """
                 from test
-                | project -some.*
+                | drop some.*
                 """,
             "mapping-multi-field-with-nested.json",
             "binary",
@@ -710,11 +722,11 @@ public class AnalyzerTests extends ESTestCase {
             """, "mapping-multi-field-variation.json", "keyword", "point");
     }
 
-    public void testCantFilterAfterProjectedAway() {
+    public void testCantFilterAfterDrop() {
         verifyUnsupported("""
             from test
             | stats c = avg(float) by int
-            | project -int
+            | drop int
             | where int > 0
             """, "Unknown column [int]");
     }

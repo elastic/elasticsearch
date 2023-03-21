@@ -1,0 +1,43 @@
+sortWithLimitOne_DropHeight
+from test | sort languages | limit 1 | drop height*;
+
+avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | hire_date:date | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | still_hired:boolean
+244294991 | 1955-01-21T00:00:00.000Z | 10005 | Kyoichi | M | 1989-09-12T00:00:00.000Z | 1 | 1 | 1 | 1 | Maliniak | 63528 | true
+;
+
+simpleEvalWithSortAndLimitOne_DropHeight
+from test | eval x = languages + 7 | sort x | limit 1 | drop height*;
+
+avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | hire_date:date | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | still_hired:boolean | x:integer
+244294991 | 1955-01-21T00:00:00.000Z | 10005 | Kyoichi | M | 1989-09-12T00:00:00.000Z | 1 | 1 | 1 | 1 | Maliniak | 63528 | true | 8
+;
+
+whereWithEvalGeneratedValue_DropHeight
+from test | eval x = salary / 2 | where x > 37000 | drop height*;
+
+avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | hire_date:date | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | still_hired:boolean | x:integer
+393084805 | 1957-05-23T00:00:00.000Z | 10007 | Tzvetan | F | 1989-02-10T00:00:00.000Z |    4 |    4 |    4 |    4 | Zielinski  | 74572 | true  | 37286
+257694181 | 1956-12-13T00:00:00.000Z | 10029 | Otmar   | M | 1985-11-20T00:00:00.000Z | null | null | null | null | Herbst     | 74999 | false | 37499
+371418933 | null                     | 10045 | Moss    | M | 1989-09-02T00:00:00.000Z |    3 |    3 |    3 |    3 | Shanbhogue | 74970 | false | 37485
+;
+
+projectDropWithWildcardKeepOthers
+row a = 1+3, b = 2, ab = 5 | eval x = 1 + b + 5 | eval abc = x * 2 | drop a* | project b,x;
+
+b:integer | x:integer
+2 | 8
+;
+
+dropAllColumns
+from test | project height | drop height | eval x = 1 | limit 3;
+x:integer
+1
+1
+1
+;
+
+dropAllColumns_WithCount
+from test | project height | drop height | eval x = 1 | stats c=count(x);
+c:long
+100
+;

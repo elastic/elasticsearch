@@ -8,10 +8,11 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
-import org.elasticsearch.xpack.esql.plan.logical.ProjectReorderRenameRemove;
+import org.elasticsearch.xpack.esql.plan.logical.ProjectReorderRename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
@@ -39,8 +40,6 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
-import static org.elasticsearch.xpack.ql.util.StringUtils.MINUS;
-import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
 
 public class LogicalPlanBuilder extends ExpressionBuilder {
 
@@ -132,32 +131,28 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
+    public PlanFactory visitDropCommand(EsqlBaseParser.DropCommandContext ctx) {
+        return child -> new Drop(source(ctx), child, ctx.sourceIdentifier().stream().map(this::visitDropExpression).toList());
+    }
+
+    @Override
     public PlanFactory visitProjectCommand(EsqlBaseParser.ProjectCommandContext ctx) {
         int clauseSize = ctx.projectClause().size();
         List<NamedExpression> projections = new ArrayList<>(clauseSize);
-        List<NamedExpression> removals = new ArrayList<>(clauseSize);
 
         boolean hasSeenStar = false;
         for (EsqlBaseParser.ProjectClauseContext clause : ctx.projectClause()) {
             NamedExpression ne = this.visitProjectClause(clause);
-            if (ne instanceof UnresolvedStar == false && ne.name().startsWith(MINUS)) {
-                var name = ne.name().substring(1);
-                if (name.equals(WILDCARD)) {// forbid "-*" kind of expression
-                    throw new ParsingException(ne.source(), "Removing all fields is not allowed [{}]", ne.source().text());
+            if (ne instanceof UnresolvedStar) {
+                if (hasSeenStar) {
+                    throw new ParsingException(ne.source(), "Cannot specify [*] more than once", ne.source().text());
+                } else {
+                    hasSeenStar = true;
                 }
-                removals.add(new UnresolvedAttribute(ne.source(), name, ne.toAttribute().qualifier()));
-            } else {
-                if (ne instanceof UnresolvedStar) {
-                    if (hasSeenStar) {
-                        throw new ParsingException(ne.source(), "Cannot specify [*] more than once", ne.source().text());
-                    } else {
-                        hasSeenStar = true;
-                    }
-                }
-                projections.add(ne);
             }
+            projections.add(ne);
         }
-        return input -> new ProjectReorderRenameRemove(source(ctx), input, projections, removals);
+        return input -> new ProjectReorderRename(source(ctx), input, projections);
     }
 
     @Override

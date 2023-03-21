@@ -245,13 +245,6 @@ avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword 
 244294991 | 1955-01-21T00:00:00.000Z | 10005 | Kyoichi | M | 2.05 | 2.049999952316284 | 2.05078125 | 2.05 | 1989-09-12T00:00:00.000Z | 1 | 1 | 1 | 1 | Maliniak | 63528 | true
 ;
 
-sortWithLimitOne_ExcludeHeight
-from test | sort languages | limit 1 | project -height*;
-
-avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | hire_date:date | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | still_hired:boolean
-244294991 | 1955-01-21T00:00:00.000Z | 10005 | Kyoichi | M | 1989-09-12T00:00:00.000Z | 1 | 1 | 1 | 1 | Maliniak | 63528 | true
-;
-
 sortWithLimitFifteenAndProject
 //https://github.com/elastic/elasticsearch-internal/issues/414
 from test | sort height desc, languages.long nulls last, still_hired | limit 15 | project height, languages.long, still_hired;
@@ -279,13 +272,6 @@ from test | eval x = languages + 7 | sort x | limit 1;
 
 avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | height:double | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | still_hired:boolean | x:integer
 244294991 | 1955-01-21T00:00:00.000Z | 10005 | Kyoichi | M | 2.05 | 2.049999952316284 | 2.05078125 | 2.05 | 1989-09-12T00:00:00.000Z | 1 | 1 | 1 | 1 | Maliniak | 63528 | true | 8
-;
-
-simpleEvalWithSortAndLimitOne_ExcludeHeight
-from test | eval x = languages + 7 | sort x | limit 1 | project -height*;
-
-avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | hire_date:date | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | still_hired:boolean | x:integer
-244294991 | 1955-01-21T00:00:00.000Z | 10005 | Kyoichi | M | 1989-09-12T00:00:00.000Z | 1 | 1 | 1 | 1 | Maliniak | 63528 | true | 8
 ;
 
 evalOfAverageValue
@@ -339,15 +325,6 @@ avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword 
 393084805 | 1957-05-23T00:00:00.000Z | 10007 | Tzvetan | F | 1.7  | 1.7000000476837158 | 1.7001953125 | 1.7  | 1989-02-10T00:00:00.000Z |    4 |    4 |    4 |    4 | Zielinski  | 74572 | true  | 37286
 257694181 | 1956-12-13T00:00:00.000Z | 10029 | Otmar   | M | 1.99 | 1.9900000095367432 | 1.990234375  | 1.99 | 1985-11-20T00:00:00.000Z | null | null | null | null | Herbst     | 74999 | false | 37499
 371418933 | null                     | 10045 | Moss    | M | 1.7  | 1.7000000476837158 | 1.7001953125 | 1.7  | 1989-09-02T00:00:00.000Z |    3 |    3 |    3 |    3 | Shanbhogue | 74970 | false | 37485
-;
-
-whereWithEvalGeneratedValue_ExcludeHeight
-from test | eval x = salary / 2 | where x > 37000 | project -height*;
-
-avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | hire_date:date | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | still_hired:boolean | x:integer
-393084805 | 1957-05-23T00:00:00.000Z | 10007 | Tzvetan | F | 1989-02-10T00:00:00.000Z |    4 |    4 |    4 |    4 | Zielinski  | 74572 | true  | 37286
-257694181 | 1956-12-13T00:00:00.000Z | 10029 | Otmar   | M | 1985-11-20T00:00:00.000Z | null | null | null | null | Herbst     | 74999 | false | 37499
-371418933 | null                     | 10045 | Moss    | M | 1989-09-02T00:00:00.000Z |    3 |    3 |    3 |    3 | Shanbhogue | 74970 | false | 37485
 ;
 
 whereWithStatsValue

@@ -50,7 +50,6 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
-import static org.elasticsearch.xpack.ql.util.StringUtils.MINUS;
 import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
 
 public class ExpressionBuilder extends IdentifierBuilder {
@@ -240,6 +239,15 @@ public class ExpressionBuilder extends IdentifierBuilder {
         );
     }
 
+    public NamedExpression visitDropExpression(EsqlBaseParser.SourceIdentifierContext ctx) {
+        Source src = source(ctx);
+        String identifier = visitSourceIdentifier(ctx);
+        if (identifier.equals(WILDCARD)) {
+            throw new ParsingException(src, "Removing all fields is not allowed [{}]", src.text());
+        }
+        return new UnresolvedAttribute(src, identifier);
+    }
+
     @Override
     public NamedExpression visitProjectClause(EsqlBaseParser.ProjectClauseContext ctx) {
         Source src = source(ctx);
@@ -248,9 +256,6 @@ public class ExpressionBuilder extends IdentifierBuilder {
             String oldName = visitSourceIdentifier(ctx.oldName);
             if (newName.contains(WILDCARD) || oldName.contains(WILDCARD)) {
                 throw new ParsingException(src, "Using wildcards (*) in renaming projections is not allowed [{}]", src.text());
-            }
-            if (newName.startsWith(MINUS) || oldName.startsWith(MINUS)) {
-                throw new ParsingException(src, "Renaming and removing a field at the same time is not allowed [{}]", src.text());
             }
 
             return new Alias(src, newName, new UnresolvedAttribute(source(ctx.oldName), oldName));

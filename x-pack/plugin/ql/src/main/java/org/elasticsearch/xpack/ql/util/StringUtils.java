@@ -36,7 +36,6 @@ public final class StringUtils {
     public static final String NEW_LINE = "\n";
     public static final String SQL_WILDCARD = "%";
     public static final String WILDCARD = "*";
-    public static final String MINUS = "-";
 
     private static final String[] INTEGER_ORDINALS = new String[] { "th", "st", "nd", "rd", "th", "th", "th", "th", "th", "th" };
 

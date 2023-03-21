@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.plan.logical.ProjectReorderRenameRemove;
+import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Great
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.time.Duration;
@@ -428,12 +429,11 @@ public class ExpressionTests extends ESTestCase {
             "a*b*c*a.b.*",
             "*a.b.c*b*c*a.b.*" };
         List<?> projections;
-        ProjectReorderRenameRemove p;
+        Project p;
         for (String e : exp) {
             p = projectExpression(e);
             projections = p.projections();
             assertThat(projections.size(), equalTo(1));
-            assertThat(p.removals().size(), equalTo(0));
             assertThat("Projection [" + e + "] has an unexpected type", projections.get(0), instanceOf(UnresolvedAttribute.class));
             UnresolvedAttribute ua = (UnresolvedAttribute) projections.get(0);
             assertThat(ua.name(), equalTo(e));
@@ -442,10 +442,9 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testWildcardProjectKeep() {
-        ProjectReorderRenameRemove p = projectExpression("*");
+        Project p = projectExpression("*");
         List<?> projections = p.projections();
         assertThat(projections.size(), equalTo(1));
-        assertThat(p.removals().size(), equalTo(0));
         assertThat(projections.get(0), instanceOf(UnresolvedStar.class));
         UnresolvedStar us = (UnresolvedStar) projections.get(0);
         assertThat(us.qualifier(), equalTo(null));
@@ -454,44 +453,36 @@ public class ExpressionTests extends ESTestCase {
 
     public void testWildcardProjectAwayPatterns() {
         String[] exp = new String[] {
-            "-a*",
-            "-*a",
-            "-a.*",
-            "-a.a.*.*.a",
-            "-*.a.a.a.*",
-            "-*abc.*",
-            "-a*b*c",
-            "-*a*",
-            "-*a*b",
-            "-a*b*",
-            "-*a*b*c*",
-            "-a*b*c*",
-            "-*a*b*c",
-            "-a*b*c*a.b*",
-            "-a*b*c*a.b.*",
-            "-*a.b.c*b*c*a.b.*" };
+            "a*",
+            "*a",
+            "a.*",
+            "a.a.*.*.a",
+            "*.a.a.a.*",
+            "*abc.*",
+            "a*b*c",
+            "*a*",
+            "*a*b",
+            "a*b*",
+            "*a*b*c*",
+            "a*b*c*",
+            "*a*b*c",
+            "a*b*c*a.b*",
+            "a*b*c*a.b.*",
+            "*a.b.c*b*c*a.b.*" };
         List<?> removals;
         for (String e : exp) {
-            ProjectReorderRenameRemove p = projectExpression(e);
-            removals = p.removals();
+            Drop d = dropExpression(e);
+            removals = d.removals();
             assertThat(removals.size(), equalTo(1));
-            assertThat(p.projections().size(), equalTo(0));
             assertThat("Projection [" + e + "] has an unexpected type", removals.get(0), instanceOf(UnresolvedAttribute.class));
             UnresolvedAttribute ursa = (UnresolvedAttribute) removals.get(0);
-            assertThat(ursa.name(), equalTo(e.substring(1)));
-            assertThat(ursa.unresolvedMessage(), equalTo("Unknown column [" + e.substring(1) + "]"));
+            assertThat(ursa.name(), equalTo(e));
+            assertThat(ursa.unresolvedMessage(), equalTo("Unknown column [" + e + "]"));
         }
     }
 
     public void testForbidWildcardProjectAway() {
-        assertParsingException(() -> projectExpression("-*"), "line 1:19: Removing all fields is not allowed [-*]");
-    }
-
-    public void testForbidRenameRemovalProjectAway() {
-        var errorMsg = "Renaming and removing a field at the same time is not allowed";
-        assertParsingException(() -> projectExpression("a=-b"), errorMsg);
-        assertParsingException(() -> projectExpression("-a=-b"), errorMsg);
-        assertParsingException(() -> projectExpression("-a=b"), errorMsg);
+        assertParsingException(() -> dropExpression("foo, *"), "line 1:21: Removing all fields is not allowed [*]");
     }
 
     public void testForbidMultipleIncludeStar() {
@@ -504,27 +495,23 @@ public class ExpressionTests extends ESTestCase {
     public void testProjectKeepPatterns() {
         String[] exp = new String[] { "abc", "abc.xyz", "a.b.c.d.e" };
         List<?> projections;
-        ProjectReorderRenameRemove p;
         for (String e : exp) {
-            p = projectExpression(e);
+            Project p = projectExpression(e);
             projections = p.projections();
             assertThat(projections.size(), equalTo(1));
-            assertThat(p.removals().size(), equalTo(0));
             assertThat(projections.get(0), instanceOf(UnresolvedAttribute.class));
             assertThat(((UnresolvedAttribute) projections.get(0)).name(), equalTo(e));
         }
     }
 
     public void testProjectAwayPatterns() {
-        String[] exp = new String[] { "-abc", "-abc.xyz", "-a.b.c.d.e" };
-        List<?> removals;
+        String[] exp = new String[] { "abc", "abc.xyz", "a.b.c.d.e" };
         for (String e : exp) {
-            ProjectReorderRenameRemove p = projectExpression(e);
-            removals = p.removals();
+            Drop d = dropExpression(e);
+            List<?> removals = d.removals();
             assertThat(removals.size(), equalTo(1));
-            assertThat(p.projections().size(), equalTo(0));
             assertThat(removals.get(0), instanceOf(UnresolvedAttribute.class));
-            assertThat(((UnresolvedAttribute) removals.get(0)).name(), equalTo(e.substring(1)));
+            assertThat(((UnresolvedAttribute) removals.get(0)).name(), equalTo(e));
         }
     }
 
@@ -533,10 +520,9 @@ public class ExpressionTests extends ESTestCase {
         String[] oldName = new String[] { "b", "a.c", "x.y", "a" };
         List<?> projections;
         for (int i = 0; i < newName.length; i++) {
-            ProjectReorderRenameRemove p = projectExpression(newName[i] + "=" + oldName[i]);
+            Project p = projectExpression(newName[i] + "=" + oldName[i]);
             projections = p.projections();
             assertThat(projections.size(), equalTo(1));
-            assertThat(p.removals().size(), equalTo(0));
             assertThat(projections.get(0), instanceOf(Alias.class));
             Alias a = (Alias) projections.get(0);
             assertThat(a.child(), instanceOf(UnresolvedAttribute.class));
@@ -547,21 +533,15 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testMultipleProjectPatterns() {
-        ProjectReorderRenameRemove p = projectExpression("abc, xyz*, -foo, x=y, -bar, *");
+        Project p = projectExpression("abc, xyz*, x=y, *");
         List<?> projections = p.projections();
-        List<?> removals = p.removals();
         assertThat(projections.size(), equalTo(4));
-        assertThat(removals.size(), equalTo(2));
         assertThat(projections.get(0), instanceOf(UnresolvedAttribute.class));
         assertThat(((UnresolvedAttribute) projections.get(0)).name(), equalTo("abc"));
         assertThat(projections.get(1), instanceOf(UnresolvedAttribute.class));
         assertThat(((UnresolvedAttribute) projections.get(1)).name(), equalTo("xyz*"));
         assertThat(projections.get(2), instanceOf(Alias.class));
         assertThat(projections.get(3), instanceOf(UnresolvedStar.class));
-        assertThat(removals.get(0), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) removals.get(0)).name(), equalTo("foo"));
-        assertThat(removals.get(1), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) removals.get(1)).name(), equalTo("bar"));
     }
 
     public void testForbidWildcardProjectRename() {
@@ -576,8 +556,12 @@ public class ExpressionTests extends ESTestCase {
         return ((Filter) plan).condition();
     }
 
-    private ProjectReorderRenameRemove projectExpression(String e) {
-        return (ProjectReorderRenameRemove) parser.createStatement("from a | project " + e);
+    private Drop dropExpression(String e) {
+        return (Drop) parser.createStatement("from a | drop " + e);
+    }
+
+    private Project projectExpression(String e) {
+        return (Project) parser.createStatement("from a | project " + e);
     }
 
     private Literal l(Object value, DataType type) {

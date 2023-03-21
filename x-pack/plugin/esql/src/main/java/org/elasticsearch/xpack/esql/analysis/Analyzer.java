@@ -10,8 +10,9 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.ProjectReorderRenameRemove;
+import org.elasticsearch.xpack.esql.plan.logical.ProjectReorderRename;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
@@ -43,7 +44,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
-import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.ArrayList;
@@ -186,14 +186,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         protected LogicalPlan doRule(LogicalPlan plan) {
             final List<Attribute> childrenOutput = new ArrayList<>();
-            final var lazyNames = new Holder<Set<String>>();
 
             for (LogicalPlan child : plan.children()) {
                 var output = child.output();
                 childrenOutput.addAll(output);
             }
 
-            if (plan instanceof ProjectReorderRenameRemove p) {
+            if (plan instanceof Drop d) {
+                return resolveDrop(d, childrenOutput);
+            }
+
+            if (plan instanceof ProjectReorderRename p) {
                 return resolveProject(p, childrenOutput);
             }
 
@@ -201,15 +204,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return resolveEval(p, childrenOutput);
             }
 
-            return plan.transformExpressionsUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, childrenOutput, lazyNames));
+            return plan.transformExpressionsUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, childrenOutput));
         }
 
-        private Expression resolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, Holder<Set<String>> lazyNames) {
+        private Expression resolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
             if (ua.customMessage()) {
                 return ua;
             }
             Expression resolved = ua;
-            var named = resolveAgainstList(ua, childrenOutput, lazyNames);
+            var named = resolveAgainstList(ua, childrenOutput);
             // if resolved, return it; otherwise keep it in place to be resolved later
             if (named.size() == 1) {
                 resolved = named.get(0);
@@ -226,13 +229,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private LogicalPlan resolveEval(Eval eval, List<Attribute> childOutput) {
             List<Attribute> allResolvedInputs = new ArrayList<>(childOutput);
-            final var lazyNames = new Holder<Set<String>>();
             List<NamedExpression> newFields = new ArrayList<>();
             boolean changed = false;
             for (NamedExpression field : eval.fields()) {
                 NamedExpression result = (NamedExpression) field.transformUp(
                     UnresolvedAttribute.class,
-                    ua -> resolveAttribute(ua, allResolvedInputs, lazyNames)
+                    ua -> resolveAttribute(ua, allResolvedInputs)
                 );
 
                 changed |= result != field;
@@ -253,9 +255,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return changed ? new Eval(eval.source(), eval.child(), newFields) : eval;
         }
 
-        private LogicalPlan resolveProject(ProjectReorderRenameRemove p, List<Attribute> childOutput) {
-            var lazyNames = new Holder<Set<String>>();
-
+        private LogicalPlan resolveProject(Project p, List<Attribute> childOutput) {
             List<NamedExpression> resolvedProjections = new ArrayList<>();
             var projections = p.projections();
             // start with projections
@@ -274,7 +274,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (ne instanceof UnresolvedStar) {
                         starPosition = resolvedProjections.size();
                     } else if (ne instanceof UnresolvedAttribute ua) {
-                        resolvedProjections.addAll(resolveAgainstList(ua, childOutput, lazyNames));
+                        resolvedProjections.addAll(resolveAgainstList(ua, childOutput));
                     } else {
                         // if this gets here it means it was already resolved
                         resolvedProjections.add(ne);
@@ -288,10 +288,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
 
-            // continue with removals
-            for (var ne : p.removals()) {
-                var resolved = ne instanceof UnresolvedAttribute ua ? resolveAgainstList(ua, childOutput, lazyNames) : singletonList(ne);
+            return new EsqlProject(p.source(), p.child(), resolvedProjections);
+        }
 
+        private LogicalPlan resolveDrop(Drop drop, List<Attribute> childOutput) {
+            List<NamedExpression> resolvedProjections = new ArrayList<>(childOutput);
+
+            for (var ne : drop.removals()) {
+                var resolved = ne instanceof UnresolvedAttribute ua ? resolveAgainstList(ua, childOutput) : singletonList(ne);
+                // the return list might contain either resolved elements or unresolved ones.
+                // if things are resolved, remove them - if not add them to the list to trip the Verifier;
                 // thus make sure to remove the intersection but add the unresolved difference (if any).
                 // so, remove things that are in common
                 resolvedProjections.removeIf(resolved::contains);
@@ -303,11 +309,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 });
             }
 
-            return new EsqlProject(p.source(), p.child(), resolvedProjections);
+            return new EsqlProject(drop.source(), drop.child(), resolvedProjections);
         }
     }
 
-    public static List<Attribute> resolveAgainstList(UnresolvedAttribute u, Collection<Attribute> attrList, Holder<Set<String>> lazyNames) {
+    private static List<Attribute> resolveAgainstList(UnresolvedAttribute u, Collection<Attribute> attrList) {
         var matches = AnalyzerRules.maybeResolveAgainstList(u, attrList, false, true, Analyzer::handleSpecialFields);
 
         // none found - add error message
@@ -317,16 +323,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (Regex.isSimpleMatchPattern(name)) {
                 unresolved = u.withUnresolvedMessage(format(null, "No match found for [{}]", name));
             } else {
-                var names = lazyNames.get();
-                if (names == null) {
-                    names = new HashSet<>(attrList.size());
-                    for (var a : attrList) {
-                        String nameCandidate = a.name();
-                        if (EsqlDataTypes.isPrimitive(a.dataType())) {
-                            names.add(nameCandidate);
-                        }
+                Set<String> names = new HashSet<>(attrList.size());
+                for (var a : attrList) {
+                    String nameCandidate = a.name();
+                    if (EsqlDataTypes.isPrimitive(a.dataType())) {
+                        names.add(nameCandidate);
                     }
-                    lazyNames.set(names);
                 }
                 unresolved = u.withUnresolvedMessage(UnresolvedAttribute.errorMessage(name, StringUtils.findSimilar(name, names)));
             }

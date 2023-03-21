@@ -34,6 +34,7 @@ processingCommand
     | sortCommand
     | statsCommand
     | whereCommand
+    | dropCommand
     ;
 
 whereCommand
@@ -141,6 +142,10 @@ projectCommand
 projectClause
     : sourceIdentifier
     | newName=sourceIdentifier ASSIGN oldName=sourceIdentifier
+    ;
+
+dropCommand
+    : DROP sourceIdentifier (COMMA sourceIdentifier)*
     ;
 
 booleanValue

@@ -744,7 +744,7 @@ public class TaskManager implements ClusterStateApplier {
 
         void removeTask(CancellableTask task) {
             final boolean removed = pendingTasks.remove(task);
-            assert removed : "task " + task.getId() + " is not in the pending list";
+            assert removed : "task is not in the pending list: " + task;
         }
     }
 

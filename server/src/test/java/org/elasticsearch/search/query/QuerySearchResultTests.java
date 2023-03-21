@@ -27,6 +27,8 @@ import org.elasticsearch.search.aggregations.InternalAggregationsTests;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.rank.rrf.RRFRankDoc;
+import org.elasticsearch.search.rank.rrf.RRFRankShardResult;
 import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
 
@@ -69,6 +71,19 @@ public class QuerySearchResultTests extends ESTestCase {
         result.topDocs(new TopDocsAndMaxScore(topDocs, randomBoolean() ? Float.NaN : randomFloat()), new DocValueFormat[0]);
         result.size(randomInt());
         result.from(randomInt());
+        if (randomBoolean()) {
+            int queryCount = randomIntBetween(2, 4);
+            RRFRankDoc[] docs = new RRFRankDoc[randomIntBetween(5, 20)];
+            for (int di = 0; di < docs.length; ++di) {
+                docs[di] = new RRFRankDoc(di, -1, queryCount);
+                docs[di].rank = di + 1;
+                for (int qi = 0; qi < queryCount; ++qi) {
+                    docs[di].positions[qi] = di;
+                    docs[di].scores[qi] = di;
+                }
+            }
+            result.setRankShardResult(new RRFRankShardResult(queryCount, docs));
+        }
         if (randomBoolean()) {
             result.suggest(SuggestTests.createTestItem());
         }

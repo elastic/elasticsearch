@@ -269,6 +269,20 @@ public class ShardLimitsHealthIndicatorServiceTests extends ESTestCase {
         }
     }
 
+    // We expose the indicator name and the diagnoses in the x-pack usage API. In order to index them properly in a telemetry index
+    // they need to be declared in the health-api-indexer.edn in the telemetry repository.
+    public void testMappedFieldsForTelemetry() {
+        assertEquals(ShardLimitsHealthIndicatorService.NAME, "shard_limits");
+        assertEquals(
+            "elasticsearch:health:shard_limits:diagnosis:increase_max_shards_per_node",
+            SHARD_LIMITS_REACHED_NORMAL_NODES.definition().getUniqueId()
+        );
+        assertEquals(
+            "elasticsearch:health:shard_limits:diagnosis:increase_max_shards_per_node_frozen",
+            SHARD_LIMITS_REACHED_FROZEN_NODES.definition().getUniqueId()
+        );
+    }
+
     private static int randomValidMaxShards() {
         return randomIntBetween(50, 1000);
     }

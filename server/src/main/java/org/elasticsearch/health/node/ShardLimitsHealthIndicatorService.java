@@ -20,7 +20,7 @@ import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.indices.ShardLimitValidator;
 
 import java.util.List;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.indices.ShardLimitValidator.FROZEN_GROUP;
@@ -52,10 +52,10 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
         new HealthIndicatorImpact(NAME, "upgrade_at_risk", 2, UPGRADE_AT_RISK, List.of(ImpactArea.DEPLOYMENT_MANAGEMENT))
     );
 
-    private static final Function<String, Diagnosis> SHARD_LIMITS_REACHED_FN = settingName -> new Diagnosis(
+    private static final BiFunction<String, String, Diagnosis> SHARD_LIMITS_REACHED_FN = (id, settingName) -> new Diagnosis(
         new Diagnosis.Definition(
             NAME,
-            "increase_max_shards_per_node",
+            id,
             "The current value of the setting `"
                 + settingName
                 + "` is either about to be or already reached which will not allow adding more shards to the cluster.",
@@ -66,9 +66,11 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
     );
 
     static final Diagnosis SHARD_LIMITS_REACHED_NORMAL_NODES = SHARD_LIMITS_REACHED_FN.apply(
+        "increase_max_shards_per_node",
         ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey()
     );
     static final Diagnosis SHARD_LIMITS_REACHED_FROZEN_NODES = SHARD_LIMITS_REACHED_FN.apply(
+        "increase_max_shards_per_node_frozen",
         ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey()
     );
 

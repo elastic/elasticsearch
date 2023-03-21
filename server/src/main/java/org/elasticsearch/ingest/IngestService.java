@@ -1142,14 +1142,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return new Pipeline(id, description, null, null, new CompoundProcessor(failureProcessor));
     }
 
-    static class PipelineHolder {
+    record PipelineHolder(PipelineConfiguration configuration, Pipeline pipeline) {
 
-        final PipelineConfiguration configuration;
-        final Pipeline pipeline;
-
-        PipelineHolder(PipelineConfiguration configuration, Pipeline pipeline) {
-            this.configuration = Objects.requireNonNull(configuration);
-            this.pipeline = Objects.requireNonNull(pipeline);
+        public PipelineHolder {
+            Objects.requireNonNull(configuration);
+            Objects.requireNonNull(pipeline);
         }
     }
 

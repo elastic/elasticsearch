@@ -55,7 +55,7 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
     );
 
     static {
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> Script.parse(p), SearchApplication.TEMPLATE_SCRIPT_FIELD);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> Script.parse(p, Script.DEFAULT_TEMPLATE_LANG), SearchApplication.TEMPLATE_SCRIPT_FIELD);
     }
 
     @Override

@@ -16,7 +16,7 @@ Retrieves information about a Search Application.
 [[get-search-application-prereq]]
 ==== {api-prereq-title}
 
-Requires the `manage_search-application` cluster privilege.
+Requires the `manage_search_application` cluster privilege.
 
 [[get-search-application-path-params]]
 ==== {api-path-parms-title}
@@ -49,11 +49,9 @@ A sample response:
 [source,console-result]
 ----
 {
-    {
-      "name": "my-app",
-      "indices": [ "index1", "index2" ],
-      "analytics_collection_name": "my-analytics",
-      "template": null
-    }
+    "name": "my-app",
+    "indices": [ "index1", "index2" ],
+    "analytics_collection_name": "my-analytics",
+    "template": null
 }
 ----

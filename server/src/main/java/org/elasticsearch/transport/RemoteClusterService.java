@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -48,11 +49,12 @@ import java.util.stream.Stream;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.enumSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 
 /**
  * Basic service for accessing remote clusters via gateway nodes
  */
-public final class RemoteClusterService extends RemoteClusterAware implements Closeable {
+public final class RemoteClusterService extends RemoteClusterAware implements Closeable, ReportingService<RemoteClusterServerInfo> {
 
     private static final Logger logger = LogManager.getLogger(RemoteClusterService.class);
 
@@ -129,9 +131,14 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     public static final String REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME = "cluster:internal/remote_cluster/handshake";
 
     private final boolean enabled;
+    private final boolean remoteClusterServerEnabled;
 
     public boolean isEnabled() {
         return enabled;
+    }
+
+    public boolean isRemoteClusterServerEnabled() {
+        return remoteClusterServerEnabled;
     }
 
     private final TransportService transportService;
@@ -140,6 +147,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     RemoteClusterService(Settings settings, TransportService transportService) {
         super(settings);
         this.enabled = DiscoveryNode.isRemoteClusterClient(settings);
+        this.remoteClusterServerEnabled = REMOTE_CLUSTER_SERVER_ENABLED.get(settings);
         this.transportService = transportService;
 
         if (RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.get(settings)) {
@@ -373,6 +381,15 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     public Stream<RemoteConnectionInfo> getRemoteConnectionInfos() {
         return remoteClusters.values().stream().map(RemoteClusterConnection::getConnectionInfo);
+    }
+
+    @Override
+    public RemoteClusterServerInfo info() {
+        if (remoteClusterServerEnabled) {
+            return new RemoteClusterServerInfo(transportService.boundRemoteAccessAddress());
+        } else {
+            return null;
+        }
     }
 
     /**

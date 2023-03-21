@@ -28,20 +28,26 @@ public class SearchApplicationListItem implements Writeable, ToXContentObject {
     public static final ParseField NAME_FIELD = new ParseField("name");
     public static final ParseField INDICES_FIELD = new ParseField("indices");
     public static final ParseField ANALYTICS_COLLECTION_NAME_FIELD = new ParseField("analytics_collection_name");
+
+    public static final ParseField UPDATED_AT_MILLIS_FIELD = new ParseField("updated_at_millis");
     private final String name;
     private final String[] indices;
     private final String analyticsCollectionName;
 
-    public SearchApplicationListItem(String name, String[] indices, @Nullable String analyticsCollectionName) {
+    private final long updatedAtMillis;
+
+    public SearchApplicationListItem(String name, String[] indices, @Nullable String analyticsCollectionName, long updatedAtMillis) {
         this.name = name;
         this.indices = indices;
         this.analyticsCollectionName = analyticsCollectionName;
+        this.updatedAtMillis = updatedAtMillis;
     }
 
     public SearchApplicationListItem(StreamInput in) throws IOException {
         this.name = in.readString();
         this.indices = in.readStringArray();
         this.analyticsCollectionName = in.readOptionalString();
+        this.updatedAtMillis = in.readLong();
     }
 
     @Override
@@ -52,6 +58,7 @@ public class SearchApplicationListItem implements Writeable, ToXContentObject {
         if (analyticsCollectionName != null) {
             builder.field(ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName(), analyticsCollectionName);
         }
+        builder.field(UPDATED_AT_MILLIS_FIELD.getPreferredName(), updatedAtMillis);
         builder.endObject();
         return builder;
     }
@@ -61,6 +68,7 @@ public class SearchApplicationListItem implements Writeable, ToXContentObject {
         out.writeString(name);
         out.writeStringArray(indices);
         out.writeOptionalString(analyticsCollectionName);
+        out.writeLong(updatedAtMillis);
     }
 
     public String name() {
@@ -75,6 +83,10 @@ public class SearchApplicationListItem implements Writeable, ToXContentObject {
         return analyticsCollectionName;
     }
 
+    public long updatedAtMillis() {
+        return updatedAtMillis;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -82,12 +94,13 @@ public class SearchApplicationListItem implements Writeable, ToXContentObject {
         SearchApplicationListItem item = (SearchApplicationListItem) o;
         return name.equals(item.name)
             && Arrays.equals(indices, item.indices)
-            && Objects.equals(analyticsCollectionName, item.analyticsCollectionName);
+            && Objects.equals(analyticsCollectionName, item.analyticsCollectionName)
+            && updatedAtMillis == item.updatedAtMillis;
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(name, analyticsCollectionName);
+        int result = Objects.hash(name, analyticsCollectionName, updatedAtMillis);
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }

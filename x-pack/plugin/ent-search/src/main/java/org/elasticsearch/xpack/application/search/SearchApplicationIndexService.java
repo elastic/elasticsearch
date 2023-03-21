@@ -166,6 +166,10 @@ public class SearchApplicationIndexService {
                     builder.field("type", "keyword");
                     builder.endObject();
 
+                    builder.startObject(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName());
+                    builder.field("type", "long");
+                    builder.endObject();
+
                     builder.startObject(SearchApplication.BINARY_CONTENT_FIELD.getPreferredName());
                     builder.field("type", "object");
                     builder.field("enabled", "false");
@@ -275,6 +279,7 @@ public class SearchApplicationIndexService {
                     .field(SearchApplication.NAME_FIELD.getPreferredName(), app.name())
                     .field(SearchApplication.INDICES_FIELD.getPreferredName(), app.indices())
                     .field(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName(), app.analyticsCollectionName())
+                    .field(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName(), app.updatedAtMillis())
                     .directFieldAsBase64(
                         SearchApplication.BINARY_CONTENT_FIELD.getPreferredName(),
                         os -> writeSearchApplicationBinaryWithVersion(app, os, clusterService.state().nodes().getMinNodeVersion())
@@ -374,6 +379,7 @@ public class SearchApplicationIndexService {
                 .docValueField(SearchApplication.NAME_FIELD.getPreferredName())
                 .docValueField(SearchApplication.INDICES_FIELD.getPreferredName())
                 .docValueField(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName())
+                .docValueField(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName())
                 .storedFields(Collections.singletonList("_none_"))
                 .sort(SearchApplication.NAME_FIELD.getPreferredName(), SortOrder.ASC);
             final SearchRequest req = new SearchRequest(SEARCH_APPLICATION_ALIAS_NAME).source(source);
@@ -410,7 +416,8 @@ public class SearchApplicationIndexService {
         return new SearchApplicationListItem(
             resourceName,
             documentFields.get(SearchApplication.INDICES_FIELD.getPreferredName()).getValues().toArray(String[]::new),
-            documentFields.get(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName()).getValue()
+            documentFields.get(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName()).getValue(),
+            documentFields.get(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName()).getValue()
         );
     }
 

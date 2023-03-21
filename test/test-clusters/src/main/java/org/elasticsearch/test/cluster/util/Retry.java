@@ -21,7 +21,7 @@ public final class Retry {
         ExecutionException {
 
         long delayMs = delay.toMillis();
-        AtomicReference<Exception> exception = new AtomicReference<>();
+        AtomicReference<Throwable> throwable = new AtomicReference<>();
         Thread t = new Thread(() -> {
             for (;;) {
                 try {
@@ -29,8 +29,8 @@ public final class Retry {
                     if (complete) {
                         return;
                     }
-                } catch (Exception e) {
-                    exception.set(e);
+                } catch (Throwable e) {
+                    throwable.set(e);
                     return;
                 }
 
@@ -49,8 +49,11 @@ public final class Retry {
                 // it didn't complete in time
                 throw new TimeoutException();
             }
-            if (exception.get() != null) {
-                throw new ExecutionException(exception.get());
+            Throwable e = throwable.get();
+            if (e instanceof Error er) {
+                throw er;
+            } else if (e != null) {
+                throw new ExecutionException(throwable.get());
             }
         } catch (InterruptedException e) {
             // this thread was interrupted while waiting for t to stop

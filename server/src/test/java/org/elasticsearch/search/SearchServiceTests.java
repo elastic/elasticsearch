@@ -1232,8 +1232,17 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             assertEquals(expectedIndexName, searchShardTarget.getFullyQualifiedIndexName());
             assertEquals(clusterAlias, searchShardTarget.getClusterAlias());
             assertEquals(shardId, searchShardTarget.getShardId());
+
+            assertNull(searchContext.dfsResult());
+            searchContext.addDfsResult();
             assertSame(searchShardTarget, searchContext.dfsResult().getSearchShardTarget());
+
+            assertNull(searchContext.queryResult());
+            searchContext.addQueryResult();
             assertSame(searchShardTarget, searchContext.queryResult().getSearchShardTarget());
+
+            assertNull(searchContext.fetchResult());
+            searchContext.addFetchResult();
             assertSame(searchShardTarget, searchContext.fetchResult().getSearchShardTarget());
         }
     }

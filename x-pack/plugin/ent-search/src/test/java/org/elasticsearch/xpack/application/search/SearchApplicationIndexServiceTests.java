@@ -95,7 +95,12 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
 
     public void testUpdateSearchApplication() throws Exception {
         {
-            final SearchApplication searchApp = new SearchApplication("my_search_app", new String[] { "index_1", "index_2" }, null, null);
+            final SearchApplication searchApp = new SearchApplication(
+                "my_search_app",
+                new String[] { "index_1", "index_2" },
+                null,
+                SearchApplicationTestUtils.getRandomSearchTemplate()
+            );
             IndexResponse resp = awaitPutSearchApplication(searchApp, false);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
             assertThat(resp.getIndex(), equalTo(SEARCH_APPLICATION_CONCRETE_INDEX_NAME));
@@ -108,13 +113,14 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
             "my_search_app",
             new String[] { "index_3", "index_4" },
             "my_search_app_analytics_collection",
-            null
+            SearchApplicationTestUtils.getRandomSearchTemplate()
         );
         IndexResponse newResp = awaitPutSearchApplication(searchApp, false);
         assertThat(newResp.status(), equalTo(RestStatus.OK));
         assertThat(newResp.getIndex(), equalTo(SEARCH_APPLICATION_CONCRETE_INDEX_NAME));
         SearchApplication getNewSearchApp = awaitGetSearchApplication(searchApp.name());
         assertThat(searchApp, equalTo(getNewSearchApp));
+        assertThat(searchApp.searchTemplate(), equalTo(getNewSearchApp.searchTemplate()));
         checkAliases(searchApp);
     }
 

@@ -476,10 +476,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * 'on_failure', so we report metrics for the set processor, not an on_failure processor.
      *
      * @param compoundProcessor The compound processor to start walking the non-failure processors
-     * @param processorMetrics The list of {@link Processor} {@link IngestMetric} tuples.
-     * @return the processorMetrics for all non-failure processor that belong to the original compoundProcessor
+     * @param processorMetrics The list to populate with {@link Processor} {@link IngestMetric} tuples.
      */
-    private static List<Tuple<Processor, IngestMetric>> getProcessorMetrics(
+    private static void collectProcessorMetrics(
         CompoundProcessor compoundProcessor,
         List<Tuple<Processor, IngestMetric>> processorMetrics
     ) {
@@ -505,12 +504,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             } while (unwrapped);
 
             if (processor instanceof CompoundProcessor cp) {
-                getProcessorMetrics(cp, processorMetrics);
+                collectProcessorMetrics(cp, processorMetrics);
             } else {
                 processorMetrics.add(new Tuple<>(processor, metric));
             }
         }
-        return processorMetrics;
     }
 
     /**
@@ -840,7 +838,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             CompoundProcessor rootProcessor = pipeline.getCompoundProcessor();
             statsBuilder.addPipelineMetrics(id, pipeline.getMetrics());
             List<Tuple<Processor, IngestMetric>> processorMetrics = new ArrayList<>();
-            getProcessorMetrics(rootProcessor, processorMetrics);
+            collectProcessorMetrics(rootProcessor, processorMetrics);
             processorMetrics.forEach(t -> {
                 Processor processor = t.v1();
                 IngestMetric processorMetric = t.v2();
@@ -1008,8 +1006,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 newPipeline.getMetrics().add(oldPipeline.getMetrics());
                 List<Tuple<Processor, IngestMetric>> oldPerProcessMetrics = new ArrayList<>();
                 List<Tuple<Processor, IngestMetric>> newPerProcessMetrics = new ArrayList<>();
-                getProcessorMetrics(oldPipeline.getCompoundProcessor(), oldPerProcessMetrics);
-                getProcessorMetrics(newPipeline.getCompoundProcessor(), newPerProcessMetrics);
+                collectProcessorMetrics(oldPipeline.getCompoundProcessor(), oldPerProcessMetrics);
+                collectProcessorMetrics(newPipeline.getCompoundProcessor(), newPerProcessMetrics);
                 // Best attempt to populate new processor metrics using a parallel array of the old metrics. This is not ideal since
                 // the per processor metrics may get reset when the arrays don't match. However, to get to an ideal model, unique and
                 // consistent id's per processor and/or semantic equals for each processor will be needed.

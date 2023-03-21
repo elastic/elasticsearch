@@ -70,16 +70,19 @@ teardown:
   - match: { results.0.indices: [ "test-index1", "test-index2" ] }
   - match: { results.0.analytics_collection_name: "test-another-analytics" }
   - match: { results.0.updated_at_millis: $updatedAtMillis0 }
+  - gte: { results.0.updated_at_millis: 0 }
 
   - match: { results.1.name: "test-search-application-1" }
   - match: { results.1.indices: [ "test-index1" ] }
   - match: { results.1.analytics_collection_name: "test-analytics1" }
   - match: { results.1.updated_at_millis: $updatedAtMillis1 }
+  - gte: { results.1.updated_at_millis: 0 }
 
   - match: { results.2.name: "test-search-application-2" }
   - match: { results.2.indices: [ "test-index2" ] }
   - match: { results.2.analytics_collection_name: "test-analytics2" }
   - match: { results.2.updated_at_millis: $updatedAtMillis2 }
+  - gte: { results.2.updated_at_millis: 0 }
 
 ---
 "Pagination - From":
@@ -95,11 +98,13 @@ teardown:
   - match: { results.0.indices: [ "test-index1" ] }
   - match: { results.0.analytics_collection_name: "test-analytics1" }
   - match: { results.0.updated_at_millis: $updatedAtMillis0 }
+  - gte: { results.0.updated_at_millis: 0 }
 
   - match: { results.1.name: "test-search-application-2" }
   - match: { results.1.indices: [ "test-index2" ] }
   - match: { results.1.analytics_collection_name: "test-analytics2" }
   - match: { results.1.updated_at_millis: $updatedAtMillis1 }
+  - gte: { results.1.updated_at_millis: 0 }
 
 ---
 "Pagination - Size":
@@ -115,11 +120,13 @@ teardown:
   - match: { results.0.indices: [ "test-index1", "test-index2" ] }
   - match: { results.0.analytics_collection_name: "test-another-analytics" }
   - match: { results.0.updated_at_millis: $updatedAtMillis0 }
+  - gte: { results.0.updated_at_millis: 0 }
 
   - match: { results.1.name: "test-search-application-1" }
   - match: { results.1.indices: [ "test-index1" ] }
   - match: { results.1.analytics_collection_name: "test-analytics1" }
   - match: { results.1.updated_at_millis: $updatedAtMillis1 }
+  - gte: { results.1.updated_at_millis: 0 }
 
 
 ---
@@ -136,11 +143,13 @@ teardown:
   - match: { results.0.indices: [ "test-index1" ] }
   - match: { results.0.analytics_collection_name: "test-analytics1" }
   - match: { results.0.updated_at_millis: $updatedAtMillis0 }
+  - gte: { results.0.updated_at_millis: 0 }
 
   - match: { results.1.name: "test-search-application-2" }
   - match: { results.1.indices: [ "test-index2" ] }
   - match: { results.1.analytics_collection_name: "test-analytics2" }
   - match: { results.1.updated_at_millis: $updatedAtMillis1 }
+  - gte: { results.1.updated_at_millis: 0 }
 
 ---
 "Empty query results":

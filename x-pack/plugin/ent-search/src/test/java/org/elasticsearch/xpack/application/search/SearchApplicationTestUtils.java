@@ -7,11 +7,17 @@
 
 package org.elasticsearch.xpack.application.search;
 
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 
+import java.util.Collections;
+import java.util.Locale;
+
 import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
@@ -35,7 +41,19 @@ public final class SearchApplicationTestUtils {
             generateRandomStringArray(10, 10, false, false),
             randomFrom(new String[] { null, randomAlphaOfLengthBetween(1, 10) }),
             randomLongBetween(0, Long.MAX_VALUE),
-            null
+            randomBoolean() ? getRandomSearchTemplate() : null
         );
+    }
+
+    public static SearchTemplate getRandomSearchTemplate() {
+        String paramName = randomAlphaOfLengthBetween(8, 10);
+        String paramValue = randomAlphaOfLengthBetween(8, 10);
+        String query = String.format(Locale.ROOT, """
+            "query_string": {
+                "query": "{{%s}}"
+            }
+            """, paramName);
+        final Script script = new Script(ScriptType.INLINE, "mustache", query, Collections.singletonMap(paramName, paramValue));
+        return new SearchTemplate(script);
     }
 }

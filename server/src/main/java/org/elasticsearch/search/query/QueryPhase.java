@@ -43,10 +43,10 @@ import java.io.IOException;
 import java.util.LinkedList;
 import java.util.concurrent.ExecutorService;
 
+import static org.elasticsearch.search.query.QueryCollectorContext.createAggsCollectorContext;
 import static org.elasticsearch.search.query.QueryCollectorContext.createEarlyTerminationCollectorContext;
 import static org.elasticsearch.search.query.QueryCollectorContext.createFilteredCollectorContext;
 import static org.elasticsearch.search.query.QueryCollectorContext.createMinScoreCollectorContext;
-import static org.elasticsearch.search.query.QueryCollectorContext.createAggsCollectorContext;
 import static org.elasticsearch.search.query.TopDocsCollectorContext.createTopDocsCollectorContext;
 
 /**

@@ -147,7 +147,6 @@ public class VectorTileCCSIT extends ESRestTestCase {
             if (tag.equals(thisTag)) {
                 VectorTile.Tile.Value thisValue = layer.getValues(feature.getTags(i + 1));
                 return value.equals(thisValue.getStringValue());
-
             }
         }
         return false;

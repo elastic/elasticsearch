@@ -1,0 +1,5 @@
+pr: 94607
+summary: Use `IndexWriter.flushNextBuffer()` in `InternalEngine.writeIndexingBuffer()`
+area: Engine
+type: enhancement
+issues: []

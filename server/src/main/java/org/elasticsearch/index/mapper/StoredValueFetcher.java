@@ -39,7 +39,11 @@ public final class StoredValueFetcher implements ValueFetcher {
     public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) throws IOException {
         leafSearchLookup.setDocument(doc);
         List<Object> values = leafSearchLookup.fields().get(fieldname).getValues();
-        return List.copyOf(values);
+        if (values == null) {
+            return values;
+        } else {
+            return List.copyOf(values);
+        }
     }
 
 }

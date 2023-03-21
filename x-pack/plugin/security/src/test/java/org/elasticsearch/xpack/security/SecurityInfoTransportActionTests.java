@@ -97,7 +97,6 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
     }
 
     @SuppressWarnings("rawtypes")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94568")
     public void testUsage() throws Exception {
         final boolean explicitlyDisabled = randomBoolean();
         final boolean enabled = explicitlyDisabled == false;

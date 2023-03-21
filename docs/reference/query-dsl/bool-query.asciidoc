@@ -170,7 +170,7 @@ GET /_search
 }
 ----
 
-The request parameter named `rest_include_named_queries_score` controls whether scores associated
+The request parameter named `include_named_queries_score` controls whether scores associated
 with the matched queries are returned or not. When set, the response includes a `matched_queries`
 map that contains the name of the query that matched as a key and its associated score as the value.
 
@@ -179,7 +179,7 @@ in a filter or must_not contexts, or inside a clause that ignores or modifies th
 
 [source,console]
 ----
-GET /_search?rest_include_named_queries_score
+GET /_search?include_named_queries_score
 {
   "query": {
     "bool": {

@@ -735,7 +735,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         }
         sortValues.toXContent(builder, params);
         if (matchedQueries != null && matchedQueries.size() > 0) {
-            boolean includeMatchedQueriesScore = params.paramAsBoolean(RestSearchAction.REST_INCLUDE_NAMED_QUERIES_SCORE, false);
+            boolean includeMatchedQueriesScore = params.paramAsBoolean(RestSearchAction.INCLUDE_NAMED_QUERIES_SCORE_PARAM, false);
             if (includeMatchedQueriesScore) {
                 builder.startObject(Fields.MATCHED_QUERIES);
                 for (Map.Entry<String, Float> entry : matchedQueries.entrySet()) {

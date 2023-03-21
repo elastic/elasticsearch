@@ -62,7 +62,7 @@ named_queries_with_score:
 
     - do:
           search:
-              rest_include_named_queries_score: true
+              include_named_queries_score: true
               index: test_1
               body:
                   query:

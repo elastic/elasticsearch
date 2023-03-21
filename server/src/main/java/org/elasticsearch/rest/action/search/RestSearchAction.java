@@ -67,8 +67,8 @@ public class RestSearchAction extends BaseRestHandler {
      */
     public static final String TOTAL_HITS_AS_INT_PARAM = "rest_total_hits_as_int";
     public static final String TYPED_KEYS_PARAM = "typed_keys";
-    public static final String REST_INCLUDE_NAMED_QUERIES_SCORE = "rest_include_named_queries_score";
-    public static final Set<String> RESPONSE_PARAMS = Set.of(TYPED_KEYS_PARAM, TOTAL_HITS_AS_INT_PARAM, REST_INCLUDE_NAMED_QUERIES_SCORE);
+    public static final String INCLUDE_NAMED_QUERIES_SCORE_PARAM = "include_named_queries_score";
+    public static final Set<String> RESPONSE_PARAMS = Set.of(TYPED_KEYS_PARAM, TOTAL_HITS_AS_INT_PARAM, INCLUDE_NAMED_QUERIES_SCORE_PARAM);
 
     private final SearchUsageHolder searchUsageHolder;
 
@@ -421,7 +421,7 @@ public class RestSearchAction extends BaseRestHandler {
         checkRestTotalHits(restRequest, searchRequest);
         checkSearchType(restRequest, searchRequest);
         // ensures that the rest param is consumed
-        restRequest.paramAsBoolean(REST_INCLUDE_NAMED_QUERIES_SCORE, false);
+        restRequest.paramAsBoolean(INCLUDE_NAMED_QUERIES_SCORE_PARAM, false);
     }
 
     /**

@@ -13,10 +13,12 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.rescore.RescoreContext;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -32,6 +34,11 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
         }
         if (context.parsedPostFilter() != null) {
             namedQueries.putAll(context.parsedPostFilter().namedFilters());
+        }
+        for (RescoreContext rescoreContext : context.rescore()) {
+            for (ParsedQuery parsedQuery : rescoreContext.getParsedQueries()) {
+                namedQueries.putAll(parsedQuery.namedFilters());
+            }
         }
         if (namedQueries.isEmpty()) {
             return null;

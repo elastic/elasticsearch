@@ -21,7 +21,12 @@ import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.collapse.CollapseBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.rank.rrf.RRFRankContextBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
+import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -254,6 +259,125 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             } else {
                 assertNull(validationErrors);
             }
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest().source(
+                new SearchSourceBuilder().rankContextBuilder(new RRFRankContextBuilder())
+                    .query(QueryBuilders.termQuery("field", "term"))
+                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100)))
+            ).scroll(new TimeValue(1000));
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[rank] cannot be used in a scroll context", validationErrors.validationErrors().get(0));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest().source(
+                new SearchSourceBuilder().rankContextBuilder(new RRFRankContextBuilder())
+                    .query(QueryBuilders.termQuery("field", "term"))
+                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100)))
+                    .size(0)
+            );
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[rank] requires [size] greater than [0]", validationErrors.validationErrors().get(0));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest().source(
+                new SearchSourceBuilder().rankContextBuilder(new RRFRankContextBuilder())
+                    .query(QueryBuilders.termQuery("field", "term"))
+                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100)))
+                    .addRescorer(new QueryRescorerBuilder(QueryBuilders.termQuery("rescore", "another term")))
+            );
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[rank] cannot be used with [rescore]", validationErrors.validationErrors().get(0));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest().source(
+                new SearchSourceBuilder().rankContextBuilder(new RRFRankContextBuilder())
+                    .query(QueryBuilders.termQuery("field", "term"))
+                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100)))
+                    .sort("test")
+            );
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[rank] cannot be used with [sort]", validationErrors.validationErrors().get(0));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest().source(
+                new SearchSourceBuilder().rankContextBuilder(new RRFRankContextBuilder())
+                    .query(QueryBuilders.termQuery("field", "term"))
+                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100)))
+                    .collapse(new CollapseBuilder("field"))
+            );
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[rank] cannot be used with [collapse]", validationErrors.validationErrors().get(0));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest().source(
+                new SearchSourceBuilder().rankContextBuilder(new RRFRankContextBuilder())
+                    .query(QueryBuilders.termQuery("field", "term"))
+                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100)))
+                    .suggest(new SuggestBuilder().setGlobalText("test").addSuggestion("suggestion", new TermSuggestionBuilder("term")))
+            );
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[rank] cannot be used with [suggest]", validationErrors.validationErrors().get(0));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest().source(
+                new SearchSourceBuilder().rankContextBuilder(new RRFRankContextBuilder())
+                    .query(QueryBuilders.termQuery("field", "term"))
+                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100)))
+                    .highlighter(new HighlightBuilder().field("field"))
+            );
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[rank] cannot be used with [highlighter]", validationErrors.validationErrors().get(0));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest().source(
+                new SearchSourceBuilder().rankContextBuilder(new RRFRankContextBuilder())
+                    .query(QueryBuilders.termQuery("field", "term"))
+                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100)))
+                    .pointInTimeBuilder(new PointInTimeBuilder("test"))
+            );
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[rank] cannot be used with [point in time]", validationErrors.validationErrors().get(0));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest().source(
+                new SearchSourceBuilder().rankContextBuilder(new RRFRankContextBuilder())
+                    .query(QueryBuilders.termQuery("field", "term"))
+                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100)))
+                    .profile(true)
+            );
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[rank] requires [profile] is [false]", validationErrors.validationErrors().get(0));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest().source(
+                new SearchSourceBuilder().rankContextBuilder(new RRFRankContextBuilder())
+                    .query(QueryBuilders.termQuery("field", "term"))
+                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100)))
+                    .explain(true)
+            );
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[rank] requires [explain] is [false]", validationErrors.validationErrors().get(0));
         }
     }
 

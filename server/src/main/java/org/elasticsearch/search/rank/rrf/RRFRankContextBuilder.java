@@ -63,7 +63,7 @@ public class RRFRankContextBuilder extends RankContextBuilder<RRFRankContextBuil
         builder.field(RANK_CONSTANT_FIELD.getPreferredName(), rankConstant);
     }
 
-    protected int rankConstant;
+    protected int rankConstant = DEFAULT_RANK_CONSTANT;
 
     public RRFRankContextBuilder() {}
 

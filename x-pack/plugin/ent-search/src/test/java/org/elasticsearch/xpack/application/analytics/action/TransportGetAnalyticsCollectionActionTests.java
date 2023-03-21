@@ -79,7 +79,7 @@ public class TransportGetAnalyticsCollectionActionTests extends ESTestCase {
         verify(analyticsCollectionService, never()).getAnalyticsCollection(any(), any(), any());
     }
 
-    private MockLicenseState mockLicenceState(boolean supported) {
+    private MockLicenseState mockLicenseState(boolean supported) {
         MockLicenseState licenseState = mock(MockLicenseState.class);
 
         when(licenseState.isAllowed(LicenseUtils.LICENSED_ENT_SEARCH_FEATURE)).thenReturn(supported);

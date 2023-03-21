@@ -197,7 +197,13 @@ final class RemoteClusterConnection implements Closeable {
      * Get the information about remote nodes to be rendered on {@code _remote/info} requests.
      */
     public RemoteConnectionInfo getConnectionInfo() {
-        return new RemoteConnectionInfo(clusterAlias, connectionStrategy.getModeInfo(), initialConnectionTimeout, skipUnavailable);
+        return new RemoteConnectionInfo(
+            clusterAlias,
+            connectionStrategy.getModeInfo(),
+            initialConnectionTimeout,
+            skipUnavailable,
+            REMOTE_CLUSTER_PROFILE.equals(remoteConnectionManager.getConnectionProfile().getTransportProfile())
+        );
     }
 
     int getNumNodesConnected() {

@@ -130,6 +130,15 @@ Service.
 `manage_transform`::
 All operations related to managing {transforms}.
 
+`manage_autoscaling`::
+All deployment operations, create or update autoscaling policy API (Need to be reviewed).
+
+`manage_data_frame_transforms`::
+Enable you to manage transforms (Need to be reviewed).
+
+`manage_enrich`::
+Enable you to manage transforms (Need to be reviewed).
+
 `manage_watcher`::
 All watcher operations, such as putting watches, executing, activate or acknowledging.
 +

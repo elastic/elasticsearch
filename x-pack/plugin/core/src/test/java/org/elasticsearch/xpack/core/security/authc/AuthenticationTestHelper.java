@@ -259,6 +259,10 @@ public class AuthenticationTestHelper {
 
     public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo() {
         final Authentication authentication = randomCrossClusterAccessSupportedAuthenticationSubject();
+        return randomCrossClusterAccessSubjectInfo(authentication);
+    }
+
+    public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo(final Authentication authentication) {
         final int numberOfRoleDescriptors;
         if (authentication.isApiKey()) {
             // In case of API keys, we can have either 1 (only owner's - aka limited-by) or 2 role descriptors.

@@ -40,7 +40,7 @@ public class TransportPutAnalyticsCollectionActionTests extends ESTestCase {
     public void testWithSupportedLicense() {
         AnalyticsCollectionService analyticsCollectionService = mock(AnalyticsCollectionService.class);
 
-        TransportPutAnalyticsCollectionAction transportAction = createTransportAction(mockLicenceState(true), analyticsCollectionService);
+        TransportPutAnalyticsCollectionAction transportAction = createTransportAction(mockLicenseState(true), analyticsCollectionService);
         PutAnalyticsCollectionAction.Request request = mock(PutAnalyticsCollectionAction.Request.class);
 
         ClusterState clusterState = mock(ClusterState.class);

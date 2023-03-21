@@ -69,7 +69,7 @@ public class TransportDeleteDesiredBalanceAction extends TransportMasterNodeActi
             : null;
     }
 
-    public record ResetDesiredBalanceTask(ActionListener<ActionResponse.Empty> listener) implements ClusterStateTaskListener {
+    public record ResetDesiredBalanceTask(ActionListener<Void> listener) implements ClusterStateTaskListener {
 
         @Override
         public void onFailure(Exception e) {
@@ -96,7 +96,7 @@ public class TransportDeleteDesiredBalanceAction extends TransportMasterNodeActi
             desiredBalanceShardsAllocator.resetDesiredBalance();
             state = allocationService.reroute(state, "reset-desired-balance", rerouteCompletionIsNotRequired());
             for (var taskContext : batchExecutionContext.taskContexts()) {
-                taskContext.success(() -> taskContext.getTask().listener.onResponse(ActionResponse.Empty.INSTANCE));
+                taskContext.success(() -> taskContext.getTask().listener.onResponse(null));
             }
             return state;
         }
@@ -113,7 +113,11 @@ public class TransportDeleteDesiredBalanceAction extends TransportMasterNodeActi
             listener.onFailure(new ResourceNotFoundException("Desired balance allocator is not in use, no desired balance found"));
             return;
         }
-        resetDesiredBalanceTaskQueue.submitTask("reset-desired-balance", new ResetDesiredBalanceTask(listener), null);
+        resetDesiredBalanceTaskQueue.submitTask(
+            "reset-desired-balance",
+            new ResetDesiredBalanceTask(listener.map(ignored -> ActionResponse.Empty.INSTANCE)),
+            null
+        );
     }
 
     @Override

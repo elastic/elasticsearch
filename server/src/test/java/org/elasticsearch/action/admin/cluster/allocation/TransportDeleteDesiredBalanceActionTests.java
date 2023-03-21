@@ -41,6 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -48,8 +49,7 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
 
     public void testReturnsErrorIfAllocatorIsNotDesiredBalanced() throws Exception {
 
-        @SuppressWarnings("unchecked")
-        ActionListener<ActionResponse.Empty> listener = mock(ActionListener.class);
+        var listener = spy(ActionListener.<ActionResponse.Empty>noop());
 
         new TransportDeleteDesiredBalanceAction(
             mock(TransportService.class),
@@ -71,8 +71,7 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
 
     public void testDeleteDesiredBalance() throws Exception {
 
-        @SuppressWarnings("unchecked")
-        ActionListener<ActionResponse.Empty> listener = mock(ActionListener.class);
+        var listener = spy(ActionListener.<ActionResponse.Empty>noop());
         var allocator = mock(DesiredBalanceShardsAllocator.class);
         var allocationService = mock(AllocationService.class);
 

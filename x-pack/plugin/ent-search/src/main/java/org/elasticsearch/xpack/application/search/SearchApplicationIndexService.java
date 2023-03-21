@@ -166,6 +166,10 @@ public class SearchApplicationIndexService {
                     builder.field("type", "keyword");
                     builder.endObject();
 
+                    builder.startObject(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName());
+                    builder.field("type", "long");
+                    builder.endObject();
+
                     builder.startObject(SearchApplication.BINARY_CONTENT_FIELD.getPreferredName());
                     builder.field("type", "object");
                     builder.field("enabled", "false");
@@ -275,6 +279,7 @@ public class SearchApplicationIndexService {
                     .field(SearchApplication.NAME_FIELD.getPreferredName(), app.name())
                     .field(SearchApplication.INDICES_FIELD.getPreferredName(), app.indices())
                     .field(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName(), app.analyticsCollectionName())
+                    .field(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName(), app.updatedAtMillis())
                     .directFieldAsBase64(
                         SearchApplication.BINARY_CONTENT_FIELD.getPreferredName(),
                         os -> writeSearchApplicationBinaryWithVersion(app, os, clusterService.state().nodes().getMinNodeVersion())

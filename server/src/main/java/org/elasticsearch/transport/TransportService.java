@@ -408,7 +408,7 @@ public class TransportService extends AbstractLifecycleComponent
             return null;
         }
         final Map<String, BoundTransportAddress> profileAddresses = transport.profileBoundAddresses();
-        if (remoteClusterService.isServerEnabled()) {
+        if (remoteClusterService.isRemoteClusterServerEnabled()) {
             final Map<String, BoundTransportAddress> filteredProfileAddress = profileAddresses.entrySet()
                 .stream()
                 .filter(entry -> false == RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE.equals(entry.getKey()))

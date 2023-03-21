@@ -131,14 +131,14 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     public static final String REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME = "cluster:internal/remote_cluster/handshake";
 
     private final boolean enabled;
-    private final boolean serverEnabled;
+    private final boolean remoteClusterServerEnabled;
 
     public boolean isEnabled() {
         return enabled;
     }
 
-    public boolean isServerEnabled() {
-        return serverEnabled;
+    public boolean isRemoteClusterServerEnabled() {
+        return remoteClusterServerEnabled;
     }
 
     private final TransportService transportService;
@@ -147,7 +147,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     RemoteClusterService(Settings settings, TransportService transportService) {
         super(settings);
         this.enabled = DiscoveryNode.isRemoteClusterClient(settings);
-        this.serverEnabled = REMOTE_CLUSTER_SERVER_ENABLED.get(settings);
+        this.remoteClusterServerEnabled = REMOTE_CLUSTER_SERVER_ENABLED.get(settings);
         this.transportService = transportService;
 
         if (RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.get(settings)) {
@@ -385,7 +385,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     @Override
     public RemoteClusterServerInfo info() {
-        if (serverEnabled) {
+        if (remoteClusterServerEnabled) {
             return new RemoteClusterServerInfo(transportService.boundRemoteAccessAddress());
         } else {
             return null;

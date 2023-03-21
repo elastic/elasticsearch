@@ -49,4 +49,5 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   user username: "x_pack_rest_user", password: "x-pack-test-password"
   user username: "john_junior", password: "x-pack-test-password", role: "transform_admin"
   user username: "bill_senior", password: "x-pack-test-password", role: "transform_admin,source_index_access"
+  user username: "not_a_transform_admin", password: "x-pack-test-password", role: "source_index_access"
 }

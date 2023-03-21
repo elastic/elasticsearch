@@ -38,7 +38,12 @@ public class StoredValueFetcher implements ValueFetcher {
     @Override
     public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) throws IOException {
         leafSearchLookup.setDocument(doc);
-        return parseStoredValues(leafSearchLookup.fields().get(fieldname).getValues());
+        List<Object> values = leafSearchLookup.fields().get(fieldname).getValues();
+        if (values == null) {
+            return values;
+        } else {
+            return parseStoredValues(List.copyOf(values));
+        }
     }
 
     /**

@@ -97,14 +97,5 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
             );
             assertThat(exception.getMessage(), equalTo("The rollover conditions cannot be null or blank"));
         }
-        {
-            IllegalArgumentException exception = expectThrows(
-                IllegalArgumentException.class,
-                () -> DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING.get(
-                    Settings.builder().put(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1").build()
-                )
-            );
-            assertThat(exception.getMessage(), equalTo("At least one max_* rollover condition must be set."));
-        }
     }
 }

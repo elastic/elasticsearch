@@ -18,6 +18,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -28,11 +29,16 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTestCase {
 
@@ -63,8 +69,8 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
     // Use a RuleChain to ensure that fulfilling cluster is started before query cluster
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
-    public void testRemoteAccessForCrossClusterSearch() throws Exception {
-        final String remoteAccessApiKeyId = configureRemoteClustersWithApiKey("""
+    public void testCrossClusterSearch() throws Exception {
+        final String crossClusterAccessApiKeyId = configureRemoteClustersWithApiKey("""
             [
                {
                  "names": ["index*", "not_found_index", "shared-metrics"],
@@ -152,7 +158,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                     randomBoolean()
                 )
             );
-            final Response response = performRequestWithRemoteAccessUser(searchRequest);
+            final Response response = performRequestWithRemoteSearchUser(searchRequest);
             assertOK(response);
             final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
             final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
@@ -181,7 +187,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             // Check that access is denied because of user privileges
             final ResponseException exception = expectThrows(
                 ResponseException.class,
-                () -> performRequestWithRemoteAccessUser(new Request("GET", "/my_remote_cluster:index2/_search"))
+                () -> performRequestWithRemoteSearchUser(new Request("GET", "/my_remote_cluster:index2/_search"))
             );
             assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
             assertThat(
@@ -189,7 +195,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 containsString(
                     "action [indices:data/read/search] towards remote cluster is unauthorized for user [remote_search_user] "
                         + "with assigned roles [remote_search] authenticated by API key id ["
-                        + remoteAccessApiKeyId
+                        + crossClusterAccessApiKeyId
                         + "] of user [test_user] on indices [index2]"
                 )
             );
@@ -197,7 +203,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             // Check that access is denied because of API key privileges
             final ResponseException exception2 = expectThrows(
                 ResponseException.class,
-                () -> performRequestWithRemoteAccessUser(new Request("GET", "/my_remote_cluster:prefixed_index/_search"))
+                () -> performRequestWithRemoteSearchUser(new Request("GET", "/my_remote_cluster:prefixed_index/_search"))
             );
             assertThat(exception2.getResponse().getStatusLine().getStatusCode(), equalTo(403));
             assertThat(
@@ -205,7 +211,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 containsString(
                     "action [indices:data/read/search] towards remote cluster is unauthorized for user [remote_search_user] "
                         + "with assigned roles [remote_search] authenticated by API key id ["
-                        + remoteAccessApiKeyId
+                        + crossClusterAccessApiKeyId
                         + "] of user [test_user] on indices [prefixed_index]"
                 )
             );
@@ -257,7 +263,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             updateClusterSettings(Settings.builder().put("cluster.remote.my_remote_cluster.authorization", randomEncodedApiKey()).build());
             final ResponseException exception4 = expectThrows(
                 ResponseException.class,
-                () -> performRequestWithRemoteAccessUser(new Request("GET", "/my_remote_cluster:index1/_search"))
+                () -> performRequestWithRemoteSearchUser(new Request("GET", "/my_remote_cluster:index1/_search"))
             );
             assertThat(exception4.getResponse().getStatusLine().getStatusCode(), equalTo(401));
             assertThat(exception4.getMessage(), containsString("unable to authenticate user"));
@@ -265,7 +271,29 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
         }
     }
 
-    private Response performRequestWithRemoteAccessUser(final Request request) throws IOException {
+    @SuppressWarnings("unchecked")
+    public void testNodesInfo() throws IOException {
+        final Request request = new Request("GET", "/_nodes/transport,remote_cluster_server");
+        final Response response = performRequestAgainstFulfillingCluster(request);
+        assertOK(response);
+        final Map<String, Object> responseMap = responseAsMap(response);
+
+        assertThat(ObjectPath.eval("_nodes.total", responseMap), equalTo(3));
+        final Map<String, Object> nodes = ObjectPath.eval("nodes", responseMap);
+        nodes.forEach((k, v) -> {
+            final Map<String, Object> node = (Map<String, Object>) v;
+            // remote cluster is not reported in transport profiles
+            assertThat(ObjectPath.eval("transport.profiles", node), anEmptyMap());
+
+            final List<String> boundAddresses = ObjectPath.eval("remote_cluster_server.bound_address", node);
+            assertThat(boundAddresses, notNullValue());
+            assertThat(boundAddresses, not(empty()));
+            final String publishAddress = ObjectPath.eval("remote_cluster_server.publish_address", node);
+            assertThat(publishAddress, notNullValue());
+        });
+    }
+
+    private Response performRequestWithRemoteSearchUser(final Request request) throws IOException {
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(REMOTE_SEARCH_USER, PASS)));
         return client().performRequest(request);
     }

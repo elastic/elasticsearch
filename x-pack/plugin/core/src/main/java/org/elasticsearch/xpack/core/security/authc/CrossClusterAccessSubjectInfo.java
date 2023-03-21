@@ -101,7 +101,7 @@ public final class CrossClusterAccessSubjectInfo {
             + '}';
     }
 
-    public static List<RoleDescriptorsBytes> toRoleDescriptorsBytesList(final RoleDescriptorsIntersection roleDescriptorsIntersection)
+    private static List<RoleDescriptorsBytes> toRoleDescriptorsBytesList(final RoleDescriptorsIntersection roleDescriptorsIntersection)
         throws IOException {
         // If we ever lift this restriction, we need to ensure that the serialization of each set of role descriptors to raw bytes is
         // deterministic. We can do so by sorting the role descriptors before serializing.

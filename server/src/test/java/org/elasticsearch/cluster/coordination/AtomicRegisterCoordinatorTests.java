@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import com.carrotsearch.randomizedtesting.RandomizedContext;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -25,14 +23,12 @@ import org.elasticsearch.gateway.ClusterStateUpdaters;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -41,16 +37,6 @@ import static org.elasticsearch.cluster.coordination.CoordinationStateTests.clus
 
 @TestLogging(reason = "these tests do a lot of log-worthy things but we usually don't care", value = "org.elasticsearch:FATAL")
 public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
-    private AtomicRegister atomicRegister;
-    private SharedStore sharedStore;
-
-    @Before
-    public void setUpNewRegister() {
-        // TODO: Move this into the cluster instance
-        atomicRegister = new AtomicRegister();
-        sharedStore = new SharedStore(atomicRegister);
-    }
-
     @Override
     @AwaitsFix(bugUrl = "ES-5644")
     public void testExpandsConfigurationWhenGrowingFromThreeToFiveNodesAndShrinksBackToThreeOnFailure() {
@@ -215,32 +201,9 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     }
 
     @Override
-    public void testRepeatableTests() throws Exception {
-        final Callable<Long> test = () -> {
-            resetNodeIndexBeforeEachTest();
-            try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
-                cluster.runRandomly();
-                final long afterRunRandomly = value(cluster.getAnyNode().getLastAppliedClusterState());
-                cluster.stabilise();
-                final long afterStabilisation = value(cluster.getAnyNode().getLastAppliedClusterState());
-                return afterRunRandomly ^ afterStabilisation;
-            }
-        };
-        final long seed = randomLong();
-        logger.info("First run with seed [{}]", seed);
-        final long result1 = RandomizedContext.current().runWithPrivateRandomness(seed, test);
-
-        // Reset the register between runs to get repeatable results
-        atomicRegister = new AtomicRegister();
-        sharedStore = new SharedStore(atomicRegister);
-
-        logger.info("Second run with seed [{}]", seed);
-        final long result2 = RandomizedContext.current().runWithPrivateRandomness(seed, test);
-        assertEquals(result1, result2);
-    }
-
-    @Override
     protected CoordinatorStrategy getCoordinatorStrategy() {
+        var atomicRegister = new AtomicRegister();
+        var sharedStore = new SharedStore(atomicRegister);
         return new AtomicRegisterCoordinatorStrategy(atomicRegister, sharedStore);
     }
 

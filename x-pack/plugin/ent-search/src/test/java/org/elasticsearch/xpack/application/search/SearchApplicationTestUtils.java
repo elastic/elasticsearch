@@ -41,11 +41,11 @@ public final class SearchApplicationTestUtils {
             generateRandomStringArray(10, 10, false, false),
             randomFrom(new String[] { null, randomAlphaOfLengthBetween(1, 10) }),
             randomLongBetween(0, Long.MAX_VALUE),
-            randomBoolean() ? getRandomSearchTemplate() : null
+            randomBoolean() ? getRandomSearchApplicationTemplate() : null
         );
     }
 
-    public static SearchApplicationTemplate getRandomSearchTemplate() {
+    public static SearchApplicationTemplate getRandomSearchApplicationTemplate() {
         String paramName = randomAlphaOfLengthBetween(8, 10);
         String paramValue = randomAlphaOfLengthBetween(8, 10);
         String query = String.format(Locale.ROOT, """

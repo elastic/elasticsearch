@@ -69,7 +69,7 @@ setup:
 
   - skip:
       version: " - 8.6.99"
-      reason: "Field added in in 8.7.0"
+      reason: "cluster_balance_stats added in in 8.7.0"
 
   - do:
       cluster.state: {}
@@ -117,7 +117,7 @@ setup:
 
   - skip:
       version: " - 8.7.99"
-      reason: "tier preference added in in 8.8.0"
+      reason: "tier_preference added in in 8.8.0"
 
   - do:
       indices.create:
@@ -142,7 +142,7 @@ setup:
 
   - skip:
       version: " - 8.7.99"
-      reason: "Field added in in 8.8.0"
+      reason: "cluster_info added in in 8.8.0"
 
   - do:
       _internal.get_desired_balance: { }

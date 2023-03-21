@@ -85,9 +85,9 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                 }
 
                 MatchingNodes matchingNodes = findMatchingNodes(shard, allocation, true, primaryNode, primaryStore, shardStores, false);
-                if (matchingNodes.getNodeWithHighestMatch() != null) {
+                if (matchingNodes.nodeWithHighestMatch() != null) {
                     DiscoveryNode currentNode = allocation.nodes().get(shard.currentNodeId());
-                    DiscoveryNode nodeWithHighestMatch = matchingNodes.getNodeWithHighestMatch();
+                    DiscoveryNode nodeWithHighestMatch = matchingNodes.nodeWithHighestMatch();
                     // current node will not be in matchingNodes as it is filtered away by SameShardAllocationDecider
                     if (currentNode.equals(nodeWithHighestMatch) == false
                         && matchingNodes.canPerformNoopRecovery(nodeWithHighestMatch)
@@ -213,8 +213,8 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         List<NodeAllocationResult> nodeDecisions = augmentExplanationsWithStoreInfo(result.nodes(), matchingNodes.nodeDecisions);
         if (allocateDecision.type() != Decision.Type.YES) {
             return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), nodeDecisions);
-        } else if (matchingNodes.getNodeWithHighestMatch() != null) {
-            RoutingNode nodeWithHighestMatch = allocation.routingNodes().node(matchingNodes.getNodeWithHighestMatch().getId());
+        } else if (matchingNodes.nodeWithHighestMatch() != null) {
+            RoutingNode nodeWithHighestMatch = allocation.routingNodes().node(matchingNodes.nodeWithHighestMatch().getId());
             // we only check on THROTTLE since we checked before on NO
             Decision decision = allocation.deciders()
                 .canAllocateReplicaWhenThereIsRetentionLease(unassignedShard, nodeWithHighestMatch, allocation);
@@ -426,7 +426,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             }
         }
 
-        return new MatchingNodes(matchingNodes, nodeDecisions);
+        return MatchingNodes.create(matchingNodes, nodeDecisions);
     }
 
     private static long computeMatchingBytes(
@@ -487,55 +487,25 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
      */
     protected abstract boolean hasInitiatedFetching(ShardRouting shard);
 
-    private static class MatchingNode {
+    private record MatchingNode(long matchingBytes, long retainingSeqNo, boolean isNoopRecovery) {
+
         static final Comparator<MatchingNode> COMPARATOR = Comparator.<MatchingNode, Boolean>comparing(m -> m.isNoopRecovery)
             .thenComparing(m -> m.retainingSeqNo)
             .thenComparing(m -> m.matchingBytes);
-
-        final long matchingBytes;
-        final long retainingSeqNo;
-        final boolean isNoopRecovery;
-
-        MatchingNode(long matchingBytes, long retainingSeqNo, boolean isNoopRecovery) {
-            this.matchingBytes = matchingBytes;
-            this.retainingSeqNo = retainingSeqNo;
-            this.isNoopRecovery = isNoopRecovery;
-        }
 
         boolean anyMatch() {
             return isNoopRecovery || retainingSeqNo >= 0 || matchingBytes > 0;
         }
     }
 
-    static class MatchingNodes {
-        private final Map<DiscoveryNode, MatchingNode> matchingNodes;
-        private final DiscoveryNode nodeWithHighestMatch;
-        @Nullable
-        private final Map<String, NodeAllocationResult> nodeDecisions;
-
-        MatchingNodes(Map<DiscoveryNode, MatchingNode> matchingNodes, @Nullable Map<String, NodeAllocationResult> nodeDecisions) {
-            this.matchingNodes = matchingNodes;
-            this.nodeDecisions = nodeDecisions;
-            this.nodeWithHighestMatch = matchingNodes.entrySet()
-                .stream()
-                .filter(e -> e.getValue().anyMatch())
-                .max(Comparator.comparing(Map.Entry::getValue, MatchingNode.COMPARATOR))
-                .map(Map.Entry::getKey)
-                .orElse(null);
-        }
-
-        /**
-         * Returns the node with the highest "non zero byte" match compared to
-         * the primary.
-         */
-        @Nullable
-        public DiscoveryNode getNodeWithHighestMatch() {
-            return this.nodeWithHighestMatch;
-        }
+    private record MatchingNodes(
+        Map<DiscoveryNode, MatchingNode> matchingNodes,
+        @Nullable Map<String, NodeAllocationResult> nodeDecisions,
+        @Nullable DiscoveryNode nodeWithHighestMatch
+    ) {
 
         boolean canPerformNoopRecovery(DiscoveryNode node) {
-            final MatchingNode matchingNode = matchingNodes.get(node);
-            return matchingNode.isNoopRecovery;
+            return matchingNodes.get(node).isNoopRecovery;
         }
 
         /**
@@ -543,6 +513,26 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
          */
         public boolean hasAnyData() {
             return matchingNodes.isEmpty() == false;
+        }
+
+        private static MatchingNodes create(
+            Map<DiscoveryNode, MatchingNode> matchingNodes,
+            @Nullable Map<String, NodeAllocationResult> nodeDecisions
+        ) {
+            return new MatchingNodes(matchingNodes, nodeDecisions, getNodeWithHighestMatch(matchingNodes));
+        }
+
+        /**
+         * Returns the node with the highest "non zero byte" match compared to the primary.
+         */
+        @Nullable
+        private static DiscoveryNode getNodeWithHighestMatch(Map<DiscoveryNode, MatchingNode> matchingNodes) {
+            return matchingNodes.entrySet()
+                .stream()
+                .filter(e -> e.getValue().anyMatch())
+                .max(Map.Entry.comparingByValue(MatchingNode.COMPARATOR))
+                .map(Map.Entry::getKey)
+                .orElse(null);
         }
     }
 }

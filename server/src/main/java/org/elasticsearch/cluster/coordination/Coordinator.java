@@ -521,10 +521,28 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
                 final StartJoinRequest startJoinRequest = new StartJoinRequest(getLocalNode(), Math.max(getCurrentTerm(), maxTermSeen) + 1);
                 logger.debug("starting election with {}", startJoinRequest);
-                electionStrategy.onNewElection(startJoinRequest.getSourceNode(), startJoinRequest.getTerm(), getLastAcceptedState());
-                getDiscoveredNodes().forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
+                broadcastStartJoinRequest(startJoinRequest, getDiscoveredNodes());
             }
         }
+    }
+
+    private void broadcastStartJoinRequest(StartJoinRequest startJoinRequest, List<DiscoveryNode> discoveredNodes) {
+        electionStrategy.onNewElection(
+            startJoinRequest.getSourceNode(),
+            startJoinRequest.getTerm(),
+            getLastAcceptedState(),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Void ignored) {
+                    discoveredNodes.forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.debug(Strings.format("election attempt failed, dropping [%s]", startJoinRequest), e);
+                }
+            }
+        );
     }
 
     private void abdicateTo(DiscoveryNode newMaster) {
@@ -533,7 +551,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         assert newMaster.isMasterNode() : "should only abdicate to master-eligible node but was " + newMaster;
         final StartJoinRequest startJoinRequest = new StartJoinRequest(newMaster, Math.max(getCurrentTerm(), maxTermSeen) + 1);
         logger.info("abdicating to {} with term {}", newMaster, startJoinRequest.getTerm());
-        getLastAcceptedState().nodes().mastersFirstStream().forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
+        broadcastStartJoinRequest(startJoinRequest, getLastAcceptedState().nodes().mastersFirstStream().toList());
         // handling of start join messages on the local node will be dispatched to the coordination thread-pool
         assert mode == Mode.LEADER : "should still be leader after sending abdication messages " + mode;
         // explicitly move node to candidate state so that the next cluster state update task yields an onNoLongerMaster event
@@ -1672,8 +1690,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
     }
 
-    void beforeCommit(long term, long version) {
-        electionStrategy.beforeCommit(term, version);
+    private void beforeCommit(long term, long version, ActionListener<Void> listener) {
+        electionStrategy.beforeCommit(term, version, listener);
     }
 
     class CoordinatorPublication extends Publication {
@@ -1909,12 +1927,17 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
 
         @Override
-        protected Optional<ApplyCommitRequest> handlePublishResponse(DiscoveryNode sourceNode, PublishResponse publishResponse) {
+        protected Optional<ListenableFuture<ApplyCommitRequest>> handlePublishResponse(
+            DiscoveryNode sourceNode,
+            PublishResponse publishResponse
+        ) {
             assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
             assert getCurrentTerm() >= publishResponse.getTerm();
-            var applyCommit = coordinationState.get().handlePublishResponse(sourceNode, publishResponse);
-            applyCommit.ifPresent(applyCommitRequest -> beforeCommit(applyCommitRequest.getTerm(), applyCommitRequest.getVersion()));
-            return applyCommit;
+            return coordinationState.get().handlePublishResponse(sourceNode, publishResponse).map(applyCommitRequest -> {
+                final var future = new ListenableFuture<ApplyCommitRequest>();
+                beforeCommit(applyCommitRequest.getTerm(), applyCommitRequest.getVersion(), future.map(ignored -> applyCommitRequest));
+                return future;
+            });
         }
 
         @Override
@@ -1963,6 +1986,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             ActionListener<Empty> responseActionListener
         ) {
             assert transportService.getThreadPool().getThreadContext().isSystemContext();
+            assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
             try {
                 transportService.sendRequest(
                     destination,
@@ -1978,6 +2002,17 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             } catch (Exception e) {
                 responseActionListener.onFailure(e);
             }
+        }
+
+        @Override
+        protected <T> ActionListener<T> wrapListener(ActionListener<T> listener) {
+            return wrapWithMutex(listener);
+        }
+
+        @Override
+        boolean publicationCompletedIffAllTargetsInactiveOrCancelled() {
+            assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+            return super.publicationCompletedIffAllTargetsInactiveOrCancelled();
         }
     }
 

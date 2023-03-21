@@ -53,7 +53,7 @@ public class LicenseScheduleTests extends ESTestCase {
     public void testDailyWarningPeriod() {
 
         long millisInDay = TimeValue.timeValueDays(1).getMillis();
-        long warningOffset = LicenseService.LICENSE_EXPIRATION_WARNING_PERIOD.getMillis();
+        long warningOffset = LicenseSettings.LICENSE_EXPIRATION_WARNING_PERIOD.getMillis();
         do {
             long nextOffset = license.expiryDate() - warningOffset;
             long triggeredTime = nextOffset + randomLongBetween(1, millisInDay);

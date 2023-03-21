@@ -49,7 +49,7 @@ public class LicenseUtils {
 
     public static boolean licenseNeedsExtended(License license) {
         return LicenseType.isBasic(license.type())
-            && getExpiryDate(license) != LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
+            && getExpiryDate(license) != LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
     }
 
     /**

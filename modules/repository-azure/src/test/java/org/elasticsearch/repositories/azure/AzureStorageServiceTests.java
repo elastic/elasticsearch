@@ -468,21 +468,19 @@ public class AzureStorageServiceTests extends ESTestCase {
             AzureBlobServiceClient client1 = azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY);
             assertThat(client1.getSyncClient().getAccountUrl(), equalTo("https://account1.zone.azure.net"));
 
-            {
-                AzureBlobServiceClient client = azureStorageService.client(
-                    "azure2",
-                    randomBoolean() ? LocationMode.PRIMARY_ONLY : LocationMode.PRIMARY_THEN_SECONDARY
-                );
-                assertThat(client.getSyncClient().getAccountUrl(), equalTo("https://account2.zone.azure.net"));
-            }
+            assertThat(
+                azureStorageService.client("azure2", randomBoolean() ? LocationMode.PRIMARY_ONLY : LocationMode.PRIMARY_THEN_SECONDARY)
+                    .getSyncClient()
+                    .getAccountUrl(),
+                equalTo("https://account2.zone.azure.net")
+            );
 
-            {
-                AzureBlobServiceClient client = azureStorageService.client(
-                    "azure2",
-                    randomBoolean() ? LocationMode.SECONDARY_ONLY : LocationMode.SECONDARY_THEN_PRIMARY
-                );
-                assertThat(client.getSyncClient().getAccountUrl(), equalTo("https://account2-secondary.zone.azure.net"));
-            }
+            assertThat(
+                azureStorageService.client("azure2", randomBoolean() ? LocationMode.SECONDARY_ONLY : LocationMode.SECONDARY_THEN_PRIMARY)
+                    .getSyncClient()
+                    .getAccountUrl(),
+                equalTo("https://account2-secondary.zone.azure.net")
+            );
         }
     }
 

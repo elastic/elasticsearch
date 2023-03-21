@@ -443,6 +443,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * Returns the pipeline by the specified id
      */
     public Pipeline getPipeline(String id) {
+        if (id == null) {
+            return null;
+        }
+
         PipelineHolder holder = pipelines.get(id);
         if (holder != null) {
             return holder.pipeline;
@@ -738,10 +742,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         private Iterator<PipelineSlot> iterator() {
             PipelineSlot defaultPipelineSlot = null, finalPipelineSlot = null;
             if (defaultPipeline != null) {
-                defaultPipelineSlot = new PipelineSlot(defaultPipeline, pipeline(defaultPipeline), false);
+                defaultPipelineSlot = new PipelineSlot(defaultPipeline, getPipeline(defaultPipeline), false);
             }
             if (finalPipeline != null) {
-                finalPipelineSlot = new PipelineSlot(finalPipeline, pipeline(finalPipeline), true);
+                finalPipelineSlot = new PipelineSlot(finalPipeline, getPipeline(finalPipeline), true);
             }
 
             if (defaultPipeline != null && finalPipeline != null) {
@@ -753,19 +757,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             } else {
                 return Collections.emptyIterator();
             }
-        }
-
-        private Pipeline pipeline(String id) {
-            if (id == null) {
-                return null;
-            }
-
-            final PipelineHolder holder = pipelines.get(id);
-            if (holder == null) {
-                return null;
-            }
-
-            return holder.pipeline;
         }
 
         @Override

@@ -43,7 +43,6 @@ import org.hamcrest.Matchers;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -182,8 +181,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
         ClusterService clusterService = internalTestCluster.getInstance(ClusterService.class, internalTestCluster.getMasterName());
         ClusterState state = clusterService.state();
-        for (Iterator<ShardRouting> iterator = state.routingTable().allShards().iterator(); iterator.hasNext();) {
-            ShardRouting shard = iterator.next();
+        for (ShardRouting shard : state.routingTable().allShardsIterator()) {
             String dataPath = info.getDataPath(shard);
             assertNotNull(dataPath);
 
@@ -327,8 +325,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         }
 
         RoutingTable routingTable = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState().routingTable();
-        for (Iterator<ShardRouting> iterator = routingTable.allShards().iterator(); iterator.hasNext();) {
-            ShardRouting shard = iterator.next();
+        for (ShardRouting shard : routingTable.allShardsIterator()) {
             assertTrue(
                 infoAfterRecovery.getReservedSpace(shard.currentNodeId(), infoAfterRecovery.getDataPath(shard))
                     .containsShardId(shard.shardId())

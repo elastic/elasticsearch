@@ -26,11 +26,14 @@ import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.search.aggregations.support.AggregationInfo;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
+import org.elasticsearch.transport.RemoteClusterServerInfo;
 import org.elasticsearch.transport.TransportInfo;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_REMOTE_CLUSTER_SECURITY;
 
 /**
  * Node information (static, does not change over time).
@@ -76,6 +79,9 @@ public class NodeInfo extends BaseNodeResponse {
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             addInfoIfNonNull(AggregationInfo.class, in.readOptionalWriteable(AggregationInfo::new));
         }
+        if (in.getTransportVersion().onOrAfter(TRANSPORT_VERSION_REMOTE_CLUSTER_SECURITY)) {
+            addInfoIfNonNull(RemoteClusterServerInfo.class, in.readOptionalWriteable(RemoteClusterServerInfo::new));
+        }
     }
 
     public NodeInfo(
@@ -89,6 +95,7 @@ public class NodeInfo extends BaseNodeResponse {
         @Nullable ThreadPoolInfo threadPool,
         @Nullable TransportInfo transport,
         @Nullable HttpInfo http,
+        @Nullable RemoteClusterServerInfo remoteClusterServer,
         @Nullable PluginsAndModules plugins,
         @Nullable IngestInfo ingest,
         @Nullable AggregationInfo aggsInfo,
@@ -104,6 +111,7 @@ public class NodeInfo extends BaseNodeResponse {
         addInfoIfNonNull(ThreadPoolInfo.class, threadPool);
         addInfoIfNonNull(TransportInfo.class, transport);
         addInfoIfNonNull(HttpInfo.class, http);
+        addInfoIfNonNull(RemoteClusterServerInfo.class, remoteClusterServer);
         addInfoIfNonNull(PluginsAndModules.class, plugins);
         addInfoIfNonNull(IngestInfo.class, ingest);
         addInfoIfNonNull(AggregationInfo.class, aggsInfo);
@@ -196,6 +204,9 @@ public class NodeInfo extends BaseNodeResponse {
         out.writeOptionalWriteable(getInfo(IngestInfo.class));
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             out.writeOptionalWriteable(getInfo(AggregationInfo.class));
+        }
+        if (out.getTransportVersion().onOrAfter(TRANSPORT_VERSION_REMOTE_CLUSTER_SECURITY)) {
+            out.writeOptionalWriteable(getInfo(RemoteClusterServerInfo.class));
         }
     }
 }

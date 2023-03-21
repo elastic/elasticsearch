@@ -44,6 +44,8 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
     private static final String JUNIOR_HEADER = basicAuthHeaderValue(JUNIOR_USERNAME, TEST_PASSWORD_SECURE_STRING);
     private static final String SENIOR_USERNAME = "bill_senior";
     private static final String SENIOR_HEADER = basicAuthHeaderValue(SENIOR_USERNAME, TEST_PASSWORD_SECURE_STRING);
+    private static final String NOT_A_TRANSFORM_ADMIN = "not_a_transform_admin";
+    private static final String NOT_A_TRANSFORM_ADMIN_HEADER = basicAuthHeaderValue(NOT_A_TRANSFORM_ADMIN, TEST_PASSWORD_SECURE_STRING);
 
     private static final int NUM_USERS = 28;
 
@@ -87,7 +89,6 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
                     .build()
             )
         );
-
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(equalTo(403)));
         assertThat(
             e.getMessage(),
@@ -173,6 +174,40 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
 
     /**
      * defer_validation = true
+     * unattended       = false
+     */
+    @SuppressWarnings("unchecked")
+    public void testNoTransformAdminRoleInSecondaryAuth() throws Exception {
+        String transformId = "transform-permissions-no-admin-role";
+        String sourceIndexName = transformId + "-index";
+        String destIndexName = sourceIndexName + "-dest";
+        createReviewsIndex(sourceIndexName, 10, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
+
+        TransformConfig config = createConfig(transformId, sourceIndexName, destIndexName, false);
+
+        // PUT with defer_validation should work even though the secondary auth does not have transform_admin role
+        putTransform(
+            transformId,
+            Strings.toString(config),
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader(SECONDARY_AUTH_KEY, NOT_A_TRANSFORM_ADMIN_HEADER)
+                .addParameter("defer_validation", String.valueOf(true))
+                .build()
+        );
+
+        // _update should work even though the secondary auth does not have transform_admin role
+        updateConfig(
+            transformId,
+            "{}",
+            RequestOptions.DEFAULT.toBuilder().addHeader(SECONDARY_AUTH_KEY, NOT_A_TRANSFORM_ADMIN_HEADER).build()
+        );
+
+        // _start works because user not_a_transform_admin has data access
+        startTransform(config.getId(), RequestOptions.DEFAULT);
+    }
+
+    /**
+     * defer_validation = true
      * unattended       = true
      */
     @SuppressWarnings("unchecked")
@@ -210,6 +245,37 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
 
         // transform is green again
         assertThat(extractValue(getTransformStats(transformId), "health", "status"), is(equalTo("green")));
+    }
+
+    public void testPreviewRequestFailsPermissionsCheck() throws Exception {
+        String transformId = "transform-permissions-preview";
+        String sourceIndexName = transformId + "-index";
+        String destIndexName = sourceIndexName + "-dest";
+        createReviewsIndex(sourceIndexName, 10, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
+
+        TransformConfig config = createConfig(transformId, sourceIndexName, destIndexName, false);
+
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> previewTransform(Strings.toString(config), RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, JUNIOR_HEADER).build())
+        );
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), is(equalTo(403)));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                String.format(
+                    Locale.ROOT,
+                    "Cannot preview transform [%s] because user %s lacks the required permissions "
+                        + "[%s:[read, view_index_metadata], %s:[create_index, index, read]]",
+                    transformId,
+                    JUNIOR_USERNAME,
+                    sourceIndexName,
+                    destIndexName
+                )
+            )
+        );
+
+        previewTransform(Strings.toString(config), RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, SENIOR_HEADER).build());
     }
 
     @Override

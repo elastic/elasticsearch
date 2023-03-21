@@ -18,6 +18,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -28,11 +29,16 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTestCase {
 
@@ -263,6 +269,28 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             assertThat(exception4.getMessage(), containsString("unable to authenticate user"));
             assertThat(exception4.getMessage(), containsString("unable to find apikey"));
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testNodesInfo() throws IOException {
+        final Request request = new Request("GET", "/_nodes/transport,remote_cluster_server");
+        final Response response = performRequestAgainstFulfillingCluster(request);
+        assertOK(response);
+        final Map<String, Object> responseMap = responseAsMap(response);
+
+        assertThat(ObjectPath.eval("_nodes.total", responseMap), equalTo(3));
+        final Map<String, Object> nodes = ObjectPath.eval("nodes", responseMap);
+        nodes.forEach((k, v) -> {
+            final Map<String, Object> node = (Map<String, Object>) v;
+            // remote cluster is not reported in transport profiles
+            assertThat(ObjectPath.eval("transport.profiles", node), anEmptyMap());
+
+            final List<String> boundAddresses = ObjectPath.eval("remote_cluster_server.bound_address", node);
+            assertThat(boundAddresses, notNullValue());
+            assertThat(boundAddresses, not(empty()));
+            final String publishAddress = ObjectPath.eval("remote_cluster_server.publish_address", node);
+            assertThat(publishAddress, notNullValue());
+        });
     }
 
     private Response performRequestWithRemoteSearchUser(final Request request) throws IOException {

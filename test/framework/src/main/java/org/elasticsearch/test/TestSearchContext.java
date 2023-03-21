@@ -10,6 +10,7 @@ package org.elasticsearch.test;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.core.TimeValue;
@@ -474,13 +475,38 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
+    public void addDfsResult() {
+        // this space intentionally left blank
+    }
+
+    @Override
     public QuerySearchResult queryResult() {
         return queryResult;
     }
 
     @Override
+    public void addQueryResult() {
+        // this space intentionally left blank
+    }
+
+    @Override
+    public TotalHits getTotalHits() {
+        return queryResult.getTotalHits();
+    }
+
+    @Override
+    public float getMaxScore() {
+        return queryResult.getMaxScore();
+    }
+
+    @Override
     public FetchSearchResult fetchResult() {
         return null;
+    }
+
+    @Override
+    public void addFetchResult() {
+        // this space intentionally left blank
     }
 
     @Override

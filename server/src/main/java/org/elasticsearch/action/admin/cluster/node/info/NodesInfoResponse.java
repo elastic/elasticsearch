@@ -23,6 +23,7 @@ import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.search.aggregations.support.AggregationInfo;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
+import org.elasticsearch.transport.RemoteClusterServerInfo;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -109,6 +110,9 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
             }
             if (nodeInfo.getInfo(HttpInfo.class) != null) {
                 nodeInfo.getInfo(HttpInfo.class).toXContent(builder, params);
+            }
+            if (nodeInfo.getInfo(RemoteClusterServerInfo.class) != null) {
+                nodeInfo.getInfo(RemoteClusterServerInfo.class).toXContent(builder, params);
             }
             if (nodeInfo.getInfo(PluginsAndModules.class) != null) {
                 nodeInfo.getInfo(PluginsAndModules.class).toXContent(builder, params);

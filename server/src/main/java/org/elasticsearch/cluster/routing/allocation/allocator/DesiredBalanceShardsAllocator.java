@@ -37,6 +37,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -138,7 +139,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 if (resetCurrentDesiredBalance) {
                     logger.info("Resetting current desired balance");
                     resetCurrentDesiredBalance = false;
-                    return DesiredBalance.INITIAL;
+                    return new DesiredBalance(currentDesiredBalance.lastConvergedIndex(), Map.of());
                 } else {
                     return currentDesiredBalance;
                 }

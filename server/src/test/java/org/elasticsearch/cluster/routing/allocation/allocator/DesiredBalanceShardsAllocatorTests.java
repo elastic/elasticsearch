@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,10 +35,12 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -45,6 +48,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -405,7 +409,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         }
     }
 
-    public void testResetDesiredBalance() throws InterruptedException {
+    public void testResetDesiredBalance() {
 
         var node1 = newNode(LOCAL_NODE_ID);
         var node2 = newNode(OTHER_NODE_ID);
@@ -427,10 +431,13 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
         var service = createAllocationService(desiredBalanceShardsAllocator, createGatewayAllocator());
 
-        var computedDesiredBalance = new DesiredBalance(0, Map.of());
+        var shardId = new ShardId("test-index", UUIDs.randomBase64UUID(), 0);
+        var computedDesiredBalance1 = new DesiredBalance(0, Map.of(shardId, new ShardAssignment(Set.of("node-1"), 1, 0, 0)));
+        var computedDesiredBalance2 = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(Set.of("node-2"), 1, 0, 0)));
+        var computedDesiredBalance3 = new DesiredBalance(2, Map.of(shardId, new ShardAssignment(Set.of("node-3"), 1, 0, 0)));
         // initial allocation
         {
-            when(desiredBalanceComputer.compute(any(), any(), any(), any())).thenReturn(computedDesiredBalance);
+            when(desiredBalanceComputer.compute(any(), any(), any(), any())).thenReturn(computedDesiredBalance1);
             rerouteAndWait(service, clusterState, "initial-allocation");
             verify(desiredBalanceComputer).compute(eq(DesiredBalance.INITIAL), any(), any(), any());// based on initial empty balance
             reset(desiredBalanceComputer);
@@ -438,18 +445,19 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
         // followup allocation
         {
-            when(desiredBalanceComputer.compute(any(), any(), any(), any())).thenReturn(new DesiredBalance(1, Map.of()));
+            when(desiredBalanceComputer.compute(any(), any(), any(), any())).thenReturn(computedDesiredBalance2);
             rerouteAndWait(service, clusterState, "followup-allocation");
-            verify(desiredBalanceComputer).compute(eq(computedDesiredBalance), any(), any(), any());// based on previous balance
+            verify(desiredBalanceComputer).compute(eq(computedDesiredBalance1), any(), any(), any());// based on previous balance
             reset(desiredBalanceComputer);
         }
 
         // reset desired balance
         desiredBalanceShardsAllocator.resetDesiredBalance();
         {
-            when(desiredBalanceComputer.compute(any(), any(), any(), any())).thenReturn(new DesiredBalance(2, Map.of()));
+            when(desiredBalanceComputer.compute(any(), any(), any(), any())).thenReturn(computedDesiredBalance3);
             rerouteAndWait(service, clusterState, "reset-desired-balance");
-            verify(desiredBalanceComputer).compute(eq(DesiredBalance.INITIAL), any(), any(), any());// based on resetted empty balance
+            verify(desiredBalanceComputer).compute(eq(new DesiredBalance(1, Map.of())), any(), any(), any());// based on resetted empty
+                                                                                                             // balance
             reset(desiredBalanceComputer);
         }
 
@@ -531,10 +539,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         };
     }
 
-    private static void rerouteAndWait(AllocationService service, ClusterState clusterState, String reason) throws InterruptedException {
-        var latch = new CountDownLatch(1);
-        var listener = ActionListener.<Void>running(latch::countDown);
-        service.reroute(clusterState, reason, listener);
-        assertTrue("Listener was not called in time", latch.await(10, TimeUnit.SECONDS));
+    private static void rerouteAndWait(AllocationService service, ClusterState clusterState, String reason) {
+        PlainActionFuture.<Void, RuntimeException>get(f -> service.reroute(clusterState, reason, f), 10, TimeUnit.SECONDS);
     }
 }

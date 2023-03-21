@@ -130,7 +130,7 @@ public class TransportGetDesiredBalanceActionIT extends ESIntegTestCase {
             assertFalse(shardView.nodeIsDesired());
         }
         assertEquals(shard.relocatingNodeId(), shardView.relocatingNode());
-        assertFalse(shardView.relocatingNodeIsDesired());
+        assertNull(shardView.relocatingNodeIsDesired());
     }
 
     private static Set<String> getShardNodeIds(IndexShardRoutingTable shardRoutingTable) {

@@ -15,6 +15,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -74,9 +75,9 @@ final class DefaultSearchContext extends SearchContext {
     private final IndexShard indexShard;
     private final IndexService indexService;
     private final ContextIndexSearcher searcher;
-    private final DfsSearchResult dfsResult;
-    private final QuerySearchResult queryResult;
-    private final FetchSearchResult fetchResult;
+    private DfsSearchResult dfsResult;
+    private QuerySearchResult queryResult;
+    private FetchSearchResult fetchResult;
     private final float queryBoost;
     private final boolean lowLevelCancellation;
     private TimeValue timeout;
@@ -142,9 +143,6 @@ final class DefaultSearchContext extends SearchContext {
         this.fetchPhase = fetchPhase;
         this.searchType = request.searchType();
         this.shardTarget = shardTarget;
-        this.dfsResult = new DfsSearchResult(readerContext.id(), shardTarget, request);
-        this.queryResult = new QuerySearchResult(readerContext.id(), shardTarget, request);
-        this.fetchResult = new FetchSearchResult(readerContext.id(), shardTarget);
         this.indexService = readerContext.indexService();
         this.indexShard = readerContext.indexShard();
 
@@ -170,6 +168,21 @@ final class DefaultSearchContext extends SearchContext {
         );
         queryBoost = request.indexBoost();
         this.lowLevelCancellation = lowLevelCancellation;
+    }
+
+    @Override
+    public void addFetchResult() {
+        this.fetchResult = new FetchSearchResult(this.readerContext.id(), this.shardTarget);
+    }
+
+    @Override
+    public void addQueryResult() {
+        this.queryResult = new QuerySearchResult(this.readerContext.id(), this.shardTarget, this.request);
+    }
+
+    @Override
+    public void addDfsResult() {
+        this.dfsResult = new DfsSearchResult(this.readerContext.id(), this.shardTarget, this.request);
     }
 
     /**
@@ -698,6 +711,22 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public QuerySearchResult queryResult() {
         return queryResult;
+    }
+
+    @Override
+    public TotalHits getTotalHits() {
+        if (queryResult != null) {
+            return queryResult.getTotalHits();
+        }
+        return null;
+    }
+
+    @Override
+    public float getMaxScore() {
+        if (queryResult != null) {
+            return queryResult.getMaxScore();
+        }
+        return Float.NaN;
     }
 
     @Override

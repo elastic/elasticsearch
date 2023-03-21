@@ -132,7 +132,7 @@ The API returns the following result:
             "node": "UPYt8VwWTt-IADAEbqpLxA",
             "node_is_desired": true,
             "relocating_node": null,
-            "relocating_node_is_desired": false,
+            "relocating_node_is_desired": null,
             "shard_id": 0,
             "index": "test",
             "forecast_write_load": 8.0,

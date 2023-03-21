@@ -27,7 +27,7 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         setInitialState(null, licenseState, Settings.EMPTY, "trial");
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);
-        licenseService.start();
+        clusterStateLicenseService.start();
 
         ClusterState state = ClusterState.builder(new ClusterName("a")).build();
         ArgumentCaptor<ClusterStateUpdateTask> stateUpdater = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
@@ -39,7 +39,7 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
         assertFalse(licenseMetadata.isEligibleForTrial());
         assertEquals("trial", licenseMetadata.getLicense().type());
         assertEquals(
-            clock.millis() + LicenseService.NON_BASIC_SELF_GENERATED_LICENSE_DURATION.millis(),
+            clock.millis() + LicenseSettings.NON_BASIC_SELF_GENERATED_LICENSE_DURATION.millis(),
             licenseMetadata.getLicense().expiryDate()
         );
     }
@@ -48,7 +48,7 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         setInitialState(null, licenseState, Settings.EMPTY, "basic");
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);
-        licenseService.start();
+        clusterStateLicenseService.start();
 
         ClusterState state = ClusterState.builder(new ClusterName("a")).build();
         ArgumentCaptor<ClusterStateUpdateTask> stateUpdater = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
@@ -59,7 +59,7 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
         assertNotNull(licenseMetadata.getLicense());
         assertTrue(licenseMetadata.isEligibleForTrial());
         assertEquals("basic", licenseMetadata.getLicense().type());
-        assertEquals(LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS, licenseMetadata.getLicense().expiryDate());
+        assertEquals(LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS, licenseMetadata.getLicense().expiryDate());
     }
 
     public void testNonSelfGeneratedBasicLicenseIsReplaced() throws Exception {
@@ -80,7 +80,7 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         setInitialState(license, licenseState, Settings.EMPTY);
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);
-        licenseService.start();
+        clusterStateLicenseService.start();
 
         Metadata.Builder mdBuilder = Metadata.builder();
         mdBuilder.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(license, null));
@@ -93,7 +93,7 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
         assertNotNull(licenseMetadata.getLicense());
         assertTrue(licenseMetadata.isEligibleForTrial());
         assertEquals("basic", licenseMetadata.getLicense().type());
-        assertEquals(LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS, licenseMetadata.getLicense().expiryDate());
+        assertEquals(LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS, licenseMetadata.getLicense().expiryDate());
         assertEquals(uid, licenseMetadata.getLicense().uid());
     }
 
@@ -112,7 +112,7 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         setInitialState(license, licenseState, Settings.EMPTY);
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);
-        licenseService.start();
+        clusterStateLicenseService.start();
 
         Metadata.Builder mdBuilder = Metadata.builder();
         mdBuilder.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(license, null));
@@ -125,7 +125,7 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
         assertNotNull(licenseMetadata.getLicense());
         assertTrue(licenseMetadata.isEligibleForTrial());
         assertEquals("basic", licenseMetadata.getLicense().type());
-        assertEquals(LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS, licenseMetadata.getLicense().expiryDate());
+        assertEquals(LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS, licenseMetadata.getLicense().expiryDate());
         assertEquals(uid, licenseMetadata.getLicense().uid());
     }
 }

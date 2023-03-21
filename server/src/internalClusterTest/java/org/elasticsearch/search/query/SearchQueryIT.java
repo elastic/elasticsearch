@@ -2083,16 +2083,16 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testFetchIdFieldQuery() {
         createIndex("test");
         int docCount = randomIntBetween(10, 50);
-        for (int i=0; i<docCount; i++) {
+        for (int i = 0; i < docCount; i++) {
             client().prepareIndex("test").setSource("field", "foobarbaz").get();
         }
         ensureGreen();
         refresh();
 
-        SearchResponse response = client().prepareSearch("test").addFetchField("_id").setSize(10).get();
+        SearchResponse response = client().prepareSearch("test").addFetchField("_id").setSize(docCount).get();
         SearchHit[] hits = response.getHits().getHits();
-        assertEquals(10, hits.length);
-        for (SearchHit hit: hits) {
+        assertEquals(docCount, hits.length);
+        for (SearchHit hit : hits) {
             assertNotNull(hit.getFields().get("_id").getValue());
         }
     }

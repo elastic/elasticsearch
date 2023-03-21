@@ -139,9 +139,8 @@ public class AuthenticationTests extends ESTestCase {
 
     public void testCrossClusterAccessCanAccessResourceOf() throws IOException {
         final String apiKeyId1 = randomAlphaOfLengthBetween(10, 20);
-        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo1 = randomValueOtherThanMany(
-            ra -> User.isInternal(ra.getAuthentication().getEffectiveSubject().getUser()),
-            AuthenticationTestHelper::randomCrossClusterAccessSubjectInfo
+        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo1 = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(
+            false
         );
         final Authentication authentication = AuthenticationTestHelper.builder()
             .crossClusterAccess(apiKeyId1, crossClusterAccessSubjectInfo1)

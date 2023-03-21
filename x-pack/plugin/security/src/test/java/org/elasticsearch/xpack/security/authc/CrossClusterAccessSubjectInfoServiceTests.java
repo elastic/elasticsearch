@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -111,7 +110,9 @@ public class CrossClusterAccessSubjectInfoServiceTests extends ESTestCase {
         final var threadContext = new ThreadContext(Settings.EMPTY);
         final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
             CrossClusterAccessHeadersTests.randomEncodedApiKeyHeader(),
-            AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo()
+            randomBoolean()
+                ? AuthenticationTestHelper.randomCrossClusterAccessSubjectInfoForInternalUser(true)
+                : AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(false)
         );
         crossClusterAccessHeaders.writeToContext(threadContext);
         final AuthenticationService.AuditableRequest auditableRequest = mock(AuthenticationService.AuditableRequest.class);
@@ -138,7 +139,7 @@ public class CrossClusterAccessSubjectInfoServiceTests extends ESTestCase {
 
         final Authentication remoteAuthentication = crossClusterAccessHeaders.subjectInfo().getAuthentication();
         final Authentication expectedAuthentication;
-        if (SystemUser.is(remoteAuthentication.getEffectiveSubject().getUser())) {
+        if (CrossClusterAccessUser.is(remoteAuthentication.getEffectiveSubject().getUser())) {
             expectedAuthentication = apiKeyAuthentication.toCrossClusterAccess(
                 CrossClusterAccessUser.subjectInfoWithRoleDescriptors(
                     remoteAuthentication.getEffectiveSubject().getTransportVersion(),

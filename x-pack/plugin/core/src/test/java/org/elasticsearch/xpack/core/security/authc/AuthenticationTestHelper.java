@@ -252,16 +252,29 @@ public class AuthenticationTestHelper {
         }
     }
 
-    public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfoForInternalUser() {
+    public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfoForInternalUser(boolean emptyRoleDescriptors) {
         final Authentication authentication = AuthenticationTestHelper.builder().internal(CrossClusterAccessUser.INSTANCE).build();
-        return CrossClusterAccessUser.subjectInfoWithRoleDescriptors(
-            authentication.getEffectiveSubject().getTransportVersion(),
-            authentication.getEffectiveSubject().getRealm().getNodeName()
-        );
+        return emptyRoleDescriptors
+            ? CrossClusterAccessUser.subjectInfoWithEmptyRoleDescriptors(
+                authentication.getEffectiveSubject().getTransportVersion(),
+                authentication.getEffectiveSubject().getRealm().getNodeName()
+            )
+            : CrossClusterAccessUser.subjectInfoWithRoleDescriptors(
+                authentication.getEffectiveSubject().getTransportVersion(),
+                authentication.getEffectiveSubject().getRealm().getNodeName()
+            );
     }
 
     public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo() {
-        final String type = ESTestCase.randomFrom("realm", "internal");
+        return randomCrossClusterAccessSubjectInfo(true);
+    }
+
+    public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo(boolean allowInternalUser) {
+        final Set<String> allowedTypes = new HashSet<>(Set.of("realm"));
+        if (allowInternalUser) {
+            allowedTypes.add("internal");
+        }
+        final String type = ESTestCase.randomFrom(allowedTypes.toArray(new String[0]));
         return switch (type) {
             case "realm" -> randomCrossClusterAccessSubjectInfo(
                 new RoleDescriptorsIntersection(
@@ -280,7 +293,7 @@ public class AuthenticationTestHelper {
                     )
                 )
             );
-            case "internal" -> randomCrossClusterAccessSubjectInfoForInternalUser();
+            case "internal" -> randomCrossClusterAccessSubjectInfoForInternalUser(false);
             default -> throw new IllegalArgumentException("Unknown type " + type);
         };
 

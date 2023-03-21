@@ -44,7 +44,7 @@ public class SearchApplication implements Writeable, ToXContentObject {
     private final String[] indices;
     private long updatedAtMillis = System.currentTimeMillis();
     private final String analyticsCollectionName;
-    private final SearchTemplate searchTemplate;
+    private final SearchApplicationTemplate searchApplicationTemplate;
 
     /**
      * Public constructor.
@@ -57,14 +57,14 @@ public class SearchApplication implements Writeable, ToXContentObject {
         String name,
         String[] indices,
         @Nullable String analyticsCollectionName,
-        @Nullable SearchTemplate searchTemplate
+        @Nullable SearchApplicationTemplate searchApplicationTemplate
     ) {
         this.name = name;
         this.indices = indices;
         Arrays.sort(indices);
 
         this.analyticsCollectionName = analyticsCollectionName;
-        this.searchTemplate = searchTemplate;
+        this.searchApplicationTemplate = searchApplicationTemplate;
     }
 
     public SearchApplication(StreamInput in) throws IOException {
@@ -72,7 +72,7 @@ public class SearchApplication implements Writeable, ToXContentObject {
         this.indices = in.readStringArray();
         this.analyticsCollectionName = in.readOptionalString();
         this.updatedAtMillis = in.readLong();
-        this.searchTemplate = in.readOptionalWriteable(SearchTemplate::new);
+        this.searchApplicationTemplate = in.readOptionalWriteable(SearchApplicationTemplate::new);
     }
 
     @Override
@@ -81,7 +81,7 @@ public class SearchApplication implements Writeable, ToXContentObject {
         out.writeStringArray(indices);
         out.writeOptionalString(analyticsCollectionName);
         out.writeLong(updatedAtMillis);
-        out.writeOptionalWriteable(searchTemplate);
+        out.writeOptionalWriteable(searchApplicationTemplate);
     }
 
     private static final ConstructingObjectParser<SearchApplication, String> PARSER = new ConstructingObjectParser<>(
@@ -102,7 +102,7 @@ public class SearchApplication implements Writeable, ToXContentObject {
             final String analyticsCollectionName = (String) params[2];
             final Long maybeUpdatedAtMillis = (Long) params[3];
             long updatedAtMillis = (maybeUpdatedAtMillis != null ? maybeUpdatedAtMillis : System.currentTimeMillis());
-            final SearchTemplate template = (SearchTemplate) params[4];
+            final SearchApplicationTemplate template = (SearchApplicationTemplate) params[4];
 
             SearchApplication newApp = new SearchApplication(resourceName, indices, analyticsCollectionName, template);
             newApp.setUpdatedAtMillis(updatedAtMillis);
@@ -124,7 +124,7 @@ public class SearchApplication implements Writeable, ToXContentObject {
         PARSER.declareStringArray(constructorArg(), INDICES_FIELD);
         PARSER.declareStringOrNull(optionalConstructorArg(), ANALYTICS_COLLECTION_NAME_FIELD);
         PARSER.declareLong(optionalConstructorArg(), UPDATED_AT_MILLIS_FIELD);
-        PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> SearchTemplate.parse(p), null, TEMPLATE_FIELD);
+        PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> SearchApplicationTemplate.parse(p), null, TEMPLATE_FIELD);
     }
 
     /**
@@ -170,7 +170,7 @@ public class SearchApplication implements Writeable, ToXContentObject {
             builder.field(ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName(), analyticsCollectionName);
         }
         builder.field(UPDATED_AT_MILLIS_FIELD.getPreferredName(), updatedAtMillis);
-        builder.field(TEMPLATE_FIELD.getPreferredName(), searchTemplate);
+        builder.field(TEMPLATE_FIELD.getPreferredName(), searchApplicationTemplate);
         builder.endObject();
         return builder;
     }
@@ -206,8 +206,8 @@ public class SearchApplication implements Writeable, ToXContentObject {
         return updatedAtMillis;
     }
 
-    public @Nullable SearchTemplate searchTemplate() {
-        return searchTemplate;
+    public @Nullable SearchApplicationTemplate searchTemplate() {
+        return searchApplicationTemplate;
     }
 
     public void setUpdatedAtMillis(long updatedAtMillis) {
@@ -223,12 +223,12 @@ public class SearchApplication implements Writeable, ToXContentObject {
             && Arrays.equals(indices, app.indices)
             && Objects.equals(analyticsCollectionName, app.analyticsCollectionName)
             && updatedAtMillis == app.updatedAtMillis()
-            && Objects.equals(searchTemplate, app.searchTemplate);
+            && Objects.equals(searchApplicationTemplate, app.searchApplicationTemplate);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(name, analyticsCollectionName, updatedAtMillis, searchTemplate);
+        int result = Objects.hash(name, analyticsCollectionName, updatedAtMillis, searchApplicationTemplate);
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }

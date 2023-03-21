@@ -43,7 +43,7 @@ public final class SearchApplicationTestUtils {
         );
     }
 
-    public static SearchTemplate getRandomSearchTemplate() {
+    public static SearchApplicationTemplate getRandomSearchTemplate() {
         String paramName = randomAlphaOfLengthBetween(8, 10);
         String paramValue = randomAlphaOfLengthBetween(8, 10);
         String query = String.format(Locale.ROOT, """
@@ -52,6 +52,6 @@ public final class SearchApplicationTestUtils {
             }
             """, paramName);
         final Script script = new Script(ScriptType.INLINE, "mustache", query, Collections.singletonMap(paramName, paramValue));
-        return new SearchTemplate(script);
+        return new SearchApplicationTemplate(script);
     }
 }

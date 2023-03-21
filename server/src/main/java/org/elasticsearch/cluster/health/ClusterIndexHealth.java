@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.health;
 
+import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -43,7 +44,6 @@ public final class ClusterIndexHealth implements Writeable, ToXContentFragment {
     private static final String RELOCATING_SHARDS = "relocating_shards";
     private static final String INITIALIZING_SHARDS = "initializing_shards";
     private static final String UNASSIGNED_SHARDS = "unassigned_shards";
-    private static final String SHARDS = "shards";
 
     private static final ConstructingObjectParser<ClusterIndexHealth, String> PARSER = new ConstructingObjectParser<>(
         "cluster_index_health",
@@ -100,7 +100,7 @@ public final class ClusterIndexHealth implements Writeable, ToXContentFragment {
         PARSER.declareInt(constructorArg(), new ParseField(ACTIVE_PRIMARY_SHARDS));
         PARSER.declareString(constructorArg(), new ParseField(STATUS));
         // Can be absent if LEVEL == 'indices' or 'cluster'
-        PARSER.declareNamedObjects(optionalConstructorArg(), SHARD_PARSER, new ParseField(SHARDS));
+        PARSER.declareNamedObjects(optionalConstructorArg(), SHARD_PARSER, new ParseField(ClusterStatsLevel.SHARDS.getLevel()));
     }
 
     private final String index;
@@ -267,8 +267,9 @@ public final class ClusterIndexHealth implements Writeable, ToXContentFragment {
         builder.field(INITIALIZING_SHARDS, getInitializingShards());
         builder.field(UNASSIGNED_SHARDS, getUnassignedShards());
 
-        if ("shards".equals(params.param("level", "indices"))) {
-            builder.startObject(SHARDS);
+        ClusterStatsLevel level = ClusterStatsLevel.of(params.param("level", ClusterStatsLevel.INDICES.getLevel()));
+        if (level == ClusterStatsLevel.SHARDS) {
+            builder.startObject(ClusterStatsLevel.SHARDS.getLevel());
             for (ClusterShardHealth shardHealth : shards.values()) {
                 shardHealth.toXContent(builder, params);
             }

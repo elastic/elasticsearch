@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ClusterHealthResponsesTests extends AbstractXContentSerializingTestCase<ClusterHealthResponse> {
-    private final ClusterStatsLevel level = randomFrom(ClusterStatsLevel.SHARDS, ClusterStatsLevel.INDICES, ClusterStatsLevel.CLUSTER);
+    private final ClusterStatsLevel level = randomFrom(ClusterStatsLevel.values());
 
     public void testIsTimeout() {
         ClusterHealthResponse res = new ClusterHealthResponse();
@@ -110,7 +110,7 @@ public class ClusterHealthResponsesTests extends AbstractXContentSerializingTest
     protected ClusterHealthResponse createTestInstance() {
         int indicesSize = randomInt(20);
         Map<String, ClusterIndexHealth> indices = Maps.newMapWithExpectedSize(indicesSize);
-        if (ClusterStatsLevel.INDICES.equals(level) || ClusterStatsLevel.SHARDS.equals(level)) {
+        if (level == ClusterStatsLevel.INDICES || level == ClusterStatsLevel.SHARDS) {
             for (int i = 0; i < indicesSize; i++) {
                 String indexName = randomAlphaOfLengthBetween(1, 5) + i;
                 indices.put(indexName, ClusterIndexHealthTests.randomIndexHealth(indexName, level));

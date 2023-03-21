@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.xcontent.ToXContent;
+
 public enum NodeStatsLevel {
     NODE("node"),
     INDICES("indices"),
@@ -30,5 +32,9 @@ public enum NodeStatsLevel {
             }
         }
         throw new IllegalArgumentException("level parameter must be one of [node] or [indices] or [shards] but was [" + level + "]");
+    }
+
+    public static NodeStatsLevel of(ToXContent.Params params, NodeStatsLevel defaultLevel) {
+        return NodeStatsLevel.of(params.param("level", defaultLevel.getLevel()));
     }
 }

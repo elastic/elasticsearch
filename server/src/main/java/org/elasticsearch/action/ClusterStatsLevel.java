@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.xcontent.ToXContent;
+
 public enum ClusterStatsLevel {
     CLUSTER("cluster"),
     INDICES("indices"),
@@ -30,5 +32,9 @@ public enum ClusterStatsLevel {
             }
         }
         throw new IllegalArgumentException("level parameter must be one of [cluster] or [indices] or [shards] but was [" + level + "]");
+    }
+
+    public static ClusterStatsLevel of(ToXContent.Params params, ClusterStatsLevel defaultLevel) {
+        return ClusterStatsLevel.of(params.param("level", defaultLevel.getLevel()));
     }
 }

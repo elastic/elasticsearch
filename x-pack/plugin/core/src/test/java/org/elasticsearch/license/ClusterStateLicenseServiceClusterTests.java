@@ -23,7 +23,7 @@ import static org.elasticsearch.test.NodeRoles.addRoles;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 @ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0, maxNumDataNodes = 0)
-public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestCase {
+public class ClusterStateLicenseServiceClusterTests extends AbstractLicensesIntegrationTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {

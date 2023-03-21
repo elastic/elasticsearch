@@ -131,6 +131,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
             if (false == isProxyMode) {
                 assertThat(ObjectPath.eval("my_remote_cluster.num_nodes_connected", remoteInfoMap), equalTo(numberOfFcNodes));
             }
+            assertThat(ObjectPath.eval("my_remote_cluster.cluster_credentials", remoteInfoMap), equalTo("::es_redacted::"));
         });
 
         return (String) apiKeyMap.get("id");

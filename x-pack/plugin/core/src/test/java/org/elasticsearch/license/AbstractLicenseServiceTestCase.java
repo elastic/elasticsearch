@@ -34,7 +34,7 @@ import static org.mockito.Mockito.when;
 
 public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
 
-    protected LicenseService licenseService;
+    protected ClusterStateLicenseService clusterStateLicenseService;
     protected ClusterService clusterService;
     protected ClockMock clock;
     protected DiscoveryNodes discoveryNodes;
@@ -63,7 +63,7 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
     protected void setInitialState(License license, XPackLicenseState licenseState, Settings settings, String selfGeneratedType) {
         licenseType = selfGeneratedType;
         settings = Settings.builder().put(settings).put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), licenseType).build();
-        licenseService = new LicenseService(settings, threadPool, clusterService, clock, licenseState);
+        clusterStateLicenseService = new ClusterStateLicenseService(settings, threadPool, clusterService, clock, licenseState);
         ClusterState state = mock(ClusterState.class);
         final ClusterBlocks noBlock = ClusterBlocks.builder().build();
         when(state.blocks()).thenReturn(noBlock);
@@ -96,6 +96,6 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
     @After
     public void tearDown() throws Exception {
         super.tearDown();
-        licenseService.stop();
+        clusterStateLicenseService.stop();
     }
 }

@@ -73,6 +73,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
@@ -194,120 +195,51 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return Collections.unmodifiableMap(processorFactories);
     }
 
-    public static boolean resolvePipelines(
+    /**
+     * Resolves the potential pipelines (default and final) from the requests or templates associated to the index and then **mutates**
+     * the {@link org.elasticsearch.action.index.IndexRequest} passed object with the pipeline information.
+     *
+     * Also, this method marks the request as `isPipelinesResolved = true`: Due to the request could be rerouted from a coordinating node
+     * to an ingest node, we have to be able to avoid double resolving the pipelines and also able to distinguish that either the pipeline
+     * comes as part of the request or resolved from this method. All this is made to later be able to reject the request in case the
+     * pipeline was set by a required pipeline **and** the request also has a pipeline request too.
+     *
+     * @param originalRequest Original write request received.
+     * @param indexRequest    The {@link org.elasticsearch.action.index.IndexRequest} object to update.
+     * @param metadata        Cluster metadata from where the pipeline information could be derived.
+     */
+    public static void resolvePipelinesAndUpdateIndexRequest(
         final DocWriteRequest<?> originalRequest,
         final IndexRequest indexRequest,
         final Metadata metadata
     ) {
-        return resolvePipelines(originalRequest, indexRequest, metadata, System.currentTimeMillis());
+        resolvePipelinesAndUpdateIndexRequest(originalRequest, indexRequest, metadata, System.currentTimeMillis());
     }
 
-    public static boolean resolvePipelines(
+    static void resolvePipelinesAndUpdateIndexRequest(
         final DocWriteRequest<?> originalRequest,
         final IndexRequest indexRequest,
         final Metadata metadata,
         final long epochMillis
     ) {
-        if (indexRequest.isPipelineResolved() == false) {
-            final String requestPipeline = indexRequest.getPipeline();
-            indexRequest.setPipeline(NOOP_PIPELINE_NAME);
-            indexRequest.setFinalPipeline(NOOP_PIPELINE_NAME);
-            String defaultPipeline = null;
-            String finalPipeline = null;
-            IndexMetadata indexMetadata = null;
-            // start to look for default or final pipelines via settings found in the index metadata
-            if (originalRequest != null) {
-                indexMetadata = metadata.indices()
-                    .get(IndexNameExpressionResolver.resolveDateMathExpression(originalRequest.index(), epochMillis));
-            }
-            // check the alias for the index request (this is how normal index requests are modeled)
-            if (indexMetadata == null && indexRequest.index() != null) {
-                IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(indexRequest.index());
-                if (indexAbstraction != null && indexAbstraction.getWriteIndex() != null) {
-                    indexMetadata = metadata.index(indexAbstraction.getWriteIndex());
-                }
-            }
-            // check the alias for the action request (this is how upserts are modeled)
-            if (indexMetadata == null && originalRequest != null && originalRequest.index() != null) {
-                IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(originalRequest.index());
-                if (indexAbstraction != null && indexAbstraction.getWriteIndex() != null) {
-                    indexMetadata = metadata.index(indexAbstraction.getWriteIndex());
-                }
-            }
-            if (indexMetadata != null) {
-                final Settings indexSettings = indexMetadata.getSettings();
-                if (IndexSettings.DEFAULT_PIPELINE.exists(indexSettings)) {
-                    // find the default pipeline if one is defined from an existing index setting
-                    defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexSettings);
-                    indexRequest.setPipeline(defaultPipeline);
-                }
-                if (IndexSettings.FINAL_PIPELINE.exists(indexSettings)) {
-                    // find the final pipeline if one is defined from an existing index setting
-                    finalPipeline = IndexSettings.FINAL_PIPELINE.get(indexSettings);
-                    indexRequest.setFinalPipeline(finalPipeline);
-                }
-            } else if (indexRequest.index() != null) {
-                // the index does not exist yet (and this is a valid request), so match index
-                // templates to look for pipelines in either a matching V2 template (which takes
-                // precedence), or if a V2 template does not match, any V1 templates
-                String v2Template = MetadataIndexTemplateService.findV2Template(metadata, indexRequest.index(), false);
-                if (v2Template != null) {
-                    Settings settings = MetadataIndexTemplateService.resolveSettings(metadata, v2Template);
-                    if (IndexSettings.DEFAULT_PIPELINE.exists(settings)) {
-                        defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(settings);
-                    }
-                    if (IndexSettings.FINAL_PIPELINE.exists(settings)) {
-                        finalPipeline = IndexSettings.FINAL_PIPELINE.get(settings);
-                    }
-                    indexRequest.setPipeline(Objects.requireNonNullElse(defaultPipeline, NOOP_PIPELINE_NAME));
-                    indexRequest.setFinalPipeline(Objects.requireNonNullElse(finalPipeline, NOOP_PIPELINE_NAME));
-                } else {
-                    List<IndexTemplateMetadata> templates = MetadataIndexTemplateService.findV1Templates(
-                        metadata,
-                        indexRequest.index(),
-                        null
-                    );
-                    // order of templates are highest order first
-                    for (final IndexTemplateMetadata template : templates) {
-                        final Settings settings = template.settings();
-                        if (defaultPipeline == null && IndexSettings.DEFAULT_PIPELINE.exists(settings)) {
-                            defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(settings);
-                            // we can not break in case a lower-order template has a final pipeline that we need to collect
-                        }
-                        if (finalPipeline == null && IndexSettings.FINAL_PIPELINE.exists(settings)) {
-                            finalPipeline = IndexSettings.FINAL_PIPELINE.get(settings);
-                            // we can not break in case a lower-order template has a default pipeline that we need to collect
-                        }
-                        if (defaultPipeline != null && finalPipeline != null) {
-                            // we can break if we have already collected a default and final pipeline
-                            break;
-                        }
-                    }
-                    indexRequest.setPipeline(Objects.requireNonNullElse(defaultPipeline, NOOP_PIPELINE_NAME));
-                    indexRequest.setFinalPipeline(Objects.requireNonNullElse(finalPipeline, NOOP_PIPELINE_NAME));
-                }
-            }
-
-            if (requestPipeline != null) {
-                indexRequest.setPipeline(requestPipeline);
-            }
-
-            /*
-             * We have to track whether or not the pipeline for this request has already been resolved. It can happen that the
-             * pipeline for this request has already been derived yet we execute this loop again. That occurs if the bulk request
-             * has been forwarded by a non-ingest coordinating node to an ingest node. In this case, the coordinating node will have
-             * already resolved the pipeline for this request. It is important that we are able to distinguish this situation as we
-             * can not double-resolve the pipeline because we will not be able to distinguish the case of the pipeline having been
-             * set from a request pipeline parameter versus having been set by the resolution. We need to be able to distinguish
-             * these cases as we need to reject the request if the pipeline was set by a required pipeline and there is a request
-             * pipeline parameter too.
-             */
-            indexRequest.isPipelineResolved(true);
+        if (indexRequest.isPipelineResolved()) {
+            return;
         }
 
-        // return whether this index request has a pipeline
-        return NOOP_PIPELINE_NAME.equals(indexRequest.getPipeline()) == false
-            || NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false;
+        String requestPipeline = indexRequest.getPipeline();
+
+        Pipelines pipelines = resolvePipelinesFromMetadata(originalRequest, indexRequest, metadata, epochMillis) //
+            .or(() -> resolvePipelinesFromIndexTemplates(indexRequest, metadata))
+            .orElse(Pipelines.NO_PIPELINES_DEFINED);
+
+        // The pipeline coming as part of the request always has priority over the resolved one from metadata or templates
+        if (requestPipeline != null) {
+            indexRequest.setPipeline(requestPipeline);
+        } else {
+            indexRequest.setPipeline(pipelines.defaultPipeline);
+        }
+        indexRequest.setFinalPipeline(pipelines.finalPipeline);
+        indexRequest.isPipelineResolved(true);
     }
 
     public ClusterService getClusterService() {
@@ -855,7 +787,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         return; // document failed!
                     } else {
                         indexRequest.isPipelineResolved(false);
-                        resolvePipelines(null, indexRequest, state.metadata());
+                        resolvePipelinesAndUpdateIndexRequest(null, indexRequest, state.metadata());
                         if (IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false) {
                             newPipelineIds = Collections.singleton(indexRequest.getFinalPipeline()).iterator();
                             newHasFinalPipeline = true;
@@ -1223,4 +1155,105 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
+    private static Optional<Pipelines> resolvePipelinesFromMetadata(
+        DocWriteRequest<?> originalRequest,
+        IndexRequest indexRequest,
+        Metadata metadata,
+        long epochMillis
+    ) {
+        IndexMetadata indexMetadata = null;
+        // start to look for default or final pipelines via settings found in the cluster metadata
+        if (originalRequest != null) {
+            indexMetadata = metadata.indices()
+                .get(IndexNameExpressionResolver.resolveDateMathExpression(originalRequest.index(), epochMillis));
+        }
+        // check the alias for the index request (this is how normal index requests are modeled)
+        if (indexMetadata == null && indexRequest.index() != null) {
+            IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(indexRequest.index());
+            if (indexAbstraction != null && indexAbstraction.getWriteIndex() != null) {
+                indexMetadata = metadata.index(indexAbstraction.getWriteIndex());
+            }
+        }
+        // check the alias for the action request (this is how upserts are modeled)
+        if (indexMetadata == null && originalRequest != null && originalRequest.index() != null) {
+            IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(originalRequest.index());
+            if (indexAbstraction != null && indexAbstraction.getWriteIndex() != null) {
+                indexMetadata = metadata.index(indexAbstraction.getWriteIndex());
+            }
+        }
+
+        if (indexMetadata == null) {
+            return Optional.empty();
+        }
+
+        final Settings settings = indexMetadata.getSettings();
+        return Optional.of(new Pipelines(IndexSettings.DEFAULT_PIPELINE.get(settings), IndexSettings.FINAL_PIPELINE.get(settings)));
+    }
+
+    private static Optional<Pipelines> resolvePipelinesFromIndexTemplates(IndexRequest indexRequest, Metadata metadata) {
+        if (indexRequest.index() == null) {
+            return Optional.empty();
+        }
+
+        // the index does not exist yet (and this is a valid request), so match index
+        // templates to look for pipelines in either a matching V2 template (which takes
+        // precedence), or if a V2 template does not match, any V1 templates
+        String v2Template = MetadataIndexTemplateService.findV2Template(metadata, indexRequest.index(), false);
+        if (v2Template != null) {
+            final Settings settings = MetadataIndexTemplateService.resolveSettings(metadata, v2Template);
+            return Optional.of(new Pipelines(IndexSettings.DEFAULT_PIPELINE.get(settings), IndexSettings.FINAL_PIPELINE.get(settings)));
+        }
+
+        String defaultPipeline = null;
+        String finalPipeline = null;
+        List<IndexTemplateMetadata> templates = MetadataIndexTemplateService.findV1Templates(metadata, indexRequest.index(), null);
+        // order of templates are the highest order first
+        for (final IndexTemplateMetadata template : templates) {
+            final Settings settings = template.settings();
+
+            // note: the exists/get trickiness here is because we explicitly *don't* want the default value
+            // of the settings -- a non-null value would terminate the search too soon
+            if (defaultPipeline == null && IndexSettings.DEFAULT_PIPELINE.exists(settings)) {
+                defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(settings);
+                // we can not break in case a lower-order template has a final pipeline that we need to collect
+            }
+            if (finalPipeline == null && IndexSettings.FINAL_PIPELINE.exists(settings)) {
+                finalPipeline = IndexSettings.FINAL_PIPELINE.get(settings);
+                // we can not break in case a lower-order template has a default pipeline that we need to collect
+            }
+            if (defaultPipeline != null && finalPipeline != null) {
+                // we can break if we have already collected a default and final pipeline
+                break;
+            }
+        }
+
+        // having exhausted the search, if nothing was found, then use the default noop pipeline names
+        defaultPipeline = Objects.requireNonNullElse(defaultPipeline, NOOP_PIPELINE_NAME);
+        finalPipeline = Objects.requireNonNullElse(finalPipeline, NOOP_PIPELINE_NAME);
+
+        return Optional.of(new Pipelines(defaultPipeline, finalPipeline));
+    }
+
+    /**
+     * Checks whether an IndexRequest has at least one pipeline defined.
+     *
+     * This method assumes that the pipelines are beforehand resolved.
+     */
+    public static boolean hasPipeline(IndexRequest indexRequest) {
+        assert indexRequest.isPipelineResolved();
+        assert indexRequest.getPipeline() != null;
+        assert indexRequest.getFinalPipeline() != null;
+        return NOOP_PIPELINE_NAME.equals(indexRequest.getPipeline()) == false
+            || NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false;
+    }
+
+    private record Pipelines(String defaultPipeline, String finalPipeline) {
+
+        private static final Pipelines NO_PIPELINES_DEFINED = new Pipelines(NOOP_PIPELINE_NAME, NOOP_PIPELINE_NAME);
+
+        public Pipelines {
+            Objects.requireNonNull(defaultPipeline);
+            Objects.requireNonNull(finalPipeline);
+        }
+    }
 }

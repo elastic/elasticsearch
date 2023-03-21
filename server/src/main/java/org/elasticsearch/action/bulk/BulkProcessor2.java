@@ -332,13 +332,13 @@ public class BulkProcessor2 {
         boolean successfullyAdded = false;
         while (successfullyAdded == false) {
             if (shouldAbort.get()) {
-                throw new EsRejectedExecutionException("Rejecting request because shouldAbort is now true");
+                throw new EsRejectedExecutionException("Rejecting request because bulk add has been cancelled by the caller");
             }
             try {
                 add(request);
                 successfullyAdded = true;
             } catch (EsRejectedExecutionException e) {
-                logger.trace("Rollup doc rejected, and will try again");
+                logger.trace("Attempt to add request to batch rejected because too many bytes are in flight already. Will try again.");
                 /*
                  * Note: It is possible that signalAll was called between the call to add above and acquiring this lock.
                  * But in that case, either we wait 500ms, or another batch completes and another call to signalAll wakes us up.

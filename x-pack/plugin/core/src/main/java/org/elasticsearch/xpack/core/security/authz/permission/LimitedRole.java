@@ -124,13 +124,13 @@ public final class LimitedRole implements Role {
     }
 
     @Override
-    public RoleDescriptorsIntersection getRemoteAccessRoleDescriptorsIntersection(final String remoteClusterAlias) {
-        final RoleDescriptorsIntersection baseIntersection = baseRole.getRemoteAccessRoleDescriptorsIntersection(remoteClusterAlias);
+    public RoleDescriptorsIntersection getRoleDescriptorsIntersectionForRemoteCluster(final String remoteClusterAlias) {
+        final RoleDescriptorsIntersection baseIntersection = baseRole.getRoleDescriptorsIntersectionForRemoteCluster(remoteClusterAlias);
         // Intersecting with empty descriptors list should result in an empty intersection.
         if (baseIntersection.roleDescriptorsList().isEmpty()) {
             return RoleDescriptorsIntersection.EMPTY;
         }
-        final RoleDescriptorsIntersection limitedByIntersection = limitedByRole.getRemoteAccessRoleDescriptorsIntersection(
+        final RoleDescriptorsIntersection limitedByIntersection = limitedByRole.getRoleDescriptorsIntersectionForRemoteCluster(
             remoteClusterAlias
         );
         if (limitedByIntersection.roleDescriptorsList().isEmpty()) {

@@ -33,9 +33,9 @@ public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
         XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
 
         setInitialState(null, licenseState, settings);
-        licenseService.start();
+        clusterStateLicenseService.start();
         PlainActionFuture<PutLicenseResponse> responseFuture = new PlainActionFuture<>();
-        licenseService.registerLicense(request, responseFuture);
+        clusterStateLicenseService.registerLicense(request, responseFuture);
         if (responseFuture.isDone()) {
             // If the future is done, it means request/license validation failed.
             // In which case, this `actionGet` should throw a more useful exception than the verify below.
@@ -58,14 +58,17 @@ public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
         XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
 
         setInitialState(null, licenseState, settings);
-        licenseService.start();
+        clusterStateLicenseService.start();
         PlainActionFuture<PutLicenseResponse> responseFuture = new PlainActionFuture<>();
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> licenseService.registerLicense(request, responseFuture));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> clusterStateLicenseService.registerLicense(request, responseFuture)
+        );
         assertThat(
             e.getMessage(),
             containsString("Cannot install a [" + newLicense.operationMode() + "] license unless FIPS mode is disabled")
         );
-        licenseService.stop();
+        clusterStateLicenseService.stop();
 
         settings = Settings.builder()
             .put("xpack.security.enabled", true)
@@ -75,8 +78,8 @@ public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
         licenseState = new XPackLicenseState(() -> 0);
 
         setInitialState(null, licenseState, settings);
-        licenseService.start();
-        licenseService.registerLicense(request, responseFuture);
+        clusterStateLicenseService.start();
+        clusterStateLicenseService.registerLicense(request, responseFuture);
         if (responseFuture.isDone()) {
             // If the future is done, it means request/license validation failed.
             // In which case, this `actionGet` should throw a more useful exception than the verify below.

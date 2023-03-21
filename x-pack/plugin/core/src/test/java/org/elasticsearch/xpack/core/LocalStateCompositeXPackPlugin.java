@@ -58,11 +58,12 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
@@ -126,6 +127,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         NetworkPlugin,
         ClusterPlugin,
         DiscoveryPlugin,
+        ClusterCoordinationPlugin,
         MapperPlugin,
         AnalysisPlugin,
         PersistentTaskPlugin,
@@ -138,7 +140,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
 
     private XPackLicenseState licenseState;
     private SSLService sslService;
-    private LicenseService licenseService;
+    private ClusterStateLicenseService clusterStateLicenseService;
     private LongSupplier epochMillisSupplier;
     protected List<Plugin> plugins = new ArrayList<>();
 
@@ -158,13 +160,13 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
-    protected LicenseService getLicenseService() {
-        return licenseService;
+    protected ClusterStateLicenseService getLicenseService() {
+        return clusterStateLicenseService;
     }
 
     @Override
-    protected void setLicenseService(LicenseService licenseService) {
-        this.licenseService = licenseService;
+    protected void setLicenseService(ClusterStateLicenseService clusterStateLicenseService) {
+        this.clusterStateLicenseService = clusterStateLicenseService;
     }
 
     @Override
@@ -481,7 +483,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     @Override
     public Map<String, ElectionStrategy> getElectionStrategies() {
         Map<String, ElectionStrategy> electionStrategies = new HashMap<>();
-        filterPlugins(DiscoveryPlugin.class).stream().forEach(p -> electionStrategies.putAll(p.getElectionStrategies()));
+        filterPlugins(ClusterCoordinationPlugin.class).stream().forEach(p -> electionStrategies.putAll(p.getElectionStrategies()));
         return electionStrategies;
     }
 
@@ -525,7 +527,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     @Override
     public BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
         // There can be only one.
-        List<BiConsumer<DiscoveryNode, ClusterState>> items = filterPlugins(DiscoveryPlugin.class).stream()
+        List<BiConsumer<DiscoveryNode, ClusterState>> items = filterPlugins(ClusterCoordinationPlugin.class).stream()
             .map(p -> p.getJoinValidator())
             .collect(Collectors.toList());
         if (items.size() > 1) {

@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher.AckListener;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -27,6 +26,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -71,7 +71,7 @@ public class FakeThreadPoolMasterService extends MasterService {
     }
 
     @Override
-    protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
+    protected ExecutorService createThreadPoolExecutor() {
         return new PrioritizedEsThreadPoolExecutor(
             name,
             1,
@@ -95,11 +95,6 @@ public class FakeThreadPoolMasterService extends MasterService {
                     pendingTasks.add(command);
                     scheduleNextTaskIfNecessary();
                 }
-            }
-
-            @Override
-            public Pending[] getPending() {
-                return pendingTasks.stream().map(r -> new Pending(r, Priority.NORMAL, 0L, false)).toArray(Pending[]::new);
             }
         };
     }

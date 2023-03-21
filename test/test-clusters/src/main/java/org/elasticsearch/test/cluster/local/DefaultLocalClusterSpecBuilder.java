@@ -181,7 +181,8 @@ public class DefaultLocalClusterSpecBuilder extends AbstractLocalSpecBuilder<Loc
                 getKeystoreFiles(),
                 getKeystorePassword(),
                 getExtraConfigFiles(),
-                getSystemProperties()
+                getSystemProperties(),
+                getSecrets()
             );
         }
     }

@@ -12,7 +12,6 @@ import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
  */
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
-apply plugin: 'elasticsearch.internal-test-artifact-base'
 
 esplugin {
   description 'The Azure Repository plugin adds support for Azure storage repositories.'
@@ -79,15 +78,6 @@ dependencies {
   runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}")
 
   testImplementation project(':test:fixtures:azure-fixture')
-}
-
-testArtifacts {
-  registerTestArtifactFromSourceSet(sourceSets.internalClusterTest)
-}
-
-tasks.named("internalClusterTestJar").configure {
-  // for the plugin-security.policy resource
-  from sourceSets.test.output
 }
 
 restResources {

@@ -135,7 +135,7 @@ public class TransformProgressIT extends TransformSingleNodeTestCase {
         boolean missingBucket = userWithMissingBuckets > 0;
         createReviewsIndex(userWithMissingBuckets);
         SourceConfig sourceConfig = new SourceConfig(REVIEWS_INDEX_NAME);
-        DestConfig destConfig = new DestConfig("unnecessary", null);
+        DestConfig destConfig = new DestConfig("unnecessary", null, null);
         GroupConfig histgramGroupConfig = new GroupConfig(
             Collections.emptyMap(),
             Collections.singletonMap("every_50", new HistogramGroupSource("count", null, missingBucket, 50.0))

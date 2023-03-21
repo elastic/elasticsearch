@@ -78,7 +78,7 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
         .build();
     private static final TransformConfig TRANSFORM_CONFIG = new TransformConfig.Builder().setId(TRANSFORM_ID)
         .setSource(new SourceConfig(SOURCE_INDEX_NAME))
-        .setDest(new DestConfig(DEST_INDEX_NAME, null))
+        .setDest(new DestConfig(DEST_INDEX_NAME, null, null))
         .build();
     private ThreadPool threadPool;
     private SecurityContext securityContext;
@@ -282,7 +282,7 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
             )
             .build();
         TransformConfig config = new TransformConfig.Builder(TRANSFORM_CONFIG).setSource(new SourceConfig(SOURCE_INDEX_NAME_2))
-            .setDest(new DestConfig(DEST_INDEX_NAME_2, null))
+            .setDest(new DestConfig(DEST_INDEX_NAME_2, null, null))
             .build();
         client.nextHasPrivilegesResponse = new HasPrivilegesResponse(
             USER_NAME,

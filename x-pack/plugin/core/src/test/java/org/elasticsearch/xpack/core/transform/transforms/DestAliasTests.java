@@ -21,16 +21,12 @@ import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class DestConfigTests extends AbstractSerializingTransformTestCase<DestConfig> {
+public class DestAliasTests extends AbstractSerializingTransformTestCase<DestAlias> {
 
     private boolean lenient;
 
-    public static DestConfig randomDestConfig() {
-        return new DestConfig(
-            randomAlphaOfLength(10),
-            randomBoolean() ? null : randomList(5, DestAliasTests::randomDestAlias),
-            randomBoolean() ? null : randomAlphaOfLength(10)
-        );
+    public static DestAlias randomDestAlias() {
+        return new DestAlias(randomAlphaOfLength(10), randomBoolean());
     }
 
     @Before
@@ -39,8 +35,8 @@ public class DestConfigTests extends AbstractSerializingTransformTestCase<DestCo
     }
 
     @Override
-    protected DestConfig doParseInstance(XContentParser parser) throws IOException {
-        return DestConfig.fromXContent(parser, lenient);
+    protected DestAlias doParseInstance(XContentParser parser) throws IOException {
+        return DestAlias.fromXContent(parser, lenient);
     }
 
     @Override
@@ -49,29 +45,29 @@ public class DestConfigTests extends AbstractSerializingTransformTestCase<DestCo
     }
 
     @Override
-    protected DestConfig createTestInstance() {
-        return randomDestConfig();
+    protected DestAlias createTestInstance() {
+        return randomDestAlias();
     }
 
     @Override
-    protected DestConfig mutateInstance(DestConfig instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    protected DestAlias mutateInstance(DestAlias instance) {
+        return new DestAlias(instance.getAlias() + "-x", instance.isMoveOnCreation() == false);
     }
 
     @Override
-    protected Reader<DestConfig> instanceReader() {
-        return DestConfig::new;
+    protected Reader<DestAlias> instanceReader() {
+        return DestAlias::new;
     }
 
-    public void testFailOnEmptyIndex() throws IOException {
+    public void testFailOnEmptyAlias() throws IOException {
         boolean lenient2 = randomBoolean();
-        String json = "{ \"index\": \"\" }";
+        String json = "{ \"alias\": \"\" }";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            DestConfig dest = DestConfig.fromXContent(parser, lenient2);
-            assertThat(dest.getIndex(), is(emptyString()));
-            ValidationException validationException = dest.validate(null);
+            DestAlias destAlias = DestAlias.fromXContent(parser, lenient2);
+            assertThat(destAlias.getAlias(), is(emptyString()));
+            ValidationException validationException = destAlias.validate(null);
             assertThat(validationException, is(notNullValue()));
-            assertThat(validationException.getMessage(), containsString("dest.index must not be empty"));
+            assertThat(validationException.getMessage(), containsString("dest.aliases.alias must not be empty"));
         }
     }
 }

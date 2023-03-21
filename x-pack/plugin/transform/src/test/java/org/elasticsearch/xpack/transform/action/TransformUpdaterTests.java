@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
@@ -42,6 +43,8 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.action.TransformUpdater.UpdateResult;
+import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
+import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.InMemoryTransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
@@ -59,6 +62,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class TransformUpdaterTests extends ESTestCase {
 
@@ -68,6 +72,8 @@ public class TransformUpdaterTests extends ESTestCase {
     private final SecurityContext johnSecurityContext = newSecurityContextFor(JOHN);
     private final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
     private Client client;
+    private ClusterService clusterService = mock(ClusterService.class);
+    private TransformAuditor auditor = new MockTransformAuditor(clusterService);
     private final Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
 
     private static class MyMockClient extends NoOpClient {
@@ -111,6 +117,8 @@ public class TransformUpdaterTests extends ESTestCase {
             client.close();
         }
         client = new MyMockClient(getTestName());
+        clusterService = mock(ClusterService.class);
+        auditor = new MockTransformAuditor(clusterService);
     }
 
     @After
@@ -140,6 +148,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 settings,
                 client,
                 transformConfigManager,
+                auditor,
                 maxCompatibleConfig,
                 update,
                 null, // seqNoPrimaryTermAndIndex
@@ -174,6 +183,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 settings,
                 client,
                 transformConfigManager,
+                auditor,
                 minCompatibleConfig,
                 update,
                 null, // seqNoPrimaryTermAndIndex
@@ -245,6 +255,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 settings,
                 client,
                 transformConfigManager,
+                auditor,
                 oldConfig,
                 update,
                 null, // seqNoPrimaryTermAndIndex
@@ -311,6 +322,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 settings,
                 client,
                 transformConfigManager,
+                auditor,
                 oldConfigForDryRunUpdate,
                 update,
                 null, // seqNoPrimaryTermAndIndex
@@ -357,6 +369,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 settings,
                 client,
                 transformConfigManager,
+                auditor,
                 oldConfig,
                 TransformConfigUpdate.EMPTY,
                 null, // seqNoPrimaryTermAndIndex
@@ -398,6 +411,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 settings,
                 client,
                 transformConfigManager,
+                auditor,
                 oldConfig,
                 TransformConfigUpdate.EMPTY,
                 null, // seqNoPrimaryTermAndIndex
@@ -431,6 +445,7 @@ public class TransformUpdaterTests extends ESTestCase {
             settings,
             client,
             transformConfigManager,
+            auditor,
             oldConfig,
             TransformConfigUpdate.EMPTY,
             null, // seqNoPrimaryTermAndIndex

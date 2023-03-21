@@ -243,11 +243,76 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
     }
 
     /**
+     * defer_validation = false
+     * unattended       = false
+     */
+    public void testNoTransformAdminRoleNoDeferNoUnattended() throws Exception {
+        testNoTransformAdminRole(false, false);
+    }
+
+    /**
+     * defer_validation = false
+     * unattended       = true
+     */
+    public void testNoTransformAdminRoleNoDeferUnattended() throws Exception {
+        testNoTransformAdminRole(false, true);
+    }
+
+    /**
+     * defer_validation = true
+     * unattended       = false
+     */
+    public void testNoTransformAdminRoleDeferNoUnattended() throws Exception {
+        testNoTransformAdminRole(true, false);
+    }
+
+    /**
+     * defer_validation = true
+     * unattended       = true
+     */
+    public void testNoTransformAdminRoleDeferUnattended() throws Exception {
+        testNoTransformAdminRole(true, true);
+    }
+
+    private void testNoTransformAdminRole(boolean deferValidation, boolean unattended) throws Exception {
+        String transformId = "transform-permissions-no-admin-role";
+        String sourceIndexName = transformId + "-index";
+        String destIndexName = sourceIndexName + "-dest";
+        createReviewsIndex(sourceIndexName, 10, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
+
+        TransformConfig config = createConfig(transformId, sourceIndexName, destIndexName, unattended);
+
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> putTransform(
+                transformId,
+                Strings.toString(config),
+                RequestOptions.DEFAULT.toBuilder()
+                    .addHeader(AUTH_KEY, NOT_A_TRANSFORM_ADMIN_HEADER)
+                    .addParameter("defer_validation", String.valueOf(deferValidation))
+                    .build()
+            )
+        );
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), is(equalTo(403)));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                Strings.format(
+                    "action [cluster:admin/transform/put] is unauthorized for user [%s] with effective roles "
+                        + "[source_index_access,transform_user], this action is granted by the cluster privileges "
+                        + "[manage_data_frame_transforms,manage_transform,manage,all]",
+                    NOT_A_TRANSFORM_ADMIN
+                )
+            )
+        );
+    }
+
+    /**
      * defer_validation = true
      * unattended       = false
      */
     public void testNoTransformAdminRoleInSecondaryAuth() throws Exception {
-        String transformId = "transform-permissions-no-admin-role";
+        String transformId = "transform-permissions-no-admin-role-in-sec-auth";
         String sourceIndexName = transformId + "-index";
         String destIndexName = sourceIndexName + "-dest";
         createReviewsIndex(sourceIndexName, 10, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
@@ -273,6 +338,7 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
 
         // _start works because user not_a_transform_admin has data access
         startTransform(config.getId(), RequestOptions.DEFAULT);
+        waitUntilCheckpoint(transformId, 1);
     }
 
     /**

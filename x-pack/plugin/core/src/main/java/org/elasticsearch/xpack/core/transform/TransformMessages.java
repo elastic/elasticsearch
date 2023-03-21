@@ -40,6 +40,8 @@ public class TransformMessages {
             + "Use force stop and then restart the transform once error is resolved.";
 
     public static final String FAILED_TO_CREATE_DESTINATION_INDEX = "Could not create destination index [{0}] for transform [{1}]";
+    public static final String FAILED_TO_SET_UP_DESTINATION_ALIASES =
+        "Could not set up aliases for destination index [{0}] for transform [{1}]";
     public static final String FAILED_TO_RELOAD_TRANSFORM_CONFIGURATION = "Failed to reload transform configuration for transform [{0}]";
     public static final String FAILED_TO_LOAD_TRANSFORM_CONFIGURATION = "Failed to load transform configuration for transform [{0}]";
     public static final String FAILED_TO_PARSE_TRANSFORM_CONFIGURATION = "Failed to parse transform configuration for transform [{0}]";

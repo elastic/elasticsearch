@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -146,7 +147,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
 
         assertThat(config, equalTo(update.apply(config)));
         SourceConfig sourceConfig = new SourceConfig("the_new_index");
-        DestConfig destConfig = new DestConfig("the_new_dest", "my_new_pipeline");
+        DestConfig destConfig = new DestConfig("the_new_dest", List.of(new DestAlias("my_new_alias", false)), "my_new_pipeline");
         TimeValue frequency = TimeValue.timeValueSeconds(10);
         SyncConfig syncConfig = new TimeSyncConfig("time_field", TimeValue.timeValueSeconds(30));
         String newDescription = "new description";

@@ -1082,7 +1082,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 );
                 final AllocationService allocationService = ESAllocationTestCase.createAllocationService(Settings.EMPTY);
                 final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
-                final var coordinationServices = getCoordinatorStrategy().getCoordinationServices(
+                final var coordinationServices = coordinatorStrategy.getCoordinationServices(
                     threadPool,
                     settings,
                     clusterSettings,

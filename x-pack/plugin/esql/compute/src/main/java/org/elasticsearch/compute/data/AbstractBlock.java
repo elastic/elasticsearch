@@ -22,7 +22,6 @@ abstract class AbstractBlock implements Block {
     protected final BitSet nullsMask;
 
     /**
-     * Constructor for SingletonBlock
      * @param positionCount the number of values in this block
      */
     protected AbstractBlock(int positionCount) {
@@ -63,6 +62,7 @@ abstract class AbstractBlock implements Block {
     }
 
     /** Gets the number of values for the given position, possibly 0. */
+    @Override
     public int getValueCount(int position) {
         return isNull(position) ? 0 : firstValueIndexes == null ? 1 : firstValueIndexes[position + 1] - firstValueIndexes[position];
     }

@@ -65,7 +65,6 @@ abstract class AbstractBlockBuilder {
 
     public AbstractBlockBuilder endPositionEntry() {
         positionCount++;
-        setFirstValue(positionCount, valueCount);
         positionEntryIsOpen = false;
         return this;
     }
@@ -80,7 +79,19 @@ abstract class AbstractBlockBuilder {
 
     protected final void updatePosition() {
         if (positionEntryIsOpen == false) {
+            if (firstValueIndexes != null) {
+                setFirstValue(positionCount, valueCount - 1);
+            }
             positionCount++;
+        }
+    }
+
+    protected final void finish() {
+        if (positionEntryIsOpen) {
+            endPositionEntry();
+        }
+        if (firstValueIndexes != null) {
+            setFirstValue(positionCount, valueCount);
         }
     }
 

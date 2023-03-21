@@ -109,9 +109,7 @@ final class BooleanBlockBuilder extends AbstractBlockBuilder implements BooleanB
 
     @Override
     public BooleanBlock build() {
-        if (positionEntryIsOpen) {
-            endPositionEntry();
-        }
+        finish();
         if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
             return new ConstantBooleanVector(values[0], 1).asBlock();
         } else {

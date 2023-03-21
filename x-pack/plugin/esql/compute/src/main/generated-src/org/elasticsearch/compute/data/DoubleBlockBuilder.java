@@ -109,9 +109,7 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
 
     @Override
     public DoubleBlock build() {
-        if (positionEntryIsOpen) {
-            endPositionEntry();
-        }
+        finish();
         if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
             return new ConstantDoubleVector(values[0], 1).asBlock();
         } else {

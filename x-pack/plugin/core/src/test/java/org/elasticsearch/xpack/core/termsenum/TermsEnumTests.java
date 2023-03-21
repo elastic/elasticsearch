@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.termsenum;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -21,10 +22,13 @@ import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumRequest;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumResponse;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
 
@@ -62,20 +66,14 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
             .get();
         ensureGreen();
 
-        client().prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("ip_addr", "1.2.3.4").endObject()).get();
-        client().prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("ip_addr", "205.0.1.2").endObject()).get();
-        client().prepareIndex(indexName).setId("3").setSource(jsonBuilder().startObject().field("ip_addr", "2.2.2.2").endObject()).get();
-        client().prepareIndex(indexName)
-            .setId("4")
-            .setSource(jsonBuilder().startObject().field("ip_addr", "2001:db8::1:0:0:1").endObject())
-            .get();
-        client().prepareIndex(indexName).setId("5").setSource(jsonBuilder().startObject().field("ip_addr", "13.3.3.3").endObject()).get();
-        assertEquals(RestStatus.OK, client().admin().indices().prepareRefresh().get().getStatus());
+        indexOoc(indexName, "1", "ip_addr", "1.2.3.4");
+        indexOoc(indexName, "2", "ip_addr", "205.0.1.2");
+        indexOoc(indexName, "3", "ip_addr", "2.2.2.2");
+        indexOoc(indexName, "4", "ip_addr", "2001:db8::1:0:0:1");
+        indexOoc(indexName, "5", "ip_addr", "13.3.3.3");
+        assertAllSuccessful(client().admin().indices().prepareRefresh().get());
         {
-            TermsEnumResponse response = client().execute(
-                TermsEnumAction.INSTANCE,
-                new TermsEnumRequest(indexName).field("ip_addr").timeout(TimeValue.timeValueMillis(10))
-            ).get();
+            TermsEnumResponse response = client().execute(TermsEnumAction.INSTANCE, new TermsEnumRequest(indexName).field("ip_addr")).get();
             expectMatches(response, "1.2.3.4", "2.2.2.2", "13.3.3.3", "205.0.1.2", "2001:db8::1:0:0:1");
         }
         {
@@ -99,6 +97,17 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
             ).get();
             expectMatches(response, "205.0.1.2", "2001:db8::1:0:0:1");
         }
+    }
+
+    private void indexOoc(String indexName, String id, String fieldname, String value) throws IOException {
+        assertEquals(
+            RestStatus.CREATED,
+            client().prepareIndex(indexName)
+                .setId(id)
+                .setSource(jsonBuilder().startObject().field(fieldname, value).endObject())
+                .get()
+                .status()
+        );
     }
 
     private static void expectMatches(TermsEnumResponse response, String... expectedTerms) {
@@ -141,8 +150,8 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
                     .setSource(jsonBuilder().startObject().field("ip_addr", NetworkAddress.format(randomIps[i])).endObject())
             );
         }
-        bulkRequestBuilder.get();
-        assertEquals(RestStatus.OK, client().admin().indices().prepareRefresh().get().getStatus());
+        assertNoFailures(bulkRequestBuilder.get());
+        assertAllSuccessful(client().admin().indices().prepareRefresh().get());
 
         // test for short random prefixes, max length 7 should at least include some separators but not be too long for short ipv4
         for (int prefixLength = 1; prefixLength < 7; prefixLength++) {
@@ -156,8 +165,14 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
             }
             TermsEnumResponse response = client().execute(
                 TermsEnumAction.INSTANCE,
-                new TermsEnumRequest(indexName).field("ip_addr").string(randomPrefix).size(numDocs)
+                new TermsEnumRequest(indexName).field("ip_addr").string(randomPrefix).size(numDocs).timeout(TimeValue.timeValueMillis(2000))
             ).get();
+
+            try {
+                assertAllSuccessful(response);
+            } catch (Throwable t) {
+                logger.info(Strings.toString(response));
+            }
             List<String> terms = response.getTerms();
             assertEquals(
                 "expected " + expectedResults + " for prefix " + randomPrefix + " but was " + terms.size() + ", " + terms,

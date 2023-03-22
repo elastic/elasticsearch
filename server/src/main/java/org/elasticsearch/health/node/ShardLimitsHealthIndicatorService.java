@@ -9,6 +9,7 @@
 package org.elasticsearch.health.node;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -41,37 +42,35 @@ import static org.elasticsearch.indices.ShardLimitValidator.NORMAL_GROUP;
  */
 public class ShardLimitsHealthIndicatorService implements HealthIndicatorService {
 
+    static final String NAME = "shard_limits";
+
     private static final String UPGRADE_BLOCKED = "The cluster has too many used shards to be able to upgrade";
     private static final String UPGRADE_AT_RISK = "The cluster is running low on room to add new shards hence upgrade is at risk";
     private static final String HELP_GUIDE = "https://ela.st/max-shard-limit-reached";
-    static final String NAME = "shard_limits";
+    private static final BiFunction<String, Setting<?>, Diagnosis> SHARD_LIMITS_REACHED_FN = (id, setting) -> new Diagnosis(
+        new Diagnosis.Definition(
+            NAME,
+            id,
+            "Elasticsearch is about to reach the maximum number of shards it can host.",
+            "Increase the value of [" + setting.getKey() + "] cluster setting or remove indices to clear up resources.",
+            HELP_GUIDE
+        ),
+        null
+    );
+
     static final List<HealthIndicatorImpact> RED_INDICATOR_IMPACTS = List.of(
         new HealthIndicatorImpact(NAME, "upgrade_blocked", 1, UPGRADE_BLOCKED, List.of(ImpactArea.DEPLOYMENT_MANAGEMENT))
     );
     static final List<HealthIndicatorImpact> YELLOW_INDICATOR_IMPACTS = List.of(
         new HealthIndicatorImpact(NAME, "upgrade_at_risk", 2, UPGRADE_AT_RISK, List.of(ImpactArea.DEPLOYMENT_MANAGEMENT))
     );
-
-    private static final BiFunction<String, String, Diagnosis> SHARD_LIMITS_REACHED_FN = (id, settingName) -> new Diagnosis(
-        new Diagnosis.Definition(
-            NAME,
-            id,
-            "The current value of the setting `"
-                + settingName
-                + "` is either about to be or already reached which will not allow adding more shards to the cluster.",
-            "Consider increasing the currently configured value or removing indices to clear up resources " + HELP_GUIDE,
-            HELP_GUIDE
-        ),
-        null
-    );
-
     static final Diagnosis SHARD_LIMITS_REACHED_NORMAL_NODES = SHARD_LIMITS_REACHED_FN.apply(
         "increase_max_shards_per_node",
-        ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey()
+        ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE
     );
     static final Diagnosis SHARD_LIMITS_REACHED_FROZEN_NODES = SHARD_LIMITS_REACHED_FN.apply(
         "increase_max_shards_per_node_frozen",
-        ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey()
+        ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN
     );
 
     private final ClusterService clusterService;

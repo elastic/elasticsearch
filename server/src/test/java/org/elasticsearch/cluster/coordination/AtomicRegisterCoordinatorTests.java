@@ -515,11 +515,13 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
 
         @Override
-        public void beforeCommit(long term, long version) {
+        public void beforeCommit(long term, long version, ActionListener<Void> listener) {
             // TODO: add a test to ensure that this gets called
             final var currentTermOwner = register.getTermOwner();
             if (currentTermOwner.term() > term) {
-                throw new CoordinationStateRejectedException("Term " + term + " already claimed by another node");
+                listener.onFailure(new CoordinationStateRejectedException("Term " + term + " already claimed by another node"));
+            } else {
+                listener.onResponse(null);
             }
         }
     }

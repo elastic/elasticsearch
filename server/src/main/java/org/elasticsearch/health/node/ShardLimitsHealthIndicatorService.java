@@ -176,7 +176,7 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
         return (builder, params) -> {
             builder.startObject();
             {
-                builder.startObject(NORMAL_GROUP + "_nodes");
+                builder.startObject("data");
                 builder.field("max_shards_in_cluster", normalNodes.maxShardsInCluster());
                 if (normalNodes.currentUsedShards().isPresent()) {
                     builder.field("current_used_shards", normalNodes.currentUsedShards().get());
@@ -184,7 +184,7 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
                 builder.endObject();
             }
             {
-                builder.startObject(FROZEN_GROUP + "_nodes");
+                builder.startObject("frozen");
                 builder.field("max_shards_in_cluster", frozenNodes.maxShardsInCluster());
                 if (frozenNodes.currentUsedShards().isPresent()) {
                     builder.field("current_used_shards", frozenNodes.currentUsedShards().get());

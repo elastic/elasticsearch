@@ -114,9 +114,9 @@ public class ShardLimitsHealthIndicatorServiceTests extends ESTestCase {
             xContentToMap(indicatorResult.details()),
             is(
                 Map.of(
-                    "normal_nodes",
+                    "data",
                     Map.of("max_shards_in_cluster", maxShardsPerNode),
-                    "frozen_nodes",
+                    "frozen",
                     Map.of("max_shards_in_cluster", maxShardsPerNodeFrozen)
                 )
             )
@@ -142,9 +142,9 @@ public class ShardLimitsHealthIndicatorServiceTests extends ESTestCase {
                 xContentToMap(indicatorResult.details()),
                 is(
                     Map.of(
-                        "normal_nodes",
+                        "data",
                         Map.of("max_shards_in_cluster", 25, "current_used_shards", 8),
-                        "frozen_nodes",
+                        "frozen",
                         Map.of("max_shards_in_cluster", maxShardsPerNodeFrozen)
                     )
                 )
@@ -168,9 +168,9 @@ public class ShardLimitsHealthIndicatorServiceTests extends ESTestCase {
                 xContentToMap(indicatorResult.details()),
                 is(
                     Map.of(
-                        "normal_nodes",
+                        "data",
                         Map.of("max_shards_in_cluster", maxShardsPerNode),
-                        "frozen_nodes",
+                        "frozen",
                         Map.of("max_shards_in_cluster", 25, "current_used_shards", 8)
                     )
                 )
@@ -192,9 +192,9 @@ public class ShardLimitsHealthIndicatorServiceTests extends ESTestCase {
                 xContentToMap(indicatorResult.details()),
                 is(
                     Map.of(
-                        "normal_nodes",
+                        "data",
                         Map.of("max_shards_in_cluster", 25, "current_used_shards", 8),
-                        "frozen_nodes",
+                        "frozen",
                         Map.of("max_shards_in_cluster", 25, "current_used_shards", 8)
                     )
                 )
@@ -221,9 +221,9 @@ public class ShardLimitsHealthIndicatorServiceTests extends ESTestCase {
                 xContentToMap(indicatorResult.details()),
                 is(
                     Map.of(
-                        "normal_nodes",
+                        "data",
                         Map.of("max_shards_in_cluster", 25, "current_used_shards", 22),
-                        "frozen_nodes",
+                        "frozen",
                         Map.of("max_shards_in_cluster", maxShardsPerNodeFrozen)
                     )
                 )
@@ -247,9 +247,9 @@ public class ShardLimitsHealthIndicatorServiceTests extends ESTestCase {
                 xContentToMap(indicatorResult.details()),
                 is(
                     Map.of(
-                        "normal_nodes",
+                        "data",
                         Map.of("max_shards_in_cluster", maxShardsPerNode),
-                        "frozen_nodes",
+                        "frozen",
                         Map.of("max_shards_in_cluster", 25, "current_used_shards", 22)
                     )
                 )
@@ -271,9 +271,9 @@ public class ShardLimitsHealthIndicatorServiceTests extends ESTestCase {
                 xContentToMap(indicatorResult.details()),
                 is(
                     Map.of(
-                        "normal_nodes",
+                        "data",
                         Map.of("max_shards_in_cluster", 25, "current_used_shards", 22),
-                        "frozen_nodes",
+                        "frozen",
                         Map.of("max_shards_in_cluster", 25, "current_used_shards", 22)
                     )
                 )

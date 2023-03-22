@@ -447,7 +447,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         try (
             Releasable scope = tracer.withScope("task-" + task.getId());
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
-            SearchContext context = createContext(readerContext, request, task, ResultsType.DFS, true)
+            SearchContext context = createContext(readerContext, request, task, ResultsType.DFS, false)
         ) {
             dfsPhase.execute(context);
             return context.dfsResult();

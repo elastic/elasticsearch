@@ -21,9 +21,16 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.application.analytics.action.PostAnalyticsEventAction;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsContext;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
+import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventParser;
 
 import java.io.IOException;
 
+/**
+ * Event emitter will log Analytics events submitted through a @{PostAnalyticsEventAction.Request} request.
+ *
+ * Event will be emitted in using a specific logger created for the purpose of logging analytics events.
+ * The log file is formatted as a ndjson file (one json per line). We send formatted JSON to the logger directly.
+ */
 public class EventEmitterService {
     private static final Logger logger = LogManager.getLogger(EventEmitterService.class);
     private static final Marker ANALYTICS_MARKER = MarkerManager.getMarker("org.elasticsearch.xpack.application.analytics");
@@ -53,7 +60,7 @@ public class EventEmitterService {
         AnalyticsCollection analyticsCollection = analyticsCollectionResolver.collection(clusterService.state(), request.collectionName());
         AnalyticsContext context = new AnalyticsContext(analyticsCollection, request.eventType(), request.eventTime());
 
-        return AnalyticsEvent.fromPayload(context, request.xContentType(), request.payload());
+        return AnalyticsEventParser.fromPayload(context, request.xContentType(), request.payload());
     }
 
     private String formatEvent(AnalyticsEvent event) throws ResourceNotFoundException, IOException {

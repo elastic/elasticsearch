@@ -14,50 +14,59 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.application.analytics.event.parser.InteractionEvent;
-import org.elasticsearch.xpack.application.analytics.event.parser.PageViewEvent;
-import org.elasticsearch.xpack.application.analytics.event.parser.SearchEvent;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * This class represents Analytics events object meant to be emitted to the event queue.
+ *
+ * An analytics events is composed of:
+ * - A context ({@link AnalyticsContext}) containing basic event meta-data (type, time, collection)
+ * - A payload containing a JSON representation of the event.
+ *
+ * The payload has to be validated. The best way to do it is to create events using the {@link AnalyticsEventParser}.
+ */
 public class AnalyticsEvent implements Writeable, ToXContentObject {
     private final AnalyticsContext analyticsContext;
 
-    private final Map<String, Object> payload;
+    private final XContentType xContentType;
 
-    public AnalyticsEvent(AnalyticsContext analyticsContext, Map<String, Object> payload) {
-        this.analyticsContext = analyticsContext;
-        this.payload = payload;
+    private final BytesReference payload;
+
+    protected AnalyticsEvent(AnalyticsContext analyticsContext, XContentType xContentType, BytesReference payload) {
+        this.analyticsContext = Objects.requireNonNull(analyticsContext);
+        this.xContentType = Objects.requireNonNull(xContentType);
+        this.payload = Objects.requireNonNull(payload);
     }
 
-    public AnalyticsEvent(StreamInput in) throws IOException {
-        this(new AnalyticsContext(in), XContentHelper.convertToMap(in.readBytesReference(), true, XContentType.JSON).v2());
+    protected AnalyticsEvent(StreamInput in) throws IOException {
+        this(new AnalyticsContext(in), in.readEnum(XContentType.class), in.readBytesReference());
     }
 
-    public static AnalyticsEvent fromPayload(AnalyticsContext context, XContentType xContentType, BytesReference payload)
-        throws IOException {
-        XContentParser parser = xContentType.xContent().createParser(XContentParserConfiguration.EMPTY, payload.streamInput());
-        AnalyticsEventType eventType = context.eventType();
+    public AnalyticsContext getAnalyticsContext() {
+        return analyticsContext;
+    }
 
-        if (eventType == AnalyticsEventType.PAGEVIEW) return PageViewEvent.parse(parser, context);
+    public XContentType getxContentType() {
+        return xContentType;
+    }
 
-        if (eventType == AnalyticsEventType.SEARCH) return SearchEvent.parse(parser, context);
+    public BytesReference getPayload() {
+        return payload;
+    }
 
-        if (eventType == AnalyticsEventType.INTERACTION) return InteractionEvent.parse(parser, context);
-
-        throw new IllegalArgumentException(org.elasticsearch.core.Strings.format("%s is not a supported event type", eventType));
+    public Map<String, Object> getPayloadAsMap() {
+        return XContentHelper.convertToMap(payload, true, xContentType).v2();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         analyticsContext.writeTo(out);
-        out.writeBytesReference(BytesReference.bytes(JsonXContent.contentBuilder().map(payload)));
+        XContentHelper.writeTo(out, xContentType);
+        out.writeBytesReference(payload);
     }
 
     @Override
@@ -82,7 +91,7 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
             builder.endObject();
 
             // Render additional fields from the event payload (session, user, page, ...)
-            builder.mapContents(payload);
+            builder.mapContents(getPayloadAsMap());
         }
         builder.endObject();
 
@@ -94,11 +103,13 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AnalyticsEvent that = (AnalyticsEvent) o;
-        return Objects.equals(analyticsContext, that.analyticsContext) && Objects.equals(payload, that.payload);
+        return Objects.equals(analyticsContext, that.analyticsContext)
+            && Objects.equals(xContentType, that.xContentType)
+            && Objects.equals(payload, that.payload);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(analyticsContext, payload);
+        return Objects.hash(analyticsContext, xContentType, payload);
     }
 }

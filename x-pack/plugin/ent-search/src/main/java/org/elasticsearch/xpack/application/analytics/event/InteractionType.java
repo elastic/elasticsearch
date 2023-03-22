@@ -10,20 +10,17 @@ package org.elasticsearch.xpack.application.analytics.event;
 import java.util.Locale;
 
 /**
- * Analytics event types.
+ * Interaction types.
  */
-public enum AnalyticsEventType {
-    PAGEVIEW("pageview"),
-    SEARCH("search"),
-    INTERACTION("interaction");
+public enum InteractionType {
+    CLICK("click");
 
     private final String typeName;
 
-    AnalyticsEventType(String typeName) {
+    InteractionType(String typeName) {
         this.typeName = typeName;
     }
 
-    @Override
     public String toString() {
         return typeName.toLowerCase(Locale.ROOT);
     }

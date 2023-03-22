@@ -529,14 +529,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     private void broadcastStartJoinRequest(StartJoinRequest startJoinRequest, List<DiscoveryNode> discoveredNodes) {
         electionStrategy.onNewElection(startJoinRequest.getSourceNode(), startJoinRequest.getTerm(), new ActionListener<>() {
             @Override
-            public void onResponse(ClusterState latestClusterState) {
-                if (latestClusterState != null) {
-                    if (latestClusterState.term() > getCurrentTerm()) {
-                        updateCurrentTerm(latestClusterState.term());
-                    }
-                    coordinationState.get().setLatestAcceptedState(latestClusterState);
-                    preVoteCollector.update(getPreVoteResponse(), null);
-                }
+            public void onResponse(Void unused) {
                 discoveredNodes.forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
             }
 
@@ -545,13 +538,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 logger.debug(Strings.format("election attempt failed, dropping [%s]", startJoinRequest), e);
             }
         });
-    }
-
-    private void updateCurrentTerm(long term) {
-        coordinationState.get().setCurrentTerm(term);
-        peerFinder.setCurrentTerm(getCurrentTerm());
-        followersChecker.updateFastResponseState(getCurrentTerm(), mode);
-        preVoteCollector.update(getPreVoteResponse(), null);
     }
 
     private void abdicateTo(DiscoveryNode newMaster) {

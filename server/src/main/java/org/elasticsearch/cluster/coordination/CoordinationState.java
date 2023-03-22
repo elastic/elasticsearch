@@ -281,6 +281,7 @@ public class CoordinationState {
 
         if (electionWon && prevElectionWon == false) {
             logger.debug("handleJoin: election won in term [{}] with {}", getCurrentTerm(), joinVotes);
+            electionStrategy.afterWinningElection();
             lastPublishedVersion = getLastAcceptedVersion();
         }
         return added;
@@ -502,14 +503,6 @@ public class CoordinationState {
         assert getLastAcceptedTerm() == applyCommit.getTerm() && getLastAcceptedVersion() == applyCommit.getVersion();
         persistedState.markLastAcceptedStateAsCommitted();
         assert getLastCommittedConfiguration().equals(getLastAcceptedConfiguration());
-    }
-
-    void setLatestAcceptedState(ClusterState clusterState) {
-        persistedState.setLastAcceptedState(clusterState);
-    }
-
-    void setCurrentTerm(long term) {
-        persistedState.setCurrentTerm(term);
     }
 
     public void invariant() {

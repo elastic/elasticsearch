@@ -92,7 +92,7 @@ public abstract class ElectionStrategy {
         VoteCollection joinVotes
     );
 
-    public void onNewElection(DiscoveryNode localNode, long proposedTerm, ActionListener<ClusterState> listener) {
+    public void onNewElection(DiscoveryNode localNode, long proposedTerm, ActionListener<Void> listener) {
         listener.onResponse(null);
     }
 
@@ -106,4 +106,6 @@ public abstract class ElectionStrategy {
     }
 
     public void beforeCommit(long term, long version) {}
+
+    public void afterWinningElection() {}
 }

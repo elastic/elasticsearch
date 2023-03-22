@@ -461,7 +461,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
 
         @Override
-        public void onNewElection(DiscoveryNode localNode, long proposedTerm, ActionListener<ClusterState> listener) {
+        public void onNewElection(DiscoveryNode localNode, long proposedTerm, ActionListener<Void> listener) {
             ActionListener.completeWith(listener, () -> {
                 final var proposedNewTermOwner = new TermOwner(localNode, proposedTerm);
                 final var witness = register.claimTerm(proposedNewTermOwner);
@@ -469,9 +469,13 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                     throw new CoordinationStateRejectedException("Term " + proposedTerm + " already claimed by another node");
                 }
                 lastWonTerm = proposedTerm;
-
-                return atomicRegisterPersistedState.getLatestStoredStateIfAppliedStateIsStale();
+                return null;
             });
+        }
+
+        @Override
+        public void afterWinningElection() {
+            atomicRegisterPersistedState.refreshAppliedStateIfStale();
         }
 
         @Override
@@ -641,27 +645,37 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             assertTrue(openPersistedStates.remove(this));
         }
 
-        public ClusterState getLatestStoredStateIfAppliedStateIsStale() {
+        public void refreshAppliedStateIfStale() {
             var latestClusterState = sharedStore.getLatestClusterState();
-            if (isLatestAcceptedStateStale(latestClusterState) == false) {
-                return null;
+            if (latestClusterState == null) {
+                return;
             }
 
-            return ClusterStateUpdaters.addStateNotRecoveredBlock(
-                ClusterState.builder(new ClusterName("elasticsearch"))
-                    .metadata(latestClusterState.state())
-                    .version(latestClusterState.version())
-                    .blocks(latestAcceptedState.blocks())
-                    .nodes(DiscoveryNodes.builder(latestAcceptedState.nodes()).masterNodeId(null))
-                    .build()
+            if (isLatestAcceptedStateStale(latestClusterState) == false) {
+                return;
+            }
+
+            if (latestClusterState.term() > currentTerm) {
+                return;
+            }
+
+            latestAcceptedState = ClusterStateUpdaters.recoverClusterBlocks(
+                ClusterStateUpdaters.addStateNotRecoveredBlock(
+                    ClusterState.builder(new ClusterName("elasticsearch"))
+                        .metadata(latestClusterState.state())
+                        .version(latestClusterState.version())
+                        .blocks(latestAcceptedState.blocks())
+                        .nodes(DiscoveryNodes.builder(latestAcceptedState.nodes()).masterNodeId(null))
+                        .build()
+                )
             );
         }
 
         boolean isLatestAcceptedStateStale(PersistentClusterState latestClusterState) {
-            return latestClusterState != null
-                && (latestClusterState.term() > latestAcceptedState.term()
-                    || (latestClusterState.term() == latestAcceptedState.term()
-                        && latestClusterState.version() > latestAcceptedState.version()));
+            return latestClusterState.state().clusterUUID().equals(latestAcceptedState.metadata().clusterUUID()) == false
+                || latestClusterState.term() > latestAcceptedState.term()
+                || (latestClusterState.term() == latestAcceptedState.term()
+                    && latestClusterState.version() > latestAcceptedState.version());
         }
     }
 }

@@ -14,6 +14,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -471,7 +472,7 @@ public class SearchApplicationIndexService {
         }
     }
 
-    static class DelegatingIndexNotFoundActionListener<T, R> extends ActionListener.Delegating<T, R> {
+    static class DelegatingIndexNotFoundActionListener<T, R> extends DelegatingActionListener<T, R> {
 
         private final BiConsumer<ActionListener<R>, T> bc;
         private final String resourceName;

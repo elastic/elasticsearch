@@ -661,7 +661,19 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                 return ClusterStateUpdaters.recoverClusterBlocks(
                     ClusterStateUpdaters.addStateNotRecoveredBlock(
                         ClusterState.builder(new ClusterName("elasticsearch"))
-                            .metadata(latestClusterState.state())
+                            .metadata(
+                                Metadata.builder(latestClusterState.state())
+                                    .coordinationMetadata(
+                                        new CoordinationMetadata(
+                                            latestClusterState.term(),
+                                            // Keep the previous configuration so the assertions don't complain about
+                                            // a different configuration, we'll change it right away
+                                            latestAcceptedState.getLastAcceptedConfiguration(),
+                                            latestAcceptedState.getLastCommittedConfiguration(),
+                                            Set.of()
+                                        )
+                                    )
+                            )
                             .version(latestClusterState.version())
                             .blocks(latestAcceptedState.blocks())
                             .nodes(DiscoveryNodes.builder(latestAcceptedState.nodes()).masterNodeId(null))

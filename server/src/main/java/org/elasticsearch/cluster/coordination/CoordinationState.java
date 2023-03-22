@@ -342,7 +342,7 @@ public class CoordinationState {
             throw new CoordinationStateRejectedException("only allow reconfiguration if joinVotes have quorum for new config");
         }
 
-        assert true || clusterState.getLastCommittedConfiguration().equals(getLastCommittedConfiguration())
+        assert clusterState.getLastCommittedConfiguration().equals(getLastCommittedConfiguration())
             : "last committed configuration should not change";
 
         lastPublishedVersion = clusterState.version();

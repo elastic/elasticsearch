@@ -18,13 +18,12 @@ Returns information about Analytics Collections.
 
 Requires the `manage_behavorial_analytics` cluster privilege.
 
-[[put-analytics-collection-response-codes]]
+[[list-analytics-collection-response-codes]]
 ==== {api-response-codes-title}
 
 `404`::
 Criteria does not match any Analytics Collections.
 
-[[list-analytics-collection-response-codes]]
 ==== {api-response-codes-title}
 
 [[list-analytics-collection-example]]

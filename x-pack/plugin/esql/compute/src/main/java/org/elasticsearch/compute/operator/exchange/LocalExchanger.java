@@ -30,7 +30,8 @@ public final class LocalExchanger {
     private final Object notFullLock = new Object();
     private ListenableActionFuture<Void> notFullFuture = null;
 
-    private final AtomicInteger outstandingSinks = new AtomicInteger();
+    private final Pendings allSinks = new Pendings();
+    private final Pendings allSources = new Pendings();
 
     public LocalExchanger(int maxBufferSize) {
         if (maxBufferSize < 1) {
@@ -40,23 +41,18 @@ public final class LocalExchanger {
     }
 
     private void addPageToBuffer(Page page) {
-        buffer.add(page);
-        if (bufferSize.incrementAndGet() == 1) {
-            notifyNotEmpty();
+        if (allSources.finished == false) {
+            buffer.add(page);
+            if (bufferSize.incrementAndGet() == 1) {
+                notifyNotEmpty();
+            }
         }
     }
 
     private Page pollPageFromBuffer() {
         final var page = buffer.poll();
         if (page != null && bufferSize.decrementAndGet() == maxBufferSize - 1) {
-            final ListenableActionFuture<Void> toNotify;
-            synchronized (notFullLock) {
-                toNotify = notFullFuture;
-                notFullFuture = null;
-            }
-            if (toNotify != null) {
-                toNotify.onResponse(null);
-            }
+            notifyNotFull();
         }
         return page;
     }
@@ -72,7 +68,25 @@ public final class LocalExchanger {
         }
     }
 
+    private void notifyNotFull() {
+        final ListenableActionFuture<Void> toNotify;
+        synchronized (notFullLock) {
+            toNotify = notFullFuture;
+            notFullFuture = null;
+        }
+        if (toNotify != null) {
+            toNotify.onResponse(null);
+        }
+    }
+
     private class LocalExchangeSource implements ExchangeSource {
+
+        private boolean finished;
+
+        LocalExchangeSource() {
+            allSources.trackNewInstance();
+        }
+
         @Override
         public Page pollPage() {
             return pollPageFromBuffer();
@@ -80,7 +94,7 @@ public final class LocalExchanger {
 
         @Override
         public boolean isFinished() {
-            return outstandingSinks.get() == 0 && bufferSize.get() == 0;
+            return allSinks.finished && bufferSize.get() == 0;
         }
 
         @Override
@@ -100,6 +114,18 @@ public final class LocalExchanger {
         }
 
         @Override
+        public void finish() {
+            if (finished == false) {
+                finished = true;
+                if (allSources.finishInstance()) {
+                    while (pollPageFromBuffer() != null) {
+
+                    }
+                }
+            }
+        }
+
+        @Override
         public int bufferSize() {
             return bufferSize.get();
         }
@@ -109,7 +135,7 @@ public final class LocalExchanger {
         boolean finished;
 
         LocalExchangeSink() {
-            outstandingSinks.incrementAndGet();
+            allSinks.trackNewInstance();
         }
 
         @Override
@@ -121,7 +147,7 @@ public final class LocalExchanger {
         public void finish() {
             if (finished == false) {
                 finished = true;
-                if (outstandingSinks.decrementAndGet() == 0) {
+                if (allSinks.finishInstance()) {
                     notifyNotEmpty();
                 }
             }
@@ -129,7 +155,7 @@ public final class LocalExchanger {
 
         @Override
         public boolean isFinished() {
-            return finished;
+            return finished || allSources.finished;
         }
 
         @Override
@@ -146,6 +172,24 @@ public final class LocalExchanger {
                     notFullFuture = new ListenableActionFuture<>();
                 }
                 return notFullFuture;
+            }
+        }
+    }
+
+    private static final class Pendings {
+        private final AtomicInteger instances = new AtomicInteger();
+        private volatile boolean finished = false;
+
+        void trackNewInstance() {
+            instances.incrementAndGet();
+        }
+
+        boolean finishInstance() {
+            if (instances.decrementAndGet() == 0) {
+                finished = true;
+                return true;
+            } else {
+                return false;
             }
         }
     }

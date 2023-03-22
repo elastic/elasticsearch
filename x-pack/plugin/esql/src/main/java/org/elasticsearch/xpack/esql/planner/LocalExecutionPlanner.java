@@ -94,7 +94,7 @@ public class LocalExecutionPlanner {
         "task_concurrency",
         ThreadPool.searchOrGetThreadPoolSize(EsExecutors.allocatedProcessors(Settings.EMPTY))
     );
-    private static final Setting<Integer> BUFFER_MAX_PAGES = Setting.intSetting("buffer_max_pages", 500);
+    private static final Setting<Integer> BUFFER_MAX_PAGES = Setting.intSetting("buffer_max_pages", 10);
     private static final Setting<DataPartitioning> DATA_PARTITIONING = Setting.enumSetting(
         DataPartitioning.class,
         "data_partitioning",

@@ -16,8 +16,11 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public interface LicenseService {
-    Setting<License.LicenseType> SELF_GENERATED_LICENSE_TYPE = new Setting<>(
+/**
+ * Settings related to the license.
+ */
+public abstract class LicenseSettings {
+    public static final Setting<License.LicenseType> SELF_GENERATED_LICENSE_TYPE = new Setting<>(
         "xpack.license.self_generated.type",
         License.LicenseType.BASIC.getTypeName(),
         (s) -> {
@@ -26,17 +29,17 @@ public interface LicenseService {
         },
         Setting.Property.NodeScope
     );
-    List<License.LicenseType> ALLOWABLE_UPLOAD_TYPES = getAllowableUploadTypes();
-    Setting<List<License.LicenseType>> ALLOWED_LICENSE_TYPES_SETTING = Setting.listSetting(
+    public static final List<License.LicenseType> ALLOWABLE_UPLOAD_TYPES = getAllowableUploadTypes();
+    public static final Setting<List<License.LicenseType>> ALLOWED_LICENSE_TYPES_SETTING = Setting.listSetting(
         "xpack.license.upload.types",
         ALLOWABLE_UPLOAD_TYPES.stream().map(License.LicenseType::getTypeName).toList(),
         License.LicenseType::parse,
-        LicenseService::validateUploadTypesSetting,
+        LicenseSettings::validateUploadTypesSetting,
         Setting.Property.NodeScope
     );
     // pkg private for tests
-    TimeValue NON_BASIC_SELF_GENERATED_LICENSE_DURATION = TimeValue.timeValueHours(30 * 24);
-    Set<License.LicenseType> VALID_TRIAL_TYPES = Set.of(
+    static final TimeValue NON_BASIC_SELF_GENERATED_LICENSE_DURATION = TimeValue.timeValueHours(30 * 24);
+    static final Set<License.LicenseType> VALID_TRIAL_TYPES = Set.of(
         License.LicenseType.GOLD,
         License.LicenseType.PLATINUM,
         License.LicenseType.ENTERPRISE,
@@ -45,19 +48,19 @@ public interface LicenseService {
     /**
      * Period before the license expires when warning starts being added to the response header
      */
-    TimeValue LICENSE_EXPIRATION_WARNING_PERIOD = TimeValue.timeValueDays(7);
-    long BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS = XPackInfoResponse.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
+    static final TimeValue LICENSE_EXPIRATION_WARNING_PERIOD = TimeValue.timeValueDays(7);
+    static final long BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS = XPackInfoResponse.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
     /**
      * Max number of nodes licensed by generated trial license
      */
-    int SELF_GENERATED_LICENSE_MAX_NODES = 1000;
-    int SELF_GENERATED_LICENSE_MAX_RESOURCE_UNITS = SELF_GENERATED_LICENSE_MAX_NODES;
+    static final int SELF_GENERATED_LICENSE_MAX_NODES = 1000;
+    static final int SELF_GENERATED_LICENSE_MAX_RESOURCE_UNITS = SELF_GENERATED_LICENSE_MAX_NODES;
 
-    static List<License.LicenseType> getAllowableUploadTypes() {
+    private static List<License.LicenseType> getAllowableUploadTypes() {
         return Stream.of(License.LicenseType.values()).filter(t -> t != License.LicenseType.BASIC).toList();
     }
 
-    static void validateUploadTypesSetting(List<License.LicenseType> value) {
+    private static void validateUploadTypesSetting(List<License.LicenseType> value) {
         if (ALLOWABLE_UPLOAD_TYPES.containsAll(value) == false) {
             throw new IllegalArgumentException(
                 "Invalid value ["

@@ -182,4 +182,28 @@ public class LocalExchangerTests extends ESTestCase {
             ESTestCase.terminate(threadPool);
         }
     }
+
+    public void testEarlyTerminate() {
+        IntBlock block = new ConstantIntVector(1, 2).asBlock();
+        Page p1 = new Page(block);
+        Page p2 = new Page(block);
+        Page p3 = new Page(block);
+        LocalExchanger localExchanger = new LocalExchanger(2);
+        ExchangeSink sink = localExchanger.createExchangeSink();
+        ExchangeSource source = localExchanger.createExchangeSource();
+        sink.addPage(p1);
+        sink.addPage(p2);
+        assertFalse(sink.waitForWriting().isDone());
+        if (randomBoolean()) {
+            assertEquals(p1, source.pollPage());
+            assertTrue(sink.waitForWriting().isDone());
+            if (randomBoolean()) {
+                sink.addPage(p3);
+                assertFalse(sink.waitForWriting().isDone());
+            }
+        }
+        source.finish();
+        assertTrue(sink.waitForWriting().isDone());
+        assertTrue(sink.isFinished());
+    }
 }

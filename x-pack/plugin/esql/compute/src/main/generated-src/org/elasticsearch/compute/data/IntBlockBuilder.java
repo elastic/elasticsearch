@@ -109,9 +109,7 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
 
     @Override
     public IntBlock build() {
-        if (positionEntryIsOpen) {
-            endPositionEntry();
-        }
+        finish();
         if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
             return new ConstantIntVector(values[0], 1).asBlock();
         } else {

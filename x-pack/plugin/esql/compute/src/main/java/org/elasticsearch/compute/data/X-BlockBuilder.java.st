@@ -164,9 +164,7 @@ $endif$
 
     @Override
     public $Type$Block build() {
-        if (positionEntryIsOpen) {
-            endPositionEntry();
-        }
+        finish();
         if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
 $if(BytesRef)$
             return new ConstantBytesRefVector(values.get(0, new BytesRef()), 1).asBlock();

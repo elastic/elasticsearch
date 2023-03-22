@@ -15,6 +15,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -954,6 +955,37 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
         var source = source(extract.child());
+    }
+
+    public void testPushDownDisjunction() {
+        var plan = physicalPlan("""
+            from test
+            | where emp_no == 10010 or emp_no == 10011
+            """);
+
+        assertThat("Expected to find an EsSourceExec found", plan.anyMatch(EsSourceExec.class::isInstance), is(true));
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = as(topLimit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var source = source(extractRest.child());
+
+        QueryBuilder query = source.query();
+        assertNotNull(query);
+        List<QueryBuilder> shouldClauses = ((BoolQueryBuilder) query).should();
+        assertEquals(2, shouldClauses.size());
+        assertTrue(shouldClauses.get(0) instanceof TermQueryBuilder);
+        assertThat(shouldClauses.get(0).toString(), containsString("""
+                "emp_no" : {
+                  "value" : 10010
+            """));
+        assertTrue(shouldClauses.get(1) instanceof TermQueryBuilder);
+        assertThat(shouldClauses.get(1).toString(), containsString("""
+                "emp_no" : {
+                  "value" : 10011
+            """));
     }
 
     private static EsQueryExec source(PhysicalPlan plan) {

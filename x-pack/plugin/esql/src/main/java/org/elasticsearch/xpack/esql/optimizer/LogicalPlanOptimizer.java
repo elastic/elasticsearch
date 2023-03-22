@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineDisjunctionsToIn;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
@@ -69,7 +68,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             new LiteralsOnTheRight(),
             new BinaryComparisonSimplification(),
             new BooleanFunctionEqualsElimination(),
-            new CombineDisjunctionsToIn(),
+            // new CombineDisjunctionsToIn(), //TODO enable again when IN is supported
             new SimplifyComparisonsArithmetics(EsqlDataTypes::areCompatible),
             // prune/elimination
             new PruneFilters(),

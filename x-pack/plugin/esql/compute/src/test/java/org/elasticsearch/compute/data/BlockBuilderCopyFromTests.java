@@ -20,15 +20,15 @@ import static org.elasticsearch.compute.data.BlockValueAsserter.assertBlockValue
 
 public class BlockBuilderCopyFromTests extends ESTestCase {
     @ParametersFactory
-    public static List<Object[]> params() throws Exception {
+    public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
         for (ElementType elementType : ElementType.values()) {
             if (elementType == ElementType.UNKNOWN || elementType == ElementType.NULL || elementType == ElementType.DOC) {
                 continue;
             }
             for (boolean nullAllowed : new boolean[] { false, true }) {
-                for (int maxValuesPerPosition : new int[] { 1 }) {  // TODO multi-valued when we have good support for it
-                    params.add(new Object[] { elementType, nullAllowed, maxValuesPerPosition });
+                for (int[] valuesPerPosition : new int[][] { new int[] { 1, 1 }, new int[] { 1, 10 } }) {  // TODO 0
+                    params.add(new Object[] { elementType, nullAllowed, valuesPerPosition[0], valuesPerPosition[1] });
                 }
             }
         }
@@ -37,15 +37,18 @@ public class BlockBuilderCopyFromTests extends ESTestCase {
 
     private final ElementType elementType;
     private final boolean nullAllowed;
+    private final int minValuesPerPosition;
     private final int maxValuesPerPosition;
 
     public BlockBuilderCopyFromTests(
         @Name("elementType") ElementType elementType,
         @Name("nullAllowed") boolean nullAllowed,
+        @Name("minValuesPerPosition") int minValuesPerPosition,
         @Name("maxValuesPerPosition") int maxValuesPerPosition
     ) {
         this.elementType = elementType;
         this.nullAllowed = nullAllowed;
+        this.minValuesPerPosition = minValuesPerPosition;
         this.maxValuesPerPosition = maxValuesPerPosition;
     }
 
@@ -84,7 +87,7 @@ public class BlockBuilderCopyFromTests extends ESTestCase {
 
     private Block randomBlock() {
         int positionCount = randomIntBetween(1, 16 * 1024);
-        return BasicBlockTests.randomBlock(elementType, positionCount, nullAllowed, maxValuesPerPosition);
+        return BasicBlockTests.randomBlock(elementType, positionCount, nullAllowed, minValuesPerPosition, maxValuesPerPosition).block();
     }
 
     private Block randomFilteredBlock() {

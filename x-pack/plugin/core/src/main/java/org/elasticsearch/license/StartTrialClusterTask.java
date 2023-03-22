@@ -75,7 +75,7 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
             return currentLicensesMetadata;
         } else if (currentLicensesMetadata == null || currentLicensesMetadata.isEligibleForTrial()) {
             long issueDate = clock.millis();
-            long expiryDate = issueDate + LicenseService.NON_BASIC_SELF_GENERATED_LICENSE_DURATION.getMillis();
+            long expiryDate = issueDate + LicenseSettings.NON_BASIC_SELF_GENERATED_LICENSE_DURATION.getMillis();
 
             License.Builder specBuilder = License.builder()
                 .uid(UUID.randomUUID().toString())
@@ -84,9 +84,9 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
                 .type(request.getType())
                 .expiryDate(expiryDate);
             if (License.LicenseType.isEnterprise(request.getType())) {
-                specBuilder.maxResourceUnits(LicenseService.SELF_GENERATED_LICENSE_MAX_RESOURCE_UNITS);
+                specBuilder.maxResourceUnits(LicenseSettings.SELF_GENERATED_LICENSE_MAX_RESOURCE_UNITS);
             } else {
-                specBuilder.maxNodes(LicenseService.SELF_GENERATED_LICENSE_MAX_NODES);
+                specBuilder.maxNodes(LicenseSettings.SELF_GENERATED_LICENSE_MAX_NODES);
             }
             License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder, discoveryNodes);
             LicensesMetadata newLicensesMetadata = new LicensesMetadata(selfGeneratedLicense, Version.CURRENT);

@@ -109,9 +109,7 @@ final class LongBlockBuilder extends AbstractBlockBuilder implements LongBlock.B
 
     @Override
     public LongBlock build() {
-        if (positionEntryIsOpen) {
-            endPositionEntry();
-        }
+        finish();
         if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
             return new ConstantLongVector(values[0], 1).asBlock();
         } else {

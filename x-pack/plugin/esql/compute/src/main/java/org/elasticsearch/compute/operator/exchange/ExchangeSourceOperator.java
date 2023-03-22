@@ -65,7 +65,7 @@ public class ExchangeSourceOperator extends SourceOperator {
 
     @Override
     public void finish() {
-
+        source.finish();
     }
 
     @Override
@@ -81,7 +81,7 @@ public class ExchangeSourceOperator extends SourceOperator {
 
     @Override
     public void close() {
-
+        finish();
     }
 
     @Override

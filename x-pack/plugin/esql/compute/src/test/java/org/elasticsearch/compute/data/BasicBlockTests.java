@@ -702,32 +702,64 @@ public class BasicBlockTests extends ESTestCase {
         return result;
     }
 
-    public static Block randomBlock(ElementType elementType, int positionCount, boolean nullAllowed, int maxValuesPerPosition) {
+    public record RandomBlock(List<List<Object>> values, Block block) {}
+
+    public static RandomBlock randomBlock(
+        ElementType elementType,
+        int positionCount,
+        boolean nullAllowed,
+        int minValuesPerPosition,
+        int maxValuesPerPosition
+    ) {
+        List<List<Object>> values = new ArrayList<>();
         var builder = elementType.newBlockBuilder(positionCount);
         for (int p = 0; p < positionCount; p++) {
             if (nullAllowed && randomBoolean()) {
+                values.add(null);
                 builder.appendNull();
                 continue;
             }
-            int valueCount = between(1, maxValuesPerPosition);
-            if (valueCount > 1) {
+            int valueCount = between(minValuesPerPosition, maxValuesPerPosition);
+            if (valueCount != 1) {
                 builder.beginPositionEntry();
             }
+            List<Object> valuesAtPosition = new ArrayList<>();
+            values.add(valuesAtPosition);
             for (int v = 0; v < valueCount; v++) {
                 switch (elementType) {
-                    case INT -> ((IntBlock.Builder) builder).appendInt(randomInt());
-                    case LONG -> ((LongBlock.Builder) builder).appendLong(randomLong());
-                    case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(randomDouble());
-                    case BYTES_REF -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomRealisticUnicodeOfLength(4)));
-                    case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean(randomBoolean());
+                    case INT -> {
+                        int i = randomInt();
+                        valuesAtPosition.add(i);
+                        ((IntBlock.Builder) builder).appendInt(i);
+                    }
+                    case LONG -> {
+                        long l = randomLong();
+                        valuesAtPosition.add(l);
+                        ((LongBlock.Builder) builder).appendLong(l);
+                    }
+                    case DOUBLE -> {
+                        double d = randomDouble();
+                        valuesAtPosition.add(d);
+                        ((DoubleBlock.Builder) builder).appendDouble(d);
+                    }
+                    case BYTES_REF -> {
+                        BytesRef b = new BytesRef(randomRealisticUnicodeOfLength(4));
+                        valuesAtPosition.add(b);
+                        ((BytesRefBlock.Builder) builder).appendBytesRef(b);
+                    }
+                    case BOOLEAN -> {
+                        boolean b = randomBoolean();
+                        valuesAtPosition.add(b);
+                        ((BooleanBlock.Builder) builder).appendBoolean(b);
+                    }
                     default -> throw new IllegalArgumentException("unsupported element type [" + elementType + "]");
                 }
             }
-            if (valueCount > 1) {
+            if (valueCount != 1) {
                 builder.endPositionEntry();
             }
         }
-        return builder.build();
+        return new RandomBlock(values, builder.build());
     }
 
     interface BlockBuilderFactory<B extends Block.Builder> {

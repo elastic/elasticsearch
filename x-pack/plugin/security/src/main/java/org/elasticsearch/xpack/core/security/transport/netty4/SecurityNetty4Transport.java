@@ -70,7 +70,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
     private final boolean remoteClusterPortEnabled;
     private final boolean remoteClusterServerSslEnabled;
     private final SslConfiguration remoteClusterClientSslConfiguration;
-    private final RemoteClusterClientBootStrapOptions remoteClusterClientBootStrapOptions;
+    private final RemoteClusterClientBootstrapOptions remoteClusterClientBootstrapOptions;
 
     public SecurityNetty4Transport(
         final Settings settings,
@@ -109,7 +109,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
         } else {
             this.remoteClusterClientSslConfiguration = null;
         }
-        this.remoteClusterClientBootStrapOptions = RemoteClusterClientBootStrapOptions.fromSettings(settings);
+        this.remoteClusterClientBootstrapOptions = RemoteClusterClientBootstrapOptions.fromSettings(settings);
     }
 
     @Override
@@ -153,71 +153,14 @@ public class SecurityNetty4Transport extends Netty4Transport {
     protected Bootstrap getClientBootstrap(ConnectionProfile connectionProfile) {
         final Bootstrap bootstrap = super.getClientBootstrap(connectionProfile);
         if (false == REMOTE_CLUSTER_PROFILE.equals(connectionProfile.getTransportProfile())
-            || remoteClusterClientBootStrapOptions.isEmpty()) {
+            || remoteClusterClientBootstrapOptions.isEmpty()) {
             return bootstrap;
         }
 
         logger.trace("reconfiguring client bootstrap for remote cluster client connection");
         // Only client connections to a new RCS remote cluster can have transport profile of _remote_cluster
         // All other client connections use the default transport profile regardless of the transport profile used on the server side.
-        if (remoteClusterClientBootStrapOptions.tcpNoDelay != null) {
-            bootstrap.option(ChannelOption.TCP_NODELAY, remoteClusterClientBootStrapOptions.tcpNoDelay);
-        }
-
-        if (remoteClusterClientBootStrapOptions.tcpKeepAlive != null) {
-            bootstrap.option(ChannelOption.SO_KEEPALIVE, remoteClusterClientBootStrapOptions.tcpKeepAlive);
-            if (remoteClusterClientBootStrapOptions.tcpKeepAlive) {
-                // Note that Netty logs a warning if it can't set the option
-                if (remoteClusterClientBootStrapOptions.tcpKeepIdle != null) {
-                    if (remoteClusterClientBootStrapOptions.tcpKeepIdle >= 0) {
-                        bootstrap.option(OPTION_TCP_KEEP_IDLE, remoteClusterClientBootStrapOptions.tcpKeepIdle);
-                    } else {
-                        bootstrap.option(OPTION_TCP_KEEP_IDLE, null);
-                    }
-                }
-                if (remoteClusterClientBootStrapOptions.tcpKeepInterval != null) {
-                    if (remoteClusterClientBootStrapOptions.tcpKeepInterval >= 0) {
-                        bootstrap.option(OPTION_TCP_KEEP_INTERVAL, remoteClusterClientBootStrapOptions.tcpKeepInterval);
-                    } else {
-                        bootstrap.option(OPTION_TCP_KEEP_INTERVAL, null);
-                    }
-                }
-                if (remoteClusterClientBootStrapOptions.tcpKeepCount != null) {
-                    if (remoteClusterClientBootStrapOptions.tcpKeepCount >= 0) {
-                        bootstrap.option(OPTION_TCP_KEEP_COUNT, remoteClusterClientBootStrapOptions.tcpKeepCount);
-                    } else {
-                        bootstrap.option(OPTION_TCP_KEEP_COUNT, null);
-                    }
-                }
-            } else {
-                bootstrap.option(OPTION_TCP_KEEP_IDLE, null);
-                bootstrap.option(OPTION_TCP_KEEP_INTERVAL, null);
-                bootstrap.option(OPTION_TCP_KEEP_COUNT, null);
-            }
-        }
-
-        if (remoteClusterClientBootStrapOptions.tcpSendBufferSize != null) {
-            final ByteSizeValue tcpSendBufferSize = remoteClusterClientBootStrapOptions.tcpSendBufferSize;
-            if (tcpSendBufferSize.getBytes() > 0) {
-                bootstrap.option(ChannelOption.SO_SNDBUF, Math.toIntExact(tcpSendBufferSize.getBytes()));
-            } else {
-                bootstrap.option(ChannelOption.SO_SNDBUF, null);
-            }
-        }
-
-        if (remoteClusterClientBootStrapOptions.tcpReceiveBufferSize != null) {
-            final ByteSizeValue tcpReceiveBufferSize = remoteClusterClientBootStrapOptions.tcpReceiveBufferSize;
-            if (tcpReceiveBufferSize.getBytes() > 0) {
-                bootstrap.option(ChannelOption.SO_RCVBUF, Math.toIntExact(tcpReceiveBufferSize.getBytes()));
-            } else {
-                bootstrap.option(ChannelOption.SO_RCVBUF, null);
-            }
-        }
-
-        if (remoteClusterClientBootStrapOptions.tcpReuseAddress != null) {
-            bootstrap.option(ChannelOption.SO_REUSEADDR, remoteClusterClientBootStrapOptions.tcpReuseAddress);
-        }
-
+        remoteClusterClientBootstrapOptions.configure(bootstrap);
         return bootstrap;
     }
 
@@ -361,7 +304,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
     // This class captures the differences of client side TCP network settings between default and _remote_cluster transport profiles.
     // A field will be null if there is no difference between associated settings of the two profiles. It has a non-null value only
     // when the _remote_cluster profile has a different value from the default profile.
-    record RemoteClusterClientBootStrapOptions(
+    record RemoteClusterClientBootstrapOptions(
         Boolean tcpNoDelay,
         Boolean tcpKeepAlive,
         Integer tcpKeepIdle,
@@ -383,7 +326,65 @@ public class SecurityNetty4Transport extends Netty4Transport {
                 && tcpReuseAddress == null;
         }
 
-        static RemoteClusterClientBootStrapOptions fromSettings(Settings settings) {
+        void configure(Bootstrap bootstrap) {
+            if (tcpNoDelay != null) {
+                bootstrap.option(ChannelOption.TCP_NODELAY, tcpNoDelay);
+            }
+
+            if (tcpKeepAlive != null) {
+                bootstrap.option(ChannelOption.SO_KEEPALIVE, tcpKeepAlive);
+                if (tcpKeepAlive) {
+                    // Note that Netty logs a warning if it can't set the option
+                    if (tcpKeepIdle != null) {
+                        if (tcpKeepIdle >= 0) {
+                            bootstrap.option(OPTION_TCP_KEEP_IDLE, tcpKeepIdle);
+                        } else {
+                            bootstrap.option(OPTION_TCP_KEEP_IDLE, null);
+                        }
+                    }
+                    if (tcpKeepInterval != null) {
+                        if (tcpKeepInterval >= 0) {
+                            bootstrap.option(OPTION_TCP_KEEP_INTERVAL, tcpKeepInterval);
+                        } else {
+                            bootstrap.option(OPTION_TCP_KEEP_INTERVAL, null);
+                        }
+                    }
+                    if (tcpKeepCount != null) {
+                        if (tcpKeepCount >= 0) {
+                            bootstrap.option(OPTION_TCP_KEEP_COUNT, tcpKeepCount);
+                        } else {
+                            bootstrap.option(OPTION_TCP_KEEP_COUNT, null);
+                        }
+                    }
+                } else {
+                    bootstrap.option(OPTION_TCP_KEEP_IDLE, null);
+                    bootstrap.option(OPTION_TCP_KEEP_INTERVAL, null);
+                    bootstrap.option(OPTION_TCP_KEEP_COUNT, null);
+                }
+            }
+
+            if (tcpSendBufferSize != null) {
+                if (tcpSendBufferSize.getBytes() > 0) {
+                    bootstrap.option(ChannelOption.SO_SNDBUF, Math.toIntExact(tcpSendBufferSize.getBytes()));
+                } else {
+                    bootstrap.option(ChannelOption.SO_SNDBUF, null);
+                }
+            }
+
+            if (tcpReceiveBufferSize != null) {
+                if (tcpReceiveBufferSize.getBytes() > 0) {
+                    bootstrap.option(ChannelOption.SO_RCVBUF, Math.toIntExact(tcpReceiveBufferSize.getBytes()));
+                } else {
+                    bootstrap.option(ChannelOption.SO_RCVBUF, null);
+                }
+            }
+
+            if (tcpReuseAddress != null) {
+                bootstrap.option(ChannelOption.SO_REUSEADDR, tcpReuseAddress);
+            }
+        }
+
+        static RemoteClusterClientBootstrapOptions fromSettings(Settings settings) {
             Boolean tcpNoDelay = RemoteClusterPortSettings.TCP_NO_DELAY.get(settings);
             if (tcpNoDelay == TransportSettings.TCP_NO_DELAY.get(settings)) {
                 tcpNoDelay = null;
@@ -446,7 +447,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
                 tcpReuseAddress = null;
             }
 
-            return new RemoteClusterClientBootStrapOptions(
+            return new RemoteClusterClientBootstrapOptions(
                 tcpNoDelay,
                 tcpKeepAlive,
                 tcpKeepIdle,

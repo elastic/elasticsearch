@@ -711,9 +711,41 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             // RCS remote cluster client
             final Bootstrap rcsBootstrap = transport.getClientBootstrap(connectionProfile);
             // Legacy remote cluster client
-            final Bootstrap legacyBoostrap = transport.getClientBootstrap(TestProfiles.LIGHT_PROFILE);
+            final Bootstrap legacyBootstrap = transport.getClientBootstrap(TestProfiles.LIGHT_PROFILE);
             // identical
-            assertThat(rcsBootstrap.config().options(), equalTo(legacyBoostrap.config().options()));
+            assertThat(rcsBootstrap.config().options(), equalTo(legacyBootstrap.config().options()));
+
+            // The following attempts to ensure the super class's createClientBootstrap method does not change.
+            // It does that by checking all configured options are known and expected, i.e. no option is added or removed.
+            // The check is to approximately ensure SecurityNetty4Transport#getClientBootstrap does not become stale without notice
+            final HashSet<ChannelOption<?>> expectedChannelOptions = new HashSet<>(
+                Set.of(
+                    ChannelOption.ALLOCATOR,
+                    ChannelOption.TCP_NODELAY,
+                    ChannelOption.SO_KEEPALIVE,
+                    ChannelOption.RCVBUF_ALLOCATOR,
+                    ChannelOption.SO_REUSEADDR
+                )
+            );
+            if (TransportSettings.TCP_KEEP_ALIVE.get(qcSettings1)) {
+                if (TransportSettings.TCP_KEEP_IDLE.get(qcSettings1) >= 0) {
+                    expectedChannelOptions.add(OPTION_TCP_KEEP_IDLE);
+                }
+                if (TransportSettings.TCP_KEEP_INTERVAL.get(qcSettings1) >= 0) {
+                    expectedChannelOptions.add(OPTION_TCP_KEEP_INTERVAL);
+                }
+                if (TransportSettings.TCP_KEEP_COUNT.get(qcSettings1) >= 0) {
+                    expectedChannelOptions.add(OPTION_TCP_KEEP_COUNT);
+                }
+            }
+            if (TransportSettings.TCP_SEND_BUFFER_SIZE.get(qcSettings1).getBytes() > 0) {
+                expectedChannelOptions.add(ChannelOption.SO_SNDBUF);
+            }
+            if (TransportSettings.TCP_RECEIVE_BUFFER_SIZE.get(qcSettings1).getBytes() > 0) {
+                expectedChannelOptions.add(ChannelOption.SO_RCVBUF);
+            }
+            // legacyBootstrap is the same as default clientBootstrap from the super class's createClientBootstrap method
+            assertThat(legacyBootstrap.config().options().keySet(), equalTo(expectedChannelOptions));
         }
 
         // 2. Different settings for _remote_cluster
@@ -744,7 +776,6 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             assertThat(rcsOptions.get(OPTION_TCP_KEEP_INTERVAL), nullValue());
             assertThat(rcsOptions.get(OPTION_TCP_KEEP_COUNT), nullValue());
             assertThat(rcsOptions.get(ChannelOption.SO_SNDBUF), equalTo(42));
-            assertThat(rcsOptions.get(ChannelOption.SO_RCVBUF), equalTo(99));
             assertThat(rcsOptions.get(ChannelOption.SO_RCVBUF), equalTo(99));
             assertThat(rcsOptions.get(ChannelOption.SO_REUSEADDR), is(false));
 

@@ -163,6 +163,9 @@ public class Netty4Transport extends TcpTransport {
         bootstrap.channel(NettyAllocator.getChannelType());
         bootstrap.option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator());
 
+        // The TCP options are re-configured for client connections to RCS remote clusters
+        // If how options are configured is changed here, please also update RemoteClusterClientBootstrapOptions#configure
+        // which is used inside SecurityNetty4Transport#getClientBootstrap
         bootstrap.option(ChannelOption.TCP_NODELAY, TransportSettings.TCP_NO_DELAY.get(settings));
         bootstrap.option(ChannelOption.SO_KEEPALIVE, TransportSettings.TCP_KEEP_ALIVE.get(settings));
         if (TransportSettings.TCP_KEEP_ALIVE.get(settings)) {

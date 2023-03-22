@@ -20,7 +20,6 @@ esplugin {
 archivesBaseName = 'dlm'
 dependencies {
   testImplementation project(':modules:data-streams')
-//  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 addQaCheckDependencies(project)

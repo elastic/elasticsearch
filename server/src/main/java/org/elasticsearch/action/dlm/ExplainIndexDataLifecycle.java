@@ -134,6 +134,11 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
         }
     }
 
+    /**
+     * Calculates the age of this index with respect to its lifecycle.
+     * It's calculated as the elapsed time since rollover, or otherwise, if the index has not been rolled over yet,
+     * since index creation time.
+     */
     @Nullable
     public TimeValue getAge(Supplier<Long> now) {
         Long lifecycleDate = rolloverDate != null ? rolloverDate : indexCreationDate;
@@ -143,6 +148,10 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
         return TimeValue.timeValueMillis(Math.max(0L, now.get() - lifecycleDate));
     }
 
+    /**
+     * Calculates the time lapsed since the index was created.
+     * It can be null as we don't serialise the index creation field for un-managed indices.
+     */
     @Nullable
     public TimeValue getTimeSinceIndexCreation(Supplier<Long> now) {
         if (indexCreationDate == null) {
@@ -152,6 +161,10 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
         return TimeValue.timeValueMillis(Math.max(0L, now.get() - indexCreationDate));
     }
 
+    /**
+     * Calculates the time lapsed since the index was rolled over.
+     * It can be null if the index was not rolled over or for un-managed indecs as we don't serialise the rollover data field.
+     */
     @Nullable
     public TimeValue getTimeSinceRollover(Supplier<Long> now) {
         if (rolloverDate == null) {

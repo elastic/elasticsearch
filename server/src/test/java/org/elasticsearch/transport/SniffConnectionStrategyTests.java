@@ -70,7 +70,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         final Settings.Builder builder = Settings.builder().put(modeKey, "sniff");
         if (hasClusterCredentials) {
             builder.put(
-                RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(clusterAlias).getKey(),
+                RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(clusterAlias).getKey(),
                 randomAlphaOfLength(20)
             );
         }

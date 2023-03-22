@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.security.remoteaccess;
+package org.elasticsearch.xpack.security.crossclusteraccess;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
@@ -848,10 +848,10 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         if (useProxyMode) {
             updateRemoteClusterSettings(
                 clusterAlias,
-                Map.of("mode", "proxy", "proxy_address", remoteAddress.toString(), "authorization", clusterCredential)
+                Map.of("mode", "proxy", "proxy_address", remoteAddress.toString(), "credentials", clusterCredential)
             );
         } else {
-            updateRemoteClusterSettings(clusterAlias, Map.of("seeds", remoteAddress.toString(), "authorization", clusterCredential));
+            updateRemoteClusterSettings(clusterAlias, Map.of("seeds", remoteAddress.toString(), "credentials", clusterCredential));
         }
     }
 

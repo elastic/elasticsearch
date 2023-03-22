@@ -260,7 +260,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             );
 
             // Check that authentication fails if we use a non-existent API key
-            updateClusterSettings(Settings.builder().put("cluster.remote.my_remote_cluster.authorization", randomEncodedApiKey()).build());
+            updateClusterSettings(Settings.builder().put("cluster.remote.my_remote_cluster.credentials", randomEncodedApiKey()).build());
             final ResponseException exception4 = expectThrows(
                 ResponseException.class,
                 () -> performRequestWithRemoteSearchUser(new Request("GET", "/my_remote_cluster:index1/_search"))

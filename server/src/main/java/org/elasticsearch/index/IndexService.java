@@ -433,7 +433,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         ShardLock lock = null;
         eventListener.beforeIndexShardCreated(routing, indexSettings);
         try {
-            lock = nodeEnv.shardLock(shardId, "starting shard", 0L);
+            // Try and acquire the shard lock, but we are on the cluster applier thread so we do not wait if it is unavailable; in that
+            // case, the IndicesClusterStateService will try again (in the background)
+            lock = nodeEnv.shardLock(shardId, "starting shard");
             ShardPath path;
             try {
                 path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings.customDataPath());

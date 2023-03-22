@@ -40,22 +40,6 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
             .build();
     }
 
-    private void expectSystemIndexWarning(Request request, String indexName) {
-        String warningMsg = "index name ["
-            + indexName
-            + "] starts with a dot '.', in the next major version, "
-            + "index names starting with a dot are reserved for hidden indices and system indices";
-
-        List<String> expectedWarnings = List.of(warningMsg);
-
-        logger.info("expecting warnings: " + expectedWarnings.toString());
-        RequestOptions consumeSystemIndicesWarningsOptions = RequestOptions.DEFAULT.toBuilder()
-            .setWarningsHandler(warnings -> expectedWarnings.equals(warnings) == false)
-            .build();
-
-        request.setOptions(consumeSystemIndicesWarningsOptions);
-    }
-
     public void testSearchWithoutIndexCreatedIsAllowed() throws Exception {
         Request request = new Request("GET", ".fleet-agents/_search");
         request.setJsonEntity("{ \"query\": { \"match_all\": {} } }");
@@ -98,7 +82,6 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
 
     public void testCreationOfFleetFiles() throws Exception {
         Request request = new Request("PUT", ".fleet-files-agent-00001");
-        expectSystemIndexWarning(request, ".fleet-files-agent-00001");
         Response response = client().performRequest(request);
         assertEquals(200, response.getStatusLine().getStatusCode());
 
@@ -111,7 +94,6 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
 
     public void testCreationOfFleetFileData() throws Exception {
         Request request = new Request("PUT", ".fleet-file-data-agent-00001");
-        expectSystemIndexWarning(request, ".fleet-file-data-agent-00001");
         Response response = client().performRequest(request);
         assertEquals(200, response.getStatusLine().getStatusCode());
 

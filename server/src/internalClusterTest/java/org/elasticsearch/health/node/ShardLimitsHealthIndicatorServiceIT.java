@@ -71,7 +71,7 @@ public class ShardLimitsHealthIndicatorServiceIT extends ESIntegTestCase {
 
         var result = fetchShardLimitsIndicatorResult(internalCluster);
         assertEquals(result.status(), HealthStatus.YELLOW);
-        assertEquals(result.symptom(), "Cluster is close to reaching the maximum number of shards for normal nodes.");
+        assertEquals(result.symptom(), "Cluster is close to reaching the configured maximum number of shards for normal nodes.");
         assertThat(result.diagnosisList(), hasSize(1));
         assertThat(result.impacts(), hasSize(1));
     }
@@ -82,7 +82,7 @@ public class ShardLimitsHealthIndicatorServiceIT extends ESIntegTestCase {
 
         var result = fetchShardLimitsIndicatorResult(internalCluster);
         assertEquals(result.status(), HealthStatus.RED);
-        assertEquals(result.symptom(), "Cluster is close to reaching the maximum number of shards for normal nodes.");
+        assertEquals(result.symptom(), "Cluster is close to reaching the configured maximum number of shards for normal nodes.");
         assertThat(result.diagnosisList(), hasSize(1));
         assertThat(result.impacts(), hasSize(1));
     }
@@ -132,11 +132,11 @@ public class ShardLimitsHealthIndicatorServiceIT extends ESIntegTestCase {
             assertNotNull(healthMetadata);
             assertNotNull(healthMetadata.getShardLimitsMetadata());
             assertTrue(
-                "max_shards_per_node settings must be greater than 0",
+                "max_shards_per_node setting must be greater than 0",
                 healthMetadata.getShardLimitsMetadata().maxShardsPerNode() > 0
             );
             assertTrue(
-                "max_shards_per_node.frozen settings must be greater than 0",
+                "max_shards_per_node.frozen setting must be greater than 0",
                 healthMetadata.getShardLimitsMetadata().maxShardsPerNodeFrozen() > 0
             );
         });

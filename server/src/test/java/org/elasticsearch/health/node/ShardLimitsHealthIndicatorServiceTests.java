@@ -96,7 +96,7 @@ public class ShardLimitsHealthIndicatorServiceTests extends ESTestCase {
         assertEquals(indicatorResult.status(), HealthStatus.UNKNOWN);
         assertTrue(indicatorResult.impacts().isEmpty());
         assertTrue(indicatorResult.diagnosisList().isEmpty());
-        assertEquals(indicatorResult.symptom(), "No shard limits data.");
+        assertEquals(indicatorResult.symptom(), "Unable to determine shard limit status.");
         assertEquals(xContentToMap(indicatorResult.details()), Map.of());
     }
 
@@ -131,7 +131,10 @@ public class ShardLimitsHealthIndicatorServiceTests extends ESTestCase {
             var indicatorResult = new ShardLimitsHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
             assertEquals(indicatorResult.status(), HealthStatus.YELLOW);
-            assertEquals(indicatorResult.symptom(), "Cluster is close to reaching the maximum number of shards for normal nodes.");
+            assertEquals(
+                indicatorResult.symptom(),
+                "Cluster is close to reaching the configured maximum number of shards for normal nodes."
+            );
             assertThat(indicatorResult.impacts(), equalTo(YELLOW_INDICATOR_IMPACTS));
             assertThat(indicatorResult.diagnosisList(), hasSize(1));
             assertThat(indicatorResult.diagnosisList().get(0), equalTo(SHARD_LIMITS_REACHED_NORMAL_NODES));
@@ -154,7 +157,10 @@ public class ShardLimitsHealthIndicatorServiceTests extends ESTestCase {
             var indicatorResult = new ShardLimitsHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
             assertEquals(indicatorResult.status(), HealthStatus.YELLOW);
-            assertEquals(indicatorResult.symptom(), "Cluster is close to reaching the maximum number of shards for frozen nodes.");
+            assertEquals(
+                indicatorResult.symptom(),
+                "Cluster is close to reaching the configured maximum number of shards for frozen nodes."
+            );
             assertThat(indicatorResult.impacts(), equalTo(YELLOW_INDICATOR_IMPACTS));
             assertThat(indicatorResult.diagnosisList(), hasSize(1));
             assertThat(indicatorResult.diagnosisList().get(0), equalTo(SHARD_LIMITS_REACHED_FROZEN_NODES));
@@ -178,7 +184,7 @@ public class ShardLimitsHealthIndicatorServiceTests extends ESTestCase {
             assertEquals(indicatorResult.status(), HealthStatus.YELLOW);
             assertEquals(
                 indicatorResult.symptom(),
-                "Cluster is close to reaching the maximum number of shards for normal and frozen nodes."
+                "Cluster is close to reaching the configured maximum number of shards for normal and frozen nodes."
             );
             assertThat(indicatorResult.impacts(), equalTo(YELLOW_INDICATOR_IMPACTS));
             assertThat(indicatorResult.diagnosisList(), is(List.of(SHARD_LIMITS_REACHED_NORMAL_NODES, SHARD_LIMITS_REACHED_FROZEN_NODES)));
@@ -204,7 +210,10 @@ public class ShardLimitsHealthIndicatorServiceTests extends ESTestCase {
             var indicatorResult = new ShardLimitsHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
             assertEquals(indicatorResult.status(), HealthStatus.RED);
-            assertEquals(indicatorResult.symptom(), "Cluster is close to reaching the maximum number of shards for normal nodes.");
+            assertEquals(
+                indicatorResult.symptom(),
+                "Cluster is close to reaching the configured maximum number of shards for normal nodes."
+            );
             assertThat(indicatorResult.impacts(), equalTo(RED_INDICATOR_IMPACTS));
             assertThat(indicatorResult.diagnosisList(), hasSize(1));
             assertThat(indicatorResult.diagnosisList().get(0), equalTo(SHARD_LIMITS_REACHED_NORMAL_NODES));
@@ -227,7 +236,10 @@ public class ShardLimitsHealthIndicatorServiceTests extends ESTestCase {
             var indicatorResult = new ShardLimitsHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
             assertEquals(indicatorResult.status(), HealthStatus.RED);
-            assertEquals(indicatorResult.symptom(), "Cluster is close to reaching the maximum number of shards for frozen nodes.");
+            assertEquals(
+                indicatorResult.symptom(),
+                "Cluster is close to reaching the configured maximum number of shards for frozen nodes."
+            );
             assertThat(indicatorResult.impacts(), equalTo(RED_INDICATOR_IMPACTS));
             assertThat(indicatorResult.diagnosisList(), hasSize(1));
             assertThat(indicatorResult.diagnosisList().get(0), equalTo(SHARD_LIMITS_REACHED_FROZEN_NODES));
@@ -251,7 +263,7 @@ public class ShardLimitsHealthIndicatorServiceTests extends ESTestCase {
             assertEquals(indicatorResult.status(), HealthStatus.RED);
             assertEquals(
                 indicatorResult.symptom(),
-                "Cluster is close to reaching the maximum number of shards for normal and frozen nodes."
+                "Cluster is close to reaching the configured maximum number of shards for normal and frozen nodes."
             );
             assertThat(indicatorResult.impacts(), equalTo(RED_INDICATOR_IMPACTS));
             assertThat(indicatorResult.diagnosisList(), is(List.of(SHARD_LIMITS_REACHED_NORMAL_NODES, SHARD_LIMITS_REACHED_FROZEN_NODES)));

@@ -51,7 +51,7 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
         new Diagnosis.Definition(
             NAME,
             id,
-            "Elasticsearch is about to reach the maximum number of shards it can host.",
+            "Elasticsearch is about to reach the maximum number of shards it can host, based on your current settings.",
             "Increase the value of [" + setting.getKey() + "] cluster setting or remove indices to clear up resources.",
             HELP_GUIDE
         ),
@@ -109,7 +109,7 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
         // RED and YELLOW status indicates that the cluster might have issues. finalStatus has the worst between *normal and frozen* nodes,
         // so we have to check each of the groups in order of provide the right message.
         if (finalStatus.indicatesHealthProblem()) {
-            symptomBuilder.append("Cluster is close to reaching the maximum number of shards for ");
+            symptomBuilder.append("Cluster is close to reaching the configured maximum number of shards for ");
             if (normalNodes.status == frozenNodes.status) {
                 symptomBuilder.append(NORMAL_GROUP).append(" and ").append(FROZEN_GROUP);
                 diagnoses = List.of(SHARD_LIMITS_REACHED_NORMAL_NODES, SHARD_LIMITS_REACHED_FROZEN_NODES);
@@ -199,7 +199,7 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
     private HealthIndicatorResult unknownIndicator() {
         return createIndicator(
             HealthStatus.UNKNOWN,
-            "No number of shards limits data.",
+            "Unable to determine shard limit status.",
             HealthIndicatorDetails.EMPTY,
             List.of(),
             List.of()

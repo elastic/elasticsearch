@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -21,13 +22,13 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class QuerySearchApplicationAction extends ActionType<QuerySearchApplicationAction.Response> {
+public class QuerySearchApplicationAction extends ActionType<SearchResponse> {
 
     public static final QuerySearchApplicationAction INSTANCE = new QuerySearchApplicationAction();
     public static final String NAME = "cluster:admin/xpack/application/search_application/search";
 
     public QuerySearchApplicationAction() {
-        super(NAME, QuerySearchApplicationAction.Response::new);
+        super(NAME, SearchResponse::new);
     }
 
     public static class Request extends ActionRequest {

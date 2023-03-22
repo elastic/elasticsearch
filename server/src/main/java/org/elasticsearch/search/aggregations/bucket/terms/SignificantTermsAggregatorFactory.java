@@ -234,7 +234,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
         BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
-        if (bucketCountThresholds.getShardSize() == SignificantTermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
+        if (bucketCountThresholds.getShardSize() == SignificantTermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.shardSize()) {
             // The user has not made a shardSize selection .
             // Use default heuristic to avoid any wrong-ranking caused by
             // distributed counting
@@ -253,10 +253,10 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         // If min_doc_count and shard_min_doc_count is provided, we do not support them being larger than 1
         // This is because we cannot be sure about their relative scale when sampled
         if (samplingContext.isSampled()) {
-            if ((bucketCountThresholds.getMinDocCount() != SignificantTermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS
-                .getMinDocCount() && bucketCountThresholds.getMinDocCount() > 1)
+            if ((bucketCountThresholds.getMinDocCount() != SignificantTermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.minDocCount()
+                && bucketCountThresholds.getMinDocCount() > 1)
                 || (bucketCountThresholds.getShardMinDocCount() != SignificantTermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS
-                    .getMinDocCount() && bucketCountThresholds.getShardMinDocCount() > 1)) {
+                    .minDocCount() && bucketCountThresholds.getShardMinDocCount() > 1)) {
                 throw new ElasticsearchStatusException(
                     "aggregation [{}] is within a sampling context; "
                         + "min_doc_count, provided [{}], and min_shard_doc_count, provided [{}], cannot be greater than 1",

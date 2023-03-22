@@ -21,6 +21,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> implements LocalSpecBuilder<T> {
@@ -37,6 +38,7 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     private final Map<String, Resource> keystoreFiles = new HashMap<>();
     private final Map<String, Resource> extraConfigFiles = new HashMap<>();
     private final Map<String, String> systemProperties = new HashMap<>();
+    private final Map<String, String> secrets = new HashMap<>();
     private DistributionType distributionType;
     private Version version;
     private String keystorePassword;
@@ -64,6 +66,12 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     @Override
     public T setting(String setting, Supplier<String> value) {
         this.settingsProviders.add(s -> Map.of(setting, value.get()));
+        return cast(this);
+    }
+
+    @Override
+    public T setting(String setting, Supplier<String> value, Predicate<LocalClusterSpec.LocalNodeSpec> predicate) {
+        this.settingsProviders.add(s -> predicate.test(s) ? Map.of(setting, value.get()) : Map.of());
         return cast(this);
     }
 
@@ -160,6 +168,16 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
 
     public List<SettingsProvider> getKeystoreProviders() {
         return inherit(() -> parent.getKeystoreProviders(), keystoreProviders);
+    }
+
+    @Override
+    public T secret(String key, String value) {
+        this.secrets.put(key, value);
+        return cast(this);
+    }
+
+    public Map<String, String> getSecrets() {
+        return inherit(() -> parent.getSecrets(), secrets);
     }
 
     @Override

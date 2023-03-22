@@ -663,14 +663,14 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     @Override
-    public void getRemoteAccessRoleDescriptorsIntersection(
+    public void getRoleDescriptorsIntersectionForRemoteCluster(
         final String remoteClusterAlias,
         final AuthorizationInfo authorizationInfo,
         final ActionListener<RoleDescriptorsIntersection> listener
     ) {
         if (authorizationInfo instanceof RBACAuthorizationInfo rbacAuthzInfo) {
             final Role role = rbacAuthzInfo.getRole();
-            listener.onResponse(role.getRemoteAccessRoleDescriptorsIntersection(remoteClusterAlias));
+            listener.onResponse(role.getRoleDescriptorsIntersectionForRemoteCluster(remoteClusterAlias));
         } else {
             listener.onFailure(
                 new IllegalArgumentException("unsupported authorization info: " + authorizationInfo.getClass().getSimpleName())

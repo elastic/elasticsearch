@@ -11,10 +11,12 @@ package org.elasticsearch.test.cluster.local;
 import org.elasticsearch.test.cluster.EnvironmentProvider;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.SettingsProvider;
+import org.elasticsearch.test.cluster.local.LocalClusterSpec.LocalNodeSpec;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
@@ -32,6 +34,11 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
      * Add a new node setting computed by the given supplier.
      */
     T setting(String setting, Supplier<String> value);
+
+    /**
+     * Add a new node setting computed by the given supplier when the given predicate evaluates to {@code true}.
+     */
+    T setting(String setting, Supplier<String> value, Predicate<LocalNodeSpec> predicate);
 
     /**
      * Register a {@link EnvironmentProvider}.
@@ -88,6 +95,12 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
      * Adds a file to the node config directory
      */
     T configFile(String fileName, Resource configFile);
+
+    /**
+     * Adds a secret to the local secure settings file. This should be used instead of {@link #keystore(String, String)} when file-based
+     * secure settings are enabled.
+     */
+    T secret(String key, String value);
 
     /**
      * Sets the version of Elasticsearch. Defaults to {@link Version#CURRENT}.

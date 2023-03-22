@@ -159,7 +159,8 @@ public class PlaceHolderFieldMapper extends FieldMapper {
             int prefixLength,
             int maxExpansions,
             boolean transpositions,
-            SearchExecutionContext context
+            SearchExecutionContext context,
+            @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
             throw new QueryShardException(context, fail("fuzzy query"));
         }

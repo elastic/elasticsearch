@@ -375,14 +375,14 @@ public class TestUtils {
     }
 
     public static void registerAndAckSignedLicenses(
-        final LicenseService licenseService,
+        final ClusterStateLicenseService clusterStateLicenseService,
         License license,
         final LicensesStatus expectedStatus
     ) {
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest().license(license).acknowledge(true);
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<LicensesStatus> status = new AtomicReference<>();
-        licenseService.registerLicense(putLicenseRequest, new ActionListener<PutLicenseResponse>() {
+        clusterStateLicenseService.registerLicense(putLicenseRequest, new ActionListener<PutLicenseResponse>() {
             @Override
             public void onResponse(PutLicenseResponse licensesUpdateResponse) {
                 status.set(licensesUpdateResponse.status());

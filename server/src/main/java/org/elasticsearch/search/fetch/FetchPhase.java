@@ -164,8 +164,8 @@ public class FetchPhase {
             throw new TaskCancelledException("cancelled");
         }
 
-        TotalHits totalHits = context.queryResult().getTotalHits();
-        return new SearchHits(hits, totalHits, context.queryResult().getMaxScore());
+        TotalHits totalHits = context.getTotalHits();
+        return new SearchHits(hits, totalHits, context.getMaxScore());
     }
 
     private static StoredFieldLoader buildStoredFieldsLoader(StoredFieldsSpec spec) {
@@ -258,13 +258,13 @@ public class FetchPhase {
     private static Supplier<Source> lazyStoredSourceLoader(Profiler profiler, LeafReaderContext ctx, int doc) {
         return () -> {
             StoredFieldLoader rootLoader = profiler.storedFields(StoredFieldLoader.create(true, Collections.emptySet()));
-            LeafStoredFieldLoader leafRootLoader = rootLoader.getLoader(ctx, null);
             try {
+                LeafStoredFieldLoader leafRootLoader = rootLoader.getLoader(ctx, null);
                 leafRootLoader.advanceTo(doc);
+                return Source.fromBytes(leafRootLoader.source());
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-            return Source.fromBytes(leafRootLoader.source());
         };
     }
 

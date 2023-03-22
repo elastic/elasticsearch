@@ -12,10 +12,13 @@ import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.ProjectLayout;
+import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.SetProperty;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
@@ -25,7 +28,13 @@ import org.gradle.workers.WorkQueue;
 import org.gradle.workers.WorkerExecutor;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -36,6 +45,7 @@ import javax.inject.Inject;
 @CacheableTask
 public abstract class TransportTestExistTask extends PrecommitTask {
     private static final String MISSING_TRANSPORT_TESTS_FILE = "transport-tests/missing-transport-tests.txt";
+    public static final String TRANSPORT_CLASSES = "generated-resources/transport-classes.txt";
 
     private FileCollection mainSources;
     private FileCollection testSources;
@@ -43,12 +53,18 @@ public abstract class TransportTestExistTask extends PrecommitTask {
     private FileCollection testClasspath;
     Set<String> skipClasses = new HashSet<>();
 
-    public TransportTestExistTask() {
+    @Inject
+    public TransportTestExistTask(ProjectLayout projectLayout) {
         setDescription("Runs TransportTestExistTask on output directories of all source sets");
+        getOutputFile().convention(projectLayout.getBuildDirectory().file(TRANSPORT_CLASSES));
+
     }
 
     @Inject
     abstract public WorkerExecutor getWorkerExecutor();
+
+    @OutputFile
+    public abstract RegularFileProperty getOutputFile();
 
     @TaskAction
     public void runTask() {
@@ -59,6 +75,7 @@ public abstract class TransportTestExistTask extends PrecommitTask {
             parameters.getCompileClasspath().setFrom(compileClasspath);
             parameters.getTestClasspath().setFrom(testClasspath);
             parameters.getSkipClasses().set(skipClasses);
+            parameters.getOutputFile().set(getOutputFile());
         });
     }
 
@@ -103,28 +120,43 @@ public abstract class TransportTestExistTask extends PrecommitTask {
     abstract static class TransportTestExistWorkAction implements WorkAction<Parameters> {
 
         @Inject
-        public TransportTestExistWorkAction() {}
+        public TransportTestExistWorkAction() {
+        }
 
         @Override
         public void execute() {
             Set<String> classesToSkip = loadClassesToSkip();
 
             TransportTestsScanner transportTestsScanner = new TransportTestsScanner(classesToSkip);
-            Set<String> missingTestClasses = transportTestsScanner.findTransportClassesMissingTests(
+            Set<String> transportClasses = transportTestsScanner.findTransportClasses(
                 getParameters().getMainSources().getFiles(),
                 getParameters().getTestSources().getFiles(),
                 getParameters().getCompileClasspath().getFiles(),
                 getParameters().getTestClasspath().getFiles()
             );
 
-            if (missingTestClasses.size() > 0) {
-                throw new GradleException(
-                    "There are "
-                        + missingTestClasses.size()
-                        + " missing tests for classes\n"
-                        + missingTestClasses.stream().collect(Collectors.joining("\n"))
-                );
+            Path path = getParameters().getOutputFile().getAsFile().get().toPath();
+            try {
+                Files.createDirectories(path.getParent());
+
+                try (PrintWriter out = new PrintWriter(Files.newOutputStream(path))) {
+                    for (String transportClass : transportClasses) {
+                        out.println(transportClass);
+                    }
+                }
+            } catch (IOException e) {
+                throw new GradleException("Cannot create transport classes file", e);
             }
+
+//
+//            if (missingTestClasses.size() > 0) {
+//                throw new GradleException(
+//                    "There are "
+//                        + missingTestClasses.size()
+//                        + " missing tests for classes\n"
+//                        + missingTestClasses.stream().collect(Collectors.joining("\n"))
+//                );
+//            }
         }
 
     }
@@ -148,6 +180,8 @@ public abstract class TransportTestExistTask extends PrecommitTask {
         ConfigurableFileCollection getTestClasspath();
 
         SetProperty<String> getSkipClasses();
+
+        RegularFileProperty getOutputFile();
     }
 
 }

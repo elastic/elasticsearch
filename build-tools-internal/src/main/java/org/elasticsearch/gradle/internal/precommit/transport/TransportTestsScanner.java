@@ -57,6 +57,25 @@ public class TransportTestsScanner {
         this.transportTestClassesRoots = transportTestClassesRoots;
     }
 
+    public Set<String> findTransportClasses(
+        Set<File> mainClasses,
+        Set<File> testClasses,
+        Set<File> mainClasspath,
+        Set<File> testClasspath
+    ) {
+        URL[] allUrls = allClasses(mainClasses, testClasses, mainClasspath, testClasspath);
+        ClassLoader cl = new URLClassLoader(allUrls);
+
+        Class<?> writeableClass = loadClass(cl, writeableClassName);
+
+        Set<String> transportClasses = traverseClassesInRoots(mainClasses).stream()
+            .filter(n -> isSubclassOf(n, cl, Set.of(writeableClass)))
+            .collect(Collectors.toSet());
+
+       return transportClasses;
+
+    }
+
     public Set<String> findTransportClassesMissingTests(
         Set<File> mainClasses,
         Set<File> testClasses,

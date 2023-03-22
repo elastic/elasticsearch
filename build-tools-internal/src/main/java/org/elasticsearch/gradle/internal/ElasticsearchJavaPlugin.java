@@ -15,22 +15,38 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.precommit.transport.AggregatingJacocoCoverageVerification;
+import org.elasticsearch.gradle.internal.precommit.transport.TransportTestExistPrecommitPlugin;
+import org.elasticsearch.gradle.internal.precommit.transport.TransportTestExistTask;
 import org.gradle.api.Action;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.file.RegularFile;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.api.tasks.javadoc.Javadoc;
 import org.gradle.external.javadoc.CoreJavadocOptions;
+import org.gradle.internal.jacoco.rules.JacocoViolationRuleImpl;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
+import org.gradle.testing.jacoco.plugins.JacocoPlugin;
+import org.gradle.testing.jacoco.tasks.JacocoCoverageVerification;
+import org.gradle.testing.jacoco.tasks.rules.JacocoViolationRule;
 
 import java.io.File;
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.gradle.internal.conventions.util.Util.toStringable;
 
@@ -50,6 +66,52 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         configureJarManifest(project);
         configureJavadoc(project);
         testCompileOnlyDeps(project);
+
+        configureJacoco(project);
+    }
+
+    private static void configureJacoco(Project project) {
+        project.getPluginManager().apply(JacocoPlugin.class);
+
+        project.getPluginManager().apply(TransportTestExistPrecommitPlugin.class);
+
+        project.getTasks().named("test").configure(task -> {
+            task.finalizedBy(project.getTasks().named("jacocoTestReport"));
+        });
+        project.getTasks().named("jacocoTestReport").configure(task -> {
+            task.dependsOn(project.getTasks().named("transportTestExistCheck"));
+            task.dependsOn(project.getTasks().named("test"));
+        });
+
+        project.getTasks().named("jacocoTestCoverageVerification", JacocoCoverageVerification.class).configure(task -> {
+            task.dependsOn(project.getTasks().named("jacocoTestReport"));
+
+            task.getViolationRules().rule(jacocoViolationRule -> {
+                List<String> transportClasses = readTransportClasses(project).stream().map(s->s+"#writeTo").collect(Collectors.toList());
+                System.out.println("xxx");
+                System.out.println(transportClasses);
+                jacocoViolationRule.setElement("METHOD");
+                jacocoViolationRule.limit(l-> {
+                   l.setCounter("INSTRUCTION");
+                   l.setValue("COVEREDRATIO");
+                   l.setMinimum(BigDecimal.valueOf(0.9));
+                });
+                jacocoViolationRule.setIncludes(transportClasses);
+            });
+        });
+    }
+
+    private static List<String> readTransportClasses(Project project) {
+        try {
+            //  - Gradle detected a problem with the following location: '/Users/przemyslawgomulka/workspace/pgomulka/elasticsearch/modules/aggregations/build/generated-resources/transport-classes.txt'. Reason: Task ':modules:aggregations:test' uses this output of task ':modules:aggregations:transportTestExistCheck' without declaring an explicit or implicit dependency. This can lead to incorrect results being produced, depending on what order the tasks are executed. Please refer to https://docs.gradle.org/7.6.1/userguide/validation_problems.html#implicit_dependency for more details about this problem.
+            Provider<RegularFile> file = project.getLayout().getBuildDirectory().file(TransportTestExistTask.TRANSPORT_CLASSES);
+            Path path = file.get().getAsFile().toPath();
+            return Files.readAllLines(path);
+        } catch (IOException e) {
+            e.printStackTrace();
+//            throw new RuntimeException(e);
+        }
+        return Collections.emptyList();
     }
 
     private static void testCompileOnlyDeps(Project project) {

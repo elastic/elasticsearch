@@ -197,7 +197,13 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
     }
 
     private HealthIndicatorResult unknownIndicator() {
-        return createIndicator(HealthStatus.UNKNOWN, "No shard limits data.", HealthIndicatorDetails.EMPTY, List.of(), List.of());
+        return createIndicator(
+            HealthStatus.UNKNOWN,
+            "No number of shards limits data.",
+            HealthIndicatorDetails.EMPTY,
+            List.of(),
+            List.of()
+        );
     }
 
     private record StatusResult(HealthStatus status, ShardLimitValidator.Result result) {}

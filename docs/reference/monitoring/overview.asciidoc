@@ -27,12 +27,6 @@ The following diagram illustrates a typical monitoring architecture with
 separate production and monitoring clusters. This example shows {metricbeat},
 but you can use {agent} instead.
 
-****
-**Question for reviewers:**
-
-Not sure it's worth the effort to redo this diagram for agent right now. WDYT?
-****
-
 image::images/architecture.png[A typical monitoring environment]
 
 If you have the appropriate license, you can route data from multiple production

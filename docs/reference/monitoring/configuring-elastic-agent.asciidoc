@@ -14,26 +14,14 @@ or routing it through exporters as described in <<collecting-monitoring-data>>.
 === Prerequisites
 
 * (Optional) Create a monitoring cluster as described in <<monitoring-production>>.
-* If you decide to use a monitoring cluster, add an {es} output under
-**Fleet Settings** in {kib} to send data to the monitoring cluster. To learn
-how, refer to the documentation about
-{fleet-guide}/fleet-settings.html#output-settings[Output settings]. 
-If the monitoring cluster uses encrypted communications, you must access it via
-HTTPS. For example, use a `hosts` setting like `https://es-mon-1:9200`.
+
 * Create a user on the production cluster that has the
 `remote_monitoring_collector` {ref}/built-in-roles.html[built-in role].
 
 [discrete]
 === Add {es} monitoring data
 
-****
-**Question for reviewers:**
-
-Did I get the details about the scope (node vs cluster) correct below? I tried
-to make the text clearer, but I'm in unfamiliar territory.
-****
-
-To collect {es} monitoring data, add a {es} integration to an {agent} and
+To collect {es} monitoring data, add an {es} integration to an {agent} and
 deploy it to the host where {es} is running.
 
 . Go to the {kib} home page and click **Add integrations**.
@@ -74,9 +62,6 @@ new agent policy or **Existing hosts** to add it to an existing agent policy.
 . Click **Save and continue**. This step takes a minute or two to complete. When
 it's done, you'll have an agent policy that contains an integration for
 collecting monitoring data from {es}.
-. (Optional) If you're sending data to a monitoring cluster, edit the agent
-policy, and under **Settings**, change the **Output for integrations** to the 
-output you created for the monitoring cluster.
 . If an {agent} is already assigned to the policy and deployed to the host where
 {es} is running, you're done. Otherwise, you need to deploy an {agent}. To
 deploy an {agent}:

@@ -6,20 +6,6 @@ In production, you should send monitoring data to a separate _monitoring cluster
 so that historical data is available even when the nodes you are monitoring are
 not.
 
-****
-**Questions for reviewers:**
-
-* Do we want to continue to recommend Metricbeat or should the following note
-say that Elastic Agent is the recommended method? The 8.7 build I'm using still
-shows the Kibana integration as technical preview, so I'm not sure whether we
-want to recommend agent exclusively yet. Might be better to just remove the
-first sentence so we don't have to recommend a specific method. WDYT?
-
-* I'm struggling a bit with how differently we document the setup for monitoring
-APM Server and Enterprise Search. Do we want to provide links to those docs in
-the steps shown here? (I've added them, but they seem out of place.)
-****
-
 // tag::monitoring-rec[]
 [IMPORTANT]
 =========================

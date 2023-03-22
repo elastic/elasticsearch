@@ -9,25 +9,9 @@ Each monitored {stack} component is considered unique in the cluster based on
 its persistent UUID, which is written to the <<path-settings,`path.data`>>
 directory when the node or instance starts.
 
-****
-**Question for reviewers:**
-
-Is the following paragraph correct? Do all of the monitored products listed in
-the overview have UUIDs?
-****
-
 Monitoring documents are just ordinary JSON documents built by monitoring each
-{stack} component at a specified collection interval. If you want to alter the
-templates for these indices, see <<config-monitoring-indices>>.
-
-****
-**Question for reviewers:**
-
-What do Elastic Agent users need to know about configuring indices? I think the
-topic about configuring indices only applies to legacy collectors, but let me
-know if I'm incorrect. If it's only relevant for legacy collectors, I will
-remove the link above.
-****
+{stack} component at a specified collection interval. If you want to alter how
+these documents are structured or stored, refer to <<config-monitoring-indices>>.
 
 You can use {agent} or {metricbeat} to collect monitoring data and to ship it
 directly to the monitoring cluster.
@@ -59,17 +43,3 @@ collection methods, you should migrate to using {agent} or {metricbeat}.
 * {fleet-guide}/monitor-elastic-agent.html[Monitoring {agent}s]
 {fleet}-managed agents) or
 {fleet-guide}/elastic-agent-monitoring-configuration[Configure monitoring for standalone {agent}s]
-
-****
-**Question for reviewers:**
-
-Is it possible to get Elastic Agent metrics to show up in the Stack Monitoring
-UI? (Similar to how you get APM Server metrics to appear--documented
-https://www.elastic.co/guide/en/apm/guide/current/monitor-apm.html#monitor-apm-self-install).
-If so, I need to know to know the specific configuration to show.
-
-Right now I just point to the topics about Agent monitoring, but I'm not sure if
-it's possible to populate the Stack Monitoring UI with Elastic Agent metrics.
-Should we even mention agent monitoring in this list? If we mention it here, we
-should mention it in the topic about monitoring a production cluster.
-****

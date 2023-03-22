@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -25,7 +25,7 @@ public record TransportActionStats(
     long responseCount,
     long totalResponseSize,
     long[] responseSizeHistogram
-) implements Writeable, ToXContentFragment {
+) implements Writeable, ToXContentObject {
 
     public TransportActionStats(StreamInput in) throws IOException {
         this(in.readString(), in.readVLong(), in.readVLong(), in.readVLongArray(), in.readVLong(), in.readVLong(), in.readVLongArray());

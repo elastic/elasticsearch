@@ -26,6 +26,7 @@ import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -71,10 +72,15 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     protected static ElasticsearchCluster queryCluster;
     protected static RestClient fulfillingClusterClient;
 
-    protected static void initFulfillingClusterClient(final String url) {
+    @BeforeClass
+    public static void initFulfillingClusterClient() {
         if (fulfillingClusterClient != null) {
             return;
         }
+        assert fulfillingCluster != null;
+        final int numberOfFcNodes = fulfillingCluster.getHttpAddresses().split(",").length;
+        final String url = fulfillingCluster.getHttpAddress(randomIntBetween(0, numberOfFcNodes - 1));
+
         final int portSeparator = url.lastIndexOf(':');
         final var httpHost = new HttpHost(url.substring(0, portSeparator), Integer.parseInt(url.substring(portSeparator + 1)), "http");
         RestClientBuilder builder = RestClient.builder(httpHost);
@@ -104,9 +110,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     }
 
     protected static Map<String, Object> createCrossClusterAccessApiKey(String indicesPrivilegesJson) {
-        assert fulfillingCluster != null;
-        final int numberOfFcNodes = fulfillingCluster.getHttpAddresses().split(",").length;
-        initFulfillingClusterClient(fulfillingCluster.getHttpAddress(randomIntBetween(0, numberOfFcNodes - 1)));
+        initFulfillingClusterClient();
         // Create API key on FC
         final var createApiKeyRequest = new Request("POST", "/_security/api_key");
         createApiKeyRequest.setJsonEntity(Strings.format("""

@@ -224,7 +224,7 @@ public class InboundHandler {
             final RequestHandlerRegistry<T> reg;
             try {
                 reg = requestHandlers.getHandler(action);
-                assert reg != null;
+                assert message.isShortCircuit() || reg != null : action;
                 transportChannel = new TcpTransportChannel(
                     outboundHandler,
                     channel,
@@ -232,7 +232,7 @@ public class InboundHandler {
                     requestId,
                     version,
                     header.getCompressionScheme(),
-                    reg,
+                    reg == null ? ResponseStatsConsumer.NONE : reg,
                     header.isHandshake(),
                     message.takeBreakerReleaseControl()
                 );
@@ -257,11 +257,14 @@ public class InboundHandler {
 
             try {
                 messageListener.onRequestReceived(requestId, action);
-                reg.addRequestStats(header.getNetworkMessageSize() + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
+                if (reg != null) {
+                    reg.addRequestStats(header.getNetworkMessageSize() + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
+                }
 
                 if (message.isShortCircuit()) {
                     sendErrorResponse(action, transportChannel, message.getException());
                 } else {
+                    assert reg != null;
                     final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
                     assertRemoteVersion(stream, header.getVersion());
                     final T request;

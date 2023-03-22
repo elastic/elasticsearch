@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
@@ -608,6 +609,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             );
             listener.onResponse(true);
         } catch (ShardLockObtainFailedException e) {
+            if (e.getCause() instanceof InterruptedException || Thread.currentThread().isInterrupted()) {
+                logger.warn(Strings.format("interrupted while creating shard [{}]", shardRouting), e);
+                listener.onFailure(e);
+                return;
+            }
             logger.log(
                 (iteration + 25) % 30 == 0 ? Level.WARN : Level.DEBUG,
                 "shard lock currently unavailable for [{}], retrying in [{}]: [{}]",

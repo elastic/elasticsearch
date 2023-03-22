@@ -194,6 +194,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             assertOK(response);
             ObjectPath responseObject = ObjectPath.createFromResponse(response);
             assertNotNull(responseObject.evaluate(REMOTE_CLUSTER_NAME));
+            assertEquals("::es_redacted::", responseObject.evaluate(REMOTE_CLUSTER_NAME + ".cluster_credentials"));
             logger.info("Established connection to remote cluster [" + REMOTE_CLUSTER_NAME + "]");
         }
 
@@ -228,7 +229,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         final String encodedCrossClusterAccessApiKey = (String) apiKeyMap.get("encoded");
 
         final Settings.Builder builder = Settings.builder()
-            .put("cluster.remote." + REMOTE_CLUSTER_NAME + ".authorization", encodedCrossClusterAccessApiKey);
+            .put("cluster.remote." + REMOTE_CLUSTER_NAME + ".credentials", encodedCrossClusterAccessApiKey);
         if (randomBoolean()) {
             builder.put("cluster.remote." + REMOTE_CLUSTER_NAME + ".mode", "proxy")
                 .put("cluster.remote." + REMOTE_CLUSTER_NAME + ".proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0));

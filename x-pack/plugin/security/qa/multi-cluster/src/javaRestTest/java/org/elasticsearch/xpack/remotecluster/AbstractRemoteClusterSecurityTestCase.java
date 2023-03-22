@@ -105,7 +105,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
 
         // Update remote cluster settings on QC with the API key
         final Settings.Builder builder = Settings.builder()
-            .put("cluster.remote.my_remote_cluster.authorization", encodedCrossClusterAccessApiKey);
+            .put("cluster.remote.my_remote_cluster.credentials", encodedCrossClusterAccessApiKey);
         ;
         if (isProxyMode) {
             builder.put("cluster.remote.my_remote_cluster.mode", "proxy")
@@ -128,6 +128,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
             if (false == isProxyMode) {
                 assertThat(ObjectPath.eval("my_remote_cluster.num_nodes_connected", remoteInfoMap), equalTo(numberOfFcNodes));
             }
+            assertThat(ObjectPath.eval("my_remote_cluster.cluster_credentials", remoteInfoMap), equalTo("::es_redacted::"));
         });
 
         return (String) apiKeyMap.get("id");

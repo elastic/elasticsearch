@@ -322,7 +322,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 // asserting that either this index is already in the graveyard, or the
                 // previous cluster state is not initialized/recovered.
                 assert state.metadata().indexGraveyard().containsIndex(index)
-                    || previousState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
+                       || previousState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
                 final IndexMetadata metadata = indicesService.verifyIndexIsDeleted(index, event.state());
                 if (metadata != null) {
                     indexSettings = new IndexSettings(metadata, settings);
@@ -386,9 +386,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 // dangling index
                 assert indexMetadata != null || event.isNewCluster()
                     : "index "
-                        + index
-                        + " does not exist in the cluster state, it should either "
-                        + "have been deleted or the cluster must be new";
+                      + index
+                      + " does not exist in the cluster state, it should either "
+                      + "have been deleted or the cluster must be new";
                 reason = indexMetadata != null && indexMetadata.getState() == IndexMetadata.State.CLOSE ? CLOSED : NO_LONGER_ASSIGNED;
             }
 
@@ -672,10 +672,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final ShardRouting currentRoutingEntry = shard.routingEntry();
         assert currentRoutingEntry.isSameAllocation(shardRouting)
             : "local shard has a different allocation id but wasn't cleaned by removeShards. "
-                + "cluster state: "
-                + shardRouting
-                + " local: "
-                + currentRoutingEntry;
+              + "cluster state: "
+              + shardRouting
+              + " local: "
+              + currentRoutingEntry;
 
         final long primaryTerm;
         try {
@@ -714,10 +714,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     shardRouting,
                     primaryTerm,
                     "master "
-                        + clusterState.nodes().getMasterNode()
-                        + " marked shard as initializing, but shard state is ["
-                        + state
-                        + "], mark shard as started",
+                    + clusterState.nodes().getMasterNode()
+                    + " marked shard as initializing, but shard state is ["
+                    + state
+                    + "], mark shard as started",
                     shard.getTimestampRange(),
                     ActionListener.noop(),
                     clusterState

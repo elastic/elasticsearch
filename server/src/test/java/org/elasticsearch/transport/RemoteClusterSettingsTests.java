@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
 import static org.elasticsearch.test.NodeRoles.remoteClusterClientNode;
-import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION;
+import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_NODE_ATTRIBUTE;
@@ -82,12 +82,12 @@ public class RemoteClusterSettingsTests extends ESTestCase {
         if (randomBoolean()) {
             builder.setSecureSettings(new MockSecureSettings());
         }
-        assertThat(REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(alias).get(builder.build()).toString(), emptyString());
+        assertThat(REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(alias).get(builder.build()).toString(), emptyString());
     }
 
     public void testAuthorizationIsSecureSetting() {
         final String alias = randomAlphaOfLength(8);
-        assertThat(REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(alias), isA(SecureSetting.class));
+        assertThat(REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(alias), isA(SecureSetting.class));
     }
 
     public void testProxyDefault() {

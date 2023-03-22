@@ -70,7 +70,8 @@ cycle.
   unchanged lines, don't reorder existing imports)
 * Add the appropriate [license headers](#license-headers) to any new files
 * For contributions involving the elasticsearch build you can find (details about the build setup in the
-* [BUILDING](BUILDING.md) file
+  [BUILDING](BUILDING.md) file)
+
 
 ### Submitting your changes
 

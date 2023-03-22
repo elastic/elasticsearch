@@ -124,9 +124,9 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         )
     );
 
-    public static final Setting.AffixSetting<SecureString> REMOTE_CLUSTER_AUTHORIZATION = Setting.affixKeySetting(
+    public static final Setting.AffixSetting<SecureString> REMOTE_CLUSTER_CREDENTIALS = Setting.affixKeySetting(
         "cluster.remote.",
-        "authorization",
+        "credentials",
         key -> SecureSetting.secureString(key, null)
     );
 
@@ -152,7 +152,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         this.enabled = DiscoveryNode.isRemoteClusterClient(settings);
         this.remoteClusterServerEnabled = REMOTE_CLUSTER_SERVER_ENABLED.get(settings);
         this.transportService = transportService;
-        this.credentialsProtectedRemoteClusters = REMOTE_CLUSTER_AUTHORIZATION.getAsMap(settings).keySet();
+        this.credentialsProtectedRemoteClusters = REMOTE_CLUSTER_CREDENTIALS.getAsMap(settings).keySet();
 
         if (remoteClusterServerEnabled) {
             registerRemoteClusterHandshakeRequestHandler(transportService);

@@ -103,7 +103,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .setting("node.roles", "[data,ingest,master,remote_cluster_client]")
         .setting("cluster.remote.connections_per_cluster", "1")
         .apply(commonClusterConfig)
-        .keystore("cluster.remote." + REMOTE_CLUSTER_NAME + ".authorization", () -> {
+        .keystore("cluster.remote." + REMOTE_CLUSTER_NAME + ".credentials", () -> {
             if (API_KEY_MAP_REF.get() == null) {
                 try {
                     API_KEY_MAP_REF.set(createCrossClusterAccessApiKey());

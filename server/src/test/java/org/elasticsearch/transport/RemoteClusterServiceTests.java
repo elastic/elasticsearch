@@ -90,7 +90,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS));
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION));
+            assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS));
         }
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(ProxyConnectionStrategy.PROXY_ADDRESS));
@@ -1149,7 +1149,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             final DiscoveryNode c2Node = c2.getLocalDiscoNode();
 
             final MockSecureSettings secureSettings = new MockSecureSettings();
-            secureSettings.setString("cluster.remote.cluster_1.authorization", randomAlphaOfLength(10));
+            secureSettings.setString("cluster.remote.cluster_1.credentials", randomAlphaOfLength(10));
             final Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
             try (
                 MockTransportService transportService = MockTransportService.createNewService(

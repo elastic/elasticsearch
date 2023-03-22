@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import java.util.Map;
 import java.util.Optional;
 
-import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION;
+import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS;
 
 public class RemoteClusterCredentialsResolver {
 
@@ -26,7 +26,7 @@ public class RemoteClusterCredentialsResolver {
     private final Map<String, SecureString> clusterCredentials;
 
     public RemoteClusterCredentialsResolver(final Settings settings) {
-        this.clusterCredentials = REMOTE_CLUSTER_AUTHORIZATION.getAsMap(settings);
+        this.clusterCredentials = REMOTE_CLUSTER_CREDENTIALS.getAsMap(settings);
         logger.debug(
             "Read cluster credentials for remote clusters [{}]",
             Strings.collectionToCommaDelimitedString(clusterCredentials.keySet())

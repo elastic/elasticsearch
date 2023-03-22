@@ -72,7 +72,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         if (hasClusterCredentials) {
             final MockSecureSettings secureSettings = new MockSecureSettings();
             secureSettings.setString(
-                RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(clusterAlias).getKey(),
+                RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(clusterAlias).getKey(),
                 randomAlphaOfLength(20)
             );
             builder.setSecureSettings(secureSettings);

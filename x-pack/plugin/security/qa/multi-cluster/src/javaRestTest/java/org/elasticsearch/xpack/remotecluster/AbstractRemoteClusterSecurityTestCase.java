@@ -13,6 +13,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -28,6 +29,8 @@ import org.junit.AfterClass;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -164,5 +167,10 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     protected static Response performRequestAgainstFulfillingCluster(Request request) throws IOException {
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(USER, PASS)));
         return fulfillingClusterClient.performRequest(request);
+    }
+
+    // TODO centralize common usage of this across all tests
+    protected static String randomEncodedApiKey() {
+        return Base64.getEncoder().encodeToString((UUIDs.base64UUID() + ":" + UUIDs.base64UUID()).getBytes(StandardCharsets.UTF_8));
     }
 }

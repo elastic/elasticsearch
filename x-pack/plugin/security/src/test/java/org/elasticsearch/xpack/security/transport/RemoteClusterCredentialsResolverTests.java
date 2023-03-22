@@ -26,7 +26,7 @@ public class RemoteClusterCredentialsResolverTests extends ESTestCase {
 
         final String secret = randomAlphaOfLength(20);
         final MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("cluster.remote." + clusterNameA + ".authorization", secret);
+        secureSettings.setString("cluster.remote." + clusterNameA + ".credentials", secret);
         final Settings settings = builder.setSecureSettings(secureSettings).build();
         RemoteClusterCredentialsResolver remoteClusterAuthorizationResolver = new RemoteClusterCredentialsResolver(settings);
         final Optional<RemoteClusterCredentials> remoteClusterCredentials = remoteClusterAuthorizationResolver.resolve(clusterNameA);

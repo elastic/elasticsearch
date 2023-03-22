@@ -61,9 +61,9 @@ public class RemoteClusterCredentialsResolverTests extends ESTestCase {
         final String clusterNameB = "clusterB";
         final String clusterDoesNotExist = randomAlphaOfLength(10);
         final Settings.Builder initialSettingsBuilder = Settings.builder();
-        initialSettingsBuilder.put("cluster.remote." + clusterNameA + ".authorization", "initialize");
+        initialSettingsBuilder.put("cluster.remote." + clusterNameA + ".credentials", "initialize");
         if (randomBoolean()) {
-            initialSettingsBuilder.put("cluster.remote." + clusterNameB + ".authorization", "");
+            initialSettingsBuilder.put("cluster.remote." + clusterNameB + ".credentials", "");
         }
         final Settings initialSettings = initialSettingsBuilder.build();
         RemoteClusterCredentialsResolver remoteClusterCredentialsResolver = new RemoteClusterCredentialsResolver(
@@ -81,8 +81,8 @@ public class RemoteClusterCredentialsResolverTests extends ESTestCase {
         // Add clusterB authorization setting
         final String clusterBapiKey1 = randomApiKey();
         final Settings newSettingsAddClusterB = Settings.builder()
-            .put("cluster.remote." + clusterNameA + ".authorization", "addB")
-            .put("cluster.remote." + clusterNameB + ".authorization", clusterBapiKey1)
+            .put("cluster.remote." + clusterNameA + ".credentials", "addB")
+            .put("cluster.remote." + clusterNameB + ".credentials", clusterBapiKey1)
             .build();
         final ClusterState newClusterState1 = createClusterState(clusterNameA, masterNodeA, newSettingsAddClusterB);
         ClusterServiceUtils.setState(clusterService, newClusterState1);
@@ -96,8 +96,8 @@ public class RemoteClusterCredentialsResolverTests extends ESTestCase {
         // Change clusterB authorization setting
         final String clusterBapiKey2 = randomApiKey();
         final Settings newSettingsUpdateClusterB = Settings.builder()
-            .put("cluster.remote." + clusterNameA + ".authorization", "editB")
-            .put("cluster.remote." + clusterNameB + ".authorization", clusterBapiKey2)
+            .put("cluster.remote." + clusterNameA + ".credentials", "editB")
+            .put("cluster.remote." + clusterNameB + ".credentials", clusterBapiKey2)
             .build();
         final ClusterState newClusterState2 = createClusterState(clusterNameA, masterNodeA, newSettingsUpdateClusterB);
         ClusterServiceUtils.setState(clusterService, newClusterState2);
@@ -110,9 +110,9 @@ public class RemoteClusterCredentialsResolverTests extends ESTestCase {
 
         // Remove clusterB authorization setting
         final Settings.Builder newSettingsOmitClusterBBuilder = Settings.builder();
-        newSettingsOmitClusterBBuilder.put("cluster.remote." + clusterNameA + ".authorization", "omitB");
+        newSettingsOmitClusterBBuilder.put("cluster.remote." + clusterNameA + ".credentials", "omitB");
         if (randomBoolean()) {
-            initialSettingsBuilder.put("cluster.remote." + clusterNameB + ".authorization", "");
+            initialSettingsBuilder.put("cluster.remote." + clusterNameB + ".credentials", "");
         }
         final Settings newSettingsOmitClusterB = newSettingsOmitClusterBBuilder.build();
         final ClusterState newClusterState3 = createClusterState(clusterNameA, masterNodeA, newSettingsOmitClusterB);

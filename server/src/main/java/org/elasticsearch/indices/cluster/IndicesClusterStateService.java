@@ -606,7 +606,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             );
             listener.onResponse(true);
         } catch (ShardLockObtainFailedException e) {
-            logger.warn("shard lock currently unavailable for [{}], retrying in [{}]", shardRouting, shardLockRetryInterval);
+            logger.warn(
+                "shard lock currently unavailable for [{}], retrying in [{}]: [{}]",
+                shardRouting,
+                shardLockRetryInterval,
+                e.getMessage()
+            );
             // TODO could we instead subscribe to the shard lock and trigger the retry exactly when it is released rather than polling?
             threadPool.scheduleUnlessShuttingDown(
                 shardLockRetryInterval,

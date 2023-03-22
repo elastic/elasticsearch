@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
 import static org.elasticsearch.test.NodeRoles.remoteClusterClientNode;
-import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION;
+import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_NODE_ATTRIBUTE;
@@ -77,13 +77,13 @@ public class RemoteClusterSettingsTests extends ESTestCase {
 
     public void testAuthorizationDefault() {
         final String alias = randomAlphaOfLength(8);
-        assertThat(REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(alias).get(Settings.EMPTY), emptyString());
+        assertThat(REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(alias).get(Settings.EMPTY), emptyString());
     }
 
     public void testAuthorizationFiltered() {
         final String alias = randomAlphaOfLength(8);
         assertThat(
-            REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(alias).getProperties(),
+            REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(alias).getProperties(),
             Matchers.hasItem(Setting.Property.Filtered)
         );
     }
@@ -96,11 +96,11 @@ public class RemoteClusterSettingsTests extends ESTestCase {
     public void testRemoteClusterEmptyOrNullApiKey() {
         // simple validation
         Settings settings = Settings.builder()
-            .put("cluster.remote.cluster1.authorization", "apikey")
-            .put("cluster.remote.cluster3.authorization", (String) null)
+            .put("cluster.remote.cluster1.credentials", "apikey")
+            .put("cluster.remote.cluster3.credentials", (String) null)
             .build();
         try {
-            REMOTE_CLUSTER_AUTHORIZATION.getAllConcreteSettings(settings).forEach(setting -> setting.get(settings));
+            REMOTE_CLUSTER_CREDENTIALS.getAllConcreteSettings(settings).forEach(setting -> setting.get(settings));
         } catch (Throwable t) {
             fail("Cluster Settings must be able to accept a null, empty, or non-empty string. Exception: " + t.getMessage());
         }

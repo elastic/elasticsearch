@@ -8,6 +8,7 @@
 
 package org.elasticsearch.health.node;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Setting;
@@ -101,14 +102,16 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
 
     @Override
     public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
-        var healthMetadata = HealthMetadata.getFromClusterState(clusterService.state());
+        var state = clusterService.state();
+        var healthMetadata = HealthMetadata.getFromClusterState(state);
         if (healthMetadata == null || healthMetadata.getShardLimitsMetadata() == null) {
             return unknownIndicator();
         }
 
+        var shardLimitsMetadata = healthMetadata.getShardLimitsMetadata();
         return mergeIndicators(
-            calculateForNormalNodes(healthMetadata.getShardLimitsMetadata()),
-            calculateForFrozenNodes(healthMetadata.getShardLimitsMetadata())
+            calculateFrom(shardLimitsMetadata.maxShardsPerNode(), state, ShardLimitValidator::checkShardLimitForNormalNodes),
+            calculateFrom(shardLimitsMetadata.maxShardsPerNodeFrozen(), state, ShardLimitValidator::checkShardLimitForFrozenNodes)
         );
     }
 
@@ -156,30 +159,13 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
         );
     }
 
-    private StatusResult calculateForNormalNodes(HealthMetadata.ShardLimits shardLimits) {
-        int maxShardsPerNodeSetting = shardLimits.maxShardsPerNode();
-        var result = ShardLimitValidator.checkShardLimitForNormalNodes(maxShardsPerNodeSetting, 5, 1, clusterService.state());
-
+    static StatusResult calculateFrom(int maxShardsPerNodeSetting, ClusterState state, ShardLimitsChecker checker) {
+        var result = checker.check(maxShardsPerNodeSetting, 5, 1, state);
         if (result.canAddShards() == false) {
             return new StatusResult(HealthStatus.RED, result);
         }
 
-        result = ShardLimitValidator.checkShardLimitForNormalNodes(maxShardsPerNodeSetting, 10, 1, clusterService.state());
-        if (result.canAddShards() == false) {
-            return new StatusResult(HealthStatus.YELLOW, result);
-        }
-
-        return new StatusResult(HealthStatus.GREEN, result);
-    }
-
-    private StatusResult calculateForFrozenNodes(HealthMetadata.ShardLimits shardLimits) {
-        int maxShardsPerNodeSetting = shardLimits.maxShardsPerNodeFrozen();
-        var result = ShardLimitValidator.checkShardLimitForFrozenNodes(maxShardsPerNodeSetting, 5, 1, clusterService.state());
-        if (result.canAddShards() == false) {
-            return new StatusResult(HealthStatus.RED, result);
-        }
-
-        result = ShardLimitValidator.checkShardLimitForFrozenNodes(maxShardsPerNodeSetting, 10, 1, clusterService.state());
+        result = checker.check(maxShardsPerNodeSetting, 10, 1, state);
         if (result.canAddShards() == false) {
             return new StatusResult(HealthStatus.YELLOW, result);
         }
@@ -221,5 +207,10 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
         );
     }
 
-    private record StatusResult(HealthStatus status, ShardLimitValidator.Result result) {}
+    record StatusResult(HealthStatus status, ShardLimitValidator.Result result) {}
+
+    @FunctionalInterface
+    interface ShardLimitsChecker {
+        ShardLimitValidator.Result check(int maxConfiguredShardsPerNode, int numberOfNewShards, int replicas, ClusterState state);
+    }
 }

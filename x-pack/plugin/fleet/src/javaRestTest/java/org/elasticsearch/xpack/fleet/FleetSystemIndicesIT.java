@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.fleet;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -18,7 +17,6 @@ import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;

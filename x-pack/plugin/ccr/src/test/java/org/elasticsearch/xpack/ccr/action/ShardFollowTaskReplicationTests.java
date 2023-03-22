@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.support.replication.TransportWriteActionTestHelper;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -344,7 +345,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                             leadingPrimary.getMaxSeqNoOfUpdatesOrDeletes(),
                             followingPrimary,
                             logger,
-                            new PostWriteRefresh(mock(TransportService.class))
+                            new PostWriteRefresh(mock(TransportService.class), mock(ShardStateAction.class))
                         );
                     for (IndexShard replica : randomSubsetOf(followerGroup.getReplicas())) {
                         final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
@@ -807,7 +808,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     request.getMaxSeqNoOfUpdatesOrDeletes(),
                     primary,
                     logger,
-                    new PostWriteRefresh(mock(TransportService.class))
+                    new PostWriteRefresh(mock(TransportService.class), mock(ShardStateAction.class))
                 );
                 TransportWriteActionTestHelper.performPostWriteActions(primary, request, ccrResult.location, logger);
             } catch (InterruptedException | ExecutionException | IOException e) {

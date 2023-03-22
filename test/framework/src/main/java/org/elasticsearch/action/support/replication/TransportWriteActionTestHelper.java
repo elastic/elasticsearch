@@ -9,6 +9,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
@@ -44,7 +45,7 @@ public abstract class TransportWriteActionTestHelper {
             location,
             writerResult,
             logger,
-            new PostWriteRefresh(mock(TransportService.class)),
+            new PostWriteRefresh(mock(TransportService.class), mock(ShardStateAction.class)),
             null
         ).run();
         try {

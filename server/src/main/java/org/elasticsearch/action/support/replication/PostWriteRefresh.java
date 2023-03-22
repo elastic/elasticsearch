@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -15,6 +17,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.UnpromotableShardRefreshRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -24,11 +28,15 @@ import org.elasticsearch.transport.TransportService;
 
 public class PostWriteRefresh {
 
+    private static final Logger logger = LogManager.getLogger(PostWriteRefresh.class);
+
     public static final String FORCED_REFRESH_AFTER_INDEX = "refresh_flag_index";
     private final TransportService transportService;
+    private final ShardStateAction shardStateAction;
 
-    public PostWriteRefresh(final TransportService transportService) {
+    public PostWriteRefresh(final TransportService transportService, ShardStateAction shardStateAction) {
         this.transportService = transportService;
+        this.shardStateAction = shardStateAction;
     }
 
     public void refreshShard(
@@ -130,8 +138,22 @@ public class PostWriteRefresh {
             TransportUnpromotableShardRefreshAction.NAME,
             unpromotableReplicaRequest,
             new ActionListenerResponseHandler<>(ActionListener.wrap(r -> listener.onResponse(wasForced), e -> {
-                indexShard.failShard("Unable to refresh an unpomotable shard", e);
-                listener.onFailure(e);
+                ShardRouting shardRouting = indexShard.routingEntry();
+                shardStateAction.remoteShardFailed(
+                    shardRouting.shardId(),
+                    shardRouting.allocationId().getId(),
+                    indexShard.getOperationPrimaryTerm(),
+                    true,
+                    "Unable to refresh an unpomotable shard",
+                    e,
+                    ActionListener.runAfter(
+                        ActionListener.wrap(
+                            r -> {},
+                            sfe -> logger.error("Unable to mark shard [{}] as failed", shardRouting.shardId(), sfe)
+                        ),
+                        () -> listener.onFailure(e)
+                    )
+                );
             }), (in) -> ActionResponse.Empty.INSTANCE, ThreadPool.Names.REFRESH)
         );
     }

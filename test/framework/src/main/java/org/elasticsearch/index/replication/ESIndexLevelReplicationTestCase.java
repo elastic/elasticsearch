@@ -38,6 +38,7 @@ import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ReplicaResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.support.replication.TransportWriteActionTestHelper;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -1063,7 +1064,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 primary,
                 logger,
                 // TODO: Fix
-                new PostWriteRefresh(mock(TransportService.class))
+                new PostWriteRefresh(mock(TransportService.class), mock(ShardStateAction.class))
 
             );
         TransportWriteActionTestHelper.performPostWriteActions(primary, request, result.location, logger);

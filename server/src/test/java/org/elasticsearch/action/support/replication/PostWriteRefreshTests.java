@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShard
 import org.elasticsearch.action.admin.indices.refresh.UnpromotableShardRefreshRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -81,7 +82,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
             String id = "0";
             Engine.IndexResult result = indexDoc(primary, "_doc", id);
             PlainActionFuture<Boolean> f = PlainActionFuture.newFuture();
-            PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService);
+            PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService, mock(ShardStateAction.class));
             postWriteRefresh.refreshShard(WriteRequest.RefreshPolicy.WAIT_UNTIL, primary, result.getTranslogLocation(), f);
             Releasable releasable = simulateScheduledRefresh(primary, false);
             f.actionGet();
@@ -100,7 +101,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
             String id = "0";
             Engine.IndexResult result = indexDoc(primary, "_doc", id);
             PlainActionFuture<Boolean> f = PlainActionFuture.newFuture();
-            PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService);
+            PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService, mock(ShardStateAction.class));
             postWriteRefresh.refreshShard(WriteRequest.RefreshPolicy.IMMEDIATE, primary, result.getTranslogLocation(), f);
             f.actionGet();
             assertFalse(unpromotableRefreshRequestReceived.get());
@@ -118,7 +119,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
             String id = "0";
             Engine.IndexResult result = indexDoc(primary, "_doc", id);
             PlainActionFuture<Boolean> f = PlainActionFuture.newFuture();
-            PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService);
+            PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService, mock(ShardStateAction.class));
 
             ReplicationGroup replicationGroup = mock(ReplicationGroup.class);
             IndexShardRoutingTable routingTable = mock(IndexShardRoutingTable.class);

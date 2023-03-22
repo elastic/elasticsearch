@@ -98,7 +98,7 @@ public abstract class TransportWriteAction<
         this.indexingPressure = indexingPressure;
         this.systemIndices = systemIndices;
         this.executorSelector = systemIndices.getExecutorSelector();
-        this.postWriteRefresh = new PostWriteRefresh(transportService);
+        this.postWriteRefresh = new PostWriteRefresh(transportService, shardStateAction);
     }
 
     protected String executor(IndexShard shard) {

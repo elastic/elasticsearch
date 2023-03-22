@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import java.util.Map;
 import java.util.Optional;
 
-import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION;
+import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS;
 
 public class RemoteClusterCredentialsResolver {
 
@@ -29,12 +29,12 @@ public class RemoteClusterCredentialsResolver {
 
     public RemoteClusterCredentialsResolver(final Settings settings, final ClusterSettings clusterSettings) {
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            for (final Map.Entry<String, String> entry : REMOTE_CLUSTER_AUTHORIZATION.getAsMap(settings).entrySet()) {
+            for (final Map.Entry<String, String> entry : REMOTE_CLUSTER_CREDENTIALS.getAsMap(settings).entrySet()) {
                 if (Strings.isEmpty(entry.getValue()) == false) {
                     update(entry.getKey(), entry.getValue());
                 }
             }
-            clusterSettings.addAffixUpdateConsumer(REMOTE_CLUSTER_AUTHORIZATION, this::update, (clusterAlias, authorization) -> {});
+            clusterSettings.addAffixUpdateConsumer(REMOTE_CLUSTER_CREDENTIALS, this::update, (clusterAlias, credentials) -> {});
         }
     }
 
@@ -48,12 +48,12 @@ public class RemoteClusterCredentialsResolver {
         return Optional.empty();
     }
 
-    private void update(final String clusterAlias, final String authorization) {
-        if (Strings.isEmpty(authorization)) {
+    private void update(final String clusterAlias, final String credentials) {
+        if (Strings.isEmpty(credentials)) {
             apiKeys.remove(clusterAlias);
             LOGGER.debug("Credentials value for cluster alias [{}] removed", clusterAlias);
         } else {
-            final boolean notFound = Strings.isEmpty(apiKeys.put(clusterAlias, authorization));
+            final boolean notFound = Strings.isEmpty(apiKeys.put(clusterAlias, credentials));
             LOGGER.debug("Credentials value for cluster alias [{}] {}", clusterAlias, (notFound ? "added" : "updated"));
         }
     }

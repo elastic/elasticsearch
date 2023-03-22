@@ -229,7 +229,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         final String encodedCrossClusterAccessApiKey = (String) apiKeyMap.get("encoded");
 
         final Settings.Builder builder = Settings.builder()
-            .put("cluster.remote." + REMOTE_CLUSTER_NAME + ".authorization", encodedCrossClusterAccessApiKey);
+            .put("cluster.remote." + REMOTE_CLUSTER_NAME + ".credentials", encodedCrossClusterAccessApiKey);
         if (randomBoolean()) {
             builder.put("cluster.remote." + REMOTE_CLUSTER_NAME + ".mode", "proxy")
                 .put("cluster.remote." + REMOTE_CLUSTER_NAME + ".proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0));

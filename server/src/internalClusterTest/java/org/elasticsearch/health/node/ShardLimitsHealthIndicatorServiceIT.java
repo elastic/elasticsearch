@@ -73,7 +73,7 @@ public class ShardLimitsHealthIndicatorServiceIT extends ESIntegTestCase {
         assertEquals(result.status(), HealthStatus.YELLOW);
         assertEquals(result.symptom(), "Cluster is close to reaching the configured maximum number of shards for normal nodes.");
         assertThat(result.diagnosisList(), hasSize(1));
-        assertThat(result.impacts(), hasSize(1));
+        assertThat(result.impacts(), hasSize(2));
     }
 
     public void testRed() throws Exception {
@@ -84,7 +84,7 @@ public class ShardLimitsHealthIndicatorServiceIT extends ESIntegTestCase {
         assertEquals(result.status(), HealthStatus.RED);
         assertEquals(result.symptom(), "Cluster is close to reaching the configured maximum number of shards for normal nodes.");
         assertThat(result.diagnosisList(), hasSize(1));
-        assertThat(result.impacts(), hasSize(1));
+        assertThat(result.impacts(), hasSize(2));
     }
 
     private void createIndex(int shards, int replicas) {

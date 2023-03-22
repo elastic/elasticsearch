@@ -44,8 +44,12 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
 
     static final String NAME = "shard_limits";
 
-    private static final String UPGRADE_BLOCKED = "The cluster has too many used shards to be able to upgrade";
-    private static final String UPGRADE_AT_RISK = "The cluster is running low on room to add new shards hence upgrade is at risk";
+    private static final String UPGRADE_BLOCKED = "The cluster has too many used shards to be able to upgrade.";
+    private static final String UPGRADE_AT_RISK = "The cluster is running low on room to add new shards hence upgrade is at risk.";
+    private static final String INDEX_CREATION_BLOCKED =
+        "The cluster is running low on room to add new shards hence the creation of new indices might fail.";
+    private static final String INDEX_CREATION_RISK =
+        "The cluster is running low on room to add new shards hence the creation of new indices might fail.";
     private static final String HELP_GUIDE = "https://ela.st/max-shard-limit-reached";
     private static final TriFunction<String, Setting<?>, String, Diagnosis> SHARD_LIMITS_REACHED_FN = (
         id,
@@ -66,10 +70,12 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
         );
 
     static final List<HealthIndicatorImpact> RED_INDICATOR_IMPACTS = List.of(
-        new HealthIndicatorImpact(NAME, "upgrade_blocked", 1, UPGRADE_BLOCKED, List.of(ImpactArea.DEPLOYMENT_MANAGEMENT))
+        new HealthIndicatorImpact(NAME, "upgrade_blocked", 1, UPGRADE_BLOCKED, List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)),
+        new HealthIndicatorImpact(NAME, "creation_of_new_indices_blocked", 1, INDEX_CREATION_BLOCKED, List.of(ImpactArea.INGEST))
     );
     static final List<HealthIndicatorImpact> YELLOW_INDICATOR_IMPACTS = List.of(
-        new HealthIndicatorImpact(NAME, "upgrade_at_risk", 2, UPGRADE_AT_RISK, List.of(ImpactArea.DEPLOYMENT_MANAGEMENT))
+        new HealthIndicatorImpact(NAME, "upgrade_at_risk", 2, UPGRADE_AT_RISK, List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)),
+        new HealthIndicatorImpact(NAME, "creation_of_new_indices_at_risk", 2, INDEX_CREATION_RISK, List.of(ImpactArea.INGEST))
     );
     static final Diagnosis SHARD_LIMITS_REACHED_NORMAL_NODES = SHARD_LIMITS_REACHED_FN.apply(
         "increase_max_shards_per_node",

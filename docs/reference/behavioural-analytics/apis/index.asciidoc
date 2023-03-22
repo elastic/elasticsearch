@@ -1,22 +1,19 @@
-[[search-application-apis]]
-== Search Application APIs
+[[behavioral-analytics-apis]]
+== Behavioral Analytics APIs
 
 ++++
-<titleabbrev>Search Application APIs</titleabbrev>
+<titleabbrev>Behavioral Analytics APIs</titleabbrev>
 ++++
 
 ---
 
-Use Search Application APIs to manage tasks and resources related to Search Applications.
+Use APIs to manage tasks and resources related to Behavioral Analytics.
 
-* <<put-search-application>>
-* <<get-search-application>>
-* <<list-search-applications>>
-* <<delete-search-application>>
+* <<put-analytics-collection>>
+* <<delete-analytics-collection>>
+* <<list-analytics-collection>>
 
 
-include::put-search-application.asciidoc[]
-include::get-search-application.asciidoc[]
-include::list-search-applications.asciidoc[]
-include::delete-search-application.asciidoc[]
-
+include::put-analytics-collection.asciidoc[]
+include::delete-analytics-collection.asciidoc[]
+include::list-analytics-collection.asciidoc[]

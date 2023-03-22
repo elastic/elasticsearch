@@ -1,64 +1,37 @@
 [role="xpack"]
-[[put-search-application]]
-=== Put Search Application
+[[put-analytics-collection]]
+=== Put Analytics Collection
 
 ++++
-<titleabbrev>Put Search Application</titleabbrev>
+<titleabbrev>Put Analytics Collection</titleabbrev>
 ++++
 
-Creates or updates a Search Application.
+Creates an Analytics Collection.
 
-[[put-search-application-request]]
+[[put-analytics-collection-request]]
 ==== {api-request-title}
 
-`PUT _application/search_application/<name>`
+`PUT _application/analytics/<name>`
 
-[[put-search-application-prereqs]]
+[[put-analytics-collection-prereqs]]
 ==== {api-prereq-title}
 
-Requires the `manage_search_application` cluster privilege.
-Also requires <<privileges-list-indices,manage privileges>> on all indices that are added to the Search Application.
+Requires the `manage_behavioral_analytics` cluster privilege.
 
-[[put-search-application-path-params]]
-==== {api-path-parms-title}
-
-`create`::
-(Optional, Boolean) If `true`, this request cannot replace or update existing Search Applications.
-Defaults to `false`.
-
-[[put-search-application-response-codes]]
+[[put-analytics-collection-response-codes]]
 ==== {api-response-codes-title}
 
-`404`::
-Search Application `<name>` does not exist.
+`400`::
+Analytics Collection `<name>` exists.
 
-`409`::
-Search Application `<name>` exists and `create` is `true`.
-
-[[put-search-application-example]]
+[[put-analytics-collection-example]]
 ==== {api-examples-title}
 
-The following example creates a new Search Application called `my-app`:
+The following example creates a new Analytics Collection called `my-app`:
 
 [source,console]
 ----
-PUT _application/search_application/my-app?create
-{
-  "indices": [ "index1", "index2" ],
-  "analytics_collection_name": "my-analytics-collection"
-}
+PUT _application/analytics/my-app
+
 ----
 // TEST[skip:TBD]
-
-The following example creates or updates an existing Search Application called `my_app`:
-
-[source,console]
-----
-PUT _application/search_application/my-app
-{
-  "indices": [ "index1", "index2", "index3" ],
-  "analytics_collection_name": "my-analytics-collection"
-}
-----
-// TEST[skip:TBD]
-

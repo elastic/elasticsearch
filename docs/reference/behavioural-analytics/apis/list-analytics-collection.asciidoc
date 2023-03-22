@@ -1,54 +1,48 @@
 [role="xpack"]
-[[list-search-applications]]
-=== List Search Applications
+[[list-analytics-collection]]
+=== List Analytics Collections
 
 ++++
-<titleabbrev>List Search Applications</titleabbrev>
+<titleabbrev>List Analytics Collections</titleabbrev>
 ++++
 
-Returns information about Search Applications.
+Returns information about Analytics Collections.
 
-[[list-search-applications-request]]
+[[list-analytics-collection-request]]
 ==== {api-request-title}
 
-`GET _application/search_application/`
+`GET _application/analytics/<criteria>`
 
-[[list-search-applications-prereq]]
+[[list-analytics-collection-prereq]]
 ==== {api-prereq-title}
 
-Requires the `manage_search_application` cluster privilege.
+Requires the `manage_behavorial_analytics` cluster privilege.
 
-[[list-search-applications-path-params]]
-==== {api-path-parms-title}
-
-`q`::
-(Optional, string) Query in the Lucene query string syntax, to return only Search Applications matching the query.
-
-`size`::
-(Optional, integer) Maximum number of results to retrieve.
-
-`from`::
-(Optional, integer) The offset from the first result to fetch.
-
-[[list-search-applications-response-codes]]
+[[put-analytics-collection-response-codes]]
 ==== {api-response-codes-title}
 
-[[list-search-applications-example]]
+`404`::
+Criteria does not match any Analytics Collections.
+
+[[list-analytics-collection-response-codes]]
+==== {api-response-codes-title}
+
+[[list-analytics-collection-example]]
 ==== {api-examples-title}
 
-The following example lists all configured Search Applications:
+The following example lists all configured Analytics Collections:
 
 [source,console]
 ----
-GET _application/search_application/
+GET _application/analytics/
 ----
 // TEST[skip:TBD]
 
-The following example lists the first three Search Applications matching `foo`:
+The following example returns the a Analytics Collection that matches `foo`:
 
 [source,console]
 ----
-GET _application/search_application/?from=0&size=3&q=foo
+GET _application/analytics/foo
 ----
 // TEST[skip:TBD]
 
@@ -57,16 +51,38 @@ A sample response:
 [source,console-result]
 ----
 {
-  "count": 2,
-  "results": [
-    {
-      "name": "app-1",
-      "indices": [ "index1", "index2" ]
-    },
-    {
-      "name": "app-2",
-      "indices": [ "index3", "index4" ]
-    }
-  ]
-}
+  "foo": {
+      "event_data_stream": {
+          "name": "behavioral_analytics-events-foo"
+      }
+  }
+]
+----
+GET _application/analytics/f*
+----
+// TEST[skip:TBD]
+
+The following example returns the a Analytics Collection that is prefixed with `f`:
+
+A sample response:
+
+[source,console-result]
+----
+{
+  "foo": {
+      "event_data_stream": {
+          "name": "behavioral_analytics-events-foo"
+      }
+  },
+  "foobar": {
+      "event_data_stream": {
+          "name": "behavioral_analytics-events-foobar"
+      }
+  },
+  "fudge": {
+      "event_data_stream": {
+          "name": "behavioral_analytics-events-fudge"
+      }
+  }
+]
 ----

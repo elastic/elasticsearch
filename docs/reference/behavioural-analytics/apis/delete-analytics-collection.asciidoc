@@ -1,47 +1,45 @@
 [role="xpack"]
-[[delete-search-application]]
-=== Delete Search Application
+[[delete-analytics-collection]]
+=== Delete Analytics Collection
 
 ++++
-<titleabbrev>Delete Search Application</titleabbrev>
+<titleabbrev>Delete Analytics Collection</titleabbrev>
 ++++
 
-Removes a Search Application and its associated alias.
-Indices attached to the Search Application are not removed.
+Removes an Analytics Collection and its associated data-stream.
 
-[[delete-search-application-request]]
+[[delete-analytics-collection-request]]
 ==== {api-request-title}
 
-`DELETE _application/search_application/<name>`
+`DELETE _application/analytics/<name>`
 
-[[delete-search-application-prereq]]
+[[delete-analytics-collection-prereq]]
 ==== {api-prereq-title}
 
-Requires the `manage_search_application` cluster privilege.
-Also requires <<privileges-list-indices,manage privileges>> on all indices that are included in the Search Application.
+Requires the `manage_behavioral_analytics` cluster privilege.
 
-[[delete-search-application-path-params]]
-==== {api-path-parms-title}
+[[delete-analytics-collection-path-params]]
+==== {api-path-params-title}
 
 `<name>`::
 (Required, string)
 
-[[delete-search-application-response-codes]]
+[[delete-analytics-collection-response-codes]]
 ==== {api-response-codes-title}
 
 `400`::
 The `name` was not provided.
 
 `404` (Missing resources)::
-No Search Application matching `name` could be found.
+No Analytics Collection matching `name` could be found.
 
-[[delete-search-application-example]]
+[[delete-analytics-collection-example]]
 ==== {api-examples-title}
 
-The following example deletes the Search Application named `my-app`:
+The following example deletes the Analytics Collection named `my-app`:
 
 [source,console]
 ----
-DELETE _application/search_application/my-app/
+DELETE _application/analytics/my-app/
 ----
 // TEST[skip:TBD]

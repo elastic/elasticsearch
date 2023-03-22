@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices.cluster;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -91,7 +92,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     public static final Setting<TimeValue> SHARD_LOCK_RETRY_INTERVAL_SETTING = Setting.timeSetting(
         "indices.store.shard_lock_retry_interval",
-        TimeValue.timeValueSeconds(5),
+        TimeValue.timeValueSeconds(1),
         Setting.Property.NodeScope
     );
 
@@ -564,7 +565,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             }
             final var primaryTerm = state.metadata().index(shardRouting.index()).primaryTerm(shardRouting.id());
 
-            createShardWhenLockAvailable(shardRouting, state, sourceNode, primaryTerm, new ActionListener<>() {
+            createShardWhenLockAvailable(shardRouting, state, sourceNode, primaryTerm, 0, new ActionListener<>() {
                 @Override
                 public void onResponse(Boolean success) {
                     if (Boolean.TRUE.equals(success)) {
@@ -589,10 +590,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         ClusterState originalState,
         DiscoveryNode sourceNode,
         long primaryTerm,
+        int iteration,
         ActionListener<Boolean> listener
     ) throws IOException {
         try {
-            logger.debug("{} creating shard with primary term [{}]", shardRouting.shardId(), primaryTerm);
+            logger.debug("{} creating shard with primary term [{}], iteration [{}]", shardRouting.shardId(), primaryTerm, iteration);
             indicesService.createShard(
                 shardRouting,
                 recoveryTargetService,
@@ -606,7 +608,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             );
             listener.onResponse(true);
         } catch (ShardLockObtainFailedException e) {
-            logger.warn(
+            logger.log(
+                (iteration + 25) % 30 == 0 ? Level.WARN : Level.DEBUG,
                 "shard lock currently unavailable for [{}], retrying in [{}]: [{}]",
                 shardRouting,
                 shardLockRetryInterval,
@@ -649,7 +652,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
                         ActionListener.run(
                             listener,
-                            l -> createShardWhenLockAvailable(shardRouting, originalState, sourceNode, primaryTerm, l)
+                            l -> createShardWhenLockAvailable(shardRouting, originalState, sourceNode, primaryTerm, iteration + 1, l)
                         );
 
                     }, ActionListener.noop())

@@ -210,9 +210,12 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
      */
     private void clearErrorStoreForUnmanagedIndices(DataStream dataStream) {
         Metadata metadata = clusterService.state().metadata();
-        for (Index index : dataStream.getIndices()) {
-            if (dataStream.isIndexManagedByDLM(index, metadata::index) == false) {
-                errorStore.clearRecordedError(index.getName());
+        for (String indexName : errorStore.getAllIndices()) {
+            IndexMetadata indexMeta = metadata.index(indexName);
+            if (indexMeta == null) {
+                errorStore.clearRecordedError(indexName);
+            } else if (dataStream.isIndexManagedByDLM(indexMeta.getIndex(), metadata::index) == false) {
+                errorStore.clearRecordedError(indexName);
             }
         }
     }

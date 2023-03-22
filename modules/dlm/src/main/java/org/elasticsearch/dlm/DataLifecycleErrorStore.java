@@ -11,6 +11,7 @@ package org.elasticsearch.dlm;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.Nullable;
 
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -58,4 +59,10 @@ public class DataLifecycleErrorStore {
         return indexNameToError.get(indexName);
     }
 
+    /**
+     * Return an immutable view (a snapshot) of the tracked indices at the moment this method is called.
+     */
+    public List<String> getAllIndices() {
+        return List.copyOf(indexNameToError.keySet());
+    }
 }

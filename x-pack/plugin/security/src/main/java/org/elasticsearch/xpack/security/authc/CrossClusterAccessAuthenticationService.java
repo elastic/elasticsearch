@@ -165,7 +165,7 @@ public class CrossClusterAccessAuthenticationService {
                         crossClusterAccessSubjectInfo
                     )
                 );
-                assert false : "received role descriptors bytes list for internal cross cluster access user must be empty.";
+                assert false : "received role descriptors bytes list for internal cross cluster access user must be empty";
             }
         } else if (User.isInternal(user)) {
             throw new IllegalArgumentException(

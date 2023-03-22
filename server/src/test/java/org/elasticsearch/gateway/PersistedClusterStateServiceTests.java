@@ -476,7 +476,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 () -> 0L
             ) {
                 @Override
-                Directory createDirectory(Path path) throws IOException {
+                protected Directory createDirectory(Path path) throws IOException {
                     return new FilterDirectory(super.createDirectory(path)) {
                         @Override
                         public IndexOutput createOutput(String name, IOContext context) throws IOException {
@@ -522,7 +522,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 () -> 0L
             ) {
                 @Override
-                Directory createDirectory(Path path) throws IOException {
+                protected Directory createDirectory(Path path) throws IOException {
                     return new FilterDirectory(super.createDirectory(path)) {
                         @Override
                         public void sync(Collection<String> names) {
@@ -571,7 +571,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 () -> 0L
             ) {
                 @Override
-                Directory createDirectory(Path path) throws IOException {
+                protected Directory createDirectory(Path path) throws IOException {
                     return new FilterDirectory(super.createDirectory(path)) {
                         @Override
                         public void rename(String source, String dest) throws IOException {

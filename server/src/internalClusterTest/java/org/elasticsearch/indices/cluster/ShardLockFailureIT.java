@@ -9,6 +9,7 @@
 package org.elasticsearch.indices.cluster;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -84,6 +85,7 @@ public class ShardLockFailureIT extends ESIntegTestCase {
             updateIndexSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name"), indexName);
             ensureYellow(indexName);
             assertBusy(mockLogAppender::assertAllExpectationsMatched);
+            assertEquals(ClusterHealthStatus.YELLOW, client().admin().cluster().prepareHealth(indexName).get().getStatus());
         }
 
         ensureGreen(indexName);

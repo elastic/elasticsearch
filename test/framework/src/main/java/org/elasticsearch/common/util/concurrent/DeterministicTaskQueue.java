@@ -317,6 +317,11 @@ public class DeterministicTaskQueue {
             };
 
             @Override
+            public long relativeTimeInNanos() {
+                throw new AssertionError("DeterministicTaskQueue does not support nanosecond-precision timestamps");
+            }
+
+            @Override
             public long relativeTimeInMillis() {
                 return currentTimeMillis;
             }

@@ -498,11 +498,11 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
             xPacklicenseState.update(License.OperationMode.MISSING, false, getExpiryWarning(LicenseUtils.getExpiryDate(license), time));
             return;
         }
-        maybeExpireLicense(license);
+        checkForExpiredLicense(license);
     }
 
     @Override
-    public boolean maybeExpireLicense(License license) {
+    public boolean checkForExpiredLicense(License license) {
         long time = clock.millis();
         if (license != null) {
             final boolean active;

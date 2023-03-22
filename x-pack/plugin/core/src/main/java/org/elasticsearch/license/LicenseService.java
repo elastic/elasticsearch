@@ -66,10 +66,10 @@ public interface LicenseService extends LifecycleComponent {
         void removeLicense(ActionListener<? extends AcknowledgedResponse> listener);
 
         /**
-         * Check and maybe expire the license.
+         * Check to see if the license has expired. If expired the {@link XPackLicenseState} should be updated.
          * @return true if the license was found to be expired, false otherwise (a null license should return false).
          */
-        boolean maybeExpireLicense(License license);
+        boolean checkForExpiredLicense(License license);
 
         /**
          * Installs a basic license.

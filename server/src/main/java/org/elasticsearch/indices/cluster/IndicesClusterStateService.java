@@ -637,7 +637,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
                         final var indexService = indicesService.indexService(shardRouting.index());
                         if (indexService == null) {
-                            final var message = "index service unexpectedly found for " + shardRouting;
+                            final var message = "index service unexpectedly not found for " + shardRouting;
                             assert false : message;
                             listener.onFailure(new ElasticsearchException(message));
                             return;

@@ -102,7 +102,7 @@ public class TransportStatsTests extends ESTestCase {
                 {"transport":{"server_open":1,"total_outbound_connections":2,\
                 "rx_count":3,"rx_size":"4mb","rx_size_in_bytes":4194304,\
                 "tx_count":5,"tx_size":"6mb","tx_size_in_bytes":6291456,\
-                "actions":%s}}""", Strings.toString(exampleActionStats, false, true))
+                "actions":{"internal:test/action":%s}}}""", Strings.toString(exampleActionStats, false, true))
         );
     }
 

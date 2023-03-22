@@ -27,7 +27,7 @@ public class TransportActionStatsTests extends ESTestCase {
 
         assertEquals(
             """
-                {"internal:test/action":{"requests":{"count":7,"total_size":"8b","total_size_in_bytes":8,"histogram":[\
+                {"requests":{"count":7,"total_size":"8b","total_size_in_bytes":8,"histogram":[\
                 {"ge":"16b","ge_bytes":16,"lt":"32b","lt_bytes":32,"count":9},\
                 {"ge":"32b","ge_bytes":32,"lt":"64b","lt_bytes":64,"count":0},\
                 {"ge":"64b","ge_bytes":64,"lt":"128b","lt_bytes":128,"count":10}\
@@ -35,7 +35,7 @@ public class TransportActionStatsTests extends ESTestCase {
                 {"ge":"32b","ge_bytes":32,"lt":"64b","lt_bytes":64,"count":13},\
                 {"ge":"64b","ge_bytes":64,"lt":"128b","lt_bytes":128,"count":0},\
                 {"ge":"128b","ge_bytes":128,"lt":"256b","lt_bytes":256,"count":14}\
-                ]}}}""",
+                ]}}""",
             Strings.toString(
                 new TransportActionStats("internal:test/action", 7, 8, requestSizeHistogram, 11, 12, responseSizeHistogram),
                 false,

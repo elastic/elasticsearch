@@ -12,6 +12,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -27,6 +28,8 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -166,5 +169,10 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
             getProtocol()
         );
         return buildClient(Settings.EMPTY, new HttpHost[] { httpHost });
+    }
+
+    // TODO centralize common usage of this across all tests
+    protected static String randomEncodedApiKey() {
+        return Base64.getEncoder().encodeToString((UUIDs.base64UUID() + ":" + UUIDs.base64UUID()).getBytes(StandardCharsets.UTF_8));
     }
 }

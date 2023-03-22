@@ -160,7 +160,8 @@ public class CrossClusterAccessAuthenticationService {
         authentication.checkConsistency();
         final Subject effectiveSubject = authentication.getEffectiveSubject();
         if (false == effectiveSubject.getType().equals(Subject.Type.USER)
-            && false == effectiveSubject.getType().equals(Subject.Type.SERVICE_ACCOUNT)) {
+            && false == effectiveSubject.getType().equals(Subject.Type.SERVICE_ACCOUNT)
+            && false == effectiveSubject.getType().equals(Subject.Type.API_KEY)) {
             throw new IllegalArgumentException(
                 "subject ["
                     + effectiveSubject.getUser().principal()

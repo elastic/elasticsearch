@@ -21,13 +21,13 @@ public class TransportActionStatsTracker {
      * ...
      *   n:  < 2^(n+3)
      * ...
-     *  25:  < 2^28 == 256MiB
-     *  26: >= 2^28
+     *  27:  < 2^30
+     *  28: ≥ 2^30 == 1GiB
      */
 
     public static int[] getBucketUpperBounds() {
-        var bounds = new int[26];
-        for (int i = 0; i < 26; i++) {
+        var bounds = new int[28];
+        for (int i = 0; i < 28; i++) {
             bounds[i] = 8 << i;
         }
         return bounds;

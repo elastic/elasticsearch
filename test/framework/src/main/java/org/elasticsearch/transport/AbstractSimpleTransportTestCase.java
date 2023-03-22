@@ -3187,7 +3187,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     private long[] getConstantMessageSizeHistogram(int count, long size) {
-        final var histogram = new long[27];
+        final var histogram = new long[29];
         int bucket = 0;
         long bucketLowerBound = 8;
         while (bucket < histogram.length) {

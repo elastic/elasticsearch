@@ -17,11 +17,11 @@ import java.util.Arrays;
 public class TransportActionStatsTests extends ESTestCase {
 
     public void testToXContent() {
-        final var requestSizeHistogram = new long[27];
+        final var requestSizeHistogram = new long[29];
         requestSizeHistogram[2] = 9;
         requestSizeHistogram[4] = 10;
 
-        final var responseSizeHistogram = new long[27];
+        final var responseSizeHistogram = new long[29];
         responseSizeHistogram[3] = 13;
         responseSizeHistogram[5] = 14;
 
@@ -52,7 +52,7 @@ public class TransportActionStatsTests extends ESTestCase {
     }
 
     public void testHistogram() {
-        final var histogram = new long[27];
+        final var histogram = new long[29];
 
         assertHistogram(histogram, """
             {"h":[]}""");
@@ -89,14 +89,14 @@ public class TransportActionStatsTests extends ESTestCase {
         Arrays.fill(histogram, 0L);
         histogram[histogram.length - 1] = 5;
         assertHistogram(histogram, """
-            {"h":[{"ge":"256mb","ge_bytes":268435456,"count":5}]}""");
+            {"h":[{"ge":"1gb","ge_bytes":1073741824,"count":5}]}""");
 
         histogram[histogram.length - 3] = 6;
         assertHistogram(histogram, """
             {"h":[\
-            {"ge":"64mb","ge_bytes":67108864,"lt":"128mb","lt_bytes":134217728,"count":6},\
-            {"ge":"128mb","ge_bytes":134217728,"lt":"256mb","lt_bytes":268435456,"count":0},\
-            {"ge":"256mb","ge_bytes":268435456,"count":5}\
+            {"ge":"256mb","ge_bytes":268435456,"lt":"512mb","lt_bytes":536870912,"count":6},\
+            {"ge":"512mb","ge_bytes":536870912,"lt":"1gb","lt_bytes":1073741824,"count":0},\
+            {"ge":"1gb","ge_bytes":1073741824,"count":5}\
             ]}""");
 
         Arrays.fill(histogram, 1L);
@@ -128,7 +128,9 @@ public class TransportActionStatsTests extends ESTestCase {
             {"ge":"32mb","ge_bytes":33554432,"lt":"64mb","lt_bytes":67108864,"count":1},\
             {"ge":"64mb","ge_bytes":67108864,"lt":"128mb","lt_bytes":134217728,"count":1},\
             {"ge":"128mb","ge_bytes":134217728,"lt":"256mb","lt_bytes":268435456,"count":1},\
-            {"ge":"256mb","ge_bytes":268435456,"count":1}\
+            {"ge":"256mb","ge_bytes":268435456,"lt":"512mb","lt_bytes":536870912,"count":1},\
+            {"ge":"512mb","ge_bytes":536870912,"lt":"1gb","lt_bytes":1073741824,"count":1},\
+            {"ge":"1gb","ge_bytes":1073741824,"count":1}\
             ]}""");
     }
 }

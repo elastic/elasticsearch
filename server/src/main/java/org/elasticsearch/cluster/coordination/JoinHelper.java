@@ -73,11 +73,11 @@ public class JoinHelper {
     private final NodeHealthService nodeHealthService;
     private final JoinReasonService joinReasonService;
     private final CircuitBreakerService circuitBreakerService;
+    private final Consumer<ActionListener<ClusterState>> latestStoredStateSupplier;
 
     private final Map<Tuple<DiscoveryNode, JoinRequest>, PendingJoinInfo> pendingOutgoingJoins = ConcurrentCollections.newConcurrentMap();
     private final AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();
     private final Map<DiscoveryNode, Releasable> joinConnections = new HashMap<>(); // synchronized on itself
-    private final Consumer<ActionListener<ClusterState>> latestStoredStateSupplier;
 
     JoinHelper(
         AllocationService allocationService,
@@ -467,10 +467,10 @@ public class JoinHelper {
                 }), currentTermSupplier.getAsLong());
                 latestStoredStateSupplier.accept(new ActionListener<>() {
                     @Override
-                    public void onResponse(ClusterState persistentClusterState) {
+                    public void onResponse(ClusterState latestStoredClusterState) {
                         joinTaskQueue.submitTask(
                             "elected-as-master ([" + joinTask.nodeCount() + "] nodes joined)",
-                            joinTask.alsoRefreshState(persistentClusterState),
+                            joinTask.alsoRefreshState(latestStoredClusterState),
                             null
                         );
                     }

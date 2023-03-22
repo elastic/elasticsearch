@@ -69,11 +69,6 @@ public class DeleteDataLifecycleTransportAction extends AcknowledgedTransportMas
 
     @Override
     protected ClusterBlockException checkBlock(DeleteDataLifecycleAction.Request request, ClusterState state) {
-        ClusterBlockException globalBlock = state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
-        if (globalBlock != null) {
-            return globalBlock;
-        }
-        return state.blocks()
-            .indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 }

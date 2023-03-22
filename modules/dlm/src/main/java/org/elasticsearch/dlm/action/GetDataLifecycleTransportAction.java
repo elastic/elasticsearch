@@ -96,6 +96,6 @@ public class GetDataLifecycleTransportAction extends TransportMasterNodeReadActi
 
     @Override
     protected ClusterBlockException checkBlock(GetDataLifecycleAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 }

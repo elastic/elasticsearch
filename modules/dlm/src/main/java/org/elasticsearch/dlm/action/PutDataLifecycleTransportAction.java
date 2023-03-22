@@ -69,11 +69,6 @@ public class PutDataLifecycleTransportAction extends AcknowledgedTransportMaster
 
     @Override
     protected ClusterBlockException checkBlock(PutDataLifecycleAction.Request request, ClusterState state) {
-        ClusterBlockException globalBlock = state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
-        if (globalBlock != null) {
-            return globalBlock;
-        }
-        return state.blocks()
-            .indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 }

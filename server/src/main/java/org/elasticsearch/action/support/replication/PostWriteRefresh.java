@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.indices.refresh.UnpromotableShardRefreshRe
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -28,7 +29,7 @@ import org.elasticsearch.transport.TransportService;
 
 public class PostWriteRefresh {
 
-    private static final Logger logger = LogManager.getLogger(PostWriteRefresh.class);
+    private static final Logger log = LogManager.getLogger(PostWriteRefresh.class);
 
     public static final String FORCED_REFRESH_AFTER_INDEX = "refresh_flag_index";
     private final TransportService transportService;
@@ -149,7 +150,7 @@ public class PostWriteRefresh {
                     ActionListener.runAfter(
                         ActionListener.wrap(
                             r -> {},
-                            sfe -> logger.error("Unable to mark shard [{}] as failed", shardRouting.shardId(), sfe)
+                            sfe -> log.error(Strings.format("Unable to mark shard [%s] as failed", shardRouting.shardId()), sfe)
                         ),
                         () -> listener.onFailure(e)
                     )

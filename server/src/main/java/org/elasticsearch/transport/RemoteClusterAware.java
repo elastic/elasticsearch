@@ -33,7 +33,6 @@ public abstract class RemoteClusterAware {
     public static final String LOCAL_CLUSTER_GROUP_KEY = "";
 
     protected final Settings settings;
-    private final ClusterNameExpressionResolver clusterNameResolver;
     private final String nodeName;
     private final boolean isRemoteClusterClientEnabled;
 
@@ -43,7 +42,6 @@ public abstract class RemoteClusterAware {
      */
     protected RemoteClusterAware(Settings settings) {
         this.settings = settings;
-        this.clusterNameResolver = new ClusterNameExpressionResolver();
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.isRemoteClusterClientEnabled = DiscoveryNode.isRemoteClusterClient(settings);
     }

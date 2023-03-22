@@ -425,6 +425,14 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
     private void iterateEmptyBuckets(List<Bucket> list, ListIterator<Bucket> iter, LongConsumer onBucket) {
         LongBounds bounds = emptyBucketInfo.bounds;
+        Rounding.Prepared prepared = null;
+        if (bounds != null) {
+            prepared = createPrepared(bounds.getMin() + offset, bounds.getMax() + offset);
+        } else {
+            if (list.isEmpty() == false) {
+                prepared = createPrepared(list.get(0).key, list.get(list.size() - 1).key);
+            }
+        }
 
         // first adding all the empty buckets *before* the actual data (based on the extended_bounds.min the user requested)
 
@@ -436,7 +444,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
                     long max = bounds.getMax() + offset;
                     while (key <= max) {
                         onBucket.accept(key);
-                        key = nextKey(key).longValue();
+                        key = nextKey(prepared, key).longValue();
                     }
                 }
             } else {
@@ -445,7 +453,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
                     if (key < firstBucket.key) {
                         while (key < firstBucket.key) {
                             onBucket.accept(key);
-                            key = nextKey(key).longValue();
+                            key = nextKey(prepared, key).longValue();
                         }
                     }
                 }
@@ -458,10 +466,10 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         while (iter.hasNext()) {
             Bucket nextBucket = list.get(iter.nextIndex());
             if (lastBucket != null) {
-                long key = nextKey(lastBucket.key).longValue();
+                long key = nextKey(prepared, lastBucket.key).longValue();
                 while (key < nextBucket.key) {
                     onBucket.accept(key);
-                    key = nextKey(key).longValue();
+                    key = nextKey(prepared, key).longValue();
                 }
                 assert key == nextBucket.key : "key: " + key + ", nextBucket.key: " + nextBucket.key;
             }
@@ -470,11 +478,11 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
         // finally, adding the empty buckets *after* the actual data (based on the extended_bounds.max requested by the user)
         if (bounds != null && lastBucket != null && bounds.getMax() != null && bounds.getMax() + offset > lastBucket.key) {
-            long key = nextKey(lastBucket.key).longValue();
+            long key = nextKey(prepared, lastBucket.key).longValue();
             long max = bounds.getMax() + offset;
             while (key <= max) {
                 onBucket.accept(key);
-                key = nextKey(key).longValue();
+                key = nextKey(prepared, key).longValue();
             }
         }
     }
@@ -559,6 +567,14 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     @Override
     public Number nextKey(Number key) {
         return emptyBucketInfo.rounding.nextRoundingValue(key.longValue() - offset) + offset;
+    }
+
+    public Rounding.Prepared createPrepared(long min, long max) {
+        return emptyBucketInfo.rounding.prepare(min - offset, max - offset);
+    }
+
+    public Number nextKey(Rounding.Prepared prepared, Number key) {
+        return prepared.nextRoundingValue(key.longValue() - offset) + offset;
     }
 
     @Override

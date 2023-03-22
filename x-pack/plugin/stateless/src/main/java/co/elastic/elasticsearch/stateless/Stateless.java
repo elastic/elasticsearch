@@ -133,6 +133,19 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     }
 
     @Override
+    public Settings additionalSettings() {
+        if (SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.exists(settings) == false
+            && DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE)) {
+            return Settings.builder()
+                .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "75%")
+                .put(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey(), "250GB")
+                .build();
+        } else {
+            return Settings.EMPTY;
+        }
+    }
+
+    @Override
     public Collection<Object> createComponents(
         Client client,
         ClusterService clusterService,

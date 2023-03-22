@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.NodeRoleSettings;
@@ -26,6 +27,7 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class StatelessSettingsTests extends ESTestCase {
@@ -60,6 +62,39 @@ public class StatelessSettingsTests extends ESTestCase {
             )
         );
         assertThat(exception.getMessage(), containsString("stateless does not support roles ["));
+    }
+
+    public void testStatelessDefaultSharedCachedSize() {
+        Stateless searchNodeStateless = new Stateless(
+            Settings.builder()
+                .put(Stateless.STATELESS_ENABLED.getKey(), true)
+                .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
+                .build()
+        );
+        Settings searchNodeSettings = searchNodeStateless.additionalSettings();
+        assertThat(searchNodeSettings.get(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey()), equalTo("75%"));
+        assertThat(searchNodeSettings.get(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey()), equalTo("250GB"));
+
+        Stateless searchNodeStatelessWithManualSetting = new Stateless(
+            Settings.builder()
+                .put(Stateless.STATELESS_ENABLED.getKey(), true)
+                .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
+                .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "65%")
+                .build()
+        );
+        Settings searchNodeWithManualSettingSettings = searchNodeStatelessWithManualSetting.additionalSettings();
+        assertFalse(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.exists(searchNodeWithManualSettingSettings));
+        assertFalse(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.exists(searchNodeWithManualSettingSettings));
+
+        Stateless indexNodeStateless = new Stateless(
+            Settings.builder()
+                .put(Stateless.STATELESS_ENABLED.getKey(), true)
+                .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.INDEX_ROLE.roleName())
+                .build()
+        );
+        Settings indexNodeSettings = indexNodeStateless.additionalSettings();
+        assertFalse(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.exists(indexNodeSettings));
+        assertFalse(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.exists(indexNodeSettings));
     }
 
     private static Settings statelessSettings(Collection<DiscoveryNodeRole> roles) {

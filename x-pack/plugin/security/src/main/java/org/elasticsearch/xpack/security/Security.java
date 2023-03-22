@@ -274,6 +274,7 @@ import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.RoleProviders;
+import org.elasticsearch.xpack.security.crossclusteraccess.CrossClusterAccessLicenseChecker;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.operator.FileOperatorUsersStore;
 import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
@@ -480,6 +481,15 @@ public class Security extends Plugin
         null,
         "user-profile-collaboration",
         License.OperationMode.STANDARD
+    );
+
+    /**
+     * Configurable cross cluster access is Enterprise feature.
+     */
+    public static final LicensedFeature.Momentary CROSS_CLUSTER_ACCESS_FEATURE = LicensedFeature.momentary(
+        null,
+        "security-cross-cluster-access",
+        License.OperationMode.ENTERPRISE
     );
 
     private static final Logger logger = LogManager.getLogger(Security.class);
@@ -927,7 +937,8 @@ public class Security extends Plugin
                 securityContext.get(),
                 destructiveOperations,
                 crossClusterAccessAuthcService,
-                remoteClusterCredentialsResolver
+                remoteClusterCredentialsResolver,
+                new CrossClusterAccessLicenseChecker(getLicenseState())
             )
         );
 

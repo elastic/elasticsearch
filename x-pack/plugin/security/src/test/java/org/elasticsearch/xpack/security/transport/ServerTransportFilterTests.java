@@ -34,7 +34,9 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
+import org.elasticsearch.xpack.security.crossclusteraccess.CrossClusterAccessLicenseChecker;
 import org.junit.Before;
+import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 import java.util.Collections;
@@ -347,13 +349,15 @@ public class ServerTransportFilterTests extends ESTestCase {
                 }
             }
         }
+        CrossClusterAccessLicenseChecker licenseChecker = Mockito.mock(CrossClusterAccessLicenseChecker.class);
         return new CrossClusterAccessServerTransportFilter(
             crossClusterAccessAuthcService,
             authzService,
             threadContext,
             false,
             destructiveOperations,
-            new SecurityContext(settings, threadContext)
+            new SecurityContext(settings, threadContext),
+            licenseChecker
         );
     }
 

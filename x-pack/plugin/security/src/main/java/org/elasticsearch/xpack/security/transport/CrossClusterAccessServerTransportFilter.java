@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.transport;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
+import org.elasticsearch.xpack.security.crossclusteraccess.CrossClusterAccessLicenseChecker;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -35,6 +37,7 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
     }
 
     private final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService;
+    private final CrossClusterAccessLicenseChecker crossClusterAccessLicenseChecker;
 
     CrossClusterAccessServerTransportFilter(
         CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
@@ -42,7 +45,8 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
         ThreadContext threadContext,
         boolean extractClientCert,
         DestructiveOperations destructiveOperations,
-        SecurityContext securityContext
+        SecurityContext securityContext,
+        CrossClusterAccessLicenseChecker crossClusterAccessLicenseChecker
     ) {
         super(
             crossClusterAccessAuthcService.getAuthenticationService(),
@@ -53,6 +57,7 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
             securityContext
         );
         this.crossClusterAccessAuthcService = crossClusterAccessAuthcService;
+        this.crossClusterAccessLicenseChecker = crossClusterAccessLicenseChecker;
     }
 
     @Override
@@ -61,6 +66,12 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
         final TransportRequest request,
         final ActionListener<Authentication> authenticationListener
     ) {
+        try {
+            crossClusterAccessLicenseChecker.checkLicense();
+        } catch (ElasticsearchSecurityException e) {
+            authenticationListener.onFailure(e);
+            return;
+        }
         if (false == SecurityServerTransportInterceptor.CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST.contains(securityAction)) {
             authenticationListener.onFailure(
                 new IllegalArgumentException(

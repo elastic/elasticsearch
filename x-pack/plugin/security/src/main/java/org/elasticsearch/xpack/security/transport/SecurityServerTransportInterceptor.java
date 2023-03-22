@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.authz.PreAuthorizationUtils;
+import org.elasticsearch.xpack.security.crossclusteraccess.CrossClusterAccessLicenseChecker;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -120,6 +121,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService;
     private final RemoteClusterCredentialsResolver remoteClusterCredentialsResolver;
     private final Function<Transport.Connection, Optional<String>> remoteClusterAliasResolver;
+    private final CrossClusterAccessLicenseChecker crossClusterAccessLicenseChecker;
 
     public SecurityServerTransportInterceptor(
         Settings settings,
@@ -130,7 +132,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
         CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
-        RemoteClusterCredentialsResolver remoteClusterCredentialsResolver
+        RemoteClusterCredentialsResolver remoteClusterCredentialsResolver,
+        CrossClusterAccessLicenseChecker crossClusterAccessLicenseChecker
     ) {
         this(
             settings,
@@ -142,7 +145,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             destructiveOperations,
             crossClusterAccessAuthcService,
             remoteClusterCredentialsResolver,
-            RemoteConnectionManager::resolveRemoteClusterAlias
+            RemoteConnectionManager::resolveRemoteClusterAlias,
+            crossClusterAccessLicenseChecker
         );
     }
 
@@ -157,7 +161,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
         RemoteClusterCredentialsResolver remoteClusterCredentialsResolver,
         // Inject for simplified testing
-        Function<Transport.Connection, Optional<String>> remoteClusterAliasResolver
+        Function<Transport.Connection, Optional<String>> remoteClusterAliasResolver,
+        CrossClusterAccessLicenseChecker crossClusterAccessLicenseChecker
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -169,6 +174,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.profileFilters = initializeProfileFilters(destructiveOperations);
         this.remoteClusterCredentialsResolver = remoteClusterCredentialsResolver;
         this.remoteClusterAliasResolver = remoteClusterAliasResolver;
+        this.crossClusterAccessLicenseChecker = crossClusterAccessLicenseChecker;
     }
 
     @Override
@@ -351,6 +357,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final TransportRequestOptions options,
                 final TransportResponseHandler<T> handler
             ) {
+                crossClusterAccessLicenseChecker.checkLicense();
                 final String remoteClusterAlias = remoteClusterCredentials.clusterAlias();
                 if (false == CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST.contains(action)) {
                     throw new IllegalArgumentException(
@@ -485,7 +492,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         threadPool.getThreadContext(),
                         remoteClusterServerSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration),
                         destructiveOperations,
-                        securityContext
+                        securityContext,
+                        crossClusterAccessLicenseChecker
                     )
                 );
             } else {

@@ -15,16 +15,19 @@ import org.elasticsearch.xpack.application.analytics.AnalyticsCollection;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Analytics context is extracted from the HTTP POST request URL and allow to access basic event meta-data (collection name, event type,...)
+ * without parsing the payload.
+ */
 public class AnalyticsContext implements Writeable {
     private final AnalyticsCollection eventCollection;
     private final long eventTime;
-
     private final AnalyticsEventType eventType;
 
     public AnalyticsContext(AnalyticsCollection eventCollection, AnalyticsEventType eventType, long eventTime) {
         this.eventCollection = Objects.requireNonNull(eventCollection);
         this.eventType = Objects.requireNonNull(eventType);
-        this.eventTime = Objects.requireNonNull(eventTime);
+        this.eventTime = eventTime;
     }
 
     public AnalyticsContext(StreamInput in) throws IOException {

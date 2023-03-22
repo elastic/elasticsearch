@@ -655,8 +655,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 (iteration + 25) % 30 == 0 ? Level.WARN : Level.DEBUG,
                 """
                     shard lock for [{}] has been unavailable for at least [{}/{}ms], \
-                    attempting to create shard while applying cluster state [version={},uuid={}], \
-                    will retry in [{}]: [{}]""",
+                    attempting to create shard while applying cluster state [version={},uuid={}], will retry in [{}]: [{}]""",
                 shardRouting,
                 TimeValue.timeValueMillis(delayMillis),
                 delayMillis,

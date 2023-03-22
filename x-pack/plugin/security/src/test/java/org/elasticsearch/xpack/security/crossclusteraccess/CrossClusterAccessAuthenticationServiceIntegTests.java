@@ -119,18 +119,15 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
         try (var ignored = threadContext.stashContext()) {
             new CrossClusterAccessHeaders(
                 encodedCrossClusterAccessApiKey,
-                randomValueOtherThanMany(
-                    cca -> CrossClusterAccessUser.is(cca.getAuthentication().getEffectiveSubject().getUser()),
-                    () -> AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(
-                        new RoleDescriptorsIntersection(
-                            randomValueOtherThanMany(
-                                rd -> false == (rd.hasClusterPrivileges()
-                                    || rd.hasApplicationPrivileges()
-                                    || rd.hasConfigurableClusterPrivileges()
-                                    || rd.hasRunAs()
-                                    || rd.hasRemoteIndicesPrivileges()),
-                                () -> RoleDescriptorTests.randomRoleDescriptor()
-                            )
+                AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(
+                    new RoleDescriptorsIntersection(
+                        randomValueOtherThanMany(
+                            rd -> false == (rd.hasClusterPrivileges()
+                                || rd.hasApplicationPrivileges()
+                                || rd.hasConfigurableClusterPrivileges()
+                                || rd.hasRunAs()
+                                || rd.hasRemoteIndicesPrivileges()),
+                            () -> RoleDescriptorTests.randomRoleDescriptor()
                         )
                     )
                 )

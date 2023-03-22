@@ -252,7 +252,7 @@ public class AuthenticationTestHelper {
         }
     }
 
-    public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfoForInternalUser(boolean emptyRoleDescriptors) {
+    public static CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfoForInternalUser(boolean emptyRoleDescriptors) {
         final Authentication authentication = AuthenticationTestHelper.builder().internal(CrossClusterAccessUser.INSTANCE).build();
         return emptyRoleDescriptors
             ? CrossClusterAccessUser.subjectInfoWithEmptyRoleDescriptors(
@@ -293,7 +293,7 @@ public class AuthenticationTestHelper {
                     )
                 )
             );
-            case "internal" -> randomCrossClusterAccessSubjectInfoForInternalUser(false);
+            case "internal" -> crossClusterAccessSubjectInfoForInternalUser(false);
             default -> throw new IllegalArgumentException("Unknown type " + type);
         };
 

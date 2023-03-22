@@ -104,7 +104,7 @@ public class CrossClusterAccessAuthenticationService {
                         validate(crossClusterAccessSubjectInfo);
                         writeAuthToContext(
                             authcContext,
-                            authentication.toCrossClusterAccess(rewriteForCrossClusterAccessUser(crossClusterAccessSubjectInfo)),
+                            authentication.toCrossClusterAccess(maybeRewriteForCrossClusterAccessUser(crossClusterAccessSubjectInfo)),
                             listener
                         );
                     } catch (Exception ex) {
@@ -119,7 +119,9 @@ public class CrossClusterAccessAuthenticationService {
         return authenticationService;
     }
 
-    private CrossClusterAccessSubjectInfo rewriteForCrossClusterAccessUser(CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo) {
+    private CrossClusterAccessSubjectInfo maybeRewriteForCrossClusterAccessUser(
+        CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo
+    ) {
         final Authentication authentication = crossClusterAccessSubjectInfo.getAuthentication();
         final Subject effectiveSubject = authentication.getEffectiveSubject();
         final User user = effectiveSubject.getUser();
@@ -150,10 +152,20 @@ public class CrossClusterAccessAuthenticationService {
 
         final User user = effectiveSubject.getUser();
         if (CrossClusterAccessUser.is(user)) {
-            // Assert here as an internal consistency check; the role descriptors will be subsequently ignored so no need to fail validation
-            // with an exception
-            assert crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList().isEmpty()
-                : "received role descriptors bytes list should be empty for internal cross cluster access user";
+            if (false == crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList().isEmpty()) {
+                logger.warn(
+                    "Received non-empty role descriptors bytes list for internal cross cluster access user. "
+                        + "These will be ignored during authorization."
+                );
+                // DEBUG log to avoid logging potentially large role descriptors at WARN level
+                logger.debug(
+                    () -> format(
+                        "Received invalid role descriptors for internal cross cluster access user [{}]",
+                        crossClusterAccessSubjectInfo
+                    )
+                );
+                assert false : "received role descriptors bytes list for internal cross cluster access user must be empty.";
+            }
         } else if (User.isInternal(user)) {
             throw new IllegalArgumentException(
                 "received cross cluster request from an unexpected internal user [" + user.principal() + "]"

@@ -48,7 +48,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class CrossClusterAccessSubjectInfoServiceTests extends ESTestCase {
+public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
 
     private ClusterService clusterService;
     private ApiKeyService apiKeyService;
@@ -111,7 +111,7 @@ public class CrossClusterAccessSubjectInfoServiceTests extends ESTestCase {
         final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
             CrossClusterAccessHeadersTests.randomEncodedApiKeyHeader(),
             randomBoolean()
-                ? AuthenticationTestHelper.randomCrossClusterAccessSubjectInfoForInternalUser(true)
+                ? AuthenticationTestHelper.crossClusterAccessSubjectInfoForInternalUser(true)
                 : AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(false)
         );
         crossClusterAccessHeaders.writeToContext(threadContext);

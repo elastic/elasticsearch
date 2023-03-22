@@ -678,6 +678,11 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                     )
                 )
             );
+            verify(authzService, never()).getRoleDescriptorsIntersectionForRemoteCluster(
+                eq(remoteClusterAlias),
+                eq(authentication.getEffectiveSubject()),
+                anyActionListener()
+            );
         } else {
             final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection = new RoleDescriptorsIntersection(
                 randomList(1, 3, () -> Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 1)))

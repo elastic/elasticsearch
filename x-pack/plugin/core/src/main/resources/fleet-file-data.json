@@ -10,8 +10,8 @@
   },
   "template" : {
     "settings": {
-      "auto_expand_replicas": "0-1",
-      "hidden": true
+      "index.auto_expand_replicas": "0-1",
+      "index.hidden": true
     },
     "mappings": {
       "_doc": {

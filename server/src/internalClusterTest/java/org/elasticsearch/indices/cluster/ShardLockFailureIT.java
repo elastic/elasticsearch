@@ -13,7 +13,9 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
@@ -25,19 +27,18 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-public class ShardLockFailureIT extends ESIntegTestCase {
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(IndicesClusterStateService.SHARD_LOCK_RETRY_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(10))
-            .build();
-    }
+public class ShardLockFailureIT extends ESIntegTestCase {
 
     @TestLogging(reason = "checking DEBUG logs from ICSS", value = "org.elasticsearch.indices.cluster.IndicesClusterStateService:DEBUG")
     public void testShardLockFailure() throws Exception {
-        final var node = internalCluster().startDataOnlyNode();
+        final var node = internalCluster().startDataOnlyNode(
+            Settings.builder()
+                .put(IndicesClusterStateService.SHARD_LOCK_RETRY_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(10))
+                .put(IndicesClusterStateService.SHARD_LOCK_RETRY_TIMEOUT_SETTING.getKey(), TimeValue.timeValueDays(10))
+                .build()
+        );
 
         final var indexName = "testindex";
         createIndex(
@@ -90,7 +91,7 @@ public class ShardLockFailureIT extends ESIntegTestCase {
                 public synchronized void match(LogEvent event) {
                     try {
                         assertEquals("org.elasticsearch.indices.cluster.IndicesClusterStateService", event.getLoggerName());
-                        if (event.getMessage().getFormattedMessage().contains("shard lock currently unavailable")) {
+                        if (event.getMessage().getFormattedMessage().matches("shard lock for .* has been unavailable for at least .*")) {
                             if (event.getLevel() == Level.WARN) {
                                 warnMessagesSeen += 1;
                                 assertEquals(29L * warnMessagesSeen - 24, debugMessagesSeen);
@@ -119,6 +120,73 @@ public class ShardLockFailureIT extends ESIntegTestCase {
             mockLogAppender.assertAllExpectationsMatched();
         }
 
+        ensureGreen(indexName);
+    }
+
+    @TestLogging(reason = "checking WARN logs from ICSS", value = "org.elasticsearch.indices.cluster.IndicesClusterStateService:WARN")
+    public void testShardLockTimeout() throws Exception {
+        final var node = internalCluster().startDataOnlyNode(
+            Settings.builder()
+                .put(IndicesClusterStateService.SHARD_LOCK_RETRY_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(10))
+                .put(IndicesClusterStateService.SHARD_LOCK_RETRY_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(100))
+                .build()
+        );
+
+        final var indexName = "testindex";
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", node)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
+                .put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 1)
+                .build()
+        );
+        ensureGreen(indexName);
+
+        final var shardId = client().admin()
+            .cluster()
+            .prepareState()
+            .clear()
+            .setRoutingTable(true)
+            .get()
+            .getState()
+            .routingTable()
+            .shardRoutingTable(indexName, 0)
+            .shardId();
+
+        var mockLogAppender = new MockLogAppender();
+        try (
+            var ignored1 = internalCluster().getInstance(NodeEnvironment.class, node).shardLock(shardId, "blocked for test");
+            var ignored2 = mockLogAppender.capturing(IndicesClusterStateService.class);
+        ) {
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "timeout message",
+                    "org.elasticsearch.indices.cluster.IndicesClusterStateService",
+                    Level.WARN,
+                    """
+                        timed out after [indices.store.shard_lock_retry.timeout=100ms/100ms] \
+                        while waiting to acquire shard lock for [testindex][0]"""
+                )
+            );
+
+            updateIndexSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name"), indexName);
+            assertBusy(mockLogAppender::assertAllExpectationsMatched);
+            final var clusterHealthResponse = client().admin()
+                .cluster()
+                .prepareHealth(indexName)
+                .setWaitForEvents(Priority.LANGUID)
+                .setTimeout(TimeValue.timeValueSeconds(10))
+                .setWaitForNoInitializingShards(true)
+                .setWaitForNoRelocatingShards(true)
+                .get();
+            assertFalse(clusterHealthResponse.isTimedOut());
+            assertEquals(ClusterHealthStatus.YELLOW, clusterHealthResponse.getStatus());
+            assertEquals(1, clusterHealthResponse.getUnassignedShards());
+        }
+
+        assertAcked(client().admin().cluster().prepareReroute().setRetryFailed(true));
         ensureGreen(indexName);
     }
 }

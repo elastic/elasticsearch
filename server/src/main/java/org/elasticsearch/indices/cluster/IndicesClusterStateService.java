@@ -616,7 +616,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final var currentPendingShardCreation = pendingShardCreations.get(shardId);
         final var newPendingShardCreation = new PendingShardCreation(
             clusterStateUuid,
-            currentPendingShardCreation == null ? threadPool.relativeTimeInNanos() : currentPendingShardCreation.startTimeNanos()
+            currentPendingShardCreation == null ? threadPool.relativeTimeInMillis() : currentPendingShardCreation.startTimeMillis()
         );
         pendingShardCreations.put(shardId, newPendingShardCreation);
         return newPendingShardCreation;
@@ -628,7 +628,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         DiscoveryNode sourceNode,
         long primaryTerm,
         int iteration,
-        long delayNanos,
+        long delayMillis,
         ActionListener<Boolean> listener
     ) throws IOException {
         try {
@@ -654,12 +654,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             logger.log(
                 (iteration + 25) % 30 == 0 ? Level.WARN : Level.DEBUG,
                 """
-                    shard lock for [{}] has been unavailable for at least [{}/{}ns], \
+                    shard lock for [{}] has been unavailable for at least [{}/{}ms], \
                     attempting to create shard while applying cluster state [version={},uuid={}], \
                     will retry in [{}]: [{}]""",
                 shardRouting,
-                TimeValue.timeValueNanos(delayNanos),
-                delayNanos,
+                TimeValue.timeValueMillis(delayMillis),
+                delayMillis,
                 originalState.version(),
                 originalState.stateUUID(),
                 shardLockRetryInterval,
@@ -694,8 +694,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         }
                         assert pendingShardCreation.clusterStateUuid().equals(currentState.stateUUID());
 
-                        final var newDelayNanos = threadPool.relativeTimeInNanos() - pendingShardCreation.startTimeNanos();
-                        if (newDelayNanos > shardLockRetryTimeout.nanos()) {
+                        final var newDelayMillis = threadPool.relativeTimeInMillis() - pendingShardCreation.startTimeMillis();
+                        if (newDelayMillis > shardLockRetryTimeout.millis()) {
                             logger.warn(
                                 "timed out after [{}={}/{}ms] while waiting to acquire shard lock for {}",
                                 SHARD_LOCK_RETRY_TIMEOUT_SETTING.getKey(),
@@ -732,7 +732,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                                 sourceNode,
                                 primaryTerm,
                                 iteration + 1,
-                                newDelayNanos,
+                                newDelayMillis,
                                 l
                             )
                         );
@@ -834,7 +834,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         return sourceNode;
     }
 
-    private record PendingShardCreation(String clusterStateUuid, long startTimeNanos) {}
+    private record PendingShardCreation(String clusterStateUuid, long startTimeMillis) {}
 
     private class RecoveryListener implements PeerRecoveryTargetService.RecoveryListener {
 

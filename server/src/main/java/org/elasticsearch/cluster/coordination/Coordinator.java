@@ -1685,8 +1685,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
     }
 
-    void beforeCommit(long term, long version) {
-        electionStrategy.beforeCommit(term, version);
+    private void beforeCommit(long term, long version, ActionListener<Void> listener) {
+        electionStrategy.beforeCommit(term, version, listener);
     }
 
     class CoordinatorPublication extends Publication {
@@ -1922,12 +1922,17 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
 
         @Override
-        protected Optional<ApplyCommitRequest> handlePublishResponse(DiscoveryNode sourceNode, PublishResponse publishResponse) {
+        protected Optional<ListenableFuture<ApplyCommitRequest>> handlePublishResponse(
+            DiscoveryNode sourceNode,
+            PublishResponse publishResponse
+        ) {
             assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
             assert getCurrentTerm() >= publishResponse.getTerm();
-            var applyCommit = coordinationState.get().handlePublishResponse(sourceNode, publishResponse);
-            applyCommit.ifPresent(applyCommitRequest -> beforeCommit(applyCommitRequest.getTerm(), applyCommitRequest.getVersion()));
-            return applyCommit;
+            return coordinationState.get().handlePublishResponse(sourceNode, publishResponse).map(applyCommitRequest -> {
+                final var future = new ListenableFuture<ApplyCommitRequest>();
+                beforeCommit(applyCommitRequest.getTerm(), applyCommitRequest.getVersion(), future.map(ignored -> applyCommitRequest));
+                return future;
+            });
         }
 
         @Override
@@ -1976,6 +1981,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             ActionListener<Empty> responseActionListener
         ) {
             assert transportService.getThreadPool().getThreadContext().isSystemContext();
+            assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
             try {
                 transportService.sendRequest(
                     destination,
@@ -1991,6 +1997,17 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             } catch (Exception e) {
                 responseActionListener.onFailure(e);
             }
+        }
+
+        @Override
+        protected <T> ActionListener<T> wrapListener(ActionListener<T> listener) {
+            return wrapWithMutex(listener);
+        }
+
+        @Override
+        boolean publicationCompletedIffAllTargetsInactiveOrCancelled() {
+            assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+            return super.publicationCompletedIffAllTargetsInactiveOrCancelled();
         }
     }
 

@@ -105,7 +105,9 @@ public abstract class ElectionStrategy {
             && lastCommittedConfiguration.equals(lastAcceptedConfiguration) == false;
     }
 
-    public void beforeCommit(long term, long version) {}
+    public void beforeCommit(long term, long version, ActionListener<Void> listener) {
+        listener.onResponse(null);
+    }
 
     public void afterWinningElection() {}
 }

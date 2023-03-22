@@ -49,7 +49,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
@@ -942,23 +942,19 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         );
         for (CapturedActionWithHeaders actual : actualActionsWithHeaders) {
             switch (actual.action) {
-                // this action is run by the system user, so we expect a cross cluster access header with an internal user authentication
-                // and empty role descriptors intersection
+                // this action is run by the cross cluster access user, so we expect a cross cluster access header with an internal user
+                // authentication and pre-defined role descriptors intersection
                 case RemoteClusterNodesAction.NAME -> {
                     assertContainsCrossClusterAccessHeaders(actual.headers());
                     assertContainsCrossClusterAccessCredentialsHeader(encodedCredential, actual);
                     final var actualCrossClusterAccessSubjectInfo = CrossClusterAccessSubjectInfo.decode(
                         actual.headers().get(CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY)
                     );
-                    final var expectedCrossClusterAccessSubjectInfo = new CrossClusterAccessSubjectInfo(
-                        Authentication.newInternalAuthentication(
-                            SystemUser.INSTANCE,
-                            TransportVersion.CURRENT,
-                            // Since we are running on a multi-node cluster the actual node name may be different between runs
-                            // so just copy the one from the actual result
-                            actualCrossClusterAccessSubjectInfo.getAuthentication().getEffectiveSubject().getRealm().getNodeName()
-                        ),
-                        RoleDescriptorsIntersection.EMPTY
+                    final var expectedCrossClusterAccessSubjectInfo = CrossClusterAccessUser.subjectInfoWithEmptyRoleDescriptors(
+                        TransportVersion.CURRENT,
+                        // Since we are running on a multi-node cluster the actual node name may be different between runs
+                        // so just copy the one from the actual result
+                        actualCrossClusterAccessSubjectInfo.getAuthentication().getEffectiveSubject().getRealm().getNodeName()
                     );
                     assertThat(actualCrossClusterAccessSubjectInfo, equalTo(expectedCrossClusterAccessSubjectInfo));
                 }

@@ -573,7 +573,7 @@ public class CoordinationState {
         }
 
         default void getLatestStoredState(ActionListener<ClusterState> listener) {
-            listener.onResponse(getLastAcceptedState());
+            listener.onResponse(null);
         }
 
         default void close() throws IOException {}

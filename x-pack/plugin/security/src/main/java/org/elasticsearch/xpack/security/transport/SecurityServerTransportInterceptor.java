@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
@@ -426,7 +427,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             ) {
                 final ThreadContext threadContext = securityContext.getThreadContext();
                 final var contextRestoreHandler = new ContextRestoreResponseHandler<>(threadContext.newRestorableContext(true), handler);
-                try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                // We stash with audit request ID to be able to trace requests cross-cluster
+                try (ThreadContext.StoredContext ignored = AuditUtil.stashContextWithRequestId(threadContext)) {
                     crossClusterAccessHeaders.writeToContext(threadContext);
                     sender.sendRequest(connection, action, request, options, contextRestoreHandler);
                 } catch (Exception e) {

@@ -149,7 +149,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
         }
 
         try (var ignored = threadContext.stashContext()) {
-            Authentication authentication = AuthenticationTestHelper.builder().apiKey().build();
+            Authentication authentication = AuthenticationTestHelper.builder().crossClusterAccess().build();
             new CrossClusterAccessHeaders(
                 encodedCrossClusterAccessApiKey,
                 new CrossClusterAccessSubjectInfo(authentication, RoleDescriptorsIntersection.EMPTY)

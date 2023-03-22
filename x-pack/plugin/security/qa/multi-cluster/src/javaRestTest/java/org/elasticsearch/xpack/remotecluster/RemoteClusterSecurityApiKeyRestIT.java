@@ -296,7 +296,7 @@ public class RemoteClusterSecurityApiKeyRestIT extends AbstractRemoteClusterSecu
             );
 
             // Check that authentication fails if we use a non-existent cross cluster access API key
-            updateClusterSettings(Settings.builder().put("cluster.remote.my_remote_cluster.authorization", randomEncodedApiKey()).build());
+            updateClusterSettings(Settings.builder().put("cluster.remote.my_remote_cluster.credentials", randomEncodedApiKey()).build());
             final ResponseException exception4 = expectThrows(
                 ResponseException.class,
                 () -> performRequestWithApiKey(new Request("GET", "/my_remote_cluster:index1/_search"), apiKeyEncoded)

@@ -97,7 +97,6 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
     }
 
     @SuppressWarnings("rawtypes")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94568")
     public void testUsage() throws Exception {
         final boolean explicitlyDisabled = randomBoolean();
         final boolean enabled = explicitlyDisabled == false;
@@ -114,7 +113,8 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         final boolean transportSSLEnabled = randomBoolean();
         settings.put("xpack.security.transport.ssl.enabled", transportSSLEnabled);
 
-        final boolean remoteClusterPortEnabled = randomBoolean();
+        // Remote cluster server requires security to be enabled
+        final boolean remoteClusterPortEnabled = explicitlyDisabled ? false : randomBoolean();
         settings.put("remote_cluster_server.enabled", remoteClusterPortEnabled);
         final boolean remoteClusterSslEnabled = randomBoolean();
         settings.put("xpack.security.remote_cluster_server.ssl.enabled", remoteClusterSslEnabled);

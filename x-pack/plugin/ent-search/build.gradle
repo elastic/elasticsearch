@@ -13,17 +13,14 @@ archivesBaseName = 'x-pack-ent-search'
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  compileOnly project(':modules:data-streams')
-  compileOnly project(path: xpackModule('ilm'))
+  api project(':modules:lang-mustache')
 
   testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation(project(':modules:data-streams'))
-  testImplementation(project(path: xpackModule('ilm')))
+  testImplementation(project(':modules:lang-mustache'))
 
   javaRestTestImplementation(project(path: xpackModule('core')))
-  javaRestTestImplementation(project(path: xpackModule('ilm')))
-  javaRestTestImplementation(project(':modules:data-streams'))
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation(project(':modules:lang-mustache'))
 }
 
 addQaCheckDependencies(project)

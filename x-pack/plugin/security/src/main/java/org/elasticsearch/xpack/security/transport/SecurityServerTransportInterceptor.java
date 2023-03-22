@@ -407,7 +407,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                                 new CrossClusterAccessSubjectInfo(authentication, roleDescriptorsIntersection)
                             );
                             sendWithCrossClusterAccessHeaders(crossClusterAccessHeaders, connection, action, request, options, handler);
-                        }, e -> handler.handleException(new SendRequestTransportException(connection.getNode(), action, e)))
+                        }, // it's safe to not use a context restore handler here since `getRoleDescriptorsIntersectionForRemoteCluster`
+                           // uses a context preserving listener internally, and `sendWithCrossClusterAccessHeaders` uses a context restore
+                           // handler
+                            e -> handler.handleException(new SendRequestTransportException(connection.getNode(), action, e))
+                        )
                     );
                 }
             }

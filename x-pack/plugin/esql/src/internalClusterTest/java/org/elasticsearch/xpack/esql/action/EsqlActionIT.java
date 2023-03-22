@@ -1019,7 +1019,13 @@ public class EsqlActionIT extends ESIntegTestCase {
                 settings.put("task_concurrency", randomLongBetween(1, 10));
             }
             if (randomBoolean()) {
-                settings.put("buffer_max_pages", randomLongBetween(32, 2048));
+                final int bufferMaxPages;
+                if (frequently()) {
+                    bufferMaxPages = randomIntBetween(1, 10);
+                } else {
+                    bufferMaxPages = randomIntBetween(5, 5000);
+                }
+                settings.put("buffer_max_pages", bufferMaxPages);
             }
             if (randomBoolean()) {
                 settings.put("data_partitioning", randomFrom("shard", "segment", "doc"));

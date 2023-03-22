@@ -21,6 +21,11 @@ public interface ExchangeSource {
     Page pollPage();
 
     /**
+     * Called when the source has enough input pages
+     */
+    void finish();
+
+    /**
      * Whether the associated sinks are finished and pages are processed.
      */
     boolean isFinished();

@@ -22,9 +22,9 @@ public class AnalyticsContext implements Writeable {
     private final AnalyticsEventType eventType;
 
     public AnalyticsContext(AnalyticsCollection eventCollection, AnalyticsEventType eventType, long eventTime) {
-        this.eventCollection = eventCollection;
-        this.eventType = eventType;
-        this.eventTime = eventTime;
+        this.eventCollection = Objects.requireNonNull(eventCollection);
+        this.eventType = Objects.requireNonNull(eventType);
+        this.eventTime = Objects.requireNonNull(eventTime);
     }
 
     public AnalyticsContext(StreamInput in) throws IOException {

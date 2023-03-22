@@ -201,21 +201,14 @@ public class ShardLimitValidator {
      * This method checks whether there is enough room in the cluster to add the given number of shards with the given number of replicas
      * without exceeding the "cluster.max_shards_per_node" setting for _normal_ nodes. This check does not guarantee that the number of
      * shards can be added, just that there is theoretically room to add them without exceeding the shards per node configuration.
-     * @param numberOfNewShards The number of primary shards that we want to be able to add to the cluster
-     * @param replicas          The number of replicas of the primary shards that we want to be able to add to the cluster
-     * @param state             The cluster state, used to get cluster settings and to get the number of open shards already in the cluster
+     * @param maxConfiguredShardsPerNode The maximum available number of shards to be allocated within a node
+     * @param numberOfNewShards          The number of primary shards that we want to be able to add to the cluster
+     * @param replicas                   The number of replicas of the primary shards that we want to be able to add to the cluster
+     * @param state                      The cluster state, used to get cluster settings and to get the number of open shards already in
+     *                                   the cluster
      */
-    public static Result checkShardLimitForNormalNodes(int numberOfNewShards, int replicas, ClusterState state) {
-        return checkShardLimitForNormalNodes(
-            SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(state.getMetadata().settings()),
-            numberOfNewShards,
-            replicas,
-            state
-        );
-    }
-
     public static Result checkShardLimitForNormalNodes(
-        int maxShardsPerNodeSetting,
+        int maxConfiguredShardsPerNode,
         int numberOfNewShards,
         int replicas,
         ClusterState state
@@ -223,14 +216,24 @@ public class ShardLimitValidator {
         return checkShardLimit(
             numberOfNewShards * (1 + replicas),
             state,
-            maxShardsPerNodeSetting,
+            maxConfiguredShardsPerNode,
             nodeCount(state, ShardLimitValidator::hasNonFrozen),
             NORMAL_GROUP
         );
     }
 
+    /**
+     * This method checks whether there is enough room in the cluster to add the given number of shards with the given number of replicas
+     * without exceeding the "cluster.max_shards_per_node_frozen" setting for _frozen_ nodes. This check does not guarantee that the number
+     * of shards can be added, just that there is theoretically room to add them without exceeding the shards per node configuration.
+     * @param maxConfiguredShardsPerNode The maximum available number of shards to be allocated within a node
+     * @param numberOfNewShards          The number of primary shards that we want to be able to add to the cluster
+     * @param replicas                   The number of replicas of the primary shards that we want to be able to add to the cluster
+     * @param state                      The cluster state, used to get cluster settings and to get the number of open shards already in
+     *                                   the cluster
+     */
     public static Result checkShardLimitForFrozenNodes(
-        int maxShardsPerNodeSetting,
+        int maxConfiguredShardsPerNode,
         int numberOfNewShards,
         int replicas,
         ClusterState state
@@ -238,15 +241,14 @@ public class ShardLimitValidator {
         return checkShardLimit(
             numberOfNewShards * (1 + replicas),
             state,
-            maxShardsPerNodeSetting,
+            maxConfiguredShardsPerNode,
             nodeCount(state, ShardLimitValidator::hasFrozen),
             FROZEN_GROUP
         );
     }
 
-    // package-private for testing
-    static Result checkShardLimit(int newShards, ClusterState state, int maxShardsPerNode, int nodeCount, String group) {
-        int maxShardsInCluster = maxShardsPerNode * nodeCount;
+    private static Result checkShardLimit(int newShards, ClusterState state, int maxConfiguredShardsPerNode, int nodeCount, String group) {
+        int maxShardsInCluster = maxConfiguredShardsPerNode * nodeCount;
         int currentOpenShards = state.getMetadata().getTotalOpenIndexShards();
 
         // Only enforce the shard limit if we have at least one data node, so that we don't block

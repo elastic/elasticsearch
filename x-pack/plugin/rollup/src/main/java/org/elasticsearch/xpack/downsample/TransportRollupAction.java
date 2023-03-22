@@ -163,6 +163,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                             "Rollup forbidden for index [" + sourceIndexName + "] with document level or field level security settings."
                         )
                     );
+                    return;
                 }
             }
         }

@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.security.user.XPackUser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -241,42 +242,58 @@ public class AuthenticationTestHelper {
         RoleDescriptorsIntersection roleDescriptorsIntersection
     ) {
         try {
-            // TODO add apikey() once we have querying-cluster-side API key support
-            final Authentication authentication = ESTestCase.randomFrom(
-                AuthenticationTestHelper.builder().realm(),
-                AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE)
-            ).build();
+            final Authentication authentication = randomCrossClusterAccessSupportedAuthenticationSubject();
             return new CrossClusterAccessSubjectInfo(authentication, roleDescriptorsIntersection);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
+    private static Authentication randomCrossClusterAccessSupportedAuthenticationSubject() {
+        return ESTestCase.randomFrom(
+            AuthenticationTestHelper.builder().realm(),
+            AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE),
+            AuthenticationTestHelper.builder().apiKey()
+        ).build();
+    }
+
     public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo() {
-        return randomCrossClusterAccessSubjectInfo(
-            new RoleDescriptorsIntersection(
-                List.of(
-                    // TODO randomize to add a second set once we have querying-cluster-side API key support
-                    Set.of(
-                        new RoleDescriptor(
-                            "_remote_user",
-                            null,
-                            new RoleDescriptor.IndicesPrivileges[] {
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices("index1")
-                                    .privileges("read", "read_cross_cluster")
-                                    .build() },
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null
-                        )
+        final Authentication authentication = randomCrossClusterAccessSupportedAuthenticationSubject();
+        return randomCrossClusterAccessSubjectInfo(authentication);
+    }
+
+    public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo(final Authentication authentication) {
+        final int numberOfRoleDescriptors;
+        if (authentication.isApiKey()) {
+            // In case of API keys, we can have either 1 (only owner's - aka limited-by) or 2 role descriptors.
+            numberOfRoleDescriptors = ESTestCase.randomIntBetween(1, 2);
+        } else {
+            numberOfRoleDescriptors = 1;
+        }
+        final List<Set<RoleDescriptor>> roleDescriptors = new ArrayList<>(numberOfRoleDescriptors);
+        for (int i = 0; i < numberOfRoleDescriptors; i++) {
+            roleDescriptors.add(
+                Set.of(
+                    new RoleDescriptor(
+                        "_remote_user",
+                        null,
+                        new RoleDescriptor.IndicesPrivileges[] {
+                            RoleDescriptor.IndicesPrivileges.builder().indices("index1").privileges("read", "read_cross_cluster").build() },
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
                     )
                 )
-            )
-        );
+            );
+        }
+        try {
+            return new CrossClusterAccessSubjectInfo(authentication, new RoleDescriptorsIntersection(roleDescriptors));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     public static class AuthenticationTestBuilder {

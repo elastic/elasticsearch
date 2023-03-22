@@ -40,6 +40,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfoTests.randomRoleDescriptorsIntersection;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -139,9 +140,8 @@ public class AuthenticationTests extends ESTestCase {
 
     public void testCrossClusterAccessCanAccessResourceOf() throws IOException {
         final String apiKeyId1 = randomAlphaOfLengthBetween(10, 20);
-        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo1 = randomValueOtherThanMany(
-            ra -> User.isInternal(ra.getAuthentication().getEffectiveSubject().getUser()),
-            AuthenticationTestHelper::randomCrossClusterAccessSubjectInfo
+        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo1 = randomCrossClusterAccessSubjectInfo(
+            AuthenticationTestHelper.builder().realm().build()
         );
         final Authentication authentication = AuthenticationTestHelper.builder()
             .crossClusterAccess(apiKeyId1, crossClusterAccessSubjectInfo1)
@@ -260,7 +260,110 @@ public class AuthenticationTests extends ESTestCase {
                 assert false : "Case number out of range";
         }
 
-        // TODO: Add more tests for API keys when they work as QC subject
+    }
+
+    private static Authentication randomCrossClusterAccessAuthentication(
+        String crossClusterApiKeyId,
+        User user,
+        Authentication authentication
+    ) {
+        return AuthenticationTestHelper.builder()
+            .crossClusterAccess(crossClusterApiKeyId, randomCrossClusterAccessSubjectInfo(authentication))
+            .user(user)
+            .build(false);
+    }
+
+    public void testCrossClusterAccessCanAccessResourceOfWithApiKey() {
+        final User user1 = randomUser();
+        final RealmRef realm1 = randomRealmRef(false);
+
+        // Different username is different no matter which realm it is from
+        final User user2 = randomValueOtherThanMany(u -> u.principal().equals(user1.principal()), AuthenticationTests::randomUser);
+        // user 2 can be from either the same realm or a different realm
+        final RealmRef realm2 = randomFrom(realm1, randomRealmRef(false));
+
+        final String apiKeyId1 = randomAlphaOfLengthBetween(10, 20);
+        // User is irrelevant
+        final User crossClusterUser1 = randomFrom(user1, user2, randomUser());
+        final String crossClusterApiKeyId1 = randomAlphaOfLengthBetween(10, 20);
+
+        // Same cross cluster access authentication with the same API key is allowed.
+        assertCanAccessResources(
+            randomCrossClusterAccessAuthentication(crossClusterApiKeyId1, crossClusterUser1, randomApiKeyAuthentication(user1, apiKeyId1)),
+            randomCrossClusterAccessAuthentication(crossClusterApiKeyId1, crossClusterUser1, randomApiKeyAuthentication(user1, apiKeyId1))
+        );
+
+        // Cluster access authentication with different API credentials keys is not allowed.
+        final String crossClusterApiKeyId2 = randomValueOtherThan(crossClusterApiKeyId1, () -> randomAlphaOfLengthBetween(10, 20));
+        assertCannotAccessResources(
+            randomCrossClusterAccessAuthentication(crossClusterApiKeyId1, crossClusterUser1, randomApiKeyAuthentication(user1, apiKeyId1)),
+            randomCrossClusterAccessAuthentication(crossClusterApiKeyId2, crossClusterUser1, randomApiKeyAuthentication(user1, apiKeyId1))
+        );
+
+        // Cross cluster access with a user and its API key is not the same owner, hence not allowed.
+        assertCannotAccessResources(
+            randomCrossClusterAccessAuthentication(crossClusterApiKeyId1, crossClusterUser1, randomAuthentication(user1, realm1)),
+            randomCrossClusterAccessAuthentication(crossClusterApiKeyId1, crossClusterUser1, randomApiKeyAuthentication(user1, apiKeyId1))
+        );
+
+        // Cross cluster access with two different API keys (regardless if the same user is owner) is not allowed.
+        final String apiKeyId2 = randomValueOtherThanMany(id -> id.equals(apiKeyId1), () -> randomAlphaOfLengthBetween(10, 20));
+        assertCannotAccessResources(
+            randomCrossClusterAccessAuthentication(
+                crossClusterApiKeyId1,
+                crossClusterUser1,
+                randomApiKeyAuthentication(randomFrom(user1, user2), apiKeyId1)
+            ),
+            randomCrossClusterAccessAuthentication(
+                crossClusterApiKeyId1,
+                crossClusterUser1,
+                randomApiKeyAuthentication(randomFrom(user1, user2), apiKeyId2)
+            )
+        );
+
+        // Cross cluster access using same API key but run-as different users is not allowed.
+        final User user3 = randomValueOtherThanMany(
+            u -> u.principal().equals(user1.principal()) || u.principal().equals(user2.principal()),
+            AuthenticationTests::randomUser
+        );
+        assertCannotAccessResources(
+            randomCrossClusterAccessAuthentication(
+                crossClusterApiKeyId1,
+                crossClusterUser1,
+                randomApiKeyAuthentication(user1, apiKeyId1).runAs(user2, realm2)
+            ),
+            randomCrossClusterAccessAuthentication(
+                crossClusterApiKeyId1,
+                crossClusterUser1,
+                randomApiKeyAuthentication(user1, apiKeyId1).runAs(user3, realm2)
+            )
+        );
+
+        // Cross cluster access using same or different API key which run-as the same user (user3) is allowed.
+        assertCanAccessResources(
+            randomCrossClusterAccessAuthentication(
+                crossClusterApiKeyId1,
+                crossClusterUser1,
+                randomApiKeyAuthentication(user1, apiKeyId1).runAs(user3, realm2)
+            ),
+            randomCrossClusterAccessAuthentication(
+                crossClusterApiKeyId1,
+                crossClusterUser1,
+                randomApiKeyAuthentication(user1, apiKeyId1).runAs(user3, realm2)
+            )
+        );
+        assertCanAccessResources(
+            randomCrossClusterAccessAuthentication(
+                crossClusterApiKeyId1,
+                crossClusterUser1,
+                randomApiKeyAuthentication(user1, apiKeyId1).runAs(user3, realm2)
+            ),
+            randomCrossClusterAccessAuthentication(
+                crossClusterApiKeyId1,
+                crossClusterUser1,
+                randomApiKeyAuthentication(user2, apiKeyId2).runAs(user3, realm2)
+            )
+        );
     }
 
     public void testTokenAccessResourceOf() {
@@ -569,7 +672,7 @@ public class AuthenticationTests extends ESTestCase {
 
     public void testCrossClusterAccessAuthentication() throws IOException {
         final String crossClusterAccessApiKeyId = ESTestCase.randomAlphaOfLength(20);
-        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo();
+        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = randomCrossClusterAccessSubjectInfo();
         final Authentication authentication = AuthenticationTestHelper.builder()
             .crossClusterAccess(crossClusterAccessApiKeyId, crossClusterAccessSubjectInfo)
             .build(false);
@@ -676,7 +779,7 @@ public class AuthenticationTests extends ESTestCase {
     public void testToXContentWithCrossClusterAccess() throws IOException {
         final String apiKeyId = randomAlphaOfLength(20);
         final Authentication authentication = AuthenticationTestHelper.builder()
-            .crossClusterAccess(apiKeyId, AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo())
+            .crossClusterAccess(apiKeyId, randomCrossClusterAccessSubjectInfo())
             .build(false);
         final String apiKeyName = (String) authentication.getAuthenticatingSubject()
             .getMetadata()
@@ -867,7 +970,7 @@ public class AuthenticationTests extends ESTestCase {
         final User creator = randomUser();
         final String apiKeyId = randomAlphaOfLength(42);
         final Authentication apiKeyAuthentication = AuthenticationTestHelper.builder().apiKey(apiKeyId).user(creator).build(false);
-        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo();
+        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = randomCrossClusterAccessSubjectInfo();
 
         final Authentication actualAuthentication = apiKeyAuthentication.toCrossClusterAccess(crossClusterAccessSubjectInfo);
 

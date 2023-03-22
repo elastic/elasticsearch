@@ -937,8 +937,8 @@ public class Security extends Plugin
                 securityContext.get(),
                 destructiveOperations,
                 crossClusterAccessAuthcService,
-                remoteClusterCredentialsResolver,
-                new CrossClusterAccessLicenseChecker(getLicenseState())
+                new CrossClusterAccessLicenseChecker(getLicenseState()),
+                remoteClusterCredentialsResolver
             )
         );
 

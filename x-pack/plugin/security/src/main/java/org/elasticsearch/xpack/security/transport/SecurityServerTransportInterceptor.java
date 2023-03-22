@@ -132,8 +132,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
         CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
-        RemoteClusterCredentialsResolver remoteClusterCredentialsResolver,
-        CrossClusterAccessLicenseChecker crossClusterAccessLicenseChecker
+        CrossClusterAccessLicenseChecker crossClusterAccessLicenseChecker,
+        RemoteClusterCredentialsResolver remoteClusterCredentialsResolver
     ) {
         this(
             settings,
@@ -144,9 +144,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             securityContext,
             destructiveOperations,
             crossClusterAccessAuthcService,
+            crossClusterAccessLicenseChecker,
             remoteClusterCredentialsResolver,
-            RemoteConnectionManager::resolveRemoteClusterAlias,
-            crossClusterAccessLicenseChecker
+            RemoteConnectionManager::resolveRemoteClusterAlias
         );
     }
 
@@ -159,10 +159,10 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
         CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
+        CrossClusterAccessLicenseChecker crossClusterAccessLicenseChecker,
         RemoteClusterCredentialsResolver remoteClusterCredentialsResolver,
         // Inject for simplified testing
-        Function<Transport.Connection, Optional<String>> remoteClusterAliasResolver,
-        CrossClusterAccessLicenseChecker crossClusterAccessLicenseChecker
+        Function<Transport.Connection, Optional<String>> remoteClusterAliasResolver
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -171,10 +171,10 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.sslService = sslService;
         this.securityContext = securityContext;
         this.crossClusterAccessAuthcService = crossClusterAccessAuthcService;
-        this.profileFilters = initializeProfileFilters(destructiveOperations);
+        this.crossClusterAccessLicenseChecker = crossClusterAccessLicenseChecker;
         this.remoteClusterCredentialsResolver = remoteClusterCredentialsResolver;
         this.remoteClusterAliasResolver = remoteClusterAliasResolver;
-        this.crossClusterAccessLicenseChecker = crossClusterAccessLicenseChecker;
+        this.profileFilters = initializeProfileFilters(destructiveOperations);
     }
 
     @Override

@@ -153,8 +153,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
             mock(CrossClusterAccessAuthenticationService.class),
-            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings()),
-            licenseChecker
+            licenseChecker,
+            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings())
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -205,8 +205,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
             mock(CrossClusterAccessAuthenticationService.class),
-            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings()),
-            licenseChecker
+            licenseChecker,
+            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings())
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -250,8 +250,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
             mock(CrossClusterAccessAuthenticationService.class),
-            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings()),
-            licenseChecker
+            licenseChecker,
+            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings())
         ) {
             @Override
             void assertNoAuthentication(String action) {}
@@ -313,8 +313,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
             mock(CrossClusterAccessAuthenticationService.class),
-            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings()),
-            licenseChecker
+            licenseChecker,
+            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings())
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -382,8 +382,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
             mock(CrossClusterAccessAuthenticationService.class),
-            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings()),
-            licenseChecker
+            licenseChecker,
+            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings())
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -447,8 +447,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
             mock(CrossClusterAccessAuthenticationService.class),
-            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings()),
-            licenseChecker
+            licenseChecker,
+            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings())
         );
 
         final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
@@ -624,9 +624,9 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
             mock(CrossClusterAccessAuthenticationService.class),
+            licenseChecker,
             remoteClusterCredentialsResolver,
-            ignored -> Optional.of(remoteClusterAlias),
-            licenseChecker
+            ignored -> Optional.of(remoteClusterAlias)
         );
 
         final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
@@ -751,9 +751,9 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
             mock(CrossClusterAccessAuthenticationService.class),
+            licenseChecker,
             remoteClusterCredentialsResolver,
-            ignored -> notRemoteConnection ? Optional.empty() : Optional.of(remoteClusterAlias),
-            licenseChecker
+            ignored -> notRemoteConnection ? Optional.empty() : Optional.of(remoteClusterAlias)
         );
 
         final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
@@ -822,9 +822,9 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
             mock(CrossClusterAccessAuthenticationService.class),
+            licenseChecker,
             remoteClusterCredentialsResolver,
-            ignored -> Optional.of(remoteClusterAlias),
-            licenseChecker
+            ignored -> Optional.of(remoteClusterAlias)
         );
 
         final AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
@@ -923,9 +923,9 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
             mock(CrossClusterAccessAuthenticationService.class),
+            licenseChecker,
             remoteClusterCredentialsResolver,
-            ignored -> Optional.of(remoteClusterAlias),
-            licenseChecker
+            ignored -> Optional.of(remoteClusterAlias)
         );
 
         final AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
@@ -1006,9 +1006,9 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
             mock(CrossClusterAccessAuthenticationService.class),
+            licenseChecker,
             remoteClusterAuthorizationResolver,
-            ignored -> Optional.of(remoteClusterAlias),
-            licenseChecker
+            ignored -> Optional.of(remoteClusterAlias)
         );
 
         final AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
@@ -1119,8 +1119,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
             mock(CrossClusterAccessAuthenticationService.class),
-            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings()),
-            licenseChecker
+            licenseChecker,
+            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings())
         );
 
         final Map<String, ServerTransportFilter> profileFilters = securityServerTransportInterceptor.getProfileFilters();
@@ -1173,8 +1173,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
             mock(CrossClusterAccessAuthenticationService.class),
-            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings()),
-            licenseChecker
+            licenseChecker,
+            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings())
         );
 
         final Map<String, ServerTransportFilter> profileFilters = securityServerTransportInterceptor.getProfileFilters();

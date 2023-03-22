@@ -474,11 +474,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
 
         @Override
-        public void afterWinningElection() {
-            atomicRegisterPersistedState.refreshAppliedStateIfStale();
-        }
-
-        @Override
         public boolean isInvalidReconfiguration(
             ClusterState clusterState,
             CoordinationMetadata.VotingConfiguration lastAcceptedConfiguration,
@@ -647,30 +642,33 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             assertTrue(openPersistedStates.remove(this));
         }
 
-        public void refreshAppliedStateIfStale() {
-            var latestClusterState = sharedStore.getLatestClusterState();
-            if (latestClusterState == null) {
-                return;
-            }
+        @Override
+        public void getLatestStoredState(ActionListener<ClusterState> listener) {
+            ActionListener.completeWith(listener, () -> {
+                var latestClusterState = sharedStore.getLatestClusterState();
+                if (latestClusterState == null) {
+                    return null;
+                }
 
-            if (isLatestAcceptedStateStale(latestClusterState) == false) {
-                return;
-            }
+                if (isLatestAcceptedStateStale(latestClusterState) == false) {
+                    return null;
+                }
 
-            if (latestClusterState.term() > currentTerm) {
-                return;
-            }
+                if (latestClusterState.term() > currentTerm) {
+                    return null;
+                }
 
-            latestAcceptedState = ClusterStateUpdaters.recoverClusterBlocks(
-                ClusterStateUpdaters.addStateNotRecoveredBlock(
-                    ClusterState.builder(new ClusterName("elasticsearch"))
-                        .metadata(latestClusterState.state())
-                        .version(latestClusterState.version())
-                        .blocks(latestAcceptedState.blocks())
-                        .nodes(DiscoveryNodes.builder(latestAcceptedState.nodes()).masterNodeId(null))
-                        .build()
-                )
-            );
+                return ClusterStateUpdaters.recoverClusterBlocks(
+                    ClusterStateUpdaters.addStateNotRecoveredBlock(
+                        ClusterState.builder(new ClusterName("elasticsearch"))
+                            .metadata(latestClusterState.state())
+                            .version(latestClusterState.version())
+                            .blocks(latestAcceptedState.blocks())
+                            .nodes(DiscoveryNodes.builder(latestAcceptedState.nodes()).masterNodeId(null))
+                            .build()
+                    )
+                );
+            });
         }
 
         boolean isLatestAcceptedStateStale(PersistentClusterState latestClusterState) {

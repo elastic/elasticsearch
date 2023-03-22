@@ -224,7 +224,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             nodeHealthService,
             joinReasonService,
             circuitBreakerService,
-            reconfigurator::maybeReconfigureAfterNewMasterIsElected
+            reconfigurator::maybeReconfigureAfterNewMasterIsElected,
+            this::getLatestStoredStateAfterWinningAnElection
         );
         this.joinValidationService = new JoinValidationService(
             settings,
@@ -1376,6 +1377,13 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         synchronized (mutex) {
             return coordinationState.get().getLastAcceptedState();
         }
+    }
+
+    private void getLatestStoredStateAfterWinningAnElection(ActionListener<ClusterState> listener) {
+        persistedStateSupplier.get().getLatestStoredState(listener.delegateResponse((delegate, e) -> {
+            becomeCandidate("failed fetching latest stored state");
+            delegate.onFailure(e);
+        }));
     }
 
     @Nullable

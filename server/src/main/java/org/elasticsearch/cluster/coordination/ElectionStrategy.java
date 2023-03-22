@@ -108,6 +108,4 @@ public abstract class ElectionStrategy {
     public void beforeCommit(long term, long version, ActionListener<Void> listener) {
         listener.onResponse(null);
     }
-
-    public void afterWinningElection() {}
 }

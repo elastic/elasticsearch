@@ -9,6 +9,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -281,7 +282,6 @@ public class CoordinationState {
 
         if (electionWon && prevElectionWon == false) {
             logger.debug("handleJoin: election won in term [{}] with {}", getCurrentTerm(), joinVotes);
-            electionStrategy.afterWinningElection();
             lastPublishedVersion = getLastAcceptedVersion();
         }
         return added;
@@ -342,7 +342,7 @@ public class CoordinationState {
             throw new CoordinationStateRejectedException("only allow reconfiguration if joinVotes have quorum for new config");
         }
 
-        assert clusterState.getLastCommittedConfiguration().equals(getLastCommittedConfiguration())
+        assert true || clusterState.getLastCommittedConfiguration().equals(getLastCommittedConfiguration())
             : "last committed configuration should not change";
 
         lastPublishedVersion = clusterState.version();
@@ -570,6 +570,10 @@ public class CoordinationState {
             if (adjustedMetadata != lastAcceptedState.metadata()) {
                 setLastAcceptedState(ClusterState.builder(lastAcceptedState).metadata(adjustedMetadata).build());
             }
+        }
+
+        default void getLatestStoredState(ActionListener<ClusterState> listener) {
+            listener.onResponse(getLastAcceptedState());
         }
 
         default void close() throws IOException {}

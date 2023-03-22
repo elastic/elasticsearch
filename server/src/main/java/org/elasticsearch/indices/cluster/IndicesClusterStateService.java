@@ -616,8 +616,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             }
             logger.log(
                 (iteration + 25) % 30 == 0 ? Level.WARN : Level.DEBUG,
-                "shard lock currently unavailable for [{}], retrying in [{}]: [{}]",
+                "shard lock currently unavailable for [{}] while applying cluster state [version={},uuid={}], retrying in [{}]: [{}]",
                 shardRouting,
+                originalState.version(),
+                originalState.stateUUID(),
                 shardLockRetryInterval,
                 e.getMessage()
             );

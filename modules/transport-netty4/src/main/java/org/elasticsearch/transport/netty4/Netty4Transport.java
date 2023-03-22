@@ -88,6 +88,9 @@ public class Netty4Transport extends TcpTransport {
     );
 
     public static final Setting<Integer> NETTY_BOSS_COUNT = intSetting("transport.netty.boss_count", 1, 1, Property.NodeScope);
+    public static final ChannelOption<Integer> OPTION_TCP_KEEP_IDLE = NioChannelOption.of(NetUtils.getTcpKeepIdleSocketOption());
+    public static final ChannelOption<Integer> OPTION_TCP_KEEP_INTERVAL = NioChannelOption.of(NetUtils.getTcpKeepIntervalSocketOption());
+    public static final ChannelOption<Integer> OPTION_TCP_KEEP_COUNT = NioChannelOption.of(NetUtils.getTcpKeepCountSocketOption());
 
     private final SharedGroupFactory sharedGroupFactory;
     private final RecvByteBufAllocator recvByteBufAllocator;
@@ -160,24 +163,21 @@ public class Netty4Transport extends TcpTransport {
         bootstrap.channel(NettyAllocator.getChannelType());
         bootstrap.option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator());
 
+        // The TCP options are re-configured for client connections to RCS remote clusters
+        // If how options are configured is changed here, please also update RemoteClusterClientBootstrapOptions#configure
+        // which is used inside SecurityNetty4Transport#getClientBootstrap
         bootstrap.option(ChannelOption.TCP_NODELAY, TransportSettings.TCP_NO_DELAY.get(settings));
         bootstrap.option(ChannelOption.SO_KEEPALIVE, TransportSettings.TCP_KEEP_ALIVE.get(settings));
         if (TransportSettings.TCP_KEEP_ALIVE.get(settings)) {
             // Note that Netty logs a warning if it can't set the option
             if (TransportSettings.TCP_KEEP_IDLE.get(settings) >= 0) {
-                bootstrap.option(NioChannelOption.of(NetUtils.getTcpKeepIdleSocketOption()), TransportSettings.TCP_KEEP_IDLE.get(settings));
+                bootstrap.option(OPTION_TCP_KEEP_IDLE, TransportSettings.TCP_KEEP_IDLE.get(settings));
             }
             if (TransportSettings.TCP_KEEP_INTERVAL.get(settings) >= 0) {
-                bootstrap.option(
-                    NioChannelOption.of(NetUtils.getTcpKeepIntervalSocketOption()),
-                    TransportSettings.TCP_KEEP_INTERVAL.get(settings)
-                );
+                bootstrap.option(OPTION_TCP_KEEP_INTERVAL, TransportSettings.TCP_KEEP_INTERVAL.get(settings));
             }
             if (TransportSettings.TCP_KEEP_COUNT.get(settings) >= 0) {
-                bootstrap.option(
-                    NioChannelOption.of(NetUtils.getTcpKeepCountSocketOption()),
-                    TransportSettings.TCP_KEEP_COUNT.get(settings)
-                );
+                bootstrap.option(OPTION_TCP_KEEP_COUNT, TransportSettings.TCP_KEEP_COUNT.get(settings));
             }
         }
 
@@ -278,7 +278,7 @@ public class Netty4Transport extends TcpTransport {
     @Override
     protected Netty4TcpChannel initiateChannel(DiscoveryNode node, ConnectionProfile connectionProfile) throws IOException {
         InetSocketAddress address = node.getAddress().address();
-        Bootstrap bootstrapWithHandler = clientBootstrap.clone();
+        Bootstrap bootstrapWithHandler = getClientBootstrap(connectionProfile);
         bootstrapWithHandler.handler(getClientChannelInitializer(node, connectionProfile));
         bootstrapWithHandler.remoteAddress(address);
         ChannelFuture connectFuture = bootstrapWithHandler.connect();
@@ -299,6 +299,10 @@ public class Netty4Transport extends TcpTransport {
         channel.attr(CHANNEL_KEY).set(nettyChannel);
 
         return nettyChannel;
+    }
+
+    protected Bootstrap getClientBootstrap(ConnectionProfile connectionProfile) {
+        return clientBootstrap.clone();
     }
 
     @Override

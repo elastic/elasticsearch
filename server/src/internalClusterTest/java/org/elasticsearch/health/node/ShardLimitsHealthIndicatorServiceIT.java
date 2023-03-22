@@ -19,6 +19,7 @@ import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeRoles;
+import org.junit.After;
 import org.junit.Before;
 
 import java.util.List;
@@ -42,6 +43,15 @@ public class ShardLimitsHealthIndicatorServiceIT extends ESIntegTestCase {
         super.setUp();
         internalCluster = internalCluster();
         updateClusterSettings(Settings.builder().put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), 30));
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        super.tearDown();
+        updateClusterSettings(
+            Settings.builder()
+                .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getDefault(Settings.EMPTY))
+        );
     }
 
     public void testGreen() throws Exception {

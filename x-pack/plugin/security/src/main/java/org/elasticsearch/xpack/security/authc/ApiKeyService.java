@@ -302,7 +302,7 @@ public class ApiKeyService {
             if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES) && hasRemoteIndices(request.getRoleDescriptors())) {
                 // Creating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
                 listener.onFailure(
-                    new IllegalStateException(
+                    new IllegalArgumentException(
                         "all nodes must have version ["
                             + Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES
                             + "] or higher to support remote indices privileges for API keys"
@@ -412,7 +412,7 @@ public class ApiKeyService {
         if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES) && hasRemoteIndices(request.getRoleDescriptors())) {
             // Updating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
             listener.onFailure(
-                new IllegalStateException(
+                new IllegalArgumentException(
                     "all nodes must have version ["
                         + Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES
                         + "] or higher to support remote indices privileges for API keys"

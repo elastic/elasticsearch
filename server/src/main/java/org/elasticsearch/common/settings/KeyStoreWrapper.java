@@ -76,12 +76,6 @@ public class KeyStoreWrapper implements SecureSettings {
 
     public static final String PROMPT = "Enter password for the elasticsearch keystore : ";
 
-    /** An identifier for the type of data that may be stored in a keystore entry. */
-    private enum EntryType {
-        STRING,
-        FILE
-    }
-
     /** An entry in the keystore. The bytes are opaque and interpreted based on the entry type. */
     private static class Entry implements Writeable {
         final byte[] bytes;

@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.security.user.XPackUser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -244,8 +245,7 @@ public class AuthenticationTestHelper {
         RoleDescriptorsIntersection roleDescriptorsIntersection
     ) {
         try {
-            // TODO add apikey() once we have querying-cluster-side API key support
-            final Authentication authentication = AuthenticationTestHelper.builder().realm().build();
+            final Authentication authentication = randomCrossClusterAccessSupportedAuthenticationSubject(false);
             return new CrossClusterAccessSubjectInfo(authentication, roleDescriptorsIntersection);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -265,20 +265,44 @@ public class AuthenticationTestHelper {
             );
     }
 
-    public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo() {
-        return randomCrossClusterAccessSubjectInfo(true);
-    }
-
-    public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo(boolean allowInternalUser) {
-        final Set<String> allowedTypes = new HashSet<>(Set.of("realm"));
+    private static Authentication randomCrossClusterAccessSupportedAuthenticationSubject(boolean allowInternalUser) {
+        final Set<String> allowedTypes = new HashSet<>(Set.of("realm", "apikey"));
         if (allowInternalUser) {
             allowedTypes.add("internal");
         }
         final String type = ESTestCase.randomFrom(allowedTypes.toArray(new String[0]));
         return switch (type) {
-            case "realm" -> randomCrossClusterAccessSubjectInfo(
-                new RoleDescriptorsIntersection(
-                    // TODO randomize to add a second set once we have querying-cluster-side API key support
+            case "realm" -> AuthenticationTestHelper.builder().realm().build();
+            case "apikey" -> AuthenticationTestHelper.builder().apiKey().build();
+            case "internal" -> AuthenticationTestHelper.builder().internal(CrossClusterAccessUser.INSTANCE).build();
+            default -> throw new UnsupportedOperationException("unknown type " + type);
+        };
+    }
+
+    public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo() {
+        return randomCrossClusterAccessSubjectInfo(true);
+    }
+
+    public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo(boolean allowInternalUser) {
+        final Authentication authentication = randomCrossClusterAccessSupportedAuthenticationSubject(allowInternalUser);
+        return randomCrossClusterAccessSubjectInfo(authentication);
+    }
+
+    public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo(final Authentication authentication) {
+        if (CrossClusterAccessUser.is(authentication.getEffectiveSubject().getUser())) {
+            return crossClusterAccessSubjectInfoForInternalUser(false);
+        }
+        final int numberOfRoleDescriptors;
+        if (authentication.isApiKey()) {
+            // In case of API keys, we can have either 1 (only owner's - aka limited-by) or 2 role descriptors.
+            numberOfRoleDescriptors = ESTestCase.randomIntBetween(1, 2);
+        } else {
+            numberOfRoleDescriptors = 1;
+        }
+        final List<Set<RoleDescriptor>> roleDescriptors = new ArrayList<>(numberOfRoleDescriptors);
+        for (int i = 0; i < numberOfRoleDescriptors; i++) {
+            roleDescriptors.add(
+                Set.of(
                     new RoleDescriptor(
                         "_remote_user",
                         null,
@@ -293,10 +317,12 @@ public class AuthenticationTestHelper {
                     )
                 )
             );
-            case "internal" -> crossClusterAccessSubjectInfoForInternalUser(false);
-            default -> throw new IllegalArgumentException("Unknown type " + type);
-        };
-
+        }
+        try {
+            return new CrossClusterAccessSubjectInfo(authentication, new RoleDescriptorsIntersection(roleDescriptors));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     public static class AuthenticationTestBuilder {

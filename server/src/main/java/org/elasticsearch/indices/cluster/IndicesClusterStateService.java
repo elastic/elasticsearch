@@ -674,7 +674,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
                         final var pendingShardCreation = pendingShardCreations.get(shardRouting.shardId());
                         if (pendingShardCreation == null) {
-                            assert false;
                             listener.onResponse(false);
                             return;
                         }

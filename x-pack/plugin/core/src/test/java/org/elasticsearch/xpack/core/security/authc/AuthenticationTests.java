@@ -293,7 +293,7 @@ public class AuthenticationTests extends ESTestCase {
             randomCrossClusterAccessAuthentication(crossClusterApiKeyId1, crossClusterUser1, randomApiKeyAuthentication(user1, apiKeyId1))
         );
 
-        // Cluster access authentication with different API authorization keys is not allowed.
+        // Cluster access authentication with different API credentials keys is not allowed.
         final String crossClusterApiKeyId2 = randomValueOtherThan(crossClusterApiKeyId1, () -> randomAlphaOfLengthBetween(10, 20));
         assertCannotAccessResources(
             randomCrossClusterAccessAuthentication(crossClusterApiKeyId1, crossClusterUser1, randomApiKeyAuthentication(user1, apiKeyId1)),

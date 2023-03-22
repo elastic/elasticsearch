@@ -196,7 +196,7 @@ public class RemoteClusterSecurityApiKeyRestIT extends AbstractRemoteClusterSecu
                 )
             );
 
-            // Check that access is denied because of API key privileges
+            // Check that access is denied because of cross cluster access API key privileges
             final Request prefixedIndexSearchRequest = new Request("GET", "/my_remote_cluster:prefixed_index/_search");
             final ResponseException exception2 = expectThrows(
                 ResponseException.class,
@@ -295,7 +295,7 @@ public class RemoteClusterSecurityApiKeyRestIT extends AbstractRemoteClusterSecu
                 )
             );
 
-            // Check that authentication fails if we use a non-existent API key
+            // Check that authentication fails if we use a non-existent cross cluster access API key
             updateClusterSettings(Settings.builder().put("cluster.remote.my_remote_cluster.authorization", randomEncodedApiKey()).build());
             final ResponseException exception4 = expectThrows(
                 ResponseException.class,

@@ -23,7 +23,7 @@ import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearch
 public class BulkByScrollParallelizationHelperTests extends ESTestCase {
     public void testSliceIntoSubRequests() throws IOException {
         SearchRequest searchRequest = randomSearchRequest(
-            () -> randomSearchSourceBuilder(() -> null, () -> null, () -> null, () -> emptyList(), () -> null, () -> null)
+            () -> randomSearchSourceBuilder(() -> null, () -> null, () -> null, () -> null, () -> emptyList(), () -> null, () -> null)
         );
         if (searchRequest.source() != null) {
             // Clear the slice builder if there is one set. We can't call sliceIntoSubRequests if it is.

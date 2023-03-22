@@ -16,6 +16,13 @@ import java.io.IOException;
 
 public class RRFRankContextBuilderTests extends RankContextBuilderTests<RRFRankContextBuilder> {
 
+    public static RRFRankContextBuilder randomRankContextBuilder() {
+        RRFRankContextBuilder builder = new RRFRankContextBuilder();
+        builder.rankConstant(randomIntBetween(1, Integer.MAX_VALUE));
+        RankContextBuilderTests.randomRankContextBuilder(builder);
+        return builder;
+    }
+
     @Override
     protected RRFRankContextBuilder doCreateTestInstance() {
         RRFRankContextBuilder builder = new RRFRankContextBuilder();

@@ -46,7 +46,7 @@ public class TransportActionStatsTests extends ESTestCase {
 
     private static void assertHistogram(long[] histogram, String expectedJson) {
         assertEquals(expectedJson, Strings.toString((ToXContentFragment) (builder, params) -> {
-            TransportActionStats.histogramToXContent(builder, histogram, "h");
+            TransportActionStats.histogramToXContent(builder, histogram);
             return builder;
         }, false, true));
     }
@@ -55,20 +55,20 @@ public class TransportActionStatsTests extends ESTestCase {
         final var histogram = new long[29];
 
         assertHistogram(histogram, """
-            {"h":[]}""");
+            {"histogram":[]}""");
 
         histogram[0] = 10;
         assertHistogram(histogram, """
-            {"h":[{"lt":"8b","lt_bytes":8,"count":10}]}""");
+            {"histogram":[{"lt":"8b","lt_bytes":8,"count":10}]}""");
 
         histogram[0] = 0;
         histogram[4] = 10;
         assertHistogram(histogram, """
-            {"h":[{"ge":"64b","ge_bytes":64,"lt":"128b","lt_bytes":128,"count":10}]}""");
+            {"histogram":[{"ge":"64b","ge_bytes":64,"lt":"128b","lt_bytes":128,"count":10}]}""");
 
         histogram[6] = 20;
         assertHistogram(histogram, """
-            {"h":[\
+            {"histogram":[\
             {"ge":"64b","ge_bytes":64,"lt":"128b","lt_bytes":128,"count":10},\
             {"ge":"128b","ge_bytes":128,"lt":"256b","lt_bytes":256,"count":0},\
             {"ge":"256b","ge_bytes":256,"lt":"512b","lt_bytes":512,"count":20}\
@@ -76,7 +76,7 @@ public class TransportActionStatsTests extends ESTestCase {
 
         histogram[0] = 30;
         assertHistogram(histogram, """
-            {"h":[\
+            {"histogram":[\
             {"lt":"8b","lt_bytes":8,"count":30},\
             {"ge":"8b","ge_bytes":8,"lt":"16b","lt_bytes":16,"count":0},\
             {"ge":"16b","ge_bytes":16,"lt":"32b","lt_bytes":32,"count":0},\
@@ -89,11 +89,11 @@ public class TransportActionStatsTests extends ESTestCase {
         Arrays.fill(histogram, 0L);
         histogram[histogram.length - 1] = 5;
         assertHistogram(histogram, """
-            {"h":[{"ge":"1gb","ge_bytes":1073741824,"count":5}]}""");
+            {"histogram":[{"ge":"1gb","ge_bytes":1073741824,"count":5}]}""");
 
         histogram[histogram.length - 3] = 6;
         assertHistogram(histogram, """
-            {"h":[\
+            {"histogram":[\
             {"ge":"256mb","ge_bytes":268435456,"lt":"512mb","lt_bytes":536870912,"count":6},\
             {"ge":"512mb","ge_bytes":536870912,"lt":"1gb","lt_bytes":1073741824,"count":0},\
             {"ge":"1gb","ge_bytes":1073741824,"count":5}\
@@ -101,7 +101,7 @@ public class TransportActionStatsTests extends ESTestCase {
 
         Arrays.fill(histogram, 1L);
         assertHistogram(histogram, """
-            {"h":[\
+            {"histogram":[\
             {"lt":"8b","lt_bytes":8,"count":1},\
             {"ge":"8b","ge_bytes":8,"lt":"16b","lt_bytes":16,"count":1},\
             {"ge":"16b","ge_bytes":16,"lt":"32b","lt_bytes":32,"count":1},\

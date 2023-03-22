@@ -38,22 +38,22 @@ public record TransportActionStats(
         builder.startObject("requests");
         builder.field("count", requestCount);
         builder.humanReadableField("total_size_in_bytes", "total_size", ByteSizeValue.ofBytes(totalRequestSize));
-        histogramToXContent(builder, requestSizeHistogram, "histogram");
+        histogramToXContent(builder, requestSizeHistogram);
         builder.endObject();
 
         builder.startObject("responses");
         builder.field("count", responseCount);
         builder.humanReadableField("total_size_in_bytes", "total_size", ByteSizeValue.ofBytes(totalResponseSize));
-        histogramToXContent(builder, responseSizeHistogram, "histogram");
+        histogramToXContent(builder, responseSizeHistogram);
         builder.endObject();
 
         return builder.endObject();
     }
 
-    static void histogramToXContent(XContentBuilder builder, long[] sizeHistogram, String fieldName) throws IOException {
+    static void histogramToXContent(XContentBuilder builder, long[] sizeHistogram) throws IOException {
         final int[] bucketBounds = TransportActionStatsTracker.getBucketUpperBounds();
         assert sizeHistogram.length == bucketBounds.length + 1;
-        builder.startArray(fieldName);
+        builder.startArray("histogram");
 
         int firstBucket = 0;
         long remainingCount = 0L;

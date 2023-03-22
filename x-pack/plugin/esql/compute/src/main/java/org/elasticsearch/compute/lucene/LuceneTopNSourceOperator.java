@@ -50,9 +50,7 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
     private final Sort sort;
 
     public LuceneTopNSourceOperator(IndexReader reader, int shardId, Query query, int maxPageSize, int limit, Sort sort) {
-        // get 50% more documents from each group of documents (shard, segment, docs) in order to improve accuracy
-        // plus a small constant that should help with small values of 'limit'. The same approach is used by ES terms aggregation
-        super(reader, shardId, query, maxPageSize, (int) (limit * 1.5 + 10));
+        super(reader, shardId, query, maxPageSize, limit);
         this.currentSegmentBuilder = IntVector.newVectorBuilder(maxPageSize);
         this.leafReaderContexts = reader.leaves();
         this.sort = sort;

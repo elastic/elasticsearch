@@ -1,0 +1,18 @@
+[[data-lifecycle-management-api]]
+== Data Lifecycle Management APIs
+
+You use the following APIs to automatically manage the lifecycle of your data stream, for example you can set the
+retention of your data. This functionality is in experimental:[].
+
+[discrete]
+[[dlm-api-policy-endpoint]]
+=== Data lifecycle management APIs
+
+* <<dlm-put-lifecycle,Update data stream lifecycle>>
+* <<dlm-get-lifecycle,Get data stream lifecycle>>
+* <<dlm-delete-lifecycle,Delete data stream lifecycle>>
+
+
+include::put-lifecycle.asciidoc[]
+include::get-lifecycle.asciidoc[]
+include::delete-lifecycle.asciidoc[]

@@ -1,0 +1,100 @@
+[[dlm-put-lifecycle]]
+=== Set the lifecycle of a data stream
+++++
+<titleabbrev>Put Data Stream Lifecycle</titleabbrev>
+++++
+
+Sets the lifecycle of a set of data streams. This API is in experimental:[].
+
+[[dlm-put-lifecycle-request]]
+==== {api-request-title}
+
+`PUT _data_stream/_lifecycle`
+`PUT _data_stream/<data-stream>/_lifecycle`
+
+[[dlm-put-lifecycle-prereqs]]
+==== {api-prereq-title}
+
+// TODO Update security
+// * If the {es} {security-features} are enabled, you must have the <role>
+// cluster privilege to use this API. For more information, see
+// <<security-privileges>>.
+
+[[dlm-put-lifecycle-desc]]
+==== {api-description-title}
+
+Sets the lifecycle of the specified data streams. If a data stream does not exist,
+the request fails and returns an error.
+
+[[dlm-put-lifecycle-path-params]]
+==== {api-path-parms-title}
+
+`<data-stream>`::
+(Required, string) Comma-separated list of data streams used to limit the request. Supports wildcards (`*`).
+To target all data streams omit this parameter or use `*` or `_all`.
+
+[role="child_attributes"]
+[[put-data-lifecycle-api-query-parms]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
++
+Defaults to `open`.
+
+[[put-lifecycle-api-request-body]]
+==== {api-request-body-title}
+
+`lifecycle`::
+(Required, object)
++
+.Properties of `lifecycle`
+[%collapsible%open]
+====
+`data_retention`::
+(Optional, string)
+If defined, every document added to this data stream will be stored at least for this time frame. Any time after this
+duration the document could be deleted. When empty, every document in this data stream will be stored indefinitely.
+====
+
+[[dlm-put-lifecycle-example]]
+==== {api-examples-title}
+
+The following example sets the lifecycle of `my-data-stream`:
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+PUT _index_template/my-data-stream-template
+{
+  "index_patterns": ["my-data-stream*"],
+  "composed_of": [],
+  "data_stream": {}
+}
+
+PUT _data_stream/my-data-stream
+
+--------------------------------------------------
+// TEST
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+PUT _data_streams/my-data-stream/_lifecycle
+{
+  "lifecycle": {
+    "data_retention": "7d"
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+
+When the lifecycle is successfully updated in all data streams, you receive the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------

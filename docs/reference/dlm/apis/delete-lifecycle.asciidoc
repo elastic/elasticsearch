@@ -1,0 +1,84 @@
+[[dlm-delete-lifecycle]]
+=== Delete the lifecycle of a data stream
+++++
+<titleabbrev>Delete Data Stream Lifecycle</titleabbrev>
+++++
+
+Deletes the lifecycle from a set of data streams. This API is in experimental:[].
+
+[[dlm-delete-lifecycle-request]]
+==== {api-request-title}
+
+`DELETE _data_stream/_lifecycle`
+`DELETE _data_stream/<data-stream>/_lifecycle`
+
+[[dlm-delete-lifecycle-prereqs]]
+==== {api-prereq-title}
+
+// TODO Update security
+// * If the {es} {security-features} are enabled, you must have the <role>
+// cluster privilege to use this API. For more information, see
+// <<security-privileges>>.
+
+[[dlm-delete-lifecycle-desc]]
+==== {api-description-title}
+
+Deletes the lifecycle from the specified data streams. If a data stream does not exist,
+the request fails and returns an error.
+
+[[dlm-delete-lifecycle-path-params]]
+==== {api-path-parms-title}
+
+`<data-stream>`::
+(Required, string) Comma-separated list of data streams used to limit the request. Supports wildcards (`*`).
+To target all data streams omit this parameter or use `*` or `_all`.
+
+[role="child_attributes"]
+[[delete-data-lifecycle-api-query-parms]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
++
+Defaults to `open`.
+
+[[dlm-delete-lifecycle-example]]
+==== {api-examples-title}
+
+The following example deletes the lifecycle of `my-data-stream`:
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+PUT _index_template/my-data-stream-template
+{
+  "index_patterns": ["my-data-stream*"],
+  "composed_of": [],
+  "template": {
+    "lifecycle": {
+     "data_retention": "10d"
+    }
+  },
+  "data_stream": {}
+}
+
+PUT _data_stream/my-data-stream
+--------------------------------------------------
+// TEST
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+GET _data_stream/_lifecycle
+--------------------------------------------------
+// TEST[continued]
+
+When the policy is successfully deleted, you receive the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------

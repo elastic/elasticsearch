@@ -65,7 +65,7 @@ public class EsqlActionTaskIT extends ESIntegTestCase {
     private static final int COUNT = LuceneSourceOperator.PAGE_SIZE * 5;
 
     private static final String READ_DESCRIPTION = """
-        \\_LuceneSourceOperator(dataPartitioning = SHARD)
+        \\_LuceneSourceOperator(dataPartitioning = SHARD, limit = 2147483647)
         \\_ValuesSourceReaderOperator(field = pause_me)
         \\_AggregationOperator(mode = INITIAL, aggs = sum of longs)
         \\_ExchangeSinkOperator""";

@@ -50,6 +50,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ValueSourceInfo;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
@@ -163,7 +164,7 @@ public class OperatorTests extends ESTestCase {
 
                 List<Driver> drivers = new ArrayList<>();
                 try {
-                    for (LuceneSourceOperator luceneSourceOperator : new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery()).docSlice(
+                    for (LuceneOperator luceneSourceOperator : new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery()).docSlice(
                         randomIntBetween(1, 10)
                     )) {
                         drivers.add(
@@ -314,7 +315,7 @@ public class OperatorTests extends ESTestCase {
             final long to = randomBoolean() ? Long.MAX_VALUE : randomLongBetween(from, from + 10000);
             final Query query = LongPoint.newRangeQuery("pt", from, to);
             final String partition = randomFrom("shard", "segment", "doc");
-            final List<LuceneSourceOperator> queryOperators = switch (partition) {
+            final List<LuceneOperator> queryOperators = switch (partition) {
                 case "shard" -> List.of(new LuceneSourceOperator(reader, 0, query));
                 case "segment" -> new LuceneSourceOperator(reader, 0, query).segmentSlice();
                 case "doc" -> new LuceneSourceOperator(reader, 0, query).docSlice(randomIntBetween(1, 10));
@@ -323,7 +324,7 @@ public class OperatorTests extends ESTestCase {
             List<Driver> drivers = new ArrayList<>();
             try {
                 Set<Integer> actualDocIds = Collections.newSetFromMap(ConcurrentCollections.newConcurrentMap());
-                for (LuceneSourceOperator queryOperator : queryOperators) {
+                for (LuceneOperator queryOperator : queryOperators) {
                     PageConsumerOperator docCollector = new PageConsumerOperator(page -> {
                         DocVector docVector = page.<DocBlock>getBlock(0).asVector();
                         IntVector doc = docVector.docs();

@@ -194,7 +194,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
             histogramToXContent(builder, outboundHandlingTimeBucketFrequencies, Fields.OUTBOUND_HANDLING_TIME_HISTOGRAM);
         } else {
             // Stats came from before v8.1
-            assert Version.CURRENT.major == Version.V_8_0_0.major;
+            assert Version.CURRENT.major == Version.V_7_0_0.major + 1;
         }
         if (transportActionStats.isEmpty() == false) {
             builder.startObject(Fields.ACTIONS);
@@ -203,8 +203,8 @@ public class TransportStats implements Writeable, ToXContentFragment {
             }
             builder.endObject();
         } else {
-            // Stats came from before v8.7
-            assert Version.CURRENT.major == Version.V_8_0_0.major;
+            // Stats came from before v8.8
+            assert Version.CURRENT.major == Version.V_7_0_0.major + 1;
         }
         builder.endObject();
         return builder;

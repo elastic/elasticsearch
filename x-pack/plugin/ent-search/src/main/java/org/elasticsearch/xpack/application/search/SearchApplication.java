@@ -187,10 +187,20 @@ public class SearchApplication implements Writeable, ToXContentObject {
         return analyticsCollectionName;
     }
 
+    /**
+     * Returns the timestamp in milliseconds that this {@link SearchApplication} was last modified.
+     *
+     * @return The last updated timestamp in milliseconds.
+     */
     public long updatedAtMillis() {
         return updatedAtMillis;
     }
 
+    /**
+     * Updates the timestamp in milliseconds that this {@link SearchApplication} was last modified.
+     *
+     * @param updatedAtMillis Timestamp in milliseconds
+     */
     public void setUpdatedAtMillis(long updatedAtMillis) {
         this.updatedAtMillis = updatedAtMillis;
     }

@@ -36,6 +36,14 @@ public class SearchApplicationListItem implements Writeable, ToXContentObject {
 
     private final long updatedAtMillis;
 
+    /**
+     * Constructs a SearchApplicationListItem.
+     *
+     * @param name The name of the search application
+     * @param indices The indices associated with the search application
+     * @param analyticsCollectionName The analytics collection associated with this application if one exists
+     * @param updatedAtMillis The timestamp in milliseconds when this search application was last updated.
+     */
     public SearchApplicationListItem(String name, String[] indices, @Nullable String analyticsCollectionName, long updatedAtMillis) {
         this.name = name;
         this.indices = indices;
@@ -71,18 +79,38 @@ public class SearchApplicationListItem implements Writeable, ToXContentObject {
         out.writeLong(updatedAtMillis);
     }
 
+    /**
+     * Returns the name of the {@link SearchApplicationListItem}.
+     *
+     * @return the name.
+     */
     public String name() {
         return name;
     }
 
+    /**
+     * Returns the indices associated with the {@link SearchApplicationListItem}.
+     *
+     * @return the indices.
+     */
     public String[] indices() {
         return indices;
     }
 
+    /**
+     * Returns the analytics collection associated with the {@link SearchApplicationListItem} if one exists.
+     *
+     * @return the analytics collection.
+     */
     public String analyticsCollectionName() {
         return analyticsCollectionName;
     }
 
+    /**
+     * Returns the timestamp in milliseconds when the {@link SearchApplicationListItem} was last modified.
+     *
+     * @return the last updated timestamp in milliseconds.
+     */
     public long updatedAtMillis() {
         return updatedAtMillis;
     }

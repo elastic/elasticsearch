@@ -580,7 +580,6 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         };
     }
 
-    @Override
     public License getLicense(final Metadata metadata) {
         final LicensesMetadata licensesMetadata = metadata.custom(LicensesMetadata.TYPE);
         return getLicenseFromMetaData(licensesMetadata);

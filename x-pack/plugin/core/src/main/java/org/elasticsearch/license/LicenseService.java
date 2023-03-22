@@ -9,7 +9,6 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 
@@ -30,16 +29,6 @@ public interface LicenseService extends LifecycleComponent {
      * @return {@link XPackLicenseState} which should be the preferred way to read the license state to make license based decisions.
      */
     XPackLicenseState getXPackLicenseState();
-
-    /**
-     * Get the current license from the provided metadata. Implementations not backed by {@link org.elasticsearch.cluster.ClusterState}
-     * should not implement this interface.
-     * @param metaData the {@link Metadata} to read the license information from.
-     * @return the current license, null or {@link LicensesMetadata#LICENSE_TOMBSTONE} if no license is available.
-     */
-    default License getLicense(Metadata metaData) {
-        return getLicense();
-    }
 
     /**
      * Interface to update the current license.

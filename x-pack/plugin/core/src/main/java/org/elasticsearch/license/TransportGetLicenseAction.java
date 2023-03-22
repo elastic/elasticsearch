@@ -60,6 +60,10 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadAction<Get
         ClusterState state,
         final ActionListener<GetLicenseResponse> listener
     ) throws ElasticsearchException {
-        listener.onResponse(new GetLicenseResponse(licenseService.getLicense(state.metadata())));
+        if (licenseService instanceof ClusterStateLicenseService clusterStateLicenseService) {
+            listener.onResponse(new GetLicenseResponse(clusterStateLicenseService.getLicense(state.metadata())));
+        } else {
+            listener.onResponse(new GetLicenseResponse(licenseService.getLicense()));
+        }
     }
 }

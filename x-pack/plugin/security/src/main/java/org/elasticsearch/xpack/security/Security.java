@@ -55,6 +55,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensedFeature;
@@ -1713,7 +1714,12 @@ public class Security extends Plugin
         @Override
         public void accept(DiscoveryNode node, ClusterState state) {
             if (inFipsMode) {
-                License license = licenseService.getLicense(state.metadata());
+                License license;
+                if (licenseService instanceof ClusterStateLicenseService clusterStateLicenseService) {
+                    license = clusterStateLicenseService.getLicense(state.metadata());
+                } else {
+                    license = licenseService.getLicense();
+                }
                 if (license != null && XPackLicenseState.isFipsAllowedForOperationMode(license.operationMode()) == false) {
                     throw new IllegalStateException(
                         "FIPS mode cannot be used with a ["

@@ -70,7 +70,7 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
         );
         NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, Version.CURRENT);
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
-        LicenseService licenseService = mock(LicenseService.class);
+        ClusterStateLicenseService licenseService = mock(ClusterStateLicenseService.class);
         Metadata metadata = createLicensesMetadata(previousVersion, randomFrom("gold", "platinum"));
         License license = mock(License.class);
         when(licenseService.getLicense(metadata)).thenReturn(license);

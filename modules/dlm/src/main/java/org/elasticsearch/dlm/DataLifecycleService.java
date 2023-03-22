@@ -47,8 +47,6 @@ import java.time.Clock;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 /**
@@ -226,7 +224,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
             RolloverRequest rolloverRequest = getDefaultRolloverRequest(dataStream.getName());
             transportActionsDeduplicator.executeOnce(
                 rolloverRequest,
-                new ErrorRecordingActionListener(writeIndex.getName(), errorStore::recordError, errorStore::clearRecordedError),
+                new ErrorRecordingActionListener(writeIndex.getName(), errorStore),
                 (req, reqListener) -> rolloverDataStream(writeIndex.getName(), rolloverRequest, reqListener)
             );
         }
@@ -250,7 +248,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                 // time to delete the index
                 transportActionsDeduplicator.executeOnce(
                     deleteRequest,
-                    new ErrorRecordingActionListener(indexName, errorStore::recordError, errorStore::clearRecordedError),
+                    new ErrorRecordingActionListener(indexName, errorStore),
                     (req, reqListener) -> deleteIndex(deleteRequest, retention, reqListener)
                 );
             }
@@ -351,23 +349,21 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
      */
     static class ErrorRecordingActionListener implements ActionListener<Void> {
         private final String targetIndex;
-        private final BiConsumer<String, Exception> recordError;
-        private final Consumer<String> clearErrorRecord;
+        private final DataLifecycleErrorStore errorStore;
 
-        ErrorRecordingActionListener(String targetIndex, BiConsumer<String, Exception> recordError, Consumer<String> clearErrorRecord) {
+        ErrorRecordingActionListener(String targetIndex, DataLifecycleErrorStore errorStore) {
             this.targetIndex = targetIndex;
-            this.recordError = recordError;
-            this.clearErrorRecord = clearErrorRecord;
+            this.errorStore = errorStore;
         }
 
         @Override
         public void onResponse(Void unused) {
-            clearErrorRecord.accept(targetIndex);
+            errorStore.clearRecordedError(targetIndex);
         }
 
         @Override
         public void onFailure(Exception e) {
-            recordError.accept(targetIndex, e);
+            errorStore.recordError(targetIndex, e);
         }
     }
 

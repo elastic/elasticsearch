@@ -33,7 +33,7 @@ public record TransportActionStats(
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(action);
+        builder.startObject();
 
         builder.startObject("requests");
         builder.field("count", requestCount);

@@ -15,13 +15,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContentFragment;
 
 import java.util.Arrays;
-import java.util.List;
+import java.util.Map;
 
 public class TransportStatsTests extends ESTestCase {
     public void testToXContent() {
         assertEquals(
             Strings.toString(
-                new TransportStats(1, 2, 3, ByteSizeUnit.MB.toBytes(4), 5, ByteSizeUnit.MB.toBytes(6), new long[0], new long[0], List.of()),
+                new TransportStats(1, 2, 3, ByteSizeUnit.MB.toBytes(4), 5, ByteSizeUnit.MB.toBytes(6), new long[0], new long[0], Map.of()),
                 false,
                 true
             ),
@@ -35,7 +35,7 @@ public class TransportStatsTests extends ESTestCase {
         final var histogram = new long[HandlingTimeTracker.BUCKET_COUNT];
         assertEquals(
             Strings.toString(
-                new TransportStats(1, 2, 3, ByteSizeUnit.MB.toBytes(4), 5, ByteSizeUnit.MB.toBytes(6), histogram, histogram, List.of()),
+                new TransportStats(1, 2, 3, ByteSizeUnit.MB.toBytes(4), 5, ByteSizeUnit.MB.toBytes(6), histogram, histogram, Map.of()),
                 false,
                 true
             ),
@@ -51,7 +51,7 @@ public class TransportStatsTests extends ESTestCase {
         histogram[4] = 10;
         assertEquals(
             Strings.toString(
-                new TransportStats(1, 2, 3, ByteSizeUnit.MB.toBytes(4), 5, ByteSizeUnit.MB.toBytes(6), histogram, histogram, List.of()),
+                new TransportStats(1, 2, 3, ByteSizeUnit.MB.toBytes(4), 5, ByteSizeUnit.MB.toBytes(6), histogram, histogram, Map.of()),
                 false,
                 true
             ),
@@ -64,11 +64,11 @@ public class TransportStatsTests extends ESTestCase {
                 }}"""
         );
 
-        final var requestSizeHistogram = new long[27];
+        final var requestSizeHistogram = new long[29];
         requestSizeHistogram[2] = 9;
         requestSizeHistogram[4] = 10;
 
-        final var responseSizeHistogram = new long[27];
+        final var responseSizeHistogram = new long[29];
         responseSizeHistogram[3] = 13;
         responseSizeHistogram[5] = 14;
 
@@ -93,7 +93,7 @@ public class TransportStatsTests extends ESTestCase {
                     ByteSizeUnit.MB.toBytes(6),
                     new long[0],
                     new long[0],
-                    List.of(exampleActionStats)
+                    Map.of(exampleActionStats.action(), exampleActionStats)
                 ),
                 false,
                 true

@@ -26,11 +26,12 @@ import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.transport.BytesRefRecycler.NON_RECYCLING_INSTANCE;
 
@@ -291,13 +292,11 @@ public interface Transport extends LifecycleComponent {
             return (RequestHandlerRegistry<T>) requestHandlers.get(action);
         }
 
-        public List<TransportActionStats> getStats() {
+        public Map<String, TransportActionStats> getStats() {
             return requestHandlers.values()
                 .stream()
                 .filter(reg -> reg.getStats().requestCount() > 0 || reg.getStats().responseCount() > 0)
-                .sorted(Comparator.comparing(RequestHandlerRegistry::getAction))
-                .map(RequestHandlerRegistry::getStats)
-                .toList();
+                .collect(Collectors.toMap(RequestHandlerRegistry::getAction, RequestHandlerRegistry::getStats, (a, b) -> a, TreeMap::new));
         }
     }
 }

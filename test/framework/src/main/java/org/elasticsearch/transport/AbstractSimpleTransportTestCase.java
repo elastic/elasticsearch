@@ -3122,8 +3122,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
 
         final var statsBeforeRequest = serviceB.transport().getStats().getTransportActionStats();
-        assertEquals(1L, statsBeforeRequest.size());
-        final var handshakeStats = statsBeforeRequest.get(0);
+        assertEquals(Set.of(HANDSHAKE_ACTION_NAME), statsBeforeRequest.keySet());
+        final var handshakeStats = statsBeforeRequest.get(HANDSHAKE_ACTION_NAME);
         assertEquals(HANDSHAKE_ACTION_NAME, handshakeStats.action());
         assertEquals(1, handshakeStats.requestCount());
         assertEquals(1, handshakeStats.responseCount());
@@ -3157,32 +3157,23 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 ).refSize
             );
 
-            for (TransportActionStats transportActionStats : serviceB.transport().getStats().getTransportActionStats()) {
-                switch (transportActionStats.action()) {
-                    case HANDSHAKE_ACTION_NAME -> {}
-                    case ACTION -> {
-                        assertEquals(iteration, transportActionStats.requestCount());
-                        assertEquals(iteration, transportActionStats.responseCount());
-                        if (iteration == 1) {
-                            actualRequestSize = transportActionStats.totalRequestSize();
-                            actualResponseSize = transportActionStats.totalResponseSize();
-                            assertThat(actualRequestSize, allOf(greaterThan(requestSize + 16L), lessThan(requestSize + 256L)));
-                            assertThat(actualResponseSize, allOf(greaterThan(responseSize + 16L), lessThan(responseSize + 256L)));
-                        }
-                        assertEquals(iteration * actualRequestSize, transportActionStats.totalRequestSize());
-                        assertEquals(iteration * actualResponseSize, transportActionStats.totalResponseSize());
-                        assertArrayEquals(
-                            getConstantMessageSizeHistogram(iteration, actualRequestSize),
-                            transportActionStats.requestSizeHistogram()
-                        );
-                        assertArrayEquals(
-                            getConstantMessageSizeHistogram(iteration, actualResponseSize),
-                            transportActionStats.responseSizeHistogram()
-                        );
-                    }
-                    default -> fail("unexpected action: " + transportActionStats.action());
-                }
+            final var allTransportActionStats = serviceB.transport().getStats().getTransportActionStats();
+            // using a sorted map, so the keys are in a deterministic order:
+            assertEquals(List.of(ACTION, HANDSHAKE_ACTION_NAME), allTransportActionStats.keySet().stream().toList());
+
+            final var transportActionStats = allTransportActionStats.get(ACTION);
+            assertEquals(iteration, transportActionStats.requestCount());
+            assertEquals(iteration, transportActionStats.responseCount());
+            if (iteration == 1) {
+                actualRequestSize = transportActionStats.totalRequestSize();
+                actualResponseSize = transportActionStats.totalResponseSize();
+                assertThat(actualRequestSize, allOf(greaterThan(requestSize + 16L), lessThan(requestSize + 256L)));
+                assertThat(actualResponseSize, allOf(greaterThan(responseSize + 16L), lessThan(responseSize + 256L)));
             }
+            assertEquals(iteration * actualRequestSize, transportActionStats.totalRequestSize());
+            assertEquals(iteration * actualResponseSize, transportActionStats.totalResponseSize());
+            assertArrayEquals(getConstantMessageSizeHistogram(iteration, actualRequestSize), transportActionStats.requestSizeHistogram());
+            assertArrayEquals(getConstantMessageSizeHistogram(iteration, actualResponseSize), transportActionStats.responseSizeHistogram());
         }
     }
 

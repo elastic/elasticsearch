@@ -21,7 +21,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
+import java.util.Collections;
+import java.util.Map;
 
 public class TransportStats implements Writeable, ToXContentFragment {
 
@@ -33,7 +34,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
     private final long txSize;
     private final long[] inboundHandlingTimeBucketFrequencies;
     private final long[] outboundHandlingTimeBucketFrequencies;
-    private final List<TransportActionStats> transportActionStats;
+    private final Map<String, TransportActionStats> transportActionStats;
 
     public TransportStats(
         long serverOpen,
@@ -44,7 +45,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
         long txSize,
         long[] inboundHandlingTimeBucketFrequencies,
         long[] outboundHandlingTimeBucketFrequencies,
-        List<TransportActionStats> transportActionStats
+        Map<String, TransportActionStats> transportActionStats
     ) {
         this.serverOpen = serverOpen;
         this.totalOutboundConnections = totalOutboundConnections;
@@ -79,9 +80,9 @@ public class TransportStats implements Writeable, ToXContentFragment {
             outboundHandlingTimeBucketFrequencies = new long[0];
         }
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-            transportActionStats = in.readList(TransportActionStats::new);
+            transportActionStats = Collections.unmodifiableMap(in.readOrderedMap(StreamInput::readString, TransportActionStats::new));
         } else {
-            transportActionStats = List.of();
+            transportActionStats = Map.of();
         }
         assert assertHistogramsConsistent();
     }
@@ -105,7 +106,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
             }
         }
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-            out.writeCollection(transportActionStats);
+            out.writeMap(transportActionStats, StreamOutput::writeString, StreamOutput::writeWriteable);
         } // else just drop these stats
     }
 
@@ -165,7 +166,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
         return Arrays.copyOf(outboundHandlingTimeBucketFrequencies, outboundHandlingTimeBucketFrequencies.length);
     }
 
-    public List<TransportActionStats> getTransportActionStats() {
+    public Map<String, TransportActionStats> getTransportActionStats() {
         return transportActionStats;
     }
 
@@ -198,8 +199,9 @@ public class TransportStats implements Writeable, ToXContentFragment {
         }
         if (transportActionStats.isEmpty() == false) {
             builder.startObject(Fields.ACTIONS);
-            for (TransportActionStats actionStats : transportActionStats) {
-                actionStats.toXContent(builder, params);
+            for (final var entry : transportActionStats.entrySet()) {
+                builder.field(entry.getKey());
+                entry.getValue().toXContent(builder, params);
             }
             builder.endObject();
         } else {

@@ -838,7 +838,7 @@ public class NodeStatsTests extends ESTestCase {
                 randomNonNegativeLong(),
                 IntStream.range(0, HandlingTimeTracker.BUCKET_COUNT).mapToLong(i -> randomNonNegativeLong()).toArray(),
                 IntStream.range(0, HandlingTimeTracker.BUCKET_COUNT).mapToLong(i -> randomNonNegativeLong()).toArray(),
-                List.of(new TransportActionStats("test-action", 1, 2, new long[29], 3, 4, new long[29]))
+                Map.of("test-action", new TransportActionStats("test-action", 1, 2, new long[29], 3, 4, new long[29]))
             )
             : null;
         HttpStats httpStats = null;

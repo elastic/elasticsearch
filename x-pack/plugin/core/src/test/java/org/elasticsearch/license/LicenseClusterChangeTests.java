@@ -31,17 +31,19 @@ import static org.mockito.Mockito.when;
 public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
 
     private TestUtils.AssertingLicenseState licenseState;
+    private ClusterStateLicenseService clusterStateLicenseService;
 
     @Before
     public void setup() {
         licenseState = new TestUtils.AssertingLicenseState();
         setInitialState(null, licenseState, Settings.EMPTY);
-        clusterStateLicenseService.start();
+        clusterStateLicenseService = (ClusterStateLicenseService) licenseService;
+        licenseService.start();
     }
 
     @After
     public void teardown() {
-        clusterStateLicenseService.stop();
+        licenseService.stop();
     }
 
     public void testNotificationOnNewLicense() throws Exception {

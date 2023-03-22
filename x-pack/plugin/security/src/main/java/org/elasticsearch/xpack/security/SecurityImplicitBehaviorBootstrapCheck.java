@@ -11,16 +11,18 @@ import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.env.NodeMetadata;
-import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 public class SecurityImplicitBehaviorBootstrapCheck implements BootstrapCheck {
 
     private final NodeMetadata nodeMetadata;
+    private final LicenseService licenseService;
 
-    public SecurityImplicitBehaviorBootstrapCheck(NodeMetadata nodeMetadata) {
+    public SecurityImplicitBehaviorBootstrapCheck(NodeMetadata nodeMetadata, LicenseService licenseService) {
         this.nodeMetadata = nodeMetadata;
+        this.licenseService = licenseService;
     }
 
     @Override
@@ -28,7 +30,7 @@ public class SecurityImplicitBehaviorBootstrapCheck implements BootstrapCheck {
         if (nodeMetadata == null) {
             return BootstrapCheckResult.success();
         }
-        final License license = ClusterStateLicenseService.getLicense(context.metadata());
+        final License license = licenseService.getLicense(context.metadata());
         final Version lastKnownVersion = nodeMetadata.previousNodeVersion();
         // pre v7.2.0 nodes have Version.EMPTY and its id is 0, so Version#before handles this successfully
         if (lastKnownVersion.before(Version.V_8_0_0)

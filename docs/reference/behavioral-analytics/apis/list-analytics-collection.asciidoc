@@ -53,7 +53,7 @@ A sample response:
       }
   }
 ]
----
+----
 
 The following example returns the a Analytics Collection that matches `foo`:
 
@@ -74,7 +74,7 @@ A sample response:
       }
   }
 ]
----
+----
 
 The following example returns the a Analytics Collection that is prefixed with `f`:
 

@@ -140,7 +140,7 @@ public class AuthenticationTests extends ESTestCase {
 
     public void testCrossClusterAccessCanAccessResourceOf() throws IOException {
         final String apiKeyId1 = randomAlphaOfLengthBetween(10, 20);
-        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo1 = randomCrossClusterAccessSubjectInfo(
+        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo1 = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(
             AuthenticationTestHelper.builder().realm().build()
         );
         final Authentication authentication = AuthenticationTestHelper.builder()

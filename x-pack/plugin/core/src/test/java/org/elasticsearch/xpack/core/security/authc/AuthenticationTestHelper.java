@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -81,7 +82,8 @@ public class AuthenticationTestHelper {
         XPackUser.INSTANCE,
         XPackSecurityUser.INSTANCE,
         AsyncSearchUser.INSTANCE,
-        SecurityProfileUser.INSTANCE
+        SecurityProfileUser.INSTANCE,
+        CrossClusterAccessUser.INSTANCE
     );
 
     public static AuthenticationTestBuilder builder() {
@@ -234,7 +236,8 @@ public class AuthenticationTestHelper {
             UsernamesField.XPACK_ROLE,
             UsernamesField.ASYNC_SEARCH_ROLE,
             UsernamesField.XPACK_SECURITY_ROLE,
-            UsernamesField.SECURITY_PROFILE_ROLE
+            UsernamesField.SECURITY_PROFILE_ROLE,
+            UsernamesField.CROSS_CLUSTER_ACCESS_ROLE
         );
     }
 
@@ -242,27 +245,53 @@ public class AuthenticationTestHelper {
         RoleDescriptorsIntersection roleDescriptorsIntersection
     ) {
         try {
-            final Authentication authentication = randomCrossClusterAccessSupportedAuthenticationSubject();
+            final Authentication authentication = randomCrossClusterAccessSupportedAuthenticationSubject(false);
             return new CrossClusterAccessSubjectInfo(authentication, roleDescriptorsIntersection);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
-    private static Authentication randomCrossClusterAccessSupportedAuthenticationSubject() {
-        return ESTestCase.randomFrom(
-            AuthenticationTestHelper.builder().realm(),
-            AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE),
-            AuthenticationTestHelper.builder().apiKey()
-        ).build();
+    public static CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfoForInternalUser(boolean emptyRoleDescriptors) {
+        final Authentication authentication = AuthenticationTestHelper.builder().internal(CrossClusterAccessUser.INSTANCE).build();
+        return emptyRoleDescriptors
+            ? CrossClusterAccessUser.subjectInfoWithEmptyRoleDescriptors(
+                authentication.getEffectiveSubject().getTransportVersion(),
+                authentication.getEffectiveSubject().getRealm().getNodeName()
+            )
+            : CrossClusterAccessUser.subjectInfoWithRoleDescriptors(
+                authentication.getEffectiveSubject().getTransportVersion(),
+                authentication.getEffectiveSubject().getRealm().getNodeName()
+            );
+    }
+
+    private static Authentication randomCrossClusterAccessSupportedAuthenticationSubject(boolean allowInternalUser) {
+        final Set<String> allowedTypes = new HashSet<>(Set.of("realm", "apikey"));
+        if (allowInternalUser) {
+            allowedTypes.add("internal");
+        }
+        final String type = ESTestCase.randomFrom(allowedTypes.toArray(new String[0]));
+        return switch (type) {
+            case "realm" -> AuthenticationTestHelper.builder().realm().build();
+            case "apikey" -> AuthenticationTestHelper.builder().apiKey().build();
+            case "internal" -> AuthenticationTestHelper.builder().internal(CrossClusterAccessUser.INSTANCE).build();
+            default -> throw new UnsupportedOperationException("unknown type " + type);
+        };
     }
 
     public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo() {
-        final Authentication authentication = randomCrossClusterAccessSupportedAuthenticationSubject();
+        return randomCrossClusterAccessSubjectInfo(true);
+    }
+
+    public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo(boolean allowInternalUser) {
+        final Authentication authentication = randomCrossClusterAccessSupportedAuthenticationSubject(allowInternalUser);
         return randomCrossClusterAccessSubjectInfo(authentication);
     }
 
     public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo(final Authentication authentication) {
+        if (CrossClusterAccessUser.is(authentication.getEffectiveSubject().getUser())) {
+            return crossClusterAccessSubjectInfoForInternalUser(false);
+        }
         final int numberOfRoleDescriptors;
         if (authentication.isApiKey()) {
             // In case of API keys, we can have either 1 (only owner's - aka limited-by) or 2 role descriptors.

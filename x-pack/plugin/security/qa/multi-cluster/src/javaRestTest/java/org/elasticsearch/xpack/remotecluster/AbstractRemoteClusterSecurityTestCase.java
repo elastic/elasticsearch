@@ -12,6 +12,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -25,9 +26,10 @@ import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.junit.AfterClass;
-import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Map;
@@ -70,12 +72,25 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     protected static ElasticsearchCluster queryCluster;
     protected static RestClient fulfillingClusterClient;
 
-    @Before
-    public void initFulfillingClusterClient() throws IOException {
-        if (fulfillingClusterClient == null) {
-            assert fulfillingCluster != null;
-            fulfillingClusterClient = buildClient(fulfillingCluster.getHttpAddress(0));
+    @BeforeClass
+    public static void initFulfillingClusterClient() {
+        if (fulfillingClusterClient != null) {
+            return;
         }
+        assert fulfillingCluster != null;
+        final int numberOfFcNodes = fulfillingCluster.getHttpAddresses().split(",").length;
+        final String url = fulfillingCluster.getHttpAddress(randomIntBetween(0, numberOfFcNodes - 1));
+
+        final int portSeparator = url.lastIndexOf(':');
+        final var httpHost = new HttpHost(url.substring(0, portSeparator), Integer.parseInt(url.substring(portSeparator + 1)), "http");
+        RestClientBuilder builder = RestClient.builder(httpHost);
+        try {
+            configureClient(builder, Settings.EMPTY);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        builder.setStrictDeprecationMode(true);
+        fulfillingClusterClient = builder.build();
     }
 
     @AfterClass
@@ -94,22 +109,40 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    protected String configureRemoteClustersWithApiKey(String indicesPrivilegesJson) throws Exception {
-        return configureRemoteClustersWithApiKey(indicesPrivilegesJson, randomBoolean());
+    protected static Map<String, Object> createCrossClusterAccessApiKey(String indicesPrivilegesJson) {
+        initFulfillingClusterClient();
+        // Create API key on FC
+        final var createApiKeyRequest = new Request("POST", "/_security/api_key");
+        createApiKeyRequest.setJsonEntity(Strings.format("""
+            {
+              "name": "cross_cluster_access_key",
+              "role_descriptors": {
+                "role": {
+                  "cluster": ["cross_cluster_access"],
+                  "index": %s
+                }
+              }
+            }""", indicesPrivilegesJson));
+        try {
+            final Response createApiKeyResponse = performRequestAgainstFulfillingCluster(createApiKeyRequest);
+            assertOK(createApiKeyResponse);
+            return responseAsMap(createApiKeyResponse);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    protected void configureRemoteClusters() throws Exception {
+        // This method assume the cross cluster access API key is already configured in keystore
+        configureRemoteClusters(randomBoolean());
     }
 
     /**
      * Returns API key ID of cross cluster access API key.
      */
-    protected String configureRemoteClustersWithApiKey(String indicesPrivilegesJson, boolean isProxyMode) throws Exception {
-        // Create API key on FC
-        final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey(indicesPrivilegesJson);
-        final String encodedCrossClusterAccessApiKey = (String) apiKeyMap.get("encoded");
-
-        // Update remote cluster settings on QC with the API key
-        final Settings.Builder builder = Settings.builder()
-            .put("cluster.remote.my_remote_cluster.credentials", encodedCrossClusterAccessApiKey);
-        ;
+    protected void configureRemoteClusters(boolean isProxyMode) throws Exception {
+        // This method assume the cross cluster access API key is already configured in keystore
+        final Settings.Builder builder = Settings.builder();
         if (isProxyMode) {
             builder.put("cluster.remote.my_remote_cluster.mode", "proxy")
                 .put("cluster.remote.my_remote_cluster.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0));
@@ -133,42 +166,11 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
             }
             assertThat(ObjectPath.eval("my_remote_cluster.cluster_credentials", remoteInfoMap), equalTo("::es_redacted::"));
         });
-
-        return (String) apiKeyMap.get("id");
     }
 
-    protected Map<String, Object> createCrossClusterAccessApiKey(String indicesPrivilegesJson) throws IOException {
-        // Create API key on FC
-        final var createApiKeyRequest = new Request("POST", "/_security/api_key");
-        createApiKeyRequest.setJsonEntity(Strings.format("""
-            {
-              "name": "cross_cluster_access_key",
-              "role_descriptors": {
-                "role": {
-                  "cluster": ["cross_cluster_access"],
-                  "index": %s
-                }
-              }
-            }""", indicesPrivilegesJson));
-        final Response createApiKeyResponse = performRequestAgainstFulfillingCluster(createApiKeyRequest);
-        assertOK(createApiKeyResponse);
-        final Map<String, Object> apiKeyMap = responseAsMap(createApiKeyResponse);
-        return apiKeyMap;
-    }
-
-    protected Response performRequestAgainstFulfillingCluster(Request request) throws IOException {
+    protected static Response performRequestAgainstFulfillingCluster(Request request) throws IOException {
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(USER, PASS)));
         return fulfillingClusterClient.performRequest(request);
-    }
-
-    private RestClient buildClient(final String url) throws IOException {
-        final int portSeparator = url.lastIndexOf(':');
-        final var httpHost = new HttpHost(
-            url.substring(0, portSeparator),
-            Integer.parseInt(url.substring(portSeparator + 1)),
-            getProtocol()
-        );
-        return buildClient(Settings.EMPTY, new HttpHost[] { httpHost });
     }
 
     // TODO centralize common usage of this across all tests

@@ -253,8 +253,7 @@ public class AnalyticsEventParser {
      *
      * @return Parsed event ({@link AnalyticsEvent})
      */
-    public static AnalyticsEvent fromPayload(AnalyticsContext context, XContentType xContentType, BytesReference payload)
-        throws IOException {
+    public AnalyticsEvent fromPayload(AnalyticsContext context, XContentType xContentType, BytesReference payload) throws IOException {
         XContentParser parser = xContentType.xContent().createParser(XContentParserConfiguration.EMPTY, payload.streamInput());
         return getEventParser(context.eventType()).parse(parser, context).build();
     }
@@ -264,9 +263,9 @@ public class AnalyticsEventParser {
      *
      * @param eventType {@link AnalyticsEventType}
      *
-     * @return {@link ConstructingObjectParser<AnalyticsEventBuilder, AnalyticsContext>}
+     * @return {@link ConstructingObjectParser}
      */
-    private static ConstructingObjectParser<AnalyticsEventBuilder, AnalyticsContext> getEventParser(AnalyticsEventType eventType) {
+    private ConstructingObjectParser<AnalyticsEventBuilder, AnalyticsContext> getEventParser(AnalyticsEventType eventType) {
 
         if (eventType == AnalyticsEventType.PAGEVIEW) return PAGEVIEW_EVENT_PARSER;
         if (eventType == AnalyticsEventType.SEARCH) return SEARCH_EVENT_PARSER;

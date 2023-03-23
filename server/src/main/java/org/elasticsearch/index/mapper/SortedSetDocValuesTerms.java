@@ -56,9 +56,11 @@ class SortedSetDocValuesTerms extends Terms {
             }
         }
 
+        //System.out.println(termsPerLeaf);
         if (termsPerLeaf.isEmpty()) {
             return null;
         } else {
+            //System.out.println(termsPerLeaf);
             return new MultiTerms(termsPerLeaf.toArray(EMPTY_ARRAY), slicePerLeaf.toArray(ReaderSlice.EMPTY_ARRAY));
         }
     }
@@ -105,22 +107,22 @@ class SortedSetDocValuesTerms extends Terms {
 
     @Override
     public boolean hasFreqs() {
-        throw new UnsupportedOperationException();
+        return false;
     }
 
     @Override
     public boolean hasOffsets() {
-        throw new UnsupportedOperationException();
+        return false;
     }
 
     @Override
     public boolean hasPositions() {
-        throw new UnsupportedOperationException();
+        return false;
     }
 
     @Override
     public boolean hasPayloads() {
-        throw new UnsupportedOperationException();
+        return false;
     }
 
 }

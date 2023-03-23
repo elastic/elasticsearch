@@ -645,6 +645,18 @@ public class BasicBlockTests extends ESTestCase {
             assertThat(s, containsString("[1, 2]"));
             assertThat(s, containsString("positions=2"));
         }
+        for (IntBlock block : List.of(intBlock, intVector.asBlock())) {
+            assertThat(block.filter(0).toString(), containsString("FilterIntVector[positions=1, values=[1]]"));
+            assertThat(block.filter(1).toString(), containsString("FilterIntVector[positions=1, values=[2]]"));
+            assertThat(block.filter(0, 1).toString(), containsString("FilterIntVector[positions=2, values=[1, 2]]"));
+            assertThat(block.filter().toString(), containsString("FilterIntVector[positions=0, values=[]]"));
+        }
+        for (IntVector vector : List.of(intVector, intBlock.asVector())) {
+            assertThat(vector.filter(0).toString(), containsString("FilterIntVector[positions=1, values=[1]]"));
+            assertThat(vector.filter(1).toString(), containsString("FilterIntVector[positions=1, values=[2]]"));
+            assertThat(vector.filter(0, 1).toString(), containsString("FilterIntVector[positions=2, values=[1, 2]]"));
+            assertThat(vector.filter().toString(), containsString("FilterIntVector[positions=0, values=[]]"));
+        }
 
         var longBlock = LongBlock.newBlockBuilder(estimatedSize).appendLong(10L).appendLong(20L).build();
         var longVector = LongVector.newVectorBuilder(estimatedSize).appendLong(10L).appendLong(20L).build();

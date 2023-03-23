@@ -860,9 +860,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .build(),
                 // For src/dest indices of the Threat Intel (ti*) packages that ships a transform for supporting IOC expiration
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(
-                        "logs-ti_*latest*"
-                    )
+                    .indices("logs-ti_*latest*")
                     .privileges(
                         "create_index",
                         "delete_index",

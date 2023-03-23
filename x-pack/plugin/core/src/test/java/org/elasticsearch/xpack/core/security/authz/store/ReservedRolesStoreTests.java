@@ -1047,10 +1047,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         // Test allow permissions on Threat Intel (ti*) dest indices created by latest transform : "create_index", "delete_index", "read",
         // "index", "delete", IndicesAliasesAction.NAME, UpdateSettingsAction.NAME
-        Arrays.asList(
-            "logs-ti_recordedfuture_latest.threat",
-            "logs-ti_anomali_latest.threatstream"
-        ).forEach(indexName -> {
+        Arrays.asList("logs-ti_recordedfuture_latest.threat", "logs-ti_anomali_latest.threatstream").forEach(indexName -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
             // Allow search and indexing
             assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(indexAbstraction), is(true));

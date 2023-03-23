@@ -1,0 +1,19 @@
+# This test needs multiple nodes, because a single-node cluster does not send any transport actions so these stats are empty
+---
+"transport action stats":
+  - skip:
+      features: [arbitrary_key]
+
+  - do:
+      nodes.stats:
+        metric: [ transport ]
+
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - gt: {    nodes.$node_id.transport.actions.internal:transport/handshake.requests.count: 0 }
+  - gt: {    nodes.$node_id.transport.actions.internal:transport/handshake.requests.total_size_in_bytes: 0 }
+  - is_true: nodes.$node_id.transport.actions.internal:transport/handshake.requests.histogram
+  - gt: {    nodes.$node_id.transport.actions.internal:transport/handshake.responses.count: 0 }
+  - gt: {    nodes.$node_id.transport.actions.internal:transport/handshake.responses.total_size_in_bytes: 0 }
+  - is_true: nodes.$node_id.transport.actions.internal:transport/handshake.responses.histogram

@@ -29,8 +29,8 @@ import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
-import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.List;
@@ -39,6 +39,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -93,12 +94,22 @@ public class PostWriteRefreshFailTests extends IndexShardTestCase {
         when(routingTable.unpromotableShards()).thenReturn(List.of(shardRouting));
         when(mockReplicationGroup.getRoutingTable()).thenReturn(routingTable);
 
-        Mockito.doAnswer(invocation -> {
+        doAnswer(invocation -> {
+            // Unfortunately, we have to verify the arguments manually in the invocation method since
+            // Mockito doesn't seem to allow to combine `eq` and `any` argument matchers for doAnswer style of stubbing
+            assertEquals(shard.shardId(), invocation.getArgument(0));
+            assertEquals(shard.routingEntry().allocationId().getId(), invocation.getArgument(1));
+            assertEquals(shard.getOperationPrimaryTerm(), (long) invocation.getArgument(2));
+            assertTrue(invocation.getArgument(3));
+            assertEquals("Unable to refresh an unpomotable shard", invocation.getArgument(4));
+            Exception exception = invocation.getArgument(5);
+            assertEquals(RemoteTransportException.class, exception.getClass());
+            assertEquals(errorMessage, exception.getCause().getMessage());
+
             ActionListener<Void> argument = invocation.getArgument(6);
-            argument.onFailure(new IllegalStateException(errorMessage));
+            argument.onFailure(exception);
             return null;
-        })
-            .when(shardStateAction)
+        }).when(shardStateAction)
             .remoteShardFailed(any(ShardId.class), anyString(), anyLong(), anyBoolean(), anyString(), any(Exception.class), any());
 
         try {

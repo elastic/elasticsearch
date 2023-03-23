@@ -440,7 +440,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
                     long max = bounds.getMax() + offset;
                     while (key <= max) {
                         onBucket.accept(key);
-                        key = nextKey(prepared, key).longValue();
+                        key = nextKey(prepared, key);
                     }
                 }
             } else {
@@ -449,7 +449,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
                     if (key < firstBucket.key) {
                         while (key < firstBucket.key) {
                             onBucket.accept(key);
-                            key = nextKey(prepared, key).longValue();
+                            key = nextKey(prepared, key);
                         }
                     }
                 }
@@ -462,10 +462,10 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         while (iter.hasNext()) {
             Bucket nextBucket = list.get(iter.nextIndex());
             if (lastBucket != null) {
-                long key = nextKey(prepared, lastBucket.key).longValue();
+                long key = nextKey(prepared, lastBucket.key);
                 while (key < nextBucket.key) {
                     onBucket.accept(key);
-                    key = nextKey(prepared, key).longValue();
+                    key = nextKey(prepared, key);
                 }
                 assert key == nextBucket.key : "key: " + key + ", nextBucket.key: " + nextBucket.key;
             }
@@ -474,11 +474,11 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
         // finally, adding the empty buckets *after* the actual data (based on the extended_bounds.max requested by the user)
         if (bounds != null && lastBucket != null && bounds.getMax() != null && bounds.getMax() + offset > lastBucket.key) {
-            long key = nextKey(prepared, lastBucket.key).longValue();
+            long key = nextKey(prepared, lastBucket.key);
             long max = bounds.getMax() + offset;
             while (key <= max) {
                 onBucket.accept(key);
-                key = nextKey(prepared, key).longValue();
+                key = nextKey(prepared, key);
             }
         }
     }
@@ -566,8 +566,8 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
     /** Given a key returned by {@link #getKey}, compute the lowest key that is
      *  greater than it. */
-    Number nextKey(Rounding.Prepared prepared, Number key) {
-        return prepared.nextRoundingValue(key.longValue() - offset) + offset;
+    long nextKey(Rounding.Prepared prepared, long key) {
+        return prepared.nextRoundingValue(key - offset) + offset;
     }
 
     @Override

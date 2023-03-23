@@ -150,7 +150,6 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         builder.setStrictDeprecationMode(true);
         try (RestClient fulfillingClusterClient = builder.build()) {
             final Response createApiKeyResponse = fulfillingClusterClient.performRequest(createApiKeyRequest);
-            IOUtils.close(fulfillingClusterClient);
             assertOK(createApiKeyResponse);
             return responseAsMap(createApiKeyResponse);
         }

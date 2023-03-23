@@ -76,7 +76,7 @@ public class RemoteClusterSettingsTests extends ESTestCase {
         assertThat(REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(alias).get(Settings.EMPTY), emptyCollectionOf(String.class));
     }
 
-    public void testAuthorizationDefault() {
+    public void testCredentialsDefault() {
         final String alias = randomAlphaOfLength(8);
         final Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {
@@ -85,7 +85,7 @@ public class RemoteClusterSettingsTests extends ESTestCase {
         assertThat(REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(alias).get(builder.build()).toString(), emptyString());
     }
 
-    public void testAuthorizationIsSecureSetting() {
+    public void testCredentialsIsSecureSetting() {
         final String alias = randomAlphaOfLength(8);
         assertThat(REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(alias), isA(SecureSetting.class));
     }

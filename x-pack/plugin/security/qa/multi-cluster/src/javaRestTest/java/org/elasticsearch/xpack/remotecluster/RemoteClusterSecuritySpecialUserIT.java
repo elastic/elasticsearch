@@ -62,12 +62,12 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
                 if (API_KEY_MAP_REF.get() == null) {
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
                         [
-                           {
-                             "names": ["shared-*", "apm-1", ".security*"],
-                         "privileges": ["read", "read_cross_cluster"],
-                         "allow_restricted_indices": true
-                           }
-                         ]""");
+                          {
+                            "names": ["shared-*", "apm-1", ".security*"],
+                            "privileges": ["read", "read_cross_cluster"],
+                            "allow_restricted_indices": true
+                          }
+                        ]""");
                     API_KEY_MAP_REF.set(apiKeyMap);
                 }
                 return (String) API_KEY_MAP_REF.get().get("encoded");
@@ -81,6 +81,7 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
 
     public void testAnonymousUserFromQueryClusterWorks() throws Exception {
         configureRemoteClusters();
+        final String crossClusterAccessApiKeyId = (String) API_KEY_MAP_REF.get().get("id");
 
         // Fulfilling cluster
         {
@@ -131,7 +132,7 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
                 containsString(
                     "action [indices:data/read/search] towards remote cluster is unauthorized for user [_anonymous] "
                         + "with assigned roles [read_remote_shared_logs] authenticated by API key id ["
-                        + API_KEY_MAP_REF.get().get("id")
+                        + crossClusterAccessApiKeyId
                         + "] of user [test_user] on indices ["
                         + inaccessibleIndexForAnonymous
                         + "]"

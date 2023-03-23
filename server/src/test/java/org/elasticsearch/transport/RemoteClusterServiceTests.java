@@ -1130,7 +1130,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
         }
     }
 
-    public void testUseDifferentTransportProfileForSecuredRemoteClusters() throws IOException, InterruptedException {
+    public void testUseDifferentTransportProfileForCredentialsProtectedRemoteClusters() throws IOException, InterruptedException {
         final List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (
             MockTransportService c1 = startTransport(

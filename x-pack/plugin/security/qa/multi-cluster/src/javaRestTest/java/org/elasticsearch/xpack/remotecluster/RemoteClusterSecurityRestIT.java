@@ -64,11 +64,11 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 if (API_KEY_MAP_REF.get() == null) {
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
                         [
-                           {
+                          {
                              "names": ["index*", "not_found_index", "shared-metrics"],
                              "privileges": ["read", "read_cross_cluster"]
-                           }
-                         ]""");
+                          }
+                        ]""");
                     API_KEY_MAP_REF.set(apiKeyMap);
                 }
                 return (String) API_KEY_MAP_REF.get().get("encoded");
@@ -86,6 +86,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
 
     public void testCrossClusterSearch() throws Exception {
         configureRemoteClusters();
+        final String crossClusterAccessApiKeyId = (String) API_KEY_MAP_REF.get().get("id");
 
         // Fulfilling cluster
         {
@@ -204,7 +205,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 containsString(
                     "action [indices:data/read/search] towards remote cluster is unauthorized for user [remote_search_user] "
                         + "with assigned roles [remote_search] authenticated by API key id ["
-                        + API_KEY_MAP_REF.get().get("id")
+                        + crossClusterAccessApiKeyId
                         + "] of user [test_user] on indices [index2]"
                 )
             );
@@ -220,7 +221,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 containsString(
                     "action [indices:data/read/search] towards remote cluster is unauthorized for user [remote_search_user] "
                         + "with assigned roles [remote_search] authenticated by API key id ["
-                        + API_KEY_MAP_REF.get().get("id")
+                        + crossClusterAccessApiKeyId
                         + "] of user [test_user] on indices [prefixed_index]"
                 )
             );

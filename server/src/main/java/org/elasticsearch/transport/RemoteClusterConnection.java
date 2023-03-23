@@ -58,7 +58,8 @@ final class RemoteClusterConnection implements Closeable {
      * @param clusterAlias the configured alias of the cluster to connect to
      * @param transportService the local nodes transport service
      * @param credentialsProtected Whether the remote cluster is protected by a credentials, i.e. it has a credentials configured
-     *                             via secure setting. This means the remote cluster uses the new RCS model (as opposed to legacy)
+     *                             via secure setting. This means the remote cluster uses the new configurable access RCS model
+     *                             (as opposed to the basic model).
      */
     RemoteClusterConnection(Settings settings, String clusterAlias, TransportService transportService, boolean credentialsProtected) {
         this.transportService = transportService;

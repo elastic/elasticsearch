@@ -230,11 +230,16 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         List<? extends TaskContext<JoinTask>> taskContexts,
         long term
     ) {
+        final ClusterState initialState = currentState;
         currentState = taskContexts.stream()
             .map(TaskContext::getTask)
             .map(JoinTask::initialState)
             .filter(Objects::nonNull)
             .max(Comparator.comparingLong(ClusterState::term).thenComparingLong(ClusterState::version))
+            .filter(
+                clusterState -> clusterState.term() > initialState.term()
+                    || (clusterState.term() == initialState.term() && clusterState.version() > initialState.version())
+            )
             .orElse(currentState);
 
         assert currentState.nodes().getMasterNodeId() == null : currentState;

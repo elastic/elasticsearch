@@ -562,6 +562,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     }
 
     class AtomicRegisterPersistedState implements CoordinationState.PersistedState {
+        private final DiscoveryNode localNode;
         private final AtomicRegister atomicRegister;
         private final SharedStore sharedStore;
         private long initialTermBeforeJoiningALeader;
@@ -569,6 +570,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         private ClusterState latestAcceptedState;
 
         AtomicRegisterPersistedState(DiscoveryNode localNode, AtomicRegister atomicRegister, SharedStore sharedStore) {
+            this.localNode = localNode;
             this.atomicRegister = atomicRegister;
             this.sharedStore = sharedStore;
             final var termOwner = atomicRegister.getTermOwner();
@@ -589,7 +591,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                 assert termOwner.term() >= currentState.term();
                 currentTerm = Math.max(currentState.term, termOwner.term);
                 latestAcceptedState = ClusterStateUpdaters.addStateNotRecoveredBlock(
-                    ClusterState.builder(new ClusterName("elasticsearch"))
+                    ClusterState.builder(ClusterName.DEFAULT)
                         .metadata(currentState.state())
                         .version(currentState.version())
                         .nodes(DiscoveryNodes.builder().localNodeId(localNode.getId()).add(localNode).build())
@@ -660,22 +662,21 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
                 return ClusterStateUpdaters.recoverClusterBlocks(
                     ClusterStateUpdaters.addStateNotRecoveredBlock(
-                        ClusterState.builder(new ClusterName("elasticsearch"))
+                        ClusterState.builder(ClusterName.DEFAULT)
                             .metadata(
                                 Metadata.builder(latestClusterState.state())
                                     .coordinationMetadata(
                                         new CoordinationMetadata(
                                             latestClusterState.term(),
                                             // Keep the previous configuration so the assertions don't complain about
-                                            // a different configuration, we'll change it right away
-                                            latestAcceptedState.getLastAcceptedConfiguration(),
+                                            // a different commited configuration, we'll change it right away
                                             latestAcceptedState.getLastCommittedConfiguration(),
+                                            new CoordinationMetadata.VotingConfiguration(Set.of(localNode.getId())),
                                             Set.of()
                                         )
                                     )
                             )
                             .version(latestClusterState.version())
-                            .blocks(latestAcceptedState.blocks())
                             .nodes(DiscoveryNodes.builder(latestAcceptedState.nodes()).masterNodeId(null))
                             .build()
                     )

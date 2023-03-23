@@ -1381,7 +1381,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
     private void getLatestStoredStateAfterWinningAnElection(ActionListener<ClusterState> listener) {
         persistedStateSupplier.get().getLatestStoredState(listener.delegateResponse((delegate, e) -> {
-            becomeCandidate("failed fetching latest stored state");
+            synchronized (mutex) {
+                // TODO: add test coverage for this branch
+                becomeCandidate("failed fetching latest stored state");
+            }
             delegate.onFailure(e);
         }));
     }

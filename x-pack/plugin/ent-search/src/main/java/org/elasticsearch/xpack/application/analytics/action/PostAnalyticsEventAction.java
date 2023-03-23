@@ -15,13 +15,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
-import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventType;
+import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventFactory;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -87,8 +88,8 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             return collectionName;
         }
 
-        public AnalyticsEventType eventType() {
-            return AnalyticsEventType.valueOf(eventType.toUpperCase(Locale.ROOT));
+        public AnalyticsEvent.Type eventType() {
+            return AnalyticsEvent.Type.valueOf(eventType.toUpperCase(Locale.ROOT));
         }
 
         public long eventTime() {
@@ -120,9 +121,15 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             }
 
             try {
-                AnalyticsEventType.valueOf(eventType.toUpperCase(Locale.ROOT));
+                if (eventType.toLowerCase(Locale.ROOT).equals(eventType) == false)
+                    throw new IllegalArgumentException();
+
+                AnalyticsEvent.Type.valueOf(eventType.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
-                validationException = addValidationError(Strings.format("Invalid event type: %s", eventType), validationException);
+                validationException = addValidationError(
+                    LoggerMessageFormat.format("invalid event type: {}", eventType),
+                    validationException
+                );
             }
 
             return validationException;
@@ -172,18 +179,6 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
 
         private final AnalyticsEvent analyticsEvent;
 
-        public boolean isAccepted() {
-            return accepted;
-        }
-
-        public boolean isDebug() {
-            return debug;
-        }
-
-        public AnalyticsEvent getAnalyticsEvent() {
-            return analyticsEvent;
-        }
-
         public Response(boolean accepted) {
             this(accepted, null);
         }
@@ -197,14 +192,30 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
         public Response(StreamInput in) throws IOException {
             this.accepted = in.readBoolean();
             this.debug = in.readBoolean();
-            this.analyticsEvent = this.debug ? new AnalyticsEvent(in) : null;
+            this.analyticsEvent = this.debug ? AnalyticsEventFactory.fromStreamInput(in.readEnum(AnalyticsEvent.Type.class), in) : null;
+        }
+
+        public boolean isAccepted() {
+            return accepted;
+        }
+
+        public boolean isDebug() {
+            return debug;
+        }
+
+        public AnalyticsEvent getAnalyticsEvent() {
+            return analyticsEvent;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(accepted);
             out.writeBoolean(debug);
-            if (debug) analyticsEvent.writeTo(out);
+
+            if (debug) {
+                out.writeEnum(analyticsEvent.eventType());
+                analyticsEvent.writeTo(out);
+            }
         }
 
         @Override

@@ -21,7 +21,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.application.analytics.action.PostAnalyticsEventAction;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsContext;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
-import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventParser;
+import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventFactory;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -37,13 +37,13 @@ public class EventEmitterService {
     private static final Marker ANALYTICS_MARKER = MarkerManager.getMarker("org.elasticsearch.xpack.application.analytics");
     private final AnalyticsCollectionResolver analyticsCollectionResolver;
     private final ClusterService clusterService;
-    private final AnalyticsEventParser analyticsEventParser;
+    private final AnalyticsEventFactory analyticsEventParser;
 
     @Inject
     public EventEmitterService(
         AnalyticsCollectionResolver analyticsCollectionResolver,
         ClusterService clusterService,
-        AnalyticsEventParser analyticsEventParser
+        AnalyticsEventFactory analyticsEventParser
     ) {
         this.analyticsCollectionResolver = Objects.requireNonNull(analyticsCollectionResolver, "analyticsCollectionResolver");
         this.clusterService = Objects.requireNonNull(clusterService, "clusterService");

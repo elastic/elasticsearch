@@ -11,7 +11,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventType;
+import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -41,6 +41,6 @@ public class PostAnalyticsEventRequestSerializingTests extends AbstractWireSeria
     }
 
     private String randomEventType() {
-        return randomFrom(AnalyticsEventType.values()).toString().toLowerCase(Locale.ROOT);
+        return randomFrom(AnalyticsEvent.Type.values()).toString().toLowerCase(Locale.ROOT);
     }
 }

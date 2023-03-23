@@ -7,14 +7,14 @@
 
 package org.elasticsearch.xpack.application.analytics.action;
 
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.application.analytics.AnalyticsCollection;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsContext;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
-import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventType;
+import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventPageData;
+import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventPageView;
+import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventSessionData;
+import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventUserData;
 
 import java.io.IOException;
 
@@ -40,11 +40,11 @@ public class PostAnalyticsEventResponseSerializingTests extends AbstractWireSeri
     }
 
     private AnalyticsEvent randomAnalyticsEvent() {
-        AnalyticsContext analyticsContext = new AnalyticsContext(
-            new AnalyticsCollection(randomIdentifier()),
-            randomFrom(AnalyticsEventType.values()),
-            randomLong()
+        return new AnalyticsEventPageView(
+            new AnalyticsContext(randomIdentifier(), AnalyticsEvent.Type.PAGEVIEW, randomLong()),
+            new AnalyticsEventSessionData(randomIdentifier()),
+            new AnalyticsEventUserData(randomIdentifier()),
+            new AnalyticsEventPageData(randomIdentifier(), randomIdentifier(), randomIdentifier())
         );
-        return new AnalyticsEvent(analyticsContext, randomFrom(XContentType.values()), new BytesArray(randomIdentifier()));
     }
 }

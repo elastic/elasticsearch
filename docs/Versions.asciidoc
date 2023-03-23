@@ -32,7 +32,12 @@ ifeval::["{release-state}"=="unreleased"]
 endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
+ifeval::[{minor-version}>=8]
+:elasticsearch-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/elasticsearch/{version}/org.elasticsearch.server
+endif::[]
+ifeval::[{minor-version}<8]
 :elasticsearch-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/elasticsearch/{version}
+endif::[]
 :rest-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/client/elasticsearch-rest-client/{version}
 :rest-client-sniffer-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/client/elasticsearch-rest-client-sniffer/{version}
 :mapper-extras-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/mapper-extras-client/{version}

@@ -941,7 +941,10 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         });
         final Transport.Connection connection = mock(Transport.Connection.class);
         when(connection.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
-        final Tuple<String, TransportRequest> actionAndReq = randomAllowlistedActionAndRequest();
+        final Tuple<String, TransportRequest> actionAndReq = randomValueOtherThanMany(
+            t -> "cluster:monitor/state".equals(t.v1()),
+            this::randomAllowlistedActionAndRequest
+        );
 
         final ElasticsearchSecurityException expectedException = new ElasticsearchSecurityException("remote action denied");
         when(authzService.remoteActionDenied(authentication, actionAndReq.v1(), remoteClusterAlias)).thenReturn(expectedException);
@@ -1179,7 +1182,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     }
 
     private Tuple<String, TransportRequest> randomAllowlistedActionAndRequest() {
-        final String action = randomFrom(CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST.toArray(new String[0]));
+        final String action = randomFrom(CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST);
         return new Tuple<>(action, mock(TransportRequest.class));
     }
 

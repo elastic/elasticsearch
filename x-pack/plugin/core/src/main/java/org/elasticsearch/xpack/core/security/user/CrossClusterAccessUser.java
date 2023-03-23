@@ -36,6 +36,7 @@ public class CrossClusterAccessUser extends User {
                     RetentionLeaseActions.Renew.ACTION_NAME,
                     "indices:monitor/stats"
                 )
+                .allowRestrictedIndices(true)
                 .build() },
         null,
         null,

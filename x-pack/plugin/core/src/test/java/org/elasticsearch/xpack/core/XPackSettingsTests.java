@@ -6,12 +6,10 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.security.NoSuchAlgorithmException;
@@ -176,55 +174,6 @@ public class XPackSettingsTests extends ESTestCase {
         assertThat(
             e4.getMessage(),
             containsString("Security [xpack.security.enabled] must be enabled to use the remote cluster server feature")
-        );
-    }
-
-    public void testSecurityMustBeEnableToConnectRemoteClusterWithCredentials() {
-        // Security on, no remote cluster with credentials
-        final Settings.Builder builder1 = Settings.builder();
-        if (randomBoolean()) {
-            builder1.put("xpack.security.enabled", "true");
-        }
-        assertThat(XPackSettings.SECURITY_ENABLED.get(builder1.build()), is(true));
-
-        // Security off, no remote cluster with credentials
-        final Settings.Builder builder2 = Settings.builder().put("xpack.security.enabled", "false");
-        assertThat(XPackSettings.SECURITY_ENABLED.get(builder2.build()), is(false));
-
-        // Security on, remote cluster with credentials
-        final Settings.Builder builder3 = Settings.builder();
-        final MockSecureSettings secureSettings3 = new MockSecureSettings();
-        final String clusterCredentials3 = randomAlphaOfLength(20);
-        secureSettings3.setString("cluster.remote.my1.credentials", clusterCredentials3);
-        builder3.setSecureSettings(secureSettings3);
-        if (randomBoolean()) {
-            builder3.put("xpack.security.enabled", "true");
-        }
-        final Settings settings3 = builder3.build();
-        assertThat(XPackSettings.SECURITY_ENABLED.get(settings3), is(true));
-        assertThat(
-            RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace("my1").get(settings3),
-            equalTo(clusterCredentials3)
-        );
-
-        // Security off, remote cluster with credentials
-        final Settings.Builder builder4 = Settings.builder();
-        final MockSecureSettings secureSettings4 = new MockSecureSettings();
-        secureSettings4.setString("cluster.remote.my1.credentials", randomAlphaOfLength(20));
-        secureSettings4.setString("cluster.remote.my2.credentials", randomAlphaOfLength(20));
-        builder4.setSecureSettings(secureSettings4);
-        final Settings settings4 = builder4.put("xpack.security.enabled", "false").build();
-        final IllegalArgumentException e4 = expectThrows(
-            IllegalArgumentException.class,
-            () -> XPackSettings.SECURITY_ENABLED.get(settings4)
-        );
-        assertThat(
-            e4.getMessage(),
-            containsString(
-                "Found [2] remote clusters with credentials [cluster.remote.my1.credentials,cluster.remote.my2.credentials]. "
-                    + "Security [xpack.security.enabled] must be enabled to connect to them. "
-                    + "Please either enable security or remove these settings from the keystore."
-            )
         );
     }
 

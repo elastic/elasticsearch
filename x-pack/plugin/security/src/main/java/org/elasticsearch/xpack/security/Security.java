@@ -80,6 +80,7 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -526,6 +527,20 @@ public class Security extends Plugin
             runStartupChecks(settings);
             Automatons.updateConfiguration(settings);
         } else {
+            final List<String> remoteClusterCredentialsSettingKeys = RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getAllConcreteSettings(
+                settings
+            ).map(Setting::getKey).sorted().toList();
+            if (false == remoteClusterCredentialsSettingKeys.isEmpty()) {
+                throw new IllegalArgumentException(
+                    org.elasticsearch.core.Strings.format(
+                        "Found [%s] remote clusters with credentials [%s]. Security [%s] must be enabled to connect to them. "
+                            + "Please either enable security or remove these settings from the keystore.",
+                        remoteClusterCredentialsSettingKeys.size(),
+                        org.elasticsearch.common.Strings.collectionToCommaDelimitedString(remoteClusterCredentialsSettingKeys),
+                        XPackSettings.SECURITY_ENABLED.getKey()
+                    )
+                );
+            }
             this.bootstrapChecks.set(Collections.emptyList());
         }
         this.securityExtensions.addAll(extensions);

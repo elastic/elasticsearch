@@ -15,7 +15,6 @@ import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
@@ -67,39 +66,17 @@ public class XPackSettings {
 
         @Override
         public void validate(Boolean value, Map<Setting<?>, Object> settings, boolean isPresent) {
-            if (false == value) {
-                final boolean remoteClusterServerEnabled = (boolean) settings.get(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED);
-                if (remoteClusterServerEnabled) {
-                    throw new IllegalArgumentException(
-                        Strings.format("Security [%s] must be enabled to use the remote cluster server feature", SECURITY_ENABLED.getKey())
-                    );
-                }
-
-                final List<String> remoteClusterCredentialsSettingKeys = settings.keySet()
-                    .stream()
-                    .map(Setting::getKey)
-                    .filter(RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS::match)
-                    .sorted()
-                    .toList();
-
-                if (false == remoteClusterCredentialsSettingKeys.isEmpty()) {
-                    throw new IllegalArgumentException(
-                        Strings.format(
-                            "Found [%s] remote clusters with credentials [%s]. Security [%s] must be enabled to connect to them. "
-                                + "Please either enable security or remove these settings from the keystore.",
-                            remoteClusterCredentialsSettingKeys.size(),
-                            org.elasticsearch.common.Strings.collectionToCommaDelimitedString(remoteClusterCredentialsSettingKeys),
-                            SECURITY_ENABLED.getKey()
-                        )
-                    );
-                }
+            final boolean remoteClusterServerEnabled = (boolean) settings.get(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED);
+            if (remoteClusterServerEnabled && false == value) {
+                throw new IllegalArgumentException(
+                    Strings.format("Security [%s] must be enabled to use the remote cluster server feature", SECURITY_ENABLED.getKey())
+                );
             }
         }
 
         @Override
         public Iterator<Setting<?>> settings() {
-            return List.of(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED, RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS)
-                .iterator();
+            return List.<Setting<?>>of(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED).iterator();
         }
     }, Setting.Property.NodeScope);
 

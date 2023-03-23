@@ -229,10 +229,7 @@ public class SqlSearchIT extends ESRestTestCase {
 
     private void assertAllTypesWithNodes(Map<String, Object> expectedResponse, List<TestNode> nodesList) throws Exception {
         try (
-            RestClient client = buildClient(
-                restClientSettings(),
-                nodesList.stream().map(TestNode::publishAddress).toArray(HttpHost[]::new)
-            )
+            RestClient client = buildClient(restClientSettings(), nodesList.stream().map(TestNode::publishAddress).toArray(HttpHost[]::new))
         ) {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> columns = (List<Map<String, Object>>) expectedResponse.get("columns");

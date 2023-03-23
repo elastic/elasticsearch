@@ -170,6 +170,34 @@ GET /_search
 }
 ----
 
+The request parameter named `include_named_queries_score` controls whether scores associated
+with the matched queries are returned or not. When set, the response includes a `matched_queries`
+map that contains the name of the query that matched as a key and its associated score as the value.
+
+WARNING: Note that the score might not have contributed to the final score of the document, for instance named queries that appear
+in a filter or must_not contexts, or inside a clause that ignores or modifies the score like `constant_score` or `function_score_query`.
+
+[source,console]
+----
+GET /_search?include_named_queries_score
+{
+  "query": {
+    "bool": {
+      "should": [
+        { "match": { "name.first": { "query": "shay", "_name": "first" } } },
+        { "match": { "name.last": { "query": "banon", "_name": "last" } } }
+      ],
+      "filter": {
+        "terms": {
+          "name.last": [ "banon", "kimchy" ],
+          "_name": "test"
+        }
+      }
+    }
+  }
+}
+----
+
 NOTE: This functionality reruns each named query on every hit in a search
 response. Typically, this adds a small overhead to a request. However, using
 computationally expensive named queries on a large number of hits may add

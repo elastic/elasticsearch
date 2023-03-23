@@ -14,9 +14,9 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DesiredBalanceTest extends ESTestCase {
+public class DesiredBalanceTests extends ESTestCase {
 
-    public void testshardMovements() {
+    public void testShardMovements() {
 
         assertThat(
             "no shard movements when no changes",

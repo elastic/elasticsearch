@@ -29,6 +29,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.text.MessageFormat;
+import java.util.Locale;
 import java.util.Objects;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -114,15 +115,10 @@ public class EventEmitterServiceTests extends ESTestCase {
         );
 
         // Setting the logging expectation
-        String expectedMessageFormat = """
-            "collection":"{0}","payload":"{1}""";
+        String expectedLogMessage = new MessageFormat("""
+            "collection":"{0}","payload":"{1}""", Locale.ROOT).format(new Object[] { request.collectionName(), eventPayload });
         mockLogAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "event message",
-                EventEmitterService.class.getName(),
-                Level.INFO,
-                MessageFormat.format(expectedMessageFormat, request.collectionName(), eventPayload)
-            )
+            new MockLogAppender.SeenEventExpectation("event message", EventEmitterService.class.getName(), Level.INFO, expectedLogMessage)
         );
 
         @SuppressWarnings("unchecked")

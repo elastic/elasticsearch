@@ -536,7 +536,7 @@ public class Security extends Plugin
                         "Found [%s] remote clusters with credentials [%s]. Security [%s] must be enabled to connect to them. "
                             + "Please either enable security or remove these settings from the keystore.",
                         remoteClusterCredentialsSettingKeys.size(),
-                        org.elasticsearch.common.Strings.collectionToCommaDelimitedString(remoteClusterCredentialsSettingKeys),
+                        Strings.collectionToCommaDelimitedString(remoteClusterCredentialsSettingKeys),
                         XPackSettings.SECURITY_ENABLED.getKey()
                     )
                 );

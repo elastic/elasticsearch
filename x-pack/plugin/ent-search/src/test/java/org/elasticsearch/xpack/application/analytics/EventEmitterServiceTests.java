@@ -140,11 +140,6 @@ public class EventEmitterServiceTests extends ESTestCase {
 
             return response.isAccepted();
         }));
-        if (request.isDebug()) {
-            verify(listener, times(1)).onResponse(eq(PostAnalyticsEventAction.Response.ACCEPTED));
-        } else {
-            verify(listener, times(1)).onResponse(eq(PostAnalyticsEventAction.Response.ACCEPTED));
-        }
 
         // Check logging expectation has been met.
         mockLogAppender.assertAllExpectationsMatched();

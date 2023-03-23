@@ -65,7 +65,7 @@ public class ClusterStateUpdaters {
         );
     }
 
-    static ClusterState recoverClusterBlocks(final ClusterState state) {
+    public static ClusterState recoverClusterBlocks(final ClusterState state) {
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(state.blocks());
 
         if (Metadata.SETTING_READ_ONLY_SETTING.get(state.metadata().settings())) {

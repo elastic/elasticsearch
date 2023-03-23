@@ -1,0 +1,17 @@
+[[esql-from]]
+== `from`
+
+The `from` keyword in ESQL chooses which index to query.
+
+[source,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=from]
+----
+
+You can match indices with a glob pattern:
+
+<insert example>
+
+And you can use commas to separate multiple patterns:
+
+<insert example>

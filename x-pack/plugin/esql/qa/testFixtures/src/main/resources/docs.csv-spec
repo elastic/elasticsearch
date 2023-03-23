@@ -1,0 +1,15 @@
+// This spec contains examples that are included in the docs that don't fit into any other file.
+// The docs can and do include examples from other files.
+
+from
+// tag::from[]
+FROM test
+// end::from[]
+| PROJECT emp_no
+| SORT emp_no
+| LIMIT 1
+;
+
+emp_no:integer
+10001
+;

@@ -1,6 +1,9 @@
 [[elasticsearch-reference]]
 = Elasticsearch Guide
 
+// Temporary workaround until we merge into the primary Elasticsearch branch.
+:elasticsearch-root: {elasticsearch-internal-root}
+
 :include-xpack:         true
 :es-test-dir:           {elasticsearch-root}/docs/src/test
 :plugins-examples-dir:  {elasticsearch-root}/plugins/examples
@@ -42,6 +45,8 @@ include::aggregations.asciidoc[]
 include::geospatial-analysis.asciidoc[]
 
 include::eql/eql.asciidoc[]
+
+include::esql/index.asciidoc[]
 
 include::sql/index.asciidoc[]
 

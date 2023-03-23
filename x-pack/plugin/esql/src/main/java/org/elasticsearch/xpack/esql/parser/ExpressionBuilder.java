@@ -44,6 +44,7 @@ import java.time.Duration;
 import java.time.Period;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
@@ -124,7 +125,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
         Source source = source(ctx);
         Literal intLit = typedParsing(this, ctx.integerValue(), Literal.class);
         Integer value = (Integer) intLit.value();
-        String qualifier = ctx.UNQUOTED_IDENTIFIER().getText();
+        String qualifier = ctx.UNQUOTED_IDENTIFIER().getText().toLowerCase(Locale.ROOT);
 
         return switch (qualifier) {
             case "millisecond", "milliseconds" -> new Literal(source, Duration.ofMillis(value), TIME_DURATION);

@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.node.info;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -35,6 +36,7 @@ public class NodeInfoTests extends ESTestCase {
     public void testGetInfo() {
         NodeInfo nodeInfo = new NodeInfo(
             Version.CURRENT,
+            TransportVersion.CURRENT,
             Build.CURRENT,
             new DiscoveryNode("test_node", buildNewFakeTransportAddress(), emptyMap(), emptySet(), VersionUtils.randomVersion(random())),
             null,

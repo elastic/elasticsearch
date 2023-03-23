@@ -8,6 +8,9 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStatsTests;
@@ -197,8 +200,9 @@ public class ClusterStatsNodesTests extends ESTestCase {
             settings.put(randomFrom(NetworkModule.HTTP_TYPE_KEY, NetworkModule.HTTP_TYPE_DEFAULT_KEY), httpType);
         }
         return new NodeInfo(
-            null,
-            null,
+            Version.CURRENT,
+            TransportVersion.CURRENT,
+            Build.CURRENT,
             new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), null),
             settings.build(),
             null,

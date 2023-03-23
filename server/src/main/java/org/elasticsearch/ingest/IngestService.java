@@ -47,6 +47,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -68,6 +69,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -441,6 +443,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * Returns the pipeline by the specified id
      */
     public Pipeline getPipeline(String id) {
+        if (id == null) {
+            return null;
+        }
+
         PipelineHolder holder = pipelines.get(id);
         if (holder != null) {
             return holder.pipeline;
@@ -644,21 +650,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             continue;
                         }
 
-                        final String pipelineId = indexRequest.getPipeline();
-                        indexRequest.setPipeline(NOOP_PIPELINE_NAME);
-                        final String finalPipelineId = indexRequest.getFinalPipeline();
-                        indexRequest.setFinalPipeline(NOOP_PIPELINE_NAME);
-                        boolean hasFinalPipeline = true;
-                        final List<String> pipelines;
-                        if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false
-                            && IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
-                            pipelines = List.of(pipelineId, finalPipelineId);
-                        } else if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false) {
-                            pipelines = List.of(pipelineId);
-                            hasFinalPipeline = false;
-                        } else if (IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
-                            pipelines = List.of(finalPipelineId);
-                        } else {
+                        PipelineIterator pipelines = getAndResetPipelines(indexRequest);
+                        if (pipelines.hasNext() == false) {
                             i++;
                             continue;
                         }
@@ -693,8 +686,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         });
 
                         IngestDocument ingestDocument = newIngestDocument(indexRequest);
-                        executePipelines(pipelines.iterator(), hasFinalPipeline, indexRequest, ingestDocument, documentListener);
-
+                        LinkedHashSet<String> indexRecursionDetection = new LinkedHashSet<>();
+                        indexRecursionDetection.add(indexRequest.index());
+                        executePipelines(pipelines, indexRequest, ingestDocument, documentListener, indexRecursionDetection);
                         i++;
                     }
                 }
@@ -702,21 +696,99 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         });
     }
 
+    /**
+     * Returns the pipelines of the request, and updates the request so that it no longer references
+     * any pipelines (both the default and final pipeline are set to the noop pipeline).
+     */
+    private PipelineIterator getAndResetPipelines(IndexRequest indexRequest) {
+        final String pipelineId = indexRequest.getPipeline();
+        indexRequest.setPipeline(NOOP_PIPELINE_NAME);
+        final String finalPipelineId = indexRequest.getFinalPipeline();
+        indexRequest.setFinalPipeline(NOOP_PIPELINE_NAME);
+        return new PipelineIterator(pipelineId, finalPipelineId);
+    }
+
+    /**
+     * A triple for tracking the non-null id of a pipeline, the pipeline itself, and whether the pipeline is a final pipeline.
+     *
+     * @param id the non-null id of the pipeline
+     * @param pipeline a possibly-null reference to the pipeline for the given pipeline id
+     * @param isFinal true if the pipeline is a final pipeline
+     */
+    private record PipelineSlot(String id, @Nullable Pipeline pipeline, boolean isFinal) {
+        public PipelineSlot {
+            Objects.requireNonNull(id);
+        }
+    }
+
+    private class PipelineIterator implements Iterator<PipelineSlot> {
+
+        private final String defaultPipeline;
+        private final String finalPipeline;
+        private final Iterator<PipelineSlot> pipelineSlotIterator;
+
+        private PipelineIterator(String defaultPipeline, String finalPipeline) {
+            this.defaultPipeline = NOOP_PIPELINE_NAME.equals(defaultPipeline) ? null : defaultPipeline;
+            this.finalPipeline = NOOP_PIPELINE_NAME.equals(finalPipeline) ? null : finalPipeline;
+            this.pipelineSlotIterator = iterator();
+        }
+
+        public PipelineIterator withoutDefaultPipeline() {
+            return new PipelineIterator(null, finalPipeline);
+        }
+
+        private Iterator<PipelineSlot> iterator() {
+            PipelineSlot defaultPipelineSlot = null, finalPipelineSlot = null;
+            if (defaultPipeline != null) {
+                defaultPipelineSlot = new PipelineSlot(defaultPipeline, getPipeline(defaultPipeline), false);
+            }
+            if (finalPipeline != null) {
+                finalPipelineSlot = new PipelineSlot(finalPipeline, getPipeline(finalPipeline), true);
+            }
+
+            if (defaultPipeline != null && finalPipeline != null) {
+                return List.of(defaultPipelineSlot, finalPipelineSlot).iterator();
+            } else if (finalPipeline != null) {
+                return List.of(finalPipelineSlot).iterator();
+            } else if (defaultPipeline != null) {
+                return List.of(defaultPipelineSlot).iterator();
+            } else {
+                return Collections.emptyIterator();
+            }
+        }
+
+        @Override
+        public boolean hasNext() {
+            return pipelineSlotIterator.hasNext();
+        }
+
+        @Override
+        public PipelineSlot next() {
+            return pipelineSlotIterator.next();
+        }
+    }
+
     private void executePipelines(
-        final Iterator<String> pipelineIds,
-        final boolean hasFinalPipeline,
+        final PipelineIterator pipelines,
         final IndexRequest indexRequest,
         final IngestDocument ingestDocument,
-        final ActionListener<Boolean> listener
+        final ActionListener<Boolean> listener,
+        final Set<String> indexRecursionDetection
     ) {
-        assert pipelineIds.hasNext();
-        final String pipelineId = pipelineIds.next();
+        assert pipelines.hasNext();
+        PipelineSlot slot = pipelines.next();
+        final String pipelineId = slot.id();
+        final Pipeline pipeline = slot.pipeline();
+        final boolean isFinalPipeline = slot.isFinal();
+
+        // reset the reroute flag, at the start of a new pipeline execution this document hasn't been rerouted yet
+        ingestDocument.resetReroute();
+
         try {
-            final PipelineHolder holder = pipelines.get(pipelineId);
-            if (holder == null) {
+            if (pipeline == null) {
                 throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
             }
-            final Pipeline pipeline = holder.pipeline;
+
             final String originalIndex = indexRequest.indices()[0];
             executePipeline(ingestDocument, pipeline, (keep, e) -> {
                 assert keep != null;
@@ -765,12 +837,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     return; // document failed!
                 }
 
-                Iterator<String> newPipelineIds = pipelineIds;
-                boolean newHasFinalPipeline = hasFinalPipeline;
+                PipelineIterator newPipelines = pipelines;
                 final String newIndex = indexRequest.indices()[0];
 
                 if (Objects.equals(originalIndex, newIndex) == false) {
-                    if (hasFinalPipeline && pipelineIds.hasNext() == false) {
+                    // final pipelines cannot change the target index (either directly or by way of a reroute)
+                    if (isFinalPipeline) {
                         listener.onFailure(
                             new IllegalStateException(
                                 format(
@@ -783,20 +855,40 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             )
                         );
                         return; // document failed!
-                    } else {
-                        indexRequest.isPipelineResolved(false);
-                        resolvePipelinesAndUpdateIndexRequest(null, indexRequest, state.metadata());
-                        if (IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false) {
-                            newPipelineIds = Collections.singleton(indexRequest.getFinalPipeline()).iterator();
-                            newHasFinalPipeline = true;
-                        } else {
-                            newPipelineIds = Collections.emptyIterator();
-                        }
+                    }
+
+                    // check for cycles in the visited indices
+                    if (indexRecursionDetection.add(newIndex) == false) {
+                        List<String> indexRoute = new ArrayList<>(indexRecursionDetection);
+                        indexRoute.add(newIndex);
+                        listener.onFailure(
+                            new IllegalStateException(
+                                format(
+                                    "index cycle detected while processing pipeline [%s] for document [%s]: %s",
+                                    pipelineId,
+                                    indexRequest.id(),
+                                    indexRoute
+                                )
+                            )
+                        );
+                        return; // document failed!
+                    }
+
+                    // clear the current pipeline, then re-resolve the pipelines for this request
+                    indexRequest.setPipeline(null);
+                    indexRequest.isPipelineResolved(false);
+                    resolvePipelinesAndUpdateIndexRequest(null, indexRequest, state.metadata());
+                    newPipelines = getAndResetPipelines(indexRequest);
+
+                    // for backwards compatibility, when a pipeline changes the target index for a document without using the reroute
+                    // mechanism, do not invoke the default pipeline of the new target index
+                    if (ingestDocument.isReroute() == false) {
+                        newPipelines = newPipelines.withoutDefaultPipeline();
                     }
                 }
 
-                if (newPipelineIds.hasNext()) {
-                    executePipelines(newPipelineIds, newHasFinalPipeline, indexRequest, ingestDocument, listener);
+                if (newPipelines.hasNext()) {
+                    executePipelines(newPipelines, indexRequest, ingestDocument, listener, indexRecursionDetection);
                 } else {
                     // update the index request's source and (potentially) cache the timestamp for TSDB
                     updateIndexRequestSource(indexRequest, ingestDocument);

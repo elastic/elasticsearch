@@ -63,7 +63,6 @@ public class NodeInfo extends BaseNodeResponse {
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             transportVersion = TransportVersion.readVersion(in);
         } else {
-            assert version.before(Version.V_8_8_0);
             transportVersion = TransportVersion.fromId(version.id);
         }
         build = Build.readBuild(in);

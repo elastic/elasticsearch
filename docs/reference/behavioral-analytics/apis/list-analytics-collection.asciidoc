@@ -16,7 +16,7 @@ Returns information about Analytics Collections.
 [[list-analytics-collection-prereq]]
 ==== {api-prereq-title}
 
-Requires the `manage_behavorial_analytics` cluster privilege.
+Requires the `manage_behavioral_analytics` cluster privilege.
 
 [[list-analytics-collection-path-params]]
 ==== {api-path-parms-title}

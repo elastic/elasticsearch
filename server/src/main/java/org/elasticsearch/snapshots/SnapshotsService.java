@@ -3637,30 +3637,28 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             final SnapshotsInProgress initialSnapshots = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
             SnapshotsInProgress snapshotsInProgress = shardsUpdateContext.computeUpdatedState();
             for (final var taskContext : batchExecutionContext.taskContexts()) {
-                if (taskContext.getTask() instanceof CreateSnapshotTask == false) {
-                    continue;
-                }
-                final var task = (CreateSnapshotTask) taskContext.getTask();
-                try {
-                    final var repoMeta = state.metadata()
-                        .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY)
-                        .repository(task.snapshot.getRepository());
-                    if (Objects.equals(task.initialRepositoryMetadata, repoMeta)) {
-                        snapshotsInProgress = createSnapshot(taskContext, state, snapshotsInProgress);
-                    } else {
-                        // repository data changed in between starting the task and executing this cluster state update so try again
-                        taskContext.success(
-                            () -> submitCreateSnapshotRequest(
-                                task.createSnapshotRequest,
-                                task.listener,
-                                task.repository,
-                                task.snapshot,
-                                repoMeta
-                            )
-                        );
+                if (taskContext.getTask()instanceof CreateSnapshotTask task) {
+                    try {
+                        final var repoMeta = state.metadata()
+                            .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY)
+                            .repository(task.snapshot.getRepository());
+                        if (Objects.equals(task.initialRepositoryMetadata, repoMeta)) {
+                            snapshotsInProgress = createSnapshot(task, taskContext, state, snapshotsInProgress);
+                        } else {
+                            // repository data changed in between starting the task and executing this cluster state update so try again
+                            taskContext.success(
+                                () -> submitCreateSnapshotRequest(
+                                    task.createSnapshotRequest,
+                                    task.listener,
+                                    task.repository,
+                                    task.snapshot,
+                                    repoMeta
+                                )
+                            );
+                        }
+                    } catch (Exception e) {
+                        taskContext.onFailure(e);
                     }
-                } catch (Exception e) {
-                    taskContext.onFailure(e);
                 }
             }
             shardsUpdateContext.completeWithUpdatedState(snapshotsInProgress);
@@ -3671,11 +3669,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
 
         private SnapshotsInProgress createSnapshot(
+            CreateSnapshotTask createSnapshotTask,
             TaskContext<SnapshotTask> taskContext,
             ClusterState currentState,
             SnapshotsInProgress snapshotsInProgress
         ) {
-            final CreateSnapshotTask createSnapshotTask = (CreateSnapshotTask) taskContext.getTask();
             final RepositoryData repositoryData = createSnapshotTask.repositoryData;
             final Snapshot snapshot = createSnapshotTask.snapshot;
             final String repositoryName = snapshot.getRepository();

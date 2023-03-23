@@ -73,8 +73,10 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestTestCase {
@@ -924,7 +926,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 // authentication and pre-defined role descriptors intersection
                 case RemoteClusterNodesAction.NAME -> {
                     // internal users don't include an audit request ID; this is a current limitation of the audit setup
-                    assertContainsCrossClusterAccessHeaders(actual.headers(), false);
+                    assertContainsHeadersExpectedForCrossClusterAccess(actual.headers(), false);
                     assertContainsCrossClusterAccessCredentialsHeader(encodedCredential, actual);
                     final var actualCrossClusterAccessSubjectInfo = CrossClusterAccessSubjectInfo.decode(
                         actual.headers().get(CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY)
@@ -938,7 +940,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     assertThat(actualCrossClusterAccessSubjectInfo, equalTo(expectedCrossClusterAccessSubjectInfo));
                 }
                 case SearchAction.NAME, ClusterSearchShardsAction.NAME -> {
-                    assertContainsCrossClusterAccessHeaders(actual.headers());
+                    assertContainsHeadersExpectedForCrossClusterAccess(actual.headers());
                     assertContainsCrossClusterAccessCredentialsHeader(encodedCredential, actual);
                     final var actualCrossClusterAccessSubjectInfo = CrossClusterAccessSubjectInfo.decode(
                         actual.headers().get(CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY)
@@ -1038,11 +1040,11 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         }
     }
 
-    private void assertContainsCrossClusterAccessHeaders(final Map<String, String> actualHeaders) {
-        assertContainsCrossClusterAccessHeaders(actualHeaders, true);
+    private void assertContainsHeadersExpectedForCrossClusterAccess(final Map<String, String> actualHeaders) {
+        assertContainsHeadersExpectedForCrossClusterAccess(actualHeaders, true);
     }
 
-    private void assertContainsCrossClusterAccessHeaders(final Map<String, String> actualHeaders, boolean includeRequestId) {
+    private void assertContainsHeadersExpectedForCrossClusterAccess(final Map<String, String> actualHeaders, boolean includeRequestId) {
         assertThat(
             actualHeaders.keySet(),
             includeRequestId
@@ -1056,6 +1058,9 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY
                 )
         );
+        if (includeRequestId) {
+            assertThat(actualHeaders.get(AuditUtil.AUDIT_REQUEST_ID), not(emptyOrNullString()));
+        }
     }
 
     private record CapturedActionWithHeaders(String action, Map<String, String> headers) {}

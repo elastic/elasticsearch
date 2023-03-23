@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
@@ -591,6 +592,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             default -> throw new IllegalStateException("unexpected case");
         };
         authentication.writeToContext(threadContext);
+        final String expectedRequestId = AuditUtil.getOrGenerateRequestId(threadContext);
         final RemoteClusterCredentialsResolver remoteClusterCredentialsResolver = mock(RemoteClusterCredentialsResolver.class);
         final String remoteClusterAlias = randomAlphaOfLengthBetween(5, 10);
         final String remoteClusterCredential = ApiKeyService.withApiKeyPrefix(randomAlphaOfLengthBetween(10, 42));
@@ -635,6 +637,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                     fail("sender called more than once");
                 }
                 assertThat(securityContext.getAuthentication(), nullValue());
+                assertThat(AuditUtil.extractRequestId(securityContext.getThreadContext()), equalTo(expectedRequestId));
                 sentCredential.set(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY));
                 try {
                     sentCrossClusterAccessSubjectInfo.set(
@@ -705,6 +708,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         verify(remoteClusterCredentialsResolver, times(1)).resolve(eq(remoteClusterAlias));
         assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY), nullValue());
         assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY), nullValue());
+        assertThat(AuditUtil.extractRequestId(securityContext.getThreadContext()), equalTo(expectedRequestId));
     }
 
     public void testSendWithUserIfCrossClusterAccessHeadersConditionNotMet() throws Exception {

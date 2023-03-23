@@ -92,7 +92,7 @@ public abstract class ElectionStrategy {
         VoteCollection joinVotes
     );
 
-    public void onNewElection(DiscoveryNode localNode, long proposedTerm, ClusterState latestAcceptedState, ActionListener<Void> listener) {
+    public void onNewElection(DiscoveryNode localNode, long proposedTerm, ActionListener<Void> listener) {
         listener.onResponse(null);
     }
 
@@ -105,5 +105,7 @@ public abstract class ElectionStrategy {
             && lastCommittedConfiguration.equals(lastAcceptedConfiguration) == false;
     }
 
-    public void beforeCommit(long term, long version) {}
+    public void beforeCommit(long term, long version, ActionListener<Void> listener) {
+        listener.onResponse(null);
+    }
 }

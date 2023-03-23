@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import com.carrotsearch.randomizedtesting.RandomizedContext;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -25,14 +23,12 @@ import org.elasticsearch.gateway.ClusterStateUpdaters;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -41,16 +37,6 @@ import static org.elasticsearch.cluster.coordination.CoordinationStateTests.clus
 
 @TestLogging(reason = "these tests do a lot of log-worthy things but we usually don't care", value = "org.elasticsearch:FATAL")
 public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
-    private AtomicRegister atomicRegister;
-    private SharedStore sharedStore;
-
-    @Before
-    public void setUpNewRegister() {
-        // TODO: Move this into the cluster instance
-        atomicRegister = new AtomicRegister();
-        sharedStore = new SharedStore(atomicRegister);
-    }
-
     @Override
     @AwaitsFix(bugUrl = "ES-5644")
     public void testExpandsConfigurationWhenGrowingFromThreeToFiveNodesAndShrinksBackToThreeOnFailure() {
@@ -215,32 +201,9 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     }
 
     @Override
-    public void testRepeatableTests() throws Exception {
-        final Callable<Long> test = () -> {
-            resetNodeIndexBeforeEachTest();
-            try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
-                cluster.runRandomly();
-                final long afterRunRandomly = value(cluster.getAnyNode().getLastAppliedClusterState());
-                cluster.stabilise();
-                final long afterStabilisation = value(cluster.getAnyNode().getLastAppliedClusterState());
-                return afterRunRandomly ^ afterStabilisation;
-            }
-        };
-        final long seed = randomLong();
-        logger.info("First run with seed [{}]", seed);
-        final long result1 = RandomizedContext.current().runWithPrivateRandomness(seed, test);
-
-        // Reset the register between runs to get repeatable results
-        atomicRegister = new AtomicRegister();
-        sharedStore = new SharedStore(atomicRegister);
-
-        logger.info("Second run with seed [{}]", seed);
-        final long result2 = RandomizedContext.current().runWithPrivateRandomness(seed, test);
-        assertEquals(result1, result2);
-    }
-
-    @Override
     protected CoordinatorStrategy getCoordinatorStrategy() {
+        var atomicRegister = new AtomicRegister();
+        var sharedStore = new SharedStore(atomicRegister);
         return new AtomicRegisterCoordinatorStrategy(atomicRegister, sharedStore);
     }
 
@@ -346,7 +309,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             var reconfigurator = new SingleNodeReconfigurator(settings, clusterSettings);
             var quorumStrategy = new AtomicRegisterElectionStrategy(
                 atomicRegister,
-                sharedStore,
                 atomicHeartBeat::isLeaderInTermAlive,
                 (AtomicRegisterPersistedState) persistedState
             );
@@ -431,18 +393,15 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     static class AtomicRegisterElectionStrategy extends ElectionStrategy {
         private final Function<Long, Optional<DiscoveryNode>> getLeaderForTermIfAlive;
         private final AtomicRegister register;
-        private final SharedStore sharedStore;
         private final AtomicRegisterPersistedState atomicRegisterPersistedState;
         private long lastWonTerm = -1;
 
         AtomicRegisterElectionStrategy(
             AtomicRegister register,
-            SharedStore sharedStore,
             Function<Long, Optional<DiscoveryNode>> getLeaderForTermIfAlive,
             AtomicRegisterPersistedState atomicRegisterPersistedState
         ) {
             this.getLeaderForTermIfAlive = getLeaderForTermIfAlive;
-            this.sharedStore = sharedStore;
             this.register = register;
             this.atomicRegisterPersistedState = atomicRegisterPersistedState;
         }
@@ -476,23 +435,11 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
             // Safety is guaranteed by the blob store CAS, elect the current node immediately as
             // master and let the blob store decide whether this node should be the master.
-            return lastCommittedConfiguration.isEmpty() == false
-                && lastAcceptedConfiguration.isEmpty() == false
-                && isLatestAcceptedStateOutdated(localAcceptedTerm, localAcceptedVersion) == false
-                // if there's a leader that's not the local node wait, otherwise win the election immediately
-                // (use the leader node id instead of equals to take into account restarts)
+            return lastCommittedConfiguration.isEmpty() == false && lastAcceptedConfiguration.isEmpty() == false
+            // if there's a leader that's not the local node wait, otherwise win the election immediately
+            // (use the leader node id instead of equals to take into account restarts)
                 && getLeaderForTermIfAlive.apply(localCurrentTerm).map(leader -> leader.getId().equals(localNode.getId())).orElse(true)
                 && joinVotes.containsVoteFor(localNode);
-        }
-
-        private boolean isLatestAcceptedStateOutdated(long localAcceptedTerm, long localAcceptedVersion) {
-            final var currentRegisterPersistentState = sharedStore.getLatestClusterState();
-            if (currentRegisterPersistentState == null) {
-                return false;
-            }
-            return currentRegisterPersistentState.term() > localAcceptedTerm
-                || (currentRegisterPersistentState.term() == localAcceptedTerm
-                    && currentRegisterPersistentState.version() != localAcceptedVersion);
         }
 
         @Override
@@ -514,26 +461,11 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
 
         @Override
-        public void onNewElection(
-            DiscoveryNode localNode,
-            long proposedTerm,
-            ClusterState latestAcceptedState,
-            ActionListener<Void> listener
-        ) {
+        public void onNewElection(DiscoveryNode localNode, long proposedTerm, ActionListener<Void> listener) {
             ActionListener.completeWith(listener, () -> {
-                final var latestClusterState = sharedStore.getLatestClusterState();
-                if (latestClusterState != null && latestClusterState.version() > latestAcceptedState.version()) {
-                    throw new CoordinationStateRejectedException("The node has an stale applied cluster state version");
-                }
-
-                final var latestAcceptedClusterUUID = latestAcceptedState.metadata().clusterUUID();
-                final var proposedNewTermOwner = new TermOwner(localNode, proposedTerm, latestAcceptedClusterUUID);
+                final var proposedNewTermOwner = new TermOwner(localNode, proposedTerm);
                 final var witness = register.claimTerm(proposedNewTermOwner);
                 if (proposedNewTermOwner != witness) {
-                    if (witness.clusterUUID().equals(latestAcceptedClusterUUID) == false) {
-                        assert latestAcceptedState.metadata().clusterUUIDCommitted() == false;
-                        atomicRegisterPersistedState.changeAcceptedClusterUUID(witness.clusterUUID());
-                    }
                     throw new CoordinationStateRejectedException("Term " + proposedTerm + " already claimed by another node");
                 }
                 lastWonTerm = proposedTerm;
@@ -552,19 +484,21 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
 
         @Override
-        public void beforeCommit(long term, long version) {
+        public void beforeCommit(long term, long version, ActionListener<Void> listener) {
             // TODO: add a test to ensure that this gets called
             final var currentTermOwner = register.getTermOwner();
             if (currentTermOwner.term() > term) {
-                throw new CoordinationStateRejectedException("Term " + term + " already claimed by another node");
+                listener.onFailure(new CoordinationStateRejectedException("Term " + term + " already claimed by another node"));
+            } else {
+                listener.onResponse(null);
             }
         }
     }
 
     record PersistentClusterState(long term, long version, Metadata state) {}
 
-    record TermOwner(DiscoveryNode node, long term, String clusterUUID) {
-        static TermOwner EMPTY = new TermOwner(null, 0, null);
+    record TermOwner(DiscoveryNode node, long term) {
+        static TermOwner EMPTY = new TermOwner(null, 0);
     }
 
     static class SharedStore {
@@ -619,9 +553,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         TermOwner claimTerm(TermOwner proposedNewTermOwner) {
             final var currentTermOwner = getTermOwner();
 
-            if (currentTermOwner.term() >= proposedNewTermOwner.term()
-                || (currentTermOwner != TermOwner.EMPTY
-                    && currentTermOwner.clusterUUID().equals(proposedNewTermOwner.clusterUUID()) == false)) {
+            if (currentTermOwner.term() >= proposedNewTermOwner.term()) {
                 return currentTermOwner;
             }
 
@@ -630,6 +562,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     }
 
     class AtomicRegisterPersistedState implements CoordinationState.PersistedState {
+        private final DiscoveryNode localNode;
         private final AtomicRegister atomicRegister;
         private final SharedStore sharedStore;
         private long initialTermBeforeJoiningALeader;
@@ -637,6 +570,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         private ClusterState latestAcceptedState;
 
         AtomicRegisterPersistedState(DiscoveryNode localNode, AtomicRegister atomicRegister, SharedStore sharedStore) {
+            this.localNode = localNode;
             this.atomicRegister = atomicRegister;
             this.sharedStore = sharedStore;
             final var termOwner = atomicRegister.getTermOwner();
@@ -657,7 +591,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                 assert termOwner.term() >= currentState.term();
                 currentTerm = Math.max(currentState.term, termOwner.term);
                 latestAcceptedState = ClusterStateUpdaters.addStateNotRecoveredBlock(
-                    ClusterState.builder(new ClusterName("elasticsearch"))
+                    ClusterState.builder(ClusterName.DEFAULT)
                         .metadata(currentState.state())
                         .version(currentState.version())
                         .nodes(DiscoveryNodes.builder().localNodeId(localNode.getId()).add(localNode).build())
@@ -701,14 +635,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             sharedStore.writeClusterState(state);
         }
 
-        void changeAcceptedClusterUUID(String clusterUUID) {
-            if (latestAcceptedState.metadata().clusterUUID().equals(clusterUUID) == false) {
-                latestAcceptedState = ClusterState.builder(latestAcceptedState)
-                    .metadata(Metadata.builder(latestAcceptedState.metadata()).clusterUUID(clusterUUID).build())
-                    .build();
-            }
-        }
-
         long getInitialTermBeforeJoiningALeader() {
             return initialTermBeforeJoiningALeader;
         }
@@ -716,6 +642,53 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         @Override
         public void close() {
             assertTrue(openPersistedStates.remove(this));
+        }
+
+        @Override
+        public void getLatestStoredState(ActionListener<ClusterState> listener) {
+            ActionListener.completeWith(listener, () -> {
+                var latestClusterState = sharedStore.getLatestClusterState();
+                if (latestClusterState == null) {
+                    return null;
+                }
+
+                if (isLatestAcceptedStateStale(latestClusterState) == false) {
+                    return null;
+                }
+
+                if (latestClusterState.term() > currentTerm) {
+                    return null;
+                }
+
+                return ClusterStateUpdaters.recoverClusterBlocks(
+                    ClusterStateUpdaters.addStateNotRecoveredBlock(
+                        ClusterState.builder(ClusterName.DEFAULT)
+                            .metadata(
+                                Metadata.builder(latestClusterState.state())
+                                    .coordinationMetadata(
+                                        new CoordinationMetadata(
+                                            latestClusterState.term(),
+                                            // Keep the previous configuration so the assertions don't complain about
+                                            // a different commited configuration, we'll change it right away
+                                            latestAcceptedState.getLastCommittedConfiguration(),
+                                            new CoordinationMetadata.VotingConfiguration(Set.of(localNode.getId())),
+                                            Set.of()
+                                        )
+                                    )
+                            )
+                            .version(latestClusterState.version())
+                            .nodes(DiscoveryNodes.builder(latestAcceptedState.nodes()).masterNodeId(null))
+                            .build()
+                    )
+                );
+            });
+        }
+
+        boolean isLatestAcceptedStateStale(PersistentClusterState latestClusterState) {
+            return latestClusterState.state().clusterUUID().equals(latestAcceptedState.metadata().clusterUUID()) == false
+                || latestClusterState.term() > latestAcceptedState.term()
+                || (latestClusterState.term() == latestAcceptedState.term()
+                    && latestClusterState.version() > latestAcceptedState.version());
         }
     }
 }

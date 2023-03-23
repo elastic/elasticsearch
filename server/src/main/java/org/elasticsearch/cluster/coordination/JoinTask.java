@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
@@ -17,7 +18,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
 
-public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaster, long term) implements ClusterStateTaskListener {
+public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaster, long term, ClusterState initialState)
+    implements
+        ClusterStateTaskListener {
 
     public static JoinTask singleNode(
         DiscoveryNode node,
@@ -26,11 +29,11 @@ public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaste
         ActionListener<Void> listener,
         long term
     ) {
-        return new JoinTask(List.of(new NodeJoinTask(node, transportVersion, reason, listener)), false, term);
+        return new JoinTask(List.of(new NodeJoinTask(node, transportVersion, reason, listener)), false, term, null);
     }
 
     public static JoinTask completingElection(Stream<NodeJoinTask> nodeJoinTaskStream, long term) {
-        return new JoinTask(nodeJoinTaskStream.toList(), true, term);
+        return new JoinTask(nodeJoinTaskStream.toList(), true, term, null);
     }
 
     public int nodeCount() {
@@ -64,6 +67,11 @@ public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaste
 
     public Iterable<DiscoveryNode> nodes() {
         return () -> nodeJoinTasks.stream().map(j -> j.node).iterator();
+    }
+
+    public JoinTask alsoRefreshState(ClusterState latestState) {
+        assert isBecomingMaster;
+        return new JoinTask(nodeJoinTasks, isBecomingMaster, term, latestState);
     }
 
     public record NodeJoinTask(DiscoveryNode node, TransportVersion transportVersion, JoinReason reason, ActionListener<Void> listener) {

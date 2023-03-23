@@ -23,6 +23,8 @@ import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -31,6 +33,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSecurityTestCase {
+
+    private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
 
     static {
         fulfillingCluster = ElasticsearchCluster.local()
@@ -54,6 +58,20 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
             .setting("xpack.security.remote_cluster_client.ssl.enabled", "true")
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
             .user(REMOTE_SEARCH_USER, PASS.toString(), "read_remote_shared_metrics")
+            .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
+                if (API_KEY_MAP_REF.get() == null) {
+                    final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
+                        [
+                          {
+                            "names": ["shared-*", "apm-1", ".security*"],
+                            "privileges": ["read", "read_cross_cluster"],
+                            "allow_restricted_indices": true
+                          }
+                        ]""");
+                    API_KEY_MAP_REF.set(apiKeyMap);
+                }
+                return (String) API_KEY_MAP_REF.get().get("encoded");
+            })
             .build();
     }
 
@@ -62,14 +80,8 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
     public void testAnonymousUserFromQueryClusterWorks() throws Exception {
-        final String crossClusterAccessApiKeyId = configureRemoteClustersWithApiKey("""
-            [
-               {
-                 "names": ["shared-*", "apm-1", ".security*"],
-                 "privileges": ["read", "read_cross_cluster"],
-                 "allow_restricted_indices": true
-               }
-             ]""");
+        configureRemoteClusters();
+        final String crossClusterAccessApiKeyId = (String) API_KEY_MAP_REF.get().get("id");
 
         // Fulfilling cluster
         {

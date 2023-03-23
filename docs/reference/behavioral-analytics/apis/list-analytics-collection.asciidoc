@@ -37,6 +37,24 @@ GET _application/analytics/
 ----
 // TEST[skip:TBD]
 
+A sample response:
+
+[source,console-result]
+----
+{
+  "foo": {
+      "event_data_stream": {
+          "name": "behavioral_analytics-events-foo"
+      }
+  },
+  "bar": {
+      "event_data_stream": {
+          "name": "behavioral_analytics-events-bar"
+      }
+  }
+]
+---
+
 The following example returns the a Analytics Collection that matches `foo`:
 
 [source,console]
@@ -56,13 +74,15 @@ A sample response:
       }
   }
 ]
+---
+
+The following example returns the a Analytics Collection that is prefixed with `f`:
+
 [source,console]
 ----
 GET _application/analytics/f*
 ----
 // TEST[skip:TBD]
-
-The following example returns the a Analytics Collection that is prefixed with `f`:
 
 A sample response:
 

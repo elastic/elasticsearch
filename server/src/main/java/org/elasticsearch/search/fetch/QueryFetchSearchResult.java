@@ -27,7 +27,7 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
 
     public QueryFetchSearchResult(StreamInput in) throws IOException {
         super(in);
-        // TODO: Delegate refcounting to QuerySearchResult (see https://github.com/elastic/elasticsearch/pull/94023)
+        // These get a ref count of 1 when we create them, so we don't need to incRef here
         queryResult = new QuerySearchResult(in);
         fetchResult = new FetchSearchResult(in);
         refCounted = AbstractRefCounted.of(() -> {
@@ -39,6 +39,9 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
     public QueryFetchSearchResult(QuerySearchResult queryResult, FetchSearchResult fetchResult) {
         this.queryResult = queryResult;
         this.fetchResult = fetchResult;
+        // We're acquiring a copy, we should incRef it
+        this.queryResult.incRef();
+        this.fetchResult.incRef();
         refCounted = AbstractRefCounted.of(() -> {
             queryResult.decRef();
             fetchResult.decRef();

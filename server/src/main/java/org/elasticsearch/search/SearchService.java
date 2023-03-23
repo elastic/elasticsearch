@@ -643,6 +643,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (request.numberOfShards() == 1) {
                 // we already have query results, but we can run fetch at the same time
                 context.addFetchResult();
+                // This will return a QueryFetchSearchResult, which incRef's the QuerySearchResult it holds
                 return executeFetchPhase(readerContext, context, afterQueryTime);
             } else {
                 // Pass the rescoreDocIds to the queryResult to send them the coordinating node and receive them back in the fetch phase.
@@ -650,6 +651,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final RescoreDocIds rescoreDocIds = context.rescoreDocIds();
                 context.queryResult().setRescoreDocIds(rescoreDocIds);
                 readerContext.setRescoreDocIds(rescoreDocIds);
+                // Since we are returning the raw QuerySearchResult here, there's no opportunity for the object that will be holding that
+                // reference to incRef it before our try block closes and decRef's it when it closes the search context
+                context.queryResult().incRef();
                 return context.queryResult();
             }
         } catch (Exception e) {
@@ -677,6 +681,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             executor.success();
         }
+        // This will incRef the QuerySearchResult when it gets created
         return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
     }
 
@@ -705,6 +710,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 QueryPhase.execute(searchContext);
                 executor.success();
                 readerContext.setRescoreDocIds(searchContext.rescoreDocIds());
+                // ScrollQuerySearchResult will incRef the QuerySearchResult when it gets constructed.
                 return new ScrollQuerySearchResult(searchContext.queryResult(), searchContext.shardTarget());
             } catch (Exception e) {
                 logger.trace("Query phase failed", e);
@@ -736,6 +742,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final RescoreDocIds rescoreDocIds = searchContext.rescoreDocIds();
                 searchContext.queryResult().setRescoreDocIds(rescoreDocIds);
                 readerContext.setRescoreDocIds(rescoreDocIds);
+                // Since we are returning the raw QuerySearchResult here, there's no opportunity for the object that will be holding that
+                // reference to incRef it before our try block closes and decRef's it when it closes the search context
+                searchContext.queryResult().incRef();
                 return searchContext.queryResult();
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);

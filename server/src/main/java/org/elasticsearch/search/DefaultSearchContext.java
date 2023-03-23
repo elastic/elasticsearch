@@ -179,6 +179,7 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public void addQueryResult() {
         this.queryResult = new QuerySearchResult(this.readerContext.id(), this.shardTarget, this.request);
+        addReleasable(queryResult::decRef);
     }
 
     @Override

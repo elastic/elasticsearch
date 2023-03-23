@@ -28,10 +28,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.transport.BytesRefRecycler.NON_RECYCLING_INSTANCE;
 
@@ -296,7 +294,7 @@ public interface Transport extends LifecycleComponent {
             return requestHandlers.values()
                 .stream()
                 .filter(reg -> reg.getStats().requestCount() > 0 || reg.getStats().responseCount() > 0)
-                .collect(Collectors.toMap(RequestHandlerRegistry::getAction, RequestHandlerRegistry::getStats, (a, b) -> a, TreeMap::new));
+                .collect(Maps.toUnmodifiableSortedMap(RequestHandlerRegistry::getAction, RequestHandlerRegistry::getStats));
         }
     }
 }

@@ -52,7 +52,7 @@ A sample response:
           "name": "behavioral_analytics-events-bar"
       }
   }
-]
+}
 ----
 
 The following example returns the a Analytics Collection that matches `foo`:
@@ -73,7 +73,7 @@ A sample response:
           "name": "behavioral_analytics-events-foo"
       }
   }
-]
+}
 ----
 
 The following example returns the a Analytics Collection that is prefixed with `f`:
@@ -104,6 +104,6 @@ A sample response:
           "name": "behavioral_analytics-events-fudge"
       }
   }
-]
+}
 ----
 // TEST[skip:TBD]

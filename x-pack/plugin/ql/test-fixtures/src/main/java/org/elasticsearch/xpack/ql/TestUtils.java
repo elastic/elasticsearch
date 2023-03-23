@@ -290,9 +290,16 @@ public final class TestUtils {
         TestNodes nodes = new TestNodes();
         for (String id : nodesAsMap.keySet()) {
             Version nodeVersion = Version.fromString(objectPath.evaluate("nodes." + id + ".version"));
-            TransportVersion transportVersion = nodeVersion.before(Version.V_8_8_0)
-                ? TransportVersion.fromId(nodeVersion.id)   // no transport_version field
-                : TransportVersion.fromString(objectPath.evaluate("nodes." + id + ".transport_version").toString());
+            Object tvField = objectPath.evaluate("nodes." + id + ".transport_version");
+            TransportVersion transportVersion = null;
+            if (nodeVersion.before(Version.V_8_8_0)) {
+                transportVersion = TransportVersion.fromId(nodeVersion.id);   // no transport_version field
+            } else if (tvField != null) {
+                // this json might be from a node <8.8.0, but about a node >=8.8.0
+                // in which case the transport_version field won't exist. Just ignore it for now.
+                transportVersion = TransportVersion.fromString(tvField.toString());
+            }
+
             nodes.add(
                 new TestNode(
                     id,

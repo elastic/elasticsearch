@@ -10,8 +10,9 @@ package org.elasticsearch.xpack.ql;
 import org.apache.http.HttpHost;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
+import org.elasticsearch.core.Nullable;
 
-public record TestNode(String id, Version version, TransportVersion transportVersion, HttpHost publishAddress) {
+public record TestNode(String id, Version version, @Nullable TransportVersion transportVersion, HttpHost publishAddress) {
     @Override
     public String toString() {
         return "Node{" + "id='" + id + '\'' + ", version=" + version + '}';

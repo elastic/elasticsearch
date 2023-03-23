@@ -1089,8 +1089,7 @@ public abstract class Rounding implements Writeable {
 
             @Override
             public long nextRoundingValue(long utcMillis) {
-                // TODO this is used in date range's collect so we should optimize it too
-                return new JavaTimeRounding().nextRoundingValue(utcMillis);
+                return round(utcMillis) + interval;
             }
 
             @Override

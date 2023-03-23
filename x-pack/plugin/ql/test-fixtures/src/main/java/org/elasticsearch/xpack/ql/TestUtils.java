@@ -290,10 +290,6 @@ public final class TestUtils {
         TestNodes nodes = new TestNodes();
         for (String id : nodesAsMap.keySet()) {
             Version nodeVersion = Version.fromString(objectPath.evaluate("nodes." + id + ".version"));
-            Object transportVersionField = objectPath.evaluate("nodes." + id + ".transport_version");
-            if (nodeVersion.onOrAfter(Version.V_8_8_0) && transportVersionField == null) {
-                throw new IllegalStateException(nodeVersion + " had null TV field: " + nodesAsMap.get(id));
-            }
             TransportVersion transportVersion = nodeVersion.before(Version.V_8_8_0)
                 ? TransportVersion.fromId(nodeVersion.id)   // no transport_version field
                 : TransportVersion.fromString(objectPath.evaluate("nodes." + id + ".transport_version").toString());

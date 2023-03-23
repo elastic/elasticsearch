@@ -127,7 +127,7 @@ cluster. Skip this step for {beats} that are managed by {agent}.
 . (Optional) {apm-guide-ref}/monitor-apm.html[Configure APM Server monitoring]
 
 . (Optional) Configure {kib} to collect data and send it to the monitoring cluster:
-** {agent} collection methods (TODO: Make an active link)
+** {kibana-ref}/monitoring-elastic-agent.html[{agent} collection methods]
 ** {kibana-ref}/monitoring-metricbeat.html[{metricbeat} collection methods]
 ** {kibana-ref}/monitoring-kibana.html[Legacy collection methods]
 

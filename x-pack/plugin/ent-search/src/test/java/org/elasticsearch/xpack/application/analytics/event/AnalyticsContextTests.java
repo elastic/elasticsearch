@@ -21,7 +21,7 @@ public class AnalyticsContextTests extends AbstractWireSerializingTestCase<Analy
 
     @Override
     protected AnalyticsContext createTestInstance() {
-        return new AnalyticsContext(new AnalyticsCollection(randomIdentifier()), randomFrom(AnalyticsEventType.values()), randomLong());
+        return new AnalyticsContext(new AnalyticsCollection(randomIdentifier()), randomFrom(AnalyticsEvent.Type.values()), randomLong());
     }
 
     @Override

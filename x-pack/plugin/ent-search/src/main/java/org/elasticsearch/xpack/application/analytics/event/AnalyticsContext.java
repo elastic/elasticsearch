@@ -20,25 +20,27 @@ import java.util.Objects;
  * without parsing the payload.
  */
 public class AnalyticsContext implements Writeable {
-    private final AnalyticsCollection eventCollection;
+    private final String eventCollectionName;
     private final long eventTime;
-    private final AnalyticsEventType eventType;
+    private final AnalyticsEvent.Type eventType;
 
-    public AnalyticsContext(AnalyticsCollection eventCollection, AnalyticsEventType eventType, long eventTime) {
-        this.eventCollection = Objects.requireNonNull(eventCollection);
+    public AnalyticsContext(String eventCollectionName, AnalyticsEvent.Type eventType, long eventTime) {
+        this.eventCollectionName = Objects.requireNonNull(eventCollectionName);
         this.eventType = Objects.requireNonNull(eventType);
         this.eventTime = eventTime;
     }
 
+    public AnalyticsContext(AnalyticsCollection eventCollection, AnalyticsEvent.Type eventType, long eventTime) {
+        this(eventCollection.getName(), eventType, eventTime);
+    }
+
     public AnalyticsContext(StreamInput in) throws IOException {
-        this.eventCollection = new AnalyticsCollection(in);
-        this.eventType = in.readEnum(AnalyticsEventType.class);
-        this.eventTime = in.readLong();
+        this(in.readString(), in.readEnum(AnalyticsEvent.Type.class), in.readLong());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        this.eventCollection.writeTo(out);
+        out.writeString(eventCollectionName);
         out.writeEnum(eventType);
         out.writeLong(eventTime);
     }
@@ -47,12 +49,12 @@ public class AnalyticsContext implements Writeable {
         return eventTime;
     }
 
-    public AnalyticsEventType eventType() {
+    public AnalyticsEvent.Type eventType() {
         return eventType;
     }
 
-    public AnalyticsCollection eventCollection() {
-        return eventCollection;
+    public String eventCollectionName() {
+        return eventCollectionName;
     }
 
     @Override
@@ -60,11 +62,11 @@ public class AnalyticsContext implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AnalyticsContext that = (AnalyticsContext) o;
-        return eventTime == that.eventTime && eventType == that.eventType && Objects.equals(eventCollection, that.eventCollection);
+        return eventTime == that.eventTime && eventType == that.eventType && eventCollectionName.equals(that.eventCollectionName);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(eventCollection, eventType, eventTime);
+        return Objects.hash(eventCollectionName, eventType, eventTime);
     }
 }

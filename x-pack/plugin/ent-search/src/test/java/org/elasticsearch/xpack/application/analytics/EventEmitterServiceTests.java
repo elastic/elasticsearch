@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -22,14 +23,11 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.analytics.action.PostAnalyticsEventAction;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsContext;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
-import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventParser;
-import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventType;
+import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventFactory;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.text.MessageFormat;
-import java.util.Locale;
 import java.util.Objects;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -49,7 +47,7 @@ public class EventEmitterServiceTests extends ESTestCase {
 
     private AnalyticsCollectionResolver analyticsCollectionResolver;
 
-    private AnalyticsEventParser analyticsEventParser;
+    private AnalyticsEventFactory analyticsEventParser;
 
     private MockLogAppender mockLogAppender;
 
@@ -64,7 +62,7 @@ public class EventEmitterServiceTests extends ESTestCase {
         analyticsCollectionResolver = mock(AnalyticsCollectionResolver.class);
 
         // Create a mock for analyticsEventParser.
-        analyticsEventParser = mock(AnalyticsEventParser.class);
+        analyticsEventParser = mock(AnalyticsEventFactory.class);
 
         // Instantiate a log appender mock to check event logging behavior.
         mockLogAppender = new MockLogAppender();
@@ -80,7 +78,7 @@ public class EventEmitterServiceTests extends ESTestCase {
         Loggers.removeAppender(eventEmitterServiceLogger, mockLogAppender);
     }
 
-    public void testEmitEventWhenCollectionExist() throws IOException {
+    public void testEmitEventWhenCollectionExists() throws IOException {
         // Preparing a request
         String eventPayload = "PAYLOAD";
         PostAnalyticsEventAction.Request request = request(eventPayload);
@@ -98,7 +96,7 @@ public class EventEmitterServiceTests extends ESTestCase {
                 argThat(
                     (AnalyticsContext a) -> (Objects.equals(a.eventTime(), request.eventTime())
                         && a.eventType() == request.eventType()
-                        && Objects.equals(a.eventCollection(), collection))
+                        && Objects.equals(a.eventCollectionName(), collection.getName()))
                 ),
                 eq(request.xContentType()),
                 eq(request.payload())
@@ -115,8 +113,8 @@ public class EventEmitterServiceTests extends ESTestCase {
         );
 
         // Setting the logging expectation
-        String expectedLogMessage = new MessageFormat("""
-            "collection":"{0}","payload":"{1}""", Locale.ROOT).format(new Object[] { request.collectionName(), eventPayload });
+        String expectedLogMessage = LoggerMessageFormat.format("""
+            { "collection":"{}","payload":"{}}""", request.collectionName(), eventPayload);
         mockLogAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation("event message", EventEmitterService.class.getName(), Level.INFO, expectedLogMessage)
         );
@@ -146,7 +144,7 @@ public class EventEmitterServiceTests extends ESTestCase {
     }
 
     private PostAnalyticsEventAction.Request request(String eventPayload) {
-        String eventType = randomFrom(AnalyticsEventType.values()).toString();
+        String eventType = randomFrom(AnalyticsEvent.Type.values()).toString();
         return new PostAnalyticsEventAction.Request(
             randomIdentifier(),
             eventType,

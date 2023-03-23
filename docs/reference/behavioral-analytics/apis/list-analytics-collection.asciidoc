@@ -62,7 +62,7 @@ A sample response:
 }
 ----
 
-The following example returns the a Analytics Collection that matches `foo`:
+The following example returns the Analytics Collection that matches `foo`:
 
 [source,console]
 ----

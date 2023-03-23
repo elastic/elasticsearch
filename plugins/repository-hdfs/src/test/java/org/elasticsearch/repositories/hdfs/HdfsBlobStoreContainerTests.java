@@ -151,11 +151,26 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
         assertFalse(util.exists(hdfsPath));
 
         // if not read only, directory will be created
-        short replicationFactor = 8;
-        hdfsBlobStore = new HdfsBlobStore(fileContext, "dir", 1024, false, false, replicationFactor);
+        hdfsBlobStore = new HdfsBlobStore(fileContext, "dir", 1024, false);
         assertTrue(util.exists(root));
         BlobContainer container = hdfsBlobStore.blobContainer(blobPath);
         assertTrue(util.exists(hdfsPath));
+
+        byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
+        writeBlob(container, "foo", new BytesArray(data), randomBoolean());
+        int pos = randomIntBetween(0, data.length / 2);
+        int len = randomIntBetween(pos, data.length) - pos;
+        assertArrayEquals(readBlobPartially(container, "foo", pos, len), Arrays.copyOfRange(data, pos, pos + len));
+        assertTrue(container.blobExists("foo"));
+    }
+
+    public void testReplicationFactor() throws Exception {
+        FileContext fileContext = createTestContext();
+        BlobPath blobPath = BlobPath.EMPTY.add("path");
+        short replicationFactor = 8;
+
+        HdfsBlobStore hdfsBlobStore = new HdfsBlobStore(fileContext, "dir", 1024, false, false, replicationFactor);
+        BlobContainer container = hdfsBlobStore.blobContainer(blobPath);
 
         byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
         writeBlob(container, "foo", new BytesArray(data), randomBoolean());

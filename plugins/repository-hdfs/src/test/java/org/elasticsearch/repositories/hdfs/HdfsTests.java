@@ -211,6 +211,50 @@ public class HdfsTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testReplicationFactorTooSmall() {
+        try {
+            client().admin()
+                .cluster()
+                .preparePutRepository("test-repo")
+                .setType("hdfs")
+                .setSettings(
+                    Settings.builder()
+                        .put("uri", "hdfs:///")
+                        .put("create_opts.replication", "-1")
+                        .put("path", "foo")
+                        .put("conf.dfs.replication.min", "0")
+                        .build()
+                )
+                .get();
+            fail();
+        } catch (RepositoryException e) {
+            assertTrue(e.getCause() instanceof RepositoryException);
+            assertTrue(e.getCause().getMessage().contains("Value of create_opts.replication [-1] must be >= dfs.replication.min [0]"));
+        }
+    }
+
+    public void testReplicationFactorTooBig() {
+        try {
+            client().admin()
+                .cluster()
+                .preparePutRepository("test-repo")
+                .setType("hdfs")
+                .setSettings(
+                    Settings.builder()
+                        .put("uri", "hdfs:///")
+                        .put("create_opts.replication", "600")
+                        .put("path", "foo")
+                        .put("conf.dfs.replication.max", "512")
+                        .build()
+                )
+                .get();
+            fail();
+        } catch (RepositoryException e) {
+            assertTrue(e.getCause() instanceof RepositoryException);
+            assertTrue(e.getCause().getMessage().contains("Value of create_opts.replication [600] must be <= dfs.replication.max [512]"));
+        }
+    }
+
     private long count(Client client, String index) {
         return client.prepareSearch(index).setSize(0).get().getHits().getTotalHits().value;
     }

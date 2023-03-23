@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.repositories.hdfs;
 
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.hadoop.fs.CreateFlag;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -45,7 +46,9 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     private final HdfsSecurityContext securityContext;
     private final Path path;
     private final int bufferSize;
+
     private final Short replicationFactor;
+    private final Options.CreateOpts[] createOpts;
 
     HdfsBlobContainer(
         BlobPath blobPath,
@@ -61,6 +64,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         this.path = path;
         this.bufferSize = bufferSize;
         this.replicationFactor = replicationFactor;
+        this.createOpts = replicationFactor == null ? new CreateOpts[0] : new CreateOpts[] { CreateOpts.repFac(replicationFactor) };
     }
 
     // TODO: See if we can get precise result reporting.
@@ -184,7 +188,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
                         FSDataOutputStream stream = fileContext.create(
                             tempBlobPath,
                             EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK),
-                            getCreationOptions()
+                            createOpts
                         )
                     ) {
                         writer.accept(stream);
@@ -202,7 +206,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
                 ? EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK)
                 : EnumSet.of(CreateFlag.CREATE, CreateFlag.OVERWRITE, CreateFlag.SYNC_BLOCK);
             store.execute((Operation<Void>) fileContext -> {
-                try (FSDataOutputStream stream = fileContext.create(blob, flags, getCreationOptions())) {
+                try (FSDataOutputStream stream = fileContext.create(blob, flags, createOpts)) {
                     writer.accept(stream);
                 } catch (org.apache.hadoop.fs.FileAlreadyExistsException faee) {
                     throw new FileAlreadyExistsException(blob.toString(), null, faee.getMessage());
@@ -230,7 +234,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     private void writeToPath(BytesReference bytes, Path blobPath, FileContext fileContext, EnumSet<CreateFlag> createFlags)
         throws IOException {
-        try (FSDataOutputStream stream = fileContext.create(blobPath, createFlags, getCreationOptions())) {
+        try (FSDataOutputStream stream = fileContext.create(blobPath, createFlags, createOpts)) {
             bytes.writeTo(stream);
         }
     }
@@ -243,24 +247,14 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         EnumSet<CreateFlag> createFlags
     ) throws IOException {
         final byte[] buffer = new byte[blobSize < bufferSize ? Math.toIntExact(blobSize) : bufferSize];
-        Options.CreateOpts[] createOpts = getCreationOptions(CreateOpts.bufferSize(buffer.length));
-        try (FSDataOutputStream stream = fileContext.create(blobPath, createFlags, createOpts)) {
+
+        Options.CreateOpts[] createOptsWithBufferSize = ArrayUtils.add(createOpts, CreateOpts.bufferSize(buffer.length));
+        try (FSDataOutputStream stream = fileContext.create(blobPath, createFlags, createOptsWithBufferSize)) {
             int bytesRead;
             while ((bytesRead = inputStream.read(buffer)) != -1) {
                 stream.write(buffer, 0, bytesRead);
             }
         }
-    }
-
-    private Options.CreateOpts[] getCreationOptions(Options.CreateOpts... baseOpts) {
-        if (replicationFactor == null) {
-            return baseOpts;
-        }
-
-        Options.CreateOpts[] newOpts = new Options.CreateOpts[baseOpts.length + 1];
-        System.arraycopy(baseOpts, 0, newOpts, 0, baseOpts.length);
-        newOpts[baseOpts.length] = Options.CreateOpts.repFac(replicationFactor);
-        return newOpts;
     }
 
     @Override

@@ -29,6 +29,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -39,6 +40,7 @@ import java.net.URI;
 import java.net.UnknownHostException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.text.MessageFormat;
 import java.util.Locale;
 
 public final class HdfsRepository extends BlobStoreRepository {
@@ -109,7 +111,29 @@ public final class HdfsRepository extends BlobStoreRepository {
             hadoopConfiguration.set(key, confSettings.get(key));
         }
 
-        Integer replicationFactor = repositorySettings.getAsInt("hdfs_replication_factor", null);
+        Integer replicationFactor = repositorySettings.getAsInt("create_opts.replication", null);
+        int minReplicationFactory = hadoopConfiguration.getInt("dfs.replication.min", 0);
+        int maxReplicationFactory = hadoopConfiguration.getInt("dfs.replication.max", 512);
+        if (replicationFactor != null && replicationFactor < minReplicationFactory) {
+            throw new RepositoryException(
+                metadata.name(),
+                MessageFormat.format(
+                    "Value of create_opts.replication [{0}] must be >= dfs.replication.min [{1}]",
+                    replicationFactor,
+                    minReplicationFactory
+                )
+            );
+        }
+        if (replicationFactor != null && replicationFactor > maxReplicationFactory) {
+            throw new RepositoryException(
+                metadata.name(),
+                MessageFormat.format(
+                    "Value of create_opts.replication [{0}] must be <= dfs.replication.max [{1}]",
+                    replicationFactor,
+                    maxReplicationFactory
+                )
+            );
+        }
 
         // Disable FS cache
         hadoopConfiguration.setBoolean("fs.hdfs.impl.disable.cache", true);

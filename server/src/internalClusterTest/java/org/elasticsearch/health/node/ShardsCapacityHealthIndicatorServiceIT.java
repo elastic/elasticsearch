@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class ShardLimitsHealthIndicatorServiceIT extends ESIntegTestCase {
+public class ShardsCapacityHealthIndicatorServiceIT extends ESIntegTestCase {
 
     private static final String INDEX_NAME = "index-name";
     private InternalTestCluster internalCluster;
@@ -58,7 +58,7 @@ public class ShardLimitsHealthIndicatorServiceIT extends ESIntegTestCase {
         // index: 4 shards + 1 replica = 8 shards used (30 - 8 = 22 > 10 available shards)
         createIndex(4, 1);
 
-        var result = fetchShardLimitsIndicatorResult(internalCluster);
+        var result = fetchShardsCapacityIndicatorResult(internalCluster);
         assertEquals(result.status(), HealthStatus.GREEN);
         assertEquals(result.symptom(), "The cluster has enough room to add new shards.");
         assertThat(result.diagnosisList(), empty());
@@ -69,7 +69,7 @@ public class ShardLimitsHealthIndicatorServiceIT extends ESIntegTestCase {
         // index: 11 shards + 1 replica = 22 shards used (30 - 22 < 10 available shards)
         createIndex(10, 1);
 
-        var result = fetchShardLimitsIndicatorResult(internalCluster);
+        var result = fetchShardsCapacityIndicatorResult(internalCluster);
         assertEquals(result.status(), HealthStatus.YELLOW);
         assertEquals(result.symptom(), "Cluster is close to reaching the configured maximum number of shards for data nodes.");
         assertThat(result.diagnosisList(), hasSize(1));
@@ -80,7 +80,7 @@ public class ShardLimitsHealthIndicatorServiceIT extends ESIntegTestCase {
         // index: 13 shards + 1 replica = 26 shards used (30 - 26 < 5 available shards)
         createIndex(13, 1);
 
-        var result = fetchShardLimitsIndicatorResult(internalCluster);
+        var result = fetchShardsCapacityIndicatorResult(internalCluster);
         assertEquals(result.status(), HealthStatus.RED);
         assertEquals(result.symptom(), "Cluster is close to reaching the configured maximum number of shards for data nodes.");
         assertThat(result.diagnosisList(), hasSize(1));
@@ -91,7 +91,7 @@ public class ShardLimitsHealthIndicatorServiceIT extends ESIntegTestCase {
         createIndex(INDEX_NAME, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, shards).put(SETTING_NUMBER_OF_REPLICAS, replicas).build());
     }
 
-    private HealthIndicatorResult fetchShardLimitsIndicatorResult(InternalTestCluster internalCluster) throws Exception {
+    private HealthIndicatorResult fetchShardsCapacityIndicatorResult(InternalTestCluster internalCluster) throws Exception {
         var healthNode = findHealthNode().getName();
         var healthService = internalCluster.getInstance(HealthService.class, healthNode);
         var healthIndicatorResults = getHealthServiceResults(healthService, healthNode);
@@ -120,7 +120,7 @@ public class ShardLimitsHealthIndicatorServiceIT extends ESIntegTestCase {
                 throw new RuntimeException(e);
             }
         };
-        healthService.getHealth(internalCluster().client(node), ShardLimitsHealthIndicatorService.NAME, true, 1000, listener);
+        healthService.getHealth(internalCluster().client(node), ShardsCapacityHealthIndicatorService.NAME, true, 1000, listener);
         assertBusy(() -> assertNotNull(resultListReference.get()));
         return resultListReference.get();
     }

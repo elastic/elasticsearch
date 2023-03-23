@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 /**
- *  This indicator reports health data about the shard limit across the cluster.
+ *  This indicator reports health data about the shard capacity across the cluster.
  *
  * <p>
  * The indicator will report:
@@ -38,9 +38,9 @@ import java.util.stream.Stream;
  *  Although the `max_shard_per_node(.frozen)?` information is scoped by Node, we use the information from master because there is where
  *  the available room for new shards is checked before creating new indices.
  */
-public class ShardLimitsHealthIndicatorService implements HealthIndicatorService {
+public class ShardsCapacityHealthIndicatorService implements HealthIndicatorService {
 
-    static final String NAME = "shard_limits";
+    static final String NAME = "shards_capacity";
 
     static final String DATA_NODE_NAME = "data";
     static final String FROZEN_NODE_NAME = "frozen";
@@ -50,8 +50,8 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
         "The cluster is running low on room to add new shards hence the creation of new indices might fail.";
     private static final String INDEX_CREATION_RISK =
         "The cluster is running low on room to add new shards hence the creation of new indices might fail.";
-    private static final String HELP_GUIDE = "https://ela.st/max-shard-limit-reached";
-    private static final TriFunction<String, Setting<?>, String, Diagnosis> SHARD_LIMITS_REACHED_FN = (
+    private static final String HELP_GUIDE = "https://ela.st/fix-shards-capacity";
+    private static final TriFunction<String, Setting<?>, String, Diagnosis> SHARD_MAX_CAPACITY_REACHED_FN = (
         id,
         setting,
         indexType) -> new Diagnosis(
@@ -77,12 +77,12 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
         new HealthIndicatorImpact(NAME, "upgrade_at_risk", 2, UPGRADE_AT_RISK, List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)),
         new HealthIndicatorImpact(NAME, "creation_of_new_indices_at_risk", 2, INDEX_CREATION_RISK, List.of(ImpactArea.INGEST))
     );
-    static final Diagnosis SHARD_LIMITS_REACHED_DATA_NODES = SHARD_LIMITS_REACHED_FN.apply(
+    static final Diagnosis SHARDS_MAX_CAPACITY_REACHED_DATA_NODES = SHARD_MAX_CAPACITY_REACHED_FN.apply(
         "increase_max_shards_per_node",
         ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
         "data"
     );
-    static final Diagnosis SHARD_LIMITS_REACHED_FROZEN_NODES = SHARD_LIMITS_REACHED_FN.apply(
+    static final Diagnosis SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES = SHARD_MAX_CAPACITY_REACHED_FN.apply(
         "increase_max_shards_per_node_frozen",
         ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN,
         "frozen"
@@ -90,7 +90,7 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
 
     private final ClusterService clusterService;
 
-    public ShardLimitsHealthIndicatorService(ClusterService clusterService) {
+    public ShardsCapacityHealthIndicatorService(ClusterService clusterService) {
         this.clusterService = clusterService;
     }
 
@@ -129,15 +129,15 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
             symptomBuilder.append("Cluster is close to reaching the configured maximum number of shards for ");
             if (dataNodes.status == frozenNodes.status) {
                 symptomBuilder.append(DATA_NODE_NAME).append(" and ").append(FROZEN_NODE_NAME);
-                diagnoses = List.of(SHARD_LIMITS_REACHED_DATA_NODES, SHARD_LIMITS_REACHED_FROZEN_NODES);
+                diagnoses = List.of(SHARDS_MAX_CAPACITY_REACHED_DATA_NODES, SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES);
 
             } else if (dataNodes.status.indicatesHealthProblem()) {
                 symptomBuilder.append(DATA_NODE_NAME);
-                diagnoses = List.of(SHARD_LIMITS_REACHED_DATA_NODES);
+                diagnoses = List.of(SHARDS_MAX_CAPACITY_REACHED_DATA_NODES);
 
             } else if (frozenNodes.status.indicatesHealthProblem()) {
                 symptomBuilder.append(FROZEN_NODE_NAME);
-                diagnoses = List.of(SHARD_LIMITS_REACHED_FROZEN_NODES);
+                diagnoses = List.of(SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES);
             }
 
             symptomBuilder.append(" nodes.");
@@ -158,7 +158,7 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
         );
     }
 
-    static StatusResult calculateFrom(int maxShardsPerNodeSetting, ClusterState state, ShardLimitsChecker checker) {
+    static StatusResult calculateFrom(int maxShardsPerNodeSetting, ClusterState state, ShardsCapacityChecker checker) {
         var result = checker.check(maxShardsPerNodeSetting, 5, 1, state);
         if (result.canAddShards() == false) {
             return new StatusResult(HealthStatus.RED, result);
@@ -199,7 +199,7 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
     private HealthIndicatorResult unknownIndicator() {
         return createIndicator(
             HealthStatus.UNKNOWN,
-            "Unable to determine shard limit status.",
+            "Unable to determine shard capacity status.",
             HealthIndicatorDetails.EMPTY,
             List.of(),
             List.of()
@@ -209,7 +209,7 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
     record StatusResult(HealthStatus status, ShardLimitValidator.Result result) {}
 
     @FunctionalInterface
-    interface ShardLimitsChecker {
+    interface ShardsCapacityChecker {
         ShardLimitValidator.Result check(int maxConfiguredShardsPerNode, int numberOfNewShards, int replicas, ClusterState state);
     }
 }

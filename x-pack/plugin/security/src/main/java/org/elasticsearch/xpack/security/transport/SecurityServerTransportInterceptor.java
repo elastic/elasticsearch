@@ -19,6 +19,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.Maps;
@@ -59,6 +60,7 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.authz.PreAuthorizationUtils;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
@@ -427,12 +429,24 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             ) {
                 final ThreadContext threadContext = securityContext.getThreadContext();
                 final var contextRestoreHandler = new ContextRestoreResponseHandler<>(threadContext.newRestorableContext(true), handler);
-                try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-                    crossClusterAccessHeaders.writeToContext(threadContext);
+                try (ThreadContext.StoredContext ignored = stashContextWithAdditionalHeaders(threadContext, crossClusterAccessHeaders)) {
                     sender.sendRequest(connection, action, request, options, contextRestoreHandler);
                 } catch (Exception e) {
                     contextRestoreHandler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
                 }
+            }
+
+            private static ThreadContext.StoredContext stashContextWithAdditionalHeaders(
+                final ThreadContext threadContext,
+                final CrossClusterAccessHeaders crossClusterAccessHeaders
+            ) throws IOException {
+                final String requestId = AuditUtil.extractRequestId(threadContext);
+                final ThreadContext.StoredContext stashed = threadContext.stashContext();
+                crossClusterAccessHeaders.writeToContext(threadContext);
+                if (false == Strings.isEmpty(requestId)) {
+                    AuditUtil.putRequestId(threadContext, requestId);
+                }
+                return stashed;
             }
         };
     }

@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
+import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
 import org.junit.After;
@@ -165,6 +166,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(REMOTE_SEARCH_USER, PASSWORD))
             );
 
+            final String requestId = AuditUtil.getOrGenerateRequestId(threadPool.getThreadContext());
             final Response response = client().performRequest(searchRequest);
             assertOK(response);
             assertThat(ObjectPath.createFromResponse(response).evaluate("hits.total.value"), equalTo(alsoSearchLocally ? 1 : 0));
@@ -176,24 +178,20 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 CLUSTER_A_CREDENTIALS,
                 this::assertCrossClusterAccessSubjectInfoMatchesNativeUser,
                 new RoleDescriptorsIntersection(
-                    List.of(
-                        Set.of(
-                            new RoleDescriptor(
-                                Role.REMOTE_USER_ROLE_NAME,
-                                null,
-                                new RoleDescriptor.IndicesPrivileges[] {
-                                    RoleDescriptor.IndicesPrivileges.builder()
-                                        .indices("index-a")
-                                        .privileges("read", "read_cross_cluster")
-                                        .build() },
-                                null,
-                                null,
-                                null,
-                                null,
-                                null,
-                                null
-                            )
-                        )
+                    new RoleDescriptor(
+                        Role.REMOTE_USER_ROLE_NAME,
+                        null,
+                        new RoleDescriptor.IndicesPrivileges[] {
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .indices("index-a")
+                                .privileges("read", "read_cross_cluster")
+                                .build() },
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
                     )
                 )
             );
@@ -247,24 +245,20 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 CLUSTER_A_CREDENTIALS,
                 this::assertCrossClusterAccessSubjectInfoMatchesNativeUser,
                 new RoleDescriptorsIntersection(
-                    List.of(
-                        Set.of(
-                            new RoleDescriptor(
-                                Role.REMOTE_USER_ROLE_NAME,
-                                null,
-                                new RoleDescriptor.IndicesPrivileges[] {
-                                    RoleDescriptor.IndicesPrivileges.builder()
-                                        .indices("index-a")
-                                        .privileges("read", "read_cross_cluster")
-                                        .build() },
-                                null,
-                                null,
-                                null,
-                                null,
-                                null,
-                                null
-                            )
-                        )
+                    new RoleDescriptor(
+                        Role.REMOTE_USER_ROLE_NAME,
+                        null,
+                        new RoleDescriptor.IndicesPrivileges[] {
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .indices("index-a")
+                                .privileges("read", "read_cross_cluster")
+                                .build() },
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
                     )
                 )
             );
@@ -929,7 +923,8 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 // this action is run by the cross cluster access user, so we expect a cross cluster access header with an internal user
                 // authentication and pre-defined role descriptors intersection
                 case RemoteClusterNodesAction.NAME -> {
-                    assertContainsCrossClusterAccessHeaders(actual.headers());
+                    // internal users don't include an audit request ID; this is a current limitation of the audit setup
+                    assertContainsCrossClusterAccessHeaders(actual.headers(), false);
                     assertContainsCrossClusterAccessCredentialsHeader(encodedCredential, actual);
                     final var actualCrossClusterAccessSubjectInfo = CrossClusterAccessSubjectInfo.decode(
                         actual.headers().get(CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY)
@@ -1044,12 +1039,22 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
     }
 
     private void assertContainsCrossClusterAccessHeaders(final Map<String, String> actualHeaders) {
+        assertContainsCrossClusterAccessHeaders(actualHeaders, true);
+    }
+
+    private void assertContainsCrossClusterAccessHeaders(final Map<String, String> actualHeaders, boolean includeRequestId) {
         assertThat(
             actualHeaders.keySet(),
-            containsInAnyOrder(
-                CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY,
-                CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY
-            )
+            includeRequestId
+                ? containsInAnyOrder(
+                    CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY,
+                    CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY,
+                    AuditUtil.AUDIT_REQUEST_ID
+                )
+                : containsInAnyOrder(
+                    CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY,
+                    CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY
+                )
         );
     }
 

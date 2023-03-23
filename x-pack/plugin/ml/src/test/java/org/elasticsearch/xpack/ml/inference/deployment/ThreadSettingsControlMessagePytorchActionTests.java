@@ -37,7 +37,6 @@ public class ThreadSettingsControlMessagePytorchActionTests extends ESTestCase {
     public void testBuildControlMessage() throws IOException {
         DeploymentManager.ProcessContext processContext = mock(DeploymentManager.ProcessContext.class);
         ThreadPool tp = mock(ThreadPool.class);
-        @SuppressWarnings("unchecked")
         ThreadSettingsControlMessagePytorchAction action = new ThreadSettingsControlMessagePytorchAction(
             "model_id",
             1,
@@ -45,7 +44,7 @@ public class ThreadSettingsControlMessagePytorchActionTests extends ESTestCase {
             TimeValue.MINUS_ONE,
             processContext,
             tp,
-            ActionListener.NOOP
+            ActionListener.noop()
         );
         var message = action.buildControlMessage("foo");
         assertEquals("{\"request_id\":\"foo\",\"control\":0,\"num_allocations\":4}", message.utf8ToString());

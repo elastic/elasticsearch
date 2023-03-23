@@ -75,6 +75,7 @@ testClusters.matching { it.name == "javaRestTest" }.configureEach {
     setting 'azure.client.repository_test_kit.endpoint_suffix',
       { "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://${-> fixtureAddress('azure-fixture-other')}/azure_integration_test_account" }, IGNORE_VALUE
 
+    systemProperty 'test.repository_test_kit.skip_cas', 'true' // test fixture does not support CAS yet; TODO fix this
   } else {
     println "Using an external service to test " + project.name
   }

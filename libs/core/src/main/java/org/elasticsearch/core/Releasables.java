@@ -117,4 +117,31 @@ public enum Releasables {
             }
         };
     }
+
+    public static Releasable assertOnce(final Releasable delegate) {
+        if (Assertions.ENABLED) {
+            return new Releasable() {
+                // if complete, records the stack trace which first completed it
+                private final AtomicReference<Exception> firstCompletion = new AtomicReference<>();
+
+                private void assertFirstRun() {
+                    var previousRun = firstCompletion.compareAndExchange(null, new Exception(delegate.toString()));
+                    assert previousRun == null : previousRun; // reports the stack traces of both completions
+                }
+
+                @Override
+                public void close() {
+                    assertFirstRun();
+                    delegate.close();
+                }
+
+                @Override
+                public String toString() {
+                    return delegate.toString();
+                }
+            };
+        } else {
+            return delegate;
+        }
+    }
 }

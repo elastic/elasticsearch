@@ -167,7 +167,8 @@ public final class RefCountingListener implements Releasable {
 
     /**
      * Acquire a reference to this object and return a listener which consumes a response and releases the reference. The delegate {@link
-     * ActionListener} is called when all its references have been released. The consumer must not throw any exception.
+     * ActionListener} is called when all its references have been released. If the consumer throws an exception, the exception is passed
+     * to the final listener as if the returned listener was completed exceptionally.
      *
      * It is invalid to call this method once all references are released. Doing so will trip an assertion if assertions are enabled, and
      * will throw an {@link IllegalStateException} otherwise.
@@ -189,8 +190,7 @@ public final class RefCountingListener implements Releasable {
                         acquiredConsumer.accept(response);
                     }
                 } catch (Exception e) {
-                    assert false : e;
-                    throw e;
+                    addException(e);
                 }
             }
 

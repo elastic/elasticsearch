@@ -21,16 +21,20 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -39,10 +43,12 @@ import org.elasticsearch.transport.TransportRequest;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -50,8 +56,12 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DataLifecycleServiceTests extends ESTestCase {
 
@@ -60,6 +70,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
     private DataLifecycleService dataLifecycleService;
     private List<TransportRequest> clientSeenRequests;
     private NoOpClient client;
+    private ClusterService clusterService;
 
     @Before
     public void setupServices() {
@@ -67,14 +78,22 @@ public class DataLifecycleServiceTests extends ESTestCase {
         Set<Setting<?>> builtInClusterSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         builtInClusterSettings.add(DataLifecycleService.DLM_POLL_INTERVAL_SETTING);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, builtInClusterSettings);
-        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
+        clusterService = createClusterService(threadPool, clusterSettings);
 
-        now = randomNonNegativeLong();
+        now = System.currentTimeMillis();
         Clock clock = Clock.fixed(Instant.ofEpochMilli(now), ZoneId.of(randomFrom(ZoneId.getAvailableZoneIds())));
         clientSeenRequests = new CopyOnWriteArrayList<>();
 
         client = getTransportRequestsRecordingClient();
-        dataLifecycleService = new DataLifecycleService(Settings.EMPTY, client, clusterService, clock, threadPool, () -> now);
+        dataLifecycleService = new DataLifecycleService(
+            Settings.EMPTY,
+            client,
+            clusterService,
+            clock,
+            threadPool,
+            () -> now,
+            new DataLifecycleErrorStore()
+        );
         dataLifecycleService.init();
     }
 
@@ -82,6 +101,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
     public void cleanup() {
         clientSeenRequests.clear();
         dataLifecycleService.close();
+        clusterService.close();
         threadPool.shutdownNow();
         client.close();
     }
@@ -192,48 +212,110 @@ public class DataLifecycleServiceTests extends ESTestCase {
         assertThat(clientSeenRequests.isEmpty(), is(true));
     }
 
-    public void testIsTimeToBeDeleted() {
-        String dataStreamName = "metrics-foo";
-        {
-            IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .creationDate(now - 3000L);
-            MaxAgeCondition rolloverCondition = new MaxAgeCondition(TimeValue.timeValueMillis(now - 2000L));
-            indexMetaBuilder.putRolloverInfo(new RolloverInfo(dataStreamName, List.of(rolloverCondition), now - 2000L));
+    public void testDeletedIndicesAreRemovedFromTheErrorStore() throws IOException {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        int numBackingIndices = 3;
+        Metadata.Builder builder = Metadata.builder();
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            numBackingIndices,
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT),
+            new DataLifecycle()
+        );
+        builder.put(dataStream);
+        String nodeId = "localNode";
+        DiscoveryNodes.Builder nodesBuilder = buildNodes(nodeId);
+        // we are the master node
+        nodesBuilder.masterNodeId(nodeId);
+        ClusterState previousState = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).nodes(nodesBuilder).build();
 
-            IndexMetadata rolledIndex = indexMetaBuilder.build();
-            assertThat(
-                DataLifecycleService.isTimeToBeDeleted(dataStreamName, rolledIndex, () -> now, TimeValue.timeValueMillis(1000)),
-                is(true)
-            );
-
-            assertThat(
-                DataLifecycleService.isTimeToBeDeleted(dataStreamName, rolledIndex, () -> now, TimeValue.timeValueMillis(5000)),
-                is(false)
-            );
+        // all backing indices are in the error store
+        for (Index index : dataStream.getIndices()) {
+            dataLifecycleService.getErrorStore().recordError(index.getName(), new NullPointerException("bad"));
         }
+        Index writeIndex = dataStream.getWriteIndex();
+        // all indices but the write index are deleted
+        List<Index> deletedIndices = dataStream.getIndices().stream().filter(index -> index.equals(writeIndex) == false).toList();
 
-        {
-            // if rollover info is missing the creation date should be used
-            IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .creationDate(now - 3000L);
-            IndexMetadata noRolloverIndex = indexMetaBuilder.build();
-
-            assertThat(
-                DataLifecycleService.isTimeToBeDeleted(dataStreamName, noRolloverIndex, () -> now, TimeValue.timeValueMillis(2000)),
-                is(true)
-            );
-
-            assertThat(
-                DataLifecycleService.isTimeToBeDeleted(dataStreamName, noRolloverIndex, () -> now, TimeValue.timeValueMillis(5000)),
-                is(false)
-            );
+        ClusterState.Builder newStateBuilder = ClusterState.builder(previousState);
+        newStateBuilder.stateUUID(UUIDs.randomBase64UUID());
+        Metadata.Builder metaBuilder = Metadata.builder(previousState.metadata());
+        for (Index index : deletedIndices) {
+            metaBuilder.remove(index.getName());
+            IndexGraveyard.Builder graveyardBuilder = IndexGraveyard.builder(metaBuilder.indexGraveyard());
+            graveyardBuilder.addTombstone(index);
+            metaBuilder.indexGraveyard(graveyardBuilder.build());
         }
+        newStateBuilder.metadata(metaBuilder);
+        ClusterState stateWithDeletedIndices = newStateBuilder.nodes(buildNodes(nodeId).masterNodeId(nodeId)).build();
+        setState(clusterService, stateWithDeletedIndices);
+
+        dataLifecycleService.run(stateWithDeletedIndices);
+
+        for (Index deletedIndex : deletedIndices) {
+            assertThat(dataLifecycleService.getErrorStore().getError(deletedIndex.getName()), nullValue());
+        }
+        // the value for the write index should still be in the error store
+        assertThat(dataLifecycleService.getErrorStore().getError(dataStream.getWriteIndex().getName()), notNullValue());
+    }
+
+    public void testErrorStoreIsClearedOnBackingIndexBecomingUnmanaged() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        int numBackingIndices = 3;
+        Metadata.Builder builder = Metadata.builder();
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            numBackingIndices,
+            settings(Version.CURRENT),
+            new DataLifecycle(TimeValue.timeValueDays(700))
+        );
+        // all backing indices are in the error store
+        for (Index index : dataStream.getIndices()) {
+            dataLifecycleService.getErrorStore().recordError(index.getName(), new NullPointerException("bad"));
+        }
+        builder.put(dataStream);
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
+
+        Metadata metadata = state.metadata();
+        Metadata.Builder metaBuilder = Metadata.builder(metadata);
+
+        // update the backing indices to be ILM managed
+        for (Index index : dataStream.getIndices()) {
+            IndexMetadata indexMetadata = metadata.index(index);
+            IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(indexMetadata);
+            indexMetaBuilder.settings(Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy"));
+            metaBuilder.put(indexMetaBuilder.build(), true);
+        }
+        ClusterState updatedState = ClusterState.builder(state).metadata(metaBuilder).build();
+
+        dataLifecycleService.run(updatedState);
+
+        for (Index index : dataStream.getIndices()) {
+            assertThat(dataLifecycleService.getErrorStore().getError(index.getName()), nullValue());
+        }
+    }
+
+    private static DiscoveryNodes.Builder buildNodes(String nodeId) {
+        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
+        nodesBuilder.localNodeId(nodeId);
+        nodesBuilder.add(getNode(nodeId));
+        return nodesBuilder;
+    }
+
+    private static DiscoveryNode getNode(String nodeId) {
+        return new DiscoveryNode(
+            nodeId,
+            nodeId,
+            nodeId,
+            "host",
+            "host_address",
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_HOT_NODE_ROLE, DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE),
+            Version.CURRENT
+        );
     }
 
     private DataStream createDataStream(

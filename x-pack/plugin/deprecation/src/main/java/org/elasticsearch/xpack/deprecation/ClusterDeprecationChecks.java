@@ -24,10 +24,14 @@ public class ClusterDeprecationChecks {
         // Make sure we have room to add a small non-frozen index if needed
         final int shardsInFutureNewSmallIndex = 5;
         final int replicasForFutureIndex = 1;
-        if (ShardLimitValidator.canAddShardsToCluster(shardsInFutureNewSmallIndex, replicasForFutureIndex, clusterState)) {
+        ShardLimitValidator.Result shardLimitsResult = ShardLimitValidator.checkShardLimitForNormalNodes(
+            shardsInFutureNewSmallIndex,
+            replicasForFutureIndex,
+            clusterState
+        );
+        if (shardLimitsResult.canAddShards()) {
             return null;
         } else {
-            final int totalShardsToAdd = shardsInFutureNewSmallIndex * (1 + replicasForFutureIndex);
             return new DeprecationIssue(
                 DeprecationIssue.Level.WARNING,
                 "The cluster has too many shards to be able to upgrade",
@@ -37,7 +41,7 @@ public class ClusterDeprecationChecks {
                     "Upgrading requires adding a small number of new shards. There is not enough room for %d more "
                         + "shards. Increase the cluster.max_shards_per_node setting, or remove indices "
                         + "to clear up resources.",
-                    totalShardsToAdd
+                    shardLimitsResult.totalShardsToAdd()
                 ),
                 false,
                 null

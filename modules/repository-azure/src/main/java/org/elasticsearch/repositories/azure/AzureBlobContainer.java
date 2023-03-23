@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
@@ -157,18 +158,32 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         return keyPath + (blobName == null ? "" : blobName);
     }
 
-    @Override
-    public void compareAndExchangeRegister(String key, long expected, long updated, ActionListener<OptionalLong> listener) {
-        listener.onFailure(new UnsupportedOperationException()); // TODO
+    private boolean skipRegisterOperation(ActionListener<?> listener) {
+        return skipCas(listener) || skipIfNotPrimaryOnlyLocationMode(listener);
     }
 
-    @Override
-    public void compareAndSetRegister(String key, long expected, long updated, ActionListener<Boolean> listener) {
-        listener.onFailure(new UnsupportedOperationException()); // TODO
+    private boolean skipIfNotPrimaryOnlyLocationMode(ActionListener<?> listener) {
+        if (blobStore.getLocationMode() == LocationMode.PRIMARY_ONLY) {
+            return false;
+        }
+        listener.onFailure(
+            new UnsupportedOperationException(
+                Strings.format("consistent register operations are not supported with location_mode [%s]", blobStore.getLocationMode())
+            )
+        );
+        return true;
     }
 
     @Override
     public void getRegister(String key, ActionListener<OptionalLong> listener) {
-        listener.onFailure(new UnsupportedOperationException()); // TODO
+        if (skipRegisterOperation(listener)) return;
+        ActionListener.completeWith(listener, () -> blobStore.getRegister(buildKey(key), keyPath, key));
     }
+
+    @Override
+    public void compareAndExchangeRegister(String key, long expected, long updated, ActionListener<OptionalLong> listener) {
+        if (skipRegisterOperation(listener)) return;
+        ActionListener.completeWith(listener, () -> blobStore.compareAndExchangeRegister(buildKey(key), keyPath, key, expected, updated));
+    }
+
 }

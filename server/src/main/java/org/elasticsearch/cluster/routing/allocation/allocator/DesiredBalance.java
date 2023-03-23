@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Map;
@@ -30,4 +31,70 @@ public record DesiredBalance(long lastConvergedIndex, Map<ShardId, ShardAssignme
         return Objects.equals(a.assignments, b.assignments) == false;
     }
 
+    public int unassigned() {
+        int unassigned = 0;
+        for (ShardAssignment assignment : assignments.values()) {
+            unassigned += assignment.unassigned();
+        }
+        return unassigned;
+    }
+
+    public int total() {
+        int total = 0;
+        for (ShardAssignment assignment : assignments.values()) {
+            total += assignment.total();
+        }
+        return total;
+    }
+
+    public static int shardMovements(DesiredBalance old, DesiredBalance updated) {
+        var intersection = Sets.intersection(old.assignments().keySet(), updated.assignments().keySet());
+        int movements = 0;
+        for (ShardId shardId : intersection) {
+            var oldAssignment = old.getAssignment(shardId);
+            var updatedAssignment = updated.getAssignment(shardId);
+            if (Objects.equals(oldAssignment, updatedAssignment) == false) {
+                movements += shardMovements(oldAssignment, updatedAssignment);
+            }
+        }
+        return movements;
+    }
+
+    public static int shardMovements(ShardAssignment old, ShardAssignment updated) {
+        var movements = 0;
+        for (String nodeId : updated.nodeIds()) {
+            if (old.nodeIds().contains(nodeId) == false) {
+                movements++;
+            }
+        }
+        if (movements > 0) {
+            // exclude newly assigned shards
+            movements -= Math.max(0, old.unassigned() - updated.unassigned());
+            // exclude new shard copies
+            movements -= Math.max(0, updated.total() - old.total());
+        }
+
+        return movements;
+    }
+
+    public static String humanReadableDiff(DesiredBalance old, DesiredBalance updated) {
+        var intersection = Sets.intersection(old.assignments().keySet(), updated.assignments().keySet());
+        var diff = Sets.difference(Sets.union(old.assignments().keySet(), updated.assignments().keySet()), intersection);
+
+        var newLine = System.lineSeparator();
+        var builder = new StringBuilder();
+        for (ShardId shardId : intersection) {
+            var oldAssignment = old.getAssignment(shardId);
+            var updatedAssignment = updated.getAssignment(shardId);
+            if (Objects.equals(oldAssignment, updatedAssignment) == false) {
+                builder.append(newLine).append(shardId).append(": ").append(oldAssignment).append(" -> ").append(updatedAssignment);
+            }
+        }
+        for (ShardId shardId : diff) {
+            var oldAssignment = old.getAssignment(shardId);
+            var updatedAssignment = updated.getAssignment(shardId);
+            builder.append(newLine).append(shardId).append(": ").append(oldAssignment).append(" -> ").append(updatedAssignment);
+        }
+        return builder.append(newLine).toString();
+    }
 }

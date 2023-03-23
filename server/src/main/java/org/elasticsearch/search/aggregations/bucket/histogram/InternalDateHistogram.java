@@ -163,10 +163,6 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         final InternalAggregations subAggregations;
         final LongBounds bounds;
 
-        EmptyBucketInfo(Rounding rounding, InternalAggregations subAggregations) {
-            this(rounding, subAggregations, null);
-        }
-
         EmptyBucketInfo(Rounding rounding, InternalAggregations subAggregations, LongBounds bounds) {
             this.rounding = rounding;
             this.subAggregations = subAggregations;
@@ -310,7 +306,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         for (InternalAggregation aggregation : aggregations) {
             InternalDateHistogram histogram = (InternalDateHistogram) aggregation;
             if (histogram.buckets.isEmpty() == false) {
-                pq.add(new IteratorAndCurrent<Bucket>(histogram.buckets.iterator()));
+                pq.add(new IteratorAndCurrent<>(histogram.buckets.iterator()));
             }
         }
 
@@ -564,16 +560,13 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         return ((Bucket) bucket).key;
     }
 
-    @Override
-    public Number nextKey(Number key) {
-        return emptyBucketInfo.rounding.nextRoundingValue(key.longValue() - offset) + offset;
-    }
-
-    public Rounding.Prepared createPrepared(long min, long max) {
+    Rounding.Prepared createPrepared(long min, long max) {
         return emptyBucketInfo.rounding.prepare(min - offset, max - offset);
     }
 
-    public Number nextKey(Rounding.Prepared prepared, Number key) {
+    /** Given a key returned by {@link #getKey}, compute the lowest key that is
+     *  greater than it. */
+    Number nextKey(Rounding.Prepared prepared, Number key) {
         return prepared.nextRoundingValue(key.longValue() - offset) + offset;
     }
 

@@ -46,6 +46,7 @@ Data streams::
 * Allow different filters per `DataStream` in a `DataStreamAlias` {es-pull}92692[#92692] (issue: {es-issue}92050[#92050])
 
 Geo::
+* Build index qualified name in cross cluster vector tile search {es-pull}94574[#94574] (issue: {es-issue}94557[#94557])
 * Check `GeohexGrid` bounds on geopoint using spherical coordinates {es-pull}92460[#92460]
 * Fix bug when clipping Geometry collections in vector tiles {es-pull}93562[#93562]
 
@@ -119,18 +120,23 @@ Recovery::
 * Report recovered files as recovered from snapshot for fully mounted searchable snapshots {es-pull}92976[#92976]
 
 Rollup::
+* Downsampling unmapped text fields {es-pull}94387[#94387] (issue: {es-issue}94346[#94346])
 * Propagate timestamp format and convert nanoseconds to milliseconds {es-pull}94141[#94141] (issue: {es-issue}94085[#94085])
+* Stop processing `TransportDownsampleAction` on failure {es-pull}94624[#94624]
 * Support downsampling of histogram as labels {es-pull}93445[#93445] (issue: {es-issue}93263[#93263])
 
 Search::
+* Add null check for sort fields over collapse fields {es-pull}94546[#94546] (issue: {es-issue}94407[#94407])
 * Annotated highlighter does not match when search contains both annotation and annotated term {es-pull}92920[#92920] (issue: {es-issue}91944[#91944])
 * Clear field caps index responses on cancelled {es-pull}93716[#93716] (issue: {es-issue}93029[#93029])
 * Do not include frozen indices in PIT by default {es-pull}94377[#94377]
 * Fix NPE thrown by prefix query in strange scenarios {es-pull}94369[#94369]
+* Fix _id field fetch issue. {es-pull}94528[#94528] (issue: {es-issue}94515[#94515])
 * Fix metadata `_size` when it comes to stored fields extraction {es-pull}94483[#94483] (issue: {es-issue}94468[#94468])
 * Fix missing override for matches in `ProfileWeight` {es-pull}92360[#92360]
 * Nested path info shouldn't be added during `copy_to` {es-pull}93340[#93340] (issue: {es-issue}93117[#93117])
 * Use all profiling events on startup {es-pull}92087[#92087]
+* Use keyword analyzer for untokenized fields in `TermVectorsService` {es-pull}94518[#94518]
 * [Profiling] Adjust handling of last data slice {es-pull}94283[#94283]
 * [Profiling] Ensure responses are only sent once {es-pull}93692[#93692] (issue: {es-issue}93691[#93691])
 * [Profiling] Handle response processing errors {es-pull}93860[#93860]
@@ -362,6 +368,9 @@ Ingest Node::
 Network::
 * Upgrade to Netty 4.1.85 {es-pull}91846[#91846]
 * Upgrade to Netty 4.1.86 {es-pull}92587[#92587]
+
+Packaging::
+* Upgrade bundled JDK to Java 20 {es-pull}94600[#94600]
 
 Query Languages::
 * Upgrade antlr to 4.11.1 for ql, eql and sql {es-pull}93238[#93238]

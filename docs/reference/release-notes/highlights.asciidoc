@@ -127,19 +127,6 @@ a resolution.
 {es-pull}92879[#92879]
 
 [discrete]
-[[support_redact_ingest_processor]]
-=== Support redact ingest processor
-The <<redact-processor,Redact processor>> obscures text in the input document matching the given Grok patterns.
-The processor can be used to obscure Personal Identifying Information (PII)
-by configuring it to detect known patterns such as email or IP addresses.
-Text that matches a Grok pattern is replaced with a configurable string such as `<EMAIL>`
-where an email address is matched or replace all matches with the text `<REDACTED>` if preferred.
-Grok provides an extensive library of predefined patterns that can be conveniently referenced by
-the Redact processor.
-
-{es-pull}92951[#92951]
-
-[discrete]
 [[improved_performance_for_get_mget_indexing_with_explicit_id_s]]
 === Improved performance for get, mget and indexing with explicit `_id`s
 The false positive rate for the bloom filter on the `_id` field was reduced from ~10% to ~1%,

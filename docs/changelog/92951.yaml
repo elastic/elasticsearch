@@ -3,14 +3,3 @@ summary: Redact Ingest Processor
 area: Ingest Node
 type: feature
 issues: []
-highlight:
-  title: Support redact ingest processor
-  body: |-
-    The <<redact-processor,Redact processor>> obscures text in the input document matching the given Grok patterns.
-    The processor can be used to obscure Personal Identifying Information (PII)
-    by configuring it to detect known patterns such as email or IP addresses.
-    Text that matches a Grok pattern is replaced with a configurable string such as `<EMAIL>`
-    where an email address is matched or replace all matches with the text `<REDACTED>` if preferred.
-    Grok provides an extensive library of predefined patterns that can be conveniently referenced by
-    the Redact processor.
-  notable: false

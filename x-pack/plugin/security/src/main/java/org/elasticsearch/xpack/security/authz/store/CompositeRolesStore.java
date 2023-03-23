@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -228,6 +229,11 @@ public class CompositeRolesStore {
         if (SystemUser.is(user)) {
             throw new IllegalArgumentException(
                 "the user [" + user.principal() + "] is the system user and we should never try to get its roles"
+            );
+        }
+        if (CrossClusterAccessUser.is(user)) {
+            throw new IllegalArgumentException(
+                "the user [" + user.principal() + "] is the cross cluster access user and we should never try to get its roles"
             );
         }
         if (XPackUser.is(user)) {

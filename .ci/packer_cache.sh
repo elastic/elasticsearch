@@ -43,6 +43,7 @@ fi
 ## Gradle is able to resolve dependencies resolved with earlier gradle versions
 ## therefore we run main _AFTER_ we run 6.8 which uses an earlier gradle version
 branches=($(cat .ci/snapshotBwcVersions | sed '1d;$d' | grep -E -o "[0-9]+\.[0-9]+"))
+branches+=("main")
 for branch in "${branches[@]}"; do
   echo "Resolving dependencies for ${branch} branch"
   rm -rf checkout/$branch

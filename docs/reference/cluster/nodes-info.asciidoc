@@ -133,6 +133,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 `version`::
 		{es} version running on this node.
 
+`transport_version`::
+		The most recent transport version that this node can communicate with.
+
 The `os` flag can be set to retrieve information that concern the operating
 system:
 
@@ -228,6 +231,7 @@ The API returns the following response:
       "host": "node-0.elastic.co",
       "ip": "192.168.17",
       "version": "{version}",
+      "transport_version": "{transport_version}",
       "build_flavor": "default",
       "build_type": "{build_type}",
       "build_hash": "587409e",
@@ -299,6 +303,7 @@ The API returns the following response:
       "host": "node-0.elastic.co",
       "ip": "192.168.17",
       "version": "{version}",
+      "transport_version": "{transport_version}",
       "build_flavor": "default",
       "build_type": "{build_type}",
       "build_hash": "587409e",

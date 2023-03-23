@@ -42,4 +42,4 @@ collection methods, you should migrate to using {agent} or {metricbeat}.
 * {apm-guide-ref}/monitor-apm.html[Monitoring APM Server]
 * {fleet-guide}/monitor-elastic-agent.html[Monitoring {agent}s]
 {fleet}-managed agents) or
-{fleet-guide}/elastic-agent-monitoring-configuration[Configure monitoring for standalone {agent}s]
+{fleet-guide}/elastic-agent-monitoring-configuration.html[Configure monitoring for standalone {agent}s]

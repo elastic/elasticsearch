@@ -12,7 +12,6 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
 import org.elasticsearch.index.analysis.AnalysisMode;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper.Parameter;
@@ -29,96 +28,146 @@ public final class TextParams {
 
     private TextParams() {}
 
-    public static final class Analyzers {
-        public final Parameter<NamedAnalyzer> indexAnalyzer;
-        public final Parameter<NamedAnalyzer> searchAnalyzer;
-        public final Parameter<NamedAnalyzer> searchQuoteAnalyzer;
-        public final Parameter<Integer> positionIncrementGap;
-        public final IndexAnalyzers indexAnalyzers;
+    /*
+    *       i configured   s configured   sq configured  return
+    *   i       y                                           i
+    *   i       n                                           default index analyzer
+    *   s       *               y                           s
+    *   s       y               n                           i
+    *   s       n               n                           default search analyzer
+    *   sq      *               *               y           sq
+    *   sq      *               y               n           s
+    *   sq      y               n               n           i
+    *   sq      n               n               n           default search quote analyzer
+    *
+    *
+    *
+    * */
 
-        public Analyzers(
-            IndexAnalyzers indexAnalyzers,
-            Function<FieldMapper, NamedAnalyzer> analyzerInitFunction,
-            Function<FieldMapper, Integer> positionGapInitFunction,
+    public record AnalyzerConfiguration(String indexAnalyzer, String searchAnalyzer, String searchQuoteAnalyzer, int posIncrementGap) {
+
+        public Analyzers buildAnalyzers(IndexAnalyzers indexAnalyzers) {
+            return new Analyzers(
+                wrap(buildIndexAnalyzer(indexAnalyzers), AnalysisMode.INDEX_TIME),
+                wrap(buildSearchAnalyzer(indexAnalyzers), AnalysisMode.SEARCH_TIME),
+                wrap(buildSearchQuoteAnalyzer(indexAnalyzers), AnalysisMode.SEARCH_TIME),
+                this
+            );
+        }
+
+        private NamedAnalyzer buildIndexAnalyzer(IndexAnalyzers indexAnalyzers) {
+            if (this.indexAnalyzer == null) {
+                return indexAnalyzers.getDefaultIndexAnalyzer();
+            }
+            NamedAnalyzer a = indexAnalyzers.get(this.indexAnalyzer);
+            if (a == null) {
+                throw new IllegalArgumentException("Unknown analyzer [" + this.indexAnalyzer + "]");
+            }
+            return a;
+        }
+
+        private NamedAnalyzer buildSearchAnalyzer(IndexAnalyzers indexAnalyzers) {
+            if (this.searchAnalyzer == null) {
+                if (this.indexAnalyzer == null) {
+                    return indexAnalyzers.getDefaultSearchAnalyzer();
+                }
+                return indexAnalyzers.get(this.indexAnalyzer);  // null check will already have happened in buildIndexAnalyzer
+            }
+            NamedAnalyzer a = indexAnalyzers.get(this.searchAnalyzer);
+            if (a == null) {
+                throw new IllegalArgumentException("Unknown analyzer [" + this.searchAnalyzer + "]");
+            }
+            return a;
+        }
+
+        private NamedAnalyzer buildSearchQuoteAnalyzer(IndexAnalyzers indexAnalyzers) {
+            if (this.searchQuoteAnalyzer == null) {
+                if (this.searchAnalyzer == null) {
+                    if (this.indexAnalyzer == null) {
+                        return indexAnalyzers.getDefaultSearchQuoteAnalyzer();
+                    }
+                    return indexAnalyzers.get(this.indexAnalyzer);  // null checked already in buildIndexAnalyzer
+                }
+                return indexAnalyzers.get(this.searchAnalyzer); // null checked already in buildSearchAnalyzer
+            }
+            NamedAnalyzer a = indexAnalyzers.get(this.searchQuoteAnalyzer);
+            if (a == null) {
+                throw new IllegalArgumentException("Unknown analyzer [" + this.searchQuoteAnalyzer + "]");
+            }
+            return a;
+        }
+
+        private NamedAnalyzer wrap(NamedAnalyzer in, AnalysisMode analysisMode) {
+            in.checkAllowedInMode(analysisMode);
+            if (in.getPositionIncrementGap("") != posIncrementGap) {
+                return new NamedAnalyzer(in, posIncrementGap);
+            }
+            return in;
+        }
+
+    }
+
+    public record Analyzers(
+        NamedAnalyzer indexAnalyzer,
+        NamedAnalyzer searchAnalyzer,
+        NamedAnalyzer searchQuoteAnalyzer,
+        AnalyzerConfiguration configuration
+    ) {}
+
+    public static final class AnalyzerParameters {
+        public final Parameter<String> indexAnalyzer;
+        public final Parameter<String> searchAnalyzer;
+        public final Parameter<String> searchQuoteAnalyzer;
+        public final Parameter<Integer> positionIncrementGap;
+
+        public AnalyzerParameters(
+            Function<FieldMapper, AnalyzerConfiguration> analyzerInitFunction,
             Version indexCreatedVersion
         ) {
 
-            this.indexAnalyzer = Parameter.analyzerParam(
+            this.indexAnalyzer = Parameter.stringParam(
                 "analyzer",
                 indexCreatedVersion.isLegacyIndexVersion(),
-                analyzerInitFunction,
-                indexAnalyzers::getDefaultIndexAnalyzer,
-                indexCreatedVersion
+                mapper -> analyzerInitFunction.apply(mapper).indexAnalyzer,
+                null
             )
-                .setSerializerCheck(
-                    (id, ic, a) -> id
-                        || ic
-                        || Objects.equals(a, getSearchAnalyzer()) == false
-                        || Objects.equals(a, getSearchQuoteAnalyzer()) == false
-                )
-                .addValidator(a -> a.checkAllowedInMode(AnalysisMode.INDEX_TIME));
-            this.searchAnalyzer = Parameter.analyzerParam(
+                .setSerializerCheck((includeDefaults, isConfigured, value) -> value != null)
+                .setMergeValidator(
+                    // special case - we allow 'default' to be merged in to an unconfigured analyzer
+                    (previous, toMerge, conflicts) -> Objects.equals(previous, toMerge) || (previous == null && "default".equals(toMerge))
+                );
+            this.searchAnalyzer = Parameter.stringParam(
                 "search_analyzer",
                 true,
-                m -> m.fieldType().getTextSearchInfo().searchAnalyzer(),
-                () -> {
-                    if (indexAnalyzer.isConfigured() == false) {
-                        NamedAnalyzer defaultAnalyzer = indexAnalyzers.get(AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME);
-                        if (defaultAnalyzer != null) {
-                            return defaultAnalyzer;
-                        }
-                    }
-                    return indexAnalyzer.get();
-                },
-                indexCreatedVersion
-            )
-                .setSerializerCheck((id, ic, a) -> id || ic || Objects.equals(a, getSearchQuoteAnalyzer()) == false)
-                .addValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
-            this.searchQuoteAnalyzer = Parameter.analyzerParam(
+                mapper -> analyzerInitFunction.apply(mapper).searchAnalyzer,
+                null
+            ).setSerializerCheck((includeDefaults, isConfigured, value) -> value != null);
+            this.searchQuoteAnalyzer = Parameter.stringParam(
                 "search_quote_analyzer",
                 true,
-                m -> m.fieldType().getTextSearchInfo().searchQuoteAnalyzer(),
-                () -> {
-                    if (searchAnalyzer.isConfigured() == false && indexAnalyzer.isConfigured() == false) {
-                        NamedAnalyzer defaultAnalyzer = indexAnalyzers.get(AnalysisRegistry.DEFAULT_SEARCH_QUOTED_ANALYZER_NAME);
-                        if (defaultAnalyzer != null) {
-                            return defaultAnalyzer;
-                        }
-                    }
-                    return searchAnalyzer.get();
-                },
-                indexCreatedVersion
-            ).addValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
+                mapper -> analyzerInitFunction.apply(mapper).searchQuoteAnalyzer,
+                null
+            ).setSerializerCheck((includeDefaults, isConfigured, value) -> value != null);
             this.positionIncrementGap = Parameter.intParam(
                 "position_increment_gap",
                 false,
-                positionGapInitFunction,
+                mapper -> analyzerInitFunction.apply(mapper).posIncrementGap,
                 TextFieldMapper.Defaults.POSITION_INCREMENT_GAP
             ).addValidator(v -> {
                 if (v < 0) {
                     throw new MapperParsingException("[position_increment_gap] must be positive, got [" + v + "]");
                 }
             });
-            this.indexAnalyzers = indexAnalyzers;
         }
 
-        public NamedAnalyzer getIndexAnalyzer() {
-            return wrapAnalyzer(indexAnalyzer.getValue());
-        }
-
-        public NamedAnalyzer getSearchAnalyzer() {
-            return wrapAnalyzer(searchAnalyzer.getValue());
-        }
-
-        public NamedAnalyzer getSearchQuoteAnalyzer() {
-            return wrapAnalyzer(searchQuoteAnalyzer.getValue());
-        }
-
-        private NamedAnalyzer wrapAnalyzer(NamedAnalyzer a) {
-            if (positionIncrementGap.isConfigured() == false) {
-                return a;
-            }
-            return new NamedAnalyzer(a, positionIncrementGap.get());
+        public Analyzers buildAnalyzers(IndexAnalyzers indexAnalyzers) {
+            AnalyzerConfiguration config = new AnalyzerConfiguration(
+                indexAnalyzer.get(),
+                searchAnalyzer.get(),
+                searchQuoteAnalyzer.get(),
+                positionIncrementGap.get()
+            );
+            return config.buildAnalyzers(indexAnalyzers);
         }
     }
 

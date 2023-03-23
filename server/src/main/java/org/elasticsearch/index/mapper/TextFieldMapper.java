@@ -274,7 +274,8 @@ public class TextFieldMapper extends FieldMapper {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        final TextParams.Analyzers analyzers;
+        final TextParams.AnalyzerParameters analyzers;
+        final IndexAnalyzers indexAnalyzers;
 
         public Builder(String name, IndexAnalyzers indexAnalyzers) {
             this(name, Version.CURRENT, indexAnalyzers);
@@ -283,10 +284,9 @@ public class TextFieldMapper extends FieldMapper {
         public Builder(String name, Version indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
-            this.analyzers = new TextParams.Analyzers(
-                indexAnalyzers,
-                m -> ((TextFieldMapper) m).indexAnalyzer,
-                m -> (((TextFieldMapper) m).positionIncrementGap),
+            this.indexAnalyzers = indexAnalyzers;
+            this.analyzers = new TextParams.AnalyzerParameters(
+                m -> ((TextFieldMapper) m).analyzerConfiguration,
                 indexCreatedVersion
             );
         }
@@ -341,17 +341,11 @@ public class TextFieldMapper extends FieldMapper {
             FieldType fieldType,
             MultiFields multiFields,
             MapperBuilderContext context,
-            Version indexCreatedVersion
+            Version indexCreatedVersion,
+            TextParams.Analyzers analyzers
         ) {
-            NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
-            NamedAnalyzer searchQuoteAnalyzer = analyzers.getSearchQuoteAnalyzer();
-            if (analyzers.positionIncrementGap.isConfigured()) {
-                if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
-                    throw new IllegalArgumentException(
-                        "Cannot set position_increment_gap on field [" + name + "] without positions enabled"
-                    );
-                }
-            }
+            NamedAnalyzer searchAnalyzer = analyzers.searchAnalyzer();
+            NamedAnalyzer searchQuoteAnalyzer = analyzers.searchQuoteAnalyzer();
             TextSearchInfo tsi = new TextSearchInfo(fieldType, similarity.getValue(), searchAnalyzer, searchQuoteAnalyzer);
             TextFieldType ft;
             if (indexCreatedVersion.isLegacyIndexVersion()) {
@@ -390,7 +384,7 @@ public class TextFieldMapper extends FieldMapper {
             return null;
         }
 
-        private SubFieldInfo buildPrefixInfo(MapperBuilderContext context, FieldType fieldType, TextFieldType tft) {
+        private SubFieldInfo buildPrefixInfo(MapperBuilderContext context, TextParams.Analyzers analyzers, FieldType fieldType, TextFieldType tft) {
             if (indexPrefixes.get() == null) {
                 return null;
             }
@@ -423,15 +417,15 @@ public class TextFieldMapper extends FieldMapper {
                 fullName + "._index_prefix",
                 pft,
                 new PrefixWrappedAnalyzer(
-                    analyzers.getIndexAnalyzer().analyzer(),
-                    analyzers.positionIncrementGap.get(),
+                    analyzers.indexAnalyzer().analyzer(),
+                    analyzers.configuration().posIncrementGap(),
                     indexPrefixes.get().minChars,
                     indexPrefixes.get().maxChars
                 )
             );
         }
 
-        private SubFieldInfo buildPhraseInfo(FieldType fieldType, TextFieldType parent) {
+        private SubFieldInfo buildPhraseInfo(TextParams.Analyzers analyzers, FieldType fieldType, TextFieldType parent) {
             if (indexPhrases.get() == false) {
                 return null;
             }
@@ -444,15 +438,14 @@ public class TextFieldMapper extends FieldMapper {
             FieldType phraseFieldType = new FieldType(fieldType);
             parent.setIndexPhrases();
             PhraseWrappedAnalyzer a = new PhraseWrappedAnalyzer(
-                analyzers.getIndexAnalyzer().analyzer(),
-                analyzers.positionIncrementGap.get()
+                analyzers.indexAnalyzer().analyzer(),
+                analyzers.configuration().posIncrementGap()
             );
             return new SubFieldInfo(parent.name() + FAST_PHRASE_SUFFIX, phraseFieldType, a);
         }
 
-        public Map<String, NamedAnalyzer> indexAnalyzers(String name, SubFieldInfo phraseFieldInfo, SubFieldInfo prefixFieldInfo) {
+        private Map<String, NamedAnalyzer> indexAnalyzers(String name, NamedAnalyzer main, SubFieldInfo phraseFieldInfo, SubFieldInfo prefixFieldInfo) {
             Map<String, NamedAnalyzer> analyzers = new HashMap<>();
-            NamedAnalyzer main = this.analyzers.getIndexAnalyzer();
             analyzers.put(name, main);
             if (phraseFieldInfo != null) {
                 analyzers.put(
@@ -471,6 +464,7 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         public TextFieldMapper build(MapperBuilderContext context) {
+            TextParams.Analyzers analyzers = this.analyzers.buildAnalyzers(indexAnalyzers);
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
             FieldType fieldType = TextParams.buildFieldType(
                 index,
@@ -480,9 +474,16 @@ public class TextFieldMapper extends FieldMapper {
                 indexCreatedVersion.isLegacyIndexVersion() ? () -> false : norms,
                 termVectors
             );
-            TextFieldType tft = buildFieldType(fieldType, multiFields, context, indexCreatedVersion);
-            SubFieldInfo phraseFieldInfo = buildPhraseInfo(fieldType, tft);
-            SubFieldInfo prefixFieldInfo = buildPrefixInfo(context, fieldType, tft);
+            if (this.analyzers.positionIncrementGap.isConfigured()) {
+                if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
+                    throw new IllegalArgumentException(
+                        "Cannot set position_increment_gap on field [" + name + "] without positions enabled"
+                    );
+                }
+            }
+            TextFieldType tft = buildFieldType(fieldType, multiFields, context, indexCreatedVersion, analyzers);
+            SubFieldInfo phraseFieldInfo = buildPhraseInfo(analyzers, fieldType, tft);
+            SubFieldInfo prefixFieldInfo = buildPrefixInfo(context, analyzers, fieldType, tft);
             for (Mapper mapper : multiFields) {
                 if (mapper.name().endsWith(FAST_PHRASE_SUFFIX) || mapper.name().endsWith(FAST_PREFIX_SUFFIX)) {
                     throw new MapperParsingException("Cannot use reserved field name [" + mapper.name() + "]");
@@ -492,9 +493,10 @@ public class TextFieldMapper extends FieldMapper {
                 name,
                 fieldType,
                 tft,
-                indexAnalyzers(tft.name(), phraseFieldInfo, prefixFieldInfo),
+                indexAnalyzers(tft.name(), analyzers.indexAnalyzer(), phraseFieldInfo, prefixFieldInfo),
                 prefixFieldInfo,
                 phraseFieldInfo,
+                analyzers,
                 multiFields,
                 copyTo.build(),
                 this
@@ -1150,16 +1152,18 @@ public class TextFieldMapper extends FieldMapper {
     private final FieldType fieldType;
     private final SubFieldInfo prefixFieldInfo;
     private final SubFieldInfo phraseFieldInfo;
+    private final TextParams.AnalyzerConfiguration analyzerConfiguration;
 
     private final Map<String, NamedAnalyzer> indexAnalyzerMap;
 
-    protected TextFieldMapper(
+    private TextFieldMapper(
         String simpleName,
         FieldType fieldType,
         TextFieldType mappedFieldType,
         Map<String, NamedAnalyzer> indexAnalyzers,
         SubFieldInfo prefixFieldInfo,
         SubFieldInfo phraseFieldInfo,
+        TextParams.Analyzers analyzers,
         MultiFields multiFields,
         CopyTo copyTo,
         Builder builder
@@ -1174,8 +1178,8 @@ public class TextFieldMapper extends FieldMapper {
         this.prefixFieldInfo = prefixFieldInfo;
         this.phraseFieldInfo = phraseFieldInfo;
         this.indexCreatedVersion = builder.indexCreatedVersion;
-        this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
-        this.indexAnalyzers = builder.analyzers.indexAnalyzers;
+        this.indexAnalyzer = analyzers.indexAnalyzer();
+        this.indexAnalyzers = builder.indexAnalyzers;
         this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
         this.index = builder.index.getValue();
         this.store = builder.store.getValue();
@@ -1189,6 +1193,7 @@ public class TextFieldMapper extends FieldMapper {
         this.fieldData = builder.fieldData.get();
         this.indexPhrases = builder.indexPhrases.getValue();
         this.indexAnalyzerMap = Map.copyOf(indexAnalyzers);
+        this.analyzerConfiguration = analyzers.configuration();
     }
 
     @Override

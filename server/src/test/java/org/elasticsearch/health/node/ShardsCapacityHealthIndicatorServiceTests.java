@@ -191,7 +191,10 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
                 "Cluster is close to reaching the configured maximum number of shards for data and frozen nodes."
             );
             assertThat(indicatorResult.impacts(), equalTo(YELLOW_INDICATOR_IMPACTS));
-            assertThat(indicatorResult.diagnosisList(), is(List.of(SHARDS_MAX_CAPACITY_REACHED_DATA_NODES, SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES)));
+            assertThat(
+                indicatorResult.diagnosisList(),
+                is(List.of(SHARDS_MAX_CAPACITY_REACHED_DATA_NODES, SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES))
+            );
             assertThat(
                 xContentToMap(indicatorResult.details()),
                 is(
@@ -267,7 +270,10 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
                 "Cluster is close to reaching the configured maximum number of shards for data and frozen nodes."
             );
             assertThat(indicatorResult.impacts(), equalTo(RED_INDICATOR_IMPACTS));
-            assertThat(indicatorResult.diagnosisList(), is(List.of(SHARDS_MAX_CAPACITY_REACHED_DATA_NODES, SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES)));
+            assertThat(
+                indicatorResult.diagnosisList(),
+                is(List.of(SHARDS_MAX_CAPACITY_REACHED_DATA_NODES, SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES))
+            );
             assertThat(
                 xContentToMap(indicatorResult.details()),
                 is(

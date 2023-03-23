@@ -289,11 +289,15 @@ public final class TestUtils {
         Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
         TestNodes nodes = new TestNodes();
         for (String id : nodesAsMap.keySet()) {
+            Version nodeVersion = Version.fromString(objectPath.evaluate("nodes." + id + ".version"));
+            TransportVersion transportVersion = nodeVersion.before(Version.V_8_8_0)
+                ? TransportVersion.fromId(nodeVersion.id)   // no transport_version field
+                : TransportVersion.fromString(objectPath.evaluate("nodes." + id + ".transport_version").toString());
             nodes.add(
                 new TestNode(
                     id,
-                    Version.fromString(objectPath.evaluate("nodes." + id + ".version")),
-                    TransportVersion.fromString(objectPath.evaluate("nodes." + id + ".transport_version").toString()),
+                    nodeVersion,
+                    transportVersion,
                     HttpHost.create(objectPath.evaluate("nodes." + id + ".http.publish_address"))
                 )
             );

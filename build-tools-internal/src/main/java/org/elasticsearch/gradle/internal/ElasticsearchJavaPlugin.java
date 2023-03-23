@@ -24,6 +24,7 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.RegularFile;
+import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
@@ -79,32 +80,38 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
             task.finalizedBy(project.getTasks().named("jacocoTestReport"));
         });
         project.getTasks().named("jacocoTestReport").configure(task -> {
-            task.dependsOn(project.getTasks().named("transportTestExistCheck"));
             task.dependsOn(project.getTasks().named("test"));
         });
 
-        project.getTasks().named("jacocoTestCoverageVerification", JacocoCoverageVerification.class).configure(task -> {
-            task.dependsOn(project.getTasks().named("jacocoTestReport"));
+        project.getTasks().named("jacocoTestCoverageVerification", JacocoCoverageVerification.class).configure(t -> {
+            t.dependsOn(project.getTasks().named("jacocoTestReport"));
+            t.dependsOn(project.getTasks().named("transportTestExistCheck"));
 
-            task.getViolationRules().rule(jacocoViolationRule -> {
-                List<String> transportClasses = readTransportClasses(project).stream().map(s->s+"#writeTo").collect(Collectors.toList());
-                System.out.println("xxx");
-                System.out.println(transportClasses);
-                jacocoViolationRule.setElement("METHOD");
-                jacocoViolationRule.limit(l-> {
-                   l.setCounter("INSTRUCTION");
-                   l.setValue("COVEREDRATIO");
-                   l.setMinimum(BigDecimal.valueOf(0.9));
+            t.doFirst(t2 -> {
+                var task = (JacocoCoverageVerification)t2;
+
+                task.getViolationRules().rule(jacocoViolationRule -> {
+
+                    List<String> transportClasses = readTransportClasses(project);
+                    System.out.println(transportClasses);
+                    jacocoViolationRule.setElement("CLASS");
+                    jacocoViolationRule.limit(l-> {
+                        l.setCounter("INSTRUCTION");
+                        l.setValue("COVEREDRATIO");
+                        l.setMinimum(BigDecimal.valueOf(1.0));
+                    });
+                    jacocoViolationRule.setIncludes(transportClasses);
                 });
-                jacocoViolationRule.setIncludes(transportClasses);
             });
+
         });
     }
 
     private static List<String> readTransportClasses(Project project) {
         try {
             //  - Gradle detected a problem with the following location: '/Users/przemyslawgomulka/workspace/pgomulka/elasticsearch/modules/aggregations/build/generated-resources/transport-classes.txt'. Reason: Task ':modules:aggregations:test' uses this output of task ':modules:aggregations:transportTestExistCheck' without declaring an explicit or implicit dependency. This can lead to incorrect results being produced, depending on what order the tasks are executed. Please refer to https://docs.gradle.org/7.6.1/userguide/validation_problems.html#implicit_dependency for more details about this problem.
-            Provider<RegularFile> file = project.getLayout().getBuildDirectory().file(TransportTestExistTask.TRANSPORT_CLASSES);
+//            Provider<RegularFile> file = project.getLayout().getBuildDirectory().file(TransportTestExistTask.TRANSPORT_CLASSES);
+            RegularFileProperty file = project.getTasks().named("transportTestExistCheck", TransportTestExistTask.class).get().getOutputFile();
             Path path = file.get().getAsFile().toPath();
             return Files.readAllLines(path);
         } catch (IOException e) {

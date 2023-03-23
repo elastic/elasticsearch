@@ -563,10 +563,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     private void createShard(ShardRouting shardRouting, ClusterState state) {
         assert shardRouting.initializing() : "only allow shard creation for initializing shard but was " + shardRouting;
+        final var shardId = shardRouting.shardId();
 
         try {
-            final var shardId = shardRouting.shardId();
-
             final DiscoveryNode sourceNode;
             if (shardRouting.recoverySource().getType() == Type.PEER) {
                 sourceNode = findSourceNodeForPeerRecovery(state.routingTable(), state.nodes(), shardRouting);
@@ -607,6 +606,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 })
             );
         } catch (Exception e) {
+            assert pendingShardCreations.get(shardId) == null
+                || pendingShardCreations.get(shardId).clusterStateUUID().equals(state.stateUUID()) == false;
             failAndRemoveShard(shardRouting, true, "failed to create shard", e, state);
         }
     }
@@ -630,7 +631,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         int iteration,
         long delayMillis,
         ActionListener<Boolean> listener
-    ) throws IOException {
+    ) {
         try {
             logger.debug("{} creating shard with primary term [{}], iteration [{}]", shardRouting.shardId(), primaryTerm, iteration);
             indicesService.createShard(
@@ -722,21 +723,20 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             return;
                         }
 
-                        ActionListener.run(
-                            listener,
-                            l -> createShardWhenLockAvailable(
-                                shardRouting,
-                                originalState,
-                                sourceNode,
-                                primaryTerm,
-                                iteration + 1,
-                                newDelayMillis,
-                                l
-                            )
+                        createShardWhenLockAvailable(
+                            shardRouting,
+                            originalState,
+                            sourceNode,
+                            primaryTerm,
+                            iteration + 1,
+                            newDelayMillis,
+                            listener
                         );
 
                     }, ActionListener.noop())
             );
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
     }
 

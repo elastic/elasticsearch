@@ -14,6 +14,7 @@ import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.UsernamesField;
@@ -30,14 +31,16 @@ public class InternalUserAndRoleIntegTests extends AbstractPrivilegeTestCase {
         XPackUser.NAME,
         XPackSecurityUser.NAME,
         AsyncSearchUser.NAME,
-        SecurityProfileUser.NAME };
+        SecurityProfileUser.NAME,
+        CrossClusterAccessUser.NAME };
 
     private static final String[] INTERNAL_ROLE_NAMES = new String[] {
         UsernamesField.SYSTEM_ROLE,
         UsernamesField.XPACK_ROLE,
         UsernamesField.XPACK_SECURITY_ROLE,
         UsernamesField.ASYNC_SEARCH_ROLE,
-        UsernamesField.SECURITY_PROFILE_ROLE };
+        UsernamesField.SECURITY_PROFILE_ROLE,
+        UsernamesField.CROSS_CLUSTER_ACCESS_ROLE };
     public static final String NON_INTERNAL_USERNAME = "user";
     public static final String NON_INTERNAL_ROLE_NAME = "role";
 

@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.ingest.AbstractProcessor;
+import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.ingest.Processor;
@@ -48,6 +49,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
@@ -83,6 +85,26 @@ public class FinalPipelineIT extends ESIntegTestCase {
 
         final BytesReference finalPipelineBody = new BytesArray("""
             {"processors": [{"changing_dest": {}}]}""");
+        client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
+
+        final IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> client().prepareIndex("index").setId("1").setSource(Map.of("field", "value")).get()
+        );
+        assertThat(
+            e,
+            hasToString(
+                endsWith("final pipeline [final_pipeline] can't change the target index (from [index] to [target]) for document [1]")
+            )
+        );
+    }
+
+    public void testFinalPipelineCantRerouteDestination() {
+        final Settings settings = Settings.builder().put(IndexSettings.FINAL_PIPELINE.getKey(), "final_pipeline").build();
+        createIndex("index", settings);
+
+        final BytesReference finalPipelineBody = new BytesArray("""
+            {"processors": [{"reroute": {}}]}""");
         client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
 
         final IllegalStateException e = expectThrows(
@@ -185,6 +207,73 @@ public class FinalPipelineIT extends ESIntegTestCase {
         SearchResponse target = client().prepareSearch("target").get();
         assertEquals(1, target.getHits().getTotalHits().value);
         assertFalse(target.getHits().getAt(0).getSourceAsMap().containsKey("final"));
+    }
+
+    public void testDefaultPipelineOfRerouteDestinationIsInvoked() {
+        Settings settings = Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline").build();
+        createIndex("index", settings);
+
+        settings = Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "target_default_pipeline").build();
+        createIndex("target", settings);
+
+        BytesReference defaultPipelineBody = new BytesArray("""
+            {"processors": [{"reroute": {}}]}""");
+        client().admin()
+            .cluster()
+            .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON))
+            .actionGet();
+
+        BytesReference targetPipeline = new BytesArray("""
+            {"processors": [{"final": {}}]}""");
+        client().admin()
+            .cluster()
+            .putPipeline(new PutPipelineRequest("target_default_pipeline", targetPipeline, XContentType.JSON))
+            .actionGet();
+
+        IndexResponse indexResponse = client().prepareIndex("index")
+            .setId("1")
+            .setSource(Map.of("field", "value"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        assertEquals(RestStatus.CREATED, indexResponse.status());
+        SearchResponse target = client().prepareSearch("target").get();
+        assertEquals(1, target.getHits().getTotalHits().value);
+        assertTrue(target.getHits().getAt(0).getSourceAsMap().containsKey("final"));
+    }
+
+    public void testAvoidIndexingLoop() {
+        Settings settings = Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline").build();
+        createIndex("index", settings);
+
+        settings = Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "target_default_pipeline").build();
+        createIndex("target", settings);
+
+        BytesReference defaultPipelineBody = new BytesArray("""
+            {"processors": [{"reroute": {"dest": "target"}}]}""");
+        client().admin()
+            .cluster()
+            .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON))
+            .actionGet();
+
+        BytesReference targetPipeline = new BytesArray("""
+            {"processors": [{"reroute": {"dest": "index"}}]}""");
+        client().admin()
+            .cluster()
+            .putPipeline(new PutPipelineRequest("target_default_pipeline", targetPipeline, XContentType.JSON))
+            .actionGet();
+
+        IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> client().prepareIndex("index")
+                .setId("1")
+                .setSource(Map.of("dest", "index"))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get()
+        );
+        assertThat(
+            exception.getMessage(),
+            equalTo("index cycle detected while processing pipeline [target_default_pipeline] for document [1]: [index, target, index]")
+        );
     }
 
     public void testFinalPipeline() {
@@ -393,6 +482,26 @@ public class FinalPipelineIT extends ESIntegTestCase {
                         return "changing_dest";
                     }
 
+                },
+                "reroute",
+                (processorFactories, tag, description, config) -> {
+                    final String dest = Objects.requireNonNullElse(
+                        ConfigurationUtils.readOptionalStringProperty(description, tag, config, "dest"),
+                        "target"
+                    );
+                    return new AbstractProcessor(tag, description) {
+                        @Override
+                        public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
+                            ingestDocument.reroute(dest);
+                            return ingestDocument;
+                        }
+
+                        @Override
+                        public String getType() {
+                            return "reroute";
+                        }
+
+                    };
                 }
             );
         }

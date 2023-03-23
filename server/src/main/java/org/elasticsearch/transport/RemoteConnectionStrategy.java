@@ -44,7 +44,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS;
 
 public abstract class RemoteConnectionStrategy implements TransportConnectionListener, Closeable {
 
@@ -141,8 +140,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         connectionManager.addListener(this);
     }
 
-    static ConnectionProfile buildConnectionProfile(String clusterAlias, Settings settings) {
-        final String transportProfile = REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(clusterAlias).exists(settings)
+    static ConnectionProfile buildConnectionProfile(String clusterAlias, Settings settings, boolean credentialsProtected) {
+        final String transportProfile = credentialsProtected
             ? RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE
             : TransportSettings.DEFAULT_PROFILE;
 

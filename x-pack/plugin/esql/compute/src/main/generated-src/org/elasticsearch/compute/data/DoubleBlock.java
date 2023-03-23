@@ -34,9 +34,6 @@ public sealed interface DoubleBlock extends Block permits FilterDoubleBlock,Doub
     DoubleVector asVector();
 
     @Override
-    DoubleBlock getRow(int position);
-
-    @Override
     DoubleBlock filter(int... positions);
 
     NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "DoubleBlock", DoubleBlock::of);

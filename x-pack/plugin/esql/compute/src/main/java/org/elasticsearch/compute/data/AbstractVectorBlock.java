@@ -44,9 +44,4 @@ abstract class AbstractVectorBlock extends AbstractBlock {
     public boolean areAllValuesNull() {
         return false;
     }
-
-    @Override
-    public Block getRow(int position) {
-        return filter(position);
-    }
 }

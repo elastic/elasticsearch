@@ -34,9 +34,6 @@ public sealed interface BooleanBlock extends Block permits FilterBooleanBlock,Bo
     BooleanVector asVector();
 
     @Override
-    BooleanBlock getRow(int position);
-
-    @Override
     BooleanBlock filter(int... positions);
 
     NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "BooleanBlock", BooleanBlock::of);

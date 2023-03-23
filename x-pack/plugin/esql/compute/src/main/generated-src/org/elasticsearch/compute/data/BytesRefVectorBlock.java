@@ -48,11 +48,6 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     }
 
     @Override
-    public BytesRefBlock getRow(int position) {
-        return filter(position);
-    }
-
-    @Override
     public BytesRefBlock filter(int... positions) {
         return new FilterBytesRefVector(vector, positions).asBlock();
     }

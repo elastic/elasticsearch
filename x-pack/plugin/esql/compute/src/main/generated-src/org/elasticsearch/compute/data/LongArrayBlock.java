@@ -34,11 +34,6 @@ public final class LongArrayBlock extends AbstractBlock implements LongBlock {
     }
 
     @Override
-    public LongBlock getRow(int position) {
-        return filter(position);
-    }
-
-    @Override
     public LongBlock filter(int... positions) {
         return new FilterLongBlock(this, positions);
     }

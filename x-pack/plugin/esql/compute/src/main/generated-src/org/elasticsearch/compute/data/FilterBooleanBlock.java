@@ -36,11 +36,6 @@ final class FilterBooleanBlock extends AbstractFilterBlock implements BooleanBlo
     }
 
     @Override
-    public BooleanBlock getRow(int position) {
-        return filter(position);
-    }
-
-    @Override
     public BooleanBlock filter(int... positions) {
         return new FilterBooleanBlock(this, positions);
     }

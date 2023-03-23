@@ -38,11 +38,6 @@ final class FilterBytesRefBlock extends AbstractFilterBlock implements BytesRefB
     }
 
     @Override
-    public BytesRefBlock getRow(int position) {
-        return filter(position);
-    }
-
-    @Override
     public BytesRefBlock filter(int... positions) {
         return new FilterBytesRefBlock(this, positions);
     }

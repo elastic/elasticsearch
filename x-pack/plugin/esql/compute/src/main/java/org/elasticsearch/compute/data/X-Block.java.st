@@ -46,9 +46,6 @@ $endif$
     $Type$Vector asVector();
 
     @Override
-    $Type$Block getRow(int position);
-
-    @Override
     $Type$Block filter(int... positions);
 
     NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "$Type$Block", $Type$Block::of);

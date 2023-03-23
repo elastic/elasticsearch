@@ -34,11 +34,6 @@ public final class DoubleArrayBlock extends AbstractBlock implements DoubleBlock
     }
 
     @Override
-    public DoubleBlock getRow(int position) {
-        return filter(position);
-    }
-
-    @Override
     public DoubleBlock filter(int... positions) {
         return new FilterDoubleBlock(this, positions);
     }

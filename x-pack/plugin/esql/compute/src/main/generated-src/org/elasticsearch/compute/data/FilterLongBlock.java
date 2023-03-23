@@ -36,11 +36,6 @@ final class FilterLongBlock extends AbstractFilterBlock implements LongBlock {
     }
 
     @Override
-    public LongBlock getRow(int position) {
-        return filter(position);
-    }
-
-    @Override
     public LongBlock filter(int... positions) {
         return new FilterLongBlock(this, positions);
     }

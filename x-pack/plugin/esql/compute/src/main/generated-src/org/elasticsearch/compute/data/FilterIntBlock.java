@@ -36,11 +36,6 @@ final class FilterIntBlock extends AbstractFilterBlock implements IntBlock {
     }
 
     @Override
-    public IntBlock getRow(int position) {
-        return filter(position);
-    }
-
-    @Override
     public IntBlock filter(int... positions) {
         return new FilterIntBlock(this, positions);
     }

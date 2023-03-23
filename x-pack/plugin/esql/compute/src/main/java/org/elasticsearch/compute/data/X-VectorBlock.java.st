@@ -56,11 +56,6 @@ $endif$
     }
 
     @Override
-    public $Type$Block getRow(int position) {
-        return filter(position);
-    }
-
-    @Override
     public $Type$Block filter(int... positions) {
         return new Filter$Type$Vector(vector, positions).asBlock();
     }

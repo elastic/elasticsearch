@@ -71,7 +71,7 @@ public class ShardLimitsHealthIndicatorServiceIT extends ESIntegTestCase {
 
         var result = fetchShardLimitsIndicatorResult(internalCluster);
         assertEquals(result.status(), HealthStatus.YELLOW);
-        assertEquals(result.symptom(), "Cluster is close to reaching the configured maximum number of shards for normal nodes.");
+        assertEquals(result.symptom(), "Cluster is close to reaching the configured maximum number of shards for data nodes.");
         assertThat(result.diagnosisList(), hasSize(1));
         assertThat(result.impacts(), hasSize(2));
     }
@@ -82,7 +82,7 @@ public class ShardLimitsHealthIndicatorServiceIT extends ESIntegTestCase {
 
         var result = fetchShardLimitsIndicatorResult(internalCluster);
         assertEquals(result.status(), HealthStatus.RED);
-        assertEquals(result.symptom(), "Cluster is close to reaching the configured maximum number of shards for normal nodes.");
+        assertEquals(result.symptom(), "Cluster is close to reaching the configured maximum number of shards for data nodes.");
         assertThat(result.diagnosisList(), hasSize(1));
         assertThat(result.impacts(), hasSize(2));
     }

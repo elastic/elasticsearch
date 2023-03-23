@@ -46,8 +46,8 @@ import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.health.node.ShardLimitsHealthIndicatorService.RED_INDICATOR_IMPACTS;
+import static org.elasticsearch.health.node.ShardLimitsHealthIndicatorService.SHARD_LIMITS_REACHED_DATA_NODES;
 import static org.elasticsearch.health.node.ShardLimitsHealthIndicatorService.SHARD_LIMITS_REACHED_FROZEN_NODES;
-import static org.elasticsearch.health.node.ShardLimitsHealthIndicatorService.SHARD_LIMITS_REACHED_NORMAL_NODES;
 import static org.elasticsearch.health.node.ShardLimitsHealthIndicatorService.YELLOW_INDICATOR_IMPACTS;
 import static org.elasticsearch.health.node.ShardLimitsHealthIndicatorService.calculateFrom;
 import static org.elasticsearch.indices.ShardLimitValidator.FROZEN_GROUP;
@@ -62,16 +62,16 @@ import static org.mockito.Mockito.when;
 public class ShardLimitsHealthIndicatorServiceTests extends ESTestCase {
 
     public static final HealthMetadata.Disk DISK_METADATA = HealthMetadata.Disk.newBuilder().build();
-    private DiscoveryNode normalNode;
+    private DiscoveryNode dataNode;
     private DiscoveryNode frozenNode;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
 
-        normalNode = new DiscoveryNode(
-            "normal_node",
-            "normal_node",
+        dataNode = new DiscoveryNode(
+            "data_node",
+            "data_node",
             ESTestCase.buildNewFakeTransportAddress(),
             Map.of(),
             Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
@@ -94,7 +94,7 @@ public class ShardLimitsHealthIndicatorServiceTests extends ESTestCase {
                 randomValidMaxShards(),
                 randomValidMaxShards(),
                 new HealthMetadata(DISK_METADATA, null),
-                createIndexInNormalNode(100)
+                createIndexInDataNode(100)
             )
         );
         var target = new ShardLimitsHealthIndicatorService(clusterService);
@@ -110,7 +110,7 @@ public class ShardLimitsHealthIndicatorServiceTests extends ESTestCase {
     public void testIndicatorYieldsGreenInCaseThereIsRoom() throws IOException {
         int maxShardsPerNode = randomValidMaxShards();
         int maxShardsPerNodeFrozen = randomValidMaxShards();
-        var clusterService = createClusterService(maxShardsPerNode, maxShardsPerNodeFrozen, createIndexInNormalNode(maxShardsPerNode / 4));
+        var clusterService = createClusterService(maxShardsPerNode, maxShardsPerNodeFrozen, createIndexInDataNode(maxShardsPerNode / 4));
         var indicatorResult = new ShardLimitsHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
         assertEquals(indicatorResult.status(), HealthStatus.GREEN);
@@ -132,19 +132,16 @@ public class ShardLimitsHealthIndicatorServiceTests extends ESTestCase {
 
     public void testIndicatorYieldsYellowInCaseThereIsNotEnoughRoom() throws IOException {
         {
-            // Only normal_nodes does not have enough space
+            // Only data_nodes does not have enough space
             int maxShardsPerNodeFrozen = randomValidMaxShards();
-            var clusterService = createClusterService(25, maxShardsPerNodeFrozen, createIndexInNormalNode(4));
+            var clusterService = createClusterService(25, maxShardsPerNodeFrozen, createIndexInDataNode(4));
             var indicatorResult = new ShardLimitsHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
             assertEquals(indicatorResult.status(), YELLOW);
-            assertEquals(
-                indicatorResult.symptom(),
-                "Cluster is close to reaching the configured maximum number of shards for normal nodes."
-            );
+            assertEquals(indicatorResult.symptom(), "Cluster is close to reaching the configured maximum number of shards for data nodes.");
             assertThat(indicatorResult.impacts(), equalTo(YELLOW_INDICATOR_IMPACTS));
             assertThat(indicatorResult.diagnosisList(), hasSize(1));
-            assertThat(indicatorResult.diagnosisList().get(0), equalTo(SHARD_LIMITS_REACHED_NORMAL_NODES));
+            assertThat(indicatorResult.diagnosisList().get(0), equalTo(SHARD_LIMITS_REACHED_DATA_NODES));
             assertThat(
                 xContentToMap(indicatorResult.details()),
                 is(
@@ -184,17 +181,17 @@ public class ShardLimitsHealthIndicatorServiceTests extends ESTestCase {
             );
         }
         {
-            // Both normal and frozen nodes does not have enough space
-            var clusterService = createClusterService(25, 25, createIndexInNormalNode(4), createIndexInFrozenNode(4));
+            // Both data and frozen nodes does not have enough space
+            var clusterService = createClusterService(25, 25, createIndexInDataNode(4), createIndexInFrozenNode(4));
             var indicatorResult = new ShardLimitsHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
             assertEquals(indicatorResult.status(), YELLOW);
             assertEquals(
                 indicatorResult.symptom(),
-                "Cluster is close to reaching the configured maximum number of shards for normal and frozen nodes."
+                "Cluster is close to reaching the configured maximum number of shards for data and frozen nodes."
             );
             assertThat(indicatorResult.impacts(), equalTo(YELLOW_INDICATOR_IMPACTS));
-            assertThat(indicatorResult.diagnosisList(), is(List.of(SHARD_LIMITS_REACHED_NORMAL_NODES, SHARD_LIMITS_REACHED_FROZEN_NODES)));
+            assertThat(indicatorResult.diagnosisList(), is(List.of(SHARD_LIMITS_REACHED_DATA_NODES, SHARD_LIMITS_REACHED_FROZEN_NODES)));
             assertThat(
                 xContentToMap(indicatorResult.details()),
                 is(
@@ -211,19 +208,16 @@ public class ShardLimitsHealthIndicatorServiceTests extends ESTestCase {
 
     public void testIndicatorYieldsRedInCaseThereIsNotEnoughRoom() throws IOException {
         {
-            // Only normal_nodes does not have enough space
+            // Only data_nodes does not have enough space
             int maxShardsPerNodeFrozen = randomValidMaxShards();
-            var clusterService = createClusterService(25, maxShardsPerNodeFrozen, createIndexInNormalNode(11));
+            var clusterService = createClusterService(25, maxShardsPerNodeFrozen, createIndexInDataNode(11));
             var indicatorResult = new ShardLimitsHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
             assertEquals(indicatorResult.status(), RED);
-            assertEquals(
-                indicatorResult.symptom(),
-                "Cluster is close to reaching the configured maximum number of shards for normal nodes."
-            );
+            assertEquals(indicatorResult.symptom(), "Cluster is close to reaching the configured maximum number of shards for data nodes.");
             assertThat(indicatorResult.impacts(), equalTo(RED_INDICATOR_IMPACTS));
             assertThat(indicatorResult.diagnosisList(), hasSize(1));
-            assertThat(indicatorResult.diagnosisList().get(0), equalTo(SHARD_LIMITS_REACHED_NORMAL_NODES));
+            assertThat(indicatorResult.diagnosisList().get(0), equalTo(SHARD_LIMITS_REACHED_DATA_NODES));
             assertThat(
                 xContentToMap(indicatorResult.details()),
                 is(
@@ -263,17 +257,17 @@ public class ShardLimitsHealthIndicatorServiceTests extends ESTestCase {
             );
         }
         {
-            // Both normal and frozen nodes does not have enough space
-            var clusterService = createClusterService(25, 25, createIndexInNormalNode(11), createIndexInFrozenNode(11));
+            // Both data and frozen nodes does not have enough space
+            var clusterService = createClusterService(25, 25, createIndexInDataNode(11), createIndexInFrozenNode(11));
             var indicatorResult = new ShardLimitsHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
             assertEquals(indicatorResult.status(), RED);
             assertEquals(
                 indicatorResult.symptom(),
-                "Cluster is close to reaching the configured maximum number of shards for normal and frozen nodes."
+                "Cluster is close to reaching the configured maximum number of shards for data and frozen nodes."
             );
             assertThat(indicatorResult.impacts(), equalTo(RED_INDICATOR_IMPACTS));
-            assertThat(indicatorResult.diagnosisList(), is(List.of(SHARD_LIMITS_REACHED_NORMAL_NODES, SHARD_LIMITS_REACHED_FROZEN_NODES)));
+            assertThat(indicatorResult.diagnosisList(), is(List.of(SHARD_LIMITS_REACHED_DATA_NODES, SHARD_LIMITS_REACHED_FROZEN_NODES)));
             assertThat(
                 xContentToMap(indicatorResult.details()),
                 is(
@@ -324,7 +318,7 @@ public class ShardLimitsHealthIndicatorServiceTests extends ESTestCase {
         assertEquals(ShardLimitsHealthIndicatorService.NAME, "shard_limits");
         assertEquals(
             "elasticsearch:health:shard_limits:diagnosis:increase_max_shards_per_node",
-            SHARD_LIMITS_REACHED_NORMAL_NODES.definition().getUniqueId()
+            SHARD_LIMITS_REACHED_DATA_NODES.definition().getUniqueId()
         );
         assertEquals(
             "elasticsearch:health:shard_limits:diagnosis:increase_max_shards_per_node_frozen",
@@ -367,12 +361,8 @@ public class ShardLimitsHealthIndicatorServiceTests extends ESTestCase {
         HealthMetadata healthMetadata,
         IndexMetadata.Builder... indexMetadata
     ) {
-        var clusterState = ClusterStateCreationUtils.state(
-            normalNode,
-            normalNode,
-            normalNode,
-            new DiscoveryNode[] { normalNode, frozenNode }
-        ).copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
+        var clusterState = ClusterStateCreationUtils.state(dataNode, dataNode, dataNode, new DiscoveryNode[] { dataNode, frozenNode })
+            .copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
 
         var metadata = Metadata.builder()
             .persistentSettings(
@@ -389,7 +379,7 @@ public class ShardLimitsHealthIndicatorServiceTests extends ESTestCase {
         return ClusterState.builder(clusterState).metadata(metadata).build();
     }
 
-    private static IndexMetadata.Builder createIndexInNormalNode(int shards) {
+    private static IndexMetadata.Builder createIndexInDataNode(int shards) {
         return createIndex(shards, NORMAL_GROUP);
     }
 

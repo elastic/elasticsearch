@@ -25,16 +25,13 @@ import org.elasticsearch.indices.ShardLimitValidator;
 import java.util.List;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.indices.ShardLimitValidator.FROZEN_GROUP;
-import static org.elasticsearch.indices.ShardLimitValidator.NORMAL_GROUP;
-
 /**
  *  This indicator reports health data about the shard limit across the cluster.
  *
  * <p>
  * The indicator will report:
- * * RED when there's room for less than 5 shards (either normal or frozen nodes)
- * * YELLOW when there's room for less than 10 shards (either normal or frozen nodes)
+ * * RED when there's room for less than 5 shards (either data or frozen nodes)
+ * * YELLOW when there's room for less than 10 shards (either data or frozen nodes)
  * * GREEN otherwise
  * </p>
  *
@@ -45,6 +42,8 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
 
     static final String NAME = "shard_limits";
 
+    static final String DATA_NODE_NAME = "data";
+    static final String FROZEN_NODE_NAME = "frozen";
     private static final String UPGRADE_BLOCKED = "The cluster has too many used shards to be able to upgrade.";
     private static final String UPGRADE_AT_RISK = "The cluster is running low on room to add new shards hence upgrade is at risk.";
     private static final String INDEX_CREATION_BLOCKED =
@@ -78,10 +77,10 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
         new HealthIndicatorImpact(NAME, "upgrade_at_risk", 2, UPGRADE_AT_RISK, List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)),
         new HealthIndicatorImpact(NAME, "creation_of_new_indices_at_risk", 2, INDEX_CREATION_RISK, List.of(ImpactArea.INGEST))
     );
-    static final Diagnosis SHARD_LIMITS_REACHED_NORMAL_NODES = SHARD_LIMITS_REACHED_FN.apply(
+    static final Diagnosis SHARD_LIMITS_REACHED_DATA_NODES = SHARD_LIMITS_REACHED_FN.apply(
         "increase_max_shards_per_node",
         ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
-        "non-frozen"
+        "data"
     );
     static final Diagnosis SHARD_LIMITS_REACHED_FROZEN_NODES = SHARD_LIMITS_REACHED_FN.apply(
         "increase_max_shards_per_node_frozen",
@@ -115,8 +114,8 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
         );
     }
 
-    private HealthIndicatorResult mergeIndicators(StatusResult normalNodes, StatusResult frozenNodes) {
-        var finalStatus = HealthStatus.merge(Stream.of(normalNodes.status, frozenNodes.status));
+    private HealthIndicatorResult mergeIndicators(StatusResult dataNodes, StatusResult frozenNodes) {
+        var finalStatus = HealthStatus.merge(Stream.of(dataNodes.status, frozenNodes.status));
         var diagnoses = List.<Diagnosis>of();
         var symptomBuilder = new StringBuilder();
 
@@ -124,20 +123,20 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
             symptomBuilder.append("The cluster has enough room to add new shards.");
         }
 
-        // RED and YELLOW status indicates that the cluster might have issues. finalStatus has the worst between *normal and frozen* nodes,
-        // so we have to check each of the groups in order of provide the right message.
+        // RED and YELLOW status indicates that the cluster might have issues. finalStatus has the worst between *data (non-frozen) and
+        // frozen* nodes, so we have to check each of the groups in order of provide the right message.
         if (finalStatus.indicatesHealthProblem()) {
             symptomBuilder.append("Cluster is close to reaching the configured maximum number of shards for ");
-            if (normalNodes.status == frozenNodes.status) {
-                symptomBuilder.append(NORMAL_GROUP).append(" and ").append(FROZEN_GROUP);
-                diagnoses = List.of(SHARD_LIMITS_REACHED_NORMAL_NODES, SHARD_LIMITS_REACHED_FROZEN_NODES);
+            if (dataNodes.status == frozenNodes.status) {
+                symptomBuilder.append(DATA_NODE_NAME).append(" and ").append(FROZEN_NODE_NAME);
+                diagnoses = List.of(SHARD_LIMITS_REACHED_DATA_NODES, SHARD_LIMITS_REACHED_FROZEN_NODES);
 
-            } else if (normalNodes.status.indicatesHealthProblem()) {
-                symptomBuilder.append(NORMAL_GROUP);
-                diagnoses = List.of(SHARD_LIMITS_REACHED_NORMAL_NODES);
+            } else if (dataNodes.status.indicatesHealthProblem()) {
+                symptomBuilder.append(DATA_NODE_NAME);
+                diagnoses = List.of(SHARD_LIMITS_REACHED_DATA_NODES);
 
             } else if (frozenNodes.status.indicatesHealthProblem()) {
-                symptomBuilder.append(FROZEN_GROUP);
+                symptomBuilder.append(FROZEN_NODE_NAME);
                 diagnoses = List.of(SHARD_LIMITS_REACHED_FROZEN_NODES);
             }
 
@@ -153,7 +152,7 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
         return createIndicator(
             finalStatus,
             symptomBuilder.toString(),
-            buildDetails(normalNodes.result, frozenNodes.result),
+            buildDetails(dataNodes.result, frozenNodes.result),
             indicatorImpacts,
             diagnoses
         );
@@ -173,14 +172,14 @@ public class ShardLimitsHealthIndicatorService implements HealthIndicatorService
         return new StatusResult(HealthStatus.GREEN, result);
     }
 
-    static HealthIndicatorDetails buildDetails(ShardLimitValidator.Result normalNodes, ShardLimitValidator.Result frozenNodes) {
+    static HealthIndicatorDetails buildDetails(ShardLimitValidator.Result dataNodes, ShardLimitValidator.Result frozenNodes) {
         return (builder, params) -> {
             builder.startObject();
             {
-                builder.startObject("data");
-                builder.field("max_shards_in_cluster", normalNodes.maxShardsInCluster());
-                if (normalNodes.currentUsedShards().isPresent()) {
-                    builder.field("current_used_shards", normalNodes.currentUsedShards().get());
+                builder.startObject(DATA_NODE_NAME);
+                builder.field("max_shards_in_cluster", dataNodes.maxShardsInCluster());
+                if (dataNodes.currentUsedShards().isPresent()) {
+                    builder.field("current_used_shards", dataNodes.currentUsedShards().get());
                 }
                 builder.endObject();
             }

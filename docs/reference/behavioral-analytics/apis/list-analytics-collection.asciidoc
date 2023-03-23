@@ -56,6 +56,7 @@ A sample response:
       }
   }
 ]
+[source,console]
 ----
 GET _application/analytics/f*
 ----
@@ -85,3 +86,4 @@ A sample response:
   }
 ]
 ----
+// TEST[skip:TBD]

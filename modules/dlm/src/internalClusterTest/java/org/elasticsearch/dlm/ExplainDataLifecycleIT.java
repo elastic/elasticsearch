@@ -212,7 +212,7 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
             }
         });
 
-        // let's reset the cluster max shards per node limit to allow rollover to proceed and check the reproted error is null
+        // let's reset the cluster max shards per node limit to allow rollover to proceed and check the reported error is null
         updateClusterSettings(Settings.builder().putNull("*"));
 
         assertBusy(() -> {

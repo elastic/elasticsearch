@@ -9,6 +9,7 @@
 package org.elasticsearch.test.seektracker;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -25,6 +26,14 @@ public class SeekTrackerPluginIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(SeekTrackerPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(SeekTrackerPlugin.SEEK_TRACKING_ENABLED.getKey(), "true")
+            .build();
     }
 
     public void testSeekTrackerPlugin() throws InterruptedException {

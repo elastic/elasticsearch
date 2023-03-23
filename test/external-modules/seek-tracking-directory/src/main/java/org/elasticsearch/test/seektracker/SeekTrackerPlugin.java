@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.env.Environment;
@@ -41,7 +42,24 @@ import java.util.function.Supplier;
 
 public class SeekTrackerPlugin extends Plugin implements ActionPlugin {
 
+    /** Setting for enabling or disabling seek tracking. Defaults to false. */
+    public static final Setting<Boolean> SEEK_TRACKING_ENABLED = Setting.boolSetting(
+        "seektracker.enabled",
+        false,
+        Setting.Property.NodeScope
+    );
+
     private final SeekStatsService seekStatsService = new SeekStatsService();
+    private final boolean enabled;
+
+    public SeekTrackerPlugin(Settings settings) {
+        this.enabled = SEEK_TRACKING_ENABLED.get(settings);
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(SEEK_TRACKING_ENABLED);
+    }
 
     @Override
     public Collection<Object> createComponents(
@@ -66,8 +84,10 @@ public class SeekTrackerPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public void onIndexModule(IndexModule indexModule) {
-        IndexSeekTracker seekTracker = seekStatsService.registerIndex(indexModule.getIndex().getName());
-        indexModule.setDirectoryWrapper(new SeekTrackingDirectoryWrapper(seekTracker));
+        if (enabled) {
+            IndexSeekTracker seekTracker = seekStatsService.registerIndex(indexModule.getIndex().getName());
+            indexModule.setDirectoryWrapper(new SeekTrackingDirectoryWrapper(seekTracker));
+        }
     }
 
     @Override
@@ -80,11 +100,19 @@ public class SeekTrackerPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return Collections.singletonList(new RestSeekStatsAction());
+        if (enabled) {
+            return Collections.singletonList(new RestSeekStatsAction());
+        } else {
+            return Collections.emptyList();
+        }
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Collections.singletonList(new ActionHandler<>(SeekStatsAction.INSTANCE, TransportSeekStatsAction.class));
+        if (enabled) {
+            return Collections.singletonList(new ActionHandler<>(SeekStatsAction.INSTANCE, TransportSeekStatsAction.class));
+        } else {
+            return Collections.emptyList();
+        }
     }
 }

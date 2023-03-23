@@ -20,11 +20,14 @@ import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTestCase {
+
+    private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
 
     static {
         fulfillingCluster = ElasticsearchCluster.local()
@@ -46,6 +49,19 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
             .module("x-pack-ccr")
             .setting("xpack.security.remote_cluster_client.ssl.enabled", "true")
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
+            .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
+                if (API_KEY_MAP_REF.get() == null) {
+                    final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
+                        [
+                          {
+                             "names": ["leader-index"],
+                             "privileges": ["manage", "read"]
+                          }
+                        ]""");
+                    API_KEY_MAP_REF.set(apiKeyMap);
+                }
+                return (String) API_KEY_MAP_REF.get().get("encoded");
+            })
             .user("ccr_user", PASS.toString(), "ccr_user_role")
             .build();
     }
@@ -55,13 +71,7 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
     public void testRemoteAccessForCrossClusterSearch() throws Exception {
-        configureRemoteClustersWithApiKey("""
-            [
-               {
-                 "names": ["leader-index"],
-                 "privileges": ["manage", "read"]
-               }
-             ]""");
+        configureRemoteClusters();
 
         // Fulfilling cluster
         {

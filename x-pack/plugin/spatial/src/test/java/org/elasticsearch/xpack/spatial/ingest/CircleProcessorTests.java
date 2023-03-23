@@ -203,6 +203,7 @@ public class CircleProcessorTests extends ESTestCase {
             fieldName,
             true,
             false,
+            randomBoolean(),
             Orientation.RIGHT,
             null,
             null,

@@ -17,6 +17,9 @@ setup:
                  type: geo_shape
                  doc_values: false
                  index: false
+              stored:
+                type: geo_shape
+                store: true
   - do:
       bulk:
         refresh: true
@@ -24,11 +27,11 @@ setup:
           - index:
               _index: shapes
               _id: 1
-          - '{"default": "POINT(4.912350 52.374081)", "no_doc_values": "POINT(4.912350 52.374081)", "no_index": "POINT(4.912350 52.374081)", "no_doc_values_no_index": "POINT(4.912350 52.374081)"}'
+          - '{"default": "POINT(4.912350 52.374081)", "no_doc_values": "POINT(4.912350 52.374081)", "no_index": "POINT(4.912350 52.374081)", "no_doc_values_no_index": "POINT(4.912350 52.374081)", "stored": "POINT(4.912350 52.374081)"}'
           - index:
               _index: shapes
               _id: 2
-          - '{"default": "POINT(2.327000 48.860000)", "no_doc_values": "POINT(2.327000 48.860000)", "no_index": "POINT(2.327000 48.860000)", "no_doc_values_no_index": "POINT(2.327000 48.860000)"}'
+          - '{"default": "POINT(2.327000 48.860000)", "no_doc_values": "POINT(2.327000 48.860000)", "no_index": "POINT(2.327000 48.860000)", "no_doc_values_no_index": "POINT(2.327000 48.860000)", "stored": "POINT(2.327000 48.860000)"}'
   - do:
       indices.refresh: {}
 
@@ -46,6 +49,8 @@ setup:
   - match: {shapes.mappings.properties.no_doc_values_no_index.type: geo_shape }
   - match: {shapes.mappings.properties.no_doc_values_no_index.index: false }
   - match: {shapes.mappings.properties.no_doc_values_no_index.doc_values: false }
+  - match: {shapes.mappings.properties.stored.type: geo_shape }
+  - match: {shapes.mappings.properties.stored.store: true }
 
 ---
 "Test query default field":

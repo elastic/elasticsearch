@@ -126,10 +126,13 @@ public final class ThreadContext implements Writeable {
         final ThreadContextStruct context = threadLocal.get();
 
         /*
+         * When the context is stashed, it should be empty, except for headers that were specified to be preserved.
+         * These can be headers specified via `stashContextPreservingRequestHeaders`, and _always_ includes a set of default headers such as
+         * X-Opaque-ID.
+         *
          * X-Opaque-ID should be preserved in a threadContext in order to propagate this across threads.
          * This is needed so the DeprecationLogger in another thread can see the value of X-Opaque-ID provided by a user.
-         * The same is applied to Task.TRACE_ID.
-         * Otherwise when context is stashed, it should be empty.
+         * The same is applied to Task.TRACE_ID and other values specified in `HEADERS_TO_COPY`.
          */
         boolean hasHeadersToCopy = false;
         if (context.requestHeaders.isEmpty() == false) {

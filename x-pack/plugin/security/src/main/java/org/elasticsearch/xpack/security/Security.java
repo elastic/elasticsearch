@@ -274,7 +274,6 @@ import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.RoleProviders;
-import org.elasticsearch.xpack.security.crossclusteraccess.CrossClusterAccessLicenseChecker;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.operator.FileOperatorUsersStore;
 import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
@@ -934,8 +933,8 @@ public class Security extends Plugin
                 securityContext.get(),
                 destructiveOperations,
                 crossClusterAccessAuthcService,
-                new CrossClusterAccessLicenseChecker(getLicenseState()),
-                remoteClusterCredentialsResolver
+                remoteClusterCredentialsResolver,
+                getLicenseState()
             )
         );
 

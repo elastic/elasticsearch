@@ -7,17 +7,18 @@
 
 package org.elasticsearch.xpack.security.transport;
 
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
-import org.elasticsearch.xpack.security.crossclusteraccess.CrossClusterAccessLicenseChecker;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -37,7 +38,7 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
     }
 
     private final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService;
-    private final CrossClusterAccessLicenseChecker crossClusterAccessLicenseChecker;
+    private final XPackLicenseState licenseState;
 
     CrossClusterAccessServerTransportFilter(
         CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
@@ -46,7 +47,7 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
         boolean extractClientCert,
         DestructiveOperations destructiveOperations,
         SecurityContext securityContext,
-        CrossClusterAccessLicenseChecker crossClusterAccessLicenseChecker
+        XPackLicenseState licenseState
     ) {
         super(
             crossClusterAccessAuthcService.getAuthenticationService(),
@@ -57,7 +58,7 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
             securityContext
         );
         this.crossClusterAccessAuthcService = crossClusterAccessAuthcService;
-        this.crossClusterAccessLicenseChecker = crossClusterAccessLicenseChecker;
+        this.licenseState = licenseState;
     }
 
     @Override
@@ -66,13 +67,10 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
         final TransportRequest request,
         final ActionListener<Authentication> authenticationListener
     ) {
-        try {
-            crossClusterAccessLicenseChecker.checkLicense();
-        } catch (ElasticsearchSecurityException e) {
-            authenticationListener.onFailure(e);
-            return;
-        }
-        if (false == SecurityServerTransportInterceptor.CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST.contains(securityAction)) {
+        if (false == Security.CROSS_CLUSTER_ACCESS_FEATURE.check(licenseState)) {
+            authenticationListener.onFailure(LicenseUtils.newComplianceException(Security.CROSS_CLUSTER_ACCESS_FEATURE.getName()));
+
+        } else if (false == SecurityServerTransportInterceptor.CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST.contains(securityAction)) {
             authenticationListener.onFailure(
                 new IllegalArgumentException(
                     "action ["

@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
@@ -222,6 +223,8 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     public void putRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
         if (role.isUsingDocumentOrFieldLevelSecurity() && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException("field and document level security"));
+        } else if (role.hasRemoteIndicesPrivileges() && Security.CROSS_CLUSTER_ACCESS_FEATURE.checkWithoutTracking(licenseState) == false) {
+            listener.onFailure(LicenseUtils.newComplianceException(Security.CROSS_CLUSTER_ACCESS_FEATURE.getName()));
         } else if (role.hasRemoteIndicesPrivileges()
             && clusterService.state().nodes().getMinNodeVersion().before(RoleDescriptor.VERSION_REMOTE_INDICES)) {
                 listener.onFailure(

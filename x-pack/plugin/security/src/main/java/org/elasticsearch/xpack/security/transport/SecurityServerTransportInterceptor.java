@@ -25,6 +25,8 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteConnectionManager;
@@ -51,13 +53,13 @@ import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.authz.PreAuthorizationUtils;
-import org.elasticsearch.xpack.security.crossclusteraccess.CrossClusterAccessLicenseChecker;
 
 import java.util.Collections;
 import java.util.Map;
@@ -120,7 +122,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService;
     private final RemoteClusterCredentialsResolver remoteClusterCredentialsResolver;
     private final Function<Transport.Connection, Optional<String>> remoteClusterAliasResolver;
-    private final CrossClusterAccessLicenseChecker crossClusterAccessLicenseChecker;
+    private final XPackLicenseState licenseState;
 
     public SecurityServerTransportInterceptor(
         Settings settings,
@@ -131,8 +133,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
         CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
-        CrossClusterAccessLicenseChecker crossClusterAccessLicenseChecker,
-        RemoteClusterCredentialsResolver remoteClusterCredentialsResolver
+        RemoteClusterCredentialsResolver remoteClusterCredentialsResolver,
+        XPackLicenseState licenseState
     ) {
         this(
             settings,
@@ -143,8 +145,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             securityContext,
             destructiveOperations,
             crossClusterAccessAuthcService,
-            crossClusterAccessLicenseChecker,
             remoteClusterCredentialsResolver,
+            licenseState,
             RemoteConnectionManager::resolveRemoteClusterAlias
         );
     }
@@ -158,8 +160,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
         CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
-        CrossClusterAccessLicenseChecker crossClusterAccessLicenseChecker,
         RemoteClusterCredentialsResolver remoteClusterCredentialsResolver,
+        XPackLicenseState licenseState,
         // Inject for simplified testing
         Function<Transport.Connection, Optional<String>> remoteClusterAliasResolver
     ) {
@@ -170,7 +172,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.sslService = sslService;
         this.securityContext = securityContext;
         this.crossClusterAccessAuthcService = crossClusterAccessAuthcService;
-        this.crossClusterAccessLicenseChecker = crossClusterAccessLicenseChecker;
+        this.licenseState = licenseState;
         this.remoteClusterCredentialsResolver = remoteClusterCredentialsResolver;
         this.remoteClusterAliasResolver = remoteClusterAliasResolver;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
@@ -356,7 +358,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final TransportRequestOptions options,
                 final TransportResponseHandler<T> handler
             ) {
-                crossClusterAccessLicenseChecker.checkLicense();
+                if (false == Security.CROSS_CLUSTER_ACCESS_FEATURE.check(licenseState)) {
+                    throw LicenseUtils.newComplianceException(Security.CROSS_CLUSTER_ACCESS_FEATURE.getName());
+                }
                 final String remoteClusterAlias = remoteClusterCredentials.clusterAlias();
                 if (false == CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST.contains(action)) {
                     throw new IllegalArgumentException(
@@ -506,7 +510,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         remoteClusterServerSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration),
                         destructiveOperations,
                         securityContext,
-                        crossClusterAccessLicenseChecker
+                        licenseState
                     )
                 );
             } else {

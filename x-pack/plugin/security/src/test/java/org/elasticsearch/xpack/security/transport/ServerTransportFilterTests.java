@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
@@ -31,10 +32,10 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
-import org.elasticsearch.xpack.security.crossclusteraccess.CrossClusterAccessLicenseChecker;
 import org.junit.Before;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
@@ -349,7 +350,8 @@ public class ServerTransportFilterTests extends ESTestCase {
                 }
             }
         }
-        CrossClusterAccessLicenseChecker licenseChecker = Mockito.mock(CrossClusterAccessLicenseChecker.class);
+        MockLicenseState licenseState = MockLicenseState.createMock();
+        Mockito.when(licenseState.isAllowed(Security.CROSS_CLUSTER_ACCESS_FEATURE)).thenReturn(true);
         return new CrossClusterAccessServerTransportFilter(
             crossClusterAccessAuthcService,
             authzService,
@@ -357,7 +359,7 @@ public class ServerTransportFilterTests extends ESTestCase {
             false,
             destructiveOperations,
             new SecurityContext(settings, threadContext),
-            licenseChecker
+            licenseState
         );
     }
 

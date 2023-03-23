@@ -561,7 +561,9 @@ public class MachineLearning extends Plugin
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
-        loader.loadExtensions(MachineLearningExtension.class).forEach(machineLearningExtension::set);
+        if (loader != null) {
+            loader.loadExtensions(MachineLearningExtension.class).forEach(machineLearningExtension::set);
+        }
         if (machineLearningExtension.get() == null) {
             machineLearningExtension.set(new DefaultMachineLearningExtension());
         }

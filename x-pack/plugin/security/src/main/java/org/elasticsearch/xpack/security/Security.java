@@ -55,8 +55,8 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
-import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
@@ -242,9 +242,9 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
 import org.elasticsearch.xpack.security.authc.Realms;
-import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
@@ -905,18 +905,15 @@ public class Security extends Plugin
         ipFilter.set(new IPFilter(settings, auditTrailService, clusterService.getClusterSettings(), getLicenseState()));
         components.add(ipFilter.get());
 
-        final RemoteClusterCredentialsResolver remoteClusterCredentialsResolver = new RemoteClusterCredentialsResolver(
-            settings,
-            clusterService.getClusterSettings()
-        );
+        final RemoteClusterCredentialsResolver remoteClusterCredentialsResolver = new RemoteClusterCredentialsResolver(settings);
 
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
-        final RemoteAccessAuthenticationService remoteAccessAuthcService = new RemoteAccessAuthenticationService(
+        final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService = new CrossClusterAccessAuthenticationService(
             clusterService,
             apiKeyService,
             authcService.get()
         );
-        components.add(remoteAccessAuthcService);
+        components.add(crossClusterAccessAuthcService);
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(
                 settings,
@@ -926,7 +923,7 @@ public class Security extends Plugin
                 getSslService(),
                 securityContext.get(),
                 destructiveOperations,
-                remoteAccessAuthcService,
+                crossClusterAccessAuthcService,
                 remoteClusterCredentialsResolver
             )
         );
@@ -1707,7 +1704,7 @@ public class Security extends Plugin
         @Override
         public void accept(DiscoveryNode node, ClusterState state) {
             if (inFipsMode) {
-                License license = LicenseService.getLicense(state.metadata());
+                License license = ClusterStateLicenseService.getLicense(state.metadata());
                 if (license != null && XPackLicenseState.isFipsAllowedForOperationMode(license.operationMode()) == false) {
                     throw new IllegalStateException(
                         "FIPS mode cannot be used with a ["

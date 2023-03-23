@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
@@ -91,6 +90,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Releasables;
@@ -609,8 +609,7 @@ public class Node implements Closeable {
             BigArrays bigArrays = createBigArrays(pageCacheRecycler, circuitBreakerService);
             modules.add(settingsModule);
             final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry);
-            final PersistedClusterStateService persistedClusterStateService = new PersistedClusterStateService(
-                nodeEnvironment,
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(
                 xContentRegistry,
                 clusterService.getClusterSettings(),
                 threadPool::relativeTimeInMillis
@@ -1070,9 +1069,16 @@ public class Node implements Closeable {
                 }
                 b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
                 pluginComponents.forEach(p -> {
-                    @SuppressWarnings("unchecked")
-                    Class<Object> pluginClass = (Class<Object>) p.getClass();
-                    b.bind(pluginClass).toInstance(p);
+                    if (p instanceof PluginComponentBinding<?, ?> pcb) {
+                        @SuppressWarnings("unchecked")
+                        Class<Object> clazz = (Class<Object>) pcb.inter();
+                        b.bind(clazz).toInstance(pcb.impl());
+
+                    } else {
+                        @SuppressWarnings("unchecked")
+                        Class<Object> clazz = (Class<Object>) p.getClass();
+                        b.bind(clazz).toInstance(p);
+                    }
                 });
                 b.bind(PersistentTasksService.class).toInstance(persistentTasksService);
                 b.bind(PersistentTasksClusterService.class).toInstance(persistentTasksClusterService);
@@ -1115,10 +1121,12 @@ public class Node implements Closeable {
             // reroute, which needs to call into the allocation service. We close the loop here:
             clusterModule.setExistingShardsAllocators(injector.getInstance(GatewayAllocator.class));
 
-            List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream()
-                .filter(p -> p instanceof LifecycleComponent)
-                .map(p -> (LifecycleComponent) p)
-                .toList();
+            List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream().map(p -> {
+                if (p instanceof PluginComponentBinding<?, ?> pcb) {
+                    return pcb.impl();
+                }
+                return p;
+            }).filter(p -> p instanceof LifecycleComponent).map(p -> (LifecycleComponent) p).toList();
             resourcesToClose.addAll(pluginLifecycleComponents);
             resourcesToClose.add(injector.getInstance(PeerRecoverySourceService.class));
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
@@ -1269,6 +1277,30 @@ public class Node implements Closeable {
         return writeLoadForecasters.get(0);
     }
 
+    private PersistedClusterStateService newPersistedClusterStateService(
+        NamedXContentRegistry xContentRegistry,
+        ClusterSettings clusterSettings,
+        LongSupplier relativeTimeMillisSupplier
+    ) {
+        final List<ClusterCoordinationPlugin.PersistedClusterStateServiceFactory> persistedClusterStateServiceFactories = pluginsService
+            .filterPlugins(ClusterCoordinationPlugin.class)
+            .stream()
+            .map(ClusterCoordinationPlugin::getPersistedClusterStateServiceFactory)
+            .flatMap(Optional::stream)
+            .toList();
+
+        if (persistedClusterStateServiceFactories.size() > 1) {
+            throw new IllegalStateException("multiple persisted-state-service factories found: " + persistedClusterStateServiceFactories);
+        }
+
+        if (persistedClusterStateServiceFactories.size() == 1) {
+            return persistedClusterStateServiceFactories.get(0)
+                .newPersistedClusterStateService(nodeEnvironment, xContentRegistry, clusterSettings, relativeTimeMillisSupplier);
+        }
+
+        return new PersistedClusterStateService(nodeEnvironment, xContentRegistry, clusterSettings, relativeTimeMillisSupplier);
+    }
+
     protected TransportService newTransportService(
         Settings settings,
         Transport transport,
@@ -1367,7 +1399,8 @@ public class Node implements Closeable {
             injector.getInstance(MetaStateService.class),
             injector.getInstance(IndexMetadataVerifier.class),
             injector.getInstance(MetadataUpgrader.class),
-            injector.getInstance(PersistedClusterStateService.class)
+            injector.getInstance(PersistedClusterStateService.class),
+            pluginsService.filterPlugins(ClusterCoordinationPlugin.class)
         );
         if (Assertions.ENABLED) {
             try {

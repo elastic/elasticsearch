@@ -427,8 +427,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             ) {
                 final ThreadContext threadContext = securityContext.getThreadContext();
                 final var contextRestoreHandler = new ContextRestoreResponseHandler<>(threadContext.newRestorableContext(true), handler);
-                // We stash with audit request ID to be able to trace requests cross-cluster
-                try (ThreadContext.StoredContext ignored = AuditUtil.stashContextWithRequestId(threadContext)) {
+                try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                     crossClusterAccessHeaders.writeToContext(threadContext);
                     sender.sendRequest(connection, action, request, options, contextRestoreHandler);
                 } catch (Exception e) {

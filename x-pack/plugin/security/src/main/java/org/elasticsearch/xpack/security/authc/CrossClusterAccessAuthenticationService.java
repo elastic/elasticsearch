@@ -140,7 +140,8 @@ public class CrossClusterAccessAuthenticationService {
         authentication.checkConsistency();
         final Subject effectiveSubject = authentication.getEffectiveSubject();
         if (false == effectiveSubject.getType().equals(Subject.Type.USER)
-            && false == effectiveSubject.getType().equals(Subject.Type.SERVICE_ACCOUNT)) {
+            && false == effectiveSubject.getType().equals(Subject.Type.SERVICE_ACCOUNT)
+            && false == effectiveSubject.getType().equals(Subject.Type.API_KEY)) {
             throw new IllegalArgumentException(
                 "subject ["
                     + effectiveSubject.getUser().principal()
@@ -157,14 +158,7 @@ public class CrossClusterAccessAuthenticationService {
                     "Received non-empty role descriptors bytes list for internal cross cluster access user. "
                         + "These will be ignored during authorization."
                 );
-                // DEBUG log to avoid logging potentially large role descriptors at WARN level
-                logger.debug(
-                    () -> format(
-                        "Received invalid role descriptors for internal cross cluster access user [{}]",
-                        crossClusterAccessSubjectInfo
-                    )
-                );
-                assert false : "received role descriptors bytes list for internal cross cluster access user must be empty.";
+                assert false : "role descriptors bytes list for internal cross cluster access user must be empty";
             }
         } else if (User.isInternal(user)) {
             throw new IllegalArgumentException(

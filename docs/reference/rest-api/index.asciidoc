@@ -14,6 +14,7 @@ not be included yet.
 * <<common-options, Common Options>>
 * <<rest-api-compatibility, REST API Compatibility>>
 * <<autoscaling-apis, Autoscaling APIs>>
+* <<behavioral-analytics-apis, Behavioral Analytics APIs>>
 * <<cat, cat APIs>>
 * <<cluster, Cluster APIs>>
 * <<features-apis,Features APIs>>
@@ -57,6 +58,7 @@ include::{es-repo-dir}/api-conventions.asciidoc[]
 include::{es-repo-dir}/rest-api/common-options.asciidoc[]
 include::{es-repo-dir}/rest-api/rest-api-compatibility.asciidoc[]
 include::{es-repo-dir}/autoscaling/apis/autoscaling-apis.asciidoc[]
+include::{es-repo-dir}/behavioral-analytics/apis/index.asciidoc[]
 include::{es-repo-dir}/cat.asciidoc[]
 include::{es-repo-dir}/cluster.asciidoc[]
 include::{es-repo-dir}/ccr/apis/ccr-apis.asciidoc[]

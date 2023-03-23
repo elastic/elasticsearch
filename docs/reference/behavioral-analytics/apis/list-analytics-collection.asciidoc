@@ -18,6 +18,13 @@ Returns information about Analytics Collections.
 
 Requires the `manage_behavorial_analytics` cluster privilege.
 
+[[list-analytics-collection-path-params]]
+==== {api-path-parms-title}
+
+`<criteria>`::
+(optional, string)
+Criteria is used to find a matching analytics collection. This could be the name of the collection or a pattern to match multiple. If not specified, will return all analytics collections.
+
 [[list-analytics-collection-response-codes]]
 ==== {api-response-codes-title}
 

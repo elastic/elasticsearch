@@ -19,7 +19,7 @@ Removes an Analytics Collection and its associated data-stream.
 Requires the `manage_behavioral_analytics` cluster privilege.
 
 [[delete-analytics-collection-path-params]]
-==== {api-path-params-title}
+==== {api-path-parms-title}
 
 `<name>`::
 (Required, string)

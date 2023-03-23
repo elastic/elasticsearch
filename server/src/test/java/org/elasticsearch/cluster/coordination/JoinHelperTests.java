@@ -81,7 +81,8 @@ public class JoinHelperTests extends ESTestCase {
             () -> new StatusInfo(HEALTHY, "info"),
             new JoinReasonService(() -> 0L),
             new NoneCircuitBreakerService(),
-            Function.identity()
+            Function.identity(),
+            (listener) -> listener.onResponse(null)
         );
         transportService.start();
 
@@ -244,7 +245,8 @@ public class JoinHelperTests extends ESTestCase {
             nodeHealthServiceStatus::get,
             new JoinReasonService(() -> 0L),
             new NoneCircuitBreakerService(),
-            Function.identity()
+            Function.identity(),
+            (listener) -> listener.onResponse(null)
         );
         transportService.start();
 

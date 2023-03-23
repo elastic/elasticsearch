@@ -92,6 +92,12 @@ public abstract class SecureSetting<T> extends Setting<T> {
         }
     }
 
+    @Override
+    protected T get(Settings settings, boolean validate) {
+        // No validation is performed for secureSetting
+        return get(settings);
+    }
+
     /**
      * Returns the digest of this secure setting's value or {@code null} if the setting is missing (inside the keystore). This method can be
      * called even after the {@code SecureSettings} have been closed, unlike {@code #get(Settings)}. The digest is used to check for changes

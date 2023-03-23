@@ -29,8 +29,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 
-import static org.elasticsearch.compute.lucene.ValueSources.checkMultiValue;
-
 /**
  * A reader that supports reading doc-values from a Lucene segment in Block fashion.
  */
@@ -211,7 +209,6 @@ public abstract class BlockDocValuesReader {
                     throw new IllegalStateException("docs within same block must be in order");
                 }
                 if (numericDocValues.advanceExact(doc)) {
-                    checkMultiValue(doc, numericDocValues.docValueCount());
                     blockBuilder.appendLong(numericDocValues.nextValue());
                 } else {
                     blockBuilder.appendNull();
@@ -227,7 +224,6 @@ public abstract class BlockDocValuesReader {
             this.docID = docId;
             LongBlock.Builder blockBuilder = (LongBlock.Builder) builder;
             if (numericDocValues.advanceExact(docId)) {
-                checkMultiValue(docId, numericDocValues.docValueCount());
                 blockBuilder.appendLong(numericDocValues.nextValue());
             } else {
                 blockBuilder.appendNull();
@@ -326,7 +322,6 @@ public abstract class BlockDocValuesReader {
                     throw new IllegalStateException("docs within same block must be in order");
                 }
                 if (numericDocValues.advanceExact(doc)) {
-                    checkMultiValue(doc, numericDocValues.docValueCount());
                     blockBuilder.appendInt(Math.toIntExact(numericDocValues.nextValue()));
                 } else {
                     blockBuilder.appendNull();
@@ -342,7 +337,6 @@ public abstract class BlockDocValuesReader {
             this.docID = docId;
             IntBlock.Builder blockBuilder = (IntBlock.Builder) builder;
             if (numericDocValues.advanceExact(docId)) {
-                checkMultiValue(docId, numericDocValues.docValueCount());
                 blockBuilder.appendInt(Math.toIntExact(numericDocValues.nextValue()));
             } else {
                 blockBuilder.appendNull();
@@ -443,7 +437,6 @@ public abstract class BlockDocValuesReader {
                     throw new IllegalStateException("docs within same block must be in order");
                 }
                 if (numericDocValues.advanceExact(doc)) {
-                    checkMultiValue(doc, numericDocValues.docValueCount());
                     blockBuilder.appendDouble(numericDocValues.nextValue());
                 } else {
                     blockBuilder.appendNull();
@@ -459,7 +452,6 @@ public abstract class BlockDocValuesReader {
             this.docID = docId;
             DoubleBlock.Builder blockBuilder = (DoubleBlock.Builder) builder;
             if (numericDocValues.advanceExact(this.docID)) {
-                checkMultiValue(this.docID, numericDocValues.docValueCount());
                 blockBuilder.appendDouble(numericDocValues.nextValue());
             } else {
                 blockBuilder.appendNull();
@@ -494,35 +486,38 @@ public abstract class BlockDocValuesReader {
         public BytesRefBlock readValues(IntVector docs) throws IOException {
             final int positionCount = docs.getPositionCount();
             var blockBuilder = builder(positionCount);
-            int lastDoc = -1;
             for (int i = 0; i < docs.getPositionCount(); i++) {
                 int doc = docs.getInt(i);
                 // docs within same block must be in order
-                if (lastDoc >= doc) {
+                if (this.docID >= doc) {
                     throw new IllegalStateException("docs within same block must be in order");
                 }
-                if (binaryDV.advanceExact(doc)) {
-                    checkMultiValue(doc, binaryDV.docValueCount());
-                    blockBuilder.appendBytesRef(binaryDV.nextValue());
-                } else {
-                    blockBuilder.appendNull();
-                }
-                lastDoc = doc;
-                this.docID = doc;
+                read(doc, blockBuilder);
             }
             return blockBuilder.build();
         }
 
         @Override
         public void readValuesFromSingleDoc(int docId, Block.Builder builder) throws IOException {
-            this.docID = docId;
-            BytesRefBlock.Builder blockBuilder = (BytesRefBlock.Builder) builder;
-            if (binaryDV.advanceExact(this.docID)) {
-                checkMultiValue(this.docID, binaryDV.docValueCount());
-                blockBuilder.appendBytesRef(binaryDV.nextValue());
-            } else {
-                blockBuilder.appendNull();
+            read(docId, (BytesRefBlock.Builder) builder);
+        }
+
+        private void read(int doc, BytesRefBlock.Builder builder) throws IOException {
+            this.docID = doc;
+            if (false == binaryDV.advanceExact(doc)) {
+                builder.appendNull();
+                return;
             }
+            int count = binaryDV.docValueCount();
+            if (count == 1) {
+                builder.appendBytesRef(binaryDV.nextValue());
+                return;
+            }
+            builder.beginPositionEntry();
+            for (int v = 0; v < count; v++) {
+                builder.appendBytesRef(binaryDV.nextValue());
+            }
+            builder.endPositionEntry();
         }
 
         @Override
@@ -615,7 +610,6 @@ public abstract class BlockDocValuesReader {
                     throw new IllegalStateException("docs within same block must be in order");
                 }
                 if (numericDocValues.advanceExact(doc)) {
-                    checkMultiValue(doc, numericDocValues.docValueCount());
                     blockBuilder.appendBoolean(numericDocValues.nextValue() != 0);
                 } else {
                     blockBuilder.appendNull();

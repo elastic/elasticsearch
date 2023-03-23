@@ -9,15 +9,21 @@ package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -31,12 +37,14 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.junit.After;
 
 import java.io.IOException;
@@ -48,6 +56,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
+    private static final String[] PREFIX = new String[] { "a", "b", "c" };
+
     private Directory directory = newDirectory();
     private IndexReader reader;
 
@@ -58,16 +68,20 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(BigArrays bigArrays) {
-        return factory(new NumberFieldMapper.NumberFieldType("long", NumberFieldMapper.NumberType.LONG));
+        return factory(
+            CoreValuesSourceType.NUMERIC,
+            ElementType.LONG,
+            new NumberFieldMapper.NumberFieldType("long", NumberFieldMapper.NumberType.LONG)
+        );
     }
 
-    private Operator.OperatorFactory factory(MappedFieldType ft) {
+    private Operator.OperatorFactory factory(ValuesSourceType vsType, ElementType elementType, MappedFieldType ft) {
         IndexFieldData<?> fd = ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
             .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
         FieldContext fc = new FieldContext(ft.name(), fd, ft);
-        ValuesSource vs = CoreValuesSourceType.NUMERIC.getField(fc, null);
+        ValuesSource vs = vsType.getField(fc, null);
         return new ValuesSourceReaderOperator.ValuesSourceReaderOperatorFactory(
-            List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, vs, ElementType.LONG, reader)),
+            List.of(new ValueSourceInfo(vsType, vs, elementType, reader)),
             0,
             ft.name()
         );
@@ -75,7 +89,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
     @Override
     protected SourceOperator simpleInput(int size) {
-        // The test wants more than one segment. We short for about 10.
+        // The test wants more than one segment. We shoot for about 10.
         int commitEvery = Math.max(1, size / 10);
         try (
             RandomIndexWriter writer = new RandomIndexWriter(
@@ -85,7 +99,18 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             )
         ) {
             for (int d = 0; d < size; d++) {
-                writer.addDocument(List.of(new SortedNumericDocValuesField("key", d), new SortedNumericDocValuesField("long", d)));
+                List<IndexableField> doc = new ArrayList<>();
+                doc.add(new SortedNumericDocValuesField("key", d));
+                doc.add(new SortedNumericDocValuesField("long", d));
+                doc.add(
+                    new KeywordFieldMapper.KeywordField("kwd", new BytesRef(Integer.toString(d)), KeywordFieldMapper.Defaults.FIELD_TYPE)
+                );
+                for (int v = 0; v <= d % 3; v++) {
+                    doc.add(
+                        new KeywordFieldMapper.KeywordField("mv_kwd", new BytesRef(PREFIX[v] + d), KeywordFieldMapper.Defaults.FIELD_TYPE)
+                    );
+                }
+                writer.addDocument(doc);
                 if (d % commitEvery == 0) {
                     writer.commit();
                 }
@@ -131,38 +156,56 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         return null;
     }
 
-    public void testLoadFromManyPagesAtOnce() {
-        loadFromManyPagesAtOnce(false);
+    public void testLoadAll() {
+        loadSimpleAndAssert(CannedSourceOperator.collectPages(simpleInput(between(1_000, 10 * LuceneSourceOperator.PAGE_SIZE))));
     }
 
-    public void testLoadFromManyPagesShuffled() {
-        loadFromManyPagesAtOnce(true);
+    public void testLoadAllInOnePage() {
+        assumeFalse("filter blocks don't support multivalued fields yet", true);
+        loadSimpleAndAssert(
+            List.of(
+                CannedSourceOperator.mergePages(
+                    CannedSourceOperator.collectPages(simpleInput(between(1_000, 10 * LuceneSourceOperator.PAGE_SIZE)))
+                )
+            )
+        );
     }
 
-    private void loadFromManyPagesAtOnce(boolean shuffle) {
+    public void testLoadAllInOnePageShuffled() {
+        assumeFalse("filter blocks don't support multivalued fields yet", true);
         Page source = CannedSourceOperator.mergePages(
             CannedSourceOperator.collectPages(simpleInput(between(1_000, 10 * LuceneSourceOperator.PAGE_SIZE)))
         );
-
-        if (shuffle) {
-            List<Integer> shuffleList = new ArrayList<>();
-            IntStream.range(0, source.getPositionCount()).forEach(i -> shuffleList.add(i));
-            Randomness.shuffle(shuffleList);
-            int[] shuffleArray = shuffleList.stream().mapToInt(Integer::intValue).toArray();
-            Block[] shuffledBlocks = new Block[source.getBlockCount()];
-            for (int b = 0; b < shuffledBlocks.length; b++) {
-                shuffledBlocks[b] = source.getBlock(b).filter(shuffleArray);
-            }
-            source = new Page(shuffledBlocks);
+        List<Integer> shuffleList = new ArrayList<>();
+        IntStream.range(0, source.getPositionCount()).forEach(i -> shuffleList.add(i));
+        Randomness.shuffle(shuffleList);
+        int[] shuffleArray = shuffleList.stream().mapToInt(Integer::intValue).toArray();
+        Block[] shuffledBlocks = new Block[source.getBlockCount()];
+        for (int b = 0; b < shuffledBlocks.length; b++) {
+            shuffledBlocks[b] = source.getBlock(b).filter(shuffleArray);
         }
+        source = new Page(shuffledBlocks);
+        loadSimpleAndAssert(List.of(source));
+    }
 
+    private void loadSimpleAndAssert(List<Page> input) {
         List<Page> results = new ArrayList<>();
         try (
             Driver d = new Driver(
-                new CannedSourceOperator(List.of(source).iterator()),
+                new CannedSourceOperator(input.iterator()),
                 List.of(
-                    factory(new NumberFieldMapper.NumberFieldType("key", NumberFieldMapper.NumberType.LONG)).get(),
-                    factory(new NumberFieldMapper.NumberFieldType("long", NumberFieldMapper.NumberType.LONG)).get()
+                    factory(
+                        CoreValuesSourceType.NUMERIC,
+                        ElementType.INT,
+                        new NumberFieldMapper.NumberFieldType("key", NumberFieldMapper.NumberType.LONG)
+                    ).get(),
+                    factory(
+                        CoreValuesSourceType.NUMERIC,
+                        ElementType.LONG,
+                        new NumberFieldMapper.NumberFieldType("long", NumberFieldMapper.NumberType.LONG)
+                    ).get(),
+                    factory(CoreValuesSourceType.KEYWORD, ElementType.BYTES_REF, new KeywordFieldMapper.KeywordFieldType("kwd")).get(),
+                    factory(CoreValuesSourceType.KEYWORD, ElementType.BYTES_REF, new KeywordFieldMapper.KeywordFieldType("mv_kwd")).get()
                 ),
                 new PageConsumerOperator(page -> results.add(page)),
                 () -> {}
@@ -170,12 +213,23 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         ) {
             d.run();
         }
-        assertThat(results, hasSize(1));
+        assertThat(results, hasSize(input.size()));
         for (Page p : results) {
-            LongVector keys = p.<LongBlock>getBlock(1).asVector();
+            assertThat(p.getBlockCount(), equalTo(5));
+            IntVector keys = p.<IntBlock>getBlock(1).asVector();
             LongVector longs = p.<LongBlock>getBlock(2).asVector();
+            BytesRefVector keywords = p.<BytesRefBlock>getBlock(3).asVector();
+            BytesRefBlock mvKeywords = p.getBlock(4);
             for (int i = 0; i < p.getPositionCount(); i++) {
-                assertThat(longs.getLong(i), equalTo(keys.getLong(i)));
+                int key = keys.getInt(i);
+                assertThat(longs.getLong(i), equalTo((long) key));
+                assertThat(keywords.getBytesRef(i, new BytesRef()).utf8ToString(), equalTo(Integer.toString(key)));
+
+                assertThat(mvKeywords.getValueCount(i), equalTo(key % 3 + 1));
+                int offset = mvKeywords.getFirstValueIndex(i);
+                for (int v = 0; v <= key % 3; v++) {
+                    assertThat(mvKeywords.getBytesRef(offset + v, new BytesRef()).utf8ToString(), equalTo(PREFIX[v] + key));
+                }
             }
         }
     }

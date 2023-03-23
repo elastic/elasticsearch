@@ -68,4 +68,9 @@ abstract class AbstractFilterBlock extends AbstractBlock {
         return "FilteredBlock{" + "positions=" + Arrays.toString(positions) + ", block=" + block + '}';
     }
 
+    protected final boolean assertPosition(int position) {
+        assert (position >= 0 || position < getPositionCount())
+            : "illegal position, " + position + ", position count:" + getPositionCount();
+        return true;
+    }
 }

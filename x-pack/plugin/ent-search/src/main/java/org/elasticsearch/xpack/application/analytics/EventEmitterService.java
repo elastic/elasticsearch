@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Event emitter will log Analytics events submitted through a @{PostAnalyticsEventAction.Request} request.
@@ -36,11 +37,17 @@ public class EventEmitterService {
     private static final Marker ANALYTICS_MARKER = MarkerManager.getMarker("org.elasticsearch.xpack.application.analytics");
     private final AnalyticsCollectionResolver analyticsCollectionResolver;
     private final ClusterService clusterService;
+    private final AnalyticsEventParser analyticsEventParser;
 
     @Inject
-    public EventEmitterService(AnalyticsCollectionResolver analyticsCollectionResolver, ClusterService clusterService) {
-        this.analyticsCollectionResolver = analyticsCollectionResolver;
-        this.clusterService = clusterService;
+    public EventEmitterService(
+        AnalyticsCollectionResolver analyticsCollectionResolver,
+        ClusterService clusterService,
+        AnalyticsEventParser analyticsEventParser
+    ) {
+        this.analyticsCollectionResolver = Objects.requireNonNull(analyticsCollectionResolver, "analyticsCollectionResolver");
+        this.clusterService = Objects.requireNonNull(clusterService, "clusterService");
+        this.analyticsEventParser = Objects.requireNonNull(analyticsEventParser, "analyticsEventParser");
     }
 
     public void emitEvent(
@@ -60,7 +67,7 @@ public class EventEmitterService {
         AnalyticsCollection analyticsCollection = analyticsCollectionResolver.collection(clusterService.state(), request.collectionName());
         AnalyticsContext context = new AnalyticsContext(analyticsCollection, request.eventType(), request.eventTime());
 
-        return AnalyticsEventParser.fromPayload(context, request.xContentType(), request.payload());
+        return analyticsEventParser.fromPayload(context, request.xContentType(), request.payload());
     }
 
     private String formatEvent(AnalyticsEvent event) throws ResourceNotFoundException, IOException {

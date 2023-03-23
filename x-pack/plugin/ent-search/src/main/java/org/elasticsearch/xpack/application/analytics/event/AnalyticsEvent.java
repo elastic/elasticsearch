@@ -36,10 +36,10 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
 
     private final BytesReference payload;
 
-    protected AnalyticsEvent(AnalyticsContext analyticsContext, XContentType xContentType, BytesReference payload) {
-        this.analyticsContext = Objects.requireNonNull(analyticsContext);
-        this.xContentType = Objects.requireNonNull(xContentType);
-        this.payload = Objects.requireNonNull(payload);
+    public AnalyticsEvent(AnalyticsContext analyticsContext, XContentType xContentType, BytesReference payload) {
+        this.analyticsContext = Objects.requireNonNull(analyticsContext, "analyticsContext");
+        this.xContentType = Objects.requireNonNull(xContentType, "xContentType");
+        this.payload = Objects.requireNonNull(payload, "payload");
     }
 
     protected AnalyticsEvent(StreamInput in) throws IOException {
@@ -70,7 +70,7 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
     }
 
     @Override
-    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
             builder.field("@timestamp", analyticsContext.eventTime());

@@ -6,7 +6,7 @@
 <titleabbrev>Delete Analytics Collection</titleabbrev>
 ++++
 
-Removes an Analytics Collection and its associated data-stream.
+Removes an Analytics Collection and its associated data stream.
 
 [[delete-analytics-collection-request]]
 ==== {api-request-title}

@@ -168,7 +168,6 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(REMOTE_SEARCH_USER, PASSWORD))
             );
 
-            final String requestId = AuditUtil.getOrGenerateRequestId(threadPool.getThreadContext());
             final Response response = client().performRequest(searchRequest);
             assertOK(response);
             assertThat(ObjectPath.createFromResponse(response).evaluate("hits.total.value"), equalTo(alsoSearchLocally ? 1 : 0));
@@ -925,7 +924,8 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 // this action is run by the cross cluster access user, so we expect a cross cluster access header with an internal user
                 // authentication and pre-defined role descriptors intersection
                 case RemoteClusterNodesAction.NAME -> {
-                    // internal users don't include an audit request ID; this is a current limitation of the audit setup
+                    // requests by internal users don't include an audit request ID; this is a current side effect of the audit setup where
+                    // if the thread context is stashed, we don't persist the audit request ID by default
                     assertContainsHeadersExpectedForCrossClusterAccess(actual.headers(), false);
                     assertContainsCrossClusterAccessCredentialsHeader(encodedCredential, actual);
                     final var actualCrossClusterAccessSubjectInfo = CrossClusterAccessSubjectInfo.decode(

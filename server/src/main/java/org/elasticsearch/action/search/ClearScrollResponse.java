@@ -71,11 +71,7 @@ public class ClearScrollResponse extends ActionResponse implements StatusToXCont
 
     @Override
     public RestStatus status() {
-        if (succeeded || numFreed > 0) {
-            return OK;
-        } else {
-            return NOT_FOUND;
-        }
+        return numFreed == 0 ? NOT_FOUND : OK;
     }
 
     @Override

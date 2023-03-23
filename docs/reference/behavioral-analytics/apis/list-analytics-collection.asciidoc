@@ -49,12 +49,12 @@ A sample response:
 [source,console-result]
 ----
 {
-  "foo": {
+  "my_analytics_collection": {
       "event_data_stream": {
           "name": "behavioral_analytics-events-my_analytics_collection"
       }
   },
-  "bar": {
+  "my_analytics_collection2": {
       "event_data_stream": {
           "name": "behavioral_analytics-events-my_analytics_collection2"
       }
@@ -62,7 +62,7 @@ A sample response:
 }
 ----
 
-The following example returns the Analytics Collection that matches `foo`:
+The following example returns the Analytics Collection that matches `my_analytics_collection`:
 
 [source,console]
 ----
@@ -75,7 +75,7 @@ A sample response:
 [source,console-result]
 ----
 {
-  "foo": {
+  "my_analytics_collection": {
       "event_data_stream": {
           "name": "behavioral_analytics-events-my_analytics_collection"
       }
@@ -83,7 +83,7 @@ A sample response:
 }
 ----
 
-The following example returns all Analytics Collections prefixed with `f`:
+The following example returns all Analytics Collections prefixed with `my`:
 
 [source,console]
 ----
@@ -96,12 +96,12 @@ A sample response:
 [source,console-result]
 ----
 {
-  "foo": {
+  "my_analytics_collection": {
       "event_data_stream": {
           "name": "behavioral_analytics-events-my_analytics_collection"
       }
   },
-  "foobar": {
+  "my_analytics_collection2": {
       "event_data_stream": {
           "name": "behavioral_analytics-events-my_analytics_collection2"
       }

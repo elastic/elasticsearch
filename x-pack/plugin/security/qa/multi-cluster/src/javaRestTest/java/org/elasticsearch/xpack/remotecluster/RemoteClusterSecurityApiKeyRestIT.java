@@ -25,11 +25,18 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class RemoteClusterSecurityApiKeyRestIT extends AbstractRemoteClusterSecurityTestCase {
+
+    private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
 
     static {
         fulfillingCluster = ElasticsearchCluster.local()
@@ -48,6 +55,20 @@ public class RemoteClusterSecurityApiKeyRestIT extends AbstractRemoteClusterSecu
             .apply(commonClusterConfig)
             .setting("xpack.security.remote_cluster_client.ssl.enabled", "true")
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
+            .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
+                if (API_KEY_MAP_REF.get() == null) {
+                    final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
+                        [
+                          {
+                            "names": ["index*", "not_found_index"],
+                            "privileges": ["read", "read_cross_cluster"]
+                          }
+                        ]""");
+                    API_KEY_MAP_REF.set(apiKeyMap);
+                }
+                return (String) API_KEY_MAP_REF.get().get("encoded");
+            })
+            .keystore("cluster.remote.invalid_remote.credentials", randomEncodedApiKey())
             .build();
     }
 
@@ -56,13 +77,8 @@ public class RemoteClusterSecurityApiKeyRestIT extends AbstractRemoteClusterSecu
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
     public void testCrossClusterSearchWithApiKey() throws Exception {
-        final String remoteAccessApiKeyId = configureRemoteClustersWithApiKey("""
-            [
-               {
-                 "names": ["index*", "not_found_index"],
-                 "privileges": ["read", "read_cross_cluster"]
-               }
-             ]""");
+        configureRemoteClusters();
+        final String remoteAccessApiKeyId = (String) API_KEY_MAP_REF.get().get("id");
 
         // Fulfilling cluster
         {
@@ -296,14 +312,19 @@ public class RemoteClusterSecurityApiKeyRestIT extends AbstractRemoteClusterSecu
             );
 
             // Check that authentication fails if we use a non-existent cross cluster access API key
-            updateClusterSettings(Settings.builder().put("cluster.remote.my_remote_cluster.credentials", randomEncodedApiKey()).build());
+            updateClusterSettings(
+                Settings.builder()
+                    .put("cluster.remote.invalid_remote.mode", "proxy")
+                    .put("cluster.remote.invalid_remote.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
+                    .build()
+            );
             final ResponseException exception4 = expectThrows(
                 ResponseException.class,
-                () -> performRequestWithApiKey(new Request("GET", "/my_remote_cluster:index1/_search"), apiKeyEncoded)
+                () -> performRequestWithApiKey(new Request("GET", "/invalid_remote:index1/_search"), apiKeyEncoded)
             );
-            assertThat(exception4.getResponse().getStatusLine().getStatusCode(), equalTo(401));
-            assertThat(exception4.getMessage(), containsString("unable to authenticate user"));
-            assertThat(exception4.getMessage(), containsString("unable to find apikey"));
+            // TODO: improve the error code and message
+            assertThat(exception4.getResponse().getStatusLine().getStatusCode(), equalTo(500));
+            assertThat(exception4.getMessage(), containsString("Unable to open any proxy connections to cluster [invalid_remote]"));
         }
     }
 

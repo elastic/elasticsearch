@@ -1,5 +1,5 @@
 pr: 94649
-summary: Stop using Rounding#nextRoundingValue(...) when creating empty buckets
+summary: Don't create many Rounding.Prepared instances when checking for empty buckets in date_histogram aggregator.
 area: Aggregations
 type: enhancement
 issues: []

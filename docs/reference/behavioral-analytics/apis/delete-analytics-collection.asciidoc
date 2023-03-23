@@ -36,10 +36,10 @@ No Analytics Collection matching `name` could be found.
 [[delete-analytics-collection-example]]
 ==== {api-examples-title}
 
-The following example deletes the Analytics Collection named `my-app`:
+The following example deletes the Analytics Collection named `my_analytics_collection`:
 
 [source,console]
 ----
-DELETE _application/analytics/my-app/
+DELETE _application/analytics/my_analytics_collection/
 ----
 // TEST[skip:TBD]

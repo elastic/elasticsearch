@@ -33,11 +33,11 @@ Analytics Collection `<name>` exists.
 [[put-analytics-collection-example]]
 ==== {api-examples-title}
 
-The following example creates a new Analytics Collection called `my-app`:
+The following example creates a new Analytics Collection called `my_analytics_collection`:
 
 [source,console]
 ----
-PUT _application/analytics/my-app
+PUT _application/analytics/my_analytics_collection
 
 ----
 // TEST[skip:TBD]

@@ -512,7 +512,7 @@ public class Setting<T> implements ToXContentObject {
         return get(settings, true);
     }
 
-    protected T get(Settings settings, boolean validate) {
+    private T get(Settings settings, boolean validate) {
         String value = getRaw(settings);
         try {
             T parsed = parser.apply(value);

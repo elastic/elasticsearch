@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -51,16 +52,7 @@ public class ShardLockFailureIT extends ESIntegTestCase {
         );
         ensureGreen(indexName);
 
-        final var shardId = client().admin()
-            .cluster()
-            .prepareState()
-            .clear()
-            .setRoutingTable(true)
-            .get()
-            .getState()
-            .routingTable()
-            .shardRoutingTable(indexName, 0)
-            .shardId();
+        final var shardId = new ShardId(resolveIndex(indexName), 0);
 
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
             try {
@@ -144,16 +136,7 @@ public class ShardLockFailureIT extends ESIntegTestCase {
         );
         ensureGreen(indexName);
 
-        final var shardId = client().admin()
-            .cluster()
-            .prepareState()
-            .clear()
-            .setRoutingTable(true)
-            .get()
-            .getState()
-            .routingTable()
-            .shardRoutingTable(indexName, 0)
-            .shardId();
+        final var shardId = new ShardId(resolveIndex(indexName), 0);
 
         var mockLogAppender = new MockLogAppender();
         try (

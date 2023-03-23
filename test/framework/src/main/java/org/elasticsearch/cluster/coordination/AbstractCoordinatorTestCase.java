@@ -258,6 +258,10 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             // then wait for the join validation service to become idle
             + defaultMillis(JoinValidationService.JOIN_VALIDATION_CACHE_TIMEOUT_SETTING);
 
+    protected long extraStabilisationTime() {
+        return 0;
+    }
+
     public class Cluster implements Releasable {
 
         static final long EXTREME_DELAY_VARIABILITY = 10000L;
@@ -564,7 +568,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
             bootstrapIfNecessary();
 
-            runFor(stabilisationDurationMillis, "stabilising");
+            runFor(stabilisationDurationMillis + extraStabilisationTime(), "stabilising");
 
             final ClusterNode leader = getAnyLeader();
             final long leaderTerm = leader.coordinator.getCurrentTerm();

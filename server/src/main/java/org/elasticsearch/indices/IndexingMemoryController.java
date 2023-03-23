@@ -242,7 +242,10 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
     @Override
     public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
         recordOperationBytes(index, result);
-        // Piggy back on indexing threads to write segments.
+        // Piggy back on indexing threads to write segments. We're not submitting a task to the index threadpool because we want memory to
+        // be reclaimed rapidly. This has the downside of increasing the latency of _bulk requests though. Lucene does the same thing in
+        // DocumentsWriter#postUpdate, flushing a segment because the size limit on the RAM buffer was reached happens on the call to
+        // IndexWriter#addDocument.
         writePendingIndexingBuffers();
     }
 

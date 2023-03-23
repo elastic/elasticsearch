@@ -47,6 +47,7 @@ import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -61,6 +62,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -500,6 +502,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                         reference.getSegmentsFileName(),
                         reference.getDirectory(),
                         blobContainer,
+                        true,
                         l.map(r -> {
                             addResult.accept(r);
                             return null;
@@ -564,6 +567,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                                 file,
                                 reference.getDirectory(),
                                 blobContainer,
+                                false,
                                 listeners.acquire(addResult)
                             )
                         )
@@ -584,6 +588,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         private final String name;
         private final Directory directory;
         private final BlobContainer blobContainer;
+        private final boolean writeAtomic;
         private final ActionListener<Result> listener;
 
         FileUploadTask(
@@ -593,12 +598,14 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             String name,
             Directory directory,
             BlobContainer blobContainer,
+            boolean writeAtomic,
             ActionListener<Result> listener
         ) {
             super(shardId, generation, timeInNanos);
             this.name = Objects.requireNonNull(name);
             this.directory = Objects.requireNonNull(directory);
             this.blobContainer = Objects.requireNonNull(blobContainer);
+            this.writeAtomic = writeAtomic;
             this.listener = Objects.requireNonNull(listener);
         }
 
@@ -617,7 +624,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             try (ChecksumIndexInput input = directory.openChecksumInput(name, IOContext.READONCE)) {
                 final long length = input.length();
                 var before = threadPool.relativeTimeInMillis();
-                blobContainer.writeBlob(name, new InputStreamIndexInput(input, length), length, false);
+                final InputStream inputStream = new InputStreamIndexInput(input, length);
+                if (writeAtomic) {
+                    blobContainer.writeMetadataBlob(name, false, true, out -> Streams.copy(inputStream, out));
+                } else {
+                    blobContainer.writeBlob(name, inputStream, length, false);
+                }
                 var after = threadPool.relativeTimeInMillis();
                 logger.debug(
                     () -> format(

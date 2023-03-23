@@ -569,6 +569,14 @@ public class MachineLearning extends Plugin
         }
     }
 
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        loader.loadExtensions(MachineLearningExtension.class).forEach(machineLearningExtension::set);
+        if (machineLearningExtension.get() == null) {
+            machineLearningExtension.set(new DefaultMachineLearningExtension());
+        }
+    }
+
     // This is not used in v8 and higher, but users are still prevented from setting it directly to avoid confusion
     private static final String PRE_V8_MAX_OPEN_JOBS_NODE_ATTR = "ml.max_open_jobs";
     public static final String MACHINE_MEMORY_NODE_ATTR = "ml.machine_memory";

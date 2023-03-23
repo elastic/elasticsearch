@@ -129,7 +129,22 @@ public class EventEmitterServiceTests extends ESTestCase {
 
         // Check no exception has been raised and the accepted response is sent.
         verify(listener, never()).onFailure(any());
-        verify(listener, times(1)).onResponse(eq(PostAnalyticsEventAction.Response.ACCEPTED));
+        verify(listener, times(1)).onResponse(argThat((PostAnalyticsEventAction.Response response) -> {
+            assertTrue(response.isAccepted());
+            assertEquals(response.isDebug(), request.isDebug());
+            if (response.isDebug()) {
+                assertEquals(response.getAnalyticsEvent(), emittedEvent);
+            } else {
+                assertNull(response.getAnalyticsEvent());
+            }
+
+            return response.isAccepted();
+        }));
+        if (request.isDebug()) {
+            verify(listener, times(1)).onResponse(eq(PostAnalyticsEventAction.Response.ACCEPTED));
+        } else {
+            verify(listener, times(1)).onResponse(eq(PostAnalyticsEventAction.Response.ACCEPTED));
+        }
 
         // Check logging expectation has been met.
         mockLogAppender.assertAllExpectationsMatched();
@@ -137,6 +152,12 @@ public class EventEmitterServiceTests extends ESTestCase {
 
     private PostAnalyticsEventAction.Request request(String eventPayload) {
         String eventType = randomFrom(AnalyticsEventType.values()).toString();
-        return new PostAnalyticsEventAction.Request(randomIdentifier(), eventType, XContentType.JSON, new BytesArray(eventPayload));
+        return new PostAnalyticsEventAction.Request(
+            randomIdentifier(),
+            eventType,
+            randomBoolean(),
+            XContentType.JSON,
+            new BytesArray(eventPayload)
+        );
     }
 }

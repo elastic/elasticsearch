@@ -38,6 +38,7 @@ public class RestPostAnalyticsEventAction extends BaseRestHandler {
         PostAnalyticsEventAction.Request request = new PostAnalyticsEventAction.Request(
             restRequest.param("collection_name"),
             restRequest.param("event_type"),
+            restRequest.paramAsBoolean("debug", false),
             sourceTuple.v1(),
             sourceTuple.v2()
         );

@@ -42,7 +42,7 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
         this.payload = Objects.requireNonNull(payload, "payload");
     }
 
-    protected AnalyticsEvent(StreamInput in) throws IOException {
+    public AnalyticsEvent(StreamInput in) throws IOException {
         this(new AnalyticsContext(in), in.readEnum(XContentType.class), in.readBytesReference());
     }
 

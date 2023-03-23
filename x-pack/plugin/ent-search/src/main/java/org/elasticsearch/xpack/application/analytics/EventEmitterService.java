@@ -57,7 +57,11 @@ public class EventEmitterService {
         try {
             AnalyticsEvent event = parseAnalyticsEvent(request);
             logger.info(ANALYTICS_MARKER, formatEvent(event));
-            listener.onResponse(PostAnalyticsEventAction.Response.ACCEPTED);
+            if (request.isDebug()) {
+                listener.onResponse(new PostAnalyticsEventAction.Response(true, event));
+            } else {
+                listener.onResponse(PostAnalyticsEventAction.Response.ACCEPTED);
+            }
         } catch (Exception e) {
             listener.onFailure(e);
         }

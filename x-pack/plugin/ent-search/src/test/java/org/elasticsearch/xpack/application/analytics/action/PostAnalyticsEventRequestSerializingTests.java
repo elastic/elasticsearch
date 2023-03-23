@@ -28,6 +28,8 @@ public class PostAnalyticsEventRequestSerializingTests extends AbstractWireSeria
         return new PostAnalyticsEventAction.Request(
             randomIdentifier(),
             randomEventType(),
+            randomBoolean(),
+            randomLong(),
             randomFrom(XContentType.values()),
             new BytesArray(randomByteArrayOfLength(20))
         );

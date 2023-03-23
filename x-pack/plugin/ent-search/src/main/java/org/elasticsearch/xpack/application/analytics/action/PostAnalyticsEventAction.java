@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventType;
 
 import java.io.IOException;
@@ -46,17 +47,27 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
 
         private final long eventTime;
 
+        private final boolean debug;
+
         private final BytesReference payload;
 
         private final XContentType xContentType;
 
-        public Request(String collectionName, String eventType, XContentType xContentType, BytesReference payload) {
-            this(collectionName, eventType, System.currentTimeMillis(), xContentType, payload);
+        public Request(String collectionName, String eventType, boolean debug, XContentType xContentType, BytesReference payload) {
+            this(collectionName, eventType, debug, System.currentTimeMillis(), xContentType, payload);
         }
 
-        public Request(String collectionName, String eventType, long eventTime, XContentType xContentType, BytesReference payload) {
+        public Request(
+            String collectionName,
+            String eventType,
+            boolean debug,
+            long eventTime,
+            XContentType xContentType,
+            BytesReference payload
+        ) {
             this.collectionName = collectionName;
             this.eventType = eventType;
+            this.debug = debug;
             this.eventTime = eventTime;
             this.xContentType = xContentType;
             this.payload = payload;
@@ -66,6 +77,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             super(in);
             this.collectionName = in.readString();
             this.eventType = in.readString();
+            this.debug = in.readBoolean();
             this.eventTime = in.readLong();
             this.xContentType = in.readEnum(XContentType.class);
             this.payload = in.readBytesReference();
@@ -85,6 +97,10 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
 
         public BytesReference payload() {
             return payload;
+        }
+
+        public boolean isDebug() {
+            return debug;
         }
 
         public XContentType xContentType() {
@@ -117,6 +133,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             super.writeTo(out);
             out.writeString(collectionName);
             out.writeString(eventType);
+            out.writeBoolean(debug);
             out.writeLong(eventTime);
             XContentHelper.writeTo(out, xContentType);
             out.writeBytesReference(payload);
@@ -128,6 +145,8 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             if (o == null || getClass() != o.getClass()) return false;
             Request that = (Request) o;
             return Objects.equals(collectionName, that.collectionName)
+                && debug == that.debug
+                && eventTime == that.eventTime
                 && Objects.equals(eventType, that.eventType)
                 && Objects.equals(xContentType, that.xContentType)
                 && Objects.equals(payload, that.payload);
@@ -135,7 +154,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
 
         @Override
         public int hashCode() {
-            return Objects.hash(collectionName, eventType, xContentType, payload);
+            return Objects.hash(collectionName, eventType, debug, eventTime, xContentType, payload);
         }
     }
 
@@ -145,19 +164,47 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
 
         private static final ParseField RESULT_FIELD = new ParseField("accepted");
 
+        private static final ParseField EVENT_FIELD = new ParseField("event");
+
         private final boolean accepted;
 
+        private final boolean debug;
+
+        private final AnalyticsEvent analyticsEvent;
+
+        public boolean isAccepted() {
+            return accepted;
+        }
+
+        public boolean isDebug() {
+            return debug;
+        }
+
+        public AnalyticsEvent getAnalyticsEvent() {
+            return analyticsEvent;
+        }
+
         public Response(boolean accepted) {
+            this(accepted, null);
+        }
+
+        public Response(boolean accepted, AnalyticsEvent event) {
             this.accepted = accepted;
+            this.debug = Objects.nonNull(event);
+            this.analyticsEvent = event;
         }
 
         public Response(StreamInput in) throws IOException {
             this.accepted = in.readBoolean();
+            this.debug = in.readBoolean();
+            this.analyticsEvent = this.debug ? new AnalyticsEvent(in) : null;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(accepted);
+            out.writeBoolean(debug);
+            if (debug) analyticsEvent.writeTo(out);
         }
 
         @Override
@@ -165,17 +212,23 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response that = (Response) o;
-            return accepted == that.accepted;
+            return accepted == that.accepted && debug == that.debug && Objects.equals(analyticsEvent, that.analyticsEvent);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(accepted);
+            return Objects.hash(accepted, debug, analyticsEvent);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject().field(RESULT_FIELD.getPreferredName(), accepted).endObject();
+            builder.startObject();
+            {
+                builder.field(RESULT_FIELD.getPreferredName(), accepted);
+                if (debug) builder.field(EVENT_FIELD.getPreferredName(), analyticsEvent);
+            }
+
+            return builder.endObject();
         }
     }
 }

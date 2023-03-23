@@ -71,7 +71,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.UUIDs.randomBase64UUID;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -85,6 +84,8 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
 
     private static final String CLUSTER_A = "my_remote_cluster_a";
     private static final String CLUSTER_B = "my_remote_cluster_b";
+    private static final String CLUSTER_A_CREDENTIALS = "cluster_a_credentials";
+    private static final String CLUSTER_B_CREDENTIALS = "cluster_b_credentials";
     private static final String REMOTE_SEARCH_USER = "remote_search_user";
     private static final SecureString PASSWORD = new SecureString("super-secret-password".toCharArray());
     private static final String REMOTE_SEARCH_ROLE = "remote_search";
@@ -141,13 +142,12 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
     public void testCrossClusterAccessHeadersSentSingleRemote() throws Exception {
         final BlockingQueue<CapturedActionWithHeaders> capturedHeaders = ConcurrentCollections.newBlockingQueue();
         try (MockTransportService remoteTransport = startTransport("remoteNodeA", threadPool, capturedHeaders)) {
-            final String encodedCredential = randomBase64UUID(random());
             final TransportAddress remoteAddress = remoteTransport.getOriginalTransport()
                 .profileBoundAddresses()
                 .get("_remote_cluster")
                 .publishAddress();
             final boolean useProxyMode = randomBoolean();
-            setupClusterSettings(CLUSTER_A, encodedCredential, remoteAddress, useProxyMode);
+            setupClusterSettings(CLUSTER_A, remoteAddress, useProxyMode);
             final boolean alsoSearchLocally = randomBoolean();
             final boolean minimizeRoundtrips = randomBoolean();
             final Request searchRequest = new Request(
@@ -173,7 +173,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 List.copyOf(capturedHeaders),
                 useProxyMode,
                 minimizeRoundtrips,
-                encodedCredential,
+                CLUSTER_A_CREDENTIALS,
                 this::assertCrossClusterAccessSubjectInfoMatchesNativeUser,
                 new RoleDescriptorsIntersection(
                     List.of(
@@ -211,20 +211,16 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
             MockTransportService remoteTransportA = startTransport("remoteNodeA", threadPool, capturedHeadersByCluster.get(CLUSTER_A));
             MockTransportService remoteTransportB = startTransport("remoteNodeB", threadPool, capturedHeadersByCluster.get(CLUSTER_B))
         ) {
-            final String clusterCredentialA = randomBase64UUID(random());
             final boolean useProxyModeA = randomBoolean();
             setupClusterSettings(
                 CLUSTER_A,
-                clusterCredentialA,
                 remoteTransportA.getOriginalTransport().profileBoundAddresses().get("_remote_cluster").publishAddress(),
                 useProxyModeA
             );
 
-            final String clusterCredentialB = randomBase64UUID(random());
             final boolean useProxyModeB = randomBoolean();
             setupClusterSettings(
                 CLUSTER_B,
-                clusterCredentialB,
                 remoteTransportB.getOriginalTransport().profileBoundAddresses().get("_remote_cluster").publishAddress(),
                 useProxyModeB
             );
@@ -248,7 +244,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 List.copyOf(capturedHeadersByCluster.get(CLUSTER_A)),
                 useProxyModeA,
                 minimizeRoundtrips,
-                clusterCredentialA,
+                CLUSTER_A_CREDENTIALS,
                 this::assertCrossClusterAccessSubjectInfoMatchesNativeUser,
                 new RoleDescriptorsIntersection(
                     List.of(
@@ -276,7 +272,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 List.copyOf(capturedHeadersByCluster.get(CLUSTER_B)),
                 useProxyModeB,
                 minimizeRoundtrips,
-                clusterCredentialB,
+                CLUSTER_B_CREDENTIALS,
                 this::assertCrossClusterAccessSubjectInfoMatchesNativeUser,
                 new RoleDescriptorsIntersection(
                     List.of(
@@ -358,20 +354,16 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
             MockTransportService remoteTransportA = startTransport("remoteNodeA", threadPool, capturedHeadersByCluster.get(CLUSTER_A));
             MockTransportService remoteTransportB = startTransport("remoteNodeB", threadPool, capturedHeadersByCluster.get(CLUSTER_B))
         ) {
-            final String clusterCredentialA = randomBase64UUID(random());
             final boolean useProxyModeA = randomBoolean();
             setupClusterSettings(
                 CLUSTER_A,
-                clusterCredentialA,
                 remoteTransportA.getOriginalTransport().profileBoundAddresses().get("_remote_cluster").publishAddress(),
                 useProxyModeA
             );
 
-            final String clusterCredentialB = randomBase64UUID(random());
             final boolean useProxyModeB = randomBoolean();
             setupClusterSettings(
                 CLUSTER_B,
-                clusterCredentialB,
                 remoteTransportB.getOriginalTransport().profileBoundAddresses().get("_remote_cluster").publishAddress(),
                 useProxyModeB
             );
@@ -391,7 +383,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 List.copyOf(capturedHeadersByCluster.get(CLUSTER_A)),
                 useProxyModeA,
                 minimizeRoundtrips,
-                clusterCredentialA,
+                CLUSTER_A_CREDENTIALS,
                 this::assertCrossClusterAccessSubjectInfoMatchesApiKey,
                 new RoleDescriptorsIntersection(
                     List.of(
@@ -435,7 +427,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 List.copyOf(capturedHeadersByCluster.get(CLUSTER_B)),
                 useProxyModeB,
                 minimizeRoundtrips,
-                clusterCredentialB,
+                CLUSTER_B_CREDENTIALS,
                 this::assertCrossClusterAccessSubjectInfoMatchesApiKey,
                 new RoleDescriptorsIntersection(
                     List.of(
@@ -725,13 +717,12 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
     ) throws IOException {
         final BlockingQueue<CapturedActionWithHeaders> capturedHeaders = ConcurrentCollections.newBlockingQueue();
         try (MockTransportService remoteTransport = startTransport("remoteNode-" + cluster, threadPool, capturedHeaders)) {
-            final String clusterCredential = randomBase64UUID(random());
             final TransportAddress remoteAddress = remoteTransport.getOriginalTransport()
                 .profileBoundAddresses()
                 .get("_remote_cluster")
                 .publishAddress();
             final boolean useProxyMode = randomBoolean();
-            setupClusterSettings(cluster, clusterCredential, remoteAddress, useProxyMode);
+            setupClusterSettings(cluster, remoteAddress, useProxyMode);
             final boolean alsoSearchLocally = randomBoolean();
             final boolean minimizeRoundtrips = randomBoolean();
             final Request searchRequest = new Request(
@@ -753,7 +744,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 List.copyOf(capturedHeaders),
                 useProxyMode,
                 minimizeRoundtrips,
-                clusterCredential,
+                CLUSTER_A_CREDENTIALS,
                 this::assertCrossClusterAccessSubjectInfoMatchesApiKey,
                 expectedRoleDescriptorsIntersection
             );
@@ -839,19 +830,12 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         }
     }
 
-    private void setupClusterSettings(
-        final String clusterAlias,
-        final String clusterCredential,
-        final TransportAddress remoteAddress,
-        boolean useProxyMode
-    ) throws IOException {
+    private void setupClusterSettings(final String clusterAlias, final TransportAddress remoteAddress, boolean useProxyMode)
+        throws IOException {
         if (useProxyMode) {
-            updateRemoteClusterSettings(
-                clusterAlias,
-                Map.of("mode", "proxy", "proxy_address", remoteAddress.toString(), "credentials", clusterCredential)
-            );
+            updateRemoteClusterSettings(clusterAlias, Map.of("mode", "proxy", "proxy_address", remoteAddress.toString()));
         } else {
-            updateRemoteClusterSettings(clusterAlias, Map.of("seeds", remoteAddress.toString(), "credentials", clusterCredential));
+            updateRemoteClusterSettings(clusterAlias, Map.of("seeds", remoteAddress.toString()));
         }
     }
 

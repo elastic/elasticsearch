@@ -83,7 +83,7 @@ A sample response:
 }
 ----
 
-The following example returns the a Analytics Collection that is prefixed with `f`:
+The following example returns all Analytics Collections prefixed with `f`:
 
 [source,console]
 ----

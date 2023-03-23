@@ -27,10 +27,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.SeekableByteChannel;
+import java.nio.file.CopyOption;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.Locale;
@@ -163,6 +165,35 @@ public class FsBlobContainerTests extends ESTestCase {
             IllegalStateException.class,
             () -> getLongAsync(l -> container.compareAndExchangeRegister(key, expectedValue.get(), 0, l))
         );
+    }
+
+    public void testAtomicWriteMetadataWithoutAtomicOverwrite() throws IOException {
+        this.fileSystem = new FilterFileSystemProvider("nooverwritefs://", fileSystem) {
+            @Override
+            public void move(Path source, Path target, CopyOption... options) throws IOException {
+                final Set<CopyOption> optionSet = Set.of(options);
+                if (optionSet.contains(StandardCopyOption.REPLACE_EXISTING)
+                    && optionSet.contains(StandardCopyOption.ATOMIC_MOVE)
+                    && Files.exists(target)) {
+                    // simulate a file system that can't do atomic move + overwrite
+                    throw new IOException("no atomic overwrite moves");
+                } else {
+                    super.move(source, target, options);
+                }
+            }
+        }.getFileSystem(null);
+        final String blobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
+        final byte[] blobData = randomByteArrayOfLength(randomIntBetween(1, 512));
+        PathUtilsForTesting.installMock(fileSystem); // restored by restoreFileSystem in ESTestCase
+        final Path path = PathUtils.get(createTempDir().toString());
+        Files.write(path.resolve(blobName), blobData);
+
+        final FsBlobContainer container = new FsBlobContainer(
+            new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false),
+            BlobPath.EMPTY,
+            path
+        );
+        container.writeBlobAtomic(blobName, new BytesArray(blobData), false);
     }
 
     static class MockFileSystemProvider extends FilterFileSystemProvider {

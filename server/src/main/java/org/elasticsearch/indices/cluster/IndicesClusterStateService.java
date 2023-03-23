@@ -611,11 +611,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
     }
 
-    private PendingShardCreation createOrRefreshPendingShardCreation(ShardId shardId, String clusterStateUuid) {
+    private PendingShardCreation createOrRefreshPendingShardCreation(ShardId shardId, String clusterStateUUID) {
         assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
         final var currentPendingShardCreation = pendingShardCreations.get(shardId);
         final var newPendingShardCreation = new PendingShardCreation(
-            clusterStateUuid,
+            clusterStateUUID,
             currentPendingShardCreation == null ? threadPool.relativeTimeInMillis() : currentPendingShardCreation.startTimeMillis()
         );
         pendingShardCreations.put(shardId, newPendingShardCreation);
@@ -690,7 +690,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             listener.onResponse(false);
                             return;
                         }
-                        assert pendingShardCreation.clusterStateUuid().equals(currentState.stateUUID());
+                        assert pendingShardCreation.clusterStateUUID().equals(currentState.stateUUID());
 
                         final var newDelayMillis = threadPool.relativeTimeInMillis() - pendingShardCreation.startTimeMillis();
                         if (newDelayMillis > shardLockRetryTimeout.millis()) {
@@ -832,7 +832,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         return sourceNode;
     }
 
-    private record PendingShardCreation(String clusterStateUuid, long startTimeMillis) {}
+    private record PendingShardCreation(String clusterStateUUID, long startTimeMillis) {}
 
     private class RecoveryListener implements PeerRecoveryTargetService.RecoveryListener {
 

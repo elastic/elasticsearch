@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ql;
 
 import org.apache.http.HttpHost;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -292,6 +293,7 @@ public final class TestUtils {
                 new TestNode(
                     id,
                     Version.fromString(objectPath.evaluate("nodes." + id + ".version")),
+                    TransportVersion.fromString(objectPath.evaluate("nodes." + id + ".transport_version").toString()),
                     HttpHost.create(objectPath.evaluate("nodes." + id + ".http.publish_address"))
                 )
             );

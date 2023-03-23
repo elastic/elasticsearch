@@ -262,6 +262,10 @@ public class TransportVersion implements Comparable<TransportVersion> {
         return version.id >= id;
     }
 
+    public static TransportVersion fromString(String str) {
+        return TransportVersion.fromId(Integer.parseInt(str));
+    }
+
     @Override
     public int compareTo(TransportVersion other) {
         return Integer.compare(this.id, other.id);

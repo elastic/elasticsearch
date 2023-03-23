@@ -422,12 +422,16 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     private void iterateEmptyBuckets(List<Bucket> list, ListIterator<Bucket> iter, LongConsumer onBucket) {
         LongBounds bounds = emptyBucketInfo.bounds;
         Rounding.Prepared prepared = null;
-        if (bounds != null) {
+        if (bounds != null && list.isEmpty() == false) {
+            long min = bounds.getMin() != null ? Math.min(bounds.getMin() + offset, list.get(0).key) : list.get(0).key;
+            long max = bounds.getMax() != null
+                ? Math.max(bounds.getMax() + offset, list.get(list.size() - 1).key)
+                : list.get(list.size() - 1).key;
+            prepared = createPrepared(min, max);
+        } else if (bounds != null && bounds.getMin() != null && bounds.getMax() != null) {
             prepared = createPrepared(bounds.getMin() + offset, bounds.getMax() + offset);
-        } else {
-            if (list.isEmpty() == false) {
-                prepared = createPrepared(list.get(0).key, list.get(list.size() - 1).key);
-            }
+        } else if (list.isEmpty() == false) {
+            prepared = createPrepared(list.get(0).key, list.get(list.size() - 1).key);
         }
 
         // first adding all the empty buckets *before* the actual data (based on the extended_bounds.min the user requested)

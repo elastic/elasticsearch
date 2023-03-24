@@ -65,7 +65,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
     public void testCreatedWhenAfterOtherMlIndex() throws Exception {
         // Creating a document in the .ml-notifications-000002 index should cause .ml-annotations
         // to be created, as it should get created as soon as any other ML index exists
-        Set<Boolean> includeNodeInfoValues = new HashSet<>(Arrays.asList(true, false));
+        Set<Boolean> includeNodeInfoValues = Set.of(true, false);
 
         includeNodeInfoValues.forEach(includeNodeInfo -> {
             createNotification(includeNodeInfo);

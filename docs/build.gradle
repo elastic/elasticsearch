@@ -115,6 +115,9 @@ tasks.named("yamlRestTest").configure {
   doFirst {
     delete("${buildDir}/cluster/shared/repo")
   }
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.dlm_feature_flag_enabled', 'true'
+  }
 }
 
 tasks.named("forbiddenPatterns").configure {

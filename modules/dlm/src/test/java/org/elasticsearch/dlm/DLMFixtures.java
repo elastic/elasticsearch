@@ -10,21 +10,31 @@ package org.elasticsearch.dlm;
 
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
+import static org.apache.lucene.tests.util.LuceneTestCase.rarely;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
+import static org.elasticsearch.test.ESIntegTestCase.client;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.junit.Assert.assertTrue;
 
-public class DataStreamFactory {
+public class DLMFixtures {
 
     static DataStream createDataStream(
         Metadata.Builder builder,
@@ -51,5 +61,33 @@ public class DataStreamFactory {
             backingIndices.add(indexMetadata.getIndex());
         }
         return newInstance(dataStreamName, backingIndices, backingIndicesCount, null, false, lifecycle);
+    }
+
+    static void putComposableIndexTemplate(
+        String id,
+        @Nullable String mappings,
+        List<String> patterns,
+        @Nullable Settings settings,
+        @Nullable Map<String, Object> metadata,
+        @Nullable DataLifecycle lifecycle
+    ) throws IOException {
+        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
+        request.indexTemplate(
+            new ComposableIndexTemplate(
+                patterns,
+                new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), null, lifecycle),
+                null,
+                null,
+                null,
+                metadata,
+                new ComposableIndexTemplate.DataStreamTemplate(),
+                null
+            )
+        );
+        assertTrue(client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet().isAcknowledged());
+    }
+
+    static DataLifecycle randomDataLifecycle() {
+        return rarely() ? new DataLifecycle() : new DataLifecycle(TimeValue.timeValueDays(randomIntBetween(1, 365)));
     }
 }

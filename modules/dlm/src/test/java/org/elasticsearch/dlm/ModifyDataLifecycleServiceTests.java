@@ -21,7 +21,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 
-import static org.elasticsearch.dlm.DataStreamFactory.createDataStream;
+import static org.elasticsearch.dlm.DLMFixtures.createDataStream;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;

@@ -51,7 +51,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import static org.elasticsearch.dlm.DataStreamFactory.createDataStream;
+import static org.elasticsearch.dlm.DLMFixtures.createDataStream;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.instanceOf;

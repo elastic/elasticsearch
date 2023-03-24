@@ -142,10 +142,10 @@ public class ShardsCapacityHealthIndicatorServiceIT extends ESIntegTestCase {
         });
     }
 
-    private static DiscoveryNode findHealthNode() {
-        var state = internalCluster().clusterService().state();
-        DiscoveryNode healthNode = HealthNode.findHealthNode(state);
-        assertNotNull(healthNode);
-        return healthNode;
+    private static DiscoveryNode findHealthNode() throws Exception {
+        var healthNode = new AtomicReference<DiscoveryNode>();
+        assertBusy(() -> healthNode.set(HealthNode.findHealthNode(internalCluster().clusterService().state())));
+        assertNotNull(healthNode.get());
+        return healthNode.get();
     }
 }

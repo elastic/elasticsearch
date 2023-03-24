@@ -43,7 +43,7 @@ public class AnalyticsCollectionResolver {
      * @return The {@link AnalyticsCollection} object
      * @throws ResourceNotFoundException when no analytics collection is found.
      */
-    public AnalyticsCollection collection(ClusterState state, String collectionName) {
+    public AnalyticsCollection collection(ClusterState state, String collectionName) throws ResourceNotFoundException {
         AnalyticsCollection collection = new AnalyticsCollection(collectionName);
 
         if (state.metadata().dataStreams().containsKey(collection.getEventDataStream()) == false) {

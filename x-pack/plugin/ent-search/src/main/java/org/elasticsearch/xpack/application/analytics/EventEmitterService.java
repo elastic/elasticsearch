@@ -19,7 +19,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.application.analytics.action.PostAnalyticsEventAction;
-import org.elasticsearch.xpack.application.analytics.event.AnalyticsContext;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventFactory;
 
@@ -35,19 +34,20 @@ import java.util.Objects;
 public class EventEmitterService {
     private static final Logger logger = LogManager.getLogger(EventEmitterService.class);
     private static final Marker ANALYTICS_MARKER = MarkerManager.getMarker("org.elasticsearch.xpack.application.analytics");
-    private final AnalyticsCollectionResolver analyticsCollectionResolver;
     private final ClusterService clusterService;
-    private final AnalyticsEventFactory analyticsEventParser;
+    private final AnalyticsCollectionResolver analyticsCollectionResolver;
+
+    private final AnalyticsEventFactory analyticsEventFactory;
 
     @Inject
     public EventEmitterService(
+        AnalyticsEventFactory analyticsEventFactory,
         AnalyticsCollectionResolver analyticsCollectionResolver,
-        ClusterService clusterService,
-        AnalyticsEventFactory analyticsEventParser
+        ClusterService clusterService
     ) {
+        this.analyticsEventFactory = Objects.requireNonNull(analyticsEventFactory, "analyticsEventFactory");
         this.analyticsCollectionResolver = Objects.requireNonNull(analyticsCollectionResolver, "analyticsCollectionResolver");
         this.clusterService = Objects.requireNonNull(clusterService, "clusterService");
-        this.analyticsEventParser = Objects.requireNonNull(analyticsEventParser, "analyticsEventParser");
     }
 
     public void emitEvent(
@@ -55,8 +55,10 @@ public class EventEmitterService {
         final ActionListener<PostAnalyticsEventAction.Response> listener
     ) {
         try {
-            AnalyticsEvent event = parseAnalyticsEvent(request);
+            analyticsCollectionResolver.collection(clusterService.state(), request.eventCollectionName());
+            AnalyticsEvent event = analyticsEventFactory.fromRequest(request);
             logger.info(ANALYTICS_MARKER, formatEvent(event));
+
             if (request.isDebug()) {
                 listener.onResponse(new PostAnalyticsEventAction.Response(true, event));
             } else {
@@ -65,13 +67,6 @@ public class EventEmitterService {
         } catch (Exception e) {
             listener.onFailure(e);
         }
-    }
-
-    private AnalyticsEvent parseAnalyticsEvent(PostAnalyticsEventAction.Request request) throws ResourceNotFoundException, IOException {
-        AnalyticsCollection analyticsCollection = analyticsCollectionResolver.collection(clusterService.state(), request.collectionName());
-        AnalyticsContext context = new AnalyticsContext(analyticsCollection, request.eventType(), request.eventTime());
-
-        return analyticsEventParser.fromPayload(context, request.xContentType(), request.payload());
     }
 
     private String formatEvent(AnalyticsEvent event) throws ResourceNotFoundException, IOException {

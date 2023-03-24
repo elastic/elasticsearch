@@ -40,9 +40,9 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
         super(NAME, Response::new);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends ActionRequest implements AnalyticsEvent.Context {
 
-        private final String collectionName;
+        private final String eventCollectionName;
 
         private final String eventType;
 
@@ -54,19 +54,19 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
 
         private final XContentType xContentType;
 
-        public Request(String collectionName, String eventType, boolean debug, XContentType xContentType, BytesReference payload) {
-            this(collectionName, eventType, debug, System.currentTimeMillis(), xContentType, payload);
+        public Request(String eventCollectionName, String eventType, boolean debug, XContentType xContentType, BytesReference payload) {
+            this(eventCollectionName, eventType, debug, System.currentTimeMillis(), xContentType, payload);
         }
 
         public Request(
-            String collectionName,
+            String eventCollectionName,
             String eventType,
             boolean debug,
             long eventTime,
             XContentType xContentType,
             BytesReference payload
         ) {
-            this.collectionName = collectionName;
+            this.eventCollectionName = eventCollectionName;
             this.eventType = eventType;
             this.debug = debug;
             this.eventTime = eventTime;
@@ -76,7 +76,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.collectionName = in.readString();
+            this.eventCollectionName = in.readString();
             this.eventType = in.readString();
             this.debug = in.readBoolean();
             this.eventTime = in.readLong();
@@ -84,8 +84,8 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             this.payload = in.readBytesReference();
         }
 
-        public String collectionName() {
-            return collectionName;
+        public String eventCollectionName() {
+            return eventCollectionName;
         }
 
         public AnalyticsEvent.Type eventType() {
@@ -112,7 +112,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
 
-            if (Strings.isNullOrEmpty(collectionName)) {
+            if (Strings.isNullOrEmpty(eventCollectionName)) {
                 validationException = addValidationError("collection name is missing", validationException);
             }
 
@@ -121,8 +121,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             }
 
             try {
-                if (eventType.toLowerCase(Locale.ROOT).equals(eventType) == false)
-                    throw new IllegalArgumentException();
+                if (eventType.toLowerCase(Locale.ROOT).equals(eventType) == false) throw new IllegalArgumentException();
 
                 AnalyticsEvent.Type.valueOf(eventType.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
@@ -138,7 +137,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(collectionName);
+            out.writeString(eventCollectionName);
             out.writeString(eventType);
             out.writeBoolean(debug);
             out.writeLong(eventTime);
@@ -151,7 +150,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request that = (Request) o;
-            return Objects.equals(collectionName, that.collectionName)
+            return Objects.equals(eventCollectionName, that.eventCollectionName)
                 && debug == that.debug
                 && eventTime == that.eventTime
                 && Objects.equals(eventType, that.eventType)
@@ -161,7 +160,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
 
         @Override
         public int hashCode() {
-            return Objects.hash(collectionName, eventType, debug, eventTime, xContentType, payload);
+            return Objects.hash(eventCollectionName, eventType, debug, eventTime, xContentType, payload);
         }
     }
 
@@ -192,7 +191,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
         public Response(StreamInput in) throws IOException {
             this.accepted = in.readBoolean();
             this.debug = in.readBoolean();
-            this.analyticsEvent = this.debug ? AnalyticsEventFactory.fromStreamInput(in.readEnum(AnalyticsEvent.Type.class), in) : null;
+            this.analyticsEvent = this.debug ? analyticsEventFactory().fromStreamInput(in.readEnum(AnalyticsEvent.Type.class), in) : null;
         }
 
         public boolean isAccepted() {
@@ -240,6 +239,10 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             }
 
             return builder.endObject();
+        }
+
+        private static AnalyticsEventFactory analyticsEventFactory() {
+            return new AnalyticsEventFactory();
         }
     }
 }

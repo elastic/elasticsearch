@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class AnalyticsEventPageView extends AnalyticsEvent {
-    private static final ConstructingObjectParser<AnalyticsEventPageView, AnalyticsContext> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<AnalyticsEventPageView, Context> PARSER = new ConstructingObjectParser<>(
         AnalyticsEventPageData.PAGE_FIELD.getPreferredName(),
         false,
         (p, c) -> new AnalyticsEventPageView(
@@ -49,7 +49,7 @@ public class AnalyticsEventPageView extends AnalyticsEvent {
     private final AnalyticsEventPageData pageData;
 
     public AnalyticsEventPageView(
-        AnalyticsContext context,
+        Context context,
         AnalyticsEventSessionData sessionData,
         AnalyticsEventUserData userData,
         AnalyticsEventPageData pageData
@@ -58,12 +58,28 @@ public class AnalyticsEventPageView extends AnalyticsEvent {
         this.pageData = Objects.requireNonNull(pageData, AnalyticsEventPageData.PAGE_FIELD.getPreferredName());
     }
 
+    public AnalyticsEventPageView(
+        String eventCollectionName,
+        long eventTime,
+        AnalyticsEventSessionData sessionData,
+        AnalyticsEventUserData userData,
+        AnalyticsEventPageData pageData
+    ) {
+        super(eventCollectionName, eventTime, sessionData, userData);
+        this.pageData = pageData;
+    }
+
     public AnalyticsEventPageView(StreamInput in) throws IOException {
         super(in);
         this.pageData = new AnalyticsEventPageData(in);
     }
 
-    public static AnalyticsEvent fromXContent(XContentParser parser, AnalyticsContext context) throws IOException {
+    @Override
+    public Type eventType() {
+        return Type.PAGEVIEW;
+    }
+
+    public static AnalyticsEvent fromXContent(XContentParser parser, Context context) throws IOException {
         return PARSER.parse(parser, context);
     }
 

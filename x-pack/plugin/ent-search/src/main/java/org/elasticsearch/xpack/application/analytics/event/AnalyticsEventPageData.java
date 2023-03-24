@@ -30,7 +30,7 @@ public class AnalyticsEventPageData implements ToXContent, Writeable {
 
     public static ParseField PAGE_REFERRER_FIELD = new ParseField("referrer");
 
-    private static final ConstructingObjectParser<AnalyticsEventPageData, AnalyticsContext> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<AnalyticsEventPageData, AnalyticsEvent.Context> PARSER = new ConstructingObjectParser<>(
         "pageview_event",
         false,
         (p, c) -> new AnalyticsEventPageData((String) p[0], (String) p[1], (String) p[2])
@@ -58,7 +58,7 @@ public class AnalyticsEventPageData implements ToXContent, Writeable {
         this(in.readString(), in.readOptionalString(), in.readOptionalString());
     }
 
-    public static AnalyticsEventPageData fromXContent(XContentParser parser, AnalyticsContext context) throws IOException {
+    public static AnalyticsEventPageData fromXContent(XContentParser parser, AnalyticsEvent.Context context) throws IOException {
         return PARSER.parse(parser, context);
     }
 

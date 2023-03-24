@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.application.analytics.event;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -16,6 +17,7 @@ import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.application.analytics.action.PostAnalyticsEventAction;
 
 import java.io.IOException;
 import java.util.Map;
@@ -29,9 +31,9 @@ import java.util.Map;
  * - "interaction"
  */
 public class AnalyticsEventFactory {
-    private static final Map<AnalyticsEvent.Type, ContextParser<AnalyticsContext, AnalyticsEvent>> EVENT_PARSERS = MapBuilder.<
+    private static final Map<AnalyticsEvent.Type, ContextParser<AnalyticsEvent.Context, AnalyticsEvent>> EVENT_PARSERS = MapBuilder.<
         AnalyticsEvent.Type,
-        ContextParser<AnalyticsContext, AnalyticsEvent>>newMapBuilder()
+        ContextParser<AnalyticsEvent.Context, AnalyticsEvent>>newMapBuilder()
         .put(AnalyticsEvent.Type.PAGEVIEW, AnalyticsEventPageView::fromXContent)
         .put(AnalyticsEvent.Type.SEARCH, AnalyticsEventSearch::fromXContent)
         .put(AnalyticsEvent.Type.INTERACTION, AnalyticsEventInteraction::fromXContent)
@@ -45,7 +47,13 @@ public class AnalyticsEventFactory {
         .put(AnalyticsEvent.Type.INTERACTION, AnalyticsEventInteraction::new)
         .immutableMap();
 
-    public static AnalyticsEvent fromStreamInput(AnalyticsEvent.Type eventType, StreamInput in) throws IOException {
+    public AnalyticsEventFactory() {}
+
+    public AnalyticsEvent fromRequest(PostAnalyticsEventAction.Request request) throws IOException, ResourceNotFoundException {
+        return fromPayload(request, request.xContentType(), request.payload());
+    }
+
+    public AnalyticsEvent fromStreamInput(AnalyticsEvent.Type eventType, StreamInput in) throws IOException {
         if (EVENT_READERS.containsKey(eventType)) {
             return EVENT_READERS.get(eventType).read(in);
         }
@@ -62,7 +70,8 @@ public class AnalyticsEventFactory {
      *
      * @return Parsed event ({@link AnalyticsEvent})
      */
-    public AnalyticsEvent fromPayload(AnalyticsContext context, XContentType xContentType, BytesReference payload) throws IOException {
+    public AnalyticsEvent fromPayload(AnalyticsEvent.Context context, XContentType xContentType, BytesReference payload)
+        throws IOException {
         XContentParser parser = xContentType.xContent().createParser(XContentParserConfiguration.EMPTY, payload.streamInput());
         AnalyticsEvent.Type eventType = context.eventType();
 

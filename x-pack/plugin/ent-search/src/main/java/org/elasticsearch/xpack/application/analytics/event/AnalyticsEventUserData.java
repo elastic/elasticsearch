@@ -33,7 +33,11 @@ public class AnalyticsEventUserData implements ToXContent, Writeable {
     );
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), USER_ID_FIELD);
+        PARSER.declareString(
+            ConstructingObjectParser.constructorArg(),
+            s -> Strings.requireNonBlank(s, "field [id] can't be blank"),
+            USER_ID_FIELD
+        );
     }
 
     private final String id;

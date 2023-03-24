@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -23,6 +24,17 @@ import java.util.Objects;
  * Subclasses are implementing the different event types.
  */
 public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
+
+    public static final ParseField TIMESTAMP_FIELD = new ParseField("@timestamp");
+    public static final ParseField EVENT_FIELD = new ParseField("event");
+    public static final ParseField EVENT_ACTION_FIELD = new ParseField("action");
+    public static final ParseField DATA_STREAM = new ParseField("data_stream");
+    public static final ParseField DATA_STREAM_TYPE_FIELD = new ParseField("type");
+    public static final ParseField DATA_STREAM_NAMESPACE_FIELD = new ParseField("namespace");
+    public static final ParseField DATA_STREAM_DATASET_FIELD = new ParseField("dataset");
+    public static final String DATA_STREAM_TYPE = "behavioral_analytics";
+    public static final String DATA_STREAM_DATASET = "events";
+
     /**
      * Analytics context. Used to carry information to parsers.
      */
@@ -107,19 +119,19 @@ public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            builder.field("@timestamp", eventTime());
+            builder.field(TIMESTAMP_FIELD.getPreferredName(), eventTime());
 
-            builder.startObject("event");
+            builder.startObject(EVENT_FIELD.getPreferredName());
             {
-                builder.field("action", eventType());
+                builder.field(EVENT_ACTION_FIELD.getPreferredName(), eventType());
             }
             builder.endObject();
 
-            builder.startObject("data_stream");
+            builder.startObject(DATA_STREAM.getPreferredName());
             {
-                builder.field("type", "behavioral_analytics");
-                builder.field("dataset", "events");
-                builder.field("namespace", eventCollectionName());
+                builder.field(DATA_STREAM_TYPE_FIELD.getPreferredName(), DATA_STREAM_TYPE);
+                builder.field(DATA_STREAM_DATASET_FIELD.getPreferredName(), DATA_STREAM_DATASET);
+                builder.field(DATA_STREAM_NAMESPACE_FIELD.getPreferredName(), eventCollectionName());
 
             }
             builder.endObject();

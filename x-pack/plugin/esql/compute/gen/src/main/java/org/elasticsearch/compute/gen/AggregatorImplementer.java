@@ -219,9 +219,10 @@ public class AggregatorImplementer {
     private MethodSpec addRawBlock() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawBlock");
         builder.addModifiers(Modifier.PRIVATE).addParameter(valueBlockType(init, combine), "block");
-        builder.beginControlFlow("for (int i = 0; i < block.getTotalValueCount(); i++)");
+        builder.beginControlFlow("for (int p = 0; p < block.getTotalValueCount(); p++)");
         {
-            builder.beginControlFlow("if (block.isNull(i) == false)");
+            builder.beginControlFlow("if (block.isNull(p) == false)");
+            builder.addStatement("int i = block.getFirstValueIndex(p)");
             combineRawInput(builder, "block");
             builder.endControlFlow();
         }

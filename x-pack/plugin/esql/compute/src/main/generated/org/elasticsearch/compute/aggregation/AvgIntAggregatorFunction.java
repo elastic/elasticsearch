@@ -57,8 +57,9 @@ public final class AvgIntAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawBlock(IntBlock block) {
-    for (int i = 0; i < block.getTotalValueCount(); i++) {
-      if (block.isNull(i) == false) {
+    for (int p = 0; p < block.getTotalValueCount(); p++) {
+      if (block.isNull(p) == false) {
+        int i = block.getFirstValueIndex(p);
         AvgIntAggregator.combine(state, block.getInt(i));
       }
     }

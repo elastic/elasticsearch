@@ -103,7 +103,7 @@ public class FilteredBlockTests extends ESTestCase {
         assertEquals(1, filtered.nullValuesCount());
         assertEquals(2, filtered.validPositionCount());
         assertFalse(filtered.isNull(1));
-        assertEquals(30, filtered.getInt(1));
+        assertEquals(30, filtered.getInt(filtered.getFirstValueIndex(1)));
     }
 
     public void testFilterOnAllNullsBlock() {
@@ -201,6 +201,50 @@ public class FilteredBlockTests extends ESTestCase {
                 assertThat(s, containsString("positions=2"));
             }
         }
+    }
+
+    public void testFilterToStringMultiValue() {
+        var bb = BooleanBlock.newBlockBuilder(6);
+        bb.beginPositionEntry().appendBoolean(true).appendBoolean(true).endPositionEntry();
+        bb.beginPositionEntry().appendBoolean(false).appendBoolean(false).endPositionEntry();
+        bb.beginPositionEntry().appendBoolean(false).appendBoolean(false).endPositionEntry();
+        Block filter = bb.build().filter(0, 1);
+        assertThat(filter.toString(), containsString("[[true, true], [false, false]]"));
+        assertThat(filter.toString(), containsString("positions=2"));
+
+        var ib = IntBlock.newBlockBuilder(6);
+        ib.beginPositionEntry().appendInt(0).appendInt(10).endPositionEntry();
+        ib.beginPositionEntry().appendInt(20).appendInt(50).endPositionEntry();
+        ib.beginPositionEntry().appendInt(90).appendInt(1000).endPositionEntry();
+        filter = ib.build().filter(0, 1);
+        assertThat(filter.toString(), containsString("[[0, 10], [20, 50]]"));
+        assertThat(filter.toString(), containsString("positions=2"));
+
+        var lb = LongBlock.newBlockBuilder(6);
+        lb.beginPositionEntry().appendLong(0).appendLong(10).endPositionEntry();
+        lb.beginPositionEntry().appendLong(20).appendLong(50).endPositionEntry();
+        lb.beginPositionEntry().appendLong(90).appendLong(1000).endPositionEntry();
+        filter = lb.build().filter(0, 1);
+        assertThat(filter.toString(), containsString("[[0, 10], [20, 50]]"));
+        assertThat(filter.toString(), containsString("positions=2"));
+
+        var db = DoubleBlock.newBlockBuilder(6);
+        db.beginPositionEntry().appendDouble(0).appendDouble(10).endPositionEntry();
+        db.beginPositionEntry().appendDouble(0.002).appendDouble(10e8).endPositionEntry();
+        db.beginPositionEntry().appendDouble(90).appendDouble(1000).endPositionEntry();
+        filter = db.build().filter(0, 1);
+        assertThat(filter.toString(), containsString("[[0.0, 10.0], [0.002, 1.0E9]]"));
+        assertThat(filter.toString(), containsString("positions=2"));
+
+        assert new BytesRef("1a").toString().equals("[31 61]") && new BytesRef("3c").toString().equals("[33 63]");
+        assert new BytesRef("cat").toString().equals("[63 61 74]") && new BytesRef("dog").toString().equals("[64 6f 67]");
+        var bytesBlock = BytesRefBlock.newBlockBuilder(6);
+        bytesBlock.beginPositionEntry().appendBytesRef(new BytesRef("1a")).appendBytesRef(new BytesRef("3c")).endPositionEntry();
+        bytesBlock.beginPositionEntry().appendBytesRef(new BytesRef("cat")).appendBytesRef(new BytesRef("dog")).endPositionEntry();
+        bytesBlock.beginPositionEntry().appendBytesRef(new BytesRef("pig")).appendBytesRef(new BytesRef("chicken")).endPositionEntry();
+        filter = bytesBlock.build().filter(0, 1);
+        assertThat(filter.toString(), containsString("[[[31 61], [33 63]], [[63 61 74], [64 6f 67]]"));
+        assertThat(filter.toString(), containsString("positions=2"));
     }
 
     static int randomPosition(int positionCount) {

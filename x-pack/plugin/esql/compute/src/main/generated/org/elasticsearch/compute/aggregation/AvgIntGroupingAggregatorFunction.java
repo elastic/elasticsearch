@@ -58,7 +58,8 @@ public final class AvgIntGroupingAggregatorFunction implements GroupingAggregato
       if (valuesBlock.isNull(position)) {
         state.putNull(groupId);
       } else {
-        AvgIntAggregator.combine(state, groupId, valuesBlock.getInt(position));
+        int i = valuesBlock.getFirstValueIndex(position);
+        AvgIntAggregator.combine(state, groupId, valuesBlock.getInt(i));
       }
     }
   }
@@ -85,6 +86,7 @@ public final class AvgIntGroupingAggregatorFunction implements GroupingAggregato
         if (valuesBlock.isNull(position)) {
           state.putNull(groupId);
         } else {
+          int i = valuesBlock.getFirstValueIndex(position);
           AvgIntAggregator.combine(state, groupId, valuesBlock.getInt(position));
         }
       }

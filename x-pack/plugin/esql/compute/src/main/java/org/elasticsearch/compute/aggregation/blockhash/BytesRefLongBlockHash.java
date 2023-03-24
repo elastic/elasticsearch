@@ -78,8 +78,8 @@ final class BytesRefLongBlockHash extends BlockHash {
                 if (block1.isNull(i) || block2.isNull(i)) {
                     ords.appendNull();
                 } else {
-                    long hash1 = hashOrdToGroup(bytesHash.add(block1.getBytesRef(i, scratch)));
-                    long hash = hashOrdToGroup(finalHash.add(hash1, block2.getLong(i)));
+                    long hash1 = hashOrdToGroup(bytesHash.add(block1.getBytesRef(block1.getFirstValueIndex(i), scratch)));
+                    long hash = hashOrdToGroup(finalHash.add(hash1, block2.getLong(block2.getFirstValueIndex(i))));
                     ords.appendLong(hash);
                 }
             }

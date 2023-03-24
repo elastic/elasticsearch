@@ -57,8 +57,9 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawBlock(LongBlock block) {
-    for (int i = 0; i < block.getTotalValueCount(); i++) {
-      if (block.isNull(i) == false) {
+    for (int p = 0; p < block.getTotalValueCount(); p++) {
+      if (block.isNull(p) == false) {
+        int i = block.getFirstValueIndex(p);
         state.longValue(SumLongAggregator.combine(state.longValue(), block.getLong(i)));
       }
     }

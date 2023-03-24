@@ -57,7 +57,8 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
       if (valuesBlock.isNull(position)) {
         state.putNull(groupId);
       } else {
-        state.set(MinLongAggregator.combine(state.getOrDefault(groupId), valuesBlock.getLong(position)), groupId);
+        int i = valuesBlock.getFirstValueIndex(position);
+        state.set(MinLongAggregator.combine(state.getOrDefault(groupId), valuesBlock.getLong(i)), groupId);
       }
     }
   }
@@ -84,6 +85,7 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
         if (valuesBlock.isNull(position)) {
           state.putNull(groupId);
         } else {
+          int i = valuesBlock.getFirstValueIndex(position);
           state.set(MinLongAggregator.combine(state.getOrDefault(groupId), valuesBlock.getLong(position)), groupId);
         }
       }

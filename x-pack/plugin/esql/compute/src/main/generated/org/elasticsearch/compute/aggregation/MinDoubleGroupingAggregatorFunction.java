@@ -59,7 +59,8 @@ public final class MinDoubleGroupingAggregatorFunction implements GroupingAggreg
       if (valuesBlock.isNull(position)) {
         state.putNull(groupId);
       } else {
-        state.set(MinDoubleAggregator.combine(state.getOrDefault(groupId), valuesBlock.getDouble(position)), groupId);
+        int i = valuesBlock.getFirstValueIndex(position);
+        state.set(MinDoubleAggregator.combine(state.getOrDefault(groupId), valuesBlock.getDouble(i)), groupId);
       }
     }
   }
@@ -86,6 +87,7 @@ public final class MinDoubleGroupingAggregatorFunction implements GroupingAggreg
         if (valuesBlock.isNull(position)) {
           state.putNull(groupId);
         } else {
+          int i = valuesBlock.getFirstValueIndex(position);
           state.set(MinDoubleAggregator.combine(state.getOrDefault(groupId), valuesBlock.getDouble(position)), groupId);
         }
       }

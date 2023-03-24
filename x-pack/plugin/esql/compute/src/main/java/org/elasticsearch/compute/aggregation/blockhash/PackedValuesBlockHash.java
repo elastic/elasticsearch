@@ -131,7 +131,7 @@ final class PackedValuesBlockHash extends BlockHash {
                     w.isNull = true;
                     continue;
                 }
-                block.getBytesRef(i, scratch);
+                block.getBytesRef(block.getFirstValueIndex(i), scratch);
 
                 // Add the length of the bytes as an int and then the bytes
                 int newLen = w.builder.length() + scratch.length + Integer.BYTES;
@@ -180,7 +180,7 @@ final class PackedValuesBlockHash extends BlockHash {
                     w.isNull = true;
                     continue;
                 }
-                long value = block.getLong(i);
+                long value = block.getLong(block.getFirstValueIndex(i));
                 int newLen = w.builder.length() + KEY_BYTES;
                 w.builder.grow(newLen);
                 longHandle.set(w.builder.bytes(), w.builder.length(), value);
@@ -221,7 +221,7 @@ final class PackedValuesBlockHash extends BlockHash {
                 }
                 int newLen = w.builder.length() + KEY_BYTES;
                 w.builder.grow(newLen);
-                double value = block.getDouble(i);
+                double value = block.getDouble(block.getFirstValueIndex(i));
                 doubleHandle.set(w.builder.bytes(), w.builder.length(), value);
                 w.builder.setLength(newLen);
             }
@@ -258,7 +258,7 @@ final class PackedValuesBlockHash extends BlockHash {
                     w.isNull = true;
                     continue;
                 }
-                int value = block.getInt(i);
+                int value = block.getInt(block.getFirstValueIndex(i));
                 int newLen = w.builder.length() + KEY_BYTES;
                 w.builder.grow(newLen);
                 intHandle.set(w.builder.bytes(), w.builder.length(), value);
@@ -297,7 +297,7 @@ final class PackedValuesBlockHash extends BlockHash {
                     w.isNull = true;
                     continue;
                 }
-                boolean value = block.getBoolean(i);
+                boolean value = block.getBoolean(block.getFirstValueIndex(i));
                 int newLen = w.builder.length() + KEY_BYTES;
                 w.builder.grow(newLen);
                 // Serialize boolean as a byte (true: 1, false: 0)

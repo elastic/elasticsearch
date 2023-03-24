@@ -43,7 +43,7 @@ final class DoubleBlockHash extends BlockHash {
             if (block.isNull(i)) {
                 builder.appendNull();
             } else {
-                builder.appendLong(hashOrdToGroup(longHash.add(Double.doubleToLongBits(block.getDouble(i)))));
+                builder.appendLong(hashOrdToGroup(longHash.add(Double.doubleToLongBits(block.getDouble(block.getFirstValueIndex(i))))));
             }
         }
         return builder.build();

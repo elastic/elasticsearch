@@ -148,7 +148,7 @@ public final class EvalMapper {
                         if (block.isNull(pos)) {
                             return null;
                         }
-                        return block.getDouble(pos);
+                        return block.getDouble(block.getFirstValueIndex(pos));
                     }
                 }
                 return () -> new Doubles(channel);
@@ -161,7 +161,7 @@ public final class EvalMapper {
                         if (block.isNull(pos)) {
                             return null;
                         }
-                        return block.getLong(pos);
+                        return block.getLong(block.getFirstValueIndex(pos));
                     }
                 }
                 return () -> new Longs(channel);
@@ -174,7 +174,7 @@ public final class EvalMapper {
                         if (block.isNull(pos)) {
                             return null;
                         }
-                        return block.getInt(pos);
+                        return block.getInt(block.getFirstValueIndex(pos));
                     }
                 }
                 return () -> new Ints(channel);
@@ -187,7 +187,7 @@ public final class EvalMapper {
                         if (block.isNull(pos)) {
                             return null;
                         }
-                        return block.getBytesRef(pos, new BytesRef());
+                        return block.getBytesRef(block.getFirstValueIndex(pos), new BytesRef());
                     }
                 }
                 return () -> new Keywords(channel);
@@ -200,7 +200,7 @@ public final class EvalMapper {
                         if (block.isNull(pos)) {
                             return null;
                         }
-                        return block.getBoolean(pos);
+                        return block.getBoolean(block.getFirstValueIndex(pos));
                     }
                 }
                 return () -> new Booleans(channel);

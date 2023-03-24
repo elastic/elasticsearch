@@ -58,7 +58,8 @@ public final class MedianIntGroupingAggregatorFunction implements GroupingAggreg
       if (valuesBlock.isNull(position)) {
         state.putNull(groupId);
       } else {
-        MedianIntAggregator.combine(state, groupId, valuesBlock.getInt(position));
+        int i = valuesBlock.getFirstValueIndex(position);
+        MedianIntAggregator.combine(state, groupId, valuesBlock.getInt(i));
       }
     }
   }
@@ -85,6 +86,7 @@ public final class MedianIntGroupingAggregatorFunction implements GroupingAggreg
         if (valuesBlock.isNull(position)) {
           state.putNull(groupId);
         } else {
+          int i = valuesBlock.getFirstValueIndex(position);
           MedianIntAggregator.combine(state, groupId, valuesBlock.getInt(position));
         }
       }

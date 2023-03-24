@@ -55,7 +55,9 @@ final class LongLongBlockHash extends BlockHash {
                 if (block1.isNull(i) || block2.isNull(i)) {
                     ords.appendNull();
                 } else {
-                    long h = hashOrdToGroup(hash.add(block1.getLong(i), block2.getLong(i)));
+                    long h = hashOrdToGroup(
+                        hash.add(block1.getLong(block1.getFirstValueIndex(i)), block2.getLong(block2.getFirstValueIndex(i)))
+                    );
                     ords.appendLong(h);
                 }
             }

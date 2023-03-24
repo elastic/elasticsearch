@@ -15,11 +15,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.LuceneTests;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -29,7 +30,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.function.Predicate;
 
-public class SearchHitsTests extends AbstractXContentSerializingTestCase<SearchHits> {
+public class SearchHitsTests extends AbstractChunkedSerializingTestCase<SearchHits> {
 
     public static SearchHits createTestItem(boolean withOptionalInnerHits, boolean withShardTarget) {
         return createTestItem(randomFrom(XContentType.values()).canonical(), withOptionalInnerHits, withShardTarget);
@@ -233,7 +234,7 @@ public class SearchHitsTests extends AbstractXContentSerializingTestCase<SearchH
         SearchHits searchHits = new SearchHits(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), maxScore);
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        searchHits.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        ChunkedToXContent.wrapAsToXContent(searchHits).toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         assertEquals(XContentHelper.stripWhitespace("""
             {
@@ -270,7 +271,12 @@ public class SearchHitsTests extends AbstractXContentSerializingTestCase<SearchH
             float maxScore = 1.5f;
             SearchHits searchHits = new SearchHits(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), maxScore);
             XContentType xContentType = randomFrom(XContentType.values()).canonical();
-            BytesReference bytes = toShuffledXContent(searchHits, xContentType, ToXContent.EMPTY_PARAMS, false);
+            BytesReference bytes = toShuffledXContent(
+                ChunkedToXContent.wrapAsToXContent(searchHits),
+                xContentType,
+                ToXContent.EMPTY_PARAMS,
+                false
+            );
             try (
                 XContentParser parser = xContentType.xContent()
                     .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, bytes.streamInput())

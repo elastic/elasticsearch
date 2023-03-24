@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -33,10 +34,10 @@ import java.util.Map;
  * Results of the {@link TopHitsAggregator}.
  */
 public class InternalTopHits extends InternalAggregation implements TopHits {
-    private int from;
-    private int size;
-    private TopDocsAndMaxScore topDocs;
-    private SearchHits searchHits;
+    private final int from;
+    private final int size;
+    private final TopDocsAndMaxScore topDocs;
+    private final SearchHits searchHits;
 
     public InternalTopHits(
         String name,
@@ -191,7 +192,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        searchHits.toXContent(builder, params);
+        ChunkedToXContent.wrapAsToXContent(searchHits).toXContent(builder, params);
         return builder;
     }
 

@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ParseField;
@@ -101,16 +102,15 @@ public class SearchTemplateResponse extends ActionResponse implements StatusToXC
         return builder;
     }
 
-    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+    public void innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (hasResponse()) {
-            response.innerToXContent(builder, params);
+            ChunkedToXContent.wrapAsToXContent(response).toXContent(builder, params);
         } else {
             // we can assume the template is always json as we convert it before compiling it
             try (InputStream stream = source.streamInput()) {
                 builder.rawField(TEMPLATE_OUTPUT_FIELD.getPreferredName(), stream, XContentType.JSON);
             }
         }
-        return builder;
     }
 
     @Override

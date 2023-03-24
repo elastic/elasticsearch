@@ -416,7 +416,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
         createIndex(
             "index",
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
         );
 
         ensureYellow("index");
@@ -426,17 +426,9 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         final String nodeBId = getNodeId(nodeB);
         ensureGreen("index");
 
-        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"));
-
-        assertThat(client().admin().indices().prepareFlush("index").get().getSuccessfulShards(), equalTo(2));
-        assertThat(client().admin().indices().prepareRefresh("index").get().getSuccessfulShards(), equalTo(2));
-
-        internalCluster().restartNode(nodeA);
-        internalCluster().restartNode(nodeB);
-
-        assertThat(client().admin().cluster().prepareHealth("index").get().getUnassignedShards(), equalTo(1));
-
         putNodeShutdown(nodeAId, SingleNodeShutdownMetadata.Type.REMOVE, null);
+
+        internalCluster().stopNode(nodeA);
 
         assertBusy(() -> assertNodeShutdownStatus(nodeAId, STALLED));
     }

@@ -1,0 +1,5 @@
+pr: 94706
+summary: Improve `FixedRounding#nextRoundingValue(...)` performance
+area: Aggregations
+type: enhancement
+issues: []

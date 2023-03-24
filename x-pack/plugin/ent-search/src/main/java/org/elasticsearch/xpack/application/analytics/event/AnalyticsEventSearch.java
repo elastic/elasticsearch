@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class AnalyticsEventSearch extends AnalyticsEvent {
-    private static final ConstructingObjectParser<AnalyticsEventSearch, AnalyticsContext> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<AnalyticsEventSearch, Context> PARSER = new ConstructingObjectParser<>(
         "search_event",
         false,
         (p, c) -> new AnalyticsEventSearch(
@@ -49,7 +49,7 @@ public class AnalyticsEventSearch extends AnalyticsEvent {
     private final AnalyticsEventSearchData searchData;
 
     public AnalyticsEventSearch(
-        AnalyticsContext context,
+        Context context,
         AnalyticsEventSessionData sessionData,
         AnalyticsEventUserData userData,
         AnalyticsEventSearchData searchData
@@ -63,7 +63,23 @@ public class AnalyticsEventSearch extends AnalyticsEvent {
         this.searchData = new AnalyticsEventSearchData(in);
     }
 
-    public static AnalyticsEvent fromXContent(XContentParser parser, AnalyticsContext context) throws IOException {
+    public AnalyticsEventSearch(
+        String eventCollectionName,
+        long eventTime,
+        AnalyticsEventSessionData sessionData,
+        AnalyticsEventUserData userData,
+        AnalyticsEventSearchData searchData
+    ) {
+        super(eventCollectionName, eventTime, sessionData, userData);
+        this.searchData = searchData;
+    }
+
+    @Override
+    public Type eventType() {
+        return Type.SEARCH;
+    }
+
+    public static AnalyticsEvent fromXContent(XContentParser parser, Context context) throws IOException {
         return PARSER.parse(parser, context);
     }
 

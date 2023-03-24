@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class AnalyticsEventInteraction extends AnalyticsEvent {
-    private static final ConstructingObjectParser<AnalyticsEventInteraction, AnalyticsContext> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<AnalyticsEventInteraction, Context> PARSER = new ConstructingObjectParser<>(
         "interaction_event",
         false,
         (p, c) -> new AnalyticsEventInteraction(
@@ -63,7 +63,7 @@ public class AnalyticsEventInteraction extends AnalyticsEvent {
     private final AnalyticsEventSearchData searchData;
 
     public AnalyticsEventInteraction(
-        AnalyticsContext context,
+        Context context,
         AnalyticsEventSessionData sessionData,
         AnalyticsEventUserData userData,
         AnalyticsEventInteractionData interactionData,
@@ -83,7 +83,27 @@ public class AnalyticsEventInteraction extends AnalyticsEvent {
         this.searchData = new AnalyticsEventSearchData(in);
     }
 
-    public static AnalyticsEvent fromXContent(XContentParser parser, AnalyticsContext context) throws IOException {
+    public AnalyticsEventInteraction(
+        String eventCollectionName,
+        long eventTime,
+        AnalyticsEventSessionData sessionData,
+        AnalyticsEventUserData userData,
+        AnalyticsEventInteractionData interactionData,
+        AnalyticsEventPageData pageData,
+        AnalyticsEventSearchData searchData
+    ) {
+        super(eventCollectionName, eventTime, sessionData, userData);
+        this.interactionData = interactionData;
+        this.pageData = pageData;
+        this.searchData = searchData;
+    }
+
+    @Override
+    public Type eventType() {
+        return Type.INTERACTION;
+    }
+
+    public static AnalyticsEvent fromXContent(XContentParser parser, Context context) throws IOException {
         return PARSER.parse(parser, context);
     }
 

@@ -24,6 +24,17 @@ import java.util.Objects;
  */
 public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
     /**
+     * Analytics context. Used to carry information to parsers.
+     */
+    public interface Context {
+        long eventTime();
+
+        Type eventType();
+
+        String eventCollectionName();
+    }
+
+    /**
      * Analytics event types.
      */
     public enum Type {
@@ -45,42 +56,36 @@ public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
 
     private final String eventCollectionName;
 
-    private final Type eventType;
-
     private final long eventTime;
 
     private final AnalyticsEventSessionData sessionData;
 
     private final AnalyticsEventUserData userData;
 
-    private AnalyticsEvent(
+    protected AnalyticsEvent(
         String eventCollectionName,
-        Type eventType,
         long eventTime,
         AnalyticsEventSessionData sessionData,
         AnalyticsEventUserData userData
     ) {
-        this.eventCollectionName = Strings.requireNonBlank(eventCollectionName, "collectionName");
-        this.eventType = eventType;
+        this.eventCollectionName = Strings.requireNonBlank(eventCollectionName, "eventCollectionName");
         this.eventTime = eventTime;
         this.sessionData = Objects.requireNonNull(sessionData, AnalyticsEventSessionData.SESSION_FIELD.getPreferredName());
         this.userData = Objects.requireNonNull(userData, AnalyticsEventUserData.USER_FIELD.getPreferredName());
     }
 
-    protected AnalyticsEvent(AnalyticsContext analyticsContext, AnalyticsEventSessionData sessionData, AnalyticsEventUserData userData) {
-        this(analyticsContext.eventCollectionName(), analyticsContext.eventType(), analyticsContext.eventTime(), sessionData, userData);
+    protected AnalyticsEvent(Context analyticsContext, AnalyticsEventSessionData sessionData, AnalyticsEventUserData userData) {
+        this(analyticsContext.eventCollectionName(), analyticsContext.eventTime(), sessionData, userData);
     }
 
     protected AnalyticsEvent(StreamInput in) throws IOException {
-        this(in.readString(), in.readEnum(Type.class), in.readLong(), new AnalyticsEventSessionData(in), new AnalyticsEventUserData(in));
+        this(in.readString(), in.readLong(), new AnalyticsEventSessionData(in), new AnalyticsEventUserData(in));
     }
 
-    public String collectionName() {
+    public abstract Type eventType();
+
+    public String eventCollectionName() {
         return eventCollectionName;
-    }
-
-    public Type eventType() {
-        return eventType;
     }
 
     public long eventTime() {
@@ -90,7 +95,6 @@ public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(eventCollectionName);
-        out.writeEnum(eventType);
         out.writeLong(eventTime);
         sessionData.writeTo(out);
         userData.writeTo(out);
@@ -112,7 +116,7 @@ public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
             {
                 builder.field("type", "behavioral_analytics");
                 builder.field("dataset", "events");
-                builder.field("namespace", collectionName());
+                builder.field("namespace", eventCollectionName());
 
             }
             builder.endObject();
@@ -136,7 +140,6 @@ public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
         if (o == null || getClass() != o.getClass()) return false;
         AnalyticsEvent that = (AnalyticsEvent) o;
         return eventCollectionName.equals(that.eventCollectionName)
-            && eventType == that.eventType
             && eventTime == that.eventTime
             && Objects.equals(sessionData, that.sessionData)
             && Objects.equals(userData, that.userData);
@@ -144,6 +147,6 @@ public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(eventCollectionName, eventType, eventTime, sessionData, userData);
+        return Objects.hash(eventCollectionName, eventTime, sessionData, userData);
     }
 }

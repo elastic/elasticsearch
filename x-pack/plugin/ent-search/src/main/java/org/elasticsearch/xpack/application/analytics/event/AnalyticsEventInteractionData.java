@@ -45,11 +45,12 @@ public class AnalyticsEventInteractionData implements ToXContent, Writeable {
 
     public static ParseField INTERACTION_TYPE_FIELD = new ParseField("type");
 
-    private static final ConstructingObjectParser<AnalyticsEventInteractionData, AnalyticsContext> PARSER = new ConstructingObjectParser<>(
-        INTERACTION_FIELD.getPreferredName(),
-        false,
-        (p, c) -> new AnalyticsEventInteractionData((Type) p[0])
-    );
+    private static final ConstructingObjectParser<AnalyticsEventInteractionData, AnalyticsEvent.Context> PARSER =
+        new ConstructingObjectParser<>(
+            INTERACTION_FIELD.getPreferredName(),
+            false,
+            (p, c) -> new AnalyticsEventInteractionData((Type) p[0])
+        );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), (s) -> {
@@ -71,7 +72,7 @@ public class AnalyticsEventInteractionData implements ToXContent, Writeable {
         this(in.readEnum(Type.class));
     }
 
-    public static AnalyticsEventInteractionData fromXContent(XContentParser parser, AnalyticsContext context) throws IOException {
+    public static AnalyticsEventInteractionData fromXContent(XContentParser parser, AnalyticsEvent.Context context) throws IOException {
         return PARSER.parse(parser, context);
     }
 

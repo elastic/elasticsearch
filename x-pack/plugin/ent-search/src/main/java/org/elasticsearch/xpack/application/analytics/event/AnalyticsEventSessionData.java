@@ -26,11 +26,8 @@ public class AnalyticsEventSessionData implements ToXContent, Writeable {
 
     public static ParseField SESSION_ID_FIELD = new ParseField("id");
 
-    private static final ConstructingObjectParser<AnalyticsEventSessionData, AnalyticsContext> PARSER = new ConstructingObjectParser<>(
-        SESSION_FIELD.getPreferredName(),
-        false,
-        (p, c) -> new AnalyticsEventSessionData((String) p[0])
-    );
+    private static final ConstructingObjectParser<AnalyticsEventSessionData, AnalyticsEvent.Context> PARSER =
+        new ConstructingObjectParser<>(SESSION_FIELD.getPreferredName(), false, (p, c) -> new AnalyticsEventSessionData((String) p[0]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), SESSION_ID_FIELD);
@@ -46,7 +43,7 @@ public class AnalyticsEventSessionData implements ToXContent, Writeable {
         this(in.readString());
     }
 
-    public static AnalyticsEventSessionData fromXContent(XContentParser parser, AnalyticsContext context) throws IOException {
+    public static AnalyticsEventSessionData fromXContent(XContentParser parser, AnalyticsEvent.Context context) throws IOException {
         return PARSER.parse(parser, context);
     }
 

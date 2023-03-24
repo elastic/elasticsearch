@@ -24,7 +24,7 @@ public class AnalyticsEventSearchData implements ToXContent, Writeable {
 
     public static ParseField SEARCH_QUERY_FIELD = new ParseField("query");
 
-    private static final ConstructingObjectParser<AnalyticsEventSearchData, AnalyticsContext> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<AnalyticsEventSearchData, AnalyticsEvent.Context> PARSER = new ConstructingObjectParser<>(
         SEARCH_FIELD.getPreferredName(),
         false,
         (p, c) -> new AnalyticsEventSearchData((String) p[0])
@@ -44,7 +44,7 @@ public class AnalyticsEventSearchData implements ToXContent, Writeable {
         this(in.readString());
     }
 
-    public static AnalyticsEventSearchData fromXContent(XContentParser parser, AnalyticsContext context) throws IOException {
+    public static AnalyticsEventSearchData fromXContent(XContentParser parser, AnalyticsEvent.Context context) throws IOException {
         return PARSER.parse(parser, context);
     }
 

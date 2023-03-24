@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.application.analytics.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.application.analytics.event.AnalyticsContext;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventPageData;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventPageView;
@@ -41,7 +40,8 @@ public class PostAnalyticsEventResponseSerializingTests extends AbstractWireSeri
 
     private AnalyticsEvent randomAnalyticsEvent() {
         return new AnalyticsEventPageView(
-            new AnalyticsContext(randomIdentifier(), AnalyticsEvent.Type.PAGEVIEW, randomLong()),
+            randomIdentifier(),
+            randomLong(),
             new AnalyticsEventSessionData(randomIdentifier()),
             new AnalyticsEventUserData(randomIdentifier()),
             new AnalyticsEventPageData(randomIdentifier(), randomIdentifier(), randomIdentifier())

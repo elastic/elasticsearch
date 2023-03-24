@@ -26,7 +26,7 @@ public class AnalyticsEventUserData implements ToXContent, Writeable {
 
     public static ParseField USER_ID_FIELD = new ParseField("id");
 
-    private static final ConstructingObjectParser<AnalyticsEventUserData, AnalyticsContext> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<AnalyticsEventUserData, AnalyticsEvent.Context> PARSER = new ConstructingObjectParser<>(
         USER_FIELD.getPreferredName(),
         false,
         (p, c) -> new AnalyticsEventUserData((String) p[0])
@@ -46,7 +46,7 @@ public class AnalyticsEventUserData implements ToXContent, Writeable {
         this(in.readString());
     }
 
-    public static AnalyticsEventUserData fromXContent(XContentParser parser, AnalyticsContext context) throws IOException {
+    public static AnalyticsEventUserData fromXContent(XContentParser parser, AnalyticsEvent.Context context) throws IOException {
         return PARSER.parse(parser, context);
     }
 

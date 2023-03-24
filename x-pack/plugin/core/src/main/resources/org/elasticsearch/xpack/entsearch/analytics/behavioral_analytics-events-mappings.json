@@ -136,14 +136,6 @@
               }
             }
           }
-        },
-        "interaction": {
-          "properties": {
-            "type": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            }
-          }
         }
       }
     }

@@ -71,6 +71,7 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
             );
         } else {
             try {
+                ensureCrossClusterAccessHeadersInThreadContext();
                 ensureOnlyAllowedHeadersInThreadContext();
             } catch (Exception ex) {
                 authenticationListener.onFailure(ex);
@@ -80,13 +81,31 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
         }
     }
 
+    private void ensureCrossClusterAccessHeadersInThreadContext() {
+        if (getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY) == null) {
+            throw crossClusterAccessHeaderRequiredException(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY);
+        }
+        if (getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY) == null) {
+            throw crossClusterAccessHeaderRequiredException(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY);
+        }
+    }
+
+    private static IllegalArgumentException crossClusterAccessHeaderRequiredException(String header) {
+        return new IllegalArgumentException(
+            "Cross cluster requests through the dedicated remote cluster server port require transport header ["
+                + header
+                + "] but none found. Ensure you have configured cluster credentials on the cluster originating the request."
+        );
+    }
+
     private void ensureOnlyAllowedHeadersInThreadContext() {
         for (String header : getThreadContext().getHeaders().keySet()) {
             if (false == ALLOWED_TRANSPORT_HEADERS.contains(header)) {
                 throw new IllegalArgumentException(
-                    "transport request header ["
+                    "Transport request header ["
                         + header
-                        + "] is not allowed for cross cluster requests through the dedicated remote cluster server port"
+                        + "] is not allowed for cross cluster requests through the dedicated remote cluster server port. "
+                        + "Ensure you have configured cluster credentials on the cluster originating the request."
                 );
             }
         }

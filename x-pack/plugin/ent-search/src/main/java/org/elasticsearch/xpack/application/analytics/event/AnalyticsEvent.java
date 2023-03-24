@@ -40,7 +40,7 @@ public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
     public enum Type {
         PAGEVIEW("pageview"),
         SEARCH("search"),
-        INTERACTION("interaction");
+        SEARCH_CLICK("search_click");
 
         private final String typeName;
 
@@ -58,20 +58,15 @@ public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
 
     private final long eventTime;
 
-    private final AnalyticsEventSessionData sessionData;
+    private final AnalyticsEventSessionData session;
 
-    private final AnalyticsEventUserData userData;
+    private final AnalyticsEventUserData user;
 
-    protected AnalyticsEvent(
-        String eventCollectionName,
-        long eventTime,
-        AnalyticsEventSessionData sessionData,
-        AnalyticsEventUserData userData
-    ) {
+    protected AnalyticsEvent(String eventCollectionName, long eventTime, AnalyticsEventSessionData session, AnalyticsEventUserData user) {
         this.eventCollectionName = Strings.requireNonBlank(eventCollectionName, "eventCollectionName");
         this.eventTime = eventTime;
-        this.sessionData = Objects.requireNonNull(sessionData, AnalyticsEventSessionData.SESSION_FIELD.getPreferredName());
-        this.userData = Objects.requireNonNull(userData, AnalyticsEventUserData.USER_FIELD.getPreferredName());
+        this.session = Objects.requireNonNull(session, AnalyticsEventSessionData.SESSION_FIELD.getPreferredName());
+        this.user = Objects.requireNonNull(user, AnalyticsEventUserData.USER_FIELD.getPreferredName());
     }
 
     protected AnalyticsEvent(Context analyticsContext, AnalyticsEventSessionData sessionData, AnalyticsEventUserData userData) {
@@ -92,12 +87,20 @@ public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
         return eventTime;
     }
 
+    public AnalyticsEventSessionData session() {
+        return session;
+    }
+
+    public AnalyticsEventUserData user() {
+        return user;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(eventCollectionName);
         out.writeLong(eventTime);
-        sessionData.writeTo(out);
-        userData.writeTo(out);
+        session.writeTo(out);
+        user.writeTo(out);
     }
 
     @Override
@@ -121,6 +124,9 @@ public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
             }
             builder.endObject();
 
+            builder.field(AnalyticsEventSessionData.SESSION_FIELD.getPreferredName(), session());
+            builder.field(AnalyticsEventUserData.USER_FIELD.getPreferredName(), user());
+
             // Render additional fields from the event payload (session, user, page, ...)
             addCustomFieldToXContent(builder, params);
 
@@ -130,9 +136,7 @@ public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
         return builder;
     }
 
-    protected void addCustomFieldToXContent(XContentBuilder builder, Params params) throws IOException {
-
-    }
+    protected abstract void addCustomFieldToXContent(XContentBuilder builder, Params params) throws IOException;
 
     @Override
     public boolean equals(Object o) {
@@ -141,12 +145,12 @@ public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
         AnalyticsEvent that = (AnalyticsEvent) o;
         return eventCollectionName.equals(that.eventCollectionName)
             && eventTime == that.eventTime
-            && Objects.equals(sessionData, that.sessionData)
-            && Objects.equals(userData, that.userData);
+            && Objects.equals(session, that.session)
+            && Objects.equals(user, that.user);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(eventCollectionName, eventTime, sessionData, userData);
+        return Objects.hash(eventCollectionName, eventTime, session, user);
     }
 }

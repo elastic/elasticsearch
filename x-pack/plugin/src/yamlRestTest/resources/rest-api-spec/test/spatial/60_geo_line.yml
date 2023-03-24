@@ -103,7 +103,7 @@ setup:
       indices.refresh: { }
 
 ---
-"Test geo_line aggregation on geo points sort by double":
+"Test geo_line aggregation on geo points sort by double and include_sort":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -133,6 +133,39 @@ setup:
   - match: { aggregations.path.properties.sort_values.0: 0.0 }
   - match: { aggregations.path.properties.sort_values.1: 1.2 }
   - match: { aggregations.path.properties.sort_values.2: 2.0 }
+
+---
+"Test geo_line aggregation on geo points reverse sort by double and include_sort":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: locations
+        size: 0
+        body:
+          aggs:
+            path:
+              geo_line:
+                include_sort: true
+                sort_order: "desc"
+                point:
+                  field: location
+                sort:
+                  field: rank
+  - match: { hits.total:  3 }
+  - match: { aggregations.path.type: "Feature" }
+  - match: { aggregations.path.geometry.type: "LineString" }
+  - length: { aggregations.path.geometry.coordinates: 3 }
+  - match: { aggregations.path.geometry.coordinates.0.0: 13.371398 }
+  - match: { aggregations.path.geometry.coordinates.0.1: 47.829303 }
+  - match: { aggregations.path.geometry.coordinates.1.0: 13.37183 }
+  - match: { aggregations.path.geometry.coordinates.1.1: 48.20842 }
+  - match: { aggregations.path.geometry.coordinates.2.0: 13.378421 }
+  - match: { aggregations.path.geometry.coordinates.2.1: 47.888321 }
+  - is_true: aggregations.path.properties.complete
+  - length: { aggregations.path.properties.sort_values: 3 }
+  - match: { aggregations.path.properties.sort_values.0: 2.0 }
+  - match: { aggregations.path.properties.sort_values.1: 1.2 }
+  - match: { aggregations.path.properties.sort_values.2: 0.0 }
 
 ---
 "Test geo_line aggregation on geo points with no grouping":

@@ -18,5 +18,5 @@ module org.elasticsearch.searchablesnapshots {
     requires org.apache.lucene.analysis.common;
 
     exports org.elasticsearch.xpack.searchablesnapshots.action.cache to org.elasticsearch.server;
-    exports  org.elasticsearch.xpack.searchablesnapshots.action to org.elasticsearch.server;
+    exports org.elasticsearch.xpack.searchablesnapshots.action to org.elasticsearch.server;
 }

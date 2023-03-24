@@ -4,7 +4,9 @@
 <titleabbrev>Put Data Stream Lifecycle</titleabbrev>
 ++++
 
-Sets the lifecycle of a set of data streams. This API is in experimental:[].
+experimental::[]
+
+Sets the lifecycle of the targeted data streams.
 
 [[dlm-put-lifecycle-request]]
 ==== {api-request-title}
@@ -61,34 +63,17 @@ duration the document could be deleted. When empty, every document in this data 
 
 The following example sets the lifecycle of `my-data-stream`:
 
-//////////////////////////
-
 [source,console]
 --------------------------------------------------
-PUT _index_template/my-data-stream-template
-{
-  "index_patterns": ["my-data-stream*"],
-  "composed_of": [],
-  "data_stream": {}
-}
-
-PUT _data_stream/my-data-stream
-
---------------------------------------------------
-// TEST
-
-//////////////////////////
-
-[source,console]
---------------------------------------------------
-PUT _data_streams/my-data-stream/_lifecycle
+PUT _data_stream/my-data-stream/_lifecycle
 {
   "lifecycle": {
     "data_retention": "7d"
   }
 }
 --------------------------------------------------
-// TEST[continued]
+// TEST[setup:my_data_stream]
+// TEST[teardown:data_stream_cleanup]
 
 When the lifecycle is successfully updated in all data streams, you receive the following result:
 

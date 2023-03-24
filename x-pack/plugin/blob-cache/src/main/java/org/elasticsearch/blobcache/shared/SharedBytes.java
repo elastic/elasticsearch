@@ -18,7 +18,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.xpack.searchablesnapshots.preallocate.Preallocate;
+import org.elasticsearch.blobcache.preallocate.Preallocate;
 
 import java.io.IOException;
 import java.io.InputStream;

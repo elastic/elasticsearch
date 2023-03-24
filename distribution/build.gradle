@@ -604,3 +604,8 @@ artifacts.add('log4jConfig', file("${defaultOutputs}/log4j2.properties")) {
   name 'log4j2.properties'
   builtBy 'buildDefaultLog4jConfig'
 }
+
+tasks.named('resolveAllDependencies') {
+  // We don't want to build all our distribution artifacts when priming our dependency cache
+  configs = []
+}

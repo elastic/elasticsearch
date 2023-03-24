@@ -19,6 +19,8 @@ import org.elasticsearch.tracing.Tracer;
 
 import java.io.IOException;
 
+import static org.elasticsearch.core.Releasables.assertOnce;
+
 public class RequestHandlerRegistry<Request extends TransportRequest> {
 
     private final String action;
@@ -67,7 +69,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
                 final Releasable stopTracking = taskManager.startTrackingCancellableChannelTask(tcpChannel, (CancellableTask) task);
                 unregisterTask = Releasables.wrap(unregisterTask, stopTracking);
             }
-            final TaskTransportChannel taskTransportChannel = new TaskTransportChannel(task.getId(), channel, unregisterTask);
+            final TaskTransportChannel taskTransportChannel = new TaskTransportChannel(task.getId(), channel, assertOnce(unregisterTask));
             handler.messageReceived(request, taskTransportChannel, task);
             unregisterTask = null;
         } finally {

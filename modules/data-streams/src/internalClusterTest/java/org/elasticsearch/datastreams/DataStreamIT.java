@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
@@ -1138,11 +1139,7 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(getSettingsResponse.getSetting(backingIndex1, "index.number_of_replicas"), equalTo("1"));
         assertThat(getSettingsResponse.getSetting(backingIndex2, "index.number_of_replicas"), equalTo("1"));
 
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("logs-foobar")
-            .setSettings(Settings.builder().put("index.number_of_replicas", 0))
-            .get();
+        setReplicaCount(0, "logs-foobar");
         getSettingsResponse = client().admin().indices().prepareGetSettings("logs-foobar").get();
         assertThat(getSettingsResponse.getIndexToSettings().size(), equalTo(2));
         assertThat(getSettingsResponse.getSetting(backingIndex1, "index.number_of_replicas"), equalTo("0"));
@@ -1510,7 +1507,11 @@ public class DataStreamIT extends ESIntegTestCase {
                 logger.info("--> [{}] waiting for all the other threads before starting", i);
                 barrier.await();
                 while (running.get()) {
-                    RolloverResponse resp = client().admin().indices().prepareRolloverIndex(dsName).addMaxIndexDocsCondition(2).get();
+                    RolloverResponse resp = client().admin()
+                        .indices()
+                        .prepareRolloverIndex(dsName)
+                        .setConditions(RolloverConditions.newBuilder().addMaxIndexDocsCondition(2L))
+                        .get();
                     if (resp.isRolledOver()) {
                         logger.info("--> thread [{}] successfully rolled over: {}", i, Strings.toString(resp));
                         assertThat(resp.getOldIndex(), backingIndexEqualTo("potato-biscuit", 1));

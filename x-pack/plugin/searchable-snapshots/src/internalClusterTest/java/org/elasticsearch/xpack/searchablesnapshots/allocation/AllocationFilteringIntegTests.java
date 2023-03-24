@@ -131,14 +131,8 @@ public class AllocationFilteringIntegTests extends BaseSearchableSnapshotsIntegT
         final MountSearchableSnapshotRequest mountRequest = prepareMountRequest(indexSettings, mountSettings);
 
         // block allocation to node 0 at the cluster level
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        .put(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), nodes.get(0))
-                )
+        updateClusterSettings(
+            Settings.builder().put(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), nodes.get(0))
         );
 
         // mount snapshot and verify it is allocated as expected
@@ -162,13 +156,8 @@ public class AllocationFilteringIntegTests extends BaseSearchableSnapshotsIntegT
             assertFalse(mountedIndexSettings.toString(), indexSetting.getConcreteSettingForNamespace("_name").exists(mountedIndexSettings));
         }
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().putNull(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey())
-                )
+        updateClusterSettings(
+            Settings.builder().putNull(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey())
         );
     }
 

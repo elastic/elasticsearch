@@ -299,7 +299,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     }
 
     public void testTimeSeriesIndexDefault() throws Exception {
-        var randomMetricType = randomFrom(TimeSeriesParams.MetricType.values());
+        var randomMetricType = randomFrom(TimeSeriesParams.MetricType.scalar());
         var indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension_field");
         var mapperService = createMapperService(indexSettings.build(), fieldMapping(b -> {

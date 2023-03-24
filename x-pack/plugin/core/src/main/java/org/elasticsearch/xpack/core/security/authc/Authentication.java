@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -27,7 +28,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication.RoleDescriptorsBytes;
+import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.RoleDescriptorsBytes;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContext
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -56,9 +58,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newAnonymousRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newApiKeyRealmRef;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newCrossClusterAccessRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newInternalAttachRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newInternalFallbackRealmRef;
-import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newRemoteAccessRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newServiceAccountRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_TYPE;
@@ -66,12 +68,12 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AP
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_REALM_NAME;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_REALM_TYPE;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMAIN_PARSER;
 
 /**
@@ -103,11 +105,12 @@ public final class Authentication implements ToXContentObject {
     private static final Logger logger = LogManager.getLogger(Authentication.class);
     private static final TransportVersion VERSION_AUTHENTICATION_TYPE = TransportVersion.fromId(6_07_00_99);
 
-    public static final TransportVersion VERSION_REMOTE_ACCESS_REALM = TransportVersion.V_8_7_0;
+    public static final TransportVersion VERSION_CROSS_CLUSTER_ACCESS_REALM = TransportVersion.V_8_8_0;
     public static final TransportVersion VERSION_API_KEY_ROLES_AS_BYTES = TransportVersion.V_7_9_0;
     public static final TransportVersion VERSION_REALM_DOMAINS = TransportVersion.V_8_2_0;
     public static final TransportVersion VERSION_METADATA_BEYOND_GENERIC_MAP = TransportVersion.V_8_8_0;
-    public static final TransportVersion VERSION_API_KEYS_WITH_REMOTE_INDICES = TransportVersion.V_8_8_0;
+    public static final Version VERSION_API_KEYS_WITH_REMOTE_INDICES = Version.V_8_8_0;
+    public static final TransportVersion TRANSPORT_VERSION_API_KEYS_WITH_REMOTE_INDICES = TransportVersion.V_8_8_0;
     private final AuthenticationType type;
     private final Subject authenticatingSubject;
     private final Subject effectiveSubject;
@@ -117,10 +120,12 @@ public final class Authentication implements ToXContentObject {
     }
 
     private Authentication(Subject effectiveSubject, Subject authenticatingSubject, AuthenticationType type) {
-        this.effectiveSubject = effectiveSubject;
-        this.authenticatingSubject = authenticatingSubject;
-        this.type = type;
-        assertInternalConsistency();
+        this.effectiveSubject = Objects.requireNonNull(effectiveSubject, "effective subject cannot be null");
+        this.authenticatingSubject = Objects.requireNonNull(authenticatingSubject, "authenticating subject cannot be null");
+        this.type = Objects.requireNonNull(type, "authentication type cannot be null");
+        if (Assertions.ENABLED) {
+            checkConsistency();
+        }
     }
 
     public Authentication(StreamInput in) throws IOException {
@@ -174,7 +179,9 @@ public final class Authentication implements ToXContentObject {
         } else {
             authenticatingSubject = effectiveSubject = new Subject(outerUser, authenticatedBy, version, metadata);
         }
-        assertInternalConsistency();
+        if (Assertions.ENABLED) {
+            checkConsistency();
+        }
     }
 
     /**
@@ -216,13 +223,13 @@ public final class Authentication implements ToXContentObject {
         // TODO how can this not be true
         // assert olderVersion.onOrBefore(getVersion());
 
-        // remote access introduced a new synthetic realm and subject type; these cannot be parsed by older versions, so rewriting is not
-        // possible
-        if (isRemoteAccess() && olderVersion.before(VERSION_REMOTE_ACCESS_REALM)) {
+        // cross cluster access introduced a new synthetic realm and subject type; these cannot be parsed by older versions, so rewriting is
+        // not possible
+        if (isCrossClusterAccess() && olderVersion.before(VERSION_CROSS_CLUSTER_ACCESS_REALM)) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + VERSION_REMOTE_ACCESS_REALM
-                    + "] can't handle remote access authentication and attempted to rewrite for ["
+                    + VERSION_CROSS_CLUSTER_ACCESS_REALM
+                    + "] can't handle cross cluster access authentication and attempted to rewrite for ["
                     + olderVersion
                     + "]"
             );
@@ -268,8 +275,8 @@ public final class Authentication implements ToXContentObject {
     private static Map<String, Object> maybeRewriteMetadata(TransportVersion olderVersion, Authentication authentication) {
         if (authentication.isAuthenticatedAsApiKey()) {
             return maybeRewriteMetadataForApiKeyRoleDescriptors(olderVersion, authentication);
-        } else if (authentication.isRemoteAccess()) {
-            return maybeRewriteMetadataForRemoteAccessAuthentication(olderVersion, authentication);
+        } else if (authentication.isCrossClusterAccess()) {
+            return maybeRewriteMetadataForCrossClusterAccessAuthentication(olderVersion, authentication);
         } else {
             return authentication.getAuthenticatingSubject().getMetadata();
         }
@@ -301,8 +308,9 @@ public final class Authentication implements ToXContentObject {
      * authenticating using the token credential.
      */
     public Authentication token() {
+        assert false == isAuthenticatedInternally();
         assert false == isServiceAccount();
-        assert false == isRemoteAccess();
+        assert false == isCrossClusterAccess();
         final Authentication newTokenAuthentication = new Authentication(effectiveSubject, authenticatingSubject, AuthenticationType.TOKEN);
         return newTokenAuthentication;
     }
@@ -327,7 +335,7 @@ public final class Authentication implements ToXContentObject {
             && false == anonymousUser.equals(getEffectiveSubject().getUser())
             && false == User.isInternal(getEffectiveSubject().getUser())
             && false == isApiKey()
-            && false == isRemoteAccess()
+            && false == isCrossClusterAccess()
             && false == isServiceAccount();
 
         if (false == shouldAddAnonymousRoleNames) {
@@ -391,10 +399,6 @@ public final class Authentication implements ToXContentObject {
         return getEffectiveSubject().getRealm().getDomain();
     }
 
-    public boolean isAuthenticatedWithServiceAccount() {
-        return ServiceAccountSettings.REALM_TYPE.equals(getAuthenticatingSubject().getRealm().getType());
-    }
-
     /**
      * Whether the authenticating user is an API key, including a simple API key or a token created by an API key.
      */
@@ -426,8 +430,8 @@ public final class Authentication implements ToXContentObject {
         return effectiveSubject.getType() == Subject.Type.API_KEY;
     }
 
-    public boolean isRemoteAccess() {
-        return effectiveSubject.getType() == Subject.Type.REMOTE_ACCESS;
+    public boolean isCrossClusterAccess() {
+        return effectiveSubject.getType() == Subject.Type.CROSS_CLUSTER_ACCESS;
     }
 
     /**
@@ -444,9 +448,9 @@ public final class Authentication implements ToXContentObject {
             return false;
         }
 
-        // Real run-as for remote access could happen on the querying cluster side, but not on the fulfilling cluster. Since the
+        // Real run-as for cross cluster access could happen on the querying cluster side, but not on the fulfilling cluster. Since the
         // authentication instance corresponds to the fulfilling-cluster-side view, run-as is not supported
-        if (isRemoteAccess()) {
+        if (isCrossClusterAccess()) {
             return false;
         }
 
@@ -493,26 +497,39 @@ public final class Authentication implements ToXContentObject {
     }
 
     public String encode() throws IOException {
+        return doEncode(effectiveSubject, authenticatingSubject, type);
+    }
+
+    // Package private for testing
+    static String doEncode(Subject effectiveSubject, Subject authenticatingSubject, AuthenticationType type) throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setTransportVersion(getEffectiveSubject().getTransportVersion());
-        TransportVersion.writeVersion(getEffectiveSubject().getTransportVersion(), output);
-        writeTo(output);
+        output.setTransportVersion(effectiveSubject.getTransportVersion());
+        TransportVersion.writeVersion(effectiveSubject.getTransportVersion(), output);
+        doWriteTo(effectiveSubject, authenticatingSubject, type, output);
         return Base64.getEncoder().encodeToString(BytesReference.toBytes(output.bytes()));
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        // remote access introduced a new synthetic realm and subject type; these cannot be parsed by older versions, so rewriting we should
-        // not send them across the wire to older nodes
-        if (isRemoteAccess() && out.getTransportVersion().before(VERSION_REMOTE_ACCESS_REALM)) {
+        doWriteTo(effectiveSubject, authenticatingSubject, type, out);
+    }
+
+    // Package private for testing
+    static void doWriteTo(Subject effectiveSubject, Subject authenticatingSubject, AuthenticationType type, StreamOutput out)
+        throws IOException {
+        // cross cluster access introduced a new synthetic realm and subject type; these cannot be parsed by older versions, so rewriting we
+        // should not send them across the wire to older nodes
+        final boolean isCrossClusterAccess = effectiveSubject.getType() == Subject.Type.CROSS_CLUSTER_ACCESS;
+        if (isCrossClusterAccess && out.getTransportVersion().before(VERSION_CROSS_CLUSTER_ACCESS_REALM)) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + VERSION_REMOTE_ACCESS_REALM
-                    + "] can't handle remote access authentication and attempted to send to ["
+                    + VERSION_CROSS_CLUSTER_ACCESS_REALM
+                    + "] can't handle cross cluster access authentication and attempted to send to ["
                     + out.getTransportVersion()
                     + "]"
             );
         }
-        if (isRunAs()) {
+        final boolean isRunAs = authenticatingSubject != effectiveSubject;
+        if (isRunAs) {
             final User outerUser = effectiveSubject.getUser();
             final User innerUser = authenticatingSubject.getUser();
             assert false == User.isInternal(outerUser) && false == User.isInternal(innerUser)
@@ -526,7 +543,7 @@ public final class Authentication implements ToXContentObject {
             AuthenticationSerializationHelper.writeUserTo(user, out);
         }
         authenticatingSubject.getRealm().writeTo(out);
-        final RealmRef lookedUpBy = isRunAs() ? effectiveSubject.getRealm() : null;
+        final RealmRef lookedUpBy = isRunAs ? effectiveSubject.getRealm() : null;
 
         if (lookedUpBy != null) {
             out.writeBoolean(true);
@@ -534,7 +551,7 @@ public final class Authentication implements ToXContentObject {
         } else {
             out.writeBoolean(false);
         }
-        final Map<String, Object> metadata = getAuthenticatingSubject().getMetadata();
+        final Map<String, Object> metadata = authenticatingSubject.getMetadata();
         if (out.getTransportVersion().onOrAfter(VERSION_AUTHENTICATION_TYPE)) {
             out.writeVInt(type.ordinal());
             writeMetadata(out, metadata);
@@ -649,7 +666,7 @@ public final class Authentication implements ToXContentObject {
         }
         builder.endObject();
         builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
-        if (isApiKey() || isRemoteAccess()) {
+        if (isApiKey() || isCrossClusterAccess()) {
             final String apiKeyId = (String) getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
             final String apiKeyName = (String) getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
             if (apiKeyName == null) {
@@ -661,9 +678,9 @@ public final class Authentication implements ToXContentObject {
     }
 
     private static final Map<String, CheckedFunction<StreamInput, Object, IOException>> METADATA_VALUE_READER = Map.of(
-        REMOTE_ACCESS_AUTHENTICATION_KEY,
+        CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY,
         Authentication::new,
-        REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY,
+        CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY,
         in -> in.readList(RoleDescriptorsBytes::new)
     );
 
@@ -683,9 +700,9 @@ public final class Authentication implements ToXContentObject {
     }
 
     private static final Map<String, Writeable.Writer<?>> METADATA_VALUE_WRITER = Map.of(
-        REMOTE_ACCESS_AUTHENTICATION_KEY,
+        CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY,
         (out, v) -> ((Authentication) v).writeTo(out),
-        REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY,
+        CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY,
         (out, v) -> {
             @SuppressWarnings("unchecked")
             final List<RoleDescriptorsBytes> roleDescriptorsBytesList = (List<RoleDescriptorsBytes>) v;
@@ -710,49 +727,188 @@ public final class Authentication implements ToXContentObject {
         }
     }
 
-    private void assertInternalConsistency() {
-        if (false == Assertions.ENABLED) {
-            return;
-        }
-
-        assert effectiveSubject != null;
-        assert authenticatingSubject != null;
-        assert type != null;
-        assert effectiveSubject.getTransportVersion().equals(authenticatingSubject.getTransportVersion());
-
+    /**
+     * An Authentication object has internal constraint between its fields, e.g. if it is internal authentication,
+     * it must have an internal user. These logics are upheld when authentication is built as a result of successful
+     * authentication. Hence, this method mostly runs in test (where assertion is enabled).
+     * However, for RCS cross cluster access, FC receives an authentication object as part of the request. There is
+     * no guarantee that this authentication object also maintains the internal logics. Therefore, this method
+     * is called explicitly in production when handling cross cluster access requests.
+     */
+    public void checkConsistency() {
+        // isRunAs logic consistency
         if (isRunAs()) {
             assert authenticatingSubject != effectiveSubject : "isRunAs logic does not hold";
-            assert false == User.isInternal(effectiveSubject.getUser()) && false == User.isInternal(authenticatingSubject.getUser())
-                : "internal users cannot participate in run-as";
         } else {
             assert authenticatingSubject == effectiveSubject : "isRunAs logic does not hold";
         }
 
-        // Assert API key metadata
-        assert (false == (isAuthenticatedAsApiKey() || isRemoteAccess()))
-            || (getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY) != null)
-            : "API KEY authentication requires metadata to contain API KEY id, and the value must be non-null.";
-
-        if (isRemoteAccess()) {
-            assert getAuthenticatingSubject().getMetadata().get(REMOTE_ACCESS_AUTHENTICATION_KEY) != null
-                : "Remote access authentication requires metadata to contain a serialized remote access authentication, "
-                    + "and the value must be non-null.";
-            assert getAuthenticatingSubject().getMetadata().get(REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY) != null
-                : "Remote access authentication requires metadata to contain a serialized remote access role descriptors, "
-                    + "and the value must be non-null.";
-        }
-
-        // Assert domain assignment
-        if (isAssignedToDomain()) {
-            assert false == isApiKey();
-            assert false == isRemoteAccess();
-            assert false == isServiceAccount();
-            assert false == isAuthenticatedAnonymously();
-            assert false == isAuthenticatedInternally();
+        // check consistency for each authentication type
+        switch (getAuthenticationType()) {
+            case ANONYMOUS -> checkConsistencyForAnonymousAuthenticationType();
+            case INTERNAL -> checkConsistencyForInternalAuthenticationType();
+            case API_KEY -> checkConsistencyForApiKeyAuthenticationType();
+            case REALM -> checkConsistencyForRealmAuthenticationType();
+            case TOKEN -> checkConsistencyForTokenAuthenticationType();
+            default -> {
+                assert false : "unknown authentication type " + type;
+            }
         }
     }
 
-    private boolean hasSyntheticRealmNameOrType(@Nullable RealmRef realmRef) {
+    private void checkConsistencyForAnonymousAuthenticationType() {
+        final RealmRef authenticatingRealm = authenticatingSubject.getRealm();
+        if (false == authenticatingRealm.isAnonymousRealm()) {
+            throw new IllegalArgumentException(
+                Strings.format("Anonymous authentication cannot have realm type [%s]", authenticatingRealm.type)
+            );
+        }
+        checkNoDomain(authenticatingRealm, "Anonymous");
+        checkNoInternalUser(authenticatingSubject, "Anonymous");
+        checkNoRunAs(this, "Anonymous");
+    }
+
+    private void checkConsistencyForInternalAuthenticationType() {
+        final RealmRef authenticatingRealm = authenticatingSubject.getRealm();
+        if (false == authenticatingRealm.isFallbackRealm() && false == authenticatingRealm.isAttachRealm()) {
+            throw new IllegalArgumentException(
+                Strings.format("Internal authentication cannot have realm type [%s]", authenticatingRealm.type)
+            );
+        }
+        checkNoDomain(authenticatingRealm, "Internal");
+        if (false == User.isInternal(authenticatingSubject.getUser())) {
+            throw new IllegalArgumentException("Internal authentication must have internal user");
+        }
+        checkNoRunAs(this, "Internal");
+    }
+
+    private void checkConsistencyForApiKeyAuthenticationType() {
+        final RealmRef authenticatingRealm = authenticatingSubject.getRealm();
+        if (false == authenticatingRealm.isApiKeyRealm() && false == authenticatingRealm.isCrossClusterAccessRealm()) {
+            throw new IllegalArgumentException(
+                Strings.format("API key authentication cannot have realm type [%s]", authenticatingRealm.type)
+            );
+        }
+        checkConsistencyForApiKeyAuthenticatingSubject("API key");
+        if (Subject.Type.CROSS_CLUSTER_ACCESS == authenticatingSubject.getType()) {
+            if (authenticatingSubject.getMetadata().get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY) == null) {
+                throw new IllegalArgumentException(
+                    "Cross cluster access authentication requires metadata to contain "
+                        + "a non-null serialized cross cluster access authentication field"
+                );
+            }
+            final Authentication innerAuthentication = (Authentication) authenticatingSubject.getMetadata()
+                .get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
+            if (innerAuthentication.isCrossClusterAccess()) {
+                throw new IllegalArgumentException(
+                    "Cross cluster access authentication cannot contain another cross cluster access authentication in its metadata"
+                );
+            }
+            if (authenticatingSubject.getMetadata().get(CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY) == null) {
+                throw new IllegalArgumentException(
+                    "Cross cluster access authentication requires metadata to contain "
+                        + "a non-null serialized cross cluster access role descriptors field"
+                );
+            }
+            checkNoRunAs(this, "Remote access");
+        } else {
+            if (isRunAs()) {
+                checkRunAsConsistency(effectiveSubject, authenticatingSubject);
+            }
+        }
+    }
+
+    private void checkConsistencyForRealmAuthenticationType() {
+        if (Subject.Type.USER != authenticatingSubject.getType()) {
+            throw new IllegalArgumentException("Realm authentication must have subject type of user");
+        }
+        if (isRunAs()) {
+            checkRunAsConsistency(effectiveSubject, authenticatingSubject);
+        }
+    }
+
+    private void checkConsistencyForTokenAuthenticationType() {
+        final RealmRef authenticatingRealm = authenticatingSubject.getRealm();
+        // The below assertion does not hold for custom realms. That's why it is an assertion instead of runtime error.
+        // Custom realms with synthetic realm names are likely fail in other places. But we don't fail in name/type checks
+        // for mostly historical reasons.
+        assert false == authenticatingRealm.isAttachRealm()
+            && false == authenticatingRealm.isFallbackRealm()
+            && false == authenticatingRealm.isCrossClusterAccessRealm()
+            : "Token authentication cannot have authenticating realm " + authenticatingRealm;
+
+        checkNoInternalUser(authenticatingSubject, "Token");
+        if (Subject.Type.SERVICE_ACCOUNT == authenticatingSubject.getType()) {
+            checkNoDomain(authenticatingRealm, "Service account");
+            checkNoRole(authenticatingSubject, "Service account");
+            checkNoRunAs(this, "Service account");
+        } else {
+            if (Subject.Type.API_KEY == authenticatingSubject.getType()) {
+                checkConsistencyForApiKeyAuthenticatingSubject("API key token");
+            }
+            if (isRunAs()) {
+                checkRunAsConsistency(effectiveSubject, authenticatingSubject);
+            }
+        }
+    }
+
+    private static void checkRunAsConsistency(Subject effectiveSubject, Subject authenticatingSubject) {
+        if (false == effectiveSubject.getTransportVersion().equals(authenticatingSubject.getTransportVersion())) {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "inconsistent versions between effective subject [%s] and authenticating subject [%s]",
+                    effectiveSubject.getTransportVersion(),
+                    authenticatingSubject.getTransportVersion()
+                )
+            );
+        }
+        if (Subject.Type.USER != effectiveSubject.getType()) {
+            throw new IllegalArgumentException(Strings.format("Run-as subject type cannot be [%s]", effectiveSubject.getType()));
+        }
+        if (false == effectiveSubject.getMetadata().isEmpty()) {
+            throw new IllegalArgumentException("Run-as subject must have empty metadata");
+        }
+        // assert here because it does not hold for custom realm
+        assert false == hasSyntheticRealmNameOrType(effectiveSubject.getRealm()) : "run-as subject cannot be from a synthetic realm";
+    }
+
+    private void checkConsistencyForApiKeyAuthenticatingSubject(String prefixMessage) {
+        final RealmRef authenticatingRealm = authenticatingSubject.getRealm();
+        checkNoDomain(authenticatingRealm, prefixMessage);
+        checkNoInternalUser(authenticatingSubject, prefixMessage);
+        checkNoRole(authenticatingSubject, prefixMessage);
+        if (authenticatingSubject.getMetadata().get(AuthenticationField.API_KEY_ID_KEY) == null) {
+            throw new IllegalArgumentException(prefixMessage + " authentication requires metadata to contain a non-null API key ID");
+        }
+    }
+
+    private static void checkNoInternalUser(Subject subject, String prefixMessage) {
+        if (User.isInternal(subject.getUser())) {
+            throw new IllegalArgumentException(
+                Strings.format(prefixMessage + " authentication cannot have internal user [%s]", subject.getUser().principal())
+            );
+        }
+    }
+
+    private static void checkNoDomain(RealmRef realm, String prefixMessage) {
+        if (realm.getDomain() != null) {
+            throw new IllegalArgumentException(prefixMessage + " authentication cannot have domain");
+        }
+    }
+
+    private static void checkNoRole(Subject subject, String prefixMessage) {
+        if (subject.getUser().roles().length != 0) {
+            throw new IllegalArgumentException(prefixMessage + " authentication user must have no role");
+        }
+    }
+
+    private static void checkNoRunAs(Authentication authentication, String prefixMessage) {
+        if (authentication.isRunAs()) {
+            throw new IllegalArgumentException(prefixMessage + " authentication cannot run-as other user");
+        }
+    }
+
+    private static boolean hasSyntheticRealmNameOrType(@Nullable RealmRef realmRef) {
         if (realmRef == null) {
             return false;
         }
@@ -762,7 +918,7 @@ public final class Authentication implements ToXContentObject {
             ANONYMOUS_REALM_NAME,
             FALLBACK_REALM_NAME,
             ATTACH_REALM_NAME,
-            REMOTE_ACCESS_REALM_NAME
+            CROSS_CLUSTER_ACCESS_REALM_NAME
         ).contains(realmRef.getName())) {
             return true;
         }
@@ -772,7 +928,7 @@ public final class Authentication implements ToXContentObject {
             ANONYMOUS_REALM_TYPE,
             FALLBACK_REALM_TYPE,
             ATTACH_REALM_TYPE,
-            REMOTE_ACCESS_REALM_TYPE
+            CROSS_CLUSTER_ACCESS_REALM_TYPE
         ).contains(realmRef.getType())) {
             return true;
         }
@@ -896,6 +1052,30 @@ public final class Authentication implements ToXContentObject {
             }
         }
 
+        private boolean isFallbackRealm() {
+            return FALLBACK_REALM_NAME.equals(name) && FALLBACK_REALM_TYPE.equals(type);
+        }
+
+        private boolean isAttachRealm() {
+            return ATTACH_REALM_NAME.equals(name) && ATTACH_REALM_TYPE.equals(type);
+        }
+
+        private boolean isAnonymousRealm() {
+            return ANONYMOUS_REALM_NAME.equals(name) && ANONYMOUS_REALM_TYPE.equals(type);
+        }
+
+        private boolean isApiKeyRealm() {
+            return API_KEY_REALM_NAME.equals(name) && API_KEY_REALM_TYPE.equals(type);
+        }
+
+        private boolean isServiceAccountRealm() {
+            return ServiceAccountSettings.REALM_NAME.equals(name) && ServiceAccountSettings.REALM_TYPE.equals(type);
+        }
+
+        private boolean isCrossClusterAccessRealm() {
+            return CROSS_CLUSTER_ACCESS_REALM_NAME.equals(name) && CROSS_CLUSTER_ACCESS_REALM_TYPE.equals(type);
+        }
+
         static RealmRef newInternalAttachRealmRef(String nodeName) {
             // the "attach" internal realm is not part of any realm domain
             return new Authentication.RealmRef(ATTACH_REALM_NAME, ATTACH_REALM_TYPE, nodeName, null);
@@ -922,9 +1102,9 @@ public final class Authentication implements ToXContentObject {
             return new RealmRef(API_KEY_REALM_NAME, API_KEY_REALM_TYPE, nodeName, null);
         }
 
-        static RealmRef newRemoteAccessRealmRef(String nodeName) {
-            // no domain for remote access authentication
-            return new RealmRef(REMOTE_ACCESS_REALM_NAME, REMOTE_ACCESS_REALM_TYPE, nodeName, null);
+        static RealmRef newCrossClusterAccessRealmRef(String nodeName) {
+            // no domain for cross cluster access authentication
+            return new RealmRef(CROSS_CLUSTER_ACCESS_REALM_NAME, CROSS_CLUSTER_ACCESS_REALM_TYPE, nodeName, null);
         }
     }
 
@@ -954,7 +1134,6 @@ public final class Authentication implements ToXContentObject {
             new Subject(internalUser, authenticatedBy, version, Map.of()),
             AuthenticationType.INTERNAL
         );
-        assert false == authentication.isAssignedToDomain();
         return authentication;
     }
 
@@ -965,7 +1144,6 @@ public final class Authentication implements ToXContentObject {
             new Subject(fallbackUser, authenticatedBy, TransportVersion.CURRENT, Map.of()),
             Authentication.AuthenticationType.INTERNAL
         );
-        assert false == authentication.isAssignedToDomain();
         return authentication;
     }
 
@@ -975,7 +1153,6 @@ public final class Authentication implements ToXContentObject {
             new Subject(anonymousUser, authenticatedBy, TransportVersion.CURRENT, Map.of()),
             Authentication.AuthenticationType.ANONYMOUS
         );
-        assert false == authentication.isAssignedToDomain();
         return authentication;
     }
 
@@ -986,7 +1163,6 @@ public final class Authentication implements ToXContentObject {
             new Subject(serviceAccountUser, authenticatedBy, TransportVersion.CURRENT, metadata),
             AuthenticationType.TOKEN
         );
-        assert false == authentication.isAssignedToDomain();
         return authentication;
     }
 
@@ -998,7 +1174,7 @@ public final class Authentication implements ToXContentObject {
         );
         assert false == authentication.isServiceAccount();
         assert false == authentication.isApiKey();
-        assert false == authentication.isRemoteAccess();
+        assert false == authentication.isCrossClusterAccess();
         assert false == authentication.isAuthenticatedInternally();
         assert false == authentication.isAuthenticatedAnonymously();
         return authentication;
@@ -1013,28 +1189,25 @@ public final class Authentication implements ToXContentObject {
             new Subject(apiKeyUser, authenticatedBy, TransportVersion.CURRENT, authResult.getMetadata()),
             AuthenticationType.API_KEY
         );
-        assert false == authentication.isAssignedToDomain();
         return authentication;
     }
 
-    public Authentication toRemoteAccess(RemoteAccessAuthentication remoteAccessAuthentication) {
-        assert isApiKey() : "can only convert API key authentication to remote access";
-        assert false == isRunAs() : "remote access does not support authentication with run-as";
+    public Authentication toCrossClusterAccess(CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo) {
+        assert isApiKey() : "can only convert API key authentication to cross cluster access";
+        assert false == isRunAs() : "cross cluster access does not support authentication with run-as";
         assert getEffectiveSubject().getUser().roles().length == 0
-            : "the user associated with a remote access authentication must have no role";
+            : "the user associated with a cross cluster access authentication must have no role";
         final Map<String, Object> metadata = new HashMap<>(getAuthenticatingSubject().getMetadata());
-        final Authentication.RealmRef authenticatedBy = newRemoteAccessRealmRef(getAuthenticatingSubject().getRealm().getNodeName());
-        final Authentication authentication = new Authentication(
+        final Authentication.RealmRef authenticatedBy = newCrossClusterAccessRealmRef(getAuthenticatingSubject().getRealm().getNodeName());
+        return new Authentication(
             new Subject(
                 getEffectiveSubject().getUser(),
                 authenticatedBy,
                 TransportVersion.CURRENT,
-                remoteAccessAuthentication.copyWithRemoteAccessEntries(metadata)
+                crossClusterAccessSubjectInfo.copyWithCrossClusterAccessEntries(metadata)
             ),
             getAuthenticationType()
         );
-        assert false == authentication.isAssignedToDomain();
-        return authentication;
     }
 
     // pkg-private for testing
@@ -1060,8 +1233,8 @@ public final class Authentication implements ToXContentObject {
                 : "metadata must contain role descriptor for API key authentication";
             assert metadata.containsKey(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
                 : "metadata must contain limited role descriptor for API key authentication";
-            if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(VERSION_API_KEYS_WITH_REMOTE_INDICES)
-                && streamVersion.before(VERSION_API_KEYS_WITH_REMOTE_INDICES)) {
+            if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(TRANSPORT_VERSION_API_KEYS_WITH_REMOTE_INDICES)
+                && streamVersion.before(TRANSPORT_VERSION_API_KEYS_WITH_REMOTE_INDICES)) {
                 metadata = new HashMap<>(metadata);
                 metadata.put(
                     AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
@@ -1110,18 +1283,21 @@ public final class Authentication implements ToXContentObject {
     }
 
     // pkg-private for testing
-    static Map<String, Object> maybeRewriteMetadataForRemoteAccessAuthentication(
+    static Map<String, Object> maybeRewriteMetadataForCrossClusterAccessAuthentication(
         final TransportVersion olderVersion,
         final Authentication authentication
     ) {
-        assert authentication.isRemoteAccess() : "authentication must be remote access";
+        assert authentication.isCrossClusterAccess() : "authentication must be cross cluster access";
         final Map<String, Object> metadata = authentication.getAuthenticatingSubject().getMetadata();
-        assert metadata.containsKey(REMOTE_ACCESS_AUTHENTICATION_KEY)
-            : "metadata must contain authentication object for remote access authentication";
-        final Authentication authenticationFromMetadata = (Authentication) metadata.get(REMOTE_ACCESS_AUTHENTICATION_KEY);
+        assert metadata.containsKey(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY)
+            : "metadata must contain authentication object for cross cluster access authentication";
+        final Authentication authenticationFromMetadata = (Authentication) metadata.get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
         if (authenticationFromMetadata.getEffectiveSubject().getTransportVersion().after(olderVersion)) {
             final Map<String, Object> rewrittenMetadata = new HashMap<>(metadata);
-            rewrittenMetadata.put(REMOTE_ACCESS_AUTHENTICATION_KEY, authenticationFromMetadata.maybeRewriteForOlderVersion(olderVersion));
+            rewrittenMetadata.put(
+                CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY,
+                authenticationFromMetadata.maybeRewriteForOlderVersion(olderVersion)
+            );
             return rewrittenMetadata;
         } else {
             return metadata;
@@ -1201,7 +1377,10 @@ public final class Authentication implements ToXContentObject {
             final User user = readUserWithoutTrailingBoolean(input);
             if (false == User.isInternal(user)) {
                 boolean hasInnerUser = input.readBoolean();
-                assert false == hasInnerUser : "no inner user is possible, otherwise use UserTuple.readFrom";
+                assert false == hasInnerUser : "inner user is not allowed";
+                if (hasInnerUser) {
+                    throw new IllegalStateException("inner user is not allowed");
+                }
             }
             return user;
         }
@@ -1229,6 +1408,8 @@ public final class Authentication implements ToXContentObject {
                     return SecurityProfileUser.INSTANCE;
                 } else if (AsyncSearchUser.NAME.equals(username)) {
                     return AsyncSearchUser.INSTANCE;
+                } else if (CrossClusterAccessUser.NAME.equals(username)) {
+                    return CrossClusterAccessUser.INSTANCE;
                 }
                 throw new IllegalStateException("username [" + username + "] does not match any internal user");
             }
@@ -1253,6 +1434,8 @@ public final class Authentication implements ToXContentObject {
                 output.writeString(SecurityProfileUser.NAME);
             } else if (AsyncSearchUser.is(user)) {
                 output.writeString(AsyncSearchUser.NAME);
+            } else if (CrossClusterAccessUser.is(user)) {
+                output.writeString(CrossClusterAccessUser.NAME);
             } else {
                 assert false;
                 throw new IllegalStateException("user [" + user + "] is not internal");

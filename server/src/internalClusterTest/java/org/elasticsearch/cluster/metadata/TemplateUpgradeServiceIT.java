@@ -157,15 +157,7 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
         assertBusy(() -> {
             // the updates only happen on cluster state updates, so we need to make sure that the cluster state updates are happening
             // so we need to simulate updates to make sure the template upgrade kicks in
-            assertAcked(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setPersistentSettings(
-                        Settings.builder().put(TestPlugin.UPDATE_TEMPLATE_DUMMY_SETTING.getKey(), updateCount.incrementAndGet())
-                    )
-                    .get()
-            );
+            updateClusterSettings(Settings.builder().put(TestPlugin.UPDATE_TEMPLATE_DUMMY_SETTING.getKey(), updateCount.incrementAndGet()));
             List<IndexTemplateMetadata> templates = client().admin().indices().prepareGetTemplates("test_*").get().getIndexTemplates();
             assertThat(templates, hasSize(3));
             boolean addedFound = false;
@@ -208,15 +200,7 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
         assertBusy(() -> {
             // the updates only happen on cluster state updates, so we need to make sure that the cluster state updates are happening
             // so we need to simulate updates to make sure the template upgrade kicks in
-            assertAcked(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setPersistentSettings(
-                        Settings.builder().put(TestPlugin.UPDATE_TEMPLATE_DUMMY_SETTING.getKey(), updateCount.incrementAndGet())
-                    )
-                    .get()
-            );
+            updateClusterSettings(Settings.builder().put(TestPlugin.UPDATE_TEMPLATE_DUMMY_SETTING.getKey(), updateCount.incrementAndGet()));
 
             List<IndexTemplateMetadata> templates = client().admin().indices().prepareGetTemplates("test_*").get().getIndexTemplates();
             assertThat(templates, hasSize(2));

@@ -229,7 +229,7 @@ public class TransformIT extends TransformRestTestCase {
                 }
             }
             """, dest, pipelineId);
-        updateConfig(id, update);
+        updateConfig(id, update, RequestOptions.DEFAULT);
 
         // index some more docs
         long timeStamp = Instant.now().toEpochMilli() - 1_000;
@@ -293,7 +293,7 @@ public class TransformIT extends TransformRestTestCase {
                 "retention_policy": null
             }
             """;
-        updateConfig(transformId, update);
+        updateConfig(transformId, update, RequestOptions.DEFAULT);
         assertThat(getTransform(transformId), not(hasKey("retention_policy")));
     }
 
@@ -416,7 +416,7 @@ public class TransformIT extends TransformRestTestCase {
             }
             """, reqsPerSec, maxPageSize);
 
-        updateConfig(config.getId(), update);
+        updateConfig(config.getId(), update, RequestOptions.DEFAULT);
 
         waitUntilCheckpoint(config.getId(), 1L);
         assertThat(getTransformState(config.getId()), equalTo("started"));

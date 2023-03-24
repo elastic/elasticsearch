@@ -11,8 +11,9 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo;
@@ -27,7 +28,7 @@ import java.util.List;
 
 public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRequest, XPackInfoResponse> {
 
-    private final LicenseService licenseService;
+    private final ClusterStateLicenseService clusterStateLicenseService;
     private final NodeClient client;
     private final List<XPackInfoFeatureAction> infoActions;
 
@@ -35,11 +36,11 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
     public TransportXPackInfoAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        LicenseService licenseService,
+        ClusterStateLicenseService clusterStateLicenseService,
         NodeClient client
     ) {
         super(XPackInfoAction.NAME, transportService, actionFilters, XPackInfoRequest::new);
-        this.licenseService = licenseService;
+        this.clusterStateLicenseService = clusterStateLicenseService;
         this.client = client;
         this.infoActions = infoActions();
     }
@@ -59,14 +60,14 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
 
         LicenseInfo licenseInfo = null;
         if (request.getCategories().contains(XPackInfoRequest.Category.LICENSE)) {
-            License license = licenseService.getLicense();
+            License license = clusterStateLicenseService.getLicense();
             if (license != null) {
                 licenseInfo = new LicenseInfo(
                     license.uid(),
                     license.type(),
                     license.operationMode().description(),
-                    LicenseService.status(license),
-                    LicenseService.getExpiryDate(license)
+                    LicenseUtils.status(license),
+                    LicenseUtils.getExpiryDate(license)
                 );
             }
         }

@@ -369,9 +369,6 @@ Network::
 * Upgrade to Netty 4.1.85 {es-pull}91846[#91846]
 * Upgrade to Netty 4.1.86 {es-pull}92587[#92587]
 
-Packaging::
-* Upgrade bundled JDK to Java 20 {es-pull}94600[#94600]
-
 Query Languages::
 * Upgrade antlr to 4.11.1 for ql, eql and sql {es-pull}93238[#93238]
 

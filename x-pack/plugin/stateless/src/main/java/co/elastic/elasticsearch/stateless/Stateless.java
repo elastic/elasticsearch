@@ -161,6 +161,8 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         Tracer tracer,
         AllocationService allocationService
     ) {
+        // use the settings that include additional settings.
+        Settings settings = environment.settings();
         var objectStoreService = new ObjectStoreService(settings, repositoriesServiceSupplier, threadPool, clusterService, client);
         this.objectStoreService.set(objectStoreService);
         var sharedBlobCache = new SharedBlobCacheService<FileCacheKey>(nodeEnvironment, settings, threadPool);

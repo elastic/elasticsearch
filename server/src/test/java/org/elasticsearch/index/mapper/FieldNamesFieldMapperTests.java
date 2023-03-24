@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.termvectors.TermVectorsService;
@@ -51,11 +50,6 @@ public class FieldNamesFieldMapperTests extends MetadataMapperTestCase {
         DocumentMapper docMapper = createDocumentMapper(mapping(b -> {}));
         FieldNamesFieldMapper fieldNamesMapper = docMapper.metadataMapper(FieldNamesFieldMapper.class);
         assertFalse(fieldNamesMapper.fieldType().hasDocValues());
-
-        assertEquals(IndexOptions.DOCS, FieldNamesFieldMapper.Defaults.FIELD_TYPE.indexOptions());
-        assertFalse(FieldNamesFieldMapper.Defaults.FIELD_TYPE.tokenized());
-        assertFalse(FieldNamesFieldMapper.Defaults.FIELD_TYPE.stored());
-        assertTrue(FieldNamesFieldMapper.Defaults.FIELD_TYPE.omitNorms());
     }
 
     public void testInjectIntoDocDuringParsing() throws Exception {

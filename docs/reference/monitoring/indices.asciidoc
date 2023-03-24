@@ -4,7 +4,8 @@
 
 Sometimes the default index settings might not work for your situation. For
 example, you might want to change index lifecycle management (ILM) settings,
-add custom mappings, or change other index settings.
+add custom mappings, or set the number of shards and replicas
+for the monitoring indices.
 
 You can change the default behavior. The steps you follow depend on which data
 collection method is used.

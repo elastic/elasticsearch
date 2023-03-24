@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.bucket.nested;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
@@ -22,7 +23,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -97,22 +97,14 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                     int numNestedDocs = randomIntBetween(0, 20);
                     for (int nested = 0; nested < numNestedDocs; nested++) {
                         Document document = new Document();
-                        document.add(
-                            new Field(
-                                IdFieldMapper.NAME,
-                                Uid.encodeId(Integer.toString(i)),
-                                ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE
-                            )
-                        );
-                        document.add(new Field(NestedPathFieldMapper.NAME, NESTED_OBJECT, NestedPathFieldMapper.Defaults.FIELD_TYPE));
+                        document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), Field.Store.NO));
+                        document.add(new StringField(NestedPathFieldMapper.NAME, NESTED_OBJECT, Field.Store.NO));
                         documents.add(document);
                         expectedNestedDocs++;
                     }
                     LuceneDocument document = new LuceneDocument();
-                    document.add(
-                        new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), ProvidedIdFieldMapper.Defaults.FIELD_TYPE)
-                    );
-                    document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
+                    document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), Field.Store.YES));
+                    document.add(new StringField(NestedPathFieldMapper.NAME, "test", Field.Store.NO));
                     long value = randomNonNegativeLong() % 10000;
                     document.add(new SortedNumericDocValuesField(VALUE_FIELD_NAME, value));
                     SeqNoFieldMapper.SequenceIDFields.emptySeqID().addFields(document);
@@ -165,21 +157,13 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
 
                     for (int nested = 0; nested < numNestedDocs; nested++) {
                         Document document = new Document();
-                        document.add(
-                            new Field(
-                                IdFieldMapper.NAME,
-                                Uid.encodeId(Integer.toString(i)),
-                                ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE
-                            )
-                        );
-                        document.add(new Field(NestedPathFieldMapper.NAME, NESTED_OBJECT, NestedPathFieldMapper.Defaults.FIELD_TYPE));
+                        document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), Field.Store.NO));
+                        document.add(new StringField(NestedPathFieldMapper.NAME, NESTED_OBJECT, Field.Store.NO));
                         documents.add(document);
                     }
                     LuceneDocument document = new LuceneDocument();
-                    document.add(
-                        new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), ProvidedIdFieldMapper.Defaults.FIELD_TYPE)
-                    );
-                    document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
+                    document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), Field.Store.YES));
+                    document.add(new StringField(NestedPathFieldMapper.NAME, "test", Field.Store.NO));
 
                     long value = randomNonNegativeLong() % 10000;
                     document.add(new SortedNumericDocValuesField(VALUE_FIELD_NAME, value));

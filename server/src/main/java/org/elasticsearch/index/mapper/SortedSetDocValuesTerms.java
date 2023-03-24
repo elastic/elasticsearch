@@ -56,11 +56,9 @@ class SortedSetDocValuesTerms extends Terms {
             }
         }
 
-        //System.out.println(termsPerLeaf);
         if (termsPerLeaf.isEmpty()) {
             return null;
         } else {
-            //System.out.println(termsPerLeaf);
             return new MultiTerms(termsPerLeaf.toArray(EMPTY_ARRAY), slicePerLeaf.toArray(ReaderSlice.EMPTY_ARRAY));
         }
     }

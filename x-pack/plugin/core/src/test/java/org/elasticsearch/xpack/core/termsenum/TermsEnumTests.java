@@ -9,13 +9,11 @@ package org.elasticsearch.xpack.core.termsenum;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -120,7 +118,6 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
             .get();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94378")
     public void testTermsEnumIPBasic() throws Exception {
         String indexName = "test";
         createIndex(
@@ -146,11 +143,11 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
             .get();
         ensureGreen();
 
-        indexOoc(indexName, "1", "ip_addr", "1.2.3.4");
-        indexOoc(indexName, "2", "ip_addr", "205.0.1.2");
-        indexOoc(indexName, "3", "ip_addr", "2.2.2.2");
-        indexOoc(indexName, "4", "ip_addr", "2001:db8::1:0:0:1");
-        indexOoc(indexName, "5", "ip_addr", "13.3.3.3");
+        indexAndRefresh(indexName, "1", "ip_addr", "1.2.3.4");
+        indexAndRefresh(indexName, "2", "ip_addr", "205.0.1.2");
+        indexAndRefresh(indexName, "3", "ip_addr", "2.2.2.2");
+        indexAndRefresh(indexName, "4", "ip_addr", "2001:db8::1:0:0:1");
+        indexAndRefresh(indexName, "5", "ip_addr", "13.3.3.3");
         assertAllSuccessful(client().admin().indices().prepareRefresh().get());
         {
             TermsEnumResponse response = client().execute(TermsEnumAction.INSTANCE, new TermsEnumRequest(indexName).field("ip_addr")).get();
@@ -177,17 +174,6 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
             ).get();
             expectMatches(response, "205.0.1.2", "2001:db8::1:0:0:1");
         }
-    }
-
-    private void indexOoc(String indexName, String id, String fieldname, String value) throws IOException {
-        assertEquals(
-            RestStatus.CREATED,
-            client().prepareIndex(indexName)
-                .setId(id)
-                .setSource(jsonBuilder().startObject().field(fieldname, value).endObject())
-                .get()
-                .status()
-        );
     }
 
     private static void expectMatches(TermsEnumResponse response, String... expectedTerms) {
@@ -245,14 +231,10 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
             }
             TermsEnumResponse response = client().execute(
                 TermsEnumAction.INSTANCE,
-                new TermsEnumRequest(indexName).field("ip_addr").string(randomPrefix).size(numDocs).timeout(TimeValue.timeValueMillis(2000))
+                new TermsEnumRequest(indexName).field("ip_addr").string(randomPrefix).size(numDocs)
             ).get();
 
-            try {
-                assertAllSuccessful(response);
-            } catch (Throwable t) {
-                logger.info(Strings.toString(response));
-            }
+            assertAllSuccessful(response);
             List<String> terms = response.getTerms();
             assertEquals(
                 "expected " + expectedResults + " for prefix " + randomPrefix + " but was " + terms.size() + ", " + terms,

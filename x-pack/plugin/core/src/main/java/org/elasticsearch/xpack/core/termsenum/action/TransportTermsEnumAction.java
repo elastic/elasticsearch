@@ -329,7 +329,6 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
             for (ShardId shardId : request.shardIds()) {
                 // Check we haven't just arrived on a node and time is up already.
                 if (System.currentTimeMillis() > scheduledEnd) {
-                    logger.debug("terms enum timing out after: " + (System.currentTimeMillis() - request.nodeStartedTimeMillis()) + "s");
                     return NodeTermsEnumResponse.partial(request.nodeId(), termsList);
                 }
                 final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
@@ -359,7 +358,6 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
             int shard_size = request.size();
             // All the above prep might take a while - do a timer check now before we continue further.
             if (System.currentTimeMillis() > scheduledEnd) {
-                logger.debug("terms enum timing out after 2: " + (System.currentTimeMillis() - request.nodeStartedTimeMillis()) + "s");
                 return NodeTermsEnumResponse.partial(request.nodeId(), termsList);
             }
 

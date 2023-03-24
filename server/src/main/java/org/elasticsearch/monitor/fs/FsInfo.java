@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.nio.file.FileStore;
 import java.util.Iterator;
 import java.util.Set;
 
@@ -27,9 +28,10 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
     public static class Path implements Writeable, ToXContentObject {
 
         String path;
-        String mount;
-        /** File system type from {@code java.nio.file.FileStore type()}, if available. */
-        String type;
+        /** File system string from {@link FileStore#toString()}. The concrete subclasses of FileStore have meaningful toString methods. */
+        String mount; // e.g. "/app (/dev/mapper/lxc-data)", "/System/Volumes/Data (/dev/disk1s2)", "Local Disk (C:)", etc.
+        /** File system type from {@link FileStore#type()}. */
+        String type; // e.g. "xfs", "apfs", "NTFS", etc.
         long total = -1;
         long free = -1;
         long available = -1;

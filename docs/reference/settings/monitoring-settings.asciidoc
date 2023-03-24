@@ -6,7 +6,7 @@
 ++++
 
 // tag::monitoring-deprecation-notice[]
-deprecated[7.16, "Using the {es} Monitoring plugin to collect and ship monitoring data is deprecated. {metricbeat} is the recommended method for collecting and shipping monitoring data to a monitoring cluster. If you previously configured legacy collection methods, you should migrate to using {metricbeat} collection methods. Refer to <<configuring-metricbeat,Collecting {es} monitoring data with {metricbeat}>>."]
+deprecated[7.16, "Using the {es} Monitoring plugin to collect and ship monitoring data is deprecated. {agent} and {metricbeat} are the recommended methods for collecting and shipping monitoring data to a monitoring cluster. If you previously configured legacy collection methods, you should migrate to using <<configuring-elastic-agent,{agent}>> or <<configuring-metricbeat,{metricbeat}>> collection methods."]
 // end::monitoring-deprecation-notice[]
 
 By default, {es} {monitor-features} are enabled but data collection is disabled.

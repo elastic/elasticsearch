@@ -118,10 +118,7 @@ public class EqlSearchIT extends ESRestTestCase {
         // each function has a query and query results associated to it
         Set<String> testedFunctions = new HashSet<>();
         try (
-            RestClient client = buildClient(
-                restClientSettings(),
-                newNodes.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new)
-            )
+            RestClient client = buildClient(restClientSettings(), newNodes.stream().map(TestNode::publishAddress).toArray(HttpHost[]::new))
         ) {
             // filter only the relevant bits of the response
             String filterPath = "filter_path=hits.events._id";
@@ -282,10 +279,7 @@ public class EqlSearchIT extends ESRestTestCase {
         final String event = randomEvent();
         Map<String, Object> expectedResponse = prepareEventsTestData(event);
         try (
-            RestClient client = buildClient(
-                restClientSettings(),
-                nodesList.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new)
-            )
+            RestClient client = buildClient(restClientSettings(), nodesList.stream().map(TestNode::publishAddress).toArray(HttpHost[]::new))
         ) {
             // filter only the relevant bits of the response
             String filterPath = "filter_path=hits.events._source.@timestamp,hits.events._source.event_type,hits.events._source.sequence";
@@ -299,10 +293,7 @@ public class EqlSearchIT extends ESRestTestCase {
     private void assertSequncesQueryOnNodes(List<TestNode> nodesList) throws Exception {
         Map<String, Object> expectedResponse = prepareSequencesTestData();
         try (
-            RestClient client = buildClient(
-                restClientSettings(),
-                nodesList.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new)
-            )
+            RestClient client = buildClient(restClientSettings(), nodesList.stream().map(TestNode::publishAddress).toArray(HttpHost[]::new))
         ) {
             String filterPath = "filter_path=hits.sequences.join_keys,hits.sequences.events._id,hits.sequences.events._source";
             String query = "sequence by `sequence` with maxspan=100ms [success where true] by correlation_success1, correlation_success2 "

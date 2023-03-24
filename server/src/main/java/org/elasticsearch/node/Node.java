@@ -112,6 +112,7 @@ import org.elasticsearch.health.metadata.HealthMetadataService;
 import org.elasticsearch.health.node.DiskHealthIndicatorService;
 import org.elasticsearch.health.node.HealthInfoCache;
 import org.elasticsearch.health.node.LocalHealthMonitor;
+import org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.health.stats.HealthApiStats;
 import org.elasticsearch.http.HttpServerTransport;
@@ -1226,6 +1227,7 @@ public class Node implements Closeable {
             )
         );
         serverHealthIndicatorServices.add(new DiskHealthIndicatorService(clusterService));
+        serverHealthIndicatorServices.add(new ShardsCapacityHealthIndicatorService(clusterService));
         var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
             .stream()
             .flatMap(plugin -> plugin.getHealthIndicatorServices().stream())

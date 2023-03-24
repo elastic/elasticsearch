@@ -66,13 +66,14 @@ public class AnalyticsEventFactory {
      */
     public AnalyticsEvent fromPayload(AnalyticsEvent.Context context, XContentType xContentType, BytesReference payload)
         throws IOException {
-        XContentParser parser = xContentType.xContent().createParser(XContentParserConfiguration.EMPTY, payload.streamInput());
-        AnalyticsEvent.Type eventType = context.eventType();
+        try (XContentParser parser = xContentType.xContent().createParser(XContentParserConfiguration.EMPTY, payload.streamInput())) {
+            AnalyticsEvent.Type eventType = context.eventType();
 
-        if (EVENT_PARSERS.containsKey(eventType)) {
-            return EVENT_PARSERS.get(eventType).parse(parser, context);
+            if (EVENT_PARSERS.containsKey(eventType)) {
+                return EVENT_PARSERS.get(eventType).parse(parser, context);
+            }
+
+            throw new IllegalArgumentException(LoggerMessageFormat.format("{} is not a supported event type", eventType));
         }
-
-        throw new IllegalArgumentException(LoggerMessageFormat.format("{} is not a supported event type", eventType));
     }
 }

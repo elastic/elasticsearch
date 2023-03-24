@@ -146,7 +146,8 @@ public class TransformIndexerStateTests extends ESTestCase {
                 context.getStateReason(),
                 getProgress(),
                 null,
-                context.shouldStopAtCheckpoint()
+                context.shouldStopAtCheckpoint(),
+                null
             );
         }
 

@@ -37,6 +37,7 @@ public class TransformStats implements Writeable, ToXContentObject {
     public static final ParseField REASON_FIELD = new ParseField("reason");
     public static final ParseField NODE_FIELD = new ParseField("node");
     public static final ParseField CHECKPOINTING_INFO_FIELD = new ParseField("checkpointing");
+    public static final ParseField AUTH_STATE = new ParseField("auth_state");
 
     private final String id;
     private final State state;
@@ -47,20 +48,19 @@ public class TransformStats implements Writeable, ToXContentObject {
     private final TransformIndexerStats indexerStats;
     private final TransformCheckpointingInfo checkpointingInfo;
     private final TransformHealth health;
+    @Nullable
+    private final AuthorizationState authState;
 
     public static TransformStats initialStats(String id) {
-        return stoppedStats(id, new TransformIndexerStats());
-    }
-
-    public static TransformStats stoppedStats(String id, TransformIndexerStats indexerTransformStats) {
         return new TransformStats(
             id,
             State.STOPPED,
             null,
             null,
-            indexerTransformStats,
+            new TransformIndexerStats(),
             TransformCheckpointingInfo.EMPTY,
-            TransformHealth.GREEN
+            TransformHealth.GREEN,
+            null
         );
     }
 
@@ -71,7 +71,8 @@ public class TransformStats implements Writeable, ToXContentObject {
         @Nullable NodeAttributes node,
         TransformIndexerStats stats,
         TransformCheckpointingInfo checkpointingInfo,
-        TransformHealth health
+        TransformHealth health,
+        @Nullable AuthorizationState authState
     ) {
         this.id = Objects.requireNonNull(id);
         this.state = Objects.requireNonNull(state);
@@ -80,6 +81,7 @@ public class TransformStats implements Writeable, ToXContentObject {
         this.indexerStats = Objects.requireNonNull(stats);
         this.checkpointingInfo = Objects.requireNonNull(checkpointingInfo);
         this.health = Objects.requireNonNull(health);
+        this.authState = authState;
     }
 
     public TransformStats(StreamInput in) throws IOException {
@@ -103,6 +105,12 @@ public class TransformStats implements Writeable, ToXContentObject {
         } else {
             this.health = null;
         }
+
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            this.authState = in.readOptionalWriteable(AuthorizationState::new);
+        } else {
+            this.authState = null;
+        }
     }
 
     @Override
@@ -120,6 +128,9 @@ public class TransformStats implements Writeable, ToXContentObject {
         builder.field(CHECKPOINTING_INFO_FIELD.getPreferredName(), checkpointingInfo, params);
         if (health != null) {
             builder.field(HEALTH_FIELD.getPreferredName(), health);
+        }
+        if (authState != null) {
+            builder.field(AUTH_STATE.getPreferredName(), authState);
         }
         builder.endObject();
         return builder;
@@ -146,11 +157,14 @@ public class TransformStats implements Writeable, ToXContentObject {
                 out.writeBoolean(false);
             }
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            out.writeOptionalWriteable(authState);
+        }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, state, reason, node, indexerStats, checkpointingInfo, health);
+        return Objects.hash(id, state, reason, node, indexerStats, checkpointingInfo, health, authState);
     }
 
     @Override
@@ -171,7 +185,8 @@ public class TransformStats implements Writeable, ToXContentObject {
             && Objects.equals(this.node, that.node)
             && Objects.equals(this.indexerStats, that.indexerStats)
             && Objects.equals(this.checkpointingInfo, that.checkpointingInfo)
-            && Objects.equals(this.health, that.health);
+            && Objects.equals(this.health, that.health)
+            && Objects.equals(this.authState, that.authState);
     }
 
     public String getId() {
@@ -202,6 +217,11 @@ public class TransformStats implements Writeable, ToXContentObject {
 
     public TransformCheckpointingInfo getCheckpointingInfo() {
         return checkpointingInfo;
+    }
+
+    @Nullable
+    public AuthorizationState getAuthState() {
+        return authState;
     }
 
     @Override

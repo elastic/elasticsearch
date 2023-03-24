@@ -247,7 +247,8 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             null,
             task.getStats(),
             checkpointingInfo == null ? TransformCheckpointingInfo.EMPTY : checkpointingInfo,
-            TransformHealthChecker.checkTransform(task)
+            TransformHealthChecker.checkTransform(task),
+            transformState.getAuthState()
         );
     }
 
@@ -359,7 +360,8 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                                 null,
                                 stat.getTransformStats(),
                                 checkpointingInfo,
-                                TransformHealthChecker.checkUnassignedTransform(stat.getId(), clusterState)
+                                TransformHealthChecker.checkUnassignedTransform(stat.getId(), clusterState),
+                                stat.getTransformState().getAuthState()
                             )
                         );
                     } else {
@@ -371,7 +373,8 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                                 null,
                                 stat.getTransformStats(),
                                 checkpointingInfo,
-                                TransformHealth.GREEN
+                                TransformHealth.GREEN,
+                                stat.getTransformState().getAuthState()
                             )
                         );
                     }

@@ -46,8 +46,8 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authc.Subject;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
+import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.authz.PreAuthorizationUtils;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
@@ -381,22 +380,16 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final Authentication authentication = securityContext.getAuthentication();
                 assert authentication != null : "authentication must be present in security context";
 
-                final ThreadContext threadContext = securityContext.getThreadContext();
-                final var contextRestoreHandler = new ContextRestoreResponseHandler<>(threadContext.newRestorableContext(true), handler);
                 final User user = authentication.getEffectiveSubject().getUser();
                 if (SystemUser.is(user)) {
-                    try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-                        new CrossClusterAccessHeaders(
-                            remoteClusterCredentials.credentials(),
-                            // Access control is handled differently for the system user. Privileges are defined by the fulfilling cluster,
-                            // so we pass an empty role descriptors intersection here and let the receiver resolve privileges based on the
-                            // authentication instance
-                            new CrossClusterAccessSubjectInfo(authentication, RoleDescriptorsIntersection.EMPTY)
-                        ).writeToContext(threadContext);
-                        sender.sendRequest(connection, action, request, options, contextRestoreHandler);
-                    } catch (IOException e) {
-                        contextRestoreHandler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
-                    }
+                    final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
+                        remoteClusterCredentials.credentials(),
+                        CrossClusterAccessUser.subjectInfoWithEmptyRoleDescriptors(
+                            authentication.getEffectiveSubject().getTransportVersion(),
+                            authentication.getEffectiveSubject().getRealm().getNodeName()
+                        )
+                    );
+                    sendWithCrossClusterAccessHeaders(crossClusterAccessHeaders, connection, action, request, options, handler);
                 } else if (User.isInternal(user)) {
                     final String message = "internal user [" + user.principal() + "] should not be used for cross cluster requests";
                     assert false : message;
@@ -409,15 +402,35 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                             if (roleDescriptorsIntersection.isEmpty()) {
                                 throw authzService.remoteActionDenied(authentication, action, remoteClusterAlias);
                             }
-                            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                                new CrossClusterAccessHeaders(
-                                    remoteClusterCredentials.credentials(),
-                                    new CrossClusterAccessSubjectInfo(authentication, roleDescriptorsIntersection)
-                                ).writeToContext(threadContext);
-                                sender.sendRequest(connection, action, request, options, contextRestoreHandler);
-                            }
-                        }, e -> contextRestoreHandler.handleException(new SendRequestTransportException(connection.getNode(), action, e)))
+                            final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
+                                remoteClusterCredentials.credentials(),
+                                new CrossClusterAccessSubjectInfo(authentication, roleDescriptorsIntersection)
+                            );
+                            sendWithCrossClusterAccessHeaders(crossClusterAccessHeaders, connection, action, request, options, handler);
+                        }, // it's safe to not use a context restore handler here since `getRoleDescriptorsIntersectionForRemoteCluster`
+                           // uses a context preserving listener internally, and `sendWithCrossClusterAccessHeaders` uses a context restore
+                           // handler
+                            e -> handler.handleException(new SendRequestTransportException(connection.getNode(), action, e))
+                        )
                     );
+                }
+            }
+
+            private <T extends TransportResponse> void sendWithCrossClusterAccessHeaders(
+                final CrossClusterAccessHeaders crossClusterAccessHeaders,
+                final Transport.Connection connection,
+                final String action,
+                final TransportRequest request,
+                final TransportRequestOptions options,
+                final TransportResponseHandler<T> handler
+            ) {
+                final ThreadContext threadContext = securityContext.getThreadContext();
+                final var contextRestoreHandler = new ContextRestoreResponseHandler<>(threadContext.newRestorableContext(true), handler);
+                try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                    crossClusterAccessHeaders.writeToContext(threadContext);
+                    sender.sendRequest(connection, action, request, options, contextRestoreHandler);
+                } catch (Exception e) {
+                    contextRestoreHandler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
                 }
             }
         };

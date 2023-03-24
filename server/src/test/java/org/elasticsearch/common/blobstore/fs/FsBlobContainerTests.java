@@ -28,6 +28,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.CopyOption;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.OpenOption;
@@ -171,10 +172,7 @@ public class FsBlobContainerTests extends ESTestCase {
         this.fileSystem = new FilterFileSystemProvider("nooverwritefs://", fileSystem) {
             @Override
             public void move(Path source, Path target, CopyOption... options) throws IOException {
-                final Set<CopyOption> optionSet = Set.of(options);
-                if (optionSet.contains(StandardCopyOption.REPLACE_EXISTING)
-                    && optionSet.contains(StandardCopyOption.ATOMIC_MOVE)
-                    && Files.exists(target)) {
+                if (Set.of(options).contains(StandardCopyOption.ATOMIC_MOVE) && Files.exists(target)) {
                     // simulate a file system that can't do atomic move + overwrite
                     throw new IOException("no atomic overwrite moves");
                 } else {
@@ -182,18 +180,35 @@ public class FsBlobContainerTests extends ESTestCase {
                 }
             }
         }.getFileSystem(null);
-        final String blobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
-        final byte[] blobData = randomByteArrayOfLength(randomIntBetween(1, 512));
         PathUtilsForTesting.installMock(fileSystem); // restored by restoreFileSystem in ESTestCase
+        checkAtomicWrite();
+    }
+
+    public void testAtomicWriteDefaultFs() throws Exception {
+        restoreFileSystem();
+        checkAtomicWrite();
+    }
+
+    private static void checkAtomicWrite() throws IOException {
+        final String blobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
         final Path path = PathUtils.get(createTempDir().toString());
-        Files.write(path.resolve(blobName), blobData);
 
         final FsBlobContainer container = new FsBlobContainer(
             new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false),
             BlobPath.EMPTY,
             path
         );
-        container.writeBlobAtomic(blobName, new BytesArray(blobData), false);
+        container.writeBlobAtomic(blobName, new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512))), true);
+        final var blobData = new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512)));
+        container.writeBlobAtomic(blobName, blobData, false);
+        assertEquals(blobData, Streams.readFully(container.readBlob(blobName)));
+        expectThrows(
+            FileAlreadyExistsException.class,
+            () -> container.writeBlobAtomic(blobName, new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512))), true)
+        );
+        for (String blob : container.listBlobs().keySet()) {
+            assertFalse("unexpected temp blob [" + blob + "]", FsBlobContainer.isTempBlobName(blob));
+        }
     }
 
     static class MockFileSystemProvider extends FilterFileSystemProvider {

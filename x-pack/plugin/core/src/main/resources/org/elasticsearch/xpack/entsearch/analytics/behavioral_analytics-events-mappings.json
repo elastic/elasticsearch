@@ -35,6 +35,18 @@
             }
           }
         },
+        "document": {
+          "properties": {
+            "index": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "id": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            }
+          }
+        },
         "session": {
           "properties": {
             "id": {
@@ -45,18 +57,6 @@
         },
         "user": {
           "properties": {
-            "id": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            }
-          }
-        },
-        "document": {
-          "properties": {
-            "index": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
             "id": {
               "ignore_above": 1024,
               "type": "keyword"

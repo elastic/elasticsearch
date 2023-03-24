@@ -287,7 +287,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
         try {
             // Creating a document in the .ml-notifications-000002 index would normally cause .ml-annotations
             // to be created, but in this case it shouldn't as we're doing an upgrade
-            Set<Boolean> includeNodeInfoValues = new HashSet<>(Arrays.asList(true, false));
+            Set<Boolean> includeNodeInfoValues = Set.of(true, false);
 
             includeNodeInfoValues.forEach(includeNodeInfo -> {
                 createNotification(includeNodeInfo);

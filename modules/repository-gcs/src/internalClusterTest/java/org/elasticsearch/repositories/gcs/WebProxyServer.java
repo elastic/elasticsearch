@@ -42,11 +42,8 @@ class WebProxyServer extends MockHttpProxyServer {
 
     private final CloseableHttpClient httpClient = HttpClients.createDefault();
 
-    WebProxyServer() throws IOException {
-        handler(this::handle);
-    }
-
-    private void handle(HttpRequest request, HttpResponse response, HttpContext context) throws IOException {
+    @Override
+    public void handle(HttpRequest request, HttpResponse response, HttpContext context) throws IOException {
         var upstreamRequest = new HttpEntityEnclosingRequestBase() {
             @Override
             public String getMethod() {

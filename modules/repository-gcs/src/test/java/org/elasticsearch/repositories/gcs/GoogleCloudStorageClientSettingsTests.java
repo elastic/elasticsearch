@@ -10,8 +10,11 @@ package org.elasticsearch.repositories.gcs;
 import com.google.api.services.storage.StorageScopes;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 
+import org.apache.http.HttpRequest;
+import org.apache.http.HttpResponse;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.protocol.HttpContext;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -168,17 +171,20 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             ).getBytes(StandardCharsets.UTF_8)
         );
         var settings = Settings.builder().setSecureSettings(secureSettings).build();
-        var proxyServer = new MockHttpProxyServer().handler((request, response, context) -> {
-            assertEquals("POST http://oauth2.googleapis.com/oauth2/token HTTP/1.1", request.getRequestLine().toString());
-            String body = """
-                {
-                    "access_token": "proxy_access_token",
-                    "token_type": "bearer",
-                    "expires_in": 3600
-                }
-                """;
-            response.setEntity(new StringEntity(body, ContentType.TEXT_PLAIN));
-        });
+        var proxyServer = new MockHttpProxyServer() {
+            @Override
+            public void handle(HttpRequest request, HttpResponse response, HttpContext context) {
+                assertEquals("POST http://oauth2.googleapis.com/oauth2/token HTTP/1.1", request.getRequestLine().toString());
+                String body = """
+                    {
+                        "access_token": "proxy_access_token",
+                        "token_type": "bearer",
+                        "expires_in": 3600
+                    }
+                    """;
+                response.setEntity(new StringEntity(body, ContentType.TEXT_PLAIN));
+            }
+        };
         try (proxyServer) {
             var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), proxyServer.getPort()));
             ServiceAccountCredentials credentials = loadCredential(settings, clientName, proxy);

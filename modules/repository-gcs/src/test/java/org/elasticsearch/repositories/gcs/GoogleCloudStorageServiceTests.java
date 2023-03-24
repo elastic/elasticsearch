@@ -11,8 +11,11 @@ package org.elasticsearch.repositories.gcs;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
 
+import org.apache.http.HttpRequest;
+import org.apache.http.HttpResponse;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.protocol.HttpContext;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -187,13 +190,16 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
 
     public void testGetDefaultProjectIdViaProxy() throws Exception {
         String proxyProjectId = randomAlphaOfLength(16);
-        var proxyServer = new MockHttpProxyServer().handler((request, response, context) -> {
-            assertEquals(
-                "GET http://metadata.google.internal/computeMetadata/v1/project/project-id HTTP/1.1",
-                request.getRequestLine().toString()
-            );
-            response.setEntity(new StringEntity(proxyProjectId, ContentType.TEXT_PLAIN));
-        });
+        var proxyServer = new MockHttpProxyServer() {
+            @Override
+            public void handle(HttpRequest request, HttpResponse response, HttpContext context) {
+                assertEquals(
+                    "GET http://metadata.google.internal/computeMetadata/v1/project/project-id HTTP/1.1",
+                    request.getRequestLine().toString()
+                );
+                response.setEntity(new StringEntity(proxyProjectId, ContentType.TEXT_PLAIN));
+            }
+        };
         try (proxyServer) {
             var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), proxyServer.getPort()));
             assertEquals(proxyProjectId, SocketAccess.doPrivilegedIOException(() -> GoogleCloudStorageService.getDefaultProjectId(proxy)));

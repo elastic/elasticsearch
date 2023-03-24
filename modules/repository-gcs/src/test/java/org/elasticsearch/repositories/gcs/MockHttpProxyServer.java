@@ -7,9 +7,12 @@
  */
 package org.elasticsearch.repositories.gcs;
 
+import org.apache.http.HttpException;
+import org.apache.http.HttpRequest;
+import org.apache.http.HttpResponse;
 import org.apache.http.impl.bootstrap.HttpServer;
 import org.apache.http.impl.bootstrap.ServerBootstrap;
-import org.apache.http.protocol.HttpRequestHandler;
+import org.apache.http.protocol.HttpContext;
 import org.elasticsearch.common.network.NetworkAddress;
 
 import java.io.Closeable;
@@ -20,19 +23,24 @@ import java.util.concurrent.TimeUnit;
 /**
  * A mock HTTP Proxy server for testing of support of HTTP proxies in various SDKs
  */
-class MockHttpProxyServer implements Closeable {
+abstract class MockHttpProxyServer implements Closeable {
 
-    private HttpServer httpServer;
+    private final HttpServer httpServer;
 
-    MockHttpProxyServer handler(HttpRequestHandler handler) throws IOException {
+    MockHttpProxyServer() {
         httpServer = ServerBootstrap.bootstrap()
             .setLocalAddress(InetAddress.getLoopbackAddress())
             .setListenerPort(0)
-            .registerHandler("*", handler)
+            .registerHandler("*", this::handle)
             .create();
-        httpServer.start();
-        return this;
+        try {
+            httpServer.start();
+        } catch (IOException e) {
+            throw new RuntimeException("Unable to start HTTP proxy server", e);
+        }
     }
+
+    abstract public void handle(HttpRequest request, HttpResponse response, HttpContext context) throws HttpException, IOException;
 
     int getPort() {
         return httpServer.getLocalPort();

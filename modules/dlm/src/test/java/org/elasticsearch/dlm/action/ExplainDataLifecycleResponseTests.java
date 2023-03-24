@@ -35,6 +35,7 @@ import java.util.Map;
 import static org.elasticsearch.dlm.action.ExplainDataLifecycleAction.Response;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTestCase<Response> {
 
@@ -92,8 +93,11 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
                         explainIndexMap.get("time_since_rollover"),
                         is(explainIndex.getTimeSinceRollover(() -> now).toHumanReadableString(2))
                     );
+                    assertThat(explainIndexMap.get("generation_time"),
+                        is(explainIndex.getGenerationTime(() -> now).toHumanReadableString(2)));
+                } else {
+                    assertThat(explainIndexMap.get("generation_time"), is(nullValue()));
                 }
-                assertThat(explainIndexMap.get("age"), is(explainIndex.getAge(() -> now).toHumanReadableString(2)));
                 assertThat(explainIndexMap.get("lifecycle"), is(new HashMap<>())); // empty lifecycle
                 assertThat(explainIndexMap.get("error"), is(explainIndex.getError()));
             }
@@ -138,8 +142,11 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
                         explainIndexMap.get("time_since_rollover"),
                         is(explainIndex.getTimeSinceRollover(() -> now).toHumanReadableString(2))
                     );
+                    assertThat(explainIndexMap.get("generation_time"),
+                        is(explainIndex.getGenerationTime(() -> now).toHumanReadableString(2)));
+                } else {
+                    assertThat(explainIndexMap.get("generation_time"), is(nullValue()));
                 }
-                assertThat(explainIndexMap.get("age"), is(explainIndex.getAge(() -> now).toHumanReadableString(2)));
                 assertThat(explainIndexMap.get("error"), is(explainIndex.getError()));
 
                 Map<String, Object> lifecycleRollover = (Map<String, Object>) ((Map<String, Object>) explainIndexMap.get("lifecycle")).get(

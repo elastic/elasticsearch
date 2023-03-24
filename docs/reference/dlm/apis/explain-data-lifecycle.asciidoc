@@ -63,7 +63,7 @@ lifecycle execution status for this index:
       "rollover_date_millis" : 1679475564293,         <4>
       "time_since_rollover" : "121ms",                <5>
       "lifecycle" : { },                              <6>
-      "age" : "121ms"                                 <7>
+      "generation_time" : "121ms"                     <7>
   }
 }
 --------------------------------------------------
@@ -80,8 +80,12 @@ shown.
 <5> The time since rollover. If the index was not rolled over this will not be shown.
 <6> The lifecycle configuration that applies to this index (which is configured on the parent
 data stream)
-<7> The age of the index with respect to its lifecycle (an index ages based on its creation
-date until it's rolled over, at which point it starts aging since the rollover date)
+<7> The generation time of the index represents the time since the index started progressing
+towards the user configurable / business specific parts of the lifecycle (e.g. retention).
+Every index will have to wait for it to be rolled over before being able to progress to the
+business-specific part of the lifecycle (i.e. the index advances in its lifecycle after it
+stops being the write index of a data stream). If the index has not been rolled over the
+`generation_time` will not be reported.
 
 The `explain` will also report any errors related to the lifecycle execution for the target
 index:

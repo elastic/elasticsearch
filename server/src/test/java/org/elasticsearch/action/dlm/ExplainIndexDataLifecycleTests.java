@@ -26,12 +26,11 @@ public class ExplainIndexDataLifecycleTests extends AbstractWireSerializingTestC
         {
             ExplainIndexDataLifecycle randomIndexDLMExplanation = createManagedIndexDLMExplanation(now, new DataLifecycle());
             if (randomIndexDLMExplanation.getRolloverDate() == null) {
-                // age calculated since creation date
-                assertThat(randomIndexDLMExplanation.getAge(() -> now + 50L), is(TimeValue.timeValueMillis(50)));
+                // generation time is null for non-rolled indices
+                assertThat(randomIndexDLMExplanation.getGenerationTime(() -> now + 50L), is(nullValue()));
             } else {
-                // age is calculated since rollover date
                 assertThat(
-                    randomIndexDLMExplanation.getAge(() -> randomIndexDLMExplanation.getRolloverDate() + 75L),
+                    randomIndexDLMExplanation.getGenerationTime(() -> randomIndexDLMExplanation.getRolloverDate() + 75L),
                     is(TimeValue.timeValueMillis(75))
                 );
             }
@@ -39,7 +38,7 @@ public class ExplainIndexDataLifecycleTests extends AbstractWireSerializingTestC
         {
             // null for unmanaged index
             ExplainIndexDataLifecycle indexDataLifecycle = new ExplainIndexDataLifecycle("my-index", false, null, null, null, null);
-            assertThat(indexDataLifecycle.getAge(() -> now), is(nullValue()));
+            assertThat(indexDataLifecycle.getGenerationTime(() -> now), is(nullValue()));
         }
 
         {
@@ -47,12 +46,12 @@ public class ExplainIndexDataLifecycleTests extends AbstractWireSerializingTestC
             ExplainIndexDataLifecycle indexDataLifecycle = new ExplainIndexDataLifecycle(
                 "my-index",
                 true,
-                now + 80L, // created in the future (clocks are funny that way)
-                null,
+                now,
+                now + 80L, // rolled over in the future (clocks are funny that way)
                 new DataLifecycle(),
                 null
             );
-            assertThat(indexDataLifecycle.getAge(() -> now), is(TimeValue.ZERO));
+            assertThat(indexDataLifecycle.getGenerationTime(() -> now), is(TimeValue.ZERO));
         }
     }
 

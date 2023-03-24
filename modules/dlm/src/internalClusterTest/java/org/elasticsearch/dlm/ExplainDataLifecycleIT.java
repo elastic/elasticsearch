@@ -119,7 +119,6 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
                 assertThat(explainIndex.getIndexCreationDate(), notNullValue());
                 assertThat(explainIndex.getLifecycle(), notNullValue());
                 assertThat(explainIndex.getLifecycle().getDataRetention(), nullValue());
-                assertThat(explainIndex.getAge(System::currentTimeMillis), notNullValue());
                 assertThat(explainIndex.getError(), nullValue());
 
                 if (explainIndex.getIndex().equals(DataStream.getDefaultBackingIndexName(dataStreamName, 1))) {
@@ -127,8 +126,10 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
                     assertThat(explainIndex.getIndex(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 1)));
                     assertThat(explainIndex.getRolloverDate(), notNullValue());
                     assertThat(explainIndex.getTimeSinceRollover(System::currentTimeMillis), notNullValue());
+                    assertThat(explainIndex.getGenerationTime(System::currentTimeMillis), notNullValue());
                 } else {
-                    // the write index
+                    // the write index has not been rolled over yet
+                    assertThat(explainIndex.getGenerationTime(System::currentTimeMillis), nullValue());
                     assertThat(explainIndex.getIndex(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 2)));
                     assertThat(explainIndex.getRolloverDate(), nullValue());
                     assertThat(explainIndex.getTimeSinceRollover(System::currentTimeMillis), nullValue());
@@ -204,9 +205,10 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
                 assertThat(explainIndex.getIndexCreationDate(), notNullValue());
                 assertThat(explainIndex.getLifecycle(), notNullValue());
                 assertThat(explainIndex.getLifecycle().getDataRetention(), nullValue());
-                assertThat(explainIndex.getAge(System::currentTimeMillis), notNullValue());
                 assertThat(explainIndex.getRolloverDate(), nullValue());
                 assertThat(explainIndex.getTimeSinceRollover(System::currentTimeMillis), nullValue());
+                // index has not been rolled over yet
+                assertThat(explainIndex.getGenerationTime(System::currentTimeMillis), nullValue());
 
                 assertThat(explainIndex.getError(), containsString("maximum normal shards open"));
             }
@@ -248,7 +250,7 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
                 assertThat(explainIndex.getIndex(), is(writeIndexName));
                 assertThat(explainIndex.getIndexCreationDate(), nullValue());
                 assertThat(explainIndex.getLifecycle(), nullValue());
-                assertThat(explainIndex.getAge(System::currentTimeMillis), nullValue());
+                assertThat(explainIndex.getGenerationTime(System::currentTimeMillis), nullValue());
                 assertThat(explainIndex.getRolloverDate(), nullValue());
                 assertThat(explainIndex.getTimeSinceRollover(System::currentTimeMillis), nullValue());
 

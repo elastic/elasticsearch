@@ -35,7 +35,7 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
     private static final ParseField ROLLOVER_DATE_FIELD = new ParseField("rollover_date");
     private static final ParseField TIME_SINCE_INDEX_CREATION_FIELD = new ParseField("time_since_index_creation");
     private static final ParseField TIME_SINCE_ROLLOVER_FIELD = new ParseField("time_since_rollover");
-    private static final ParseField AGE_FIELD = new ParseField("age");
+    private static final ParseField GENERATION_TIME = new ParseField("generation_time");
     private static final ParseField LIFECYCLE_FIELD = new ParseField("lifecycle");
     private static final ParseField ERROR_FIELD = new ParseField("error");
 
@@ -108,12 +108,13 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
             if (rolloverDate != null) {
                 builder.timeField(ROLLOVER_DATE_MILLIS_FIELD.getPreferredName(), ROLLOVER_DATE_FIELD.getPreferredName(), rolloverDate);
                 builder.field(TIME_SINCE_ROLLOVER_FIELD.getPreferredName(), getTimeSinceRollover(nowSupplier).toHumanReadableString(2));
+                // if the index has been rolled over we'll start reporting the generation time
+                builder.field(GENERATION_TIME.getPreferredName(), getGenerationTime(nowSupplier).toHumanReadableString(2));
             }
             if (this.lifecycle != null) {
                 builder.field(LIFECYCLE_FIELD.getPreferredName());
                 lifecycle.toXContent(builder, params, rolloverConditions);
             }
-            builder.field(AGE_FIELD.getPreferredName(), getAge(nowSupplier).toHumanReadableString(2));
             if (this.error != null) {
                 builder.field(ERROR_FIELD.getPreferredName(), error);
             }
@@ -135,17 +136,18 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
     }
 
     /**
-     * Calculates the age of this index with respect to its lifecycle.
-     * It's calculated as the elapsed time since rollover, or otherwise, if the index has not been rolled over yet,
-     * since index creation time.
+     * Calculates the time since this index started progressing towards the remaining of its lifecycle past rollover.
+     * Every index will have to wait to be rolled over before progressing towards its retention part of its lifecycle.
+     * If the index has not been rolled over this will return null.
+     * In the future, this will also consider the origination date of the index (however, it'll again only be displayed
+     * after the index is rolled over).
      */
     @Nullable
-    public TimeValue getAge(Supplier<Long> now) {
-        Long lifecycleDate = rolloverDate != null ? rolloverDate : indexCreationDate;
-        if (lifecycleDate == null) {
+    public TimeValue getGenerationTime(Supplier<Long> now) {
+        if (rolloverDate == null) {
             return null;
         }
-        return TimeValue.timeValueMillis(Math.max(0L, now.get() - lifecycleDate));
+        return TimeValue.timeValueMillis(Math.max(0L, now.get() - rolloverDate));
     }
 
     /**

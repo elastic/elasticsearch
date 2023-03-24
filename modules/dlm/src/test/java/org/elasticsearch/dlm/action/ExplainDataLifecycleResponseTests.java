@@ -93,8 +93,10 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
                         explainIndexMap.get("time_since_rollover"),
                         is(explainIndex.getTimeSinceRollover(() -> now).toHumanReadableString(2))
                     );
-                    assertThat(explainIndexMap.get("generation_time"),
-                        is(explainIndex.getGenerationTime(() -> now).toHumanReadableString(2)));
+                    assertThat(
+                        explainIndexMap.get("generation_time"),
+                        is(explainIndex.getGenerationTime(() -> now).toHumanReadableString(2))
+                    );
                 } else {
                     assertThat(explainIndexMap.get("generation_time"), is(nullValue()));
                 }
@@ -142,8 +144,10 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
                         explainIndexMap.get("time_since_rollover"),
                         is(explainIndex.getTimeSinceRollover(() -> now).toHumanReadableString(2))
                     );
-                    assertThat(explainIndexMap.get("generation_time"),
-                        is(explainIndex.getGenerationTime(() -> now).toHumanReadableString(2)));
+                    assertThat(
+                        explainIndexMap.get("generation_time"),
+                        is(explainIndex.getGenerationTime(() -> now).toHumanReadableString(2))
+                    );
                 } else {
                     assertThat(explainIndexMap.get("generation_time"), is(nullValue()));
                 }

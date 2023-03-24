@@ -33,6 +33,8 @@ import java.util.stream.Collectors;
 @Experimental
 public class LuceneSourceOperator extends LuceneOperator {
 
+    private int numCollectedDocs = 0;
+
     public static class LuceneSourceOperatorFactory extends LuceneOperatorFactory {
 
         public LuceneSourceOperatorFactory(

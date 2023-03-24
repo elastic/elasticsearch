@@ -69,7 +69,6 @@ public abstract class LuceneOperator extends SourceOperator {
     int currentScorerPos;
     int pagesEmitted;
 
-    int numCollectedDocs = 0;
     final int maxCollectedDocs;
 
     LuceneOperator(IndexReader reader, int shardId, Query query, int maxPageSize, int limit) {

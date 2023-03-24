@@ -210,13 +210,11 @@ tasks.named("yamlRestTest") {
   systemProperty 'test.azure.sas_token', azureSasToken
 }
 
-tasks.register("azureThirdPartyTest", Test) {
+tasks.register("azureThirdPartyUnitTest", Test) {
   SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
   SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
   setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
   setClasspath(internalTestSourceSet.getRuntimeClasspath())
-  // TODO: I think this should probably depend on 'yamlRestTest' given that task supports using a real azure endpoint
-  // dependsOn "internalClusterTest"
   include '**/AzureStorageCleanupThirdPartyTests.class'
   systemProperty 'test.azure.fixture', Boolean.toString(useFixture)
   systemProperty 'test.azure.account', azureAccount ?: ""
@@ -225,4 +223,11 @@ tasks.register("azureThirdPartyTest", Test) {
   systemProperty 'test.azure.container', azureContainer ?: ""
   systemProperty 'test.azure.base', (azureBasePath ?: "") + "_third_party_tests_"
 }
-tasks.named("check").configure { dependsOn("azureThirdPartyTest") }
+
+tasks.register('azureThirdPartyTest') {
+  dependsOn 'azureThirdPartyUnitTest', 'yamlRestTest'
+}
+
+tasks.named("check") {
+  dependsOn("azureThirdPartyUnitTest")
+}

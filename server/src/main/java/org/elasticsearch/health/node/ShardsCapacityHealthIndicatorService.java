@@ -45,11 +45,12 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
     static final String DATA_NODE_NAME = "data";
     static final String FROZEN_NODE_NAME = "frozen";
     private static final String UPGRADE_BLOCKED = "The cluster has too many used shards to be able to upgrade.";
-    private static final String UPGRADE_AT_RISK = "The cluster is running low on room to add new shards hence upgrade is at risk.";
+    private static final String UPGRADE_AT_RISK =
+        "The cluster is running low on room to add new shard. Upgrading to a new version is at risk.";
     private static final String INDEX_CREATION_BLOCKED =
-        "The cluster is running low on room to add new shards hence the creation of new indices might fail.";
+        "The cluster is running low on room to add new shards. Adding data to new indices is at risk";
     private static final String INDEX_CREATION_RISK =
-        "The cluster is running low on room to add new shards hence the creation of new indices might fail.";
+        "The cluster is running low on room to add new shards. Adding data to new indices might soon fail.";
     private static final String HELP_GUIDE = "https://ela.st/fix-shards-capacity";
     private static final TriFunction<String, Setting<?>, String, Diagnosis> SHARD_MAX_CAPACITY_REACHED_FN = (
         id,

@@ -112,15 +112,21 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     private final SetOnce<SharedBlobCacheService<FileCacheKey>> sharedBlobCacheService = new SetOnce<>();
 
     private final SetOnce<TranslogReplicator> translogReplicator = new SetOnce<>();
-
-    private final Settings settings;
+    private final boolean sharedCachedSettingExplicitlySet;
+    private final boolean hasSearchRole;
+    private final boolean hasIndexRole;
 
     private ObjectStoreService getObjectStoreService() {
         return Objects.requireNonNull(this.objectStoreService.get());
     }
 
     public Stateless(Settings settings) {
-        this.settings = requireValidSettings(settings);
+        validateSettings(settings);
+        // It is dangerous to retain these settings because they will be further modified after this ctor due
+        // to the call to #additionalSettings. We only parse out the components that has already been set.
+        sharedCachedSettingExplicitlySet = SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.exists(settings);
+        hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
+        hasIndexRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE);
     }
 
     @Override
@@ -134,8 +140,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
 
     @Override
     public Settings additionalSettings() {
-        if (SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.exists(settings) == false
-            && DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE)) {
+        if (sharedCachedSettingExplicitlySet == false && hasSearchRole) {
             return Settings.builder()
                 .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "75%")
                 .put(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey(), "250GB")
@@ -194,10 +199,10 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     @Override
     public void onIndexModule(IndexModule indexModule) {
         // register an IndexCommitListener so that stateless is notified of newly created commits on "index" nodes
-        if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE)) {
+        if (hasIndexRole) {
             indexModule.setIndexCommitListener(createIndexCommitListener());
         }
-        if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE)) {
+        if (hasSearchRole) {
             indexModule.setDirectoryWrapper((in, shardRouting) -> {
                 if (shardRouting.isSearchable()) {
                     in.close();
@@ -340,7 +345,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     /**
      * Validates that stateless can work with the given node settings.
      */
-    private static Settings requireValidSettings(final Settings settings) {
+    private static void validateSettings(final Settings settings) {
         if (STATELESS_ENABLED.get(settings) == false) {
             throw new IllegalArgumentException(NAME + " is not enabled");
         }
@@ -353,6 +358,5 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             throw new IllegalArgumentException(NAME + " does not support roles " + nonStatelessDataNodeRoles);
         }
         logger.info("{} is enabled", NAME);
-        return settings;
     }
 }

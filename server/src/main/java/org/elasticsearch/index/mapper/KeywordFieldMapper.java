@@ -662,22 +662,22 @@ public final class KeywordFieldMapper extends FieldMapper {
 
             @Override
             public boolean hasFreqs() {
-                throw new UnsupportedOperationException();
+                return false;
             }
 
             @Override
             public boolean hasOffsets() {
-                throw new UnsupportedOperationException();
+                return false;
             }
 
             @Override
             public boolean hasPositions() {
-                throw new UnsupportedOperationException();
+                return false;
             }
 
             @Override
             public boolean hasPayloads() {
-                throw new UnsupportedOperationException();
+                return false;
             }
 
         }

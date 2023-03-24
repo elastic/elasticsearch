@@ -592,14 +592,14 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder()
             .add(
                 DiscoveryNode.createLocal(
-                    Settings.builder().put(Settings.builder().build()).put(Node.NODE_NAME_SETTING.getKey(), LIVE_NODE_ID).build(),
+                    Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), LIVE_NODE_ID).build(),
                     new TransportAddress(TransportAddress.META_ADDRESS, 9201),
                     LIVE_NODE_ID
                 )
             )
             .add(
                 DiscoveryNode.createLocal(
-                    Settings.builder().put(Settings.builder().build()).put(Node.NODE_NAME_SETTING.getKey(), OTHER_LIVE_NODE_ID).build(),
+                    Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), OTHER_LIVE_NODE_ID).build(),
                     new TransportAddress(TransportAddress.META_ADDRESS, 9202),
                     OTHER_LIVE_NODE_ID
                 )
@@ -607,7 +607,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         if (shuttingDownNodeAlreadyLeft == false) {
             discoveryNodesBuilder.add(
                 DiscoveryNode.createLocal(
-                    Settings.builder().put(Settings.builder().build()).put(Node.NODE_NAME_SETTING.getKey(), SHUTTING_DOWN_NODE_ID).build(),
+                    Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), SHUTTING_DOWN_NODE_ID).build(),
                     new TransportAddress(TransportAddress.META_ADDRESS, 9200),
                     SHUTTING_DOWN_NODE_ID
                 )

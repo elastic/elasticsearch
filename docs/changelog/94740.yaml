@@ -1,0 +1,5 @@
+pr: 94740
+summary: Avoid possible race condition
+area: Health
+type: bug
+issues: []

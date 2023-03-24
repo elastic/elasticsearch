@@ -22,13 +22,19 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.List;
@@ -56,12 +62,14 @@ import static org.elasticsearch.indices.ShardLimitValidator.NORMAL_GROUP;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
 
     public static final HealthMetadata.Disk DISK_METADATA = HealthMetadata.Disk.newBuilder().build();
+
+    private static ThreadPool threadPool;
+
+    private ClusterService clusterService;
     private DiscoveryNode dataNode;
     private DiscoveryNode frozenNode;
 
@@ -86,6 +94,24 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
             Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE),
             Version.CURRENT
         );
+
+        clusterService = ClusterServiceUtils.createClusterService(threadPool);
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        super.tearDown();
+        clusterService.close();
+    }
+
+    @BeforeClass
+    public static void setUpThreadPool() {
+        threadPool = new TestThreadPool(getTestClass().getSimpleName());
+    }
+
+    @AfterClass
+    public static void tearDownThreadPool() {
+        terminate(threadPool);
     }
 
     public void testNoShardsCapacityMetadata() throws IOException {
@@ -289,7 +315,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testCalculateMethods() {
-        var mockedState = mock(ClusterState.class);
+        var mockedState = ClusterState.EMPTY_STATE;
         var randomMaxShardsPerNodeSetting = randomInt();
         Function<Integer, ShardsCapacityHealthIndicatorService.ShardsCapacityChecker> checkerWrapper = shardsToAdd -> (
             maxConfiguredShardsPerNode,
@@ -344,9 +370,8 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
         return parser.map();
     }
 
-    private static ClusterService createClusterService(ClusterState clusterState) {
-        var clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(clusterState);
+    private ClusterService createClusterService(ClusterState clusterState) {
+        ClusterServiceUtils.setState(clusterService, clusterState);
         return clusterService;
     }
 

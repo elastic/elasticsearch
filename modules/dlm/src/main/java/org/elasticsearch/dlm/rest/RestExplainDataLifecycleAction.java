@@ -10,7 +10,6 @@ package org.elasticsearch.dlm.rest;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.dlm.action.ExplainDataLifecycleAction;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -40,9 +39,7 @@ public class RestExplainDataLifecycleAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         String[] indices = Strings.splitStringByCommaToArray(restRequest.param("index"));
         ExplainDataLifecycleAction.Request explainRequest = new ExplainDataLifecycleAction.Request(indices);
-        if (DataLifecycle.isEnabled()) {
-            explainRequest.includeDefaults(restRequest.paramAsBoolean("include_defaults", false));
-        }
+        explainRequest.includeDefaults(restRequest.paramAsBoolean("include_defaults", false));
         explainRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, IndicesOptions.strictExpandOpen()));
         String masterNodeTimeout = restRequest.param("master_timeout");
         if (masterNodeTimeout != null) {

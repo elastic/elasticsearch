@@ -129,6 +129,10 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
+        if (DataLifecycle.isEnabled() == false) {
+            return List.of();
+        }
+
         List<RestHandler> handlers = new ArrayList<>();
         handlers.add(new RestExplainDataLifecycleAction());
         return handlers;
@@ -136,6 +140,10 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        if (DataLifecycle.isEnabled() == false) {
+            return List.of();
+        }
+
         List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
         actions.add(new ActionHandler<>(ExplainDataLifecycleAction.INSTANCE, TransportExplainDataLifecycleAction.class));
         return actions;

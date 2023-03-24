@@ -288,7 +288,9 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
         public ShardsSize storagePreventsAllocation() {
             RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, info, shardSizeInfo, System.nanoTime());
-            List<ShardRouting> unassignedShards = StreamSupport.stream(state.getRoutingNodes().unassigned().spliterator(), false)
+            List<ShardRouting> unassignedShards = state.getRoutingNodes()
+                .unassigned()
+                .stream()
                 .filter(shard -> canAllocate(shard, allocation) == false)
                 .filter(shard -> cannotAllocateDueToStorage(shard, allocation))
                 .toList();

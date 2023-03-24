@@ -30,13 +30,17 @@ public class AnalyticsEventSessionData implements ToXContent, Writeable {
         new ConstructingObjectParser<>(SESSION_FIELD.getPreferredName(), false, (p, c) -> new AnalyticsEventSessionData((String) p[0]));
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), SESSION_ID_FIELD);
+        PARSER.declareString(
+            ConstructingObjectParser.constructorArg(),
+            s -> Strings.requireNonBlank(s, "field [id] can't be blank"),
+            SESSION_ID_FIELD
+        );
     }
 
     private final String id;
 
     public AnalyticsEventSessionData(String id) {
-        this.id = Strings.requireNonBlank(id, "session id can't be empty");
+        this.id = Objects.requireNonNull(id, "id");
     }
 
     public AnalyticsEventSessionData(StreamInput in) throws IOException {

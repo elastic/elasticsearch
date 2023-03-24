@@ -90,8 +90,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
         if (anomalyDetectionAuditor.includeNodeInfo()) {
             verify(anomalyDetectionAuditor, times(1)).info("job_id", "Opening job on node [_node_id]");
         } else {
-            // need to account for includeNodeInfo being called here, in the test, and also in anomalyDetectionAuditor
-            verify(anomalyDetectionAuditor, times(2)).includeNodeInfo();
+            verify(anomalyDetectionAuditor, times(1)).info("job_id", "Opening job");
         }
 
         // no longer master
@@ -148,9 +147,10 @@ public class MlAssignmentNotifierTests extends ESTestCase {
         if (anomalyDetectionAuditor.includeNodeInfo()) {
             verify(anomalyDetectionAuditor, times(1)).info("job_id", "Job unassigned from node [_node_id]");
         } else {
-            // need to account for includeNodeInfo being called here, in the test, and also in anomalyDetectionAuditor
-            verify(anomalyDetectionAuditor, times(2)).includeNodeInfo();
+            verify(anomalyDetectionAuditor, times(1)).info("job_id", "Job relocating.");
         }
+
+        verify(anomalyDetectionAuditor, times(2)).includeNodeInfo();
 
         // no longer master
         newState = ClusterState.builder(new ClusterName("_name"))

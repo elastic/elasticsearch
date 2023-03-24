@@ -116,14 +116,22 @@ public class MlAssignmentNotifier implements ClusterStateListener {
                         msg += " on node [" + nodeName + "]";
                     }
                     anomalyDetectionAuditor.info(jobId, msg);
-                } else if (alwaysAuditUnassigned && anomalyDetectionAuditor.includeNodeInfo()) {
-                    anomalyDetectionAuditor.warning(
-                        jobId,
-                        "No node found to open job. Reasons [" + currentAssignment.getExplanation() + "]"
-                    );
-                } else if (wasTaskAssigned && anomalyDetectionAuditor.includeNodeInfo()) {
-                    String nodeName = nodeName(previousNodes, previousAssignment.getExecutorNode());
-                    anomalyDetectionAuditor.info(jobId, "Job unassigned from node [" + nodeName + "]");
+                } else if (alwaysAuditUnassigned) {
+                    if (anomalyDetectionAuditor.includeNodeInfo()) {
+                        anomalyDetectionAuditor.warning(
+                            jobId,
+                            "No node found to open job. Reasons [" + currentAssignment.getExplanation() + "]"
+                        );
+                    } else {
+                        anomalyDetectionAuditor.warning(jobId, "Awaiting capacity to open job.");
+                    }
+                } else if (wasTaskAssigned) {
+                    if (anomalyDetectionAuditor.includeNodeInfo()) {
+                        String nodeName = nodeName(previousNodes, previousAssignment.getExecutorNode());
+                        anomalyDetectionAuditor.info(jobId, "Job unassigned from node [" + nodeName + "]");
+                    } else {
+                        anomalyDetectionAuditor.info(jobId, "Job relocating.");
+                    }
                 }
             } else if (MlTasks.DATAFEED_TASK_NAME.equals(currentTask.getTaskName())) {
                 StartDatafeedAction.DatafeedParams datafeedParams = (StartDatafeedAction.DatafeedParams) currentTask.getParams();
@@ -136,48 +144,71 @@ public class MlAssignmentNotifier implements ClusterStateListener {
                             msg += "] on node [" + nodeName + "]";
                         }
                         anomalyDetectionAuditor.info(jobId, msg);
-                    } else if (anomalyDetectionAuditor.includeNodeInfo()) {
+                    } else {
                         if (alwaysAuditUnassigned) {
-                            anomalyDetectionAuditor.warning(
-                                jobId,
-                                "No node found to start datafeed ["
-                                    + datafeedParams.getDatafeedId()
-                                    + "]. Reasons ["
-                                    + currentAssignment.getExplanation()
-                                    + "]"
-                            );
+                            if (anomalyDetectionAuditor.includeNodeInfo()) {
+                                anomalyDetectionAuditor.warning(
+                                    jobId,
+                                    "No node found to start datafeed ["
+                                        + datafeedParams.getDatafeedId()
+                                        + "]. Reasons ["
+                                        + currentAssignment.getExplanation()
+                                        + "]"
+                                );
+                            } else {
+                                anomalyDetectionAuditor.warning(jobId, "Awaiting capacity to start datafeed.");
+                            }
                         } else if (wasTaskAssigned) {
-                            String nodeName = nodeName(previousNodes, previousAssignment.getExecutorNode());
-                            anomalyDetectionAuditor.info(
-                                jobId,
-                                "Datafeed [" + datafeedParams.getDatafeedId() + "] unassigned from node [" + nodeName + "]"
-                            );
+                            if (anomalyDetectionAuditor.includeNodeInfo()) {
+                                String nodeName = nodeName(previousNodes, previousAssignment.getExecutorNode());
+                                anomalyDetectionAuditor.info(
+                                    jobId,
+                                    "Datafeed [" + datafeedParams.getDatafeedId() + "] unassigned from node [" + nodeName + "]"
+                                );
+                            } else {
+                                anomalyDetectionAuditor.info(jobId, "Datafeed [" + datafeedParams.getDatafeedId() + "] relocating.");
+                            }
                         } else {
-                            logger.warn(
-                                "[{}] No node found to start datafeed [{}]. Reasons [{}]",
-                                jobId,
-                                datafeedParams.getDatafeedId(),
-                                currentAssignment.getExplanation()
-                            );
+                            if (anomalyDetectionAuditor.includeNodeInfo()) {
+                                logger.warn(
+                                    "[{}] No node found to start datafeed [{}]. Reasons [{}]",
+                                    jobId,
+                                    datafeedParams.getDatafeedId(),
+                                    currentAssignment.getExplanation()
+                                );
+                            } else {
+                                logger.warn("[{}] Failed to start datafeed [{}].", jobId, datafeedParams.getDatafeedId());
+                            }
                         }
                     }
                 }
-            } else if (MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME.equals(currentTask.getTaskName())
-                && dataFrameAnalyticsAuditor.includeNodeInfo()) {
-                    String id = ((StartDataFrameAnalyticsAction.TaskParams) currentTask.getParams()).getId();
-                    if (isTaskAssigned) {
+            } else if (MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME.equals(currentTask.getTaskName())) {
+                String id = ((StartDataFrameAnalyticsAction.TaskParams) currentTask.getParams()).getId();
+                if (isTaskAssigned) {
+                    if (anomalyDetectionAuditor.includeNodeInfo()) {
                         String nodeName = nodeName(currentNodes, currentAssignment.getExecutorNode());
                         dataFrameAnalyticsAuditor.info(id, "Starting analytics on node [" + nodeName + "]");
-                    } else if (alwaysAuditUnassigned) {
+                    } else {
+                        dataFrameAnalyticsAuditor.info(id, "Starting analytics.");
+                    }
+                } else if (alwaysAuditUnassigned) {
+                    if (anomalyDetectionAuditor.includeNodeInfo()) {
                         dataFrameAnalyticsAuditor.warning(
                             id,
                             "No node found to start analytics. Reasons [" + currentAssignment.getExplanation() + "]"
                         );
-                    } else if (wasTaskAssigned) {
+                    } else {
+                        dataFrameAnalyticsAuditor.warning(id, "Awaiting capacity to start analytics.");
+                    }
+                } else if (wasTaskAssigned) {
+                    if (anomalyDetectionAuditor.includeNodeInfo()) {
                         String nodeName = nodeName(previousNodes, previousAssignment.getExecutorNode());
                         anomalyDetectionAuditor.info(id, "Analytics unassigned from node [" + nodeName + "]");
+                    } else {
+                        anomalyDetectionAuditor.info(id, "Analytics relocating.");
                     }
                 }
+            }
         }
     }
 

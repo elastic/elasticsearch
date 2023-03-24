@@ -1188,7 +1188,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     readerContext,
                     shardRequest,
                     mock(SearchShardTask.class),
-                    SearchService.ResultsType.NONE,
+                    SearchService.ResultsType.QUERY,
                     true
                 )
             ) {

@@ -44,11 +44,6 @@ public final class ConstantNullBlock extends AbstractBlock {
     }
 
     @Override
-    public Block getRow(int position) {
-        return null;
-    }
-
-    @Override
     public boolean mayHaveNulls() {
         return true;
     }

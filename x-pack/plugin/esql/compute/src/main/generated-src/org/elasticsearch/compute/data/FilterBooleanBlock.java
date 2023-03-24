@@ -36,11 +36,6 @@ final class FilterBooleanBlock extends AbstractFilterBlock implements BooleanBlo
     }
 
     @Override
-    public BooleanBlock getRow(int position) {
-        return filter(position);
-    }
-
-    @Override
     public BooleanBlock filter(int... positions) {
         return new FilterBooleanBlock(this, positions);
     }
@@ -69,13 +64,12 @@ final class FilterBooleanBlock extends AbstractFilterBlock implements BooleanBlo
     }
 
     private void appendValues(StringBuilder sb) {
-        final int positionsIndex = getPositionCount() - 1;
-        for (int i = 0;; i++) {
-            sb.append(getBoolean(i));
-            if (i == positionsIndex) {
-                return;
+        final int positions = getPositionCount();
+        for (int i = 0; i < positions; i++) {
+            if (i > 0) {
+                sb.append(", ");
             }
-            sb.append(", ");
+            sb.append(getBoolean(i));
         }
     }
 }

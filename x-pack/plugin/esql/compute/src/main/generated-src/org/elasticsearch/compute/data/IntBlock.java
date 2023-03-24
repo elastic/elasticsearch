@@ -34,9 +34,6 @@ public sealed interface IntBlock extends Block permits FilterIntBlock,IntArrayBl
     IntVector asVector();
 
     @Override
-    IntBlock getRow(int position);
-
-    @Override
     IntBlock filter(int... positions);
 
     NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "IntBlock", IntBlock::of);

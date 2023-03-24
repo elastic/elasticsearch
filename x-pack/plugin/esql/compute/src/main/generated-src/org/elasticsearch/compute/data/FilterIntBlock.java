@@ -36,11 +36,6 @@ final class FilterIntBlock extends AbstractFilterBlock implements IntBlock {
     }
 
     @Override
-    public IntBlock getRow(int position) {
-        return filter(position);
-    }
-
-    @Override
     public IntBlock filter(int... positions) {
         return new FilterIntBlock(this, positions);
     }
@@ -69,13 +64,12 @@ final class FilterIntBlock extends AbstractFilterBlock implements IntBlock {
     }
 
     private void appendValues(StringBuilder sb) {
-        final int positionsIndex = getPositionCount() - 1;
-        for (int i = 0;; i++) {
-            sb.append(getInt(i));
-            if (i == positionsIndex) {
-                return;
+        final int positions = getPositionCount();
+        for (int i = 0; i < positions; i++) {
+            if (i > 0) {
+                sb.append(", ");
             }
-            sb.append(", ");
+            sb.append(getInt(i));
         }
     }
 }

@@ -91,10 +91,4 @@ abstract class AbstractBlock implements Block {
     public int validPositionCount() {
         return positionCount - nullValuesCount();
     }
-
-    protected final boolean assertPosition(int position) {
-        assert (position >= 0 || position < getPositionCount())
-            : "illegal position, " + position + ", position count:" + getPositionCount();
-        return true;
-    }
 }

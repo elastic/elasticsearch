@@ -71,13 +71,12 @@ public final class FilterBytesRefVector extends AbstractFilterVector implements 
     }
 
     private void appendValues(StringBuilder sb) {
-        final int positionsIndex = getPositionCount() - 1;
-        for (int i = 0;; i++) {
-            sb.append(getBytesRef(i, new BytesRef()));
-            if (i == positionsIndex) {
-                return;
+        final int positions = getPositionCount();
+        for (int i = 0; i < positions; i++) {
+            if (i > 0) {
+                sb.append(", ");
             }
-            sb.append(", ");
+            sb.append(getBytesRef(i, new BytesRef()));
         }
     }
 }

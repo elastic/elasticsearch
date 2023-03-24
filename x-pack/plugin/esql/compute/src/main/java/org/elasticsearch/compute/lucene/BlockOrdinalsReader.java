@@ -13,8 +13,6 @@ import org.elasticsearch.compute.data.LongBlock;
 
 import java.io.IOException;
 
-import static org.elasticsearch.compute.lucene.ValueSources.checkMultiValue;
-
 public final class BlockOrdinalsReader {
     private final SortedSetDocValues sortedSetDocValues;
     private final Thread creationThread;
@@ -30,7 +28,6 @@ public final class BlockOrdinalsReader {
         for (int i = 0; i < positionCount; i++) {
             int doc = docs.getInt(i);
             if (sortedSetDocValues.advanceExact(doc)) {
-                checkMultiValue(doc, sortedSetDocValues.docValueCount());
                 builder.appendLong(sortedSetDocValues.nextOrd());
             } else {
                 builder.appendNull();

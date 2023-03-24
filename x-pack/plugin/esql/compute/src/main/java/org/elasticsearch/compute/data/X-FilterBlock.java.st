@@ -45,11 +45,6 @@ $endif$
     }
 
     @Override
-    public $Type$Block getRow(int position) {
-        return filter(position);
-    }
-
-    @Override
     public $Type$Block filter(int... positions) {
         return new Filter$Type$Block(this, positions);
     }
@@ -78,17 +73,16 @@ $endif$
     }
 
     private void appendValues(StringBuilder sb) {
-        final int positionsIndex = getPositionCount() - 1;
-        for (int i = 0;; i++) {
+        final int positions = getPositionCount();
+        for (int i = 0; i < positions; i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
 $if(BytesRef)$
             sb.append(get$Type$(i, new BytesRef()));
 $else$
             sb.append(get$Type$(i));
 $endif$
-            if (i == positionsIndex) {
-                return;
-            }
-            sb.append(", ");
         }
     }
 }

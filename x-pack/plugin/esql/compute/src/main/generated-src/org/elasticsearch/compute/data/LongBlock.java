@@ -34,9 +34,6 @@ public sealed interface LongBlock extends Block permits FilterLongBlock,LongArra
     LongVector asVector();
 
     @Override
-    LongBlock getRow(int position);
-
-    @Override
     LongBlock filter(int... positions);
 
     NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "LongBlock", LongBlock::of);

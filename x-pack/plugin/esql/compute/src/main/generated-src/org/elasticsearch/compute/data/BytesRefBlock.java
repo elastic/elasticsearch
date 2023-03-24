@@ -36,9 +36,6 @@ public sealed interface BytesRefBlock extends Block permits FilterBytesRefBlock,
     BytesRefVector asVector();
 
     @Override
-    BytesRefBlock getRow(int position);
-
-    @Override
     BytesRefBlock filter(int... positions);
 
     NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "BytesRefBlock", BytesRefBlock::of);

@@ -330,6 +330,10 @@ public class ExpressionTests extends ESTestCase {
             whereExpression("10 days > 5 hours and 1/5 minutes > 8 seconds * 3 and -1 minutes > foo"),
             equalTo(whereExpression("((10 days) > (5 hours)) and ((1/(5 minutes) > ((8 seconds) * 3))) and (-(1 minute) > foo)"))
         );
+        assertThat(
+            whereExpression("10 DAYS > 5 HOURS and 1/5 MINUTES > 8 SECONDS * 3 and -1 MINUTES > foo"),
+            equalTo(whereExpression("((10 days) > (5 hours)) and ((1/(5 minutes) > ((8 seconds) * 3))) and (-(1 minute) > foo)"))
+        );
     }
 
     public void testFunctionExpressions() {

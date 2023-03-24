@@ -71,12 +71,4 @@ public final class ValueSources {
 
         return sources;
     }
-
-    public static void checkMultiValue(int doc, int count) {
-        // if (count != 1) {
-        // throw new IllegalStateException(
-        // "multi-values not supported for now, could not read doc [" + doc + "] with [" + count + "] values"
-        // );
-        // }
-    }
 }

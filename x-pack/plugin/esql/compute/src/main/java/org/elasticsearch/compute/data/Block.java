@@ -9,7 +9,6 @@ package org.elasticsearch.compute.data;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.compute.ann.Experimental;
 
 import java.util.List;
 
@@ -84,10 +83,6 @@ public interface Block extends NamedWriteable {
      * @return true if all values in this block are guaranteed to be null.
      */
     boolean areAllValuesNull();
-
-    @Experimental
-    // TODO: improve implementation not to waste as much space
-    Block getRow(int position);
 
     /**
      * Creates a new block that only exposes the positions provided. Materialization of the selected positions is avoided.

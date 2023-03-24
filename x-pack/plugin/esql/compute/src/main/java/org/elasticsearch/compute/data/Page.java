@@ -10,7 +10,6 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.compute.ann.Experimental;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -151,15 +150,6 @@ public final class Page implements Writeable {
      */
     public int getBlockCount() {
         return blocks.length;
-    }
-
-    @Experimental
-    public Page getRow(int position) {
-        Block[] newBlocks = new Block[blocks.length];
-        for (int i = 0; i < blocks.length; i++) {
-            newBlocks[i] = blocks[i].getRow(position);
-        }
-        return new Page(false, 1, newBlocks);
     }
 
     @Override

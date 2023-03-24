@@ -1,0 +1,54 @@
+[[esql]]
+= ESQL
+
+:esql-tests: {xes-repo-dir}/../../plugin/esql/qa
+:esql-specs: {esql-tests}/testFixtures/src/main/resources
+
+[partintro]
+--
+ESQL is a glorious new language to query data in Elasticsearch!
+
+[discrete]
+[[esql-console]]
+=== Run ESQL!
+
+[source,console]
+----
+POST /_esql
+{
+  "query": """
+    FROM library
+    | EVAL year = DATE_TRUNC(release_date, 1 YEARS)
+    | STATS MAX(page_count) BY year
+    | SORT year
+    | LIMIT 5
+  """
+}
+----
+// TEST[setup:library]
+
+The results come back in rows:
+
+[source,console-result]
+----
+{
+  "columns": [
+    { "name": "MAX(page_count)", "type": "integer"},
+    { "name": "year"           , "type": "date"}
+  ],
+  "values": [
+    [268, "1932-01-01T00:00:00.000Z"],
+    [224, "1951-01-01T00:00:00.000Z"],
+    [227, "1953-01-01T00:00:00.000Z"],
+    [335, "1959-01-01T00:00:00.000Z"],
+    [604, "1965-01-01T00:00:00.000Z"]
+  ]
+}
+----
+
+--
+
+include::from.asciidoc[]
+
+:esql-tests!:
+:esql-specs!:

@@ -9,6 +9,7 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -102,6 +103,7 @@ public class ReservedPipelineActionTests extends ESTestCase {
 
         NodeInfo nodeInfo = new NodeInfo(
             Version.CURRENT,
+            TransportVersion.CURRENT,
             Build.CURRENT,
             discoveryNode,
             Settings.EMPTY,

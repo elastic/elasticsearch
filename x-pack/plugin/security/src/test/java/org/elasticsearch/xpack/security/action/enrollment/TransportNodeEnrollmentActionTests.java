@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.action.enrollment;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -100,6 +101,7 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
             nodeInfos.add(
                 new NodeInfo(
                     Version.CURRENT,
+                    TransportVersion.CURRENT,
                     null,
                     n,
                     null,

@@ -1,0 +1,6 @@
+pr: 94734
+summary: Fix bug 94733 `geo_line` not respecting `sort_order`
+area: Geo
+type: bug
+issues:
+ - 94733

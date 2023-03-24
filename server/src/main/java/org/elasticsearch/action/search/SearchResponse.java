@@ -278,7 +278,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     public Iterator<? extends ToXContent> innerToXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
-            Iterators.single((ToXContent) SearchResponse.this::headerToXContent),
+            ChunkedToXContentHelper.singleChunk(SearchResponse.this::headerToXContent),
             Iterators.single(clusters),
             Iterators.flatMap(Iterators.single(internalResponse), r -> r.toXContentChunked(params))
         );

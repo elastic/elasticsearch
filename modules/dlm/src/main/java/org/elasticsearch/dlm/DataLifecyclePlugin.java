@@ -122,7 +122,7 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         try {
             IOUtils.close(dataLifecycleInitialisationService.get());
         } catch (IOException e) {

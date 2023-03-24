@@ -25,6 +25,9 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 
+/**
+ * Transport action that resolves the data stream names from the request and sets the data lifecycle provided in the request.
+ */
 public class PutDataLifecycleTransportAction extends AcknowledgedTransportMasterNodeAction<PutDataLifecycleAction.Request> {
 
     private final ModifyDataLifecycleService modifyDataLifecycleService;

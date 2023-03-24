@@ -26,6 +26,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
+/**
+ * Sets the data lifecycle that was provided in the request to the requested data streams.
+ */
 public class PutDataLifecycleAction extends ActionType<AcknowledgedResponse> {
 
     public static final PutDataLifecycleAction INSTANCE = new PutDataLifecycleAction();

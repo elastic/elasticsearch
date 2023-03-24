@@ -25,6 +25,9 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 
+/**
+ * Transport action that resolves the data stream names from the request and removes any configured lifecycle from them.
+ */
 public class DeleteDataLifecycleTransportAction extends AcknowledgedTransportMasterNodeAction<DeleteDataLifecycleAction.Request> {
 
     private final ModifyDataLifecycleService modifyDataLifecycleService;

@@ -30,6 +30,10 @@ import org.elasticsearch.core.Tuple;
 
 import java.util.List;
 
+/**
+ * This service modifies the data lifecycle of an existing data stream. It creates and batches the cluster state update tasks
+ * that will change the data stream metadata in the cluster state.
+ */
 public class ModifyDataLifecycleService {
 
     private final MasterServiceTaskQueue<ModifyLifecycleTask> taskQueue;
@@ -52,6 +56,9 @@ public class ModifyDataLifecycleService {
         this.taskQueue = clusterService.createTaskQueue("modify-lifecycle", Priority.LOW, executor);
     }
 
+    /**
+     * Submits the task to set the lifecycle to the requested data streams.
+     */
     public void setLifecycle(
         final List<String> dataStreamNames,
         DataLifecycle lifecycle,
@@ -62,12 +69,19 @@ public class ModifyDataLifecycleService {
         taskQueue.submitTask("set-lifecycle", new ModifyLifecycleTask(dataStreamNames, lifecycle, ackTimeout, listener), null);
     }
 
+    /**
+     * Submits the task to remove the lifecycle from the requested data streams.
+     */
     public void removeLifecycle(List<String> dataStreamNames, TimeValue ackTimeout, ActionListener<AcknowledgedResponse> listener) {
         // TODO use request.masterNodeTimeout() as timeout?
         taskQueue.submitTask("delete-lifecycle", new ModifyLifecycleTask(dataStreamNames, null, ackTimeout, listener), null);
     }
 
-    public ClusterState modifyLifecycle(ClusterState currentState, List<String> dataStreamNames, @Nullable DataLifecycle dataLifecycle) {
+    /**
+     * Creates an updated cluster state in which the requested data streams have the data lifecycle provided.
+     * Visible for testing.
+     */
+    ClusterState modifyLifecycle(ClusterState currentState, List<String> dataStreamNames, @Nullable DataLifecycle dataLifecycle) {
         Metadata updatedMetadata = currentState.metadata();
         Metadata.Builder builder = Metadata.builder(updatedMetadata);
         for (var dataStreamName : dataStreamNames) {

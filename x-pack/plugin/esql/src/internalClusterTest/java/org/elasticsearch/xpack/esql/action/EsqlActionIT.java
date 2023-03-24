@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -49,8 +50,9 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static java.util.Comparator.comparing;
-import static java.util.Comparator.nullsFirst;
+import static java.util.Comparator.naturalOrder;
 import static java.util.Comparator.reverseOrder;
+import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
@@ -75,50 +77,7 @@ public class EsqlActionIT extends ESIntegTestCase {
 
     @Before
     public void setupIndex() {
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .setSettings(Settings.builder().put("index.number_of_shards", ESTestCase.randomIntBetween(1, 5)))
-                .setMapping(
-                    "data",
-                    "type=long",
-                    "data_d",
-                    "type=double",
-                    "count",
-                    "type=long",
-                    "count_d",
-                    "type=double",
-                    "time",
-                    "type=long",
-                    "color",
-                    "type=keyword"
-                )
-                .get()
-        );
-        long timestamp = epoch;
-        for (int i = 0; i < 10; i++) {
-            client().prepareBulk()
-                .add(
-                    new IndexRequest("test").id("1" + i)
-                        .source("data", 1, "count", 40, "data_d", 1d, "count_d", 40d, "time", timestamp++, "color", "red")
-                )
-                .add(
-                    new IndexRequest("test").id("2" + i)
-                        .source("data", 2, "count", 42, "data_d", 2d, "count_d", 42d, "time", timestamp++, "color", "blue")
-                )
-                .add(
-                    new IndexRequest("test").id("3" + i)
-                        .source("data", 1, "count", 44, "data_d", 1d, "count_d", 44d, "time", timestamp++, "color", "green")
-                )
-                .add(
-                    new IndexRequest("test").id("4" + i)
-                        .source("data", 2, "count", 46, "data_d", 2d, "count_d", 46d, "time", timestamp++, "color", "red")
-                )
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
-        }
-        ensureYellow("test");
+        createAndPopulateIndex("test");
     }
 
     public void testRow() {
@@ -498,7 +457,7 @@ public class EsqlActionIT extends ESIntegTestCase {
         assumeTrue("pragmas only enabled on snapshot builds", Build.CURRENT.isSnapshot());
         EsqlQueryResponse results = run(
             "from test | stats avg_count = avg(count) | eval x = avg_count + 7",
-            Settings.builder().put("add_task_parallelism_above_query", true).build()
+            builder().put("add_task_parallelism_above_query", true).build()
         );
         logger.info(results);
         Assert.assertEquals(1, results.values().size());
@@ -669,8 +628,7 @@ public class EsqlActionIT extends ESIntegTestCase {
                 .indices()
                 .prepareCreate(indexName)
                 .setSettings(
-                    Settings.builder()
-                        .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), 0)
+                    builder().put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), 0)
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 )
@@ -710,7 +668,7 @@ public class EsqlActionIT extends ESIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate(indexName)
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
+                .setSettings(builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
                 .get()
         );
         ensureYellow(indexName);
@@ -747,7 +705,7 @@ public class EsqlActionIT extends ESIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate(indexName)
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
+                .setSettings(builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
                 .setMapping("val", "type=long", "tag", "type=keyword")
                 .get()
         );
@@ -815,7 +773,7 @@ public class EsqlActionIT extends ESIntegTestCase {
                 client().admin()
                     .indices()
                     .prepareCreate(indexName)
-                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
+                    .setSettings(builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
                     .setMapping("data", "type=long", "count", "type=long")
                     .get()
             );
@@ -949,12 +907,52 @@ public class EsqlActionIT extends ESIntegTestCase {
         List<Group> actualGroups = results.values()
             .stream()
             .map(l -> new Group((Long) l.get(0), (Long) l.get(1), (String) l.get(2)))
-            .sorted(comparing(group -> group.data, nullsFirst(reverseOrder())))
             .toList();
         assertThat(actualGroups, equalTo(expectedGroups));
 
         // clean-up what we created
         bulkDelete.get();
+    }
+
+    /**
+     * This test covers the scenarios where Lucene is throwing a {@link org.apache.lucene.search.CollectionTerminatedException} when
+     * it's signaling that it could stop collecting hits early. For example, in the case the index is sorted in the same order as the query.
+     * The {@link org.elasticsearch.compute.lucene.LuceneTopNSourceOperator#getOutput()} is handling this exception by
+     * ignoring it (which is the right thing to do).
+     */
+    public void testTopNPushedToLuceneOnSortedIndex() {
+        var sortOrder = randomFrom("asc", "desc");
+        createAndPopulateIndex("sorted_test_index", builder().put("index.sort.field", "time").put("index.sort.order", sortOrder).build());
+
+        int limit = randomIntBetween(1, 5);
+        EsqlQueryResponse results = run("""
+            from sorted_test_index
+            | sort time
+            """ + sortOrder + """
+            | limit
+            """ + limit + """
+            | project time
+            """);
+        logger.info(results);
+        Assert.assertEquals(1, results.columns().size());
+        Assert.assertEquals(limit, results.values().size());
+
+        // assert column metadata
+        assertEquals("time", results.columns().get(0).name());
+        assertEquals("long", results.columns().get(0).type());
+
+        boolean sortedDesc = "desc".equals(sortOrder);
+        var expected = LongStream.range(0, 40)
+            .map(i -> epoch + i)
+            .boxed()
+            .sorted(sortedDesc ? reverseOrder() : naturalOrder())
+            .limit(limit)
+            .toList();
+        var actual = results.values().stream().map(l -> (Long) l.get(0)).toList();
+        assertThat(actual, equalTo(expected));
+
+        // clean-up
+        client().admin().indices().delete(new DeleteIndexRequest("sorted_test_index")).actionGet();
     }
 
     /*
@@ -1018,7 +1016,7 @@ public class EsqlActionIT extends ESIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate(indexName)
-                .setSettings(Settings.builder().put("index.number_of_shards", ESTestCase.randomIntBetween(1, 3)))
+                .setSettings(builder().put("index.number_of_shards", ESTestCase.randomIntBetween(1, 3)))
                 .setMapping(builder)
                 .get()
         );
@@ -1085,8 +1083,59 @@ public class EsqlActionIT extends ESIntegTestCase {
         return Collections.singletonList(EsqlPlugin.class);
     }
 
+    private void createAndPopulateIndex(String indexName) {
+        createAndPopulateIndex(indexName, Settings.EMPTY);
+    }
+
+    private void createAndPopulateIndex(String indexName, Settings additionalSettings) {
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(builder().put(additionalSettings).put("index.number_of_shards", ESTestCase.randomIntBetween(1, 5)))
+                .setMapping(
+                    "data",
+                    "type=long",
+                    "data_d",
+                    "type=double",
+                    "count",
+                    "type=long",
+                    "count_d",
+                    "type=double",
+                    "time",
+                    "type=long",
+                    "color",
+                    "type=keyword"
+                )
+                .get()
+        );
+        long timestamp = epoch;
+        for (int i = 0; i < 10; i++) {
+            client().prepareBulk()
+                .add(
+                    new IndexRequest(indexName).id("1" + i)
+                        .source("data", 1, "count", 40, "data_d", 1d, "count_d", 40d, "time", timestamp++, "color", "red")
+                )
+                .add(
+                    new IndexRequest(indexName).id("2" + i)
+                        .source("data", 2, "count", 42, "data_d", 2d, "count_d", 42d, "time", timestamp++, "color", "blue")
+                )
+                .add(
+                    new IndexRequest(indexName).id("3" + i)
+                        .source("data", 1, "count", 44, "data_d", 1d, "count_d", 44d, "time", timestamp++, "color", "green")
+                )
+                .add(
+                    new IndexRequest(indexName).id("4" + i)
+                        .source("data", 2, "count", 46, "data_d", 2d, "count_d", 46d, "time", timestamp++, "color", "red")
+                )
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
+        }
+        ensureYellow(indexName);
+    }
+
     private static Settings randomPragmas() {
-        Settings.Builder settings = Settings.builder();
+        Settings.Builder settings = builder();
         // pragmas are only enabled on snapshot builds
         if (Build.CURRENT.isSnapshot()) {
             if (randomBoolean()) {

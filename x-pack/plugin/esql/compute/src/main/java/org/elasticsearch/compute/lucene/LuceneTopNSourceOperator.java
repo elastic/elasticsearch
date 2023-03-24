@@ -10,6 +10,8 @@ package org.elasticsearch.compute.lucene;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -49,11 +51,14 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
 
     private final Sort sort;
 
+    private final CollectorManager<TopFieldCollector, TopFieldDocs> collectorManager;
+
     public LuceneTopNSourceOperator(IndexReader reader, int shardId, Query query, int maxPageSize, int limit, Sort sort) {
         super(reader, shardId, query, maxPageSize, limit);
         this.currentSegmentBuilder = IntVector.newVectorBuilder(maxPageSize);
         this.leafReaderContexts = reader.leaves();
         this.sort = sort;
+        this.collectorManager = TopFieldCollector.createSharedManager(sort, maxCollectedDocs, null, 0);
     }
 
     private LuceneTopNSourceOperator(
@@ -61,6 +66,7 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
         int shardId,
         List<PartialLeafReaderContext> leaves,
         List<LeafReaderContext> leafReaderContexts,
+        CollectorManager<TopFieldCollector, TopFieldDocs> collectorManager,
         int maxPageSize,
         int maxCollectedDocs,
         Sort sort
@@ -68,6 +74,7 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
         super(weight, shardId, leaves, maxPageSize, maxCollectedDocs);
         this.currentSegmentBuilder = IntVector.newVectorBuilder(maxPageSize);
         this.leafReaderContexts = leafReaderContexts;
+        this.collectorManager = collectorManager;
         this.sort = sort;
     }
 
@@ -127,7 +134,16 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
 
     @Override
     LuceneOperator docSliceLuceneOperator(List<PartialLeafReaderContext> slice) {
-        return new LuceneTopNSourceOperator(weight, shardId, slice, leafReaderContexts, maxPageSize, maxCollectedDocs, sort);
+        return new LuceneTopNSourceOperator(
+            weight,
+            shardId,
+            slice,
+            leafReaderContexts,
+            collectorManager,
+            maxPageSize,
+            maxCollectedDocs,
+            sort
+        );
     }
 
     @Override
@@ -137,6 +153,7 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
             shardId,
             Arrays.asList(leafSlice.leaves).stream().map(PartialLeafReaderContext::new).collect(Collectors.toList()),
             leafReaderContexts,
+            collectorManager,
             maxPageSize,
             maxCollectedDocs,
             sort
@@ -167,14 +184,18 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
 
         try {
             if (currentTopFieldCollector == null) {
-                currentTopFieldCollector = TopFieldCollector.create(sort, maxCollectedDocs, 0);
+                currentTopFieldCollector = collectorManager.newCollector();
             }
-            currentScorerPos = currentScorer.score(
-                currentTopFieldCollector.getLeafCollector(currentLeafReaderContext.leafReaderContext),
-                currentLeafReaderContext.leafReaderContext.reader().getLiveDocs(),
-                currentScorerPos,
-                Math.min(currentLeafReaderContext.maxDoc, currentScorerPos + maxPageSize - currentPagePos)
-            );
+            try {
+                currentScorerPos = currentScorer.score(
+                    currentTopFieldCollector.getLeafCollector(currentLeafReaderContext.leafReaderContext),
+                    currentLeafReaderContext.leafReaderContext.reader().getLiveDocs(),
+                    currentScorerPos,
+                    Math.min(currentLeafReaderContext.maxDoc, currentScorerPos + maxPageSize - currentPagePos)
+                );
+            } catch (CollectionTerminatedException cte) {
+                // just don't do anything, because there is nothing do: Lucene terminated early the collection
+            }
             TopFieldDocs topFieldDocs = currentTopFieldCollector.topDocs();
             for (ScoreDoc doc : topFieldDocs.scoreDocs) {
                 int segment = ReaderUtil.subIndex(doc.doc, leafReaderContexts);

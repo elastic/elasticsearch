@@ -214,6 +214,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             null
         );
     }

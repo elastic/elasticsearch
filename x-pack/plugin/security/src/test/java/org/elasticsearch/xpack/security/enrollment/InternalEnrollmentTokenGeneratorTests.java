@@ -236,6 +236,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                         null,
                         null,
                         null,
+                        null,
                         null
                     )
                 ),
@@ -271,6 +272,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                             ),
                             0L
                         ),
+                        null,
                         null,
                         null,
                         null,

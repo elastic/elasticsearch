@@ -48,7 +48,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
     private final String clusterAlias = "cluster-alias";
     private final String modeKey = RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey();
     private final Settings settings = Settings.builder().put(modeKey, "proxy").build();
-    private final ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile("cluster", settings);
+    private final ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile("cluster", settings, false);
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
     @Override

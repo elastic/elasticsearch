@@ -4,11 +4,11 @@ SCRIPT="$0"
 
 # SCRIPT might be an arbitrarily deep series of symbolic links; loop until we
 # have the concrete path
-while [ -h "$SCRIPT" ] ; do
+while [ -h "$SCRIPT" ]; do
   ls=$(ls -ld "$SCRIPT")
   # Drop everything prior to ->
   link=$(expr "$ls" : '.*-> \(.*\)$')
-  if expr "$link" : '/.*' > /dev/null; then
+  if expr "$link" : '/.*' >/dev/null; then
     SCRIPT="$link"
   else
     SCRIPT=$(dirname "$SCRIPT")/"$link"
@@ -42,5 +42,13 @@ fi
 
 ## Gradle is able to resolve dependencies resolved with earlier gradle versions
 ## therefore we run main _AFTER_ we run 6.8 which uses an earlier gradle version
-export JAVA_HOME="${HOME}"/.java/${ES_BUILD_JAVA}
-./gradlew --parallel clean -s resolveAllDependencies -Dorg.gradle.warning.mode=none -Drecurse.bwc=true
+branches=($(cat .ci/snapshotBwcVersions | sed '1d;$d' | grep -E -o "[0-9]+\.[0-9]+"))
+branches+=("main")
+for branch in "${branches[@]}"; do
+  echo "Resolving dependencies for ${branch} branch"
+  rm -rf checkout/$branch
+  git clone --reference $(dirname "${SCRIPT}")/../.git https://github.com/elastic/elasticsearch.git --branch ${branch} --single-branch checkout/${branch}
+  export JAVA_HOME="${HOME}"/.java/${ES_BUILD_JAVA}
+  ./checkout/${branch}/gradlew --project-dir ./checkout/${branch} --parallel clean -s resolveAllDependencies -Dorg.gradle.warning.mode=none
+  rm -rf ./checkout/${branch}
+done

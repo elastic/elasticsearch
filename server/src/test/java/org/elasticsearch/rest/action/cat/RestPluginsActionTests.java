@@ -73,6 +73,7 @@ public class RestPluginsActionTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     new PluginsAndModules(pluginDescriptor.stream().map(PluginRuntimeInfo::new).toList(), List.of()),
                     null,
                     null,

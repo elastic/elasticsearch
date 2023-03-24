@@ -114,6 +114,7 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
                     null,
                     null,
                     null,
+                    null,
                     null
                 )
             );

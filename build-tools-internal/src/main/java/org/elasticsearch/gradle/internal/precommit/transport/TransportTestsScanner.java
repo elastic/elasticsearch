@@ -72,7 +72,7 @@ public class TransportTestsScanner {
             .filter(n -> isSubclassOf(n, cl, Set.of(writeableClass)))
             .collect(Collectors.toSet());
 
-       return transportClasses;
+        return transportClasses;
 
     }
 

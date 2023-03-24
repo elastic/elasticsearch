@@ -9,7 +9,6 @@
 package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersPrecommitPlugin;
-import org.elasticsearch.gradle.internal.precommit.transport.TransportTestExistPrecommitPlugin;
 import org.gradle.api.Project;
 
 /**
@@ -36,7 +35,7 @@ public class InternalPrecommitTasks {
             project.getPluginManager().apply(DependencyLicensesPrecommitPlugin.class);
             project.getPluginManager().apply(SplitPackagesAuditPrecommitPlugin.class);
             project.getPluginManager().apply(JavaModulePrecommitPlugin.class);
-//            project.getPluginManager().apply(TransportTestExistPrecommitPlugin.class);
+            // project.getPluginManager().apply(TransportTestExistPrecommitPlugin.class);
         }
     }
 }

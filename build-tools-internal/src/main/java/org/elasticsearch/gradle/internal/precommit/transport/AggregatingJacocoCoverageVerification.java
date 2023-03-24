@@ -20,14 +20,15 @@ public class AggregatingJacocoCoverageVerification extends JacocoCoverageVerific
     protected File getDummyOutputFile() {
         return new File(this.getTemporaryDir(), "continuing-success.txt");
     }
+
     @Override
     public void check() throws IOException {
-        getLogger().error("fff" );
+        getLogger().error("fff");
 
-        try{
+        try {
             super.check();
-        }catch (GradleException e){
-           getLogger().error("failure ",e );
+        } catch (GradleException e) {
+            getLogger().error("failure ", e);
         }
     }
 }

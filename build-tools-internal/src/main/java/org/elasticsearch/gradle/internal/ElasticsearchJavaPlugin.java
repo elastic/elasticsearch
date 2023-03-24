@@ -8,6 +8,13 @@
 
 package org.elasticsearch.gradle.internal;
 
+import kotlinx.kover.KoverPlugin;
+import kotlinx.kover.api.CounterType;
+import kotlinx.kover.api.DefaultIntellijEngine;
+import kotlinx.kover.api.KoverProjectConfig;
+import kotlinx.kover.api.VerificationTarget;
+import kotlinx.kover.api.VerificationValueType;
+import kotlinx.kover.tasks.KoverVerificationTask;
 import nebula.plugin.info.InfoBrokerPlugin;
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
@@ -15,7 +22,6 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.info.BuildParams;
-import org.elasticsearch.gradle.internal.precommit.transport.AggregatingJacocoCoverageVerification;
 import org.elasticsearch.gradle.internal.precommit.transport.TransportTestExistPrecommitPlugin;
 import org.elasticsearch.gradle.internal.precommit.transport.TransportTestExistTask;
 import org.gradle.api.Action;
@@ -23,31 +29,23 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.file.RegularFile;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
-import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.api.tasks.javadoc.Javadoc;
 import org.gradle.external.javadoc.CoreJavadocOptions;
-import org.gradle.internal.jacoco.rules.JacocoViolationRuleImpl;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
-import org.gradle.testing.jacoco.plugins.JacocoPlugin;
-import org.gradle.testing.jacoco.tasks.JacocoCoverageVerification;
-import org.gradle.testing.jacoco.tasks.rules.JacocoViolationRule;
 
 import java.io.File;
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.gradle.internal.conventions.util.Util.toStringable;
 
@@ -72,51 +70,78 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
     }
 
     private static void configureJacoco(Project project) {
-        project.getPluginManager().apply(JacocoPlugin.class);
+        project.getPluginManager().apply(KoverPlugin.class);
 
         project.getPluginManager().apply(TransportTestExistPrecommitPlugin.class);
 
-        project.getTasks().named("test").configure(task -> {
-            task.finalizedBy(project.getTasks().named("jacocoTestReport"));
-        });
-        project.getTasks().named("jacocoTestReport").configure(task -> {
-            task.dependsOn(project.getTasks().named("test"));
-        });
-
-        project.getTasks().named("jacocoTestCoverageVerification", JacocoCoverageVerification.class).configure(t -> {
-            t.dependsOn(project.getTasks().named("jacocoTestReport"));
-            t.dependsOn(project.getTasks().named("transportTestExistCheck"));
-
+        project.getTasks().named("koverVerify", KoverVerificationTask.class).configure(t -> {
+            t.dependsOn(project.getTasks().named("transportTestExistCheck"));// *1
             t.doFirst(t2 -> {
-                var task = (JacocoCoverageVerification)t2;
-
-                task.getViolationRules().rule(jacocoViolationRule -> {
-
-                    List<String> transportClasses = readTransportClasses(project);
-                    System.out.println(transportClasses);
-                    jacocoViolationRule.setElement("CLASS");
-                    jacocoViolationRule.limit(l-> {
-                        l.setCounter("INSTRUCTION");
-                        l.setValue("COVEREDRATIO");
-                        l.setMinimum(BigDecimal.valueOf(1.0));
+                project.getExtensions().configure(KoverProjectConfig.class, kover -> {
+                    kover.verify(verify -> {
+                        verify.rule(rule -> {
+                            rule.overrideClassFilter(koverClassFilter -> {
+                                List<String> transportClasses = readTransportClasses(project);
+                                koverClassFilter.getIncludes().addAll(transportClasses);
+                            });
+                            rule.setTarget(VerificationTarget.CLASS);
+                            rule.setEnabled(true);
+                            rule.bound(bound -> {
+                                bound.setMinValue(100);
+                                bound.setCounter(CounterType.INSTRUCTION);
+                                bound.setValueType(VerificationValueType.COVERED_PERCENTAGE);
+                            });
+                        });
                     });
-                    jacocoViolationRule.setIncludes(transportClasses);
+                });
+
+            });
+        });
+        // adding a fake rule so that verification can run. the real rule is added with doFirst because of transportClass scanning being
+        // done after tests
+        project.getExtensions().configure(KoverProjectConfig.class, kover -> {
+            kover.getEngine().set(DefaultIntellijEngine.INSTANCE);
+            kover.verify(verify -> {
+                verify.rule(rule -> {
+                    rule.bound(bound -> {
+                        bound.setMinValue(0);
+                        bound.setCounter(CounterType.INSTRUCTION);
+                        bound.setValueType(VerificationValueType.COVERED_PERCENTAGE);
+                    });
                 });
             });
-
         });
+
+        /*
+        > Task :modules:ingest-geoip:transportTestExistCheck
+        Execution optimizations have been disabled for task ':modules:ingest-geoip:transportTestExistCheck' to ensure correctness due to the following reasons:
+        - Gradle detected a problem with the following location: '/Users/przemyslawgomulka/workspace/pgomulka/elasticsearch/modules/ingest-geoip/build/generated-resources/transport-classes.txt'. Reason: Task ':modules:ingest-geoip:internalClusterTest' uses this output of task ':modules:ingest-geoip:transportTestExistCheck' without declaring an explicit or implicit dependency. This can lead to incorrect results being produced, depending on what order the tasks are executed. Please refer to https://docs.gradle.org/7.6.1/userguide/validation_problems.html#implicit_dependency for more details about this problem.
+        - Gradle detected a problem with the following location: '/Users/przemyslawgomulka/workspace/pgomulka/elasticsearch/modules/ingest-geoip/build/generated-resources/transport-classes.txt'. Reason: Task ':modules:ingest-geoip:test' uses this output of task ':modules:ingest-geoip:transportTestExistCheck' without declaring an explicit or implicit dependency. This can lead to incorrect results being produced, depending on what order the tasks are executed. Please refer to https://docs.gradle.org/7.6.1/userguide/validation_problems.html#implicit_dependency for more details about this problem.
+        - Gradle detected a problem with the following location: '/Users/przemyslawgomulka/workspace/pgomulka/elasticsearch/modules/ingest-geoip/build/generated-resources/transport-classes.txt'. Reason: Task ':modules:ingest-geoip:compileInternalClusterTestJava' uses this output of task ':modules:ingest-geoip:transportTestExistCheck' without declaring an explicit or implicit dependency. This can lead to incorrect results being produced, depending on what order the tasks are executed. Please refer to https://docs.gradle.org/7.6.1/userguide/validation_problems.html#implicit_dependency for more details about this problem.
+        Gradle detected a problem with the following location: '/Users/przemyslawgomulka/workspace/pgomulka/elasticsearch/modules/ingest-geoip/build/generated-resources/transport-classes.txt'. Reason: Task ':modules:ingest-geoip:internalClusterTest' uses this output of task ':modules:ingest-geoip:transportTestExistCheck' without declaring an explicit or implicit dependency. This can lead to incorrect results being produced, depending on what order the tasks are executed. This behaviour has been deprecated and is scheduled to be removed in Gradle 8.0. Execution optimizations are disabled to ensure correctness. See https://docs.gradle.org/7.6.1/userguide/validation_problems.html#implicit_dependency for more details.
+        Gradle detected a problem with the following location: '/Users/przemyslawgomulka/workspace/pgomulka/elasticsearch/modules/ingest-geoip/build/generated-resources/transport-classes.txt'. Reason: Task ':modules:ingest-geoip:test' uses this output of task ':modules:ingest-geoip:transportTestExistCheck' without declaring an explicit or implicit dependency. This can lead to incorrect results being produced, depending on what order the tasks are executed. This behaviour has been deprecated and is scheduled to be removed in Gradle 8.0. Execution optimizations are disabled to ensure correctness. See https://docs.gradle.org/7.6.1/userguide/validation_problems.html#implicit_dependency for more details.
+        Gradle detected a problem with the following location: '/Users/przemyslawgomulka/workspace/pgomulka/elasticsearch/modules/ingest-geoip/build/generated-resources/transport-classes.txt'. Reason: Task ':modules:ingest-geoip:compileInternalClusterTestJava' uses this output of task ':modules:ingest-geoip:transportTestExistCheck' without declaring an explicit or implicit dependency. This can lead to incorrect results being produced, depending on what order the tasks are executed. This behaviour has been deprecated and is scheduled to be removed in Gradle 8.0. Execution optimizations are disabled to ensure correctness. See https://docs.gradle.org/7.6.1/userguide/validation_problems.html#implicit_dependency for more details.
+        */
+
     }
 
     private static List<String> readTransportClasses(Project project) {
         try {
-            //  - Gradle detected a problem with the following location: '/Users/przemyslawgomulka/workspace/pgomulka/elasticsearch/modules/aggregations/build/generated-resources/transport-classes.txt'. Reason: Task ':modules:aggregations:test' uses this output of task ':modules:aggregations:transportTestExistCheck' without declaring an explicit or implicit dependency. This can lead to incorrect results being produced, depending on what order the tasks are executed. Please refer to https://docs.gradle.org/7.6.1/userguide/validation_problems.html#implicit_dependency for more details about this problem.
-//            Provider<RegularFile> file = project.getLayout().getBuildDirectory().file(TransportTestExistTask.TRANSPORT_CLASSES);
-            RegularFileProperty file = project.getTasks().named("transportTestExistCheck", TransportTestExistTask.class).get().getOutputFile();
+            // - Gradle detected a problem with the following location:
+            // '/Users/przemyslawgomulka/workspace/pgomulka/elasticsearch/modules/aggregations/build/generated-resources/transport-classes.txt'.
+            // Reason: Task ':modules:aggregations:test' uses this output of task ':modules:aggregations:transportTestExistCheck' without
+            // declaring an explicit or implicit dependency. This can lead to incorrect results being produced, depending on what order the
+            // tasks are executed. Please refer to https://docs.gradle.org/7.6.1/userguide/validation_problems.html#implicit_dependency for
+            // more details about this problem.
+            // Provider<RegularFile> file = project.getLayout().getBuildDirectory().file(TransportTestExistTask.TRANSPORT_CLASSES);
+            RegularFileProperty file = project.getTasks()
+                .named("transportTestExistCheck", TransportTestExistTask.class)
+                .get()
+                .getOutputFile();
             Path path = file.get().getAsFile().toPath();
             return Files.readAllLines(path);
         } catch (IOException e) {
             e.printStackTrace();
-//            throw new RuntimeException(e);
         }
         return Collections.emptyList();
     }

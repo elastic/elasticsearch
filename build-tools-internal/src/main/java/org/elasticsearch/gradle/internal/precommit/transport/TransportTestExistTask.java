@@ -28,8 +28,6 @@ import org.gradle.workers.WorkQueue;
 import org.gradle.workers.WorkerExecutor;
 
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
@@ -120,8 +118,7 @@ public abstract class TransportTestExistTask extends PrecommitTask {
     abstract static class TransportTestExistWorkAction implements WorkAction<Parameters> {
 
         @Inject
-        public TransportTestExistWorkAction() {
-        }
+        public TransportTestExistWorkAction() {}
 
         @Override
         public void execute() {
@@ -141,22 +138,18 @@ public abstract class TransportTestExistTask extends PrecommitTask {
 
                 try (PrintWriter out = new PrintWriter(Files.newOutputStream(path))) {
                     for (String transportClass : transportClasses) {
-                        out.println(transportClass);
+                        out.println(escapeDollar(transportClass));
                     }
                 }
             } catch (IOException e) {
                 throw new GradleException("Cannot create transport classes file", e);
             }
 
-//
-//            if (missingTestClasses.size() > 0) {
-//                throw new GradleException(
-//                    "There are "
-//                        + missingTestClasses.size()
-//                        + " missing tests for classes\n"
-//                        + missingTestClasses.stream().collect(Collectors.joining("\n"))
-//                );
-//            }
+        }
+
+        private String escapeDollar(String transportClass) {
+            //
+            return transportClass.replaceAll("\\$.*", "*");
         }
 
     }

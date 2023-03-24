@@ -310,6 +310,8 @@ dependencies {
   testImplementation buildLibs.spock.junit4
   testImplementation buildLibs.json.assert
   integTestImplementation buildLibs.xmlunit.core
+  api 'org.jetbrains.kotlinx:kover:0.6.1'
+  api 'org.jetbrains.intellij.deps:intellij-coverage-agent:1.0.683'
 
 }
 

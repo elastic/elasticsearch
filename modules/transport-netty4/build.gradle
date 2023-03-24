@@ -65,6 +65,7 @@ TaskProvider<Test> pooledTest = tasks.register("pooledTest", Test) {
 TaskProvider<Test> pooledInternalClusterTest = tasks.register("pooledInternalClusterTest", Test) {
   include '**/*IT.class'
   systemProperty 'es.use_unpooled_allocator', 'false'
+  systemProperty 'es.insecure_network_trace_enabled', 'true'
   SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
   SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
   setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
@@ -81,6 +82,10 @@ TaskProvider<RestIntegTestTask> pooledJavaRestTest = tasks.register("pooledJavaR
   testClusters.pooledJavaRestTest {
     systemProperty 'es.use_unpooled_allocator', 'false'
   }
+}
+
+tasks.named("internalClusterTest").configure {
+  systemProperty 'es.insecure_network_trace_enabled', 'true'
 }
 
 tasks.named("check").configure {

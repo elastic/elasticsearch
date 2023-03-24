@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ccr.index.engine;
 
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
@@ -33,8 +32,6 @@ import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.TranslogHandler;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
-import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
@@ -80,7 +77,6 @@ public class FollowingEngineTests extends ESTestCase {
     private AtomicLong primaryTerm = new AtomicLong();
     private AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
     private IndexMode indexMode;
-    private FieldType idFieldType;
 
     @Override
     public void setUp() throws Exception {
@@ -90,16 +86,6 @@ public class FollowingEngineTests extends ESTestCase {
         shardId = new ShardId(index, 0);
         primaryTerm.set(randomLongBetween(1, Long.MAX_VALUE));
         indexMode = randomFrom(IndexMode.values());
-        switch (indexMode) {
-            case STANDARD:
-                idFieldType = ProvidedIdFieldMapper.Defaults.FIELD_TYPE;
-                break;
-            case TIME_SERIES:
-                idFieldType = TsidExtractingIdFieldMapper.FIELD_TYPE;
-                break;
-            default:
-                throw new UnsupportedOperationException("Unknown index mode [" + indexMode + "]");
-        }
     }
 
     @Override
@@ -318,7 +304,7 @@ public class FollowingEngineTests extends ESTestCase {
     }
 
     private Engine.Index indexForFollowing(String id, long seqNo, Engine.Operation.Origin origin, long version) {
-        final ParsedDocument parsedDocument = EngineTestCase.createParsedDoc(id, idFieldType, null);
+        final ParsedDocument parsedDocument = EngineTestCase.createParsedDoc(id, null);
         return new Engine.Index(
             EngineTestCase.newUid(parsedDocument),
             parsedDocument,
@@ -349,12 +335,12 @@ public class FollowingEngineTests extends ESTestCase {
     }
 
     private Engine.Index indexForPrimary(String id) {
-        final ParsedDocument parsedDoc = EngineTestCase.createParsedDoc(id, idFieldType, null);
+        final ParsedDocument parsedDoc = EngineTestCase.createParsedDoc(id, null);
         return new Engine.Index(EngineTestCase.newUid(parsedDoc), primaryTerm.get(), parsedDoc);
     }
 
     private Engine.Delete deleteForPrimary(String id) {
-        final ParsedDocument parsedDoc = EngineTestCase.createParsedDoc(id, idFieldType, null);
+        final ParsedDocument parsedDoc = EngineTestCase.createParsedDoc(id, null);
         return new Engine.Delete(parsedDoc.id(), EngineTestCase.newUid(parsedDoc), primaryTerm.get());
     }
 
@@ -761,9 +747,7 @@ public class FollowingEngineTests extends ESTestCase {
         List<Engine.Operation> operations = new ArrayList<>(numOps);
         for (int i = 0; i < numOps; i++) {
             String docId = Integer.toString(between(1, 100));
-            ParsedDocument doc = randomBoolean()
-                ? EngineTestCase.createParsedDoc(docId, idFieldType, null)
-                : nestedDocFunc.apply(docId, randomInt(3));
+            ParsedDocument doc = randomBoolean() ? EngineTestCase.createParsedDoc(docId, null) : nestedDocFunc.apply(docId, randomInt(3));
             if (randomBoolean()) {
                 operations.add(
                     new Engine.Index(

@@ -188,7 +188,8 @@ public class GroupingAggregatorImplementer {
             }
             builder.nextControlFlow("else");
             {
-                combineRawInput(builder, "valuesBlock", "position");
+                builder.addStatement("int i = valuesBlock.getFirstValueIndex(position)");
+                combineRawInput(builder, "valuesBlock", "i");
             }
             builder.endControlFlow();
         }
@@ -229,6 +230,7 @@ public class GroupingAggregatorImplementer {
                 }
                 builder.nextControlFlow("else");
                 {
+                    builder.addStatement("int i = valuesBlock.getFirstValueIndex(position)");
                     combineRawInput(builder, "valuesBlock", "position");
                 }
                 builder.endControlFlow();

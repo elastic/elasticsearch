@@ -42,7 +42,7 @@ final class IntBlockHash extends BlockHash {
             if (block.isNull(i)) {
                 builder.appendNull();
             } else {
-                builder.appendLong(hashOrdToGroup(longHash.add(block.getInt(i))));
+                builder.appendLong(hashOrdToGroup(longHash.add(block.getInt(block.getFirstValueIndex(i)))));
             }
         }
         return builder.build();

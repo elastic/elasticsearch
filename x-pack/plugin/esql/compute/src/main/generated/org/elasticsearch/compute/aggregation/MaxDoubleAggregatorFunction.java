@@ -57,8 +57,9 @@ public final class MaxDoubleAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawBlock(DoubleBlock block) {
-    for (int i = 0; i < block.getTotalValueCount(); i++) {
-      if (block.isNull(i) == false) {
+    for (int p = 0; p < block.getTotalValueCount(); p++) {
+      if (block.isNull(p) == false) {
+        int i = block.getFirstValueIndex(p);
         state.doubleValue(MaxDoubleAggregator.combine(state.doubleValue(), block.getDouble(i)));
       }
     }

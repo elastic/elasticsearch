@@ -50,11 +50,11 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
             bwcVersion = nodes.getBWCVersion();
             newNodesClient = buildClient(
                 restClientSettings(),
-                nodes.getNewNodes().stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new)
+                nodes.getNewNodes().stream().map(TestNode::publishAddress).toArray(HttpHost[]::new)
             );
             oldNodesClient = buildClient(
                 restClientSettings(),
-                nodes.getBWCNodes().stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new)
+                nodes.getBWCNodes().stream().map(TestNode::publishAddress).toArray(HttpHost[]::new)
             );
         }
     }

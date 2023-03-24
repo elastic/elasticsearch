@@ -58,8 +58,9 @@ public final class AvgLongAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawBlock(LongBlock block) {
-    for (int i = 0; i < block.getTotalValueCount(); i++) {
-      if (block.isNull(i) == false) {
+    for (int p = 0; p < block.getTotalValueCount(); p++) {
+      if (block.isNull(p) == false) {
+        int i = block.getFirstValueIndex(p);
         AvgLongAggregator.combine(state, block.getLong(i));
       }
     }

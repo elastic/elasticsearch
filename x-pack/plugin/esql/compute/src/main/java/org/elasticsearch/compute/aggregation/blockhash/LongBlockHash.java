@@ -41,7 +41,7 @@ final class LongBlockHash extends BlockHash {
             if (block.isNull(i)) {
                 builder.appendNull();
             } else {
-                builder.appendLong(hashOrdToGroup(longHash.add(block.getLong(i))));
+                builder.appendLong(hashOrdToGroup(longHash.add(block.getLong(block.getFirstValueIndex(i)))));
             }
         }
         return builder.build();

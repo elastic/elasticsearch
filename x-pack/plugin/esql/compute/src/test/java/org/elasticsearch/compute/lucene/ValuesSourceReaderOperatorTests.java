@@ -161,7 +161,6 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     public void testLoadAllInOnePage() {
-        assumeFalse("filter blocks don't support multivalued fields yet", true);
         loadSimpleAndAssert(
             List.of(
                 CannedSourceOperator.mergePages(
@@ -172,7 +171,6 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     public void testLoadAllInOnePageShuffled() {
-        assumeFalse("filter blocks don't support multivalued fields yet", true);
         Page source = CannedSourceOperator.mergePages(
             CannedSourceOperator.collectPages(simpleInput(between(1_000, 10 * LuceneSourceOperator.PAGE_SIZE)))
         );

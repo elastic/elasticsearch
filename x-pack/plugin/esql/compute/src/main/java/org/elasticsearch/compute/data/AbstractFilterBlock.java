@@ -9,14 +9,13 @@ package org.elasticsearch.compute.data;
 
 import java.util.Arrays;
 
-abstract class AbstractFilterBlock extends AbstractBlock {
+abstract class AbstractFilterBlock implements Block {
 
     protected final int[] positions;
 
     private final Block block;
 
     AbstractFilterBlock(Block block, int[] positions) {
-        super(positions.length);
         this.positions = positions;
         this.block = block;
     }
@@ -42,7 +41,7 @@ abstract class AbstractFilterBlock extends AbstractBlock {
     }
 
     @Override
-    public int nullValuesCount() {
+    public final int nullValuesCount() {
         if (mayHaveNulls() == false) {
             return 0;
         } else if (areAllValuesNull()) {
@@ -58,7 +57,41 @@ abstract class AbstractFilterBlock extends AbstractBlock {
         }
     }
 
-    protected int mapPosition(int position) {
+    @Override
+    public final int getTotalValueCount() {
+        if (positions.length == block.getPositionCount()) {
+            // All the positions are still in the block, just jumbled.
+            return block.getTotalValueCount();
+        }
+        // TODO this is expensive. maybe cache or something.
+        int total = 0;
+        for (int p = 0; p < positions.length; p++) {
+            total += getValueCount(p);
+        }
+        return total;
+    }
+
+    @Override
+    public final int getValueCount(int position) {
+        return block.getValueCount(mapPosition(position));
+    }
+
+    @Override
+    public final int getPositionCount() {
+        return positions.length;
+    }
+
+    @Override
+    public final int getFirstValueIndex(int position) {
+        return block.getFirstValueIndex(mapPosition(position));
+    }
+
+    @Override
+    public final int validPositionCount() {
+        return positions.length - nullValuesCount();
+    }
+
+    private int mapPosition(int position) {
         assert assertPosition(position);
         return positions[position];
     }

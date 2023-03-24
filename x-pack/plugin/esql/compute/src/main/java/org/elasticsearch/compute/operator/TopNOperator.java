@@ -134,15 +134,17 @@ public class TopNOperator implements Operator {
                     result.nullValues[i] = true;
                 } else {
                     switch (block.elementType()) {
-                        case LONG -> result.longs[idToPosition[i]] = ((LongBlock) block).getLong(rowNum);
-                        case INT -> result.ints[idToPosition[i]] = ((IntBlock) block).getInt(rowNum);
-                        case DOUBLE -> result.doubles[idToPosition[i]] = ((DoubleBlock) block).getDouble(rowNum);
+                        case LONG -> result.longs[idToPosition[i]] = ((LongBlock) block).getLong(block.getFirstValueIndex(rowNum));
+                        case INT -> result.ints[idToPosition[i]] = ((IntBlock) block).getInt(block.getFirstValueIndex(rowNum));
+                        case DOUBLE -> result.doubles[idToPosition[i]] = ((DoubleBlock) block).getDouble(block.getFirstValueIndex(rowNum));
                         case BYTES_REF -> {
                             BytesRef b = result.byteRefs[idToPosition[i]];
-                            b = ((BytesRefBlock) block).getBytesRef(rowNum, b);
+                            b = ((BytesRefBlock) block).getBytesRef(block.getFirstValueIndex(rowNum), b);
                             result.byteRefs[idToPosition[i]] = b;
                         }
-                        case BOOLEAN -> result.booleans[idToPosition[i]] = ((BooleanBlock) block).getBoolean(rowNum);
+                        case BOOLEAN -> result.booleans[idToPosition[i]] = ((BooleanBlock) block).getBoolean(
+                            block.getFirstValueIndex(rowNum)
+                        );
                         case DOC -> {
                             int p = idToPosition[i];
                             DocVector doc = ((DocBlock) block).asVector();

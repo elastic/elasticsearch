@@ -122,9 +122,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
                     Stream.concat(values, Stream.of((builder, params) -> builder.endArray()))
                 );
             }).flatMap(Function.identity()).iterator();
-        } else
-
-        {
+        } else {
             valuesIt = pages.stream().flatMap(page -> {
                 List<ColumnInfo.PositionToXContent> toXContents = IntStream.range(0, page.getBlockCount())
                     .mapToObj(column -> columns.get(column).positionToXContent(page.getBlock(column), scratch))
@@ -197,24 +195,39 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
                      * respects its types. See the INTEGER clause where is doesn't always
                      * respect it.
                      */
-                    switch (dataTypes.get(b)) {
-                        case "long" -> row.add(((LongBlock) block).getLong(p));
-                        case "integer" -> row.add(((IntBlock) block).getInt(p));
-                        case "double" -> row.add(((DoubleBlock) block).getDouble(p));
-                        case "keyword" -> row.add(((BytesRefBlock) block).getBytesRef(p, scratch).utf8ToString());
-                        case "date" -> {
-                            long longVal = ((LongBlock) block).getLong(p);
-                            row.add(UTC_DATE_TIME_FORMATTER.formatMillis(longVal));
-                        }
-                        case "boolean" -> row.add(((BooleanBlock) block).getBoolean(p));
-                        case "unsupported" -> row.add(UnsupportedValueSource.UNSUPPORTED_OUTPUT);
-                        default -> throw new UnsupportedOperationException("unsupported data type [" + dataTypes.get(b) + "]");
+                    int count = block.getValueCount(p);
+                    int start = block.getFirstValueIndex(p);
+                    if (count == 1) {
+                        row.add(valueAt(dataTypes.get(b), block, start, scratch));
+                        continue;
                     }
+                    List<Object> thisResult = new ArrayList<>(count);
+                    int end = count + start;
+                    for (int i = start; i < end; i++) {
+                        thisResult.add(valueAt(dataTypes.get(b), block, start, scratch));
+                    }
+                    row.add(thisResult);
                 }
                 result.add(row);
             }
         }
         return result;
+    }
+
+    private static Object valueAt(String dataType, Block block, int offset, BytesRef scratch) {
+        return switch (dataType) {
+            case "long" -> ((LongBlock) block).getLong(offset);
+            case "integer" -> ((IntBlock) block).getInt(offset);
+            case "double" -> ((DoubleBlock) block).getDouble(offset);
+            case "keyword" -> ((BytesRefBlock) block).getBytesRef(offset, scratch).utf8ToString();
+            case "date" -> {
+                long longVal = ((LongBlock) block).getLong(offset);
+                yield UTC_DATE_TIME_FORMATTER.formatMillis(longVal);
+            }
+            case "boolean" -> ((BooleanBlock) block).getBoolean(offset);
+            case "unsupported" -> UnsupportedValueSource.UNSUPPORTED_OUTPUT;
+            default -> throw new UnsupportedOperationException("unsupported data type [" + dataType + "]");
+        };
     }
 
     /**

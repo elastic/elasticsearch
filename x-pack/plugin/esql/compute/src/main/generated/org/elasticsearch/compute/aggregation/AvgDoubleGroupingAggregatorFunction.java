@@ -60,7 +60,8 @@ public final class AvgDoubleGroupingAggregatorFunction implements GroupingAggreg
       if (valuesBlock.isNull(position)) {
         state.putNull(groupId);
       } else {
-        AvgDoubleAggregator.combine(state, groupId, valuesBlock.getDouble(position));
+        int i = valuesBlock.getFirstValueIndex(position);
+        AvgDoubleAggregator.combine(state, groupId, valuesBlock.getDouble(i));
       }
     }
   }
@@ -87,6 +88,7 @@ public final class AvgDoubleGroupingAggregatorFunction implements GroupingAggreg
         if (valuesBlock.isNull(position)) {
           state.putNull(groupId);
         } else {
+          int i = valuesBlock.getFirstValueIndex(position);
           AvgDoubleAggregator.combine(state, groupId, valuesBlock.getDouble(position));
         }
       }

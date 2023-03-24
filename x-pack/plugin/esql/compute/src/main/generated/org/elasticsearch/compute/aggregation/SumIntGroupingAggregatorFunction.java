@@ -58,7 +58,8 @@ public final class SumIntGroupingAggregatorFunction implements GroupingAggregato
       if (valuesBlock.isNull(position)) {
         state.putNull(groupId);
       } else {
-        state.set(SumIntAggregator.combine(state.getOrDefault(groupId), valuesBlock.getInt(position)), groupId);
+        int i = valuesBlock.getFirstValueIndex(position);
+        state.set(SumIntAggregator.combine(state.getOrDefault(groupId), valuesBlock.getInt(i)), groupId);
       }
     }
   }
@@ -85,6 +86,7 @@ public final class SumIntGroupingAggregatorFunction implements GroupingAggregato
         if (valuesBlock.isNull(position)) {
           state.putNull(groupId);
         } else {
+          int i = valuesBlock.getFirstValueIndex(position);
           state.set(SumIntAggregator.combine(state.getOrDefault(groupId), valuesBlock.getInt(position)), groupId);
         }
       }

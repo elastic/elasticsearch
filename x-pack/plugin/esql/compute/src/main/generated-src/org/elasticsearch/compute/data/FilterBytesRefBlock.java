@@ -29,7 +29,7 @@ final class FilterBytesRefBlock extends AbstractFilterBlock implements BytesRefB
 
     @Override
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
-        return block.getBytesRef(mapPosition(valueIndex), dest);
+        return block.getBytesRef(valueIndex, dest);
     }
 
     @Override
@@ -67,11 +67,25 @@ final class FilterBytesRefBlock extends AbstractFilterBlock implements BytesRefB
 
     private void appendValues(StringBuilder sb) {
         final int positions = getPositionCount();
-        for (int i = 0; i < positions; i++) {
-            if (i > 0) {
+        for (int p = 0; p < positions; p++) {
+            if (p > 0) {
                 sb.append(", ");
             }
-            sb.append(getBytesRef(i, new BytesRef()));
+            int start = getFirstValueIndex(p);
+            int count = getValueCount(p);
+            if (count == 1) {
+                sb.append(getBytesRef(start, new BytesRef()));
+                continue;
+            }
+            sb.append('[');
+            int end = start + count;
+            for (int i = start; i < end; i++) {
+                if (i > start) {
+                    sb.append(", ");
+                }
+                sb.append(getBytesRef(i, new BytesRef()));
+            }
+            sb.append(']');
         }
     }
 }

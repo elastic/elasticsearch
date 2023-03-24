@@ -32,10 +32,10 @@ final class Filter$Type$Block extends AbstractFilterBlock implements $Type$Block
     @Override
 $if(BytesRef)$
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
-        return block.getBytesRef(mapPosition(valueIndex), dest);
+        return block.getBytesRef(valueIndex, dest);
 $else$
     public $type$ get$Type$(int valueIndex) {
-        return block.get$Type$(mapPosition(valueIndex));
+        return block.get$Type$(valueIndex);
 $endif$
     }
 
@@ -74,15 +74,33 @@ $endif$
 
     private void appendValues(StringBuilder sb) {
         final int positions = getPositionCount();
-        for (int i = 0; i < positions; i++) {
-            if (i > 0) {
+        for (int p = 0; p < positions; p++) {
+            if (p > 0) {
                 sb.append(", ");
             }
+            int start = getFirstValueIndex(p);
+            int count = getValueCount(p);
+            if (count == 1) {
 $if(BytesRef)$
-            sb.append(get$Type$(i, new BytesRef()));
+                sb.append(get$Type$(start, new BytesRef()));
 $else$
-            sb.append(get$Type$(i));
+                sb.append(get$Type$(start));
 $endif$
+                continue;
+            }
+            sb.append('[');
+            int end = start + count;
+            for (int i = start; i < end; i++) {
+                if (i > start) {
+                    sb.append(", ");
+                }
+$if(BytesRef)$
+                sb.append(get$Type$(i, new BytesRef()));
+$else$
+                sb.append(get$Type$(i));
+$endif$
+            }
+            sb.append(']');
         }
     }
 }

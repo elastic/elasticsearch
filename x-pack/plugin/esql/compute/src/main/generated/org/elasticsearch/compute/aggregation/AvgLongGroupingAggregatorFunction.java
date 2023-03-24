@@ -57,7 +57,8 @@ public final class AvgLongGroupingAggregatorFunction implements GroupingAggregat
       if (valuesBlock.isNull(position)) {
         state.putNull(groupId);
       } else {
-        AvgLongAggregator.combine(state, groupId, valuesBlock.getLong(position));
+        int i = valuesBlock.getFirstValueIndex(position);
+        AvgLongAggregator.combine(state, groupId, valuesBlock.getLong(i));
       }
     }
   }
@@ -84,6 +85,7 @@ public final class AvgLongGroupingAggregatorFunction implements GroupingAggregat
         if (valuesBlock.isNull(position)) {
           state.putNull(groupId);
         } else {
+          int i = valuesBlock.getFirstValueIndex(position);
           AvgLongAggregator.combine(state, groupId, valuesBlock.getLong(position));
         }
       }

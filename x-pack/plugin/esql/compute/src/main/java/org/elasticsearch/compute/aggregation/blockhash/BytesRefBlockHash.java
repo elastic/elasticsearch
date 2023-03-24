@@ -51,7 +51,7 @@ final class BytesRefBlockHash extends BlockHash {
             if (block.isNull(i)) {
                 builder.appendNull();
             } else {
-                builder.appendLong(hashOrdToGroup(bytesRefHash.add(block.getBytesRef(i, bytes))));
+                builder.appendLong(hashOrdToGroup(bytesRefHash.add(block.getBytesRef(block.getFirstValueIndex(i), bytes))));
             }
         }
         return builder.build();

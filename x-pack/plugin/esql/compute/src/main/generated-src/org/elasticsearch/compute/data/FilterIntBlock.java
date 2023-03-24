@@ -27,7 +27,7 @@ final class FilterIntBlock extends AbstractFilterBlock implements IntBlock {
 
     @Override
     public int getInt(int valueIndex) {
-        return block.getInt(mapPosition(valueIndex));
+        return block.getInt(valueIndex);
     }
 
     @Override
@@ -65,11 +65,25 @@ final class FilterIntBlock extends AbstractFilterBlock implements IntBlock {
 
     private void appendValues(StringBuilder sb) {
         final int positions = getPositionCount();
-        for (int i = 0; i < positions; i++) {
-            if (i > 0) {
+        for (int p = 0; p < positions; p++) {
+            if (p > 0) {
                 sb.append(", ");
             }
-            sb.append(getInt(i));
+            int start = getFirstValueIndex(p);
+            int count = getValueCount(p);
+            if (count == 1) {
+                sb.append(getInt(start));
+                continue;
+            }
+            sb.append('[');
+            int end = start + count;
+            for (int i = start; i < end; i++) {
+                if (i > start) {
+                    sb.append(", ");
+                }
+                sb.append(getInt(i));
+            }
+            sb.append(']');
         }
     }
 }

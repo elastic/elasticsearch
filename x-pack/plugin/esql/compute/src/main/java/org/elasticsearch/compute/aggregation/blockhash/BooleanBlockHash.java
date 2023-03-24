@@ -45,7 +45,7 @@ final class BooleanBlockHash extends BlockHash {
             if (block.isNull(i)) {
                 builder.appendNull();
             } else {
-                builder.appendLong(ord(block.getBoolean(i)));
+                builder.appendLong(ord(block.getBoolean(block.getFirstValueIndex(i))));
             }
         }
         return builder.build();

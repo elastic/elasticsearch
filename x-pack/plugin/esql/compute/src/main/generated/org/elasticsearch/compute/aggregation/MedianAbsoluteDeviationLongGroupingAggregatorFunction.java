@@ -59,7 +59,8 @@ public final class MedianAbsoluteDeviationLongGroupingAggregatorFunction impleme
       if (valuesBlock.isNull(position)) {
         state.putNull(groupId);
       } else {
-        MedianAbsoluteDeviationLongAggregator.combine(state, groupId, valuesBlock.getLong(position));
+        int i = valuesBlock.getFirstValueIndex(position);
+        MedianAbsoluteDeviationLongAggregator.combine(state, groupId, valuesBlock.getLong(i));
       }
     }
   }
@@ -86,6 +87,7 @@ public final class MedianAbsoluteDeviationLongGroupingAggregatorFunction impleme
         if (valuesBlock.isNull(position)) {
           state.putNull(groupId);
         } else {
+          int i = valuesBlock.getFirstValueIndex(position);
           MedianAbsoluteDeviationLongAggregator.combine(state, groupId, valuesBlock.getLong(position));
         }
       }

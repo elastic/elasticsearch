@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.application.analytics.event;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,12 +22,7 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * A util class that can be used to parse {@link AnalyticsEvent} from a payload (e.g HTTP request POST body).
- *
- * Following event type are supported:
- * - "pageview"
- * - "search"
- * - "interaction"
+ * A util class that can be used to parse {@link AnalyticsEvent} from a payload (e.g HTTP request POST body) or input stream.
  */
 public class AnalyticsEventFactory {
     private static final Map<AnalyticsEvent.Type, ContextParser<AnalyticsEvent.Context, AnalyticsEvent>> EVENT_PARSERS = MapBuilder.<
@@ -36,7 +30,7 @@ public class AnalyticsEventFactory {
         ContextParser<AnalyticsEvent.Context, AnalyticsEvent>>newMapBuilder()
         .put(AnalyticsEvent.Type.PAGEVIEW, AnalyticsEventPageView::fromXContent)
         .put(AnalyticsEvent.Type.SEARCH, AnalyticsEventSearch::fromXContent)
-        .put(AnalyticsEvent.Type.INTERACTION, AnalyticsEventInteraction::fromXContent)
+        .put(AnalyticsEvent.Type.SEARCH_CLICK, AnalyticsEventSearchClick::fromXContent)
         .immutableMap();
 
     private static final Map<AnalyticsEvent.Type, Writeable.Reader<AnalyticsEvent>> EVENT_READERS = MapBuilder.<
@@ -44,12 +38,12 @@ public class AnalyticsEventFactory {
         Writeable.Reader<AnalyticsEvent>>newMapBuilder()
         .put(AnalyticsEvent.Type.PAGEVIEW, AnalyticsEventPageView::new)
         .put(AnalyticsEvent.Type.SEARCH, AnalyticsEventSearch::new)
-        .put(AnalyticsEvent.Type.INTERACTION, AnalyticsEventInteraction::new)
+        .put(AnalyticsEvent.Type.SEARCH_CLICK, AnalyticsEventSearchClick::new)
         .immutableMap();
 
     public AnalyticsEventFactory() {}
 
-    public AnalyticsEvent fromRequest(PostAnalyticsEventAction.Request request) throws IOException, ResourceNotFoundException {
+    public AnalyticsEvent fromRequest(PostAnalyticsEventAction.Request request) throws IOException {
         return fromPayload(request, request.xContentType(), request.payload());
     }
 

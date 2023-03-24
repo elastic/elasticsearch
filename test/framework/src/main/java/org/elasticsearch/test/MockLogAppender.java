@@ -87,8 +87,6 @@ public class MockLogAppender extends AbstractAppender {
 
         @Override
         public void match(LogEvent event) {
-            System.out.println(message);
-            System.out.println(event.getMessage().getFormattedMessage());
             if (event.getLevel().equals(level) && event.getLoggerName().equals(logger) && innerMatch(event)) {
                 if (Regex.isSimpleMatchPattern(message)) {
                     if (Regex.simpleMatch(message, event.getMessage().getFormattedMessage())) {

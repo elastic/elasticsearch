@@ -168,6 +168,32 @@ setup:
   - match: { aggregations.path.properties.sort_values.2: 0.0 }
 
 ---
+"Test geo_line aggregation on geo points limit size":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: locations
+        size: 0
+        body:
+          aggs:
+            path:
+              geo_line:
+                size: 2
+                point:
+                  field: location
+                sort:
+                  field: rank
+  - match: { hits.total:  3 }
+  - match: { aggregations.path.type: "Feature" }
+  - match: { aggregations.path.geometry.type: "LineString" }
+  - length: { aggregations.path.geometry.coordinates: 2 }
+  - match: { aggregations.path.geometry.coordinates.0.0: 13.378421 }
+  - match: { aggregations.path.geometry.coordinates.0.1: 47.888321 }
+  - match: { aggregations.path.geometry.coordinates.1.0: 13.37183 }
+  - match: { aggregations.path.geometry.coordinates.1.1: 48.20842 }
+  - is_false: aggregations.path.properties.complete
+
+---
 "Test geo_line aggregation on geo points with no grouping":
   - do:
       search:

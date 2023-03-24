@@ -288,7 +288,7 @@ final class TransportHandshaker {
             super.writeTo(streamOutput);
             assert version != null;
             try (BytesStreamOutput messageStreamOutput = new BytesStreamOutput(4)) {
-                TransportVersion.writeVersion(messageStreamOutput, version);
+                TransportVersion.writeVersion(version, messageStreamOutput);
                 BytesReference reference = messageStreamOutput.bytes();
                 streamOutput.writeBytesReference(reference);
             }
@@ -311,7 +311,7 @@ final class TransportHandshaker {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             assert responseVersion != null;
-            TransportVersion.writeVersion(out, responseVersion);
+            TransportVersion.writeVersion(responseVersion, out);
         }
 
         TransportVersion getResponseVersion() {

@@ -570,7 +570,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         // do not close the output
         os = Streams.noCloseStream(os);
         TransportVersion minNodeVersion = clusterService.state().getMinTransportVersion();
-        TransportVersion.writeVersion(new OutputStreamStreamOutput(os), minNodeVersion);
+        TransportVersion.writeVersion(minNodeVersion, new OutputStreamStreamOutput(os));
         if (minNodeVersion.onOrAfter(TransportVersion.V_7_15_0)) {
             os = CompressorFactory.COMPRESSOR.threadLocalOutputStream(os);
         }

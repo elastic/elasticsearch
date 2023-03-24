@@ -2016,7 +2016,7 @@ public final class TokenService {
         if (version.onOrAfter(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
             try (BytesStreamOutput out = new BytesStreamOutput(MINIMUM_BASE64_BYTES)) {
                 out.setTransportVersion(version);
-                TransportVersion.writeVersion(out, version);
+                TransportVersion.writeVersion(version, out);
                 out.writeString(accessToken);
                 return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
             }
@@ -2029,7 +2029,7 @@ public final class TokenService {
             ) {
                 out.setTransportVersion(version);
                 KeyAndCache keyAndCache = keyCache.activeKeyCache;
-                TransportVersion.writeVersion(out, version);
+                TransportVersion.writeVersion(version, out);
                 out.writeByteArray(keyAndCache.getSalt().bytes);
                 out.writeByteArray(keyAndCache.getKeyHash().bytes);
                 final byte[] initializationVector = getRandomBytes(IV_BYTES);
@@ -2054,7 +2054,7 @@ public final class TokenService {
     public static String prependVersionAndEncodeRefreshToken(TransportVersion version, String payload) {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(version);
-            TransportVersion.writeVersion(out, version);
+            TransportVersion.writeVersion(version, out);
             out.writeString(payload);
             return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
 

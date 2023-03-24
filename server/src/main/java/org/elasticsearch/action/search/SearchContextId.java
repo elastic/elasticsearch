@@ -73,7 +73,7 @@ public final class SearchContextId {
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(version);
-            TransportVersion.writeVersion(out, version);
+            TransportVersion.writeVersion(version, out);
             out.writeMap(shards, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
             out.writeMap(aliasFilter, StreamOutput::writeString, (o, v) -> v.writeTo(o));
             return Base64.getUrlEncoder().encodeToString(BytesReference.toBytes(out.bytes()));

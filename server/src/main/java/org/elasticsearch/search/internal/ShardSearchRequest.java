@@ -366,7 +366,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeOptionalWriteable(readerId);
             out.writeOptionalTimeValue(keepAlive);
         }
-        TransportVersion.writeVersion(out, channelVersion);
+        TransportVersion.writeVersion(channelVersion, out);
         TransportVersion waitForCheckpointsVersion = TransportVersion.V_7_16_0;
         if (out.getTransportVersion().onOrAfter(waitForCheckpointsVersion)) {
             out.writeLong(waitForCheckpoint);

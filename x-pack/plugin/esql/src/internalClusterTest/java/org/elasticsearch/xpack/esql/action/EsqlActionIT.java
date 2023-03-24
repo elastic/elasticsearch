@@ -918,7 +918,7 @@ public class EsqlActionIT extends ESIntegTestCase {
      * This test covers the scenarios where Lucene is throwing a {@link org.apache.lucene.search.CollectionTerminatedException} when
      * it's signaling that it could stop collecting hits early. For example, in the case the index is sorted in the same order as the query.
      * The {@link org.elasticsearch.compute.lucene.LuceneTopNSourceOperator#getOutput()} is handling this exception by
-     * ignoring it (which is the right thing to do).
+     * ignoring it (which is the right thing to do) and sort of cleaning up and moving to the next docs collection.
      */
     public void testTopNPushedToLuceneOnSortedIndex() {
         var sortOrder = randomFrom("asc", "desc");

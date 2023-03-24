@@ -181,6 +181,7 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
         }
 
         Page page = null;
+        boolean terminatedEarly = false;
 
         try {
             if (currentTopFieldCollector == null) {
@@ -194,7 +195,9 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
                     Math.min(currentLeafReaderContext.maxDoc, currentScorerPos + maxPageSize - currentPagePos)
                 );
             } catch (CollectionTerminatedException cte) {
-                // just don't do anything, because there is nothing do: Lucene terminated early the collection
+                // Lucene terminated early the collection (doing topN for an index that's sorted and the topN uses the same sorting)
+                // make sure to move to the next leaf (topDocs can be called only once) or create a new collector for the rest of the docs
+                terminatedEarly = true;
             }
             TopFieldDocs topFieldDocs = currentTopFieldCollector.topDocs();
             for (ScoreDoc doc : topFieldDocs.scoreDocs) {
@@ -205,7 +208,7 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
                 currentPagePos++;
             }
 
-            if (currentPagePos >= minPageSize || currentScorerPos >= currentLeafReaderContext.maxDoc) {
+            if (terminatedEarly || currentPagePos >= minPageSize || currentScorerPos >= currentLeafReaderContext.maxDoc) {
                 page = new Page(
                     currentPagePos,
                     new DocVector(
@@ -220,7 +223,7 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
                 currentPagePos = 0;
             }
 
-            if (currentScorerPos >= currentLeafReaderContext.maxDoc) {
+            if (terminatedEarly || currentScorerPos >= currentLeafReaderContext.maxDoc) {
                 currentLeaf++;
                 currentLeafReaderContext = null;
                 currentScorer = null;

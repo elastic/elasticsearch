@@ -110,10 +110,10 @@ public class MlAssignmentNotifier implements ClusterStateListener {
             if (MlTasks.JOB_TASK_NAME.equals(currentTask.getTaskName())) {
                 String jobId = ((OpenJobAction.JobParams) currentTask.getParams()).getJobId();
                 if (isTaskAssigned) {
-                    String nodeName = nodeName(currentNodes, currentAssignment.getExecutorNode());
                     String msg = new String("Opening job");
                     if (anomalyDetectionAuditor.includeNodeInfo()) {
-                        msg += " on node ["  + nodeName + "]";
+                        String nodeName = nodeName(currentNodes, currentAssignment.getExecutorNode());
+                        msg += " on node [" + nodeName + "]";
                     }
                     anomalyDetectionAuditor.info(jobId, msg);
                 } else if (alwaysAuditUnassigned && anomalyDetectionAuditor.includeNodeInfo()) {
@@ -135,10 +135,7 @@ public class MlAssignmentNotifier implements ClusterStateListener {
                             String nodeName = nodeName(currentNodes, currentAssignment.getExecutorNode());
                             msg += "] on node [" + nodeName + "]";
                         }
-                        anomalyDetectionAuditor.info(
-                            jobId,
-                            msg
-                        );
+                        anomalyDetectionAuditor.info(jobId, msg);
                     } else if (anomalyDetectionAuditor.includeNodeInfo()) {
                         if (alwaysAuditUnassigned) {
                             anomalyDetectionAuditor.warning(
@@ -168,19 +165,19 @@ public class MlAssignmentNotifier implements ClusterStateListener {
             } else if (MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME.equals(currentTask.getTaskName())
                 && dataFrameAnalyticsAuditor.includeNodeInfo()) {
                     String id = ((StartDataFrameAnalyticsAction.TaskParams) currentTask.getParams()).getId();
-                if (isTaskAssigned) {
-                    String nodeName = nodeName(currentNodes, currentAssignment.getExecutorNode());
-                    dataFrameAnalyticsAuditor.info(id, "Starting analytics on node [" + nodeName + "]");
-                } else if (alwaysAuditUnassigned) {
-                    dataFrameAnalyticsAuditor.warning(
-                        id,
-                        "No node found to start analytics. Reasons [" + currentAssignment.getExplanation() + "]"
-                    );
-                } else if (wasTaskAssigned) {
-                    String nodeName = nodeName(previousNodes, previousAssignment.getExecutorNode());
-                    anomalyDetectionAuditor.info(id, "Analytics unassigned from node [" + nodeName + "]");
+                    if (isTaskAssigned) {
+                        String nodeName = nodeName(currentNodes, currentAssignment.getExecutorNode());
+                        dataFrameAnalyticsAuditor.info(id, "Starting analytics on node [" + nodeName + "]");
+                    } else if (alwaysAuditUnassigned) {
+                        dataFrameAnalyticsAuditor.warning(
+                            id,
+                            "No node found to start analytics. Reasons [" + currentAssignment.getExplanation() + "]"
+                        );
+                    } else if (wasTaskAssigned) {
+                        String nodeName = nodeName(previousNodes, previousAssignment.getExecutorNode());
+                        anomalyDetectionAuditor.info(id, "Analytics unassigned from node [" + nodeName + "]");
+                    }
                 }
-            }
         }
     }
 

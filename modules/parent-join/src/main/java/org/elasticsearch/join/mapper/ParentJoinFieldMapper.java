@@ -9,9 +9,8 @@
 package org.elasticsearch.join.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedDocValuesField;
-import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.IndexSettings;
@@ -56,17 +55,6 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
     public static final String NAME = "join";
     public static final String CONTENT_TYPE = "join";
-
-    public static class Defaults {
-        public static final FieldType FIELD_TYPE = new FieldType();
-
-        static {
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            FIELD_TYPE.freeze();
-        }
-    }
 
     private static void checkIndexCompatibility(IndexSettings settings, String name) {
         String indexName = settings.getIndex().getName();
@@ -303,7 +291,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
 
         BytesRef binaryValue = new BytesRef(name);
-        Field field = new Field(fieldType().name(), binaryValue, Defaults.FIELD_TYPE);
+        Field field = new StringField(fieldType().name(), binaryValue, Field.Store.NO);
         context.doc().add(field);
         context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
         context.path().remove();

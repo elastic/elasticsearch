@@ -476,8 +476,8 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         Path res = new Path();
         Set<String> seenDevices = Sets.newHashSetWithExpectedSize(paths.length);
         for (Path subPath : paths) {
-            if (subPath.path != null) {
-                if (seenDevices.add(subPath.path) == false) {
+            if (subPath.mount != null) {
+                if (seenDevices.add(subPath.mount) == false) {
                     continue; // already added numbers for this device;
                 }
             }

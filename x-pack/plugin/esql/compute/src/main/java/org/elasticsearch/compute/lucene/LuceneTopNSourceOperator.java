@@ -13,6 +13,7 @@ import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
@@ -44,6 +45,8 @@ import java.util.stream.Collectors;
 public class LuceneTopNSourceOperator extends LuceneOperator {
 
     private TopFieldCollector currentTopFieldCollector;
+
+    private LeafCollector currentTopFieldLeafCollector;
 
     private IntVector.Builder currentSegmentBuilder;
 
@@ -186,10 +189,11 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
         try {
             if (currentTopFieldCollector == null) {
                 currentTopFieldCollector = collectorManager.newCollector();
+                currentTopFieldLeafCollector = currentTopFieldCollector.getLeafCollector(currentLeafReaderContext.leafReaderContext);
             }
             try {
                 currentScorerPos = currentScorer.score(
-                    currentTopFieldCollector.getLeafCollector(currentLeafReaderContext.leafReaderContext),
+                    currentTopFieldLeafCollector,
                     currentLeafReaderContext.leafReaderContext.reader().getLiveDocs(),
                     currentScorerPos,
                     Math.min(currentLeafReaderContext.maxDoc, currentScorerPos + maxPageSize - currentPagePos)
@@ -204,7 +208,6 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
                 int segment = ReaderUtil.subIndex(doc.doc, leafReaderContexts);
                 currentSegmentBuilder.appendInt(segment);
                 currentBlockBuilder.appendInt(doc.doc - leafReaderContexts.get(segment).docBase); // the offset inside the segment
-                numCollectedDocs++;
                 currentPagePos++;
             }
 
@@ -229,6 +232,7 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
                 currentScorer = null;
                 currentScorerPos = 0;
                 currentTopFieldCollector = null;
+                currentTopFieldLeafCollector = null;
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);

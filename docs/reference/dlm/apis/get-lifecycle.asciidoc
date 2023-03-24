@@ -4,7 +4,9 @@
 <titleabbrev>Get Data Stream Lifecycle</titleabbrev>
 ++++
 
-Gets the lifecycle of a set of data streams. This API is in experimental:[].
+experimental::[]
+
+Gets the lifecycle of a set of data streams.
 
 [[dlm-get-lifecycle-request]]
 ==== {api-request-title}
@@ -81,49 +83,42 @@ param `include_defaults` is set to `true`. The contents of this field are subjec
 [[dlm-get-lifecycle-example]]
 ==== {api-examples-title}
 
-The following example retrieves the lifecycle of the existing data streams:
-
-//////////////////////////
+////
 
 [source,console]
 --------------------------------------------------
-PUT _index_template/my-data-stream-template
+PUT /_index_template/my-template
 {
-  "index_patterns": ["my-data-stream*"],
-  "composed_of": [],
-  "data_stream": {}
-}
-
-PUT _data_stream/my-data-stream
-
---------------------------------------------------
-// TEST
-
-//////////////////////////
-
-[source,console]
---------------------------------------------------
-PUT _index_template/my-data-stream-template
-{
-  "index_patterns": ["my-data-stream*"],
-  "composed_of": [],
+  "index_patterns" : ["my-data-stream*"],
+  "priority" : 1,
+  "data_stream": {},
   "template": {
-    "lifecycle": {
-     "data_retention": "10d"
+    "lifecycle" : {
+      "data_retention" : "7d"
     }
-  },
-  "data_stream": {}
+  }
 }
 
-PUT _data_stream/my-data-stream
-
-PUT _data_stream/my-data-stream2
-
-PUT _data_stream/my-data-stream-no-lifecycle
-
-DELETE _data_stream/my-data-stream-no-lifecycle/_lifecycle
+PUT /_data_stream/my-data-stream-1
+PUT /_data_stream/my-data-stream-2
 --------------------------------------------------
-// TEST[continued]
+// TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE _data_stream/my-data-stream*
+DELETE _index_template/my-template
+--------------------------------------------------
+// TEARDOWN
+
+////
+
+Let's retrieve the lifecycles:
+
+[source,console]
+--------------------------------------------------
+GET _data_stream/_lifecycle
+--------------------------------------------------
 
 The response will look like the following:
 
@@ -132,15 +127,15 @@ The response will look like the following:
 {
   "data_streams": [
     {
-      "name": "my-data-stream",
+      "name": "my-data-stream-1",
       "lifecycle": {
-        "data_retention": "10d"
+        "data_retention": "7d"
       }
     },
     {
-      "name": "my-data-stream2",
+      "name": "my-data-stream-2",
       "lifecycle": {
-        "data_retention": "10d"
+        "data_retention": "7d"
       }
     }
   ]

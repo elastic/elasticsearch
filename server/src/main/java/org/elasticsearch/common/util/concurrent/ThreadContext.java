@@ -26,7 +26,6 @@ import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -37,7 +36,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE;
@@ -105,35 +103,25 @@ public final class ThreadContext implements Writeable {
      * @return a stored context that will restore the current context to its state at the point this method was called
      */
     public StoredContext stashContext() {
-        return stashContext(HEADERS_TO_COPY);
+        return stashContextPreservingRequestHeaders(Collections.emptySet());
     }
 
     /**
      * Just like {@link #stashContext()} but preserves request headers specified via {@code requestHeaders},
      * if these exist in the context before stashing.
      */
-    public StoredContext stashContextPreservingRequestHeaders(final Set<String> requestHeaders) {
-        final Set<String> allHeadersToCopy = new HashSet<>(requestHeaders);
-        allHeadersToCopy.addAll(HEADERS_TO_COPY);
-        return stashContext(Set.copyOf(allHeadersToCopy));
-    }
-
-    public StoredContext stashContextPreservingRequestHeaders(final String... requestHeaders) {
-        return stashContextPreservingRequestHeaders(Arrays.stream(requestHeaders).collect(Collectors.toUnmodifiableSet()));
-    }
-
-    private StoredContext stashContext(final Set<String> requestHeadersToCopy) {
+    public StoredContext stashContextPreservingRequestHeaders(Set<String> requestHeaders) {
         final ThreadContextStruct context = threadLocal.get();
 
         /*
-         * When the context is stashed, it should be empty, except for headers that were specified to be preserved.
-         * These can be headers specified via `stashContextPreservingRequestHeaders`, and _always_ includes a set of default headers such as
-         * X-Opaque-ID.
+         * When the context is stashed, it should be empty, except for headers that were specified to be preserved via `requestHeaders`
+         * and a set of default headers such as X-Opaque-ID, which are always copied (specified via `Task.HEADERS_TO_COPY`).
          *
          * X-Opaque-ID should be preserved in a threadContext in order to propagate this across threads.
          * This is needed so the DeprecationLogger in another thread can see the value of X-Opaque-ID provided by a user.
-         * The same is applied to Task.TRACE_ID and other values specified in `HEADERS_TO_COPY`.
+         * The same is applied to Task.TRACE_ID and other values specified in `Task.HEADERS_TO_COPY`.
          */
+        final Set<String> requestHeadersToCopy = getRequestHeadersToCopy(requestHeaders);
         boolean hasHeadersToCopy = false;
         if (context.requestHeaders.isEmpty() == false) {
             for (String header : requestHeadersToCopy) {
@@ -162,6 +150,10 @@ public final class ThreadContext implements Writeable {
         // If the node and thus the threadLocal get closed while this task is still executing, we don't want this runnable to fail with an
         // uncaught exception
         return storedOriginalContext(context);
+    }
+
+    public StoredContext stashContextPreservingRequestHeaders(final String... requestHeaders) {
+        return stashContextPreservingRequestHeaders(Set.of(requestHeaders));
     }
 
     /**
@@ -254,6 +246,15 @@ public final class ThreadContext implements Writeable {
 
     private StoredContext storedOriginalContext(ThreadContextStruct originalContext) {
         return () -> threadLocal.set(originalContext);
+    }
+
+    private static Set<String> getRequestHeadersToCopy(Set<String> requestHeaders) {
+        if (requestHeaders.isEmpty()) {
+            return HEADERS_TO_COPY;
+        }
+        final Set<String> allRequestHeadersToCopy = new HashSet<>(requestHeaders);
+        allRequestHeadersToCopy.addAll(HEADERS_TO_COPY);
+        return Set.copyOf(allRequestHeadersToCopy);
     }
 
     private static Map<String, String> getHeadersPresentInContext(ThreadContextStruct context, Set<String> headers) {

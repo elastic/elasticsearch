@@ -72,6 +72,7 @@ public class ThreadContextTests extends ESTestCase {
         Settings build = Settings.builder().put("request.headers.default", "1").build();
         ThreadContext threadContext = new ThreadContext(build);
         threadContext.putHeader("foo", "bar");
+        threadContext.putHeader("bar", "foo");
         threadContext.putTransient("ctx.foo", 1);
         assertEquals("bar", threadContext.getHeader("foo"));
         assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
@@ -80,11 +81,13 @@ public class ThreadContextTests extends ESTestCase {
             assertEquals("bar", threadContext.getHeader("foo"));
             // only request headers preserved, not transient
             assertNull(threadContext.getTransient("ctx.foo"));
+            assertNull(threadContext.getHeader("bar"));
             assertEquals("1", threadContext.getHeader("default"));
             assertNull(threadContext.getHeader("missing"));
         }
 
         assertEquals("bar", threadContext.getHeader("foo"));
+        assertEquals("foo", threadContext.getHeader("bar"));
         assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
     }

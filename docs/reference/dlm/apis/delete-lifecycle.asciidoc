@@ -4,7 +4,9 @@
 <titleabbrev>Delete Data Stream Lifecycle</titleabbrev>
 ++++
 
-Deletes the lifecycle from a set of data streams. This API is in experimental:[].
+experimental::[]
+
+Deletes the lifecycle from a set of data streams.
 
 [[dlm-delete-lifecycle-request]]
 ==== {api-request-title}
@@ -44,37 +46,43 @@ Defaults to `open`.
 [[dlm-delete-lifecycle-example]]
 ==== {api-examples-title}
 
-The following example deletes the lifecycle of `my-data-stream`:
-
-//////////////////////////
+////
 
 [source,console]
 --------------------------------------------------
-PUT _index_template/my-data-stream-template
+PUT /_index_template/my-template
 {
-  "index_patterns": ["my-data-stream*"],
-  "composed_of": [],
+  "index_patterns" : ["my-data-stream*"],
+  "priority" : 1,
+  "data_stream": {},
   "template": {
-    "lifecycle": {
-     "data_retention": "10d"
+    "lifecycle" : {
+      "data_retention" : "7d"
     }
-  },
-  "data_stream": {}
+  }
 }
 
-PUT _data_stream/my-data-stream
+PUT /_data_stream/my-data-stream
 --------------------------------------------------
-// TEST
-
-//////////////////////////
+// TESTSETUP
 
 [source,console]
 --------------------------------------------------
-GET _data_stream/_lifecycle
+DELETE _data_stream/my-data-stream
+DELETE _index_template/my-template
 --------------------------------------------------
-// TEST[continued]
+// TEARDOWN
 
-When the policy is successfully deleted, you receive the following result:
+////
+
+The following example deletes the lifecycle of `my-data-stream`:
+
+[source,console]
+--------------------------------------------------
+DELETE _data_stream/my-data-stream/_lifecycle
+--------------------------------------------------
+
+When the policy is successfully deleted from all selected data streams, you receive the following result:
 
 [source,console-result]
 --------------------------------------------------

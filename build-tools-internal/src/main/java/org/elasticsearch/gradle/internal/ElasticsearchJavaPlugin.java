@@ -74,14 +74,25 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
         project.getPluginManager().apply(TransportTestExistPrecommitPlugin.class);
 
-        project.getTasks().named("koverVerify", KoverVerificationTask.class).configure(t -> {
-            t.dependsOn(project.getTasks().named("transportTestExistCheck"));// *1
+        // project.getTasks().named("test").configure(task -> { task.finalizedBy(project.getTasks().named("transportTestExistCheck")); });
+
+        project.getTasks().named("transportTestExistCheck").configure(task -> {
+            task.mustRunAfter("compileJava");
+        });
+            project.getTasks().named("koverVerify", KoverVerificationTask.class).configure(t -> {
+            // t.dependsOn(project.getTasks().named("transportTestExistCheck"));// *1
+            TransportTestExistTask transportTestExistCheck = project.getTasks()
+                .named("transportTestExistCheck", TransportTestExistTask.class)
+                .get();
+            t.dependsOn(transportTestExistCheck);
+
             t.doFirst(t2 -> {
                 project.getExtensions().configure(KoverProjectConfig.class, kover -> {
                     kover.verify(verify -> {
                         verify.rule(rule -> {
+
                             rule.overrideClassFilter(koverClassFilter -> {
-                                List<String> transportClasses = readTransportClasses(project);
+                                List<String> transportClasses = readTransportClasses(transportTestExistCheck.getOutputFile());
                                 koverClassFilter.getIncludes().addAll(transportClasses);
                             });
                             rule.setTarget(VerificationTarget.CLASS);
@@ -125,7 +136,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
     }
 
-    private static List<String> readTransportClasses(Project project) {
+    private static List<String> readTransportClasses(RegularFileProperty file) {
         try {
             // - Gradle detected a problem with the following location:
             // '/Users/przemyslawgomulka/workspace/pgomulka/elasticsearch/modules/aggregations/build/generated-resources/transport-classes.txt'.
@@ -134,10 +145,10 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
             // tasks are executed. Please refer to https://docs.gradle.org/7.6.1/userguide/validation_problems.html#implicit_dependency for
             // more details about this problem.
             // Provider<RegularFile> file = project.getLayout().getBuildDirectory().file(TransportTestExistTask.TRANSPORT_CLASSES);
-            RegularFileProperty file = project.getTasks()
-                .named("transportTestExistCheck", TransportTestExistTask.class)
-                .get()
-                .getOutputFile();
+            // RegularFileProperty file = project.getTasks()
+            // .named("transportTestExistCheck", TransportTestExistTask.class)
+            // .get()
+            // .getOutputFile();
             Path path = file.get().getAsFile().toPath();
             return Files.readAllLines(path);
         } catch (IOException e) {

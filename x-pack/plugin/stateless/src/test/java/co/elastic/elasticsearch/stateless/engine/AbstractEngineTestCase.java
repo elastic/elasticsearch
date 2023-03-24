@@ -15,6 +15,7 @@ import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.IOContext;
@@ -44,7 +45,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -295,7 +295,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
 
     protected static Engine.Index randomDoc(String id) throws IOException {
         final LuceneDocument document = new LuceneDocument();
-        document.add(new Field("_id", Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new StringField("_id", Uid.encodeId(id), Field.Store.YES));
         var version = new NumericDocValuesField("_version", 0);
         document.add(version);
         var seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();

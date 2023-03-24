@@ -28,7 +28,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
+public class LicenseClusterChangeTests extends AbstractClusterStateLicenseServiceTestCase {
 
     private TestUtils.AssertingLicenseState licenseState;
     private ClusterStateLicenseService clusterStateLicenseService;

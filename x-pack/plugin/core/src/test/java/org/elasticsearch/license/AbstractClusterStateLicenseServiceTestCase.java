@@ -32,9 +32,9 @@ import static java.util.Collections.singletonMap;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
+public abstract class AbstractClusterStateLicenseServiceTestCase extends ESTestCase {
 
-    protected LicenseService.MutableLicense licenseService;
+    protected LicenseService.MutableLicenseService licenseService;
     protected ClusterService clusterService;
     protected ClockMock clock;
     protected DiscoveryNodes discoveryNodes;

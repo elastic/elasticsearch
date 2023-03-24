@@ -375,7 +375,7 @@ public class TestUtils {
     }
 
     public static void registerAndAckSignedLicenses(
-        final LicenseService.MutableLicense licenseService,
+        final LicenseService.MutableLicenseService licenseService,
         License license,
         final LicensesStatus expectedStatus
     ) {

@@ -56,7 +56,7 @@ import java.util.stream.Collectors;
  */
 public class ClusterStateLicenseService extends AbstractLifecycleComponent
     implements
-        LicenseService.MutableLicense,
+        LicenseService.MutableLicenseService,
         ClusterStateListener,
         SchedulerEngine.Listener {
     private static final Logger logger = LogManager.getLogger(ClusterStateLicenseService.class);
@@ -320,11 +320,6 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         return license == LicensesMetadata.LICENSE_TOMBSTONE ? null : license;
     }
 
-    @Override
-    public XPackLicenseState getXPackLicenseState() {
-        return xPacklicenseState;
-    }
-
     private LicensesMetadata getLicensesMetadata() {
         return this.clusterService.state().metadata().custom(LicensesMetadata.TYPE);
     }
@@ -490,7 +485,6 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         return null;
     }
 
-    @Override
     public void updateXPackLicenseState(License license) {
         long time = clock.millis();
         if (license == LicensesMetadata.LICENSE_TOMBSTONE) {
@@ -501,7 +495,6 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         checkForExpiredLicense(license);
     }
 
-    @Override
     public boolean checkForExpiredLicense(License license) {
         long time = clock.millis();
         if (license != null) {
@@ -531,7 +524,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
      * relative to the current license's expiry
      */
     private void onUpdate(final LicensesMetadata currentLicensesMetadata) {
-        final License license = getLicenseFromMetaData(currentLicensesMetadata);
+        final License license = getLicenseFromLicensesMetadata(currentLicensesMetadata);
         // license can be null if the trial license is yet to be auto-generated
         // in this case, it is a no-op
         if (license != null) {
@@ -582,11 +575,11 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
 
     public License getLicense(final Metadata metadata) {
         final LicensesMetadata licensesMetadata = metadata.custom(LicensesMetadata.TYPE);
-        return getLicenseFromMetaData(licensesMetadata);
+        return getLicenseFromLicensesMetadata(licensesMetadata);
     }
 
     // visible for tests
-    protected License getLicenseFromMetaData(@Nullable final LicensesMetadata metadata) {
+    License getLicenseFromLicensesMetadata(@Nullable final LicensesMetadata metadata) {
         if (metadata != null) {
             License license = metadata.getLicense();
             if (license == LicensesMetadata.LICENSE_TOMBSTONE) {

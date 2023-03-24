@@ -49,34 +49,37 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
     // package private for testing
     static final Set<String> CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST;
     static {
-        final Stream<String> actions = Stream.of(
-            REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
-            RemoteClusterNodesAction.NAME,
-            SearchAction.NAME,
-            ClusterStateAction.NAME,
-            ClusterSearchShardsAction.NAME,
-            SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME,
-            SearchTransportService.FREE_CONTEXT_ACTION_NAME,
-            SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
-            SearchTransportService.DFS_ACTION_NAME,
-            SearchTransportService.QUERY_ACTION_NAME,
-            SearchTransportService.QUERY_ID_ACTION_NAME,
-            SearchTransportService.QUERY_SCROLL_ACTION_NAME,
-            SearchTransportService.QUERY_FETCH_SCROLL_ACTION_NAME,
-            SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME,
-            SearchTransportService.FETCH_ID_ACTION_NAME,
-            SearchTransportService.QUERY_CAN_MATCH_NAME,
-            SearchTransportService.QUERY_CAN_MATCH_NODE_NAME,
-            TransportOpenPointInTimeAction.OPEN_SHARD_READER_CONTEXT_NAME,
-            ResolveIndexAction.NAME,
-            FieldCapabilitiesAction.NAME,
-            FieldCapabilitiesAction.NAME + "[n]",
-            "indices:data/read/eql"
-        );
-        CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST = actions
-            // Include action, and proxy equivalent (i.e., with proxy action prefix)
-            .flatMap(name -> Stream.of(name, TransportActionProxy.getProxyAction(name)))
-            .collect(Collectors.toUnmodifiableSet());
+        CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST = Stream.concat(
+            // These actions have proxy equivalents, so we need to allow-list the action name and the action name with the proxy action
+            // prefix
+            Stream.of(
+                SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME,
+                SearchTransportService.FREE_CONTEXT_ACTION_NAME,
+                SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
+                SearchTransportService.DFS_ACTION_NAME,
+                SearchTransportService.QUERY_ACTION_NAME,
+                SearchTransportService.QUERY_ID_ACTION_NAME,
+                SearchTransportService.QUERY_SCROLL_ACTION_NAME,
+                SearchTransportService.QUERY_FETCH_SCROLL_ACTION_NAME,
+                SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME,
+                SearchTransportService.FETCH_ID_ACTION_NAME,
+                SearchTransportService.QUERY_CAN_MATCH_NAME,
+                SearchTransportService.QUERY_CAN_MATCH_NODE_NAME,
+                TransportOpenPointInTimeAction.OPEN_SHARD_READER_CONTEXT_NAME
+            ).flatMap(name -> Stream.of(name, TransportActionProxy.getProxyAction(name))),
+            // These actions don't have proxy equivalents
+            Stream.of(
+                REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
+                RemoteClusterNodesAction.NAME,
+                SearchAction.NAME,
+                ClusterStateAction.NAME,
+                ClusterSearchShardsAction.NAME,
+                ResolveIndexAction.NAME,
+                FieldCapabilitiesAction.NAME,
+                FieldCapabilitiesAction.NAME + "[n]",
+                "indices:data/read/eql"
+            )
+        ).collect(Collectors.toUnmodifiableSet());
     }
 
     private final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService;

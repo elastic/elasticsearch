@@ -8,6 +8,7 @@
 package org.elasticsearch.repositories.gcs;
 
 import io.netty.bootstrap.Bootstrap;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
@@ -121,6 +122,10 @@ class WebProxyServer extends MockHttpProxyServer {
                 ctx.close();
             }
 
+            @Override
+            public void channelInactive(ChannelHandlerContext ctx) {
+                outboundChannel.writeAndFlush(Unpooled.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE);
+            }
         });
     }
 

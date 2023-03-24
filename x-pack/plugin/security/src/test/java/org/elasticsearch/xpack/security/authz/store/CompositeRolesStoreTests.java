@@ -93,6 +93,7 @@ import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -1792,6 +1793,48 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
         assertEquals("the user [_system] is the system user and we should never try to get its roles", iae.getMessage());
+    }
+
+    public void testGetRolesForCrossClusterAccessUserThrowsException() {
+        final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
+        doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
+        final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
+        doCallRealMethod().when(nativeRolesStore).accept(anySet(), anyActionListener());
+        when(fileRolesStore.roleDescriptors(anySet())).thenReturn(Collections.emptySet());
+        doAnswer((invocationOnMock) -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<RoleRetrievalResult> callback = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
+            callback.onResponse(RoleRetrievalResult.failure(new RuntimeException("intentionally failed!")));
+            return null;
+        }).when(nativeRolesStore).getRoleDescriptors(isASet(), anyActionListener());
+        final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
+
+        final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<Collection<RoleDescriptor>>();
+        final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
+            SECURITY_ENABLED_SETTINGS,
+            fileRolesStore,
+            nativeRolesStore,
+            reservedRolesStore,
+            null,
+            null,
+            null,
+            null,
+            null,
+            effectiveRoleDescriptors::set
+        );
+        verify(fileRolesStore).addListener(anyConsumer()); // adds a listener in ctor
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> compositeRolesStore.getRole(
+                new Subject(CrossClusterAccessUser.INSTANCE, new RealmRef("__attach", "__attach", randomAlphaOfLengthBetween(3, 8))),
+                null
+            )
+        );
+        assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
+        assertEquals(
+            "the user [_cross_cluster_access] is the cross cluster access user and we should never try to get its roles",
+            iae.getMessage()
+        );
     }
 
     public void testApiKeyAuthUsesApiKeyService() throws Exception {

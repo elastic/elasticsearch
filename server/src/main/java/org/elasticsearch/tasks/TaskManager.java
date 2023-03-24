@@ -30,7 +30,6 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.TaskTransportChannel;
@@ -58,7 +57,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
 
 /**
@@ -67,8 +65,6 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEAD
 public class TaskManager implements ClusterStateApplier {
 
     private static final Logger logger = LogManager.getLogger(TaskManager.class);
-
-    private static final TimeValue WAIT_FOR_COMPLETION_POLL = timeValueMillis(100);
 
     /** Rest headers that are copied to the task */
     private final String[] taskHeaders;

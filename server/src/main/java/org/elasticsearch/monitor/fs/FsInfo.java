@@ -51,7 +51,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
          * Read from a stream.
          */
         public Path(StreamInput in) throws IOException {
-            path = in.readOptionalString();
+            path = in.readOptionalString(); // total aggregates do not have a path, mount, or type
             mount = in.readOptionalString();
             type = in.readOptionalString();
             total = in.readLong();
@@ -61,7 +61,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalString(path); // total aggregates do not have a path
+            out.writeOptionalString(path); // total aggregates do not have a path, mount, or type
             out.writeOptionalString(mount);
             out.writeOptionalString(type);
             out.writeLong(total);

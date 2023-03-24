@@ -40,7 +40,7 @@ abstract class MockHttpProxyServer implements Closeable {
         }
     }
 
-    abstract public void handle(HttpRequest request, HttpResponse response, HttpContext context) throws HttpException, IOException;
+    public abstract void handle(HttpRequest request, HttpResponse response, HttpContext context) throws HttpException, IOException;
 
     int getPort() {
         return httpServer.getLocalPort();

@@ -91,8 +91,8 @@ public class FanOutListener<T> implements ActionListener<T> {
             return;
         }
 
-        final var wrappedListener = fork(executor, preserveContext(threadContext, listener));
-        var currentValue = ref.compareAndExchange(EMPTY, wrappedListener);
+        final ActionListener<T> wrappedListener = fork(executor, preserveContext(threadContext, listener));
+        Object currentValue = ref.compareAndExchange(EMPTY, wrappedListener);
         if (currentValue == EMPTY) {
             return;
         }
@@ -102,21 +102,21 @@ public class FanOutListener<T> implements ActionListener<T> {
                 return;
             }
             if (currentValue instanceof ActionListener firstListener) {
-                final var tail = new Cell(firstListener, null);
+                final Cell tail = new Cell(firstListener, null);
                 currentValue = ref.compareAndExchange(firstListener, tail);
                 if (currentValue == firstListener) {
                     currentValue = tail;
                 }
                 continue;
             }
-            if (currentValue instanceof Cell head) {
+            if (currentValue instanceof Cell headCell) {
                 if (newCell == null) {
-                    newCell = new Cell(wrappedListener, head);
+                    newCell = new Cell(wrappedListener, headCell);
                 } else {
-                    newCell.next = head;
+                    newCell.next = headCell;
                 }
-                currentValue = ref.compareAndExchange(head, newCell);
-                if (currentValue == head) {
+                currentValue = ref.compareAndExchange(headCell, newCell);
+                if (currentValue == headCell) {
                     return;
                 }
             } else {
@@ -154,7 +154,7 @@ public class FanOutListener<T> implements ActionListener<T> {
      */
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public final T rawResult() throws Exception {
-        final var refValue = ref.get();
+        final Object refValue = ref.get();
         if (refValue instanceof SuccessResult result) {
             return (T) result.result();
         } else if (refValue instanceof FailureResult result) {
@@ -183,12 +183,12 @@ public class FanOutListener<T> implements ActionListener<T> {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     private static <T> boolean tryComplete(Object refValue, ActionListener<T> listener) {
-        if (refValue instanceof SuccessResult result) {
-            result.complete(listener);
+        if (refValue instanceof SuccessResult successResult) {
+            successResult.complete(listener);
             return true;
         }
-        if (refValue instanceof FailureResult result) {
-            result.complete(listener);
+        if (refValue instanceof FailureResult failureResult) {
+            failureResult.complete(listener);
             return true;
         }
         return false;
@@ -201,19 +201,19 @@ public class FanOutListener<T> implements ActionListener<T> {
     private void setResult(Object result) {
         assert isDone(result);
 
-        var currentValue = ref.get();
+        Object currentValue = ref.get();
         while (true) {
             if (isDone(currentValue)) {
                 // already complete - nothing to do
                 return;
             }
 
-            final var witness = ref.compareAndExchange(currentValue, result);
+            final Object witness = ref.compareAndExchange(currentValue, result);
             if (witness == currentValue) {
                 // we won the race to complete the listener
                 if (currentValue instanceof ActionListener<?> listener) {
                     // unique subscriber - complete it
-                    var completed = tryComplete(result, listener);
+                    boolean completed = tryComplete(result, listener);
                     assert completed;
                 } else if (currentValue instanceof Cell currCell) {
                     // multiple subscribers, but they are currently in reverse order of subscription so reverse them back
@@ -230,7 +230,7 @@ public class FanOutListener<T> implements ActionListener<T> {
                     // now they are in subscription order, complete them
                     while (currCell != null) {
                         // noinspection unchecked
-                        var completed = tryComplete(result, (ActionListener<T>) currCell.listener);
+                        boolean completed = tryComplete(result, (ActionListener<T>) currCell.listener);
                         assert completed;
                         currCell = currCell.next;
                     }

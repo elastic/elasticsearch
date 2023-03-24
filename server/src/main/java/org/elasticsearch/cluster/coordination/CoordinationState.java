@@ -9,6 +9,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -569,6 +570,10 @@ public class CoordinationState {
             if (adjustedMetadata != lastAcceptedState.metadata()) {
                 setLastAcceptedState(ClusterState.builder(lastAcceptedState).metadata(adjustedMetadata).build());
             }
+        }
+
+        default void getLatestStoredState(ActionListener<ClusterState> listener) {
+            listener.onResponse(null);
         }
 
         default void close() throws IOException {}

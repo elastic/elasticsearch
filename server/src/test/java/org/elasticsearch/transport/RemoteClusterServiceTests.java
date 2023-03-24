@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
@@ -89,7 +90,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS));
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION));
+            assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS));
         }
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(ProxyConnectionStrategy.PROXY_ADDRESS));
@@ -1126,6 +1127,95 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 () -> service.getRemoteClusterService().collectNodes(Set.of(), ActionListener.noop())
             );
             assertThat(e.getMessage(), equalTo("this node does not have the remote_cluster_client role"));
+        }
+    }
+
+    public void testUseDifferentTransportProfileForCredentialsProtectedRemoteClusters() throws IOException, InterruptedException {
+        final List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (
+            MockTransportService c1 = startTransport(
+                "cluster_1",
+                knownNodes,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                Settings.builder()
+                    .put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), "true")
+                    .put(RemoteClusterPortSettings.PORT.getKey(), "0")
+                    .build()
+            );
+            MockTransportService c2 = startTransport("cluster_2", knownNodes, Version.CURRENT, TransportVersion.CURRENT);
+        ) {
+            final DiscoveryNode c1Node = c1.getLocalDiscoNode().withTransportAddress(c1.boundRemoteAccessAddress().publishAddress());
+            final DiscoveryNode c2Node = c2.getLocalDiscoNode();
+
+            final MockSecureSettings secureSettings = new MockSecureSettings();
+            secureSettings.setString("cluster.remote.cluster_1.credentials", randomAlphaOfLength(10));
+            final Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
+            try (
+                MockTransportService transportService = MockTransportService.createNewService(
+                    settings,
+                    Version.CURRENT,
+                    TransportVersion.CURRENT,
+                    threadPool,
+                    null
+                )
+            ) {
+                // remote cluster_1 has a credentials and uses the _remote_cluster transport profile
+                transportService.addConnectBehavior(c1Node.getAddress(), (transport, discoveryNode, profile, listener) -> {
+                    assertThat(profile.getTransportProfile(), equalTo("_remote_cluster"));
+                    transport.openConnection(discoveryNode, profile, listener);
+                });
+                // remote cluster_2 has no credentials and uses legacy model
+                transportService.addConnectBehavior(c2Node.getAddress(), (transport, discoveryNode, profile, listener) -> {
+                    assertThat(profile.getTransportProfile(), equalTo("default"));
+                    transport.openConnection(discoveryNode, profile, listener);
+                });
+                transportService.start();
+                transportService.acceptIncomingRequests();
+                try (RemoteClusterService service = new RemoteClusterService(settings, transportService)) {
+                    service.initializeRemoteClusters();
+
+                    final CountDownLatch firstLatch = new CountDownLatch(1);
+                    final Settings.Builder firstRemoteClusterSettingsBuilder = Settings.builder();
+                    final boolean firstRemoteClusterProxyMode = randomBoolean();
+                    if (firstRemoteClusterProxyMode) {
+                        firstRemoteClusterSettingsBuilder.put("cluster.remote.cluster_1.mode", "proxy")
+                            .put("cluster.remote.cluster_1.proxy_address", c1Node.getAddress().toString());
+                    } else {
+                        firstRemoteClusterSettingsBuilder.put("cluster.remote.cluster_1.seeds", c1Node.getAddress().toString());
+                    }
+                    service.updateRemoteCluster("cluster_1", firstRemoteClusterSettingsBuilder.build(), connectionListener(firstLatch));
+                    firstLatch.await();
+
+                    final CountDownLatch secondLatch = new CountDownLatch(1);
+                    final Settings.Builder secondRemoteClusterSettingsBuilder = Settings.builder();
+                    final boolean secondRemoteClusterProxyMode = randomBoolean();
+                    if (secondRemoteClusterProxyMode) {
+                        secondRemoteClusterSettingsBuilder.put("cluster.remote.cluster_2.mode", "proxy")
+                            .put("cluster.remote.cluster_2.proxy_address", c2Node.getAddress().toString());
+                    } else {
+                        secondRemoteClusterSettingsBuilder.put("cluster.remote.cluster_2.seeds", c2Node.getAddress().toString());
+                    }
+                    service.updateRemoteCluster("cluster_2", secondRemoteClusterSettingsBuilder.build(), connectionListener(secondLatch));
+                    secondLatch.await();
+
+                    assertTrue(service.isCrossClusterSearchEnabled());
+                    assertTrue(service.isRemoteClusterRegistered("cluster_1"));
+                    if (firstRemoteClusterProxyMode) {
+                        assertFalse(service.isRemoteNodeConnected("cluster_1", c1Node));
+                    } else {
+                        assertTrue(service.isRemoteNodeConnected("cluster_1", c1Node));
+                    }
+                    assertTrue(service.isRemoteClusterRegistered("cluster_2"));
+                    if (secondRemoteClusterProxyMode) {
+                        assertFalse(service.isRemoteNodeConnected("cluster_2", c2Node));
+                    } else {
+                        assertTrue(service.isRemoteNodeConnected("cluster_2", c2Node));
+                    }
+                    // No local node connection
+                    assertEquals(0, transportService.getConnectionManager().size());
+                }
+            }
         }
     }
 

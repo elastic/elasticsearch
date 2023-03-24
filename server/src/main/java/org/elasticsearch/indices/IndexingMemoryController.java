@@ -203,13 +203,16 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
      * Write pending indexing buffers. This should run on indexing threads in order to naturally apply back pressure on indexing. Lucene has
      * similar logic in DocumentsWriter#postUpdate.
      */
-    private void writePendingIndexingBuffers() {
+    private boolean writePendingIndexingBuffers() {
+        boolean wrotePendingIndexingBuffer = false;
         for (IndexShard shard = pendingWriteIndexingBufferQueue.pollFirst(); shard != null; shard = pendingWriteIndexingBufferQueue
             .pollFirst()) {
             // Remove the shard from the set first, so that multiple threads can run writeIndexingBuffer concurrently on the same shard.
             pendingWriteIndexingBufferSet.remove(shard);
             shard.writeIndexingBuffer();
+            wrotePendingIndexingBuffer = true;
         }
+        return wrotePendingIndexingBuffer;
     }
 
     private void writePendingIndexingBuffersAsync() {
@@ -246,14 +249,19 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         // be reclaimed rapidly. This has the downside of increasing the latency of _bulk requests though. Lucene does the same thing in
         // DocumentsWriter#postUpdate, flushing a segment because the size limit on the RAM buffer was reached happens on the call to
         // IndexWriter#addDocument.
-        writePendingIndexingBuffers();
+        if (writePendingIndexingBuffers()) {
+            // If we just wrote segments, then run the checker again if not already running to check if we released enough memory.
+            statusChecker.tryRun();
+        }
     }
 
     @Override
     public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
         recordOperationBytes(delete, result);
-        // Piggy back on indexing threads to write segments.
-        writePendingIndexingBuffers();
+        if (writePendingIndexingBuffers()) {
+            statusChecker.tryRun();
+        }
+
     }
 
     /** called by IndexShard to record estimated bytes written to translog for the operation */
@@ -315,6 +323,18 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
                     break;
                 }
             }
+        }
+
+        public boolean tryRun() {
+            if (runLock.tryLock() == false) {
+                return false;
+            }
+            try {
+                runUnlocked();
+            } finally {
+                runLock.unlock();
+            }
+            return true;
         }
 
         @Override
@@ -422,6 +442,9 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
                     queue.size()
                 );
 
+                // In theory, we could need to write the indexing buffer for multiple shards. However, in practice, we check the total
+                // amount of memory used by active shards so frequently (every indexing_buffer_size/128 bytes written to the translog) that
+                // this almost always returns a single shard that needs to flush some of its RAM buffer to disk.
                 while (totalBytesUsed > indexingBuffer.getBytes() && queue.isEmpty() == false) {
                     ShardAndBytesUsed largest = queue.poll();
                     logger.debug(

@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,10 +27,8 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
     public static class Path implements Writeable, ToXContentObject {
 
         String path;
-        @Nullable
         String mount;
         /** File system type from {@code java.nio.file.FileStore type()}, if available. */
-        @Nullable
         String type;
         long total = -1;
         long free = -1;
@@ -39,7 +36,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
 
         public Path() {}
 
-        public Path(String path, @Nullable String mount, long total, long free, long available) {
+        public Path(String path, String mount, long total, long free, long available) {
             this.path = path;
             this.mount = mount;
             this.total = total;

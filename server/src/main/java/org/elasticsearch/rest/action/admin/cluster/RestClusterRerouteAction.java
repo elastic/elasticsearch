@@ -71,6 +71,8 @@ public class RestClusterRerouteAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        // pre-consume response params
+        responseParams().forEach(request::param);
         ClusterRerouteRequest clusterRerouteRequest = createRequest(request);
         settingsFilter.addFilterSettingParams(request);
         if (clusterRerouteRequest.explain()) {

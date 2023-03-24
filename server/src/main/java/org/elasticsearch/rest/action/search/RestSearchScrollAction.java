@@ -48,6 +48,8 @@ public class RestSearchScrollAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        // pre-consume response params
+        RESPONSE_PARAMS.forEach(request::param);
         String scrollId = request.param("scroll_id");
         SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
         searchScrollRequest.scrollId(scrollId);

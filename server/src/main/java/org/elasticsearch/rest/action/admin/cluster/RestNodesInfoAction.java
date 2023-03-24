@@ -62,6 +62,9 @@ public class RestNodesInfoAction extends BaseRestHandler {
         String[] nodeIds;
         Set<String> metrics;
 
+        // pre-consume response params
+        Settings.FORMAT_PARAMS.forEach(request::param);
+
         // special case like /_nodes/os (in this case os are metrics and not the nodeId)
         // still, /_nodes/_local (or any other node id) should work and be treated as usual
         // this means one must differentiate between allowed metrics and arbitrary node ids in the same place

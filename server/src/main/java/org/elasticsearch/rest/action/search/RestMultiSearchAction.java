@@ -76,6 +76,8 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        // pre-consume response params
+        RESPONSE_PARAMS.forEach(request::param);
         final MultiSearchRequest multiSearchRequest = parseRequest(
             request,
             client.getNamedWriteableRegistry(),

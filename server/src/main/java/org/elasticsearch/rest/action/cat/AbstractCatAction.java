@@ -34,6 +34,8 @@ public abstract class AbstractCatAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        // pre-consume response params
+        RESPONSE_PARAMS.forEach(request::param);
         boolean helpWanted = request.paramAsBoolean("help", false);
         if (helpWanted) {
             return channel -> {

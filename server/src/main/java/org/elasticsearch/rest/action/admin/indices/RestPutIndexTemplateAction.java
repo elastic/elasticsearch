@@ -68,6 +68,8 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
         putRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRequest.masterNodeTimeout()));
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", ""));
+        // This is required so the "flat_settings" parameter counts as consumed
+        request.paramAsBoolean("flat_settings", false);
 
         Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false, request.getXContentType()).v2();
         if (request.getRestApiVersion() == RestApiVersion.V_7) {

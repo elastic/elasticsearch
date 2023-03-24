@@ -75,6 +75,8 @@ public class RestClusterStateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        // pre-consume response params
+        responseParams().forEach(request::param);
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterStateRequest.indicesOptions()));
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));

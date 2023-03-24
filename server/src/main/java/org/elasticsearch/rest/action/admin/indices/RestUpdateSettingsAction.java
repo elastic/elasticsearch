@@ -37,6 +37,8 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        // pre-consume response params
+        responseParams().forEach(request::param);
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indices);
         updateSettingsRequest.timeout(request.paramAsTime("timeout", updateSettingsRequest.timeout()));

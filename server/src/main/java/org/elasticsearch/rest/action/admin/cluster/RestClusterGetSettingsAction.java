@@ -65,6 +65,8 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        // pre-consume response params
+        responseParams().forEach(request::param);
         final boolean renderDefaults = request.paramAsBoolean("include_defaults", false);
 
         if (nodesInCluster.get().getMinNodeVersion().before(Version.V_8_3_0)) {

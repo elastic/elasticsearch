@@ -46,6 +46,8 @@ public class RestGetRepositoriesAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        // pre-consume response params
+        responseParams().forEach(request::param);
         final String[] repositories = request.paramAsStringArray("repository", Strings.EMPTY_ARRAY);
         GetRepositoriesRequest getRepositoriesRequest = new GetRepositoriesRequest(repositories);
         getRepositoriesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRepositoriesRequest.masterNodeTimeout()));

@@ -53,11 +53,14 @@ public class RestGetIndicesAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        // pre-consume response params
+        responseParams().forEach(request::param);
         // starting with 7.0 we don't include types by default in the response to GET requests
-        if (request.getRestApiVersion() == RestApiVersion.V_7
-            && request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)
-            && request.method().equals(GET)) {
-            deprecationLogger.compatibleCritical("get_indices_with_types", TYPES_DEPRECATION_MESSAGE);
+        if (request.getRestApiVersion() == RestApiVersion.V_7) {
+            responseParams(RestApiVersion.V_7).forEach(request::param);
+            if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER) && request.method().equals(GET)) {
+                deprecationLogger.compatibleCritical("get_indices_with_types", TYPES_DEPRECATION_MESSAGE);
+            }
         }
 
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));

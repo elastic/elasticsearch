@@ -44,6 +44,8 @@ public class RestGetComposableIndexTemplateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        // pre-consume response params
+        responseParams().forEach(request::param);
         final GetComposableIndexTemplateAction.Request getRequest = new GetComposableIndexTemplateAction.Request(request.param("name"));
 
         getRequest.local(request.paramAsBoolean("local", getRequest.local()));

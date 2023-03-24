@@ -60,6 +60,8 @@ public final class SettingsFilter {
     public void addFilterSettingParams(RestRequest request) {
         if (patterns.isEmpty() == false) {
             request.params().put(SETTINGS_FILTER_PARAM, patternString);
+            // consume settings filter param
+            request.param(SETTINGS_FILTER_PARAM);
         }
     }
 

@@ -22,16 +22,12 @@ import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -42,14 +38,14 @@ public class ClusterStatsNodesTests extends ESTestCase {
      * of the cluster stats xcontent output.
      */
     public void testNetworkTypesToXContent() throws Exception {
-        ClusterStatsNodes.NetworkTypes stats = new ClusterStatsNodes.NetworkTypes(emptyList());
+        ClusterStatsNodes.NetworkTypes stats = new ClusterStatsNodes.NetworkTypes(List.of());
         assertEquals("{\"transport_types\":{},\"http_types\":{}}", toXContent(stats, XContentType.JSON, randomBoolean()).utf8ToString());
 
-        List<NodeInfo> nodeInfos = singletonList(createNodeInfo("node_0", null, null));
+        List<NodeInfo> nodeInfos = List.of(createNodeInfo("node_0", null, null));
         stats = new ClusterStatsNodes.NetworkTypes(nodeInfos);
         assertEquals("{\"transport_types\":{},\"http_types\":{}}", toXContent(stats, XContentType.JSON, randomBoolean()).utf8ToString());
 
-        nodeInfos = Arrays.asList(
+        nodeInfos = List.of(
             createNodeInfo("node_1", "", ""),
             createNodeInfo("node_2", "custom", "custom"),
             createNodeInfo("node_3", null, "custom")
@@ -85,7 +81,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
             });
         });
 
-        ClusterStatsNodes.IngestStats stats = new ClusterStatsNodes.IngestStats(Collections.singletonList(nodeStats));
+        ClusterStatsNodes.IngestStats stats = new ClusterStatsNodes.IngestStats(List.of(nodeStats));
         assertThat(stats.pipelineCount, equalTo(nodeStats.getIngestStats().getProcessorStats().size()));
         StringBuilder processorStatsString = new StringBuilder("{");
         Iterator<Map.Entry<String, long[]>> iter = processorStats.entrySet().iterator();
@@ -110,7 +106,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
     }
 
     public void testIndexPressureStats() throws Exception {
-        List<NodeStats> nodeStats = Arrays.asList(
+        List<NodeStats> nodeStats = List.of(
             randomValueOtherThanMany(n -> n.getIndexingPressureStats() == null, NodeStatsTests::createNodeStats),
             randomValueOtherThanMany(n -> n.getIndexingPressureStats() == null, NodeStatsTests::createNodeStats)
         );

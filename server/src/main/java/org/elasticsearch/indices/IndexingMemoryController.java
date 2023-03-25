@@ -244,24 +244,26 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
 
     @Override
     public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
-        recordOperationBytes(index, result);
-        // Piggy back on indexing threads to write segments. We're not submitting a task to the index threadpool because we want memory to
-        // be reclaimed rapidly. This has the downside of increasing the latency of _bulk requests though. Lucene does the same thing in
-        // DocumentsWriter#postUpdate, flushing a segment because the size limit on the RAM buffer was reached happens on the call to
-        // IndexWriter#addDocument.
-        if (writePendingIndexingBuffers()) {
-            // If we just wrote segments, then run the checker again if not already running to check if we released enough memory.
-            statusChecker.tryRun();
-        }
+        postOperation(shardId, index, result);
     }
 
     @Override
     public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
-        recordOperationBytes(delete, result);
-        if (writePendingIndexingBuffers()) {
-            statusChecker.tryRun();
-        }
+        postOperation(shardId, delete, result);
+    }
 
+    private void postOperation(ShardId shardId, Engine.Operation operation, Engine.Result result) {
+        recordOperationBytes(operation, result);
+        // Piggy back on indexing threads to write segments. We're not submitting a task to the index threadpool because we want memory to
+        // be reclaimed rapidly. This has the downside of increasing the latency of _bulk requests though. Lucene does the same thing in
+        // DocumentsWriter#postUpdate, flushing a segment because the size limit on the RAM buffer was reached happens on the call to
+        // IndexWriter#addDocument.
+        while (writePendingIndexingBuffers()) {
+            // If we just wrote segments, then run the checker again if not already running to check if we released enough memory.
+            if (statusChecker.tryRun() == false) {
+                break;
+            }
+        }
     }
 
     /** called by IndexShard to record estimated bytes written to translog for the operation */

@@ -838,7 +838,13 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             assertTrue("expected eventual ack from " + leader, ackCollector.hasAckedSuccessfully(leader));
             assertFalse("expected no ack from " + follower0, ackCollector.hasAcked(follower0));
 
+            logger.info("--> publishing final value to resynchronize nodes");
             follower0.setClusterStateApplyResponse(ClusterStateApplyResponse.SUCCEED);
+            ackCollector = leader.submitValue(randomLong());
+            cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+            assertTrue(ackCollector.hasAckedSuccessfully(leader));
+            assertTrue(ackCollector.hasAckedSuccessfully(follower0));
+            assertTrue(ackCollector.hasAckedSuccessfully(follower1));
         }
     }
 

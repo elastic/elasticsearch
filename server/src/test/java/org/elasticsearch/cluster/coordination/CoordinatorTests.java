@@ -825,10 +825,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final ClusterNode follower0 = cluster.getAnyNodeExcept(leader);
             final ClusterNode follower1 = cluster.getAnyNodeExcept(leader, follower0);
 
-            logger.info("--> leader={}", leader);
-            logger.info("--> follower0={}", follower0);
-            logger.info("--> follower1={}", follower1);
-
             logger.info("--> blocking cluster state application on {}", follower0);
             follower0.setClusterStateApplyResponse(ClusterStateApplyResponse.HANG);
 
@@ -838,7 +834,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             assertTrue("expected immediate ack from " + follower1, ackCollector.hasAckedSuccessfully(follower1));
             assertFalse("expected no ack from " + leader, ackCollector.hasAckedSuccessfully(leader));
-            cluster.stabilise(defaultMillis(PUBLISH_TIMEOUT_SETTING) + 300000);
+            cluster.stabilise(defaultMillis(PUBLISH_TIMEOUT_SETTING));
             assertTrue("expected eventual ack from " + leader, ackCollector.hasAckedSuccessfully(leader));
             assertFalse("expected no ack from " + follower0, ackCollector.hasAcked(follower0));
 

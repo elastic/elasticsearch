@@ -315,6 +315,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         }
     }
 
+    // only for tests - in production, this happens after reconciliation
+    protected final void completeToLastConvergedIndex() {
+        queue.complete(currentDesiredBalance.lastConvergedIndex());
+    }
+
     private void recordTime(CounterMetric metric, Runnable action) {
         final long started = threadPool.relativeTimeInMillis();
         try {

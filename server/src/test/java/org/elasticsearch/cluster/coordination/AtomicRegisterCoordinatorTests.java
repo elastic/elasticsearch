@@ -202,8 +202,13 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     }
 
     @Override
-    @AwaitsFix(bugUrl = "TODO")
+    @TestLogging(
+        reason = "TODO",
+        value = "org.elasticsearch.common.util.concurrent.DeterministicTaskQueue:TRACE," + "org.elasticsearch.cluster.coordination:TRACE"
+    )
+//    @AwaitsFix(bugUrl = "TODO")
     public void testAckListenerReceivesNoAckFromHangingFollower() {
+        super.testAckListenerReceivesNoAckFromHangingFollower();
     }
 
     @Override

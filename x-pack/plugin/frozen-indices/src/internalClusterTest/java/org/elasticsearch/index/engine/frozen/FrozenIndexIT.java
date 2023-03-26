@@ -71,10 +71,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
     public void testTimestampRangeRecalculatedOnStalePrimaryAllocation() throws IOException {
         final List<String> nodeNames = internalCluster().startNodes(2);
 
-        createIndex(
-            "index",
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()
-        );
+        createIndex("index", 1, 1);
 
         final IndexResponse indexResponse = client().prepareIndex("index")
             .setSource(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, "2010-01-06T02:03:04.567Z")

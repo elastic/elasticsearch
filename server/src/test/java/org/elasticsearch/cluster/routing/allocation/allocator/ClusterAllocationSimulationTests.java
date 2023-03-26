@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,6 +29,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
@@ -289,7 +291,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
             clusterInfoService.addIndex(shardSizeByIndex.getKey(), shardSizeByIndex.getValue());
         }
 
-        final var tuple = createNewAllocationService(threadPool, clusterService, clusterInfoService);
+        final var tuple = createNewAllocationService(threadPool, deterministicTaskQueue::runAllTasks, clusterService, clusterInfoService);
         final var allocationService = tuple.getKey();
 
         final var initializingPrimaries = allocationService.executeWithRoutingAllocation(
@@ -472,6 +474,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
 
     private Map.Entry<MockAllocationService, ShardsAllocator> createNewAllocationService(
         ThreadPool threadPool,
+        Runnable runAllTasks,
         ClusterService clusterService,
         ClusterInfoService clusterInfoService
     ) {
@@ -486,7 +489,13 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
             clusterService,
             (clusterState, routingAllocationAction) -> strategyRef.get()
                 .executeWithRoutingAllocation(clusterState, "reconcile-desired-balance", routingAllocationAction)
-        );
+        ) {
+            @Override
+            public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
+                super.allocate(allocation, listener);
+                runAllTasks.run();
+            }
+        };
         var strategy = new MockAllocationService(
             randomAllocationDeciders(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             new TestGatewayAllocator(),

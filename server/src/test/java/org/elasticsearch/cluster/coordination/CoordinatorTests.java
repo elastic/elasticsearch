@@ -44,7 +44,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -721,7 +720,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
      * Old leader is initiating an election at the same time, and wins election. It becomes leader again, but as it previously
      * successfully completed state recovery, is never reset to a state where state recovery can be retried.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91449")
     public void testStateRecoveryResetAfterPreviousLeadership() {
         try (Cluster cluster = new Cluster(3)) {
             cluster.runRandomly();
@@ -732,7 +730,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final ClusterNode follower2 = cluster.getAnyNodeExcept(leader, follower1);
 
             // restart follower1 and follower2
-            for (ClusterNode clusterNode : Arrays.asList(follower1, follower2)) {
+            for (ClusterNode clusterNode : List.of(follower1, follower2)) {
                 clusterNode.close();
                 cluster.clusterNodes.forEach(cn -> cluster.deterministicTaskQueue.scheduleNow(cn.onNode(new Runnable() {
                     @Override

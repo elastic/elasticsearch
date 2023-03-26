@@ -38,8 +38,10 @@ import static org.elasticsearch.cluster.coordination.CoordinationStateTests.clus
 @TestLogging(reason = "these tests do a lot of log-worthy things but we usually don't care", value = "org.elasticsearch:FATAL")
 public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
-    @TestLogging(reason="nocommit", value="org.elasticsearch.common.util.concurrent.DeterministicTaskQueue:TRACE," +
-                                          "org.elasticsearch.cluster.coordination:TRACE")
+    @TestLogging(
+        reason = "TODO",
+        value = "org.elasticsearch.common.util.concurrent.DeterministicTaskQueue:TRACE," + "org.elasticsearch.cluster.coordination:TRACE"
+    )
     public void testSimpleCase() {
         try (Cluster cluster = new Cluster(2)) {
             cluster.runRandomly();

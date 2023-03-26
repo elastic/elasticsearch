@@ -317,7 +317,17 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                 }
             }, () -> {
                 releaseListener();
-                transportService.getThreadPool().generic().execute(this::doConnect);
+                threadPool.generic().execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        ConnectionTarget.this.doConnect();
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "ensure connection to " + discoveryNode;
+                    }
+                });
             }));
         }
 

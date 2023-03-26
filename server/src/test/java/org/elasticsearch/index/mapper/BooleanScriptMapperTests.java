@@ -73,16 +73,16 @@ public class BooleanScriptMapperTests extends MapperScriptTestCase<BooleanFieldS
     @Override
     protected void assertMultipleValues(IndexableField[] fields) {
         assertEquals(4, fields.length);
-        assertEquals("indexed,omitNorms,indexOptions=DOCS<field:F>", fields[0].toString());
+        assertEquals("indexed,omitNorms,indexOptions=DOCS<field:[46]>", fields[0].toString());
         assertEquals("docValuesType=SORTED_NUMERIC<field:0>", fields[1].toString());
-        assertEquals("indexed,omitNorms,indexOptions=DOCS<field:T>", fields[2].toString());
+        assertEquals("indexed,omitNorms,indexOptions=DOCS<field:[54]>", fields[2].toString());
         assertEquals("docValuesType=SORTED_NUMERIC<field:1>", fields[3].toString());
     }
 
     @Override
     protected void assertDocValuesDisabled(IndexableField[] fields) {
         assertEquals(1, fields.length);
-        assertEquals("indexed,omitNorms,indexOptions=DOCS<field:T>", fields[0].toString());
+        assertEquals("indexed,omitNorms,indexOptions=DOCS<field:[54]>", fields[0].toString());
     }
 
     @Override

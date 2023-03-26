@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContext
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -1407,6 +1408,8 @@ public final class Authentication implements ToXContentObject {
                     return SecurityProfileUser.INSTANCE;
                 } else if (AsyncSearchUser.NAME.equals(username)) {
                     return AsyncSearchUser.INSTANCE;
+                } else if (CrossClusterAccessUser.NAME.equals(username)) {
+                    return CrossClusterAccessUser.INSTANCE;
                 }
                 throw new IllegalStateException("username [" + username + "] does not match any internal user");
             }
@@ -1431,6 +1434,8 @@ public final class Authentication implements ToXContentObject {
                 output.writeString(SecurityProfileUser.NAME);
             } else if (AsyncSearchUser.is(user)) {
                 output.writeString(AsyncSearchUser.NAME);
+            } else if (CrossClusterAccessUser.is(user)) {
+                output.writeString(CrossClusterAccessUser.NAME);
             } else {
                 assert false;
                 throw new IllegalStateException("user [" + user + "] is not internal");

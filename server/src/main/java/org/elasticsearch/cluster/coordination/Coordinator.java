@@ -224,7 +224,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             nodeHealthService,
             joinReasonService,
             circuitBreakerService,
-            reconfigurator::maybeReconfigureAfterNewMasterIsElected
+            reconfigurator::maybeReconfigureAfterNewMasterIsElected,
+            this::getLatestStoredStateAfterWinningAnElection
         );
         this.joinValidationService = new JoinValidationService(
             settings,
@@ -527,22 +528,17 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     }
 
     private void broadcastStartJoinRequest(StartJoinRequest startJoinRequest, List<DiscoveryNode> discoveredNodes) {
-        electionStrategy.onNewElection(
-            startJoinRequest.getSourceNode(),
-            startJoinRequest.getTerm(),
-            getLastAcceptedState(),
-            new ActionListener<>() {
-                @Override
-                public void onResponse(Void ignored) {
-                    discoveredNodes.forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.debug(Strings.format("election attempt failed, dropping [%s]", startJoinRequest), e);
-                }
+        electionStrategy.onNewElection(startJoinRequest.getSourceNode(), startJoinRequest.getTerm(), new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                discoveredNodes.forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
             }
-        );
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.debug(Strings.format("election attempt failed, dropping [%s]", startJoinRequest), e);
+            }
+        });
     }
 
     private void abdicateTo(DiscoveryNode newMaster) {
@@ -1383,6 +1379,16 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
     }
 
+    private void getLatestStoredStateAfterWinningAnElection(ActionListener<ClusterState> listener) {
+        persistedStateSupplier.get().getLatestStoredState(listener.delegateResponse((delegate, e) -> {
+            synchronized (mutex) {
+                // TODO: add test coverage for this branch
+                becomeCandidate("failed fetching latest stored state");
+            }
+            delegate.onFailure(e);
+        }));
+    }
+
     @Nullable
     public ClusterState getApplierState() {
         return applierState;
@@ -1690,8 +1696,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
     }
 
-    void beforeCommit(long term, long version) {
-        electionStrategy.beforeCommit(term, version);
+    private void beforeCommit(long term, long version, ActionListener<Void> listener) {
+        electionStrategy.beforeCommit(term, version, listener);
     }
 
     class CoordinatorPublication extends Publication {
@@ -1927,12 +1933,17 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
 
         @Override
-        protected Optional<ApplyCommitRequest> handlePublishResponse(DiscoveryNode sourceNode, PublishResponse publishResponse) {
+        protected Optional<ListenableFuture<ApplyCommitRequest>> handlePublishResponse(
+            DiscoveryNode sourceNode,
+            PublishResponse publishResponse
+        ) {
             assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
             assert getCurrentTerm() >= publishResponse.getTerm();
-            var applyCommit = coordinationState.get().handlePublishResponse(sourceNode, publishResponse);
-            applyCommit.ifPresent(applyCommitRequest -> beforeCommit(applyCommitRequest.getTerm(), applyCommitRequest.getVersion()));
-            return applyCommit;
+            return coordinationState.get().handlePublishResponse(sourceNode, publishResponse).map(applyCommitRequest -> {
+                final var future = new ListenableFuture<ApplyCommitRequest>();
+                beforeCommit(applyCommitRequest.getTerm(), applyCommitRequest.getVersion(), future.map(ignored -> applyCommitRequest));
+                return future;
+            });
         }
 
         @Override
@@ -1981,6 +1992,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             ActionListener<Empty> responseActionListener
         ) {
             assert transportService.getThreadPool().getThreadContext().isSystemContext();
+            assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
             try {
                 transportService.sendRequest(
                     destination,
@@ -1996,6 +2008,17 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             } catch (Exception e) {
                 responseActionListener.onFailure(e);
             }
+        }
+
+        @Override
+        protected <T> ActionListener<T> wrapListener(ActionListener<T> listener) {
+            return wrapWithMutex(listener);
+        }
+
+        @Override
+        boolean publicationCompletedIffAllTargetsInactiveOrCancelled() {
+            assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+            return super.publicationCompletedIffAllTargetsInactiveOrCancelled();
         }
     }
 

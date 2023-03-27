@@ -8,7 +8,10 @@
 
 package org.elasticsearch.health.node;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -23,6 +26,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -34,6 +38,8 @@ import static org.hamcrest.Matchers.hasSize;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ShardsCapacityHealthIndicatorServiceIT extends ESIntegTestCase {
+
+    private static final Logger logger = LogManager.getLogger(ShardsCapacityHealthIndicatorServiceIT.class);
 
     private static final String INDEX_NAME = "index-name";
     private InternalTestCluster internalCluster;
@@ -143,8 +149,17 @@ public class ShardsCapacityHealthIndicatorServiceIT extends ESIntegTestCase {
     }
 
     private static DiscoveryNode findHealthNode() {
-        var state = internalCluster().clusterService().state();
-        DiscoveryNode healthNode = HealthNode.findHealthNode(state);
+        try {
+            waitUntil(() -> {
+                ClusterState state = internalCluster().clusterService().state();
+                DiscoveryNode healthNode = HealthNode.findHealthNode(state);
+                return healthNode != null;
+            }, 15, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            logger.warn("--> interrupted whilst waiting for the health node to be elected");
+            Thread.currentThread().interrupt();
+        }
+        DiscoveryNode healthNode = HealthNode.findHealthNode(internalCluster().clusterService().state());
         assertNotNull(healthNode);
         return healthNode;
     }

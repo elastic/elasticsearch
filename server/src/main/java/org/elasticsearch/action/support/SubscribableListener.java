@@ -29,9 +29,9 @@ import java.util.concurrent.atomic.AtomicReference;
  * Similar to {@link ListenableActionFuture} and {@link ListenableFuture} except for its handling of exceptions: if this listener is
  * completed exceptionally then the exception is passed to subscribed listeners without modification.
  */
-public class FanOutListener<T> implements ActionListener<T> {
+public class SubscribableListener<T> implements ActionListener<T> {
 
-    private static final Logger logger = LogManager.getLogger(FanOutListener.class);
+    private static final Logger logger = LogManager.getLogger(SubscribableListener.class);
     private static final Object EMPTY = new Object();
 
     /**
@@ -245,7 +245,7 @@ public class FanOutListener<T> implements ActionListener<T> {
     }
 
     private static boolean isDone(Object refValue) {
-        return refValue instanceof FanOutListener.SuccessResult<?> || refValue instanceof FanOutListener.FailureResult;
+        return refValue instanceof SubscribableListener.SuccessResult<?> || refValue instanceof SubscribableListener.FailureResult;
     }
 
     /**

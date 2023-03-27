@@ -27,7 +27,7 @@ import java.util.function.IntFunction;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class FanOutListenerTests extends ESTestCase {
+public class SubscribableListenerTests extends ESTestCase {
 
     private static class OrderAssertingRunnable implements Runnable {
         private final int index;
@@ -45,7 +45,7 @@ public class FanOutListenerTests extends ESTestCase {
     }
 
     public void testSubscriptionOrder() {
-        var listener = new FanOutListener<>();
+        var listener = new SubscribableListener<>();
         var order = new AtomicInteger();
 
         var subscriberCount = between(0, 4);
@@ -69,7 +69,7 @@ public class FanOutListenerTests extends ESTestCase {
     }
 
     public void testOnResponse() {
-        var listener = new FanOutListener<>();
+        var listener = new SubscribableListener<>();
         var order = new AtomicInteger();
         var expectedResponse = new Object();
 
@@ -102,7 +102,7 @@ public class FanOutListenerTests extends ESTestCase {
     }
 
     public void testOnFailure() {
-        var listener = new FanOutListener<>();
+        var listener = new SubscribableListener<>();
         var order = new AtomicInteger();
         var expectedException = new ElasticsearchException("test");
 
@@ -135,7 +135,7 @@ public class FanOutListenerTests extends ESTestCase {
     }
 
     public void testThreadContext() {
-        final var listener = new FanOutListener<>();
+        final var listener = new SubscribableListener<>();
         final var threadContext = new ThreadContext(Settings.EMPTY);
         final var subscriberCount = between(1, 5);
         final var completedListeners = new AtomicInteger();
@@ -158,7 +158,7 @@ public class FanOutListenerTests extends ESTestCase {
 
     public void testConcurrency() throws InterruptedException {
         final var threadContext = new ThreadContext(Settings.EMPTY);
-        final var listener = new FanOutListener<>();
+        final var listener = new SubscribableListener<>();
         final var subscriberThreads = between(0, 10);
         final var completerThreads = between(1, 10);
         final var barrier = new CyclicBarrier(subscriberThreads + completerThreads);
@@ -256,7 +256,7 @@ public class FanOutListenerTests extends ESTestCase {
                 }
             };
 
-            final var listener = new FanOutListener<>();
+            final var listener = new SubscribableListener<>();
             final var headerName = "test-header";
 
             try (var ignored = threadContext.stashContext()) {

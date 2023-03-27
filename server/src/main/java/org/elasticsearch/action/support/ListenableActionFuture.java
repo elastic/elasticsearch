@@ -22,7 +22,7 @@ import java.util.concurrent.ExecutionException;
  * #addListener}. Listeners added before completion are retained until completion; listeners added after completion are completed
  * immediately.
  *
- * Similar to {@link ListenableFuture} and {@link FanOutListener} except for its handling of exceptions: if this listener is completed
+ * Similar to {@link ListenableFuture} and {@link SubscribableListener} except for its handling of exceptions: if this listener is completed
  * exceptionally with an {@link ElasticsearchException} that is also an {@link ElasticsearchWrapperException} then it is unwrapped using
  * {@link ExceptionsHelper#unwrapCause}; if the resulting exception is a checked exception then it is wrapped in an {@link
  * UncategorizedExecutionException}. Moreover if this listener is completed exceptionally with a checked exception then it wraps the
@@ -30,7 +30,7 @@ import java.util.concurrent.ExecutionException;
  * exception. This matches the behaviour of {@link PlainActionFuture#actionGet}.
  */
 // The name {@link ListenableActionFuture} dates back a long way and could be improved - TODO find a better name
-public final class ListenableActionFuture<T> extends FanOutListener<T> {
+public final class ListenableActionFuture<T> extends SubscribableListener<T> {
     public T actionResult() {
         try {
             return super.rawResult();

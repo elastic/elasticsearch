@@ -9,7 +9,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.FanOutListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
 
 import java.util.concurrent.ExecutionException;
@@ -19,12 +19,12 @@ import java.util.concurrent.ExecutionException;
  * #addListener}. Listeners added before completion are retained until completion; listeners added after completion are completed
  * immediately.
  *
- * Similar to {@link ListenableActionFuture} and {@link FanOutListener} except for its handling of exceptions: if this listener is
+ * Similar to {@link ListenableActionFuture} and {@link SubscribableListener} except for its handling of exceptions: if this listener is
  * completed exceptionally with a checked exception then it wraps the exception in an {@link UncategorizedExecutionException} whose cause is
  * an {@link ExecutionException}, whose cause in turn is the checked exception. This matches the behaviour of {@link FutureUtils#get}.
  */
 // The name {@link ListenableFuture} dates back a long way and could be improved - TODO find a better name
-public final class ListenableFuture<T> extends FanOutListener<T> {
+public final class ListenableFuture<T> extends SubscribableListener<T> {
     public T result() {
         try {
             return super.rawResult();

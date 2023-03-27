@@ -111,20 +111,6 @@ public class DefaultLocalClusterSpecBuilder extends AbstractLocalSpecBuilder<Loc
 
     @Override
     public ElasticsearchCluster build() {
-        List<User> clusterUsers = users.isEmpty() ? List.of(User.DEFAULT_USER) : users;
-        LocalClusterSpec clusterSpec = new LocalClusterSpec(name, clusterUsers, roleFiles);
-        List<LocalNodeSpec> nodeSpecs;
-
-        if (nodeBuilders.isEmpty()) {
-            // No node-specific configuration so assume a single-node cluster
-            nodeSpecs = List.of(new DefaultLocalNodeSpecBuilder(this).build(clusterSpec));
-        } else {
-            nodeSpecs = nodeBuilders.stream().map(node -> node.build(clusterSpec)).toList();
-        }
-
-        clusterSpec.setNodes(nodeSpecs);
-        clusterSpec.validate();
-
         return new LocalElasticsearchCluster(this);
     }
 

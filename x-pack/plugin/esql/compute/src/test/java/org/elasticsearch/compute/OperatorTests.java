@@ -54,6 +54,7 @@ import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ValueSourceInfo;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.FilterOperator;
@@ -483,51 +484,67 @@ public class OperatorTests extends ESTestCase {
             Map<BytesRef, Long> actualCounts = new HashMap<>();
             BigArrays bigArrays = bigArrays();
             boolean shuffleDocs = randomBoolean();
-            Operator shuffleDocsOperator = new MapPageOperator(page -> {
-                if (shuffleDocs == false) {
-                    return page;
-                }
-                DocVector docVector = (DocVector) page.getBlock(0).asVector();
-                int positionCount = docVector.getPositionCount();
-                IntVector shards = docVector.shards();
-                if (randomBoolean()) {
-                    IntVector.Builder builder = IntVector.newVectorBuilder(positionCount);
-                    for (int i = 0; i < positionCount; i++) {
-                        builder.appendInt(shards.getInt(i));
+            Operator shuffleDocsOperator = new AbstractPageMappingOperator() {
+                @Override
+                protected Page process(Page page) {
+                    if (shuffleDocs == false) {
+                        return page;
                     }
-                    shards = builder.build();
-                }
-                IntVector segments = docVector.segments();
-                if (randomBoolean()) {
-                    IntVector.Builder builder = IntVector.newVectorBuilder(positionCount);
-                    for (int i = 0; i < positionCount; i++) {
-                        builder.appendInt(segments.getInt(i));
+                    DocVector docVector = (DocVector) page.getBlock(0).asVector();
+                    int positionCount = docVector.getPositionCount();
+                    IntVector shards = docVector.shards();
+                    if (randomBoolean()) {
+                        IntVector.Builder builder = IntVector.newVectorBuilder(positionCount);
+                        for (int i = 0; i < positionCount; i++) {
+                            builder.appendInt(shards.getInt(i));
+                        }
+                        shards = builder.build();
                     }
-                    segments = builder.build();
-                }
-                IntVector docs = docVector.docs();
-                if (randomBoolean()) {
-                    List<Integer> ids = new ArrayList<>(positionCount);
-                    for (int i = 0; i < positionCount; i++) {
-                        ids.add(docs.getInt(i));
+                    IntVector segments = docVector.segments();
+                    if (randomBoolean()) {
+                        IntVector.Builder builder = IntVector.newVectorBuilder(positionCount);
+                        for (int i = 0; i < positionCount; i++) {
+                            builder.appendInt(segments.getInt(i));
+                        }
+                        segments = builder.build();
                     }
-                    Collections.shuffle(ids, random());
-                    docs = new IntArrayVector(ids.stream().mapToInt(n -> n).toArray(), positionCount);
+                    IntVector docs = docVector.docs();
+                    if (randomBoolean()) {
+                        List<Integer> ids = new ArrayList<>(positionCount);
+                        for (int i = 0; i < positionCount; i++) {
+                            ids.add(docs.getInt(i));
+                        }
+                        Collections.shuffle(ids, random());
+                        docs = new IntArrayVector(ids.stream().mapToInt(n -> n).toArray(), positionCount);
+                    }
+                    Block[] blocks = new Block[page.getBlockCount()];
+                    blocks[0] = new DocVector(shards, segments, docs, false).asBlock();
+                    for (int i = 1; i < blocks.length; i++) {
+                        blocks[i] = page.getBlock(i);
+                    }
+                    return new Page(blocks);
                 }
-                Block[] blocks = new Block[page.getBlockCount()];
-                blocks[0] = new DocVector(shards, segments, docs, false).asBlock();
-                for (int i = 1; i < blocks.length; i++) {
-                    blocks[i] = page.getBlock(i);
+
+                @Override
+                public String toString() {
+                    return "ShuffleDocs";
                 }
-                return new Page(blocks);
-            });
+            };
 
             try (DirectoryReader reader = writer.getReader()) {
                 Driver driver = new Driver(
                     new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery()),
-                    List.of(
-                        shuffleDocsOperator,
-                        new MapPageOperator(p -> p.appendBlock(IntBlock.newConstantBlockWith(1, p.getPositionCount()))),
+                    List.of(shuffleDocsOperator, new AbstractPageMappingOperator() {
+                        @Override
+                        protected Page process(Page page) {
+                            return page.appendBlock(IntBlock.newConstantBlockWith(1, page.getPositionCount()));
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "Add(1)";
+                        }
+                    },
                         new OrdinalsGroupingOperator(
                             List.of(
                                 new ValueSourceInfo(
@@ -756,48 +773,6 @@ public class OperatorTests extends ESTestCase {
                 };
             }
         };
-    }
-
-    static class MapPageOperator implements Operator {
-        private Page output;
-        private final Function<Page, Page> fn;
-        private boolean finished = false;
-
-        MapPageOperator(Function<Page, Page> fn) {
-            this.fn = fn;
-        }
-
-        @Override
-        public boolean needsInput() {
-            return output == null;
-        }
-
-        @Override
-        public void addInput(Page page) {
-            output = fn.apply(page);
-        }
-
-        @Override
-        public void finish() {
-            finished = true;
-        }
-
-        @Override
-        public boolean isFinished() {
-            return finished && output == null;
-        }
-
-        @Override
-        public Page getOutput() {
-            Page p = output;
-            output = null;
-            return p;
-        }
-
-        @Override
-        public void close() {
-
-        }
     }
 
     /**

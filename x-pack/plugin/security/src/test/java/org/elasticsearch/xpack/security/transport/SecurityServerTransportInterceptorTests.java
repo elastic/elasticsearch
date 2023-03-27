@@ -23,7 +23,6 @@ import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -43,7 +42,6 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -53,12 +51,14 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
@@ -86,7 +86,6 @@ import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubj
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
 import static org.elasticsearch.xpack.security.transport.RemoteClusterCredentialsResolver.RemoteClusterCredentials;
-import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -149,7 +148,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
             mock(CrossClusterAccessAuthenticationService.class),
-            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings())
+            new RemoteClusterCredentialsResolver(settings)
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -200,7 +199,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
             mock(CrossClusterAccessAuthenticationService.class),
-            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings())
+            new RemoteClusterCredentialsResolver(settings)
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -244,7 +243,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
             mock(CrossClusterAccessAuthenticationService.class),
-            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings())
+            new RemoteClusterCredentialsResolver(settings)
         ) {
             @Override
             void assertNoAuthentication(String action) {}
@@ -306,7 +305,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
             mock(CrossClusterAccessAuthenticationService.class),
-            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings())
+            new RemoteClusterCredentialsResolver(settings)
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -374,7 +373,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
             mock(CrossClusterAccessAuthenticationService.class),
-            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings())
+            new RemoteClusterCredentialsResolver(settings)
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -438,7 +437,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
             mock(CrossClusterAccessAuthenticationService.class),
-            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings())
+            new RemoteClusterCredentialsResolver(settings)
         );
 
         final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
@@ -590,6 +589,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             default -> throw new IllegalStateException("unexpected case");
         };
         authentication.writeToContext(threadContext);
+        final String expectedRequestId = AuditUtil.getOrGenerateRequestId(threadContext);
         final RemoteClusterCredentialsResolver remoteClusterCredentialsResolver = mock(RemoteClusterCredentialsResolver.class);
         final String remoteClusterAlias = randomAlphaOfLengthBetween(5, 10);
         final String remoteClusterCredential = ApiKeyService.withApiKeyPrefix(randomAlphaOfLengthBetween(10, 42));
@@ -634,6 +634,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                     fail("sender called more than once");
                 }
                 assertThat(securityContext.getAuthentication(), nullValue());
+                assertThat(AuditUtil.extractRequestId(securityContext.getThreadContext()), equalTo(expectedRequestId));
                 sentCredential.set(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY));
                 try {
                     sentCrossClusterAccessSubjectInfo.set(
@@ -647,8 +648,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         });
         final Transport.Connection connection = mock(Transport.Connection.class);
         when(connection.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
-        final Tuple<String, TransportRequest> actionAndReq = randomAllowlistedActionAndRequest();
-        sender.sendRequest(connection, actionAndReq.v1(), actionAndReq.v2(), null, new TransportResponseHandler<>() {
+        sender.sendRequest(connection, "action", mock(TransportRequest.class), null, new TransportResponseHandler<>() {
             @Override
             public void handleResponse(TransportResponse response) {
                 // Headers should get restored before handle response is called
@@ -667,31 +667,44 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 return null;
             }
         });
-        final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection;
         if (authType.equals("internal")) {
-            expectedRoleDescriptorsIntersection = RoleDescriptorsIntersection.EMPTY;
+            assertThat(
+                sentCrossClusterAccessSubjectInfo.get(),
+                equalTo(
+                    CrossClusterAccessUser.subjectInfoWithEmptyRoleDescriptors(
+                        authentication.getEffectiveSubject().getTransportVersion(),
+                        authentication.getEffectiveSubject().getRealm().getNodeName()
+                    )
+                )
+            );
+            verify(authzService, never()).getRoleDescriptorsIntersectionForRemoteCluster(
+                eq(remoteClusterAlias),
+                eq(authentication.getEffectiveSubject()),
+                anyActionListener()
+            );
         } else {
-            expectedRoleDescriptorsIntersection = new RoleDescriptorsIntersection(
+            final RoleDescriptorsIntersection expectedRoleDescriptorsIntersection = new RoleDescriptorsIntersection(
                 randomList(1, 3, () -> Set.copyOf(randomUniquelyNamedRoleDescriptors(0, 1)))
             );
             // Call listener to complete flow
             listenerCaptor.getValue().onResponse(expectedRoleDescriptorsIntersection);
+            verify(authzService, times(1)).getRoleDescriptorsIntersectionForRemoteCluster(
+                eq(remoteClusterAlias),
+                eq(authentication.getEffectiveSubject()),
+                anyActionListener()
+            );
+            assertThat(
+                sentCrossClusterAccessSubjectInfo.get(),
+                equalTo(new CrossClusterAccessSubjectInfo(authentication, expectedRoleDescriptorsIntersection))
+            );
         }
         assertTrue(calledWrappedSender.get());
         assertThat(sentCredential.get(), equalTo(remoteClusterCredential));
-        assertThat(
-            sentCrossClusterAccessSubjectInfo.get(),
-            equalTo(new CrossClusterAccessSubjectInfo(authentication, expectedRoleDescriptorsIntersection))
-        );
         verify(securityContext, never()).executeAsInternalUser(any(), any(), anyConsumer());
         verify(remoteClusterCredentialsResolver, times(1)).resolve(eq(remoteClusterAlias));
-        verify(authzService, times(authType.equals("internal") ? 0 : 1)).getRoleDescriptorsIntersectionForRemoteCluster(
-            eq(remoteClusterAlias),
-            eq(authentication.getEffectiveSubject()),
-            anyActionListener()
-        );
         assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY), nullValue());
         assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY), nullValue());
+        assertThat(AuditUtil.extractRequestId(securityContext.getThreadContext()), equalTo(expectedRequestId));
     }
 
     public void testSendWithUserIfCrossClusterAccessHeadersConditionNotMet() throws Exception {
@@ -699,9 +712,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
 
         boolean noCredential = randomBoolean();
         final boolean notRemoteConnection = randomBoolean();
-        final boolean unsupportedAuthentication = randomBoolean();
         // Ensure at least one condition fails
-        if (false == (notRemoteConnection || noCredential || unsupportedAuthentication)) {
+        if (false == (notRemoteConnection || noCredential)) {
             noCredential = true;
         }
         final String remoteClusterAlias = randomAlphaOfLengthBetween(5, 10);
@@ -714,18 +726,12 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 )
         );
         final AuthenticationTestHelper.AuthenticationTestBuilder builder = AuthenticationTestHelper.builder();
-        final Authentication authentication;
-        if (unsupportedAuthentication) {
-            authentication = builder.crossClusterAccess().build();
-        } else {
-            authentication = randomFrom(
-                builder.apiKey().build(),
-                builder.serviceAccount().build(),
-                builder.user(new User(randomAlphaOfLengthBetween(3, 10), randomRoles())).realm().build()
-            );
-        }
+        final Authentication authentication = randomFrom(
+            builder.apiKey().build(),
+            builder.serviceAccount().build(),
+            builder.user(new User(randomAlphaOfLengthBetween(3, 10), randomRoles())).realm().build()
+        );
         authentication.writeToContext(threadContext);
-        final Tuple<String, TransportRequest> actionAndReq = randomAllowlistedActionAndRequest();
 
         final AuthorizationService authzService = mock(AuthorizationService.class);
         final SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
@@ -765,7 +771,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         });
         final Transport.Connection connection = mock(Transport.Connection.class);
         when(connection.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
-        sender.sendRequest(connection, actionAndReq.v1(), actionAndReq.v2(), null, null);
+        sender.sendRequest(connection, "action", mock(TransportRequest.class), null, null);
         assertTrue(calledWrappedSender.get());
         assertThat(sentAuthentication.get(), equalTo(authentication));
         verify(authzService, never()).getRoleDescriptorsIntersectionForRemoteCluster(any(), any(), anyActionListener());
@@ -835,10 +841,9 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             versionBeforeCrossClusterAccessRealm
         );
         when(connection.getTransportVersion()).thenReturn(version);
-        final Tuple<String, TransportRequest> actionAndReq = randomAllowlistedActionAndRequest();
         final AtomicBoolean calledHandleException = new AtomicBoolean(false);
         final AtomicReference<TransportException> actualException = new AtomicReference<>();
-        sender.sendRequest(connection, actionAndReq.v1(), actionAndReq.v2(), null, new TransportResponseHandler<>() {
+        sender.sendRequest(connection, "action", mock(TransportRequest.class), null, new TransportResponseHandler<>() {
             @Override
             public void handleResponse(TransportResponse response) {
                 fail("should not receive a response");
@@ -928,13 +933,12 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         });
         final Transport.Connection connection = mock(Transport.Connection.class);
         when(connection.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
-        final Tuple<String, TransportRequest> actionAndReq = randomAllowlistedActionAndRequest();
 
         final ElasticsearchSecurityException expectedException = new ElasticsearchSecurityException("remote action denied");
-        when(authzService.remoteActionDenied(authentication, actionAndReq.v1(), remoteClusterAlias)).thenReturn(expectedException);
+        when(authzService.remoteActionDenied(authentication, "action", remoteClusterAlias)).thenReturn(expectedException);
 
         final var actualException = new AtomicReference<Throwable>();
-        sender.sendRequest(connection, actionAndReq.v1(), actionAndReq.v2(), null, new TransportResponseHandler<>() {
+        sender.sendRequest(connection, "action", mock(TransportRequest.class), null, new TransportResponseHandler<>() {
             @Override
             public void handleResponse(TransportResponse response) {
                 fail("should not success");
@@ -951,101 +955,6 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             }
         });
         assertThat(actualException.get(), is(expectedException));
-        assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY), nullValue());
-        assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY), nullValue());
-    }
-
-    public void testSendWithCrossClusterAccessHeadersThrowsIfActionNotAllowlisted() throws Exception {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
-        final Authentication authentication = AuthenticationTestHelper.builder()
-            .user(
-                new User(
-                    randomAlphaOfLengthBetween(3, 10),
-                    randomArray(
-                        0,
-                        4,
-                        String[]::new,
-                        () -> randomValueOtherThanMany(ReservedRolesStore::isReserved, () -> randomAlphaOfLengthBetween(1, 20))
-                    )
-                )
-            )
-            .realm()
-            .build();
-        authentication.writeToContext(threadContext);
-        final RemoteClusterCredentialsResolver remoteClusterAuthorizationResolver = mock(RemoteClusterCredentialsResolver.class);
-        final String remoteClusterAlias = randomAlphaOfLengthBetween(5, 10);
-        final String remoteClusterCredential = ApiKeyService.withApiKeyPrefix(randomAlphaOfLengthBetween(10, 42));
-        when(remoteClusterAuthorizationResolver.resolve(any())).thenReturn(
-            Optional.of(new RemoteClusterCredentials(remoteClusterAlias, remoteClusterCredential))
-        );
-
-        final SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
-            settings,
-            threadPool,
-            mock(AuthenticationService.class),
-            mock(AuthorizationService.class),
-            mock(SSLService.class),
-            securityContext,
-            new DestructiveOperations(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
-            mock(CrossClusterAccessAuthenticationService.class),
-            remoteClusterAuthorizationResolver,
-            ignored -> Optional.of(remoteClusterAlias)
-        );
-
-        final AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
-            @Override
-            public <T extends TransportResponse> void sendRequest(
-                Transport.Connection connection,
-                String action,
-                TransportRequest request,
-                TransportRequestOptions options,
-                TransportResponseHandler<T> handler
-            ) {
-                fail("sender should not be called");
-            }
-        });
-        final Transport.Connection connection = mock(Transport.Connection.class);
-        when(connection.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
-        final Tuple<String, TransportRequest> actionAndReq = new Tuple<>(FollowInfoAction.NAME, mock(TransportRequest.class));
-        final AtomicBoolean calledHandleException = new AtomicBoolean(false);
-        final AtomicReference<TransportException> actualException = new AtomicReference<>();
-        sender.sendRequest(connection, actionAndReq.v1(), actionAndReq.v2(), null, new TransportResponseHandler<>() {
-            @Override
-            public void handleResponse(TransportResponse response) {
-                fail("should not receive a response");
-            }
-
-            @Override
-            public void handleException(TransportException exp) {
-                if (calledHandleException.compareAndSet(false, true) == false) {
-                    fail("handle exception called more than once");
-                }
-                actualException.set(exp);
-            }
-
-            @Override
-            public TransportResponse read(StreamInput in) {
-                fail("should not receive a response");
-                return null;
-            }
-        });
-        assertThat(actualException.get(), instanceOf(SendRequestTransportException.class));
-        assertThat(actualException.get().getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(
-            actualException.get().getCause().getMessage(),
-            equalTo(
-                "action ["
-                    + actionAndReq.v1()
-                    + "] towards remote cluster ["
-                    + remoteClusterAlias
-                    + "] cannot be executed because it is not allowed as a cross cluster operation"
-            )
-        );
-        verify(remoteClusterAuthorizationResolver, times(1)).resolve(eq(remoteClusterAlias));
         assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY), nullValue());
         assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY), nullValue());
     }
@@ -1104,7 +1013,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
             mock(CrossClusterAccessAuthenticationService.class),
-            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings())
+            new RemoteClusterCredentialsResolver(settings)
         );
 
         final Map<String, ServerTransportFilter> profileFilters = securityServerTransportInterceptor.getProfileFilters();
@@ -1157,17 +1066,12 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
             ),
             mock(CrossClusterAccessAuthenticationService.class),
-            new RemoteClusterCredentialsResolver(settings, clusterService.getClusterSettings())
+            new RemoteClusterCredentialsResolver(settings)
         );
 
         final Map<String, ServerTransportFilter> profileFilters = securityServerTransportInterceptor.getProfileFilters();
         assertThat(profileFilters.keySet(), contains("default"));
         assertThat(profileFilters.get("default").isExtractClientCert(), is(transportSslEnabled));
-    }
-
-    private Tuple<String, TransportRequest> randomAllowlistedActionAndRequest() {
-        final String action = randomFrom(CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST.toArray(new String[0]));
-        return new Tuple<>(action, mock(TransportRequest.class));
     }
 
     private String[] randomRoles() {

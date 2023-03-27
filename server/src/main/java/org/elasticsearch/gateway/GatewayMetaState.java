@@ -476,7 +476,7 @@ public class GatewayMetaState implements Closeable {
     /**
      * Encapsulates the incremental writing of metadata to a {@link PersistedClusterStateService.Writer}.
      */
-    static class LucenePersistedState implements PersistedState {
+    public static class LucenePersistedState implements PersistedState {
 
         private long currentTerm;
         private ClusterState lastAcceptedState;
@@ -486,8 +486,11 @@ public class GatewayMetaState implements Closeable {
         private final AtomicReference<PersistedClusterStateService.Writer> persistenceWriter = new AtomicReference<>();
         private boolean writeNextStateFully;
 
-        LucenePersistedState(PersistedClusterStateService persistedClusterStateService, long currentTerm, ClusterState lastAcceptedState)
-            throws IOException {
+        public LucenePersistedState(
+            PersistedClusterStateService persistedClusterStateService,
+            long currentTerm,
+            ClusterState lastAcceptedState
+        ) throws IOException {
             this.persistedClusterStateService = persistedClusterStateService;
             this.currentTerm = currentTerm;
             this.lastAcceptedState = lastAcceptedState;

@@ -350,16 +350,30 @@ public class FsBlobContainer extends AbstractBlobContainer {
         throws IOException {
         final Path sourceBlobPath = path.resolve(sourceBlobName);
         final Path targetBlobPath = path.resolve(targetBlobName);
-        // If the target file exists then Files.move() behaviour is implementation specific
-        // the existing file might be replaced or this method fails by throwing an IOException.
-        if (Files.exists(targetBlobPath)) {
-            if (failIfAlreadyExists) {
+        try {
+            if (failIfAlreadyExists && Files.exists(targetBlobPath)) {
                 throw new FileAlreadyExistsException("blob [" + targetBlobPath + "] already exists, cannot overwrite");
-            } else {
-                deleteBlobsIgnoringIfNotExists(Iterators.single(targetBlobName));
             }
+            Files.move(sourceBlobPath, targetBlobPath, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException e) {
+            // If the target file exists then Files.move() behaviour is implementation specific
+            // the existing file might be replaced or this method fails by throwing an IOException so we retry in a non-atomic
+            // way by deleting and then writing.
+            if (failIfAlreadyExists) {
+                throw e;
+            }
+            moveBlobNonAtomic(targetBlobName, sourceBlobPath, targetBlobPath, e);
         }
-        Files.move(sourceBlobPath, targetBlobPath, StandardCopyOption.ATOMIC_MOVE);
+    }
+
+    private void moveBlobNonAtomic(String targetBlobName, Path sourceBlobPath, Path targetBlobPath, IOException e) throws IOException {
+        try {
+            deleteBlobsIgnoringIfNotExists(Iterators.single(targetBlobName));
+            Files.move(sourceBlobPath, targetBlobPath, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException ex) {
+            ex.addSuppressed(e);
+            throw e;
+        }
     }
 
     public static String tempBlobName(final String blobName) {

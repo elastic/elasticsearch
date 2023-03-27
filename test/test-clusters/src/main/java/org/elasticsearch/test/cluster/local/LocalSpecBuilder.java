@@ -87,6 +87,11 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
     T keystore(String key, Supplier<String> supplier);
 
     /**
+     * Add a secure setting computed by the given supplier when the given predicate evaluates to {@code true}.
+     */
+    T keystore(String key, Supplier<String> supplier, Predicate<LocalNodeSpec> predicate);
+
+    /**
      * Sets the security setting keystore password.
      */
     T keystorePassword(String password);

@@ -222,6 +222,23 @@ public class ClusterStatsNodesTests extends ESTestCase {
         }
 
         {
+            // two nodes, same ip addresses, but different data paths on different devices
+            InetAddress address1 = InetAddresses.forString("192.168.0.1");
+            FsInfo.Path path1 = new FsInfo.Path("/data/a", "/dev/sda", 3, 2, 1);
+            InetAddress address2 = InetAddresses.forString("192.168.0.1");
+            FsInfo.Path path2 = new FsInfo.Path("/data/b", "/dev/sdb", 3, 2, 1);
+            ClusterStatsNodes.ClusterFsStatsDeduplicator deduplicator = new ClusterStatsNodes.ClusterFsStatsDeduplicator(1);
+            deduplicator.add(address1, newFsInfo(path1));
+            deduplicator.add(address2, newFsInfo(path2));
+            FsInfo.Path total = deduplicator.getTotal();
+
+            // since they're different devices, they sum
+            assertThat(total.getTotal().getBytes(), equalTo(6L));
+            assertThat(total.getFree().getBytes(), equalTo(4L));
+            assertThat(total.getAvailable().getBytes(), equalTo(2L));
+        }
+
+        {
             // two nodes, different ip addresses, different data paths, same device
             InetAddress address1 = InetAddresses.forString("192.168.0.1");
             FsInfo.Path path1 = new FsInfo.Path("/data/a", "/dev/sda", 3, 2, 1);

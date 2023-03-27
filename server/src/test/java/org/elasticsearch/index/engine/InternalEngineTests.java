@@ -214,6 +214,19 @@ import static org.mockito.Mockito.when;
 
 public class InternalEngineTests extends EngineTestCase {
 
+    /**
+     * When this value is non-null, {@link #relativeTimeInNanos()} reads from it instead of calling System#nanoTime().
+     */
+    private AtomicLong relativeTimeInNanosOverride;
+
+    @Override
+    protected long relativeTimeInNanos() {
+        if (relativeTimeInNanosOverride != null) {
+            return relativeTimeInNanosOverride.get();
+        }
+        return super.relativeTimeInNanos();
+    }
+
     public void testVersionMapAfterAutoIDDocument() throws IOException {
         engine.refresh("warm_up");
         ParsedDocument doc = testParsedDocument(
@@ -5783,7 +5796,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    public void testShouldPeriodicallyFlush() throws Exception {
+    public void testShouldPeriodicallyFlushOnSize() throws Exception {
         assertThat("Empty engine does not need flushing", engine.shouldPeriodicallyFlush(), equalTo(false));
         // A new engine may have more than one empty translog files - the test should account this extra.
         final Translog translog = engine.getTranslog();
@@ -5844,6 +5857,21 @@ public class InternalEngineTests extends EngineTestCase {
                 assertThat(engine.getLastCommittedSegmentInfos(), not(sameInstance(lastCommitInfo)));
                 assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
             }
+        }
+    }
+
+    public void testShouldPeriodicallyFlushOnAge() throws Exception {
+        try {
+            relativeTimeInNanosOverride = new AtomicLong(relativeTimeInNanos());
+            assertThat("Empty engine does not need flushing", engine.shouldPeriodicallyFlush(), equalTo(false));
+            relativeTimeInNanosOverride.addAndGet(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING.get(Settings.EMPTY).nanos() + 1);
+            assertThat(engine.shouldPeriodicallyFlush(), equalTo(true));
+            engine.flush();
+            assertThat("An engine that just flushed on age doesn't need flushing again", engine.shouldPeriodicallyFlush(), equalTo(false));
+            relativeTimeInNanosOverride.addAndGet(1);
+            assertThat("An engine that just flushed on age doesn't need flushing again", engine.shouldPeriodicallyFlush(), equalTo(false));
+        } finally {
+            relativeTimeInNanosOverride = null;
         }
     }
 

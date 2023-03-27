@@ -37,7 +37,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
     public static final String NAME = "cluster:admin/xpack/application/analytics/post_event";
 
     private PostAnalyticsEventAction() {
-        super(NAME, Response::new);
+        super(NAME, Response::readFromStreamInput);
     }
 
     public static class Request extends ActionRequest implements AnalyticsEvent.Context {
@@ -165,33 +165,26 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
-
         public static Response ACCEPTED = new Response(true);
+
+        public static Response readFromStreamInput(StreamInput in) throws IOException {
+            boolean accepted = in.readBoolean();
+            boolean isDebug = in.readBoolean();
+
+            if (isDebug) {
+                AnalyticsEvent.Type eventType = in.readEnum(AnalyticsEvent.Type.class);
+                return new DebugResponse(accepted, AnalyticsEventFactory.INSTANCE.fromStreamInput(eventType, in));
+            }
+
+            return new Response(accepted);
+        }
 
         private static final ParseField RESULT_FIELD = new ParseField("accepted");
 
-        private static final ParseField EVENT_FIELD = new ParseField("event");
-
         private final boolean accepted;
 
-        private final boolean debug;
-
-        private final AnalyticsEvent analyticsEvent;
-
         public Response(boolean accepted) {
-            this(accepted, null);
-        }
-
-        public Response(boolean accepted, AnalyticsEvent event) {
             this.accepted = accepted;
-            this.debug = Objects.nonNull(event);
-            this.analyticsEvent = event;
-        }
-
-        public Response(StreamInput in) throws IOException {
-            this.accepted = in.readBoolean();
-            this.debug = in.readBoolean();
-            this.analyticsEvent = this.debug ? analyticsEventFactory().fromStreamInput(in.readEnum(AnalyticsEvent.Type.class), in) : null;
         }
 
         public boolean isAccepted() {
@@ -199,22 +192,13 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
         }
 
         public boolean isDebug() {
-            return debug;
-        }
-
-        public AnalyticsEvent getAnalyticsEvent() {
-            return analyticsEvent;
+            return false;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(accepted);
-            out.writeBoolean(debug);
-
-            if (debug) {
-                out.writeEnum(analyticsEvent.eventType());
-                analyticsEvent.writeTo(out);
-            }
+            out.writeBoolean(isDebug());
         }
 
         @Override
@@ -222,12 +206,12 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response that = (Response) o;
-            return accepted == that.accepted && debug == that.debug && Objects.equals(analyticsEvent, that.analyticsEvent);
+            return accepted == that.accepted && isDebug() == that.isDebug();
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(accepted, debug, analyticsEvent);
+            return Objects.hash(accepted, isDebug());
         }
 
         @Override
@@ -235,14 +219,57 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             builder.startObject();
             {
                 builder.field(RESULT_FIELD.getPreferredName(), accepted);
-                if (debug) builder.field(EVENT_FIELD.getPreferredName(), analyticsEvent);
+                addFieldsToXContent(builder, params);
             }
 
             return builder.endObject();
         }
 
-        private static AnalyticsEventFactory analyticsEventFactory() {
-            return new AnalyticsEventFactory();
+        protected void addFieldsToXContent(XContentBuilder builder, Params params) throws IOException {
+
+        }
+    }
+
+    public static class DebugResponse extends Response {
+        private static final ParseField EVENT_FIELD = new ParseField("event");
+
+        private final AnalyticsEvent analyticsEvent;
+        public DebugResponse(boolean accepted, AnalyticsEvent analyticsEvent) {
+            super(accepted);
+            this.analyticsEvent = analyticsEvent;
+        }
+
+        @Override
+        public boolean isDebug() {
+            return true;
+        }
+
+        public AnalyticsEvent analyticsEvent() {
+            return analyticsEvent;
+        }
+
+        protected void addFieldsToXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(EVENT_FIELD.getPreferredName(), analyticsEvent);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeEnum(analyticsEvent.eventType());
+            analyticsEvent.writeTo(out);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            DebugResponse that = (DebugResponse) o;
+            return super.equals(o) && Objects.equals(analyticsEvent, that.analyticsEvent);
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * super.hashCode() + Objects.hashCode(analyticsEvent);
         }
     }
 }

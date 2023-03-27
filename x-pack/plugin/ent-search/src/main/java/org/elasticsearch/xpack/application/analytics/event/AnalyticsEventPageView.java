@@ -21,7 +21,8 @@ public class AnalyticsEventPageView extends AnalyticsEvent {
         "pageview_event",
         false,
         (p, c) -> new AnalyticsEventPageView(
-            c,
+            c.eventCollectionName(),
+            c.eventTime(),
             (AnalyticsEventSessionData) p[0],
             (AnalyticsEventUserData) p[1],
             (AnalyticsEventPageData) p[2]
@@ -47,16 +48,6 @@ public class AnalyticsEventPageView extends AnalyticsEvent {
     }
 
     private final AnalyticsEventPageData page;
-
-    public AnalyticsEventPageView(
-        Context context,
-        AnalyticsEventSessionData session,
-        AnalyticsEventUserData user,
-        AnalyticsEventPageData page
-    ) {
-        super(context, session, user);
-        this.page = Objects.requireNonNull(page, AnalyticsEventPageData.PAGE_FIELD.getPreferredName());
-    }
 
     public AnalyticsEventPageView(
         String eventCollectionName,

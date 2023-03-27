@@ -9,10 +9,15 @@ package org.elasticsearch.xpack.application.analytics.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventPageData;
+import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventPageView;
+import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventSessionData;
+import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventUserData;
 
 import java.io.IOException;
 
-public class PostAnalyticsEventResponseSerializingTests extends AbstractWireSerializingTestCase<PostAnalyticsEventAction.Response> {
+public class PostAnalyticsEventDebugResponseSerializingTests extends AbstractWireSerializingTestCase<PostAnalyticsEventAction.Response> {
+
     @Override
     protected Writeable.Reader<PostAnalyticsEventAction.Response> instanceReader() {
         return PostAnalyticsEventAction.Response::readFromStreamInput;
@@ -20,7 +25,16 @@ public class PostAnalyticsEventResponseSerializingTests extends AbstractWireSeri
 
     @Override
     protected PostAnalyticsEventAction.Response createTestInstance() {
-        return new PostAnalyticsEventAction.Response(randomBoolean());
+        return new PostAnalyticsEventAction.DebugResponse(
+            randomBoolean(),
+            new AnalyticsEventPageView(
+                randomIdentifier(),
+                randomLong(),
+                new AnalyticsEventSessionData(randomIdentifier()),
+                new AnalyticsEventUserData(randomIdentifier()),
+                new AnalyticsEventPageData(randomIdentifier(), null, null)
+            )
+        );
     }
 
     @Override

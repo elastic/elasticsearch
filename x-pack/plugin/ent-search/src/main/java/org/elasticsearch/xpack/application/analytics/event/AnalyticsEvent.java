@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.application.analytics.AnalyticsTemplateRegistry;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -32,8 +33,6 @@ public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
     public static final ParseField DATA_STREAM_TYPE_FIELD = new ParseField("type");
     public static final ParseField DATA_STREAM_NAMESPACE_FIELD = new ParseField("namespace");
     public static final ParseField DATA_STREAM_DATASET_FIELD = new ParseField("dataset");
-    public static final String DATA_STREAM_TYPE = "behavioral_analytics";
-    public static final String DATA_STREAM_DATASET = "events";
 
     /**
      * Analytics context. Used to carry information to parsers.
@@ -81,10 +80,6 @@ public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
         this.user = Objects.requireNonNull(user, AnalyticsEventUserData.USER_FIELD.getPreferredName());
     }
 
-    protected AnalyticsEvent(Context analyticsContext, AnalyticsEventSessionData sessionData, AnalyticsEventUserData userData) {
-        this(analyticsContext.eventCollectionName(), analyticsContext.eventTime(), sessionData, userData);
-    }
-
     protected AnalyticsEvent(StreamInput in) throws IOException {
         this(in.readString(), in.readLong(), new AnalyticsEventSessionData(in), new AnalyticsEventUserData(in));
     }
@@ -129,8 +124,8 @@ public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
 
             builder.startObject(DATA_STREAM.getPreferredName());
             {
-                builder.field(DATA_STREAM_TYPE_FIELD.getPreferredName(), DATA_STREAM_TYPE);
-                builder.field(DATA_STREAM_DATASET_FIELD.getPreferredName(), DATA_STREAM_DATASET);
+                builder.field(DATA_STREAM_TYPE_FIELD.getPreferredName(), AnalyticsTemplateRegistry.EVENT_DATA_STREAM_TYPE);
+                builder.field(DATA_STREAM_DATASET_FIELD.getPreferredName(), AnalyticsTemplateRegistry.EVENT_DATA_STREAM_DATASET);
                 builder.field(DATA_STREAM_NAMESPACE_FIELD.getPreferredName(), eventCollectionName());
 
             }

@@ -25,6 +25,9 @@ import java.util.Map;
  * A utility class for parsing {@link AnalyticsEvent} objects from payloads (such as HTTP POST request bodies) or input streams.
  */
 public class AnalyticsEventFactory {
+
+    public static final AnalyticsEventFactory INSTANCE = new AnalyticsEventFactory();
+
     private static final Map<AnalyticsEvent.Type, ContextParser<AnalyticsEvent.Context, AnalyticsEvent>> EVENT_PARSERS = MapBuilder.<
         AnalyticsEvent.Type,
         ContextParser<AnalyticsEvent.Context, AnalyticsEvent>>newMapBuilder()
@@ -41,7 +44,9 @@ public class AnalyticsEventFactory {
         .put(AnalyticsEvent.Type.SEARCH_CLICK, AnalyticsEventSearchClick::new)
         .immutableMap();
 
-    public AnalyticsEventFactory() {}
+    private AnalyticsEventFactory() {
+
+    }
 
     /**
      * Creates an {@link AnalyticsEvent} object from a {@link PostAnalyticsEventAction.Request} object.
@@ -67,7 +72,6 @@ public class AnalyticsEventFactory {
      * @throws IOException if an I/O error occurs while parsing the event
      * @throws IllegalArgumentException if the specified event type is not supported
      */
-
     public AnalyticsEvent fromStreamInput(AnalyticsEvent.Type eventType, StreamInput in) throws IOException {
         if (EVENT_READERS.containsKey(eventType)) {
             return EVENT_READERS.get(eventType).read(in);

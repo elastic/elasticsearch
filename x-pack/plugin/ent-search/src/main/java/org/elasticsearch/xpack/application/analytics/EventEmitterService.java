@@ -39,6 +39,14 @@ public class EventEmitterService {
 
     @Inject
     public EventEmitterService(
+        AnalyticsCollectionResolver analyticsCollectionResolver,
+        ClusterService clusterService
+    ) {
+        this(AnalyticsEventFactory.INSTANCE, analyticsCollectionResolver, clusterService);
+    }
+
+
+    public EventEmitterService(
         AnalyticsEventFactory analyticsEventFactory,
         AnalyticsCollectionResolver analyticsCollectionResolver,
         ClusterService clusterService
@@ -64,7 +72,7 @@ public class EventEmitterService {
             logger.info(ANALYTICS_MARKER, formatEvent(event));
 
             if (request.isDebug()) {
-                listener.onResponse(new PostAnalyticsEventAction.Response(true, event));
+                listener.onResponse(new PostAnalyticsEventAction.DebugResponse(true, event));
             } else {
                 listener.onResponse(PostAnalyticsEventAction.Response.ACCEPTED);
             }

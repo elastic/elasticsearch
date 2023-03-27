@@ -21,7 +21,8 @@ public class AnalyticsEventSearch extends AnalyticsEvent {
         "search_event",
         false,
         (p, c) -> new AnalyticsEventSearch(
-            c,
+            c.eventCollectionName(),
+            c.eventTime(),
             (AnalyticsEventSessionData) p[0],
             (AnalyticsEventUserData) p[1],
             (AnalyticsEventSearchData) p[2]
@@ -47,16 +48,6 @@ public class AnalyticsEventSearch extends AnalyticsEvent {
     }
 
     private final AnalyticsEventSearchData searchData;
-
-    public AnalyticsEventSearch(
-        Context context,
-        AnalyticsEventSessionData sessionData,
-        AnalyticsEventUserData userData,
-        AnalyticsEventSearchData searchData
-    ) {
-        super(context, sessionData, userData);
-        this.searchData = Objects.requireNonNull(searchData, AnalyticsEventSearchData.SEARCH_FIELD.getPreferredName());
-    }
 
     public AnalyticsEventSearch(StreamInput in) throws IOException {
         super(in);

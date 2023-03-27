@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
+import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
 import org.junit.After;
@@ -72,8 +73,10 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestTestCase {
@@ -176,24 +179,20 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 CLUSTER_A_CREDENTIALS,
                 this::assertCrossClusterAccessSubjectInfoMatchesNativeUser,
                 new RoleDescriptorsIntersection(
-                    List.of(
-                        Set.of(
-                            new RoleDescriptor(
-                                Role.REMOTE_USER_ROLE_NAME,
-                                null,
-                                new RoleDescriptor.IndicesPrivileges[] {
-                                    RoleDescriptor.IndicesPrivileges.builder()
-                                        .indices("index-a")
-                                        .privileges("read", "read_cross_cluster")
-                                        .build() },
-                                null,
-                                null,
-                                null,
-                                null,
-                                null,
-                                null
-                            )
-                        )
+                    new RoleDescriptor(
+                        Role.REMOTE_USER_ROLE_NAME,
+                        null,
+                        new RoleDescriptor.IndicesPrivileges[] {
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .indices("index-a")
+                                .privileges("read", "read_cross_cluster")
+                                .build() },
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
                     )
                 )
             );
@@ -247,24 +246,20 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 CLUSTER_A_CREDENTIALS,
                 this::assertCrossClusterAccessSubjectInfoMatchesNativeUser,
                 new RoleDescriptorsIntersection(
-                    List.of(
-                        Set.of(
-                            new RoleDescriptor(
-                                Role.REMOTE_USER_ROLE_NAME,
-                                null,
-                                new RoleDescriptor.IndicesPrivileges[] {
-                                    RoleDescriptor.IndicesPrivileges.builder()
-                                        .indices("index-a")
-                                        .privileges("read", "read_cross_cluster")
-                                        .build() },
-                                null,
-                                null,
-                                null,
-                                null,
-                                null,
-                                null
-                            )
-                        )
+                    new RoleDescriptor(
+                        Role.REMOTE_USER_ROLE_NAME,
+                        null,
+                        new RoleDescriptor.IndicesPrivileges[] {
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .indices("index-a")
+                                .privileges("read", "read_cross_cluster")
+                                .build() },
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
                     )
                 )
             );
@@ -929,7 +924,9 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 // this action is run by the cross cluster access user, so we expect a cross cluster access header with an internal user
                 // authentication and pre-defined role descriptors intersection
                 case RemoteClusterNodesAction.NAME -> {
-                    assertContainsCrossClusterAccessHeaders(actual.headers());
+                    // requests by internal users don't include an audit request ID; this is a current side effect of the audit setup where
+                    // if the thread context is stashed, we don't persist the audit request ID by default
+                    assertContainsHeadersExpectedForCrossClusterAccess(actual.headers(), false);
                     assertContainsCrossClusterAccessCredentialsHeader(encodedCredential, actual);
                     final var actualCrossClusterAccessSubjectInfo = CrossClusterAccessSubjectInfo.decode(
                         actual.headers().get(CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY)
@@ -943,7 +940,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     assertThat(actualCrossClusterAccessSubjectInfo, equalTo(expectedCrossClusterAccessSubjectInfo));
                 }
                 case SearchAction.NAME, ClusterSearchShardsAction.NAME -> {
-                    assertContainsCrossClusterAccessHeaders(actual.headers());
+                    assertContainsHeadersExpectedForCrossClusterAccess(actual.headers());
                     assertContainsCrossClusterAccessCredentialsHeader(encodedCredential, actual);
                     final var actualCrossClusterAccessSubjectInfo = CrossClusterAccessSubjectInfo.decode(
                         actual.headers().get(CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY)
@@ -1043,14 +1040,27 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         }
     }
 
-    private void assertContainsCrossClusterAccessHeaders(final Map<String, String> actualHeaders) {
+    private void assertContainsHeadersExpectedForCrossClusterAccess(final Map<String, String> actualHeaders) {
+        assertContainsHeadersExpectedForCrossClusterAccess(actualHeaders, true);
+    }
+
+    private void assertContainsHeadersExpectedForCrossClusterAccess(final Map<String, String> actualHeaders, boolean includeRequestId) {
         assertThat(
             actualHeaders.keySet(),
-            containsInAnyOrder(
-                CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY,
-                CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY
-            )
+            includeRequestId
+                ? containsInAnyOrder(
+                    CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY,
+                    CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY,
+                    AuditUtil.AUDIT_REQUEST_ID
+                )
+                : containsInAnyOrder(
+                    CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY,
+                    CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY
+                )
         );
+        if (includeRequestId) {
+            assertThat(actualHeaders.get(AuditUtil.AUDIT_REQUEST_ID), not(emptyOrNullString()));
+        }
     }
 
     private record CapturedActionWithHeaders(String action, Map<String, String> headers) {}

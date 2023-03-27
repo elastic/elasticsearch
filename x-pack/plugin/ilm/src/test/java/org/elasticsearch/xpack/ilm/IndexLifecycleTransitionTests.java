@@ -634,19 +634,18 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             .setAction("migrate")
             .setStep("check-migration")
             .setPhaseDefinition(
-                "\n"
-                    + "{\n"
-                    + "  policy : my-policy,\n"
-                    + "  phase_definition : {\n"
-                    + "    min_age 20m,\n"
-                    + "    actions : {\n"
-                    + "      set_priority : {\n"
-                    + "        priority : 150\n"
+                "{\n"
+                    + "  \"policy\" : \"my-policy\",\n"
+                    + "  \"phase_definition\" : {\n"
+                    + "    \"min_age\": \"20m\",\n"
+                    + "    \"actions\" : {\n"
+                    + "      \"set_priority\" : {\n"
+                    + "        \"priority\" : 150\n"
                     + "      }\n"
                     + "    }\n"
                     + "  },\n"
-                    + "  version : 1,\n"
-                    + "  modified_date_in_millis : 1578521007076\n"
+                    + "  \"version\" : 1,\n"
+                    + "  \"modified_date_in_millis\" : 1578521007076\n"
                     + "}"
             );
 
@@ -689,19 +688,21 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             .setPhase("warm")
             .setAction("migrate")
             .setStep("migrate")
-            .setPhaseDefinition(" {\n" +
-                "                  \"policy\" : \"my-policy\",\n" +
-                "                  \"phase_definition\" : {\n" +
-                "                    \"min_age\" : \"20m\",\n" +
-                "                    \"actions\" : {\n" +
-                "                      \"set_priority\" : {\n" +
-                "                        \"priority\" : 150\n" +
-                "                      }\n" +
-                "                    }\n" +
-                "                  },\n" +
-                "                  \"version\" : 1,\n" +
-                "                  \"modified_date_in_millis\" : 1578521007076\n" +
-                "                }");
+            .setPhaseDefinition(
+                " {\n"
+                    + "                  \"policy\" : \"my-policy\",\n"
+                    + "                  \"phase_definition\" : {\n"
+                    + "                    \"min_age\" : \"20m\",\n"
+                    + "                    \"actions\" : {\n"
+                    + "                      \"set_priority\" : {\n"
+                    + "                        \"priority\" : 150\n"
+                    + "                      }\n"
+                    + "                    }\n"
+                    + "                  },\n"
+                    + "                  \"version\" : 1,\n"
+                    + "                  \"modified_date_in_millis\" : 1578521007076\n"
+                    + "                }"
+            );
 
         IndexMetadata meta = buildIndexMetadata("my-policy", executionState);
 

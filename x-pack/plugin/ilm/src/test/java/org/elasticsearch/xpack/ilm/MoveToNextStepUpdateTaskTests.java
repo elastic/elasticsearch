@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -32,7 +32,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
@@ -95,7 +94,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         AlwaysExistingStepRegistry stepRegistry = new AlwaysExistingStepRegistry(client);
         stepRegistry.update(
             new IndexLifecycleMetadata(
-                Map.of(policy, new LifecyclePolicyMetadata(lifecyclePolicy, Collections.emptyMap(), 2L, 2L)),
+                org.elasticsearch.core.Map.of(policy, new LifecyclePolicyMetadata(lifecyclePolicy, Collections.emptyMap(), 2L, 2L)),
                 OperationMode.RUNNING
             )
         );
@@ -169,7 +168,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         AlwaysExistingStepRegistry stepRegistry = new AlwaysExistingStepRegistry(client);
         stepRegistry.update(
             new IndexLifecycleMetadata(
-                Map.of(policy, new LifecyclePolicyMetadata(lifecyclePolicy, Collections.emptyMap(), 2L, 2L)),
+                org.elasticsearch.core.Map.of(policy, new LifecyclePolicyMetadata(lifecyclePolicy, Collections.emptyMap(), 2L, 2L)),
                 OperationMode.RUNNING
             )
         );
@@ -253,17 +252,24 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         lifecycleState.setStep(stepKey.getName());
         lifecycleState.setStepTime(now);
 
-        lifecycleState.setPhaseDefinition(String.format(Locale.ROOT, """
-            {
-              "policy" : "%s",
-              "phase_definition" : {
-                "min_age" : "20m",
-                "actions" : {
-                }
-              },
-              "version" : 1,
-              "modified_date_in_millis" : 1578521007076
-            }""", policy));
+        lifecycleState.setPhaseDefinition(
+            String.format(
+                Locale.ROOT,
+                ""
+                    + " {\n"
+                    + "              \"policy\" : \"%s\",\n"
+                    + "              \"phase_definition\" : {\n"
+                    + "                \"min_age\" : \"20m\",\n"
+                    + "                \"actions\" : {\n"
+                    + "                }\n"
+                    + "              },\n"
+                    + "              \"version\" : 1,\n"
+                    + "              \"modified_date_in_millis\" : 1578521007076\n"
+                    + "            }"
+                    + "",
+                policy
+            )
+        );
         clusterState = ClusterState.builder(clusterState)
             .metadata(
                 Metadata.builder(clusterState.getMetadata())

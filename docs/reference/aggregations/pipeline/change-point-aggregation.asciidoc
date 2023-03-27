@@ -102,6 +102,7 @@ GET kibana_sample_data_logs/_search
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> A date histogram aggregation that creates buckets with one day long 
 interval.
 <2> A sibling aggregation of the `date` aggregation that calculates the average 

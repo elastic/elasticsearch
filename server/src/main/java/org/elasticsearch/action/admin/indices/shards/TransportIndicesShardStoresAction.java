@@ -63,8 +63,6 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
 
     private static final Logger logger = LogManager.getLogger(TransportIndicesShardStoresAction.class);
 
-    static final int CONCURRENT_REQUESTS_LIMIT = 100; // TODO configurable?
-
     private final NodeClient client;
 
     @Inject
@@ -103,7 +101,16 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
         final Metadata metadata = state.metadata();
         logger.trace("using cluster state version [{}] to determine shards", state.version());
         assert task instanceof CancellableTask;
-        new AsyncAction((CancellableTask) task, concreteIndices, request.shardStatuses(), nodes, routingTable, metadata, listener).run();
+        new AsyncAction(
+            (CancellableTask) task,
+            concreteIndices,
+            request.shardStatuses(),
+            nodes,
+            routingTable,
+            metadata,
+            request.maxConcurrentShardRequests(),
+            listener
+        ).run();
     }
 
     @Override
@@ -139,6 +146,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
         private final RoutingTable routingTable;
         private final Metadata metadata;
         private final Map<String, Map<Integer, List<StoreStatus>>> indicesStatuses;
+        private final int maxConcurrentShardRequests;
         private final Queue<Failure> failures;
         private final EnumSet<ClusterHealthStatus> requestedStatuses;
         private final RefCountingListener outerListener;
@@ -150,6 +158,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             DiscoveryNode[] nodes,
             RoutingTable routingTable,
             Metadata metadata,
+            int maxConcurrentShardRequests,
             ActionListener<IndicesShardStoresResponse> listener
         ) {
             this.task = task;
@@ -160,6 +169,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             this.requestedStatuses = requestedStatuses;
 
             this.indicesStatuses = Collections.synchronizedMap(Maps.newHashMapWithExpectedSize(concreteIndices.length));
+            this.maxConcurrentShardRequests = maxConcurrentShardRequests;
             this.failures = new ConcurrentLinkedQueue<>();
             this.outerListener = new RefCountingListener(1, listener.map(ignored -> {
                 task.ensureNotCancelled();
@@ -175,7 +185,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             ThrottledIterator.run(
                 Iterators.flatMap(Iterators.forArray(concreteIndices), this::getIndexIterator),
                 this::doShardRequest,
-                CONCURRENT_REQUESTS_LIMIT,
+                maxConcurrentShardRequests,
                 () -> {},
                 outerListener::close
             );

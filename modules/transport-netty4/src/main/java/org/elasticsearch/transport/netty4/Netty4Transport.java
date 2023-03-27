@@ -43,6 +43,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.NetworkTraceFlag;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportSettings;
 
@@ -367,11 +368,13 @@ public class Netty4Transport extends TcpTransport {
     }
 
     private void setupPipeline(Channel ch) {
-        ch.pipeline()
-            .addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE)
-            .addLast("logging", ESLoggingHandler.INSTANCE)
-            .addLast("chunked_writer", new Netty4WriteThrottlingHandler(getThreadPool().getThreadContext()))
-            .addLast("dispatcher", new Netty4MessageInboundHandler(this, recycler));
+        final var pipeline = ch.pipeline();
+        pipeline.addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
+        if (NetworkTraceFlag.TRACE_ENABLED) {
+            pipeline.addLast("logging", ESLoggingHandler.INSTANCE);
+        }
+        pipeline.addLast("chunked_writer", new Netty4WriteThrottlingHandler(getThreadPool().getThreadContext()));
+        pipeline.addLast("dispatcher", new Netty4MessageInboundHandler(this, recycler));
     }
 
     private static void addClosedExceptionLogger(Channel channel) {

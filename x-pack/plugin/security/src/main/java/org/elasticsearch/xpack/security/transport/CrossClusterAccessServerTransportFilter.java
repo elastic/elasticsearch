@@ -71,7 +71,7 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
             );
         } else {
             try {
-                ensureOnlyAllowedHeadersInThreadContext();
+                validateHeaders();
             } catch (Exception ex) {
                 authenticationListener.onFailure(ex);
                 return;
@@ -80,15 +80,30 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
         }
     }
 
-    private void ensureOnlyAllowedHeadersInThreadContext() {
-        for (String header : getThreadContext().getHeaders().keySet()) {
+    private void validateHeaders() {
+        final ThreadContext threadContext = getThreadContext();
+        ensureRequiredHeaderInContext(threadContext, CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY);
+        ensureRequiredHeaderInContext(threadContext, CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY);
+        for (String header : threadContext.getHeaders().keySet()) {
             if (false == ALLOWED_TRANSPORT_HEADERS.contains(header)) {
                 throw new IllegalArgumentException(
-                    "transport request header ["
+                    "Transport request header ["
                         + header
                         + "] is not allowed for cross cluster requests through the dedicated remote cluster server port"
                 );
             }
         }
     }
+
+    private void ensureRequiredHeaderInContext(ThreadContext threadContext, String requiredHeader) {
+        if (threadContext.getHeader(requiredHeader) == null) {
+            throw new IllegalArgumentException(
+                "Cross cluster requests through the dedicated remote cluster server port require transport header ["
+                    + requiredHeader
+                    + "] but none found. "
+                    + "Please ensure you have configured remote cluster credentials on the cluster originating the request."
+            );
+        }
+    }
+
 }

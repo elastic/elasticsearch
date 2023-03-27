@@ -31,20 +31,19 @@ import java.util.Objects;
  */
 public class EventEmitterService {
     private static final Logger logger = LogManager.getLogger(EventEmitterService.class);
+
     private static final Marker ANALYTICS_MARKER = MarkerManager.getMarker("org.elasticsearch.xpack.application.analytics");
+
     private final ClusterService clusterService;
+
     private final AnalyticsCollectionResolver analyticsCollectionResolver;
 
     private final AnalyticsEventFactory analyticsEventFactory;
 
     @Inject
-    public EventEmitterService(
-        AnalyticsCollectionResolver analyticsCollectionResolver,
-        ClusterService clusterService
-    ) {
+    public EventEmitterService(AnalyticsCollectionResolver analyticsCollectionResolver, ClusterService clusterService) {
         this(AnalyticsEventFactory.INSTANCE, analyticsCollectionResolver, clusterService);
     }
-
 
     public EventEmitterService(
         AnalyticsEventFactory analyticsEventFactory,

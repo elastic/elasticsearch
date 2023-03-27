@@ -234,6 +234,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
         private static final ParseField EVENT_FIELD = new ParseField("event");
 
         private final AnalyticsEvent analyticsEvent;
+
         public DebugResponse(boolean accepted, AnalyticsEvent analyticsEvent) {
             super(accepted);
             this.analyticsEvent = analyticsEvent;

@@ -847,14 +847,13 @@ public class ClusterStatsNodes implements ToXContentFragment {
 
         private record DedupEntry(InetAddress inetAddress, String mount, String path) {}
 
-        private final Set<DedupEntry> seenAddressesMounts;
         private final Set<DedupEntry> seenAddressesMountsPaths;
 
         private final FsInfo.Path total = new FsInfo.Path();
 
         ClusterFsStatsDeduplicator(int expectedSize) {
-            seenAddressesMounts = Sets.newHashSetWithExpectedSize(expectedSize);
-            seenAddressesMountsPaths = Sets.newHashSetWithExpectedSize(expectedSize);
+            // each address+mount is stored twice (once without a path, and once with a path), thus 2x
+            seenAddressesMountsPaths = Sets.newHashSetWithExpectedSize(2 * expectedSize);
         }
 
         public void add(InetAddress inetAddress, FsInfo fsInfo) {
@@ -873,7 +872,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
                     // override the ip+mount de-duplication logic -- using that as indicator that we're seeing a special
                     // containerization situation, in which case we assume the operator is maintaining different disks for each node.
 
-                    boolean seenAddressMount = seenAddressesMounts.add(new DedupEntry(inetAddress, mount, null)) == false;
+                    boolean seenAddressMount = seenAddressesMountsPaths.add(new DedupEntry(inetAddress, mount, null)) == false;
                     boolean seenAddressMountPath = seenAddressesMountsPaths.add(new DedupEntry(inetAddress, mount, path)) == false;
 
                     if ((seenAddressMount == false) || seenAddressMountPath) {

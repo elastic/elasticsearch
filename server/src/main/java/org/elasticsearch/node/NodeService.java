@@ -9,6 +9,7 @@
 package org.elasticsearch.node;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -109,6 +110,7 @@ public class NodeService implements Closeable {
     ) {
         return new NodeInfo(
             Version.CURRENT,
+            TransportVersion.CURRENT,
             Build.CURRENT,
             transportService.getLocalNode(),
             settings ? settingsFilter.filter(this.settings) : null,

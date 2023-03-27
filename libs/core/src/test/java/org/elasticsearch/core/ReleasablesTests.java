@@ -5,15 +5,14 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.common;
+package org.elasticsearch.core;
 
-import org.elasticsearch.core.Assertions;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ReachabilityChecker;
 
 import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ReleasablesTests extends ESTestCase {
@@ -73,5 +72,40 @@ public class ReleasablesTests extends ESTestCase {
             Arrays.stream(assertionError.getCause().getStackTrace())
                 .anyMatch(ste -> ste.toString().contains("CloserWithIdentifiableMethodNames.closeMethod1"))
         );
+    }
+
+    public void testWrap() {
+        final var count = new AtomicInteger(0);
+        final Releasable releasable = new Releasable() {
+            @Override
+            public void close() {
+                count.incrementAndGet();
+            }
+
+            @Override
+            public String toString() {
+                return "increment count";
+            }
+        };
+
+        final var wrapVarArgs = Releasables.wrap(releasable, releasable);
+        assertEquals("wrapped[increment count, increment count]", wrapVarArgs.toString());
+        wrapVarArgs.close();
+        assertEquals(2, count.get());
+
+        final var wrapIterable = Releasables.wrap(new Iterable<>() {
+            @Override
+            public Iterator<Releasable> iterator() {
+                return List.of(releasable, releasable, releasable).iterator();
+            }
+
+            @Override
+            public String toString() {
+                return "list";
+            }
+        });
+        assertEquals("wrapped[list]", wrapIterable.toString());
+        wrapIterable.close();
+        assertEquals(5, count.get());
     }
 }

@@ -67,10 +67,6 @@ public abstract class ElectionStrategy {
         return voteCollection.isQuorum(lastCommittedConfiguration) && voteCollection.isQuorum(latestPublishedConfiguration);
     }
 
-    public boolean shouldJoinLeaderInTerm(long currentTerm, long targetTerm) {
-        return currentTerm < targetTerm;
-    }
-
     /**
      * The extension point to be overridden by plugins. Defines additional constraints on the election quorum.
      * @param localNode                  the local node for the election quorum
@@ -92,7 +88,7 @@ public abstract class ElectionStrategy {
         VoteCollection joinVotes
     );
 
-    public void onNewElection(DiscoveryNode localNode, long proposedTerm, ClusterState latestAcceptedState, ActionListener<Void> listener) {
+    public void onNewElection(DiscoveryNode localNode, long proposedTerm, ActionListener<Void> listener) {
         listener.onResponse(null);
     }
 
@@ -105,5 +101,11 @@ public abstract class ElectionStrategy {
             && lastCommittedConfiguration.equals(lastAcceptedConfiguration) == false;
     }
 
-    public void beforeCommit(long term, long version) {}
+    public void beforeCommit(long term, long version, ActionListener<Void> listener) {
+        listener.onResponse(null);
+    }
+
+    public long getMaxTermSeen() {
+        return 0;
+    }
 }

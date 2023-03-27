@@ -171,10 +171,14 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers, Map<Strin
         }
     }
 
-    public record NodeBalanceStats(String nodeId, int shards, double forecastWriteLoad, long forecastShardSize, long actualShardSize)
-        implements
-            Writeable,
-            ToXContentObject {
+    public record NodeBalanceStats(
+        String nodeId,
+        List<String> roles,
+        int shards,
+        double forecastWriteLoad,
+        long forecastShardSize,
+        long actualShardSize
+    ) implements Writeable, ToXContentObject {
 
         private static final String UNKNOWN_NODE_ID = "UNKNOWN";
 
@@ -197,12 +201,20 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers, Map<Strin
                 actualShardSize += shardSize;
             }
 
-            return new NodeBalanceStats(routingNode.nodeId(), routingNode.size(), forecastWriteLoad, forecastShardSize, actualShardSize);
+            return new NodeBalanceStats(
+                routingNode.nodeId(),
+                routingNode.node().getRoles().stream().map(DiscoveryNodeRole::roleName).toList(),
+                routingNode.size(),
+                forecastWriteLoad,
+                forecastShardSize,
+                actualShardSize
+            );
         }
 
         public static NodeBalanceStats readFrom(StreamInput in) throws IOException {
             return new NodeBalanceStats(
                 in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) ? in.readString() : UNKNOWN_NODE_ID,
+                in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) ? in.readStringList() : List.of(),
                 in.readInt(),
                 in.readDouble(),
                 in.readLong(),
@@ -214,6 +226,9 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers, Map<Strin
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
                 out.writeString(nodeId);
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+                out.writeStringCollection(roles);
             }
             out.writeInt(shards);
             out.writeDouble(forecastWriteLoad);
@@ -227,7 +242,8 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers, Map<Strin
             if (UNKNOWN_NODE_ID.equals(nodeId) == false) {
                 builder.field("node_id", nodeId);
             }
-            return builder.field("shard_count", shards)
+            return builder.field("roles", roles)
+                .field("shard_count", shards)
                 .field("forecast_write_load", forecastWriteLoad)
                 .humanReadableField("forecast_disk_usage_bytes", "forecast_disk_usage", ByteSizeValue.ofBytes(forecastShardSize))
                 .humanReadableField("actual_disk_usage_bytes", "actual_disk_usage", ByteSizeValue.ofBytes(actualShardSize))

@@ -30,7 +30,7 @@ public class LicenseScheduleTests extends ESTestCase {
     @Before
     public void setup() throws Exception {
         license = TestUtils.generateSignedLicense(TimeValue.timeValueDays(12));
-        final LicenseService service = new LicenseService(
+        final ClusterStateLicenseService service = new ClusterStateLicenseService(
             Settings.EMPTY,
             mock(ThreadPool.class),
             mock(ClusterService.class),
@@ -53,7 +53,7 @@ public class LicenseScheduleTests extends ESTestCase {
     public void testDailyWarningPeriod() {
 
         long millisInDay = TimeValue.timeValueDays(1).getMillis();
-        long warningOffset = LicenseService.LICENSE_EXPIRATION_WARNING_PERIOD.getMillis();
+        long warningOffset = LicenseSettings.LICENSE_EXPIRATION_WARNING_PERIOD.getMillis();
         do {
             long nextOffset = license.expiryDate() - warningOffset;
             long triggeredTime = nextOffset + randomLongBetween(1, millisInDay);

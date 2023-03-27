@@ -9,12 +9,14 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteTransportException;
 
-import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -23,7 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class PlainActionFutureTests extends ESTestCase {
 
     public void testInterruption() throws Exception {
-        final PlainActionFuture<Object> adapter = new PlainActionFuture<>() {
+        final PlainActionFuture<Object> future = new PlainActionFuture<>() {
             @Override
             public void onResponse(Object value) {
                 throw new AssertionError("should not be called");
@@ -34,11 +36,11 @@ public class PlainActionFutureTests extends ESTestCase {
         final Runnable runnable = () -> {
             final int method = randomIntBetween(0, 4);
             switch (method) {
-                case 0 -> adapter.actionGet();
-                case 1 -> adapter.actionGet("30s");
-                case 2 -> adapter.actionGet(30000);
-                case 3 -> adapter.actionGet(TimeValue.timeValueSeconds(30));
-                case 4 -> adapter.actionGet(30, TimeUnit.SECONDS);
+                case 0 -> future.actionGet();
+                case 1 -> future.actionGet("30s");
+                case 2 -> future.actionGet(30000);
+                case 3 -> future.actionGet(TimeValue.timeValueSeconds(30));
+                case 4 -> future.actionGet(30, TimeUnit.SECONDS);
                 default -> throw new AssertionError(method);
             }
         };
@@ -46,18 +48,14 @@ public class PlainActionFutureTests extends ESTestCase {
         final CyclicBarrier barrier = new CyclicBarrier(2);
         final Thread main = Thread.currentThread();
         final Thread thread = new Thread(() -> {
-            try {
-                barrier.await();
-            } catch (final BrokenBarrierException | InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+            safeAwait(barrier);
             main.interrupt();
         });
         thread.start();
 
         final AtomicBoolean interrupted = new AtomicBoolean();
 
-        barrier.await();
+        safeAwait(barrier);
 
         try {
             runnable.run();
@@ -68,6 +66,13 @@ public class PlainActionFutureTests extends ESTestCase {
         assertTrue(interrupted.get());
 
         thread.join();
+    }
+
+    public void testNoResult() {
+        assumeTrue("assertions required for this test", Assertions.ENABLED);
+        final var future = new PlainActionFuture<>();
+        expectThrows(AssertionError.class, future::result);
+        expectThrows(AssertionError.class, future::actionResult);
     }
 
     public void testUnwrapException() {
@@ -82,17 +87,99 @@ public class PlainActionFutureTests extends ESTestCase {
     }
 
     private void checkUnwrap(Exception exception, Class<? extends Exception> actionGetException, Class<? extends Exception> getException) {
-        final PlainActionFuture<Void> adapter = new PlainActionFuture<>() {
-            @Override
-            public void onResponse(Void value) {
-                throw new AssertionError("should not be called");
+        final var future = new PlainActionFuture<>();
+        future.onFailure(exception);
+
+        assertEquals(actionGetException, expectThrows(RuntimeException.class, future::actionGet).getClass());
+        assertEquals(actionGetException, expectThrows(RuntimeException.class, () -> future.actionGet(10, TimeUnit.SECONDS)).getClass());
+        assertEquals(actionGetException, expectThrows(RuntimeException.class, future::actionResult).getClass());
+        assertEquals(actionGetException, expectThrows(RuntimeException.class, expectIgnoresInterrupt(future::actionResult)).getClass());
+        assertEquals(getException, expectThrows(ExecutionException.class, future::get).getCause().getClass());
+        assertEquals(getException, expectThrows(ExecutionException.class, () -> future.get(10, TimeUnit.SECONDS)).getCause().getClass());
+
+        if (exception instanceof RuntimeException) {
+            assertEquals(getException, expectThrows(Exception.class, future::result).getClass());
+            assertEquals(getException, expectThrows(Exception.class, expectIgnoresInterrupt(future::result)).getClass());
+            assertEquals(getException, expectThrows(Exception.class, () -> FutureUtils.get(future)).getClass());
+            assertEquals(getException, expectThrows(Exception.class, () -> FutureUtils.get(future, 10, TimeUnit.SECONDS)).getClass());
+        } else {
+            assertEquals(getException, expectThrowsWrapped(future::result).getClass());
+            assertEquals(getException, expectThrowsWrapped(expectIgnoresInterrupt(future::result)).getClass());
+            assertEquals(getException, expectThrowsWrapped(() -> FutureUtils.get(future)).getClass());
+            assertEquals(getException, expectThrowsWrapped(() -> FutureUtils.get(future, 10, TimeUnit.SECONDS)).getClass());
+        }
+
+        assertCapturesInterrupt(future::get);
+        assertCapturesInterrupt(() -> future.get(10, TimeUnit.SECONDS));
+        assertPropagatesInterrupt(future::actionGet);
+        assertPropagatesInterrupt(() -> future.actionGet(10, TimeUnit.SECONDS));
+    }
+
+    private static Throwable expectThrowsWrapped(ThrowingRunnable runnable) {
+        return expectThrows(UncategorizedExecutionException.class, ExecutionException.class, runnable).getCause();
+    }
+
+    public void testCancelException() {
+        final var future = new PlainActionFuture<>();
+        future.cancel(randomBoolean());
+
+        assertCancellation(future::get);
+        assertCancellation(future::actionGet);
+        assertCancellation(() -> future.get(10, TimeUnit.SECONDS));
+        assertCancellation(() -> future.actionGet(10, TimeUnit.SECONDS));
+        assertCancellation(future::result);
+        assertCancellation(future::actionResult);
+
+        try {
+            Thread.currentThread().interrupt();
+            assertCancellation(future::result);
+            assertCancellation(future::actionResult);
+        } finally {
+            assertTrue(Thread.interrupted());
+        }
+
+        assertCapturesInterrupt(future::get);
+        assertCapturesInterrupt(() -> future.get(10, TimeUnit.SECONDS));
+        assertPropagatesInterrupt(future::actionGet);
+        assertPropagatesInterrupt(() -> future.actionGet(10, TimeUnit.SECONDS));
+    }
+
+    private static void assertCancellation(ThrowingRunnable runnable) {
+        final var cancellationException = expectThrows(CancellationException.class, runnable);
+        assertEquals("Task was cancelled.", cancellationException.getMessage());
+        assertNull(cancellationException.getCause());
+    }
+
+    private static void assertCapturesInterrupt(ThrowingRunnable runnable) {
+        try {
+            Thread.currentThread().interrupt();
+            final var interruptedException = expectThrows(InterruptedException.class, runnable);
+            assertNull(interruptedException.getMessage());
+            assertNull(interruptedException.getCause());
+        } finally {
+            assertFalse(Thread.interrupted());
+        }
+    }
+
+    private static void assertPropagatesInterrupt(ThrowingRunnable runnable) {
+        try {
+            Thread.currentThread().interrupt();
+            final var interruptedException = expectThrows(IllegalStateException.class, InterruptedException.class, runnable);
+            assertNull(interruptedException.getMessage());
+            assertNull(interruptedException.getCause());
+        } finally {
+            assertTrue(Thread.interrupted());
+        }
+    }
+
+    private static ThrowingRunnable expectIgnoresInterrupt(ThrowingRunnable runnable) {
+        return () -> {
+            try {
+                Thread.currentThread().interrupt();
+                runnable.run();
+            } finally {
+                assertTrue(Thread.interrupted());
             }
         };
-
-        adapter.onFailure(exception);
-        assertEquals(actionGetException, expectThrows(RuntimeException.class, adapter::actionGet).getClass());
-        assertEquals(actionGetException, expectThrows(RuntimeException.class, () -> adapter.actionGet(10, TimeUnit.SECONDS)).getClass());
-        assertEquals(getException, expectThrows(ExecutionException.class, () -> adapter.get()).getCause().getClass());
-        assertEquals(getException, expectThrows(ExecutionException.class, () -> adapter.get(10, TimeUnit.SECONDS)).getCause().getClass());
     }
 }

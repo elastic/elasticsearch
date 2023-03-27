@@ -147,13 +147,18 @@ public class PostWriteRefresh {
                     true,
                     "mark unpromotable copy as stale after refresh failure",
                     e,
-                    ActionListener.runAfter(
-                        ActionListener.wrap(
-                            r -> {},
-                            sfe -> logger.error(Strings.format("Unable to mark shard [%s] as failed", shardRouting.shardId()), sfe)
-                        ),
-                        () -> listener.onFailure(e)
-                    )
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(Void unused) {
+                            listener.onFailure(e);
+                        }
+
+                        @Override
+                        public void onFailure(Exception sfe) {
+                            logger.error(Strings.format("Unable to mark shard [%s] as failed", shardRouting.shardId()), sfe);
+                            listener.onFailure(e);
+                        }
+                    }
                 );
             }), (in) -> ActionResponse.Empty.INSTANCE, ThreadPool.Names.REFRESH)
         );

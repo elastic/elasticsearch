@@ -190,6 +190,24 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     }
 
     @Override
+    @AwaitsFix(bugUrl = "ES-5645")
+    public void testCannotSetInitialConfigurationWithoutLocalNode() {
+        // Stateless masters automatically bootstrap themselves so this test doesn't make sense here
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "ES-5645")
+    public void testCannotSetInitialConfigurationWithoutQuorum() {
+        // Stateless masters automatically bootstrap themselves so this test doesn't make sense here
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "ES-5645")
+    public void testSettingInitialConfigurationTriggersElection() {
+        // Stateless masters automatically bootstrap themselves so this test doesn't make sense here
+    }
+
+    @Override
     public void testJoiningNodeReceivesFullState() {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
             cluster.runRandomly();
@@ -426,16 +444,19 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             CoordinationMetadata.VotingConfiguration lastAcceptedConfiguration,
             CoordinationState.VoteCollection joinVotes
         ) {
+            assert lastCommittedConfiguration.isEmpty() == false;
+            assert lastAcceptedConfiguration.isEmpty() == false;
+
             if (lastWonTerm == localCurrentTerm) {
                 return joinVotes.containsVoteFor(localNode);
             }
 
-            // Safety is guaranteed by the blob store CAS, elect the current node immediately as
-            // master and let the blob store decide whether this node should be the master.
-            return lastCommittedConfiguration.isEmpty() == false && lastAcceptedConfiguration.isEmpty() == false
-            // if there's a leader that's not the local node wait, otherwise win the election immediately
+            // Safety is guaranteed by the blob store CAS, elect the current node immediately as master and let the blob store decide
+            // whether this node should be the master.
+
+            // If there's a leader that's not the local node then wait, otherwise win the election immediately
             // (use the leader node id instead of equals to take into account restarts)
-                && getLeaderForTermIfAlive.apply(localCurrentTerm).map(leader -> leader.getId().equals(localNode.getId())).orElse(true)
+            return getLeaderForTermIfAlive.apply(localCurrentTerm).map(leader -> leader.getId().equals(localNode.getId())).orElse(true)
                 && joinVotes.containsVoteFor(localNode);
         }
 
@@ -570,8 +591,8 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                     0L,
                     0L,
                     localNode,
-                    CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG,
-                    CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG,
+                    CoordinationMetadata.VotingConfiguration.of(localNode),
+                    CoordinationMetadata.VotingConfiguration.of(localNode),
                     0L
                 )
             );
@@ -636,10 +657,10 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                                     .coordinationMetadata(
                                         new CoordinationMetadata(
                                             latestClusterState.term(),
-                                            // Keep the previous configuration so the assertions don't complain about
-                                            // a different commited configuration, we'll change it right away
+                                            // Keep the previous configuration so the assertions don't complain about a different committed
+                                            // configuration, we'll change it right away
                                             latestAcceptedState.getLastCommittedConfiguration(),
-                                            new CoordinationMetadata.VotingConfiguration(Set.of(localNode.getId())),
+                                            CoordinationMetadata.VotingConfiguration.of(localNode),
                                             Set.of()
                                         )
                                     )

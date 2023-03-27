@@ -21,7 +21,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class AnalyticsTransportActionUtils {
+public class AnalyticsTransportActionTestUtils {
 
     /**
      * Creates a mock license state object with the specified license support status.

@@ -20,10 +20,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.analytics.AnalyticsCollectionService;
 
-import static org.elasticsearch.xpack.application.analytics.action.AnalyticsTransportActionUtils.mockLicenseState;
-import static org.elasticsearch.xpack.application.analytics.action.AnalyticsTransportActionUtils.verifyExceptionIsThrownOnInvalidLicence;
-import static org.elasticsearch.xpack.application.analytics.action.AnalyticsTransportActionUtils.verifyNoExceptionIsThrown;
-import static org.elasticsearch.xpack.application.analytics.action.AnalyticsTransportActionUtils.verifyNoResponseIsSent;
+import static org.elasticsearch.xpack.application.analytics.action.AnalyticsTransportActionTestUtils.mockLicenseState;
+import static org.elasticsearch.xpack.application.analytics.action.AnalyticsTransportActionTestUtils.verifyExceptionIsThrownOnInvalidLicence;
+import static org.elasticsearch.xpack.application.analytics.action.AnalyticsTransportActionTestUtils.verifyNoExceptionIsThrown;
+import static org.elasticsearch.xpack.application.analytics.action.AnalyticsTransportActionTestUtils.verifyNoResponseIsSent;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;

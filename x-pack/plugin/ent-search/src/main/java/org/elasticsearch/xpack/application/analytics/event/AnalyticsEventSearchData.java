@@ -62,6 +62,11 @@ public class AnalyticsEventSearchData implements ToXContent, Writeable {
     }
 
     @Override
+    public boolean isFragment() {
+        return false;
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(query);
     }

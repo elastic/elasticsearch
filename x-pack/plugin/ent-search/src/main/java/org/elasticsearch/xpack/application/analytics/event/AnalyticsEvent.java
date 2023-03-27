@@ -143,6 +143,11 @@ public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
         return builder;
     }
 
+    @Override
+    public boolean isFragment() {
+        return false;
+    }
+
     protected abstract void addCustomFieldToXContent(XContentBuilder builder, Params params) throws IOException;
 
     @Override

@@ -85,7 +85,7 @@ public class SearchApplicationTests extends ESTestCase {
         );
     }
 
-    public void testMerge() {
+    public void testMerge() throws IOException {
         String content = """
             {
               "indices": ["my_index", "my_index_2"],

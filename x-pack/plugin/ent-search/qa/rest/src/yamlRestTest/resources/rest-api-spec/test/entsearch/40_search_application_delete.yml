@@ -46,3 +46,13 @@ teardown:
       search_application.delete:
         name: test-nonexistent-search-application
 
+---
+"Delete Search Application - Alias does not exist as indices were deleted":
+  - do:
+      indices.delete:
+        index: test-index
+
+      search_application.delete:
+        name: test-search-application-to-delete
+
+  - match: { acknowledged: true }

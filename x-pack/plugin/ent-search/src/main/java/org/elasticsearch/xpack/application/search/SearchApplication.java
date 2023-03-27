@@ -42,39 +42,6 @@ public class SearchApplication implements Writeable, ToXContentObject {
 
     private final String name;
     private final String[] indices;
-    private long updatedAtMillis = System.currentTimeMillis();
-    private final String analyticsCollectionName;
-
-    /**
-     * Public constructor.
-     *
-     * @param name                    The name of the search application.
-     * @param indices                 The list of indices targeted by this search application.
-     * @param analyticsCollectionName The name of the associated analytics collection.
-     */
-    public SearchApplication(String name, String[] indices, @Nullable String analyticsCollectionName) {
-        this.name = name;
-        this.indices = indices;
-        Arrays.sort(indices);
-
-        this.analyticsCollectionName = analyticsCollectionName;
-    }
-
-    public SearchApplication(StreamInput in) throws IOException {
-        this.name = in.readString();
-        this.indices = in.readStringArray();
-        this.analyticsCollectionName = in.readOptionalString();
-        this.updatedAtMillis = in.readLong();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
-        out.writeStringArray(indices);
-        out.writeOptionalString(analyticsCollectionName);
-        out.writeLong(updatedAtMillis);
-    }
-
     private static final ConstructingObjectParser<SearchApplication, String> PARSER = new ConstructingObjectParser<>(
         "search_application",
         false,
@@ -94,11 +61,49 @@ public class SearchApplication implements Writeable, ToXContentObject {
             final Long maybeUpdatedAtMillis = (Long) params[3];
             long updatedAtMillis = (maybeUpdatedAtMillis != null ? maybeUpdatedAtMillis : System.currentTimeMillis());
 
-            SearchApplication newApp = new SearchApplication(resourceName, indices, analyticsCollectionName);
-            newApp.setUpdatedAtMillis(updatedAtMillis);
+            SearchApplication newApp = new SearchApplication(resourceName, indices, analyticsCollectionName, updatedAtMillis);
             return newApp;
         }
     );
+    private final String analyticsCollectionName;
+    private final long updatedAtMillis;
+
+    public SearchApplication(StreamInput in) throws IOException {
+        this.name = in.readString();
+        this.indices = in.readStringArray();
+        this.analyticsCollectionName = in.readOptionalString();
+        this.updatedAtMillis = in.readLong();
+    }
+
+    /**
+     * Public constructor.
+     *
+     * @param name                    The name of the search application.
+     * @param indices                 The list of indices targeted by this search application.
+     * @param analyticsCollectionName The name of the associated analytics collection.
+     * @param updatedAtMillis         Last updated time in milliseconds for the search application.
+     */
+    public SearchApplication(String name, String[] indices, @Nullable String analyticsCollectionName, long updatedAtMillis) {
+        if (Strings.isNullOrEmpty(name)) {
+            throw new IllegalArgumentException("Search Application name cannot be null or blank");
+        }
+        this.name = name;
+
+        Objects.requireNonNull(indices, "Search Application indices cannot be null");
+        this.indices = indices.clone();
+        Arrays.sort(this.indices);
+
+        this.analyticsCollectionName = analyticsCollectionName;
+        this.updatedAtMillis = updatedAtMillis;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        out.writeStringArray(indices);
+        out.writeOptionalString(analyticsCollectionName);
+        out.writeLong(updatedAtMillis);
+    }
 
     public static final ParseField NAME_FIELD = new ParseField("name");
     public static final ParseField INDICES_FIELD = new ParseField("indices");
@@ -196,15 +201,6 @@ public class SearchApplication implements Writeable, ToXContentObject {
         return updatedAtMillis;
     }
 
-    /**
-     * Updates the timestamp in milliseconds that this {@link SearchApplication} was last modified.
-     *
-     * @param updatedAtMillis Timestamp in milliseconds
-     */
-    public void setUpdatedAtMillis(long updatedAtMillis) {
-        this.updatedAtMillis = updatedAtMillis;
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -238,7 +234,7 @@ public class SearchApplication implements Writeable, ToXContentObject {
      *
      * @return The merged {@link SearchApplication}.
      */
-    SearchApplication merge(BytesReference update, XContentType xContentType, BigArrays bigArrays) {
+    SearchApplication merge(BytesReference update, XContentType xContentType, BigArrays bigArrays) throws IOException {
         final Tuple<XContentType, Map<String, Object>> sourceAndContent;
         try (ReleasableBytesStreamOutput sourceBuffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())) {
             try (XContentBuilder builder = XContentFactory.jsonBuilder(sourceBuffer)) {
@@ -260,8 +256,6 @@ public class SearchApplication implements Writeable, ToXContentObject {
                 builder.value(newSourceAsMap);
             }
             return SearchApplication.fromXContentBytes(name, newSourceBuffer.bytes(), XContentType.JSON);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         }
     }
 }

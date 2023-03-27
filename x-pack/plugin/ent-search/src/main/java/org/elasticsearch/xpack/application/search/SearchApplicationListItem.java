@@ -45,8 +45,12 @@ public class SearchApplicationListItem implements Writeable, ToXContentObject {
      * @param updatedAtMillis The timestamp in milliseconds when this search application was last updated.
      */
     public SearchApplicationListItem(String name, String[] indices, @Nullable String analyticsCollectionName, long updatedAtMillis) {
+        Objects.requireNonNull(name, "Name cannot be null on a SearchApplicationListItem");
         this.name = name;
+
+        Objects.requireNonNull(name, "Indices cannot be null on a SearchApplicationListItem");
         this.indices = indices;
+
         this.analyticsCollectionName = analyticsCollectionName;
         this.updatedAtMillis = updatedAtMillis;
     }

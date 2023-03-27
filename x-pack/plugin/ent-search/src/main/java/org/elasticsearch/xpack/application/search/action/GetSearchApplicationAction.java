@@ -92,8 +92,7 @@ public class GetSearchApplicationAction extends ActionType<GetSearchApplicationA
         }
 
         public Response(String name, String[] indices, String analyticsCollectionName, long updatedAtMillis) {
-            this.searchApp = new SearchApplication(name, indices, analyticsCollectionName);
-            this.searchApp.setUpdatedAtMillis(updatedAtMillis);
+            this.searchApp = new SearchApplication(name, indices, analyticsCollectionName, updatedAtMillis);
         }
 
         @Override

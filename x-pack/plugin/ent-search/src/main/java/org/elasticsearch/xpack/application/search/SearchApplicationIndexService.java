@@ -357,9 +357,10 @@ public class SearchApplicationIndexService {
             @Override
             public void onFailure(Exception e) {
                 if (e instanceof AliasesNotFoundException) {
-                    listener.onFailure(new ResourceNotFoundException(resourceName));
+                    deleteSearchApplication(resourceName, listener);
+                } else {
+                    listener.onFailure(e);
                 }
-                listener.onFailure(e);
             }
         });
     }

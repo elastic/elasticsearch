@@ -67,8 +67,6 @@ teardown:
         name: test-search-application
 
   - is_true: ''
-
-  - match: { "foo" }
 ---
 "Update Search Application":
   - do:

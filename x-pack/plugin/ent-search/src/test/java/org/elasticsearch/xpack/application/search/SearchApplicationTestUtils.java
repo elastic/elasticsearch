@@ -14,6 +14,7 @@ import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 
 public final class SearchApplicationTestUtils {
 
@@ -32,7 +33,8 @@ public final class SearchApplicationTestUtils {
         return new SearchApplication(
             ESTestCase.randomAlphaOfLengthBetween(1, 10),
             generateRandomStringArray(10, 10, false, false),
-            randomFrom(new String[] { null, randomAlphaOfLengthBetween(1, 10) })
+            randomFrom(new String[] { null, randomAlphaOfLengthBetween(1, 10) }),
+            randomLongBetween(0, Long.MAX_VALUE)
         );
     }
 }

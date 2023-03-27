@@ -12,13 +12,13 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.action.search.SearchPhaseController.SortedTopDocs;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankContext;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -110,7 +110,7 @@ public class RRFRankContext extends RankContext {
         // score if we already saw it as part of a previous query's
         // doc set, otherwise we make a new doc and calculate the
         // initial score
-        Map<RankKey, RRFRankDoc> results = new HashMap<>();
+        Map<RankKey, RRFRankDoc> results = Maps.newMapWithExpectedSize(queryCount * windowSize);
         final int fqc = queryCount;
         for (int qi = 0; qi < queryCount; ++qi) {
             PriorityQueue<RRFRankDoc> queue = queues.get(qi);

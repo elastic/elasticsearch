@@ -14,6 +14,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QueryPhase;
@@ -23,7 +24,6 @@ import org.elasticsearch.search.rank.RankShardContext;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -107,7 +107,7 @@ public class RRFRankShardContext extends RankShardContext {
         // if a doc isn't part of a result set its position will be NO_RANK [0] and
         // its score is [0f]
         int queries = rrfRankResults.size();
-        Map<Integer, RRFRankDoc> docsToRankResults = new HashMap<>();
+        Map<Integer, RRFRankDoc> docsToRankResults = Maps.newMapWithExpectedSize(windowSize);
         int index = 0;
         for (TopDocs rrfRankResult : rrfRankResults) {
             int rank = 1;

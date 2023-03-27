@@ -29,6 +29,7 @@ public final class RerouteProcessor extends AbstractProcessor {
     private static final String DATA_STREAM_TYPE = DATA_STREAM_PREFIX + "type";
     private static final String DATA_STREAM_DATASET = DATA_STREAM_PREFIX + "dataset";
     private static final String DATA_STREAM_NAMESPACE = DATA_STREAM_PREFIX + "namespace";
+    private static final String EVENT_DATASET = "event.dataset";
     private static final char[] DISALLOWED_IN_DATASET = new char[] { '\\', '/', '*', '?', '\"', '<', '>', '|', ' ', ',', '#', ':', '-' };
     private static final char[] DISALLOWED_IN_NAMESPACE = new char[] { '\\', '/', '*', '?', '\"', '<', '>', '|', ' ', ',', '#', ':' };
     private static final int MAX_LENGTH = 100;
@@ -116,6 +117,11 @@ public final class RerouteProcessor extends AbstractProcessor {
         ingestDocument.setFieldValue(DATA_STREAM_TYPE, type);
         ingestDocument.setFieldValue(DATA_STREAM_DATASET, dataset);
         ingestDocument.setFieldValue(DATA_STREAM_NAMESPACE, namespace);
+        if (ingestDocument.hasField(EVENT_DATASET)) {
+            // ECS specifies that "event.dataset should have the same value as data_stream.dataset"
+            // not eagerly set event.dataset but only if the doc contains it already to ensure it's consistent with data_stream.dataset
+            ingestDocument.setFieldValue(EVENT_DATASET, dataset);
+        }
         return ingestDocument;
     }
 

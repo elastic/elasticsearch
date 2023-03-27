@@ -30,6 +30,26 @@ public class RerouteProcessorTests extends ESTestCase {
         assertDataSetFields(ingestDocument, "logs", "generic", "default");
     }
 
+    public void testEventDataset() throws Exception {
+        IngestDocument ingestDocument = createIngestDocument("logs-generic-default");
+        ingestDocument.setFieldValue("event.dataset", "foo");
+
+        RerouteProcessor processor = new RerouteProcessor(List.of("{event.dataset}"), List.of());
+        processor.execute(ingestDocument);
+        assertDataSetFields(ingestDocument, "logs", "foo", "default");
+        assertThat(ingestDocument.getFieldValue("event.dataset", String.class), equalTo("foo"));
+    }
+
+    public void testNoDataset() throws Exception {
+        IngestDocument ingestDocument = createIngestDocument("logs-generic-default");
+        ingestDocument.setFieldValue("ds", "foo");
+
+        RerouteProcessor processor = new RerouteProcessor(List.of("{ds}"), List.of());
+        processor.execute(ingestDocument);
+        assertDataSetFields(ingestDocument, "logs", "foo", "default");
+        assertFalse(ingestDocument.hasField("event.dataset"));
+    }
+
     public void testSkipFirstProcessor() throws Exception {
         IngestDocument ingestDocument = createIngestDocument("logs-generic-default");
 
@@ -158,6 +178,12 @@ public class RerouteProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("data_stream.dataset", String.class), equalTo(dataset));
         assertThat(ingestDocument.getFieldValue("data_stream.namespace", String.class), equalTo(namespace));
         assertThat(ingestDocument.getFieldValue("_index", String.class), equalTo(type + "-" + dataset + "-" + namespace));
+        if (ingestDocument.hasField("event.dataset")) {
+            assertThat(
+                ingestDocument.getFieldValue("event.dataset", String.class),
+                equalTo(ingestDocument.getFieldValue("data_stream.dataset", String.class))
+            );
+        }
     }
 
     private static IngestDocument createIngestDocument(String dataStream) {

@@ -4,6 +4,10 @@
     display-name: "elastic / elasticsearch # %BRANCH% - DRA staging update"
     description: "Scheduled job to check for staging dependency updates"
     node: master
+    scm: []
+    properties: []
+    parameters: []
+    publishers: []
     triggers:
       - timed: "*/30 * * * *"
     builders:
@@ -11,7 +15,12 @@
           condition-kind: shell
           condition-command: |
             #!/usr/bin/env bash
-            set -o pipefail
+            set -e
+            # Don't publish main branch to staging
+            if [ "%BRANCH%" == "main" ]; then
+              exit 1
+            fi
+
             RM_BRANCH="%BRANCH%" && [[ "%BRANCH%" == "main" ]] && RM_BRANCH=master
             BEATS_MANIFEST=$(curl -sS https://artifacts-staging.elastic.co/beats/latest/${RM_BRANCH}.json | jq -r '.manifest_url')
             ML_MANIFEST=$(curl -sS https://artifacts-staging.elastic.co/ml-cpp/latest/${RM_BRANCH}.json | jq -r '.manifest_url')

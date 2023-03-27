@@ -67,7 +67,6 @@ can take substantial time to ingest documents that contain vector fields with
 `index` enabled. See <<tune-knn-search,k-nearest neighbor (kNN) search>> to
 learn more about the memory requirements.
 
-
 You can enable indexing by setting the `index` parameter:
 
 [source,console]

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -69,13 +70,15 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         hasClusterCredentials = randomBoolean();
         final Settings.Builder builder = Settings.builder().put(modeKey, "sniff");
         if (hasClusterCredentials) {
-            builder.put(
+            final MockSecureSettings secureSettings = new MockSecureSettings();
+            secureSettings.setString(
                 RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(clusterAlias).getKey(),
                 randomAlphaOfLength(20)
             );
+            builder.setSecureSettings(secureSettings);
         }
         clientSettings = builder.build();
-        profile = RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, clientSettings);
+        profile = RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, clientSettings, hasClusterCredentials);
     }
 
     @Override

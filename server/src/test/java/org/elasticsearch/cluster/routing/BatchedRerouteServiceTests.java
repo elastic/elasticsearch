@@ -27,7 +27,6 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
@@ -78,15 +77,15 @@ public class BatchedRerouteServiceTests extends ESTestCase {
         assertThat(rerouteCountBeforeReroute, lessThan(rerouteCount.get()));
     }
 
-    public void testBatchesReroutesTogetherAtPriorityOfHighestSubmittedReroute() throws BrokenBarrierException, InterruptedException {
+    public void testBatchesReroutesTogetherAtPriorityOfHighestSubmittedReroute() {
         final CyclicBarrier cyclicBarrier = new CyclicBarrier(2);
         // notify test that we are blocked
         // wait to be unblocked by test
         clusterService.submitUnbatchedStateUpdateTask("block master service", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                cyclicBarrier.await(); // notify test that we are blocked
-                cyclicBarrier.await(); // wait to be unblocked by test
+                safeAwait(cyclicBarrier); // notify test that we are blocked
+                safeAwait(cyclicBarrier); // wait to be unblocked by test
                 return currentState;
             }
 
@@ -96,7 +95,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
             }
         });
 
-        cyclicBarrier.await(); // wait for master thread to be blocked
+        safeAwait(cyclicBarrier); // wait for master thread to be blocked
 
         final AtomicBoolean rerouteExecuted = new AtomicBoolean();
         final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r, l) -> {
@@ -181,10 +180,10 @@ public class BatchedRerouteServiceTests extends ESTestCase {
         }
         Randomness.shuffle(actions);
         actions.forEach(threadPool.generic()::execute);
-        assertTrue(tasksSubmittedCountDown.await(10, TimeUnit.SECONDS));
+        safeAwait(tasksSubmittedCountDown);
 
-        cyclicBarrier.await(); // allow master thread to continue;
-        assertTrue(tasksCompletedCountDown.await(10, TimeUnit.SECONDS)); // wait for reroute to complete
+        safeAwait(cyclicBarrier); // allow master thread to continue;
+        safeAwait(tasksCompletedCountDown); // wait for reroute to complete
         assertTrue(rerouteExecuted.get()); // see above for assertion that it's only called once
     }
 

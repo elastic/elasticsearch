@@ -268,13 +268,9 @@ public class ClusterStatsNodesTests extends ESTestCase {
 
             // wait a second, this is the super-special case -- you can't actually have two nodes doing this unless something
             // very interesting is happening, so they sum (i.e. we assume the operator is doing smart things)
-            // assertThat(total.getTotal().getBytes(), equalTo(6L));
-            // assertThat(total.getFree().getBytes(), equalTo(4L));
-            // assertThat(total.getAvailable().getBytes(), equalTo(2L));
-            // BUG 1: we don't sum in this super-special case, we just dedup by ip address
-            assertThat(total.getTotal().getBytes(), equalTo(3L));
-            assertThat(total.getFree().getBytes(), equalTo(2L));
-            assertThat(total.getAvailable().getBytes(), equalTo(1L));
+            assertThat(total.getTotal().getBytes(), equalTo(6L));
+            assertThat(total.getFree().getBytes(), equalTo(4L));
+            assertThat(total.getAvailable().getBytes(), equalTo(2L));
         }
     }
 

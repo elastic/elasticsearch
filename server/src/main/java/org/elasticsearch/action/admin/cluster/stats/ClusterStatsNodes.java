@@ -845,13 +845,16 @@ public class ClusterStatsNodes implements ToXContentFragment {
 
     static class ClusterFsStatsDeduplicator {
 
-        private record DedupEntry(InetAddress inetAddress, String mount) {}
+        private record DedupEntry(InetAddress inetAddress, String mount, String path) {}
 
         private final Set<DedupEntry> seenAddressesMounts;
+        private final Set<DedupEntry> seenAddressesMountsPaths;
+
         private final FsInfo.Path total = new FsInfo.Path();
 
         ClusterFsStatsDeduplicator(int expectedSize) {
             seenAddressesMounts = Sets.newHashSetWithExpectedSize(expectedSize);
+            seenAddressesMountsPaths = Sets.newHashSetWithExpectedSize(expectedSize);
         }
 
         public void add(InetAddress inetAddress, FsInfo fsInfo) {
@@ -863,12 +866,17 @@ public class ClusterStatsNodes implements ToXContentFragment {
                     // this deduplication logic is hard to get right. it might be impossible to make it work correctly in
                     // *all* circumstances. this is best-effort only, but it's aimed at trying to solve 90%+ of cases.
 
-                    // we want to sum the unique mounts for each ip address, so if we *haven't* seen a particular
+                    // rule 0: we want to sum the unique mounts for each ip address, so if we *haven't* seen a particular
                     // address and mount, then definitely add that to the total.
 
-                    boolean seenAddressMount = seenAddressesMounts.add(new DedupEntry(inetAddress, mount)) == false;
+                    // rule 1: however, as a special case, if we see the same address+mount+path triple more than once, then we
+                    // override the ip+mount de-duplication logic -- using that as indicator that we're seeing a special
+                    // containerization situation, in which case we assume the operator is maintaining different disks for each node.
 
-                    if ((seenAddressMount == false)) {
+                    boolean seenAddressMount = seenAddressesMounts.add(new DedupEntry(inetAddress, mount, null)) == false;
+                    boolean seenAddressMountPath = seenAddressesMountsPaths.add(new DedupEntry(inetAddress, mount, path)) == false;
+
+                    if ((seenAddressMount == false) || seenAddressMountPath) {
                         total.add(p);
                     }
                 }

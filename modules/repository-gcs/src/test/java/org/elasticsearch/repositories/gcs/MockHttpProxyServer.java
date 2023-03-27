@@ -22,19 +22,18 @@ import io.netty.handler.codec.http.HttpServerCodec;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.function.Supplier;
 
 /**
  * A mock HTTP Proxy server for testing of support of HTTP proxies in various SDKs
  */
-class MockHttpProxyServer implements Closeable {
+abstract class MockHttpProxyServer implements Closeable {
 
     private final EventLoopGroup group = new NioEventLoopGroup(1);
 
-    private ChannelFuture channelFuture;
-    private InetSocketAddress socketAddress;
+    private final ChannelFuture channelFuture;
+    private final InetSocketAddress socketAddress;
 
-    MockHttpProxyServer handler(Supplier<SimpleChannelInboundHandler<FullHttpRequest>> handler) {
+    MockHttpProxyServer() {
         try {
             channelFuture = new ServerBootstrap().group(group)
                 .channel(NioServerSocketChannel.class)
@@ -44,7 +43,7 @@ class MockHttpProxyServer implements Closeable {
                         ch.pipeline()
                             .addLast(new HttpServerCodec())
                             .addLast(new HttpObjectAggregator(Integer.MAX_VALUE))
-                            .addLast(handler.get());
+                            .addLast(handler());
                     }
                 })
                 .bind(0)
@@ -54,8 +53,9 @@ class MockHttpProxyServer implements Closeable {
             throw new AssertionError(e);
         }
         socketAddress = (InetSocketAddress) channelFuture.channel().localAddress();
-        return this;
     }
+
+    public abstract SimpleChannelInboundHandler<FullHttpRequest> handler();
 
     int getPort() {
         return socketAddress.getPort();

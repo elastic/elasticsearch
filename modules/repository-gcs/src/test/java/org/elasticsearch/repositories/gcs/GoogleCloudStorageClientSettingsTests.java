@@ -176,34 +176,39 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             ).getBytes(StandardCharsets.UTF_8)
         );
         var settings = Settings.builder().setSecureSettings(secureSettings).build();
-        var proxyServer = new MockHttpProxyServer().handler(() -> new SimpleChannelInboundHandler<>() {
+        var proxyServer = new MockHttpProxyServer() {
             @Override
-            protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) throws Exception {
-                assertEquals("POST", request.method().name());
-                assertEquals("http://oauth2.googleapis.com/oauth2/token", request.uri());
-                String body = """
-                    {
-                        "access_token": "proxy_access_token",
-                        "token_type": "bearer",
-                        "expires_in": 3600
+            public SimpleChannelInboundHandler<FullHttpRequest> handler() {
+                return new SimpleChannelInboundHandler<>() {
+                    @Override
+                    protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) throws Exception {
+                        assertEquals("POST", request.method().name());
+                        assertEquals("http://oauth2.googleapis.com/oauth2/token", request.uri());
+                        String body = """
+                            {
+                                "access_token": "proxy_access_token",
+                                "token_type": "bearer",
+                                "expires_in": 3600
+                            }
+                            """;
+                        var response = new DefaultFullHttpResponse(
+                            HttpVersion.HTTP_1_1,
+                            HttpResponseStatus.OK,
+                            Unpooled.wrappedBuffer(body.getBytes(StandardCharsets.UTF_8))
+                        );
+                        response.headers().setInt(HttpHeaderNames.CONTENT_LENGTH, response.content().readableBytes());
+                        ctx.channel().writeAndFlush(response);
                     }
-                    """;
-                var response = new DefaultFullHttpResponse(
-                    HttpVersion.HTTP_1_1,
-                    HttpResponseStatus.OK,
-                    Unpooled.wrappedBuffer(body.getBytes(StandardCharsets.UTF_8))
-                );
-                response.headers().setInt(HttpHeaderNames.CONTENT_LENGTH, response.content().readableBytes());
-                ctx.channel().writeAndFlush(response);
-            }
 
-            @Override
-            public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-                ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                ctx.writeAndFlush(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR));
-                ctx.close();
+                    @Override
+                    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+                        ExceptionsHelper.maybeDieOnAnotherThread(cause);
+                        ctx.writeAndFlush(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR));
+                        ctx.close();
+                    }
+                };
             }
-        });
+        };
 
         try (proxyServer) {
             var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), proxyServer.getPort()));

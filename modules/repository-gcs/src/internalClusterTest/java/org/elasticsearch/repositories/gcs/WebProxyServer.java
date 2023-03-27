@@ -42,9 +42,19 @@ class WebProxyServer extends MockHttpProxyServer {
     private static final Set<String> BLOCKED_HEADERS = Stream.of("Host", "Proxy-Connection", "Proxy-Authenticate")
         .collect(Collectors.toCollection(() -> new TreeSet<>(String.CASE_INSENSITIVE_ORDER)));
 
+    private final String upstreamHost;
+    private final int upstreamPort;
+    private final String upstreamHostPort;
+
     WebProxyServer(String upstreamHost, int upstreamPort) {
-        String upstreamHostPort = "http://" + upstreamHost + ":" + upstreamPort;
-        handler(() -> new SimpleChannelInboundHandler<FullHttpRequest>() {
+        this.upstreamHost = upstreamHost;
+        this.upstreamPort = upstreamPort;
+        upstreamHostPort = "http://" + upstreamHost + ":" + upstreamPort;
+    }
+
+    @Override
+    public SimpleChannelInboundHandler<FullHttpRequest> handler() {
+        return new SimpleChannelInboundHandler<>() {
 
             private Channel outboundChannel;
 
@@ -126,7 +136,7 @@ class WebProxyServer extends MockHttpProxyServer {
             public void channelInactive(ChannelHandlerContext ctx) {
                 outboundChannel.writeAndFlush(Unpooled.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE);
             }
-        });
+        };
     }
 
     private static ChannelFutureListener channelFutureListener(ChannelHandlerContext ctx) {

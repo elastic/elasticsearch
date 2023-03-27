@@ -196,27 +196,32 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
 
     public void testGetDefaultProjectIdViaProxy() throws Exception {
         String proxyProjectId = randomAlphaOfLength(16);
-        var proxyServer = new MockHttpProxyServer().handler(() -> new SimpleChannelInboundHandler<>() {
+        var proxyServer = new MockHttpProxyServer() {
             @Override
-            protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) throws Exception {
-                assertEquals("GET", request.method().name());
-                assertEquals("http://metadata.google.internal/computeMetadata/v1/project/project-id", request.uri());
-                var response = new DefaultFullHttpResponse(
-                    HttpVersion.HTTP_1_1,
-                    HttpResponseStatus.OK,
-                    Unpooled.wrappedBuffer(proxyProjectId.getBytes(StandardCharsets.UTF_8))
-                );
-                response.headers().setInt(HttpHeaderNames.CONTENT_LENGTH, response.content().readableBytes());
-                ctx.writeAndFlush(response);
-            }
+            public SimpleChannelInboundHandler<FullHttpRequest> handler() {
+                return new SimpleChannelInboundHandler<>() {
+                    @Override
+                    protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) throws Exception {
+                        assertEquals("GET", request.method().name());
+                        assertEquals("http://metadata.google.internal/computeMetadata/v1/project/project-id", request.uri());
+                        var response = new DefaultFullHttpResponse(
+                            HttpVersion.HTTP_1_1,
+                            HttpResponseStatus.OK,
+                            Unpooled.wrappedBuffer(proxyProjectId.getBytes(StandardCharsets.UTF_8))
+                        );
+                        response.headers().setInt(HttpHeaderNames.CONTENT_LENGTH, response.content().readableBytes());
+                        ctx.writeAndFlush(response);
+                    }
 
-            @Override
-            public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-                ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                ctx.writeAndFlush(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR));
-                ctx.close();
+                    @Override
+                    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+                        ExceptionsHelper.maybeDieOnAnotherThread(cause);
+                        ctx.writeAndFlush(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR));
+                        ctx.close();
+                    }
+                };
             }
-        });
+        };
         try (proxyServer) {
             var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), proxyServer.getPort()));
             assertEquals(proxyProjectId, SocketAccess.doPrivilegedIOException(() -> GoogleCloudStorageService.getDefaultProjectId(proxy)));

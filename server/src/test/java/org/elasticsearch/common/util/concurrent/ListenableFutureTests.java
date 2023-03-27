@@ -14,13 +14,19 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ReachabilityChecker;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.junit.After;
+import org.junit.Assert;
 
+import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -202,5 +208,58 @@ public class ListenableFutureTests extends ESTestCase {
             barrier.reset();
             terminate(executorService);
         }
+    }
+
+    public void testExceptionWrapping() {
+        assertExceptionWrapping(new ElasticsearchException("simulated"), e -> {
+            assertEquals(ElasticsearchException.class, e.getClass());
+            assertEquals("simulated", e.getMessage());
+        });
+
+        assertExceptionWrapping(new RuntimeException("simulated"), e -> {
+            assertEquals(RuntimeException.class, e.getClass());
+            assertEquals("simulated", e.getMessage());
+        });
+
+        assertExceptionWrapping(new IOException("simulated"), e -> {
+            assertEquals(UncategorizedExecutionException.class, e.getClass());
+            assertEquals(ExecutionException.class, e.getCause().getClass());
+            assertEquals(IOException.class, e.getCause().getCause().getClass());
+            assertEquals("simulated", e.getCause().getCause().getMessage());
+        });
+
+        assertExceptionWrapping(new ElasticsearchException("outer", new IOException("inner")), e -> {
+            assertEquals(ElasticsearchException.class, e.getClass());
+            assertEquals(IOException.class, e.getCause().getClass());
+            assertEquals("outer", e.getMessage());
+            assertEquals("inner", e.getCause().getMessage());
+        });
+
+        assertExceptionWrapping(new RemoteTransportException("outer", new IOException("inner")), e -> {
+            assertEquals(RemoteTransportException.class, e.getClass());
+            assertEquals(IOException.class, e.getCause().getClass());
+            assertEquals("[outer]", e.getMessage());
+            assertEquals("inner", e.getCause().getMessage());
+        });
+    }
+
+    private void assertExceptionWrapping(Exception exception, Consumer<Exception> assertException) {
+        final AtomicInteger assertCount = new AtomicInteger();
+        final BiConsumer<ActionListener<Void>, Exception> exceptionCheck = (l, e) -> {
+            assertException.accept(e);
+            assertCount.incrementAndGet();
+        };
+        final var future = new ListenableFuture<Void>();
+
+        future.addListener(ActionListener.<Void>running(Assert::fail).delegateResponse(exceptionCheck));
+
+        future.onFailure(exception);
+        assertEquals(1, assertCount.get());
+
+        exceptionCheck.accept(null, expectThrows(Exception.class, future::result));
+        assertEquals(2, assertCount.get());
+
+        future.addListener(ActionListener.<Void>running(Assert::fail).delegateResponse(exceptionCheck));
+        assertEquals(3, assertCount.get());
     }
 }

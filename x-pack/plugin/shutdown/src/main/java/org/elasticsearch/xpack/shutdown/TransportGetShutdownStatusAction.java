@@ -41,16 +41,13 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.ShutdownShardMigrationStatus.NODE_ALLOCATION_DECISION_KEY;
 import static org.elasticsearch.core.Strings.format;
@@ -211,12 +208,9 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         Set<String> shuttingDownNodes = currentState.metadata().nodeShutdowns().keySet();
 
         // Check if we have any unassigned primary shards that have this nodeId as their lastAllocatedNodeId
-        var unassignedShards = Stream.iterate(
-            currentState.getRoutingNodes().unassigned().iterator(),
-            Iterator::hasNext,
-            UnaryOperator.identity()
-        )
-            .map(Iterator::next)
+        var unassignedShards = currentState.getRoutingNodes()
+            .unassigned()
+            .stream()
             .filter(s -> Objects.equals(s.unassignedInfo().getLastAllocatedNodeId(), nodeId))
             .filter(s -> s.primary() || hasShardCopyOnAnotherNode(currentState, s, shuttingDownNodes) == false)
             .toList();

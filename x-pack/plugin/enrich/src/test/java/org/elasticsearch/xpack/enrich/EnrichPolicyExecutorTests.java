@@ -43,6 +43,7 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -51,7 +52,6 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.empty;
-import static org.junit.Assert.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -198,6 +198,8 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
 
         // Client calls are forked to a different thread which will await on this latch before actually running anything
         CountDownLatch clientBlockingLatch = new CountDownLatch(1);
+        // When the client is called with a GetTask call a second time, it should count down this latch, so we can check the lock status.
+        CountDownLatch secondGetTaskWasCalled = new CountDownLatch(1);
         // A barrier to repeatedly control when the async client will respond with Get Task API results.
         CyclicBarrier getTaskActionBlockingBarrier = new CyclicBarrier(2);
         // State flag to ensure first Get Task API call will fail.
@@ -225,6 +227,10 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
                     }
 
                     if (GetTaskAction.INSTANCE.equals(action)) {
+                        if (shouldGetTaskApiReturnTimeout.get() == false) {
+                            // This is the second call to the Get Task API, so count down the latch to let the main test logic know.
+                            secondGetTaskWasCalled.countDown();
+                        }
                         // Enrich uses GetTaskAction to detect when the task completes during wait_for_completion. The first call will
                         // throw a timeout, and all remaining calls will return normally.
                         try {
@@ -283,11 +289,14 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
                 logger.error("Encountered ignorable exception during test cleanup");
             }
             try {
+                // Wait on the timing out request
                 getTaskActionBlockingBarrier.await(3, TimeUnit.SECONDS);
-            } catch (BrokenBarrierException e) {
-                logger.error("Encountered ignorable barrier broken exception during test cleanup");
+                // Wait on the response request
+                getTaskActionBlockingBarrier.await(3, TimeUnit.SECONDS);
+            } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
+                logger.error("Encountered ignorable barrier wait exception during test cleanup");
             }
-            fail("Enrich policy was not locked when it should have been");
+            fail("Enrich policy was not locked during task submission when it should have been");
         }
 
         // Free the client to execute
@@ -301,9 +310,12 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         } catch (AssertionError e) {
             // conclude the fake runs
             try {
+                // Wait on the timing out request
                 getTaskActionBlockingBarrier.await(3, TimeUnit.SECONDS);
-            } catch (BrokenBarrierException be) {
-                logger.error("Encountered ignorable barrier broken exception during test cleanup");
+                // Wait on the response request
+                getTaskActionBlockingBarrier.await(3, TimeUnit.SECONDS);
+            } catch (InterruptedException | BrokenBarrierException | TimeoutException be) {
+                logger.error("Encountered ignorable barrier wait exception during test cleanup");
             }
             throw e;
         }
@@ -312,11 +324,14 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         if (enrichPolicyLocks.lockedPolices().contains(testPolicyName) == false) {
             // keep the logs clean
             try {
+                // Wait on the timing out request
                 getTaskActionBlockingBarrier.await(3, TimeUnit.SECONDS);
-            } catch (BrokenBarrierException e) {
-                logger.error("Encountered ignorable barrier broken exception during test cleanup");
+                // Wait on the response request
+                getTaskActionBlockingBarrier.await(3, TimeUnit.SECONDS);
+            } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
+                logger.error("Encountered ignorable barrier wait exception during test cleanup");
             }
-            fail("Enrich policy was not locked when it should have been");
+            fail("Enrich policy was not locked after task response when it should have been");
         }
 
         // Now lets return a timeout response on the getTaskAPI
@@ -326,11 +341,28 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
             throw new RuntimeException("Unexpected broken barrier exception", e);
         }
 
-        // Ensure that the policy remains locked during this period of uncertainty
-        expectThrows(
-            AssertionError.class,
-            () -> assertBusy(() -> assertFalse(enrichPolicyLocks.lockedPolices().contains(testPolicyName)), 3, TimeUnit.SECONDS)
-        );
+        // Wait for the executor to call back to the client with a new get task action
+        try {
+            // Don't need to clean up any barrier states here because the client was never called again
+            assertTrue(
+                "Expected task API to be called a second time by the executor after first call timed out",
+                secondGetTaskWasCalled.await(3, TimeUnit.SECONDS)
+            );
+        } catch (InterruptedException e) {
+            // We were interrupted, which means we shouldn't wait on any barriers.
+            Assert.fail("Thread interrupted while waiting for background executor to call task API");
+        }
+
+        // Ensure that the policy remained locked
+        if (enrichPolicyLocks.lockedPolices().contains(testPolicyName) == false) {
+            // Another thread is waiting to send a task API response, signal it before failing test to keep the logs clean.
+            try {
+                getTaskActionBlockingBarrier.await(3, TimeUnit.SECONDS);
+            } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
+                logger.error("Encountered ignorable barrier wait exception during test cleanup");
+            }
+            fail("Enrich policy was not locked after timeout when it should have been");
+        }
 
         // If the lock has remained, then the client should have resubmitted the task wait operation. Signal a new response that will
         // complete the task wait

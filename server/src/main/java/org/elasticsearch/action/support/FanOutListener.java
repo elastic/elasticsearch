@@ -153,7 +153,7 @@ public class FanOutListener<T> implements ActionListener<T> {
      * @throws IllegalStateException if this listener is not complete yet and assertions are disabled.
      */
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public final T rawResult() throws Exception {
+    protected final T rawResult() throws Exception {
         final Object refValue = ref.get();
         if (refValue instanceof SuccessResult result) {
             return (T) result.result();

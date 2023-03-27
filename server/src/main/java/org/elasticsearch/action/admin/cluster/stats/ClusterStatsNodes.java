@@ -845,19 +845,33 @@ public class ClusterStatsNodes implements ToXContentFragment {
 
     static class ClusterFsStatsDeduplicator {
 
-        private final Set<InetAddress> seenAddresses;
+        private record DedupEntry(InetAddress inetAddress, String mount) {}
+
+        private final Set<DedupEntry> seenAddressesMounts;
         private final FsInfo.Path total = new FsInfo.Path();
 
         ClusterFsStatsDeduplicator(int expectedSize) {
-            seenAddresses = Sets.newHashSetWithExpectedSize(expectedSize);
+            seenAddressesMounts = Sets.newHashSetWithExpectedSize(expectedSize);
         }
 
         public void add(InetAddress inetAddress, FsInfo fsInfo) {
-            if (seenAddresses.add(inetAddress) == false) {
-                return;
-            }
             if (fsInfo != null) {
-                total.add(fsInfo.getTotal());
+                for (FsInfo.Path p : fsInfo) {
+                    final String mount = p.getMount();
+                    final String path = p.getPath();
+
+                    // this deduplication logic is hard to get right. it might be impossible to make it work correctly in
+                    // *all* circumstances. this is best-effort only, but it's aimed at trying to solve 90%+ of cases.
+
+                    // we want to sum the unique mounts for each ip address, so if we *haven't* seen a particular
+                    // address and mount, then definitely add that to the total.
+
+                    boolean seenAddressMount = seenAddressesMounts.add(new DedupEntry(inetAddress, mount)) == false;
+
+                    if ((seenAddressMount == false)) {
+                        total.add(p);
+                    }
+                }
             }
         }
 

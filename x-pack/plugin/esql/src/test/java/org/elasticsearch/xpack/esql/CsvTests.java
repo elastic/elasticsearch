@@ -170,6 +170,7 @@ public class CsvTests extends ESTestCase {
         Tuple<Page, List<String>> testData = loadPage(CsvTests.class.getResource("/" + CsvTestsDataLoader.DATA));
         LocalExecutionPlanner planner = new LocalExecutionPlanner(
             BigArrays.NON_RECYCLING_INSTANCE,
+            threadPool,
             configuration,
             new TestPhysicalOperationProviders(testData.v1(), testData.v2())
         );

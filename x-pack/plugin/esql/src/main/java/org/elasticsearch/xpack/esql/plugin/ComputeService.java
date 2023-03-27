@@ -128,6 +128,7 @@ public class ComputeService {
             try {
                 LocalExecutionPlanner planner = new LocalExecutionPlanner(
                     bigArrays,
+                    threadPool,
                     configuration,
                     new EsPhysicalOperationProviders(searchContexts)
                 );

@@ -1093,13 +1093,16 @@ public class EsqlActionIT extends ESIntegTestCase {
                 settings.put("task_concurrency", randomLongBetween(1, 10));
             }
             if (randomBoolean()) {
-                final int bufferMaxPages;
+                final int exchangeBufferSize;
                 if (frequently()) {
-                    bufferMaxPages = randomIntBetween(1, 10);
+                    exchangeBufferSize = randomIntBetween(1, 10);
                 } else {
-                    bufferMaxPages = randomIntBetween(5, 5000);
+                    exchangeBufferSize = randomIntBetween(5, 5000);
                 }
-                settings.put("buffer_max_pages", bufferMaxPages);
+                settings.put("esql.exchange.buffer_size", exchangeBufferSize);
+            }
+            if (randomBoolean()) {
+                settings.put("esql.exchange.concurrent_clients", randomIntBetween(1, 10));
             }
             if (randomBoolean()) {
                 settings.put("data_partitioning", randomFrom("shard", "segment", "doc"));

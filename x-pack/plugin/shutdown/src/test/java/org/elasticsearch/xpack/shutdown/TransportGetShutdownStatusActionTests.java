@@ -682,7 +682,12 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
 
         RoutingTable.Builder routingTable = RoutingTable.builder();
         routingTable.add(indexRoutingTable);
-        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE, true);
+        ClusterState state = createTestClusterState(
+            routingTable.build(),
+            List.of(imd),
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            randomBoolean()
+        );
 
         return TransportGetShutdownStatusAction.shardMigrationStatus(
             state,

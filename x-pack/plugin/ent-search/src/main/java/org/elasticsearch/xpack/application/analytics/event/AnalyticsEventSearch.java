@@ -47,11 +47,11 @@ public class AnalyticsEventSearch extends AnalyticsEvent {
         );
     }
 
-    private final AnalyticsEventSearchData searchData;
+    private final AnalyticsEventSearchData search;
 
     public AnalyticsEventSearch(StreamInput in) throws IOException {
         super(in);
-        this.searchData = new AnalyticsEventSearchData(in);
+        this.search = new AnalyticsEventSearchData(in);
     }
 
     public AnalyticsEventSearch(
@@ -59,10 +59,10 @@ public class AnalyticsEventSearch extends AnalyticsEvent {
         long eventTime,
         AnalyticsEventSessionData sessionData,
         AnalyticsEventUserData userData,
-        AnalyticsEventSearchData searchData
+        AnalyticsEventSearchData search
     ) {
         super(eventCollectionName, eventTime, sessionData, userData);
-        this.searchData = searchData;
+        this.search = search;
     }
 
     @Override
@@ -70,23 +70,23 @@ public class AnalyticsEventSearch extends AnalyticsEvent {
         return Type.SEARCH;
     }
 
-    public static AnalyticsEvent fromXContent(XContentParser parser, Context context) throws IOException {
+    public static AnalyticsEventSearch fromXContent(XContentParser parser, Context context) throws IOException {
         return PARSER.parse(parser, context);
     }
 
-    public AnalyticsEventSearchData searchData() {
-        return searchData;
+    public AnalyticsEventSearchData search() {
+        return search;
     }
 
     @Override
     protected void addCustomFieldToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(AnalyticsEventSearchData.SEARCH_FIELD.getPreferredName(), searchData());
+        builder.field(AnalyticsEventSearchData.SEARCH_FIELD.getPreferredName(), search());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        searchData.writeTo(out);
+        search.writeTo(out);
     }
 
     @Override
@@ -94,12 +94,12 @@ public class AnalyticsEventSearch extends AnalyticsEvent {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AnalyticsEventSearch that = (AnalyticsEventSearch) o;
-        return super.equals(that) && Objects.equals(searchData, that.searchData);
+        return super.equals(that) && Objects.equals(search, that.search);
     }
 
     @Override
     public int hashCode() {
         int parentHash = super.hashCode();
-        return 31 * parentHash + Objects.hash(searchData);
+        return 31 * parentHash + Objects.hash(search);
     }
 }

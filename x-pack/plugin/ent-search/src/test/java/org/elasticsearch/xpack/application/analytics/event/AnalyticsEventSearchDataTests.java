@@ -93,13 +93,13 @@ public class AnalyticsEventSearchDataTests extends AbstractWireSerializingTestCa
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 
-    private static AnalyticsEventSearchData parseSearchData(BytesReference json) throws IOException {
+    private AnalyticsEventSearchData parseSearchData(BytesReference json) throws IOException {
         try (XContentParser contentParser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json.array())) {
             return AnalyticsEventSearchData.fromXContent(contentParser, null);
         }
     }
 
-    private static BytesReference convertMapToJson(Map<String, Object> map) throws IOException {
+    private BytesReference convertMapToJson(Map<String, Object> map) throws IOException {
         try (XContentBuilder builder = JsonXContent.contentBuilder().map(map)) {
             return BytesReference.bytes(builder);
         }

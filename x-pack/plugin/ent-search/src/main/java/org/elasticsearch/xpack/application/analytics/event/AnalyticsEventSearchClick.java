@@ -80,7 +80,7 @@ public class AnalyticsEventSearchClick extends AnalyticsEvent {
         return Type.SEARCH_CLICK;
     }
 
-    public static AnalyticsEvent fromXContent(XContentParser parser, Context context) throws IOException {
+    public static AnalyticsEventSearchClick fromXContent(XContentParser parser, Context context) throws IOException {
         return PARSER.parse(parser, context);
     }
 

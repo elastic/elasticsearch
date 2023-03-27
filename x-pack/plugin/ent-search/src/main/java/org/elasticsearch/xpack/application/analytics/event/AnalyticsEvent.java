@@ -29,7 +29,7 @@ public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
     public static final ParseField TIMESTAMP_FIELD = new ParseField("@timestamp");
     public static final ParseField EVENT_FIELD = new ParseField("event");
     public static final ParseField EVENT_ACTION_FIELD = new ParseField("action");
-    public static final ParseField DATA_STREAM = new ParseField("data_stream");
+    public static final ParseField DATA_STREAM_FIELD = new ParseField("data_stream");
     public static final ParseField DATA_STREAM_TYPE_FIELD = new ParseField("type");
     public static final ParseField DATA_STREAM_NAMESPACE_FIELD = new ParseField("namespace");
     public static final ParseField DATA_STREAM_DATASET_FIELD = new ParseField("dataset");
@@ -122,7 +122,7 @@ public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
             }
             builder.endObject();
 
-            builder.startObject(DATA_STREAM.getPreferredName());
+            builder.startObject(DATA_STREAM_FIELD.getPreferredName());
             {
                 builder.field(DATA_STREAM_TYPE_FIELD.getPreferredName(), AnalyticsTemplateRegistry.EVENT_DATA_STREAM_TYPE);
                 builder.field(DATA_STREAM_DATASET_FIELD.getPreferredName(), AnalyticsTemplateRegistry.EVENT_DATA_STREAM_DATASET);

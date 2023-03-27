@@ -70,7 +70,7 @@ public class AnalyticsEventPageView extends AnalyticsEvent {
         return Type.PAGEVIEW;
     }
 
-    public static AnalyticsEvent fromXContent(XContentParser parser, Context context) throws IOException {
+    public static AnalyticsEventPageView fromXContent(XContentParser parser, Context context) throws IOException {
         return PARSER.parse(parser, context);
     }
 

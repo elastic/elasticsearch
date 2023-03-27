@@ -140,13 +140,13 @@ public class AnalyticsEventPageDataTests extends AbstractWireSerializingTestCase
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 
-    private static AnalyticsEventPageData parsePageEventData(BytesReference json) throws IOException {
+    private AnalyticsEventPageData parsePageEventData(BytesReference json) throws IOException {
         try (XContentParser contentParser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json.array())) {
             return AnalyticsEventPageData.fromXContent(contentParser, null);
         }
     }
 
-    private static BytesReference convertMapToJson(Map<String, Object> map) throws IOException {
+    private BytesReference convertMapToJson(Map<String, Object> map) throws IOException {
         try (XContentBuilder builder = JsonXContent.contentBuilder().map(map)) {
             return BytesReference.bytes(builder);
         }

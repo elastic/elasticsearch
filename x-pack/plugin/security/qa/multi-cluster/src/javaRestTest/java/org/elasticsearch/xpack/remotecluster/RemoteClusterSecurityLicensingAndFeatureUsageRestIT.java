@@ -142,26 +142,52 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
             assertFeatureTracked(client());
             assertFeatureTracked(fulfillingClusterClient);
 
-            // Delete trial license in order to downgrade to basic which should cause CCS requests to fail.
+            final String licenseDowngradeTestCase = randomFrom("downgrade-fc-only", "downgrade-qc-only", "downgrade-both");
+            switch (licenseDowngradeTestCase) {
+                case "downgrade-fc-only" -> {
+                    // Downgrade fulfilling cluster license to BASIC and run CCS
+                    deleteLicenseFromCluster(fulfillingClusterClient);
+                    assertRequestFailsDueToUnsupportedLicense(() -> performRequestWithRemoteSearchUser(searchRequest));
+                }
+                case "downgrade-qc-only" -> {
+                    // Downgrade querying cluster license to BASIC and run CCS
+                    deleteLicenseFromCluster(client());
+                    assertRequestFailsDueToUnsupportedLicense(() -> performRequestWithRemoteSearchUser(searchRequest));
+                }
+                case "downgrade-both" -> {
+                    // Downgrade both fulfilling and querying cluster licenses to BASIC and run CCS
+                    deleteLicenseFromCluster(fulfillingClusterClient);
+                    assertRequestFailsDueToUnsupportedLicense(() -> performRequestWithRemoteSearchUser(searchRequest));
 
-            // First delete FC license and run CCS
-            deleteLicenseFromCluster(fulfillingClusterClient);
-            var exception1 = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(searchRequest));
-            assertThat(exception1.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-            assertThat(
-                exception1.getMessage(),
-                containsString("current license is non-compliant for [" + SECURITY_CROSS_CLUSTER_ACCESS_FEATURE_NAME + "]")
-            );
-
-            // Then delete QC license and run CCS
-            deleteLicenseFromCluster(client());
-            var exception2 = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(searchRequest));
-            assertThat(exception2.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-            assertThat(
-                exception2.getMessage(),
-                containsString("current license is non-compliant for [" + SECURITY_CROSS_CLUSTER_ACCESS_FEATURE_NAME + "]")
-            );
+                    deleteLicenseFromCluster(client());
+                    assertRequestFailsDueToUnsupportedLicense(() -> performRequestWithRemoteSearchUser(searchRequest));
+                }
+                default -> throw new IllegalStateException("Unexpected value: " + licenseDowngradeTestCase);
+            }
         }
+    }
+
+    private void assertRequestFailsDueToUnsupportedLicense(ThrowingRunnable runnable) {
+        var exception = expectThrows(ResponseException.class, runnable);
+        assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(
+            exception.getMessage(),
+            containsString("current license is non-compliant for [" + SECURITY_CROSS_CLUSTER_ACCESS_FEATURE_NAME + "]")
+        );
+    }
+
+    private void startTrialLicense(RestClient client) throws IOException {
+        Request request = new Request("POST", "/_license/start_trial?acknowledge=true");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(USER, PASS)));
+        Response response = client.performRequest(request);
+        assertOK(response);
+    }
+
+    private void startBasicLicense(RestClient client) throws IOException {
+        Request request = new Request("POST", "/_license/start_basic?acknowledge=true");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(USER, PASS)));
+        Response response = client.performRequest(request);
+        assertOK(response);
     }
 
     private void deleteLicenseFromCluster(RestClient client) throws IOException {

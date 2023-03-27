@@ -9,8 +9,8 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 
 import java.util.concurrent.ExecutionException;
 

@@ -10,19 +10,19 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.rescore.RescoreContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 public final class MatchedQueriesPhase implements FetchSubPhase {
@@ -35,6 +35,11 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
         if (context.parsedPostFilter() != null) {
             namedQueries.putAll(context.parsedPostFilter().namedFilters());
         }
+        for (RescoreContext rescoreContext : context.rescore()) {
+            for (ParsedQuery parsedQuery : rescoreContext.getParsedQueries()) {
+                namedQueries.putAll(parsedQuery.namedFilters());
+            }
+        }
         if (namedQueries.isEmpty()) {
             return null;
         }
@@ -42,12 +47,12 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
         for (Map.Entry<String, Query> entry : namedQueries.entrySet()) {
             weights.put(
                 entry.getKey(),
-                context.searcher().createWeight(context.searcher().rewrite(entry.getValue()), ScoreMode.COMPLETE_NO_SCORES, 1)
+                context.searcher().createWeight(context.searcher().rewrite(entry.getValue()), ScoreMode.COMPLETE, 1)
             );
         }
         return new FetchSubPhaseProcessor() {
 
-            final Map<String, Bits> matchingIterators = new HashMap<>();
+            final Map<String, Scorer> matchingIterators = new HashMap<>();
 
             @Override
             public void setNextReader(LeafReaderContext readerContext) throws IOException {
@@ -55,22 +60,28 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
                 for (Map.Entry<String, Weight> entry : weights.entrySet()) {
                     ScorerSupplier ss = entry.getValue().scorerSupplier(readerContext);
                     if (ss != null) {
-                        Bits matchingBits = Lucene.asSequentialAccessBits(readerContext.reader().maxDoc(), ss);
-                        matchingIterators.put(entry.getKey(), matchingBits);
+                        Scorer scorer = ss.get(0L);
+                        if (scorer != null) {
+                            matchingIterators.put(entry.getKey(), scorer);
+                        }
                     }
                 }
             }
 
             @Override
-            public void process(HitContext hitContext) {
-                List<String> matches = new ArrayList<>();
+            public void process(HitContext hitContext) throws IOException {
+                Map<String, Float> matches = new LinkedHashMap<>();
                 int doc = hitContext.docId();
-                for (Map.Entry<String, Bits> iterator : matchingIterators.entrySet()) {
-                    if (iterator.getValue().get(doc)) {
-                        matches.add(iterator.getKey());
+                for (Map.Entry<String, Scorer> entry : matchingIterators.entrySet()) {
+                    Scorer scorer = entry.getValue();
+                    if (scorer.iterator().docID() < doc) {
+                        scorer.iterator().advance(doc);
+                    }
+                    if (scorer.iterator().docID() == doc) {
+                        matches.put(entry.getKey(), scorer.score());
                     }
                 }
-                hitContext.hit().matchedQueries(matches.toArray(String[]::new));
+                hitContext.hit().matchedQueries(matches);
             }
 
             @Override

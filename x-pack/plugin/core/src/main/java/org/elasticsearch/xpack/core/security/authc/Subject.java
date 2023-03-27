@@ -275,9 +275,10 @@ public class Subject {
             // restrict access of the overall intersection accordingly
             roleReferences.add(new RoleReference.CrossClusterAccessRoleReference(RoleDescriptorsBytes.EMPTY));
         } else {
-            // TODO handle this once we support API keys as querying subjects
-            assert crossClusterAccessRoleDescriptorsBytes.size() == 1
-                : "only a singleton list of cross cluster access role descriptors bytes is supported";
+            // This is just a sanity check, since we should never have more than 2 role descriptors.
+            // We can have max two role descriptors in case when API key is used for cross cluster access.
+            assert crossClusterAccessRoleDescriptorsBytes.size() <= 2
+                : "not expected to have list of cross cluster access role descriptors bytes which have more than 2 elements";
             for (RoleDescriptorsBytes roleDescriptorsBytes : crossClusterAccessRoleDescriptorsBytes) {
                 roleReferences.add(new RoleReference.CrossClusterAccessRoleReference(roleDescriptorsBytes));
             }

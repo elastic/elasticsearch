@@ -150,7 +150,7 @@ public class PostWriteRefresh {
                     ActionListener.runAfter(
                         ActionListener.wrap(
                             r -> {},
-                            sfe -> log.error(Strings.format("Unable to mark shard [%s] as failed", shardRouting.shardId()), sfe)
+                            sfe -> logger.error(Strings.format("Unable to mark shard [%s] as failed", shardRouting.shardId()), sfe)
                         ),
                         () -> listener.onFailure(e)
                     )

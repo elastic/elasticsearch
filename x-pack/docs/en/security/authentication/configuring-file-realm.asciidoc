@@ -2,6 +2,9 @@ You don't need to explicitly configure a `file` realm. The `file` and `native`
 realms are added to the realm chain by default. Unless configured otherwise, the
 `file` realm is added first, followed by the `native` realm.
 
+IMPORTANT: While it is possible to define multiple instances of some other
+realms, you can define only _one_ `file` realm per node.
+
 All the data about the users for the `file` realm is stored in two files on each 
 node in the cluster: `users` and `users_roles`. Both files are located in 
 `ES_PATH_CONF` and are read on startup.

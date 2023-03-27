@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * A util class that can be used to parse {@link AnalyticsEvent} from a payload (e.g HTTP request POST body) or input stream.
+ * A utility class for parsing {@link AnalyticsEvent} objects from payloads (such as HTTP POST request bodies) or input streams.
  */
 public class AnalyticsEventFactory {
     private static final Map<AnalyticsEvent.Type, ContextParser<AnalyticsEvent.Context, AnalyticsEvent>> EVENT_PARSERS = MapBuilder.<
@@ -43,9 +43,30 @@ public class AnalyticsEventFactory {
 
     public AnalyticsEventFactory() {}
 
+    /**
+     * Creates an {@link AnalyticsEvent} object from a {@link PostAnalyticsEventAction.Request} object.
+     *
+     * @param request the {@link PostAnalyticsEventAction.Request} object
+     *
+     * @return the parsed {@link AnalyticsEvent} object
+     *
+     * @throws IOException if an I/O error occurs while parsing the event
+     */
     public AnalyticsEvent fromRequest(PostAnalyticsEventAction.Request request) throws IOException {
         return fromPayload(request, request.xContentType(), request.payload());
     }
+
+    /**
+     * Creates an {@link AnalyticsEvent} object from an input stream.
+     *
+     * @param eventType the type of the analytics event to create
+     * @param in the input stream
+     *
+     * @return the parsed {@link AnalyticsEvent} object
+     *
+     * @throws IOException if an I/O error occurs while parsing the event
+     * @throws IllegalArgumentException if the specified event type is not supported
+     */
 
     public AnalyticsEvent fromStreamInput(AnalyticsEvent.Type eventType, StreamInput in) throws IOException {
         if (EVENT_READERS.containsKey(eventType)) {
@@ -56,11 +77,11 @@ public class AnalyticsEventFactory {
     }
 
     /**
-     * Instantiate an {@link AnalyticsEvent} object from an Analytics context and a payload (e.g. HTTP POST request body).
+     * Creates an {@link AnalyticsEvent} object from an Analytics context and a payload (e.g. HTTP POST request body).
      *
-     * @param context Analytics context
-     * @param xContentType Type of the payload
-     * @param payload Payload
+     * @param context the analytics context
+     * @param xContentType the type of the payload
+     * @param payload the payload as a {@link BytesReference} object
      *
      * @return Parsed event ({@link AnalyticsEvent})
      */

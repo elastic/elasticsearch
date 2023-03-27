@@ -23,13 +23,11 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
@@ -46,7 +44,7 @@ import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubj
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authorizationError;
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
-import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST;
+import static org.elasticsearch.xpack.security.transport.CrossClusterAccessServerTransportFilter.CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -112,12 +110,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         PlainActionFuture<Void> listener = spy(new PlainActionFuture<>());
         filter.inbound(action, request, channel, listener);
         if (allowlisted) {
-            verify(authzService).authorize(
-                eq(replaceWithInternalUserAuthcForHandshake(action, authentication)),
-                eq(action),
-                eq(request),
-                anyActionListener()
-            );
+            verify(authzService).authorize(eq(authentication), eq(action), eq(request), anyActionListener());
             verify(crossClusterAccessAuthcService).authenticate(anyString(), any(), anyActionListener());
             verify(authcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
         } else {
@@ -421,11 +414,5 @@ public class ServerTransportFilterTests extends ESTestCase {
             destructiveOperations,
             new SecurityContext(settings, threadContext)
         );
-    }
-
-    private static Authentication replaceWithInternalUserAuthcForHandshake(String action, Authentication authentication) {
-        return action.equals(TransportService.HANDSHAKE_ACTION_NAME)
-            ? Authentication.newInternalAuthentication(SystemUser.INSTANCE, authentication.getEffectiveSubject().getTransportVersion(), "")
-            : authentication;
     }
 }

@@ -273,14 +273,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
         internalCluster().startMasterOnlyNode();
         String source = internalCluster().startDataOnlyNode();
         String indexName = "test";
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(indexName)
-                .setSettings(
-                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                )
-        );
+        createIndex(indexName, 1, 0);
         ensureGreen(indexName);
         if (randomBoolean()) {
             indexRandom(

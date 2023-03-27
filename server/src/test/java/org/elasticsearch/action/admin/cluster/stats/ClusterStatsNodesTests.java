@@ -216,13 +216,9 @@ public class ClusterStatsNodesTests extends ESTestCase {
             FsInfo.Path total = deduplicator.getTotal();
 
             // since it's the same device, they don't sum, we just see the one
-            // assertThat(total.getTotal().getBytes(), equalTo(3L));
-            // assertThat(total.getFree().getBytes(), equalTo(2L));
-            // assertThat(total.getAvailable().getBytes(), equalTo(1L));
-            // BUG 0: even though it's the same device, we're summing, bleh
-            assertThat(total.getTotal().getBytes(), equalTo(6L));
-            assertThat(total.getFree().getBytes(), equalTo(4L));
-            assertThat(total.getAvailable().getBytes(), equalTo(2L));
+            assertThat(total.getTotal().getBytes(), equalTo(3L));
+            assertThat(total.getFree().getBytes(), equalTo(2L));
+            assertThat(total.getAvailable().getBytes(), equalTo(1L));
         }
 
         {

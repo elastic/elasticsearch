@@ -210,7 +210,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         float expectedMagnitude = (float) Math.sqrt(dotProduct);
         ParsedDocument doc1 = mapper.parse(source(b -> b.array("field", validVector)));
 
-        IndexableField[] fields = doc1.rootDoc().getFields("field");
+        List<IndexableField> fields = doc1.rootDoc().getFields("field");
         assertEquals(1, fields.length);
         assertThat(fields[0], instanceOf(BinaryDocValuesField.class));
         // assert that after decoding the indexed value is equal to expected
@@ -230,7 +230,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         float[] vector = { -0.5f, 0.5f, 0.7071f };
         ParsedDocument doc1 = mapper.parse(source(b -> b.array("field", vector)));
 
-        IndexableField[] fields = doc1.rootDoc().getFields("field");
+        List<IndexableField> fields = doc1.rootDoc().getFields("field");
         assertEquals(1, fields.length);
         assertThat(fields[0], instanceOf(KnnFloatVectorField.class));
 
@@ -254,7 +254,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         byte[] vector = { (byte) -1, (byte) 1, (byte) 127 };
         ParsedDocument doc1 = mapper.parse(source(b -> b.array("field", vector)));
 
-        IndexableField[] fields = doc1.rootDoc().getFields("field");
+        List<IndexableField> fields = doc1.rootDoc().getFields("field");
         assertEquals(1, fields.length);
         assertThat(fields[0], instanceOf(KnnByteVectorField.class));
 
@@ -428,7 +428,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         float[] validVector = { -12.1f, 100.7f, -4 };
         ParsedDocument doc1 = mapper.parse(source(b -> b.array("field", validVector)));
-        IndexableField[] fields = doc1.rootDoc().getFields("field");
+        List<IndexableField> fields = doc1.rootDoc().getFields("field");
         assertEquals(1, fields.length);
         assertThat(fields[0], instanceOf(BinaryDocValuesField.class));
         // assert that after decoding the indexed value is equal to expected

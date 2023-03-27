@@ -102,7 +102,7 @@ public class GeoContextMappingTests extends MapperServiceTestCase {
                     XContentType.JSON
                 )
             );
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 7);
     }
 
@@ -148,7 +148,7 @@ public class GeoContextMappingTests extends MapperServiceTestCase {
                     XContentType.JSON
                 )
             );
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -198,7 +198,7 @@ public class GeoContextMappingTests extends MapperServiceTestCase {
                     XContentType.JSON
                 )
             );
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -239,7 +239,7 @@ public class GeoContextMappingTests extends MapperServiceTestCase {
             .endObject();
         ParsedDocument parsedDocument = mapperService.documentMapper()
             .parse(new SourceToParse("1", BytesReference.bytes(builder), XContentType.JSON));
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
     }
 

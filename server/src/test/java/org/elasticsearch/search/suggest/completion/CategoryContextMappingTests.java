@@ -114,7 +114,7 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
                 XContentType.JSON
             )
         );
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
         assertContextSuggestFields(fields, 7);
     }
 
@@ -158,7 +158,7 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
                 XContentType.JSON
             )
         );
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -202,7 +202,7 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
                 XContentType.JSON
             )
         );
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -246,7 +246,7 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
                 XContentType.JSON
             )
         );
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -330,7 +330,7 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
                 XContentType.JSON
             )
         );
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -372,7 +372,7 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
                 XContentType.JSON
             )
         );
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -451,7 +451,7 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
             .endArray()
             .endObject();
         ParsedDocument parsedDocument = defaultMapper.parse(new SourceToParse("1", BytesReference.bytes(builder), XContentType.JSON));
-        IndexableField[] fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -830,7 +830,7 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
         assertThat(exc.getMessage(), containsString("Failed to parse context field [category]"));
     }
 
-    static void assertContextSuggestFields(IndexableField[] fields, int expected) {
+    static void assertContextSuggestFields(List<IndexableField> fields, int expected) {
         int actualFieldCount = 0;
         for (IndexableField field : fields) {
             if (field instanceof ContextSuggestField) {

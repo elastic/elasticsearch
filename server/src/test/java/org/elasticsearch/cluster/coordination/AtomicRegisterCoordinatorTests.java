@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -26,7 +27,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
@@ -255,7 +255,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
 
         private void sendHeartBeatToStore() {
-            sharedStore.writeHearBeat(currentTerm, new HeartBeat(currentLeader, threadPool.absoluteTimeInMillis()));
+            sharedStore.writeHeartBeat(currentTerm, new HeartBeat(currentLeader, threadPool.absoluteTimeInMillis()));
         }
 
         @Override
@@ -458,12 +458,8 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         @Override
         public void onNewElection(DiscoveryNode localNode, long proposedTerm, ActionListener<Void> listener) {
             ActionListener.completeWith(listener, () -> {
-                final var proposedNewTermOwner = new TermOwner(localNode, proposedTerm);
-                final var witness = register.claimTerm(proposedNewTermOwner);
-                maxTermSeen = Math.max(maxTermSeen, witness.term());
-                if (proposedNewTermOwner != witness) {
-                    throw new CoordinationStateRejectedException("Term " + proposedTerm + " already claimed by another node");
-                }
+                maxTermSeen = Math.max(maxTermSeen, proposedTerm);
+                register.claimTerm(proposedTerm);
                 lastWonTerm = proposedTerm;
                 return null;
             });
@@ -482,20 +478,26 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         @Override
         public void beforeCommit(long term, long version, ActionListener<Void> listener) {
             // TODO: add a test to ensure that this gets called
-            final var currentTermOwner = register.getTermOwner();
-            if (currentTermOwner.term() > term) {
-                listener.onFailure(new CoordinationStateRejectedException("Term " + term + " already claimed by another node"));
+            final var currentTerm = register.readCurrentTerm();
+            if (currentTerm > term) {
+                listener.onFailure(
+                    new CoordinationStateRejectedException(
+                        Strings.format(
+                            "could not commit cluster state version %d in term %d, current term is now %d",
+                            version,
+                            term,
+                            currentTerm
+                        )
+                    )
+                );
             } else {
+                assert currentTerm == term : currentTerm + " vs " + term;
                 listener.onResponse(null);
             }
         }
     }
 
     record PersistentClusterState(long term, long version, Metadata state) {}
-
-    record TermOwner(DiscoveryNode node, long term) {
-        static TermOwner EMPTY = new TermOwner(null, 0);
-    }
 
     static class SharedStore {
         private final Map<Long, PersistentClusterState> clusterStateByTerm = new HashMap<>();
@@ -514,9 +516,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
 
         private PersistentClusterState getLatestClusterState() {
-            final var termOwner = register.getTermOwner();
-
-            return getClusterStateForTerm(termOwner.term());
+            return getClusterStateForTerm(register.readCurrentTerm());
         }
 
         private PersistentClusterState getClusterStateForTerm(long termGoal) {
@@ -529,7 +529,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             return null;
         }
 
-        private void writeHearBeat(long term, HeartBeat heartBeat) {
+        private void writeHeartBeat(long term, HeartBeat heartBeat) {
             HeartBeat previousHeartbeat = heartBeatsByTerm.put(term, heartBeat);
             assert previousHeartbeat == null || heartBeat.leader().equals(previousHeartbeat.leader());
         }
@@ -540,20 +540,17 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     }
 
     static class AtomicRegister {
-        private TermOwner currentTermOwner;
+        private long currentTerm;
 
-        private TermOwner getTermOwner() {
-            return Objects.requireNonNullElse(currentTermOwner, TermOwner.EMPTY);
+        private long readCurrentTerm() {
+            return currentTerm;
         }
 
-        TermOwner claimTerm(TermOwner proposedNewTermOwner) {
-            final var currentTermOwner = getTermOwner();
-
-            if (currentTermOwner.term() >= proposedNewTermOwner.term()) {
-                return currentTermOwner;
+        void claimTerm(long proposedTerm) {
+            if (currentTerm >= proposedTerm) {
+                throw new CoordinationStateRejectedException("could not claim " + proposedTerm + ", current term is " + currentTerm);
             }
-
-            return this.currentTermOwner = proposedNewTermOwner;
+            currentTerm = proposedTerm;
         }
     }
 
@@ -604,8 +601,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
 
         void writeClusterState(ClusterState state) {
-            final var termOwner = atomicRegister.getTermOwner();
-            if (termOwner.term() > state.term()) {
+            if (atomicRegister.readCurrentTerm() > state.term()) {
                 throw new RuntimeException("Conflicting cluster state update");
             }
             sharedStore.writeClusterState(state);

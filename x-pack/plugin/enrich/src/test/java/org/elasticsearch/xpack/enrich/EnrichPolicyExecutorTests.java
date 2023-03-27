@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.enrich;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -191,6 +192,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
     public void testWaitForCompletionConditionRemainsLocked() throws Exception {
         String testPolicyName = "test_policy";
         String testTaskId = randomAlphaOfLength(10) + ":" + randomIntBetween(100, 300);
+        boolean completeWithResourceNotFound = randomBoolean();
 
         // Client calls are forked to a different thread which will await on this latch before actually running anything
         CountDownLatch clientBlockingLatch = new CountDownLatch(1);
@@ -229,6 +231,8 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
                         // the execution.
                         if (shouldGetTaskApiReturnTimeout.getAndSet(false)) {
                             listener.onFailure(new ElasticsearchTimeoutException("Test call has timed out"));
+                        } else if (completeWithResourceNotFound) {
+                            listener.onFailure(new ElasticsearchException("Test wrapping", new ResourceNotFoundException("test")));
                         } else {
                             listener.onResponse(null);
                         }

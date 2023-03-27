@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -71,7 +72,7 @@ public class XContentTestUtilsTests extends ESTestCase {
             )
         ) {
             parser.nextToken();
-            List<String> insertPaths = XContentTestUtils.getInsertPaths(parser, new Stack<>());
+            List<String> insertPaths = XContentTestUtils.getInsertPaths(parser, new ArrayDeque<>());
             assertEquals(5, insertPaths.size());
             assertThat(insertPaths, hasItem(equalTo("")));
             assertThat(insertPaths, hasItem(equalTo("list1.2")));

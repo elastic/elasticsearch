@@ -118,7 +118,7 @@ public class LuceneDocument implements Iterable<IndexableField> {
                 f.add(field);
             }
         }
-        return f.toArray(new IndexableField[f.size()]);
+        return f.toArray(IndexableField[]::new);
     }
 
     public IndexableField getField(String name) {

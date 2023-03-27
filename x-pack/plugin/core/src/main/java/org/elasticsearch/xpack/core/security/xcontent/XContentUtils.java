@@ -71,7 +71,7 @@ public class XContentUtils {
                 );
             }
         }
-        return list.toArray(new String[list.size()]);
+        return list.toArray(String[]::new);
     }
 
     /**

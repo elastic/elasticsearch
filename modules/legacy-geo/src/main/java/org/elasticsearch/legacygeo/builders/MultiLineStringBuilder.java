@@ -121,8 +121,7 @@ public class MultiLineStringBuilder extends ShapeBuilder<JtsGeometry, org.elasti
             if (parts.size() == 1) {
                 geometry = parts.get(0);
             } else {
-                LineString[] lineStrings = parts.toArray(new LineString[parts.size()]);
-                geometry = FACTORY.createMultiLineString(lineStrings);
+                geometry = FACTORY.createMultiLineString(parts.toArray(LineString[]::new));
             }
         } else {
             LineString[] lineStrings = new LineString[lines.size()];

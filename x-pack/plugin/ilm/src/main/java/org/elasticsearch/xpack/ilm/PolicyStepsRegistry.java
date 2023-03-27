@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -266,7 +267,7 @@ public class PolicyStepsRegistry {
     @Nullable
     public Set<Step.StepKey> parseStepKeysFromPhase(String policy, String currentPhase, String phaseDef) {
         try {
-            String phaseDefNonNull = Objects.requireNonNullElse(phaseDef, InitializePolicyContextStep.INITIALIZATION_PHASE);
+            String phaseDefNonNull = Optional.ofNullable(phaseDef).orElse(InitializePolicyContextStep.INITIALIZATION_PHASE);
             return parseStepsFromPhase(policy, currentPhase, phaseDefNonNull).stream().map(Step::getKey).collect(Collectors.toSet());
         } catch (IOException e) {
             logger.trace(
@@ -382,10 +383,8 @@ public class PolicyStepsRegistry {
         }
 
         // parse phase steps from the phase definition in the index settings
-        final String phaseJson = Objects.requireNonNullElse(
-            indexMetadata.getLifecycleExecutionState().phaseDefinition(),
-            InitializePolicyContextStep.INITIALIZATION_PHASE
-        );
+        final String phaseJson = Optional.ofNullable(LifecycleExecutionState.fromIndexMetadata(indexMetadata).getPhaseDefinition())
+            .orElse(InitializePolicyContextStep.INITIALIZATION_PHASE);
 
         final List<Step> phaseSteps;
         try {

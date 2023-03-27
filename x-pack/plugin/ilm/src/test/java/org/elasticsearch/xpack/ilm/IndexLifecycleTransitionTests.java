@@ -689,20 +689,19 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             .setPhase("warm")
             .setAction("migrate")
             .setStep("migrate")
-            .setPhaseDefinition("""
-                {
-                  "policy" : "my-policy",
-                  "phase_definition" : {
-                    "min_age" : "20m",
-                    "actions" : {
-                      "set_priority" : {
-                        "priority" : 150
-                      }
-                    }
-                  },
-                  "version" : 1,
-                  "modified_date_in_millis" : 1578521007076
-                }""");
+            .setPhaseDefinition(" {\n" +
+                "                  \"policy\" : \"my-policy\",\n" +
+                "                  \"phase_definition\" : {\n" +
+                "                    \"min_age\" : \"20m\",\n" +
+                "                    \"actions\" : {\n" +
+                "                      \"set_priority\" : {\n" +
+                "                        \"priority\" : 150\n" +
+                "                      }\n" +
+                "                    }\n" +
+                "                  },\n" +
+                "                  \"version\" : 1,\n" +
+                "                  \"modified_date_in_millis\" : 1578521007076\n" +
+                "                }");
 
         IndexMetadata meta = buildIndexMetadata("my-policy", executionState);
 
@@ -719,13 +718,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
                 null,
                 null,
                 null,
-                1L,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null
+                1L
             );
 
             try {

@@ -396,7 +396,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         private final Function<Long, Optional<DiscoveryNode>> getLeaderForTermIfAlive;
         private final AtomicRegister register;
         private long lastWonTerm = -1;
-        private long maxTermSeen = 0;
 
         AtomicRegisterElectionStrategy(AtomicRegister register, Function<Long, Optional<DiscoveryNode>> getLeaderForTermIfAlive) {
             this.getLeaderForTermIfAlive = getLeaderForTermIfAlive;
@@ -440,11 +439,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
 
         @Override
-        public long getMaxTermSeen() {
-            return maxTermSeen;
-        }
-
-        @Override
         public boolean isPublishQuorum(
             CoordinationState.VoteCollection voteCollection,
             CoordinationMetadata.VotingConfiguration lastCommittedConfiguration,
@@ -459,9 +453,8 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         public void onNewElection(DiscoveryNode localNode, long proposedTerm, ActionListener<StartJoinRequest> listener) {
             ActionListener.completeWith(listener, () -> {
                 final var currentTerm = register.readCurrentTerm();
-                final var electionTerm = Math.max(proposedTerm, Math.max(maxTermSeen, currentTerm) + 1);
+                final var electionTerm = Math.max(proposedTerm, currentTerm + 1);
                 final var witness = register.compareAndExchange(currentTerm, electionTerm);
-                maxTermSeen = Math.max(maxTermSeen, Math.max(witness, electionTerm));
                 if (witness != currentTerm) {
                     throw new CoordinationStateRejectedException("could not claim " + electionTerm + ", current term is " + witness);
                 }

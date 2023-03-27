@@ -541,7 +541,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
             @Override
             public void onFailure(Exception e) {
-                updateMaxTermSeen(electionStrategy.getMaxTermSeen());
                 logger.debug(Strings.format("election attempt for [%s] in term [%d] failed", candidateMasterNode, term), e);
             }
         });

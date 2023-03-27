@@ -13,8 +13,8 @@ and to retrieve lifecycle information for backing indices.
 * <<dlm-delete-lifecycle,Delete data stream lifecycle>>
 * <<dlm-explain-lifecycle,Explain Lifecycle API>>
 
-include::explain-data-lifecycle.asciidoc[]
 include::put-lifecycle.asciidoc[]
 include::get-lifecycle.asciidoc[]
 include::delete-lifecycle.asciidoc[]
+include::explain-data-lifecycle.asciidoc[]
 

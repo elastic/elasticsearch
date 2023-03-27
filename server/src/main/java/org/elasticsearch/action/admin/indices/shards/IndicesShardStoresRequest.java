@@ -29,7 +29,7 @@ import java.util.Map;
  */
 public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShardStoresRequest> implements IndicesRequest.Replaceable {
 
-    private static final int DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS = 100;
+    static final int DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS = 100;
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpand();

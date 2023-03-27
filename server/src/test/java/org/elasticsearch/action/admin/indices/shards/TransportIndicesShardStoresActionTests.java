@@ -48,6 +48,7 @@ import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.empty;
 
@@ -229,7 +230,7 @@ public class TransportIndicesShardStoresActionTests extends ESTestCase {
                 new IndexNameExpressionResolver(threadPool.getThreadContext(), new SystemIndices(List.of())),
                 null
             ) {
-                private final Semaphore pendingActionPermits = new Semaphore(TransportIndicesShardStoresAction.CONCURRENT_REQUESTS_LIMIT);
+                private final Semaphore pendingActionPermits = new Semaphore(DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS);
 
                 @Override
                 void listShardStores(

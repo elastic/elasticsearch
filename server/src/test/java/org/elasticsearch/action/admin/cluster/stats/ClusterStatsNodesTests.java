@@ -222,7 +222,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
         }
 
         {
-            // two nodes, different ip addresses, same data paths, same device
+            // two nodes, different ip addresses, different data paths, same device
             InetAddress address1 = InetAddresses.forString("192.168.0.1");
             FsInfo.Path path1 = new FsInfo.Path("/data/a", "/dev/sda", 3, 2, 1);
             InetAddress address2 = InetAddresses.forString("192.168.0.2");

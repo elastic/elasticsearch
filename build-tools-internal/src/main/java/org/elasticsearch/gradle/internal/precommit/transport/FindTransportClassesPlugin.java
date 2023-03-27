@@ -21,11 +21,11 @@ import org.gradle.api.tasks.TaskProvider;
 
 import java.util.Map;
 
-public class TransportTestExistPrecommitPlugin extends PrecommitPlugin {
+public class FindTransportClassesPlugin extends PrecommitPlugin {
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
-        TaskProvider<TransportTestExistTask> transportTestExistTask = project.getTasks()
-            .register("transportTestExistCheck", TransportTestExistTask.class);
+        TaskProvider<FindTransportClassesTask> transportTestExistTask = project.getTasks()
+            .register("transportTestExistCheck", FindTransportClassesTask.class);
         project.getPlugins().withType(JavaPlugin.class, javaPlugin -> {
             transportTestExistTask.configure(t -> {
                 FileCollection mainSourceSet = GradleUtils.getJavaSourceSets(project)
@@ -49,7 +49,6 @@ public class TransportTestExistPrecommitPlugin extends PrecommitPlugin {
                 );
 
                 t.setMainSources(mainSourceSet);
-                t.setTestSources(testSourceSet);
                 FileCollection compileClassPath = serverDependencyConfig.plus(
                     project.getConfigurations().getByName(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME)
                 );
@@ -57,7 +56,6 @@ public class TransportTestExistPrecommitPlugin extends PrecommitPlugin {
                 FileCollection byName = testFrameworkConfig.plus(
                     project.getConfigurations().getByName(JavaPlugin.TEST_COMPILE_CLASSPATH_CONFIGURATION_NAME)
                 );
-                t.setTestClasspath(byName);
             });
         });
         return transportTestExistTask;

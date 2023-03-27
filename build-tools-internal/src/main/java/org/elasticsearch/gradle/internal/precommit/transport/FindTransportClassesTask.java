@@ -41,21 +41,17 @@ import javax.inject.Inject;
 
 // Verifies if every transport class has a corresponding transport test class
 @CacheableTask
-public abstract class TransportTestExistTask extends PrecommitTask {
+public abstract class FindTransportClassesTask extends PrecommitTask {
     private static final String MISSING_TRANSPORT_TESTS_FILE = "transport-tests/missing-transport-tests.txt";
     public static final String TRANSPORT_CLASSES = "generated-resources/transport-classes.txt";
-
     private FileCollection mainSources;
-    private FileCollection testSources;
     private FileCollection compileClasspath;
-    private FileCollection testClasspath;
     Set<String> skipClasses = new HashSet<>();
 
     @Inject
-    public TransportTestExistTask(ProjectLayout projectLayout) {
+    public FindTransportClassesTask(ProjectLayout projectLayout) {
         setDescription("Runs TransportTestExistTask on output directories of all source sets");
         getOutputFile().convention(projectLayout.getBuildDirectory().file(TRANSPORT_CLASSES));
-
     }
 
     @Inject
@@ -69,9 +65,7 @@ public abstract class TransportTestExistTask extends PrecommitTask {
         WorkQueue workQueue = getWorkerExecutor().noIsolation();
         workQueue.submit(TransportTestExistWorkAction.class, parameters -> {
             parameters.getMainSources().setFrom(mainSources);
-            parameters.getTestSources().setFrom(testSources);
             parameters.getCompileClasspath().setFrom(compileClasspath);
-            parameters.getTestClasspath().setFrom(testClasspath);
             parameters.getSkipClasses().set(skipClasses);
             parameters.getOutputFile().set(getOutputFile());
         });
@@ -87,16 +81,6 @@ public abstract class TransportTestExistTask extends PrecommitTask {
         this.mainSources = mainSources;
     }
 
-    @InputFiles
-    @PathSensitive(PathSensitivity.RELATIVE)
-    public FileCollection getTestSources() {
-        return testSources;
-    }
-
-    public void setTestSources(FileCollection testSources) {
-        this.testSources = testSources;
-    }
-
     @Classpath
     public FileCollection getCompileClasspath() {
         return compileClasspath;
@@ -104,15 +88,6 @@ public abstract class TransportTestExistTask extends PrecommitTask {
 
     public void setCompileClasspath(FileCollection compileClasspath) {
         this.compileClasspath = compileClasspath;
-    }
-
-    @Classpath
-    public FileCollection getTestClasspath() {
-        return testClasspath;
-    }
-
-    public void setTestClasspath(FileCollection testClasspath) {
-        this.testClasspath = testClasspath;
     }
 
     abstract static class TransportTestExistWorkAction implements WorkAction<Parameters> {
@@ -124,12 +99,10 @@ public abstract class TransportTestExistTask extends PrecommitTask {
         public void execute() {
             Set<String> classesToSkip = loadClassesToSkip();
 
-            TransportTestsScanner transportTestsScanner = new TransportTestsScanner(classesToSkip);
-            Set<String> transportClasses = transportTestsScanner.findTransportClasses(
+            TransportClassesScanner transportClassesScanner = new TransportClassesScanner(classesToSkip);
+            Set<String> transportClasses = transportClassesScanner.findTransportClasses(
                 getParameters().getMainSources().getFiles(),
-                getParameters().getTestSources().getFiles(),
-                getParameters().getCompileClasspath().getFiles(),
-                getParameters().getTestClasspath().getFiles()
+                getParameters().getCompileClasspath().getFiles()
             );
 
             Path path = getParameters().getOutputFile().getAsFile().get().toPath();
@@ -148,14 +121,13 @@ public abstract class TransportTestExistTask extends PrecommitTask {
         }
 
         private String escapeDollar(String transportClass) {
-            //
+            // coverage tools like jacoco use a simplistic regex model
             return transportClass.replaceAll("\\$.*", "*");
         }
-
     }
 
     private static Set<String> loadClassesToSkip() {
-        var inputStream = TransportTestExistTask.class.getResourceAsStream("/" + MISSING_TRANSPORT_TESTS_FILE);
+        var inputStream = FindTransportClassesTask.class.getResourceAsStream("/" + MISSING_TRANSPORT_TESTS_FILE);
         var reader = new BufferedReader(new InputStreamReader(inputStream));
         return reader.lines()
             .filter(l -> l.startsWith("//") == false)
@@ -166,11 +138,7 @@ public abstract class TransportTestExistTask extends PrecommitTask {
     interface Parameters extends WorkParameters {
         ConfigurableFileCollection getMainSources();
 
-        ConfigurableFileCollection getTestSources();
-
         ConfigurableFileCollection getCompileClasspath();
-
-        ConfigurableFileCollection getTestClasspath();
 
         SetProperty<String> getSkipClasses();
 

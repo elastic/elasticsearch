@@ -22,8 +22,8 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.info.BuildParams;
-import org.elasticsearch.gradle.internal.precommit.transport.TransportTestExistPrecommitPlugin;
-import org.elasticsearch.gradle.internal.precommit.transport.TransportTestExistTask;
+import org.elasticsearch.gradle.internal.precommit.transport.FindTransportClassesPlugin;
+import org.elasticsearch.gradle.internal.precommit.transport.FindTransportClassesTask;
 import org.gradle.api.Action;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -72,17 +72,15 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
     private static void configureJacoco(Project project) {
         project.getPluginManager().apply(KoverPlugin.class);
 
-        project.getPluginManager().apply(TransportTestExistPrecommitPlugin.class);
+        project.getPluginManager().apply(FindTransportClassesPlugin.class);
 
         // project.getTasks().named("test").configure(task -> { task.finalizedBy(project.getTasks().named("transportTestExistCheck")); });
 
-        project.getTasks().named("transportTestExistCheck").configure(task -> {
-            task.mustRunAfter("compileJava");
-        });
-            project.getTasks().named("koverVerify", KoverVerificationTask.class).configure(t -> {
-            // t.dependsOn(project.getTasks().named("transportTestExistCheck"));// *1
-            TransportTestExistTask transportTestExistCheck = project.getTasks()
-                .named("transportTestExistCheck", TransportTestExistTask.class)
+        project.getTasks().named("transportTestExistCheck").configure(task -> { task.mustRunAfter("compileJava"); });
+        project.getTasks().named("koverVerify", KoverVerificationTask.class).configure(t -> {
+            // t.dependsOn(project.getTasks().named("transportTestExistCheck"));// should I declare task dependency explicitly? *1
+            FindTransportClassesTask transportTestExistCheck = project.getTasks()
+                .named("transportTestExistCheck", FindTransportClassesTask.class)
                 .get();
             t.dependsOn(transportTestExistCheck);
 
@@ -92,6 +90,23 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                         verify.rule(rule -> {
 
                             rule.overrideClassFilter(koverClassFilter -> {
+                                /*
+
+                                2: Task failed with an exception.
+                                -----------
+                                * What went wrong:
+                                A problem was found with the configuration of task ':client:client-benchmark-noop-api-plugin:transportTestExistCheck' (type 'FindTransportClassesTask').
+                                - Gradle detected a problem with the following location: '/Users/przemyslawgomulka/workspace/pgomulka/elasticsearch/client/client-benchmark-noop-api-plugin/build/generated-resources/transport-classes.txt'.
+
+                                Reason: Task ':client:client-benchmark-noop-api-plugin:jarHell' uses this output of task ':client:client-benchmark-noop-api-plugin:transportTestExistCheck' without declaring an explicit or implicit dependency. This can lead to incorrect results being produced, depending on what order the tasks are executed.
+
+                                Possible solutions:
+                                1. Declare task ':client:client-benchmark-noop-api-plugin:transportTestExistCheck' as an input of ':client:client-benchmark-noop-api-plugin:jarHell'.
+                                2. Declare an explicit dependency on ':client:client-benchmark-noop-api-plugin:transportTestExistCheck' from ':client:client-benchmark-noop-api-plugin:jarHell' using Task#dependsOn.
+                                3. Declare an explicit dependency on ':client:client-benchmark-noop-api-plugin:transportTestExistCheck' from ':client:client-benchmark-noop-api-plugin:jarHell' using Task#mustRunAfter.
+
+                                */
+                                // this is causing gradle.8.0 deprecation failures
                                 List<String> transportClasses = readTransportClasses(transportTestExistCheck.getOutputFile());
                                 koverClassFilter.getIncludes().addAll(transportClasses);
                             });
@@ -122,17 +137,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 });
             });
         });
-
-        /*
-        > Task :modules:ingest-geoip:transportTestExistCheck
-        Execution optimizations have been disabled for task ':modules:ingest-geoip:transportTestExistCheck' to ensure correctness due to the following reasons:
-        - Gradle detected a problem with the following location: '/Users/przemyslawgomulka/workspace/pgomulka/elasticsearch/modules/ingest-geoip/build/generated-resources/transport-classes.txt'. Reason: Task ':modules:ingest-geoip:internalClusterTest' uses this output of task ':modules:ingest-geoip:transportTestExistCheck' without declaring an explicit or implicit dependency. This can lead to incorrect results being produced, depending on what order the tasks are executed. Please refer to https://docs.gradle.org/7.6.1/userguide/validation_problems.html#implicit_dependency for more details about this problem.
-        - Gradle detected a problem with the following location: '/Users/przemyslawgomulka/workspace/pgomulka/elasticsearch/modules/ingest-geoip/build/generated-resources/transport-classes.txt'. Reason: Task ':modules:ingest-geoip:test' uses this output of task ':modules:ingest-geoip:transportTestExistCheck' without declaring an explicit or implicit dependency. This can lead to incorrect results being produced, depending on what order the tasks are executed. Please refer to https://docs.gradle.org/7.6.1/userguide/validation_problems.html#implicit_dependency for more details about this problem.
-        - Gradle detected a problem with the following location: '/Users/przemyslawgomulka/workspace/pgomulka/elasticsearch/modules/ingest-geoip/build/generated-resources/transport-classes.txt'. Reason: Task ':modules:ingest-geoip:compileInternalClusterTestJava' uses this output of task ':modules:ingest-geoip:transportTestExistCheck' without declaring an explicit or implicit dependency. This can lead to incorrect results being produced, depending on what order the tasks are executed. Please refer to https://docs.gradle.org/7.6.1/userguide/validation_problems.html#implicit_dependency for more details about this problem.
-        Gradle detected a problem with the following location: '/Users/przemyslawgomulka/workspace/pgomulka/elasticsearch/modules/ingest-geoip/build/generated-resources/transport-classes.txt'. Reason: Task ':modules:ingest-geoip:internalClusterTest' uses this output of task ':modules:ingest-geoip:transportTestExistCheck' without declaring an explicit or implicit dependency. This can lead to incorrect results being produced, depending on what order the tasks are executed. This behaviour has been deprecated and is scheduled to be removed in Gradle 8.0. Execution optimizations are disabled to ensure correctness. See https://docs.gradle.org/7.6.1/userguide/validation_problems.html#implicit_dependency for more details.
-        Gradle detected a problem with the following location: '/Users/przemyslawgomulka/workspace/pgomulka/elasticsearch/modules/ingest-geoip/build/generated-resources/transport-classes.txt'. Reason: Task ':modules:ingest-geoip:test' uses this output of task ':modules:ingest-geoip:transportTestExistCheck' without declaring an explicit or implicit dependency. This can lead to incorrect results being produced, depending on what order the tasks are executed. This behaviour has been deprecated and is scheduled to be removed in Gradle 8.0. Execution optimizations are disabled to ensure correctness. See https://docs.gradle.org/7.6.1/userguide/validation_problems.html#implicit_dependency for more details.
-        Gradle detected a problem with the following location: '/Users/przemyslawgomulka/workspace/pgomulka/elasticsearch/modules/ingest-geoip/build/generated-resources/transport-classes.txt'. Reason: Task ':modules:ingest-geoip:compileInternalClusterTestJava' uses this output of task ':modules:ingest-geoip:transportTestExistCheck' without declaring an explicit or implicit dependency. This can lead to incorrect results being produced, depending on what order the tasks are executed. This behaviour has been deprecated and is scheduled to be removed in Gradle 8.0. Execution optimizations are disabled to ensure correctness. See https://docs.gradle.org/7.6.1/userguide/validation_problems.html#implicit_dependency for more details.
-        */
 
     }
 

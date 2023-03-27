@@ -16,7 +16,7 @@ import org.gradle.testkit.runner.TaskOutcome
 import org.junit.ClassRule
 
 class TransportTestExistPluginNonJavaFuncTest extends AbstractGradleInternalPluginFuncTest {
-    Class<? extends TransportTestExistPrecommitPlugin> pluginClassUnderTest = TransportTestExistPrecommitPlugin.class
+    Class<? extends FindTransportClassesPlugin> pluginClassUnderTest = FindTransportClassesPlugin.class
 
     @Shared
     @ClassRule

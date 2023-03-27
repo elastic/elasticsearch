@@ -5,17 +5,12 @@ You use the following APIs to configure the data lifecycle management for data s
 and to retrieve lifecycle information for backing indices.
 
 [discrete]
-[[dlm-api-configuration-endpoint]]
-=== Data lifecycle configuration APIs
+[[dlm-api-management-endpoint]]
+=== Operation management APIs
 
 * <<dlm-put-lifecycle,Update data stream lifecycle>>
 * <<dlm-get-lifecycle,Get data stream lifecycle>>
 * <<dlm-delete-lifecycle,Delete data stream lifecycle>>
-
-[discrete]
-[[dlm-api-management-endpoint]]
-=== Operation management APIs
-
 * <<dlm-explain-lifecycle,Explain Lifecycle API>>
 
 include::explain-data-lifecycle.asciidoc[]

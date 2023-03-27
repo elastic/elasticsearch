@@ -54,7 +54,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -673,28 +672,21 @@ public class NodeJoinTests extends ESTestCase {
         // duplicate some requests, which will be unsuccessful
         possiblyFailingJoinRequests.addAll(randomSubsetOf(possiblyFailingJoinRequests));
 
-        CyclicBarrier barrier = new CyclicBarrier(correctJoinRequests.size() + possiblyFailingJoinRequests.size() + 1);
-        final Runnable awaitBarrier = () -> {
-            try {
-                barrier.await();
-            } catch (InterruptedException | BrokenBarrierException e) {
-                throw new RuntimeException(e);
-            }
-        };
+        final CyclicBarrier barrier = new CyclicBarrier(correctJoinRequests.size() + possiblyFailingJoinRequests.size() + 1);
 
         final AtomicBoolean stopAsserting = new AtomicBoolean();
         final Thread assertionThread = new Thread(() -> {
-            awaitBarrier.run();
+            safeAwait(barrier);
             while (stopAsserting.get() == false) {
                 coordinator.invariant();
             }
         }, "assert invariants");
 
         final List<Thread> joinThreads = Stream.concat(correctJoinRequests.stream().map(joinRequest -> new Thread(() -> {
-            awaitBarrier.run();
+            safeAwait(barrier);
             joinNode(joinRequest);
         }, "process " + joinRequest)), possiblyFailingJoinRequests.stream().map(joinRequest -> new Thread(() -> {
-            awaitBarrier.run();
+            safeAwait(barrier);
             try {
                 joinNode(joinRequest);
             } catch (CoordinationStateRejectedException e) {

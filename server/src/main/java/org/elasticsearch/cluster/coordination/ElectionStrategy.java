@@ -108,4 +108,8 @@ public abstract class ElectionStrategy {
     public void beforeCommit(long term, long version, ActionListener<Void> listener) {
         listener.onResponse(null);
     }
+
+    public long getMaxTermSeen() {
+        return 0;
+    }
 }

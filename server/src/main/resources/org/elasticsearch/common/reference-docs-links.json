@@ -1,6 +1,6 @@
 {
-  "INITIAL_MASTER_NODES": "important-settings.html#initial_master_nodes",
-  "DISCOVERY_TROUBLESHOOTING": "discovery-troubleshooting.html",
+  "INITIAL_MASTER_NODES": "important-settings.html#initial_master_nodes_broken",
+  "DISCOVERY_TROUBLESHOOTING": "discovery-troubleshooting-broken.html",
   "UNSTABLE_CLUSTER_TROUBLESHOOTING": "cluster-fault-detection.html#cluster-fault-detection-troubleshooting",
   "LAGGING_NODE_TROUBLESHOOTING": "cluster-fault-detection.html#_diagnosing_lagging_nodes",
   "SHARD_LOCK_TROUBLESHOOTING": "cluster-fault-detection.html#_diagnosing_shardlockobtainfailedexception_failures",

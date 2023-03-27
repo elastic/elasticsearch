@@ -456,12 +456,17 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
 
         @Override
-        public void onNewElection(DiscoveryNode localNode, long proposedTerm, ActionListener<Void> listener) {
+        public void onNewElection(DiscoveryNode localNode, long proposedTerm, ActionListener<StartJoinRequest> listener) {
             ActionListener.completeWith(listener, () -> {
-                maxTermSeen = Math.max(maxTermSeen, proposedTerm);
-                register.claimTerm(proposedTerm);
-                lastWonTerm = proposedTerm;
-                return null;
+                final var currentTerm = register.readCurrentTerm();
+                final var electionTerm = Math.max(proposedTerm, Math.max(maxTermSeen, currentTerm) + 1);
+                final var witness = register.compareAndExchange(currentTerm, electionTerm);
+                maxTermSeen = Math.max(maxTermSeen, Math.max(witness, electionTerm));
+                if (witness != currentTerm) {
+                    throw new CoordinationStateRejectedException("could not claim " + electionTerm + ", current term is " + witness);
+                }
+                lastWonTerm = electionTerm;
+                return new StartJoinRequest(localNode, electionTerm);
             });
         }
 
@@ -546,11 +551,12 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             return currentTerm;
         }
 
-        void claimTerm(long proposedTerm) {
-            if (currentTerm >= proposedTerm) {
-                throw new CoordinationStateRejectedException("could not claim " + proposedTerm + ", current term is " + currentTerm);
+        private long compareAndExchange(long expected, long updated) {
+            final var witness = currentTerm;
+            if (currentTerm == expected) {
+                currentTerm = updated;
             }
-            currentTerm = proposedTerm;
+            return witness;
         }
     }
 

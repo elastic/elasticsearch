@@ -211,10 +211,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         ParsedDocument doc1 = mapper.parse(source(b -> b.array("field", validVector)));
 
         List<IndexableField> fields = doc1.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertThat(fields[0], instanceOf(BinaryDocValuesField.class));
+        assertEquals(1, fields.size());
+        assertThat(fields.get(0), instanceOf(BinaryDocValuesField.class));
         // assert that after decoding the indexed value is equal to expected
-        BytesRef vectorBR = fields[0].binaryValue();
+        BytesRef vectorBR = fields.get(0).binaryValue();
         float[] decodedValues = decodeDenseVector(Version.CURRENT, vectorBR);
         float decodedMagnitude = VectorEncoderDecoder.decodeMagnitude(Version.CURRENT, vectorBR);
         assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
@@ -231,10 +231,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         ParsedDocument doc1 = mapper.parse(source(b -> b.array("field", vector)));
 
         List<IndexableField> fields = doc1.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertThat(fields[0], instanceOf(KnnFloatVectorField.class));
+        assertEquals(1, fields.size());
+        assertThat(fields.get(0), instanceOf(KnnFloatVectorField.class));
 
-        KnnFloatVectorField vectorField = (KnnFloatVectorField) fields[0];
+        KnnFloatVectorField vectorField = (KnnFloatVectorField) fields.get(0);
         assertArrayEquals("Parsed vector is not equal to original.", vector, vectorField.vectorValue(), 0.001f);
         assertEquals(similarity.function, vectorField.fieldType().vectorSimilarityFunction());
     }
@@ -255,10 +255,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         ParsedDocument doc1 = mapper.parse(source(b -> b.array("field", vector)));
 
         List<IndexableField> fields = doc1.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertThat(fields[0], instanceOf(KnnByteVectorField.class));
+        assertEquals(1, fields.size());
+        assertThat(fields.get(0), instanceOf(KnnByteVectorField.class));
 
-        KnnByteVectorField vectorField = (KnnByteVectorField) fields[0];
+        KnnByteVectorField vectorField = (KnnByteVectorField) fields.get(0);
         vectorField.vectorValue();
         assertArrayEquals(
             "Parsed vector is not equal to original.",
@@ -429,10 +429,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         float[] validVector = { -12.1f, 100.7f, -4 };
         ParsedDocument doc1 = mapper.parse(source(b -> b.array("field", validVector)));
         List<IndexableField> fields = doc1.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertThat(fields[0], instanceOf(BinaryDocValuesField.class));
+        assertEquals(1, fields.size());
+        assertThat(fields.get(0), instanceOf(BinaryDocValuesField.class));
         // assert that after decoding the indexed value is equal to expected
-        BytesRef vectorBR = fields[0].binaryValue();
+        BytesRef vectorBR = fields.get(0).binaryValue();
         float[] decodedValues = decodeDenseVector(indexVersion, vectorBR);
         assertArrayEquals("Decoded dense vector values is not equal to the indexed one.", validVector, decodedValues, 0.001f);
     }

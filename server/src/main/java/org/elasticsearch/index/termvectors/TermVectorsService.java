@@ -46,7 +46,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -327,7 +326,7 @@ public class TermVectorsService {
                 seenFields.add(field.name());
             }
             @SuppressWarnings("unchecked")
-            List<Object> values = (List)getValues(doc.getFields(field.name()));
+            List<Object> values = (List) getValues(doc.getFields(field.name()));
             documentFields.add(new DocumentField(field.name(), values));
         }
         return generateTermVectors(

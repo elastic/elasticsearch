@@ -22,6 +22,8 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
+
 public class FieldNamesFieldMapperTests extends MetadataMapperTestCase {
 
     @Override
@@ -42,8 +44,7 @@ public class FieldNamesFieldMapperTests extends MetadataMapperTestCase {
     }
 
     private static void assertFieldNames(Set<String> expected, ParsedDocument doc) {
-        String[] got = TermVectorsService.getValues(doc.rootDoc().getFields("_field_names"));
-        assertEquals(expected, set(got));
+        assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("_field_names")), containsInAnyOrder(expected));
     }
 
     public void testFieldType() throws Exception {

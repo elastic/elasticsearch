@@ -7,18 +7,18 @@
 
 package org.elasticsearch.xpack.application.analytics.event;
 
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -35,59 +35,47 @@ public class AnalyticsEventSearchDataTests extends AbstractWireSerializingTestCa
 
     public void testToXContent() throws IOException {
         AnalyticsEventSearchData search = randomEventSearchData();
-        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            BytesReference json = BytesReference.bytes(search.toXContent(builder, ToXContent.EMPTY_PARAMS));
 
-            // Check the content that have been processed.
-            Map<String, Object> contentAsMap = XContentHelper.convertToMap(json, false, JsonXContent.jsonXContent.type()).v2();
-            assertEquals(1, contentAsMap.size());
-            assertTrue(contentAsMap.containsKey(SEARCH_QUERY_FIELD.getPreferredName()));
-            assertEquals(search.query(), contentAsMap.get(SEARCH_QUERY_FIELD.getPreferredName()));
+        // Serialize the search data
+        BytesReference json = XContentHelper.toXContent(search, XContentType.JSON, false);
 
-            // Check we can reserialize with fromXContent and object are equals
-            try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json.array())) {
-                assertEquals(search, AnalyticsEventSearchData.fromXContent(parser, null));
-            }
-        }
+        // Check the content that have been processed.
+        Map<String, Object> contentAsMap = XContentHelper.convertToMap(json, false, JsonXContent.jsonXContent.type()).v2();
+        assertEquals(1, contentAsMap.size());
+        assertTrue(contentAsMap.containsKey(SEARCH_QUERY_FIELD.getPreferredName()));
+        assertEquals(search.query(), contentAsMap.get(SEARCH_QUERY_FIELD.getPreferredName()));
+
+        // Check we can re-serialize with fromXContent and object are equals
+        assertEquals(search, parseSearchData(json));
     }
 
     public void testFromXContent() throws IOException {
         String query = randomIdentifier();
         Map<String, Object> jsonMap = MapBuilder.<String, Object>newMapBuilder().put(SEARCH_QUERY_FIELD.getPreferredName(), query).map();
-        try (XContentBuilder builder = JsonXContent.contentBuilder().map(jsonMap)) {
-            XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, Strings.toString(builder));
-            AnalyticsEventSearchData search = AnalyticsEventSearchData.fromXContent(parser, null);
-            assertEquals(query, search.query());
-        }
+        AnalyticsEventSearchData search = parseSearchData(convertMapToJson(jsonMap));
+        assertEquals(query, search.query());
     }
 
-    public void testFromXContentWhenQueryFieldIsMissing() throws IOException {
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, "{}")) {
-            expectThrows(
-                IllegalArgumentException.class,
-                LoggerMessageFormat.format("Required [{}}]", SEARCH_QUERY_FIELD),
-                () -> AnalyticsEventSearchData.fromXContent(parser, null)
-            );
-        }
+    public void testFromXContentWhenQueryFieldIsMissing() {
+        expectThrows(
+            IllegalArgumentException.class,
+            LoggerMessageFormat.format("Required [{}}]", SEARCH_QUERY_FIELD),
+            () -> parseSearchData(new BytesArray("{}"))
+        );
     }
 
-    public void testFromXContentWithAnInvalidFields() throws IOException {
+    public void testFromXContentWithAnInvalidFields() {
         String invalidFieldName = randomIdentifier();
         Map<String, Object> jsonMap = MapBuilder.<String, Object>newMapBuilder()
             .put(SEARCH_QUERY_FIELD.getPreferredName(), randomIdentifier())
             .put(invalidFieldName, "")
             .map();
 
-        try (
-            XContentBuilder builder = JsonXContent.contentBuilder().map(jsonMap);
-            XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, Strings.toString(builder))
-        ) {
-            expectThrows(
-                XContentParseException.class,
-                LoggerMessageFormat.format("[{}}] failed to parse field [{}]", SEARCH_FIELD, invalidFieldName),
-                () -> AnalyticsEventSearchData.fromXContent(parser, null)
-            );
-        }
+        expectThrows(
+            XContentParseException.class,
+            LoggerMessageFormat.format("[{}}] failed to parse field [{}]", SEARCH_FIELD, invalidFieldName),
+            () -> parseSearchData(convertMapToJson(jsonMap))
+        );
     }
 
     @Override
@@ -103,5 +91,17 @@ public class AnalyticsEventSearchDataTests extends AbstractWireSerializingTestCa
     @Override
     protected AnalyticsEventSearchData mutateInstance(AnalyticsEventSearchData instance) throws IOException {
         return randomValueOtherThan(instance, this::createTestInstance);
+    }
+
+    private static AnalyticsEventSearchData parseSearchData(BytesReference json) throws IOException {
+        try (XContentParser contentParser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json.array())) {
+            return AnalyticsEventSearchData.fromXContent(contentParser, null);
+        }
+    }
+
+    private static BytesReference convertMapToJson(Map<String, Object> map) throws IOException {
+        try (XContentBuilder builder = JsonXContent.contentBuilder().map(map)) {
+            return BytesReference.bytes(builder);
+        }
     }
 }

@@ -15,9 +15,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.analytics.EventEmitterService;
 
-import static org.elasticsearch.xpack.application.analytics.action.AnalyticsTransportActionUtils.mockLicenseState;
-import static org.elasticsearch.xpack.application.analytics.action.AnalyticsTransportActionUtils.verifyExceptionIsThrownOnInvalidLicence;
-import static org.elasticsearch.xpack.application.analytics.action.AnalyticsTransportActionUtils.verifyNoExceptionIsThrown;
+import static org.elasticsearch.xpack.application.analytics.action.AnalyticsTransportActionTestUtils.mockLicenseState;
+import static org.elasticsearch.xpack.application.analytics.action.AnalyticsTransportActionTestUtils.verifyExceptionIsThrownOnInvalidLicence;
+import static org.elasticsearch.xpack.application.analytics.action.AnalyticsTransportActionTestUtils.verifyNoExceptionIsThrown;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;

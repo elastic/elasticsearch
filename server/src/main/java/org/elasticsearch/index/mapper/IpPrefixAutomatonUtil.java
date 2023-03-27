@@ -107,7 +107,10 @@ public class IpPrefixAutomatonUtil {
                 } else {
                     // potentially partial block
                     if (groupsAdded == 0 && ONLY_ZEROS.matcher(group).matches()) {
-                        // we ignore only-zero prefixes for ipv6, otherwise those would also match all ipv4 addresses
+                        // here we have a leading group with only "0" characters. If we would allow this to match
+                        // ipv6 addresses, this would include things like 0000::127.0.0.1 (and all other ipv4 addresses).
+                        // Allowing this would be counterintuitive, so "0*" prefixes should only expand
+                        // to ipv4 addresses like "0.1.2.3" and we return with an automaton not matching anything here
                         return EMPTY_AUTOMATON;
                     }
                     // we need to create all possibilities of byte sequences this could match

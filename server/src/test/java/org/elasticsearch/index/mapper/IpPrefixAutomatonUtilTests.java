@@ -103,18 +103,21 @@ public class IpPrefixAutomatonUtilTests extends ESTestCase {
             assertTrue(accepts(a, "0.2.3.4"));
             assertFalse(accepts(a, "::1.1.2.3"));
             assertFalse(accepts(a, "1c7:21d6:ffff:ffff:6852:f279::"));
+            assertFalse(accepts(a, "0000::127.0.0.1"));
         }
         {
             CompiledAutomaton a = buildIpPrefixAutomaton("00");
             assertFalse(accepts(a, "0.2.3.4"));
             assertFalse(accepts(a, "::1.1.2.3"));
             assertFalse(accepts(a, "c7:21d6:ffff:ffff:6852:f279::"));
+            assertFalse(accepts(a, "0000::127.0.0.1"));
         }
         {
             CompiledAutomaton a = buildIpPrefixAutomaton("0:");
             assertTrue(accepts(a, "0.2.3.4"));
             assertTrue(accepts(a, "::1.1.2.3"));
             assertTrue(accepts(a, "0:21d6:ffff:ffff:6852:f279::"));
+            assertTrue(accepts(a, "0000::127.0.0.1"));
             assertFalse(accepts(a, "0001:21d6:ffff:ffff:6852:f279::"));
         }
         {

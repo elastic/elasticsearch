@@ -273,7 +273,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
             firstTaskResult
         );
 
-        // Check to make sure the policy is locked
+        // Check to make sure the policy is locked. Do this instead of an assertTrue so that we can clean up if something breaks.
         if (enrichPolicyLocks.lockedPolices().contains(testPolicyName) == false) {
             // If this fails, be a good citizen and conclude the fake runs to keep the logs clean from interrupted exceptions during cleanup
             clientBlockingLatch.countDown();

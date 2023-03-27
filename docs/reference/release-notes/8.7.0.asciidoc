@@ -256,7 +256,7 @@ Machine Learning::
 * Persist data counts and datafeed timing stats asynchronously {es-pull}93000[#93000]
 * Remove the PyTorch inference work queue as now handled in Elasticsearch {ml-pull}2456[#2456]
 * Text Embedding search {es-pull}93531[#93531]
-* Upgrade PyTorch to version 1.13.1. {ml-pull}2430[#2430]
+* Upgrade PyTorch to version 1.13.1 {ml-pull}2430[#2430]
 
 
 Mapping::

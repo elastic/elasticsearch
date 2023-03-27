@@ -52,6 +52,6 @@ abstract class MockHttpProxyServer implements Closeable {
 
     @Override
     public void close() throws IOException {
-        httpServer.shutdown(0, TimeUnit.SECONDS);
+        httpServer.shutdown(10, TimeUnit.SECONDS);
     }
 }

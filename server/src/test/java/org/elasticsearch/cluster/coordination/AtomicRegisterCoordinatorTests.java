@@ -255,7 +255,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
 
         private void sendHeartBeatToStore() {
-            sharedStore.writeHearBeat(currentTerm, new HeartBeat(currentLeader, threadPool.absoluteTimeInMillis()));
+            sharedStore.writeHeartBeat(currentTerm, new HeartBeat(currentLeader, threadPool.absoluteTimeInMillis()));
         }
 
         @Override
@@ -458,11 +458,8 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         @Override
         public void onNewElection(DiscoveryNode localNode, long proposedTerm, ActionListener<Void> listener) {
             ActionListener.completeWith(listener, () -> {
-                final var witnessTerm = register.claimTerm(proposedTerm);
-                maxTermSeen = Math.max(maxTermSeen, witnessTerm);
-                if (proposedTerm != witnessTerm) {
-                    throw new CoordinationStateRejectedException("could not claim " + proposedTerm + ", current term is " + witnessTerm);
-                }
+                maxTermSeen = Math.max(maxTermSeen, proposedTerm);
+                register.claimTerm(proposedTerm);
                 lastWonTerm = proposedTerm;
                 return null;
             });
@@ -532,7 +529,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             return null;
         }
 
-        private void writeHearBeat(long term, HeartBeat heartBeat) {
+        private void writeHeartBeat(long term, HeartBeat heartBeat) {
             HeartBeat previousHeartbeat = heartBeatsByTerm.put(term, heartBeat);
             assert previousHeartbeat == null || heartBeat.leader().equals(previousHeartbeat.leader());
         }
@@ -542,23 +539,22 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
     }
 
-    private static class AtomicRegister {
+    static class AtomicRegister {
         private long currentTerm;
 
         private long readCurrentTerm() {
             return currentTerm;
         }
 
-        long claimTerm(long proposedTerm) {
+        void claimTerm(long proposedTerm) {
             if (currentTerm >= proposedTerm) {
-                return currentTerm;
+                throw new CoordinationStateRejectedException("could not claim " + proposedTerm + ", current term is " + currentTerm);
             }
-
-            return currentTerm = proposedTerm;
+            currentTerm = proposedTerm;
         }
     }
 
-    private class AtomicRegisterPersistedState implements CoordinationState.PersistedState {
+    class AtomicRegisterPersistedState implements CoordinationState.PersistedState {
         private final DiscoveryNode localNode;
         private final AtomicRegister atomicRegister;
         private final SharedStore sharedStore;

@@ -423,7 +423,6 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
                 .build()
         );
 
-
         ensureYellow("index");
 
         // Start a second node, so the replica will be on nodeB

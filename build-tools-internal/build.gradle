@@ -230,16 +230,22 @@ configurations {
   integTestRuntimeOnly.extendsFrom(testRuntimeOnly)
 }
 
-dependencies {
-  constraints {
-      integTestImplementation('org.ow2.asm:asm:9.4')
-      implementation "org.yaml:snakeyaml:${versions.snakeyaml}"
+configurations.all {
+  resolutionStrategy.eachDependency { DependencyResolveDetails details ->
+    if (details.requested.name == 'snakeyaml') {
+      details.useVersion "1.33"
+    }
   }
+}
+
+dependencies {
   components.all(JacksonAlignmentRule)
   constraints {
     // ensuring brought asm version brought in by spock is up-to-date
     testImplementation buildLibs.asm
     integTestImplementation buildLibs.asm
+    integTestImplementation('org.ow2.asm:asm:9.4')
+    api "org.yaml:snakeyaml:${versions.snakeyaml}"
   }
   // Forcefully downgrade the jackson platform as used in production
   api enforcedPlatform(buildLibs.jackson.platform)

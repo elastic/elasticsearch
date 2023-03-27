@@ -558,7 +558,11 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
         createIndex(
             "index",
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("index.routing.allocation.include._name", nodeA)
+                .build()
         );
 
         ensureYellow("index");

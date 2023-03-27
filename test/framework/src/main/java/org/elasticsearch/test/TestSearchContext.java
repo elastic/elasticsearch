@@ -60,7 +60,6 @@ public class TestSearchContext extends SearchContext {
 
     final IndexService indexService;
     final BitsetFilterCache fixedBitSetFilterCache;
-    final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
     final IndexShard indexShard;
     final QuerySearchResult queryResult = new QuerySearchResult();
     final SearchExecutionContext searchExecutionContext;
@@ -72,6 +71,7 @@ public class TestSearchContext extends SearchContext {
     SortAndFormats sort;
     boolean trackScores = false;
     int trackTotalHitsUpTo = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
+    Collector aggCollector;
 
     ContextIndexSearcher searcher;
     int from;
@@ -526,8 +526,13 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public Map<Class<?>, Collector> queryCollectors() {
-        return queryCollectors;
+    public Collector getAggsCollector() {
+        return aggCollector;
+    }
+
+    @Override
+    public void registerAggsCollector(Collector collector) {
+        this.aggCollector = collector;
     }
 
     @Override

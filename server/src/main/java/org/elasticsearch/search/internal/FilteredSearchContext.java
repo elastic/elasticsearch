@@ -42,7 +42,6 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.List;
-import java.util.Map;
 
 public abstract class FilteredSearchContext extends SearchContext {
 
@@ -453,8 +452,13 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public Map<Class<?>, Collector> queryCollectors() {
-        return in.queryCollectors();
+    public Collector getAggsCollector() {
+        return in.getAggsCollector();
+    }
+
+    @Override
+    public void registerAggsCollector(Collector collector) {
+        in.registerAggsCollector(collector);
     }
 
     @Override

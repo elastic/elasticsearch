@@ -49,12 +49,12 @@ public class AggregationPhase {
             } catch (IOException e) {
                 throw new AggregationExecutionException("Could not perform time series aggregation", e);
             }
-            context.queryCollectors().put(AggregationPhase.class, BucketCollector.NO_OP_COLLECTOR);
+            context.registerAggsCollector(BucketCollector.NO_OP_COLLECTOR);
         } else {
             Collector collector = context.getProfilers() == null
                 ? bucketCollector.asCollector()
                 : new InternalProfileCollector(bucketCollector.asCollector(), CollectorResult.REASON_AGGREGATION, List.of());
-            context.queryCollectors().put(AggregationPhase.class, collector);
+            context.registerAggsCollector(collector);
         }
     }
 
@@ -118,6 +118,6 @@ public class AggregationPhase {
 
         // disable aggregations so that they don't run on next pages in case of scrolling
         context.aggregations(null);
-        context.queryCollectors().remove(AggregationPhase.class);
+        context.registerAggsCollector(null);
     }
 }

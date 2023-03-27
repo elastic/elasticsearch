@@ -29,7 +29,7 @@ import org.elasticsearch.transport.TransportService;
 
 public class PostWriteRefresh {
 
-    private static final Logger log = LogManager.getLogger(PostWriteRefresh.class);
+    private static final Logger logger = LogManager.getLogger(PostWriteRefresh.class);
 
     public static final String FORCED_REFRESH_AFTER_INDEX = "refresh_flag_index";
     private final TransportService transportService;

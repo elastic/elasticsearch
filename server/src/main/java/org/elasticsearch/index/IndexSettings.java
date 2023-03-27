@@ -1094,6 +1094,7 @@ public final class IndexSettings {
             // Paranoia: total disk usage should always be at least in the GBs. Make sure the translog is always allowed at least 10MB.
             onePercentOfTotalDiskSpace = ByteSizeUnit.MB.toBytes(10);
         }
+        assert onePercentOfTotalDiskSpace > Translog.DEFAULT_HEADER_SIZE_IN_BYTES;
         if (onePercentOfTotalDiskSpace < flushThresholdSize.getBytes()) {
             return new ByteSizeValue(onePercentOfTotalDiskSpace, ByteSizeUnit.BYTES);
         } else {

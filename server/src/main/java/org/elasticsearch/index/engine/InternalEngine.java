@@ -1920,7 +1920,10 @@ public class InternalEngine extends Engine {
     @Override
     public void writeIndexingBuffer() throws EngineException {
         // If we're already halfway through the flush thresholds, then we do a flush. This will save us from writing segments twice
-        // independently in a short period of time, once to reclaim IndexWriter buffer memory and then to reclaim the translog.
+        // independently in a short period of time, once to reclaim IndexWriter buffer memory and then to reclaim the translog. For
+        // memory-constrained deployments that need to refresh often to reclaim memory, this may require flushing 2x more often than
+        // expected, but the general assumption is that this downside is an ok trade-off given the benefit of flushing the whole content of
+        // the indexing buffer less often.
         final long flushThresholdSizeInBytes = Math.max(
             Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1,
             config().getIndexSettings().getFlushThresholdSize(totalDiskSpace).getBytes() / 2

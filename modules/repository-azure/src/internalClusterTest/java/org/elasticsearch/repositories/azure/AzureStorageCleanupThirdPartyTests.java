@@ -58,9 +58,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
     protected Settings nodeSettings() {
         if (USE_FIXTURE) {
             final String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + fixture.getAddress();
-            if (Strings.hasText(endpoint)) {
-                return Settings.builder().put(super.nodeSettings()).put("azure.client.default.endpoint_suffix", endpoint).build();
-            }
+            return Settings.builder().put(super.nodeSettings()).put("azure.client.default.endpoint_suffix", endpoint).build();
         }
         return super.nodeSettings();
     }

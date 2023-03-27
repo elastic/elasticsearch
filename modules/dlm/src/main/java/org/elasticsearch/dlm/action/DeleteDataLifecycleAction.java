@@ -16,8 +16,6 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -35,7 +33,7 @@ public class DeleteDataLifecycleAction extends ActionType<AcknowledgedResponse> 
         super(NAME, AcknowledgedResponse::readFrom);
     }
 
-    public static final class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable, ToXContentObject {
+    public static final class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable {
 
         private String[] names;
         private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
@@ -43,12 +41,14 @@ public class DeleteDataLifecycleAction extends ActionType<AcknowledgedResponse> 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.names = in.readOptionalStringArray();
+            this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalStringArray(names);
+            indicesOptions.writeIndicesOptions(out);
         }
 
         public Request(String[] names) {
@@ -57,13 +57,6 @@ public class DeleteDataLifecycleAction extends ActionType<AcknowledgedResponse> 
 
         public String[] getNames() {
             return names;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.endObject();
-            return builder;
         }
 
         @Override

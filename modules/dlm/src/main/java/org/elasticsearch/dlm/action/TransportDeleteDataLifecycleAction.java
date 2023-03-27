@@ -28,12 +28,12 @@ import java.util.List;
 /**
  * Transport action that resolves the data stream names from the request and removes any configured lifecycle from them.
  */
-public class DeleteDataLifecycleTransportAction extends AcknowledgedTransportMasterNodeAction<DeleteDataLifecycleAction.Request> {
+public class TransportDeleteDataLifecycleAction extends AcknowledgedTransportMasterNodeAction<DeleteDataLifecycleAction.Request> {
 
     private final ModifyDataLifecycleService modifyDataLifecycleService;
 
     @Inject
-    public DeleteDataLifecycleTransportAction(
+    public TransportDeleteDataLifecycleAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,

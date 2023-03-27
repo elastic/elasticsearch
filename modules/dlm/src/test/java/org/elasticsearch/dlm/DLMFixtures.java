@@ -34,6 +34,12 @@ import static org.elasticsearch.test.ESIntegTestCase.client;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.junit.Assert.assertTrue;
 
+/**
+ * Provides helper methods that can be used to tests. Examples of the functionalities it provides are:
+ * - random lifecycle generation
+ * - putting a composable template
+ * - creating a data stream model
+ */
 public class DLMFixtures {
 
     static DataStream createDataStream(

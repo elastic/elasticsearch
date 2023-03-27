@@ -27,13 +27,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.dlm.action.DeleteDataLifecycleAction;
-import org.elasticsearch.dlm.action.DeleteDataLifecycleTransportAction;
 import org.elasticsearch.dlm.action.ExplainDataLifecycleAction;
 import org.elasticsearch.dlm.action.GetDataLifecycleAction;
-import org.elasticsearch.dlm.action.GetDataLifecycleTransportAction;
 import org.elasticsearch.dlm.action.PutDataLifecycleAction;
-import org.elasticsearch.dlm.action.PutDataLifecycleTransportAction;
+import org.elasticsearch.dlm.action.TransportDeleteDataLifecycleAction;
 import org.elasticsearch.dlm.action.TransportExplainDataLifecycleAction;
+import org.elasticsearch.dlm.action.TransportGetDataLifecycleAction;
+import org.elasticsearch.dlm.action.TransportPutDataLifecycleAction;
 import org.elasticsearch.dlm.rest.RestDeleteDataLifecycleAction;
 import org.elasticsearch.dlm.rest.RestExplainDataLifecycleAction;
 import org.elasticsearch.dlm.rest.RestGetDataLifecycleAction;
@@ -157,9 +157,9 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
         }
 
         List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
-        actions.add(new ActionHandler<>(PutDataLifecycleAction.INSTANCE, PutDataLifecycleTransportAction.class));
-        actions.add(new ActionHandler<>(GetDataLifecycleAction.INSTANCE, GetDataLifecycleTransportAction.class));
-        actions.add(new ActionHandler<>(DeleteDataLifecycleAction.INSTANCE, DeleteDataLifecycleTransportAction.class));
+        actions.add(new ActionHandler<>(PutDataLifecycleAction.INSTANCE, TransportPutDataLifecycleAction.class));
+        actions.add(new ActionHandler<>(GetDataLifecycleAction.INSTANCE, TransportGetDataLifecycleAction.class));
+        actions.add(new ActionHandler<>(DeleteDataLifecycleAction.INSTANCE, TransportDeleteDataLifecycleAction.class));
         actions.add(new ActionHandler<>(ExplainDataLifecycleAction.INSTANCE, TransportExplainDataLifecycleAction.class));
         return actions;
     }

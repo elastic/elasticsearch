@@ -70,7 +70,7 @@ Name of the data stream.
 `data_retention`::
 (string)
 If defined, every document added to this data stream will be stored at least for this time frame. Any time after this
-duration the document could be deleted. When empty, every document in this data stream will be stored indefinitely.
+duration the document could be deleted. When undefined, every document in this data stream will be stored indefinitely.
 
 `rollover`::
 (object)

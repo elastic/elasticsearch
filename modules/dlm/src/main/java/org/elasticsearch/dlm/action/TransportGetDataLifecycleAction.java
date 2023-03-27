@@ -32,13 +32,13 @@ import java.util.Map;
  * Collects the data streams from the cluster state, filters the ones that do not have a lifecycle configured and then returns
  * a list of the data stream name and respective lifecycle configuration.
  */
-public class GetDataLifecycleTransportAction extends TransportMasterNodeReadAction<
+public class TransportGetDataLifecycleAction extends TransportMasterNodeReadAction<
     GetDataLifecycleAction.Request,
     GetDataLifecycleAction.Response> {
     private final ClusterSettings clusterSettings;
 
     @Inject
-    public GetDataLifecycleTransportAction(
+    public TransportGetDataLifecycleAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,

@@ -47,6 +47,7 @@ public class PutDataLifecycleAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.names = in.readStringArray();
+            this.indicesOptions = IndicesOptions.readIndicesOptions(in);
             lifecycle = new DataLifecycle(in);
         }
 
@@ -54,6 +55,7 @@ public class PutDataLifecycleAction extends ActionType<AcknowledgedResponse> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeStringArray(names);
+            indicesOptions.writeIndicesOptions(out);
             out.writeWriteable(lifecycle);
         }
 

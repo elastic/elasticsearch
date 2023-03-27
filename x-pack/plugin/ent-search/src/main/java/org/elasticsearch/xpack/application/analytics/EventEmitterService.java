@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -27,7 +26,6 @@ import java.util.Objects;
 
 /**
  * Event emitter will log Analytics events submitted through a @{PostAnalyticsEventAction.Request} request.
- *
  * Event will be emitted in using a specific logger created for the purpose of logging analytics events.
  * The log file is formatted as a ndjson file (one json per line). We send formatted JSON to the logger directly.
  */
@@ -50,6 +48,12 @@ public class EventEmitterService {
         this.clusterService = Objects.requireNonNull(clusterService, "clusterService");
     }
 
+    /**
+     * Logs an analytics event.
+     *
+     * @param request the request containing the analytics event data
+     * @param listener the listener to call once the event has been emitted
+     */
     public void emitEvent(
         final PostAnalyticsEventAction.Request request,
         final ActionListener<PostAnalyticsEventAction.Response> listener
@@ -69,7 +73,16 @@ public class EventEmitterService {
         }
     }
 
-    private String formatEvent(AnalyticsEvent event) throws ResourceNotFoundException, IOException {
+    /**
+     * Formats an analytics event as a JSON string.
+     *
+     * @param event the event to format
+     *
+     * @return the formatted JSON string
+     *
+     * @throws IOException if an I/O error occurs while formatting the JSON
+     */
+    private String formatEvent(AnalyticsEvent event) throws IOException {
         return Strings.toString(event.toXContent(JsonXContent.contentBuilder(), ToXContent.EMPTY_PARAMS));
     }
 }

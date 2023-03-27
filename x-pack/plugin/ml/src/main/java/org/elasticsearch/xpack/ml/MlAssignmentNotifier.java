@@ -110,7 +110,7 @@ public class MlAssignmentNotifier implements ClusterStateListener {
             if (MlTasks.JOB_TASK_NAME.equals(currentTask.getTaskName())) {
                 String jobId = ((OpenJobAction.JobParams) currentTask.getParams()).getJobId();
                 if (isTaskAssigned) {
-                    String msg = new String("Opening job");
+                    String msg = "Opening job";
                     if (anomalyDetectionAuditor.includeNodeInfo()) {
                         String nodeName = nodeName(currentNodes, currentAssignment.getExecutorNode());
                         msg += " on node [" + nodeName + "]";
@@ -138,7 +138,7 @@ public class MlAssignmentNotifier implements ClusterStateListener {
                 String jobId = datafeedParams.getJobId();
                 if (jobId != null) {
                     if (isTaskAssigned) {
-                        String msg = new String("Starting datafeed [" + datafeedParams.getDatafeedId() + "]");
+                        String msg = "Starting datafeed [" + datafeedParams.getDatafeedId() + "]";
                         if (anomalyDetectionAuditor.includeNodeInfo()) {
                             String nodeName = nodeName(currentNodes, currentAssignment.getExecutorNode());
                             msg += "] on node [" + nodeName + "]";
@@ -156,7 +156,10 @@ public class MlAssignmentNotifier implements ClusterStateListener {
                                         + "]"
                                 );
                             } else {
-                                anomalyDetectionAuditor.warning(jobId, "Awaiting capacity to start datafeed.");
+                                anomalyDetectionAuditor.warning(
+                                    jobId,
+                                    "Awaiting capacity to start datafeed [" + datafeedParams.getDatafeedId() + "]."
+                                );
                             }
                         } else if (wasTaskAssigned) {
                             if (anomalyDetectionAuditor.includeNodeInfo()) {
@@ -169,16 +172,12 @@ public class MlAssignmentNotifier implements ClusterStateListener {
                                 anomalyDetectionAuditor.info(jobId, "Datafeed [" + datafeedParams.getDatafeedId() + "] relocating.");
                             }
                         } else {
-                            if (anomalyDetectionAuditor.includeNodeInfo()) {
-                                logger.warn(
-                                    "[{}] No node found to start datafeed [{}]. Reasons [{}]",
-                                    jobId,
-                                    datafeedParams.getDatafeedId(),
-                                    currentAssignment.getExplanation()
-                                );
-                            } else {
-                                logger.warn("[{}] Failed to start datafeed [{}].", jobId, datafeedParams.getDatafeedId());
-                            }
+                            logger.warn(
+                                "[{}] No node found to start datafeed [{}]. Reasons [{}]",
+                                jobId,
+                                datafeedParams.getDatafeedId(),
+                                currentAssignment.getExplanation()
+                            );
                         }
                     }
                 }

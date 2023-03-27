@@ -6,34 +6,35 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
+restResources {
+  restApi {
+    include  '_common', 'indices', 'index', 'cluster', 'data_stream', 'dlm'
+  }
+}
+
 esplugin {
   name 'dlm'
   description 'Elasticsearch Plugin - Data Lifecycle Management'
   classname 'org.elasticsearch.dlm.DataLifecyclePlugin'
 }
-
-restResources {
-  restApi {
-    include '_common', 'indices', 'data_stream'
-  }
-}
-
 archivesBaseName = 'dlm'
 dependencies {
   testImplementation project(':modules:data-streams')
 }
 
+addQaCheckDependencies(project)
+
 testClusters.configureEach {
+  module ':modules:reindex'
   testDistribution = 'DEFAULT'
   // disable ILM history, since it disturbs tests using _all
   setting 'indices.lifecycle.history_index_enabled', 'false'
   setting 'xpack.security.enabled', 'true'
+  setting 'indices.dlm.poll_interval', '1000ms'
   keystore 'bootstrap.password', 'x-pack-test-password'
   user username: "x_pack_rest_user", password: "x-pack-test-password"
   requiresFeature 'es.dlm_feature_flag_enabled', Version.fromString("8.8.0")
 }
-
-addQaCheckDependencies(project)
 
 if (BuildParams.isSnapshotBuild() == false) {
   tasks.named("test").configure {
@@ -45,10 +46,4 @@ if (BuildParams.isSnapshotBuild() == false) {
   tasks.named("yamlRestTest").configure {
     systemProperty 'es.dlm_feature_flag_enabled', 'true'
   }
-}
-
-if (BuildParams.inFipsJvm){
-  // These fail in CI but only when run as part of checkPart2 and not individually.
-  // Tracked in :
-  tasks.named("yamlRestTest").configure{enabled = false }
 }

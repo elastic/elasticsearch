@@ -386,6 +386,7 @@ public class Constants {
         "indices:admin/data_lifecycle/get",
         "indices:admin/data_lifecycle/put",
         "indices:admin/delete",
+        "indices:admin/dlm/explain",
         "indices:admin/flush",
         "indices:admin/flush[s]",
         "indices:admin/forcemerge",

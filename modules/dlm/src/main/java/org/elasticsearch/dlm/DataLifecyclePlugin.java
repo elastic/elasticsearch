@@ -28,11 +28,14 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.dlm.action.DeleteDataLifecycleAction;
 import org.elasticsearch.dlm.action.DeleteDataLifecycleTransportAction;
+import org.elasticsearch.dlm.action.ExplainDataLifecycleAction;
 import org.elasticsearch.dlm.action.GetDataLifecycleAction;
 import org.elasticsearch.dlm.action.GetDataLifecycleTransportAction;
 import org.elasticsearch.dlm.action.PutDataLifecycleAction;
 import org.elasticsearch.dlm.action.PutDataLifecycleTransportAction;
+import org.elasticsearch.dlm.action.TransportExplainDataLifecycleAction;
 import org.elasticsearch.dlm.rest.RestDeleteDataLifecycleAction;
+import org.elasticsearch.dlm.rest.RestExplainDataLifecycleAction;
 import org.elasticsearch.dlm.rest.RestGetDataLifecycleAction;
 import org.elasticsearch.dlm.rest.RestPutDataLifecycleAction;
 import org.elasticsearch.env.Environment;
@@ -50,6 +53,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
@@ -62,6 +66,8 @@ import static org.elasticsearch.cluster.metadata.DataLifecycle.DLM_ORIGIN;
 public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
 
     private final Settings settings;
+    private final SetOnce<DataLifecycleErrorStore> errorStoreInitialisationService = new SetOnce<>();
+
     private final SetOnce<DataLifecycleService> dataLifecycleInitialisationService = new SetOnce<>();
 
     public DataLifecyclePlugin(Settings settings) {
@@ -97,6 +103,7 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
             return List.of();
         }
 
+        errorStoreInitialisationService.set(new DataLifecycleErrorStore());
         dataLifecycleInitialisationService.set(
             new DataLifecycleService(
                 settings,
@@ -105,11 +112,11 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
                 getClock(),
                 threadPool,
                 threadPool::absoluteTimeInMillis,
-                new DataLifecycleErrorStore()
+                errorStoreInitialisationService.get()
             )
         );
         dataLifecycleInitialisationService.get().init();
-        return List.of(dataLifecycleInitialisationService.get());
+        return List.of(errorStoreInitialisationService.get(), dataLifecycleInitialisationService.get());
     }
 
     @Override
@@ -119,27 +126,6 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
         }
 
         return List.of(DataLifecycleService.DLM_POLL_INTERVAL_SETTING);
-    }
-
-    @Override
-    public void close() throws IOException {
-        try {
-            IOUtils.close(dataLifecycleInitialisationService.get());
-        } catch (IOException e) {
-            throw new ElasticsearchException("unable to close the data lifecycle service", e);
-        }
-    }
-
-    @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        if (DataLifecycle.isEnabled() == false) {
-            return List.of();
-        }
-
-        var putDataStreamsAction = new ActionHandler<>(PutDataLifecycleAction.INSTANCE, PutDataLifecycleTransportAction.class);
-        var getDataStreamsAction = new ActionHandler<>(GetDataLifecycleAction.INSTANCE, GetDataLifecycleTransportAction.class);
-        var deleteDataStreamsAction = new ActionHandler<>(DeleteDataLifecycleAction.INSTANCE, DeleteDataLifecycleTransportAction.class);
-        return List.of(putDataStreamsAction, getDataStreamsAction, deleteDataStreamsAction);
     }
 
     @Override
@@ -156,9 +142,34 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
             return List.of();
         }
 
-        var putDataStreamsAction = new RestPutDataLifecycleAction();
-        var getDataStreamsAction = new RestGetDataLifecycleAction();
-        var deleteDataStreamsAction = new RestDeleteDataLifecycleAction();
-        return List.of(putDataStreamsAction, getDataStreamsAction, deleteDataStreamsAction);
+        List<RestHandler> handlers = new ArrayList<>();
+        handlers.add(new RestPutDataLifecycleAction());
+        handlers.add(new RestGetDataLifecycleAction());
+        handlers.add(new RestDeleteDataLifecycleAction());
+        handlers.add(new RestExplainDataLifecycleAction());
+        return handlers;
+    }
+
+    @Override
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        if (DataLifecycle.isEnabled() == false) {
+            return List.of();
+        }
+
+        List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
+        actions.add(new ActionHandler<>(PutDataLifecycleAction.INSTANCE, PutDataLifecycleTransportAction.class));
+        actions.add(new ActionHandler<>(GetDataLifecycleAction.INSTANCE, GetDataLifecycleTransportAction.class));
+        actions.add(new ActionHandler<>(DeleteDataLifecycleAction.INSTANCE, DeleteDataLifecycleTransportAction.class));
+        actions.add(new ActionHandler<>(ExplainDataLifecycleAction.INSTANCE, TransportExplainDataLifecycleAction.class));
+        return actions;
+    }
+
+    @Override
+    public void close() throws IOException {
+        try {
+            IOUtils.close(dataLifecycleInitialisationService.get());
+        } catch (IOException e) {
+            throw new ElasticsearchException("unable to close the data lifecycle service", e);
+        }
     }
 }

@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.action.InternalExecutePolicyAction;
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 
 import java.util.Map;
@@ -50,6 +51,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.empty;
+import static org.junit.Assert.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -209,6 +211,10 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
                 Request request,
                 ActionListener<Response> listener
             ) {
+                // Validate the request on the submitting thread before forking its execution.
+                if (request instanceof InternalExecutePolicyAction.Request) {
+                    assertFalse(((InternalExecutePolicyAction.Request) request).isWaitForCompletion());
+                }
                 // Execute all client operations on another thread.
                 testThreadPool.generic().execute(() -> {
                     try {
@@ -263,7 +269,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         // Launch a fake policy run that will block until firstTaskBlock is counted down.
         PlainActionFuture<ExecuteEnrichPolicyAction.Response> firstTaskResult = PlainActionFuture.newFuture();
         testExecutor.coordinatePolicyExecution(
-            new ExecuteEnrichPolicyAction.Request(testPolicyName).setWaitForCompletion(true),
+            new ExecuteEnrichPolicyAction.Request(testPolicyName).setWaitForCompletion(false),
             firstTaskResult
         );
 

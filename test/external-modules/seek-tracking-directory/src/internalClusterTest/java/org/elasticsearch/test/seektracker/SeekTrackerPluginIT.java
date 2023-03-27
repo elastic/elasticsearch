@@ -36,6 +36,7 @@ public class SeekTrackerPluginIT extends ESIntegTestCase {
             .build();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94727")
     public void testSeekTrackerPlugin() throws InterruptedException {
 
         assertAcked(client().admin().indices().prepareCreate("index"));

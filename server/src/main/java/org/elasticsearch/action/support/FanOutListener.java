@@ -229,7 +229,6 @@ public class FanOutListener<T> implements ActionListener<T> {
                     }
                     // now they are in subscription order, complete them
                     while (currCell != null) {
-                        // noinspection unchecked
                         boolean completed = tryComplete(result, (ActionListener<T>) currCell.listener);
                         assert completed;
                         currCell = currCell.next;

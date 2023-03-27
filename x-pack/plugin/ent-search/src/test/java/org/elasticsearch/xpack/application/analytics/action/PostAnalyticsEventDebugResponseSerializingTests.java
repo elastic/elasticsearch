@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.application.analytics.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventPageData;
-import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventPageView;
-import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventSessionData;
-import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventUserData;
 
 import java.io.IOException;
+
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.randomPageViewEvent;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.randomSearchClickEvent;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.randomSearchEvent;
 
 public class PostAnalyticsEventDebugResponseSerializingTests extends AbstractWireSerializingTestCase<PostAnalyticsEventAction.Response> {
 
@@ -27,13 +27,7 @@ public class PostAnalyticsEventDebugResponseSerializingTests extends AbstractWir
     protected PostAnalyticsEventAction.Response createTestInstance() {
         return new PostAnalyticsEventAction.DebugResponse(
             randomBoolean(),
-            new AnalyticsEventPageView(
-                randomIdentifier(),
-                randomLong(),
-                new AnalyticsEventSessionData(randomIdentifier()),
-                new AnalyticsEventUserData(randomIdentifier()),
-                new AnalyticsEventPageData(randomIdentifier(), null, null)
-            )
+            randomFrom(randomPageViewEvent(), randomSearchEvent(), randomSearchClickEvent())
         );
     }
 

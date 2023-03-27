@@ -12,7 +12,6 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.ContextParser;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -31,11 +30,10 @@ import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent.TIMESTAMP_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventSessionData.SESSION_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventSessionData.SESSION_ID_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.createAnalyticsContextMockFromEvent;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.createPayloadFromEvent;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventUserData.USER_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventUserData.USER_ID_FIELD;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
 
 public abstract class AbstractEventTestCase<T extends AnalyticsEvent> extends AbstractWireSerializingTestCase<T> {
 
@@ -78,7 +76,7 @@ public abstract class AbstractEventTestCase<T extends AnalyticsEvent> extends Ab
         assertToXContentAdditionalFields(eventMap, event);
     }
 
-    public void testFromXContentFailsWhenSessionDataIsMissing() throws IOException {
+    public void testFromXContentFailsWhenSessionDataAreMissing() throws IOException {
         AnalyticsEvent event = createTestInstance();
         BytesReference payload = createPayloadFromEvent(event, SESSION_FIELD.getPreferredName());
 
@@ -91,7 +89,7 @@ public abstract class AbstractEventTestCase<T extends AnalyticsEvent> extends Ab
         );
     }
 
-    public void testFromXContentFailsWhenUserDataIsMissing() throws IOException {
+    public void testFromXContentFailsWhenUserDataAreMissing() throws IOException {
         AnalyticsEvent event = createTestInstance();
         BytesReference payload = createPayloadFromEvent(event, USER_FIELD.getPreferredName());
 
@@ -106,16 +104,7 @@ public abstract class AbstractEventTestCase<T extends AnalyticsEvent> extends Ab
 
     protected abstract ContextParser<AnalyticsEvent.Context, T> parser();
 
-    public abstract void assertToXContentAdditionalFields(Map<String, Object> eventMap, T event);
-
-    protected AnalyticsEvent.Context createAnalyticsContextMockFromEvent(AnalyticsEvent event) {
-        AnalyticsEvent.Context context = mock(AnalyticsEvent.Context.class);
-
-        when(context.eventCollectionName()).thenReturn(event.eventCollectionName());
-        when(context.eventTime()).thenReturn(event.eventTime());
-
-        return context;
-    }
+    protected abstract void assertToXContentAdditionalFields(Map<String, Object> eventMap, T event);
 
     protected T parsePageEventData(AnalyticsEvent.Context context, BytesReference json) throws IOException {
         try (XContentParser contentParser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json.array())) {
@@ -123,23 +112,4 @@ public abstract class AbstractEventTestCase<T extends AnalyticsEvent> extends Ab
         }
     }
 
-    protected BytesReference createPayloadFromEvent(AnalyticsEvent event, String... ignoredFields) throws IOException {
-        // Serialize the event.
-        BytesReference json = XContentHelper.toXContent(event, XContentType.JSON, false);
-
-        // Convert JSON to a map, so we can easily assert on events.
-        Map<String, Object> eventMap = XContentHelper.convertToMap(json, false, XContentType.JSON).v2();
-
-        for (String field: ignoredFields) {
-            eventMap.remove(field);
-        }
-
-        eventMap.remove(EVENT_FIELD.getPreferredName());
-        eventMap.remove(DATA_STREAM_FIELD.getPreferredName());
-        eventMap.remove(TIMESTAMP_FIELD.getPreferredName());
-
-        try (XContentBuilder builder = JsonXContent.contentBuilder().map(eventMap)) {
-            return BytesReference.bytes(builder);
-        }
-    }
 }

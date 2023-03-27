@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -28,12 +27,10 @@ import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventPageData.PAGE_REFERRER_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventPageData.PAGE_TITLE_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventPageData.PAGE_URL_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.convertMapToJson;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.randomEventPageData;
 
 public class AnalyticsEventPageDataTests extends AbstractWireSerializingTestCase<AnalyticsEventPageData> {
-
-    public static AnalyticsEventPageData randomEventPageData() {
-        return new AnalyticsEventPageData(randomIdentifier(), randomIdentifier(), randomIdentifier());
-    }
 
     public void testToXContentWithAllFields() throws IOException {
         AnalyticsEventPageData page = randomEventPageData();
@@ -143,12 +140,6 @@ public class AnalyticsEventPageDataTests extends AbstractWireSerializingTestCase
     private AnalyticsEventPageData parsePageEventData(BytesReference json) throws IOException {
         try (XContentParser contentParser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json.array())) {
             return AnalyticsEventPageData.fromXContent(contentParser, null);
-        }
-    }
-
-    private BytesReference convertMapToJson(Map<String, Object> map) throws IOException {
-        try (XContentBuilder builder = JsonXContent.contentBuilder().map(map)) {
-            return BytesReference.bytes(builder);
         }
     }
 }

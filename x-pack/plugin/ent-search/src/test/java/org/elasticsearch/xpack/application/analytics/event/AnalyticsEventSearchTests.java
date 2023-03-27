@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.application.analytics.event;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xcontent.ContextParser;
 
 import java.io.IOException;
@@ -15,18 +17,31 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventSearchData.SEARCH_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventSearchData.SEARCH_QUERY_FIELD;
-import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventSearchDataTests.randomEventSearchData;
-import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventSessionDataTests.randomEventSessionData;
-import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventUserDataTests.randomEventUserData;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.createAnalyticsContextMockFromEvent;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.createPayloadFromEvent;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.randomSearchEvent;
 
 public class AnalyticsEventSearchTests extends AbstractEventTestCase<AnalyticsEventSearch> {
 
     @SuppressWarnings("unchecked")
-    public void assertToXContentAdditionalFields(Map<String, Object> eventMap, AnalyticsEventSearch event) {
+    protected void assertToXContentAdditionalFields(Map<String, Object> eventMap, AnalyticsEventSearch event) {
         // Check search field content.
         assertTrue(eventMap.containsKey(SEARCH_FIELD.getPreferredName()));
         Map<String, String> searchDataMap = (Map<String, String>) eventMap.get(SEARCH_FIELD.getPreferredName());
         assertEquals(event.search().query(), searchDataMap.get(SEARCH_QUERY_FIELD.getPreferredName()));
+    }
+
+    public void testFromXContentFailsWhenSearchDataAreMissing() throws IOException {
+        AnalyticsEvent event = createTestInstance();
+        BytesReference payload = createPayloadFromEvent(event, SEARCH_FIELD.getPreferredName());
+
+        AnalyticsEvent.Context context = createAnalyticsContextMockFromEvent(event);
+
+        expectThrows(
+            IllegalArgumentException.class,
+            LoggerMessageFormat.format("Required [{}]", SEARCH_FIELD.getPreferredName()),
+            () -> parsePageEventData(context, payload)
+        );
     }
 
     @Override
@@ -36,13 +51,7 @@ public class AnalyticsEventSearchTests extends AbstractEventTestCase<AnalyticsEv
 
     @Override
     protected AnalyticsEventSearch createTestInstance() {
-        return new AnalyticsEventSearch(
-            randomIdentifier(),
-            randomLong(),
-            randomEventSessionData(),
-            randomEventUserData(),
-            randomEventSearchData()
-        );
+        return randomSearchEvent();
     }
 
     @Override

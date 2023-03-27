@@ -150,7 +150,7 @@ public class ListenableFutureTests extends ESTestCase {
         reachabilityChecker.ensureUnreachable();
     }
 
-    public void testRejection() throws Exception {
+    public void testRejection() {
         final CyclicBarrier barrier = new CyclicBarrier(2);
         final EsThreadPoolExecutor executorService = EsExecutors.newFixed(
             "testRejection",
@@ -163,15 +163,11 @@ public class ListenableFutureTests extends ESTestCase {
 
         try {
             executorService.execute(() -> {
-                try {
-                    barrier.await(10, TimeUnit.SECONDS); // notify main thread that the executor is blocked
-                    barrier.await(10, TimeUnit.SECONDS); // wait for main thread to release us
-                } catch (Exception e) {
-                    throw new AssertionError("unexpected", e);
-                }
+                safeAwait(barrier); // notify main thread that the executor is blocked
+                safeAwait(barrier); // wait for main thread to release us
             });
 
-            barrier.await(10, TimeUnit.SECONDS); // wait for executor to be blocked
+            safeAwait(barrier); // wait for executor to be blocked
 
             final var listenableFuture = new ListenableFuture<Void>();
             final var future1 = new PlainActionFuture<Void>();
@@ -190,7 +186,7 @@ public class ListenableFutureTests extends ESTestCase {
             assertFalse(future1.isDone()); // still waiting in the executor queue
             assertTrue(future2.isDone()); // rejected from the executor on this thread
 
-            barrier.await(10, TimeUnit.SECONDS); // release blocked executor
+            safeAwait(barrier); // release blocked executor
 
             if (success) {
                 expectThrows(EsRejectedExecutionException.class, future2::result);

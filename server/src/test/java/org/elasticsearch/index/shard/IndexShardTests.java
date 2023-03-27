@@ -4564,6 +4564,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94789")
     public void testShardExposesWriteLoadStats() throws Exception {
         final IndexShard primary = newStartedShard(true);
         for (int i = 0; i < 10; i++) {

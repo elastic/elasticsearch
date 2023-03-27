@@ -458,7 +458,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         @Override
         public void onNewElection(DiscoveryNode localNode, long proposedTerm, ActionListener<Void> listener) {
             ActionListener.completeWith(listener, () -> {
-                maxTermSeen = Math.max(maxTermSeen, proposedTerm);
+                maxTermSeen = Math.max(maxTermSeen, Math.max(proposedTerm, register.readCurrentTerm()));
                 register.claimTerm(proposedTerm);
                 lastWonTerm = proposedTerm;
                 return null;

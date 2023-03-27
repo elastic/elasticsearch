@@ -6,12 +6,61 @@
  */
 package org.elasticsearch.repositories.blobstore.testkit;
 
+import fixture.azure.AzureHttpFixture;
+
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
 
 public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestTestCase {
+    private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.azure.fixture", "true"));
+    private static final String AZURE_TEST_ACCOUNT = System.getProperty("test.azure.account");
+    private static final String AZURE_TEST_CONTAINER = System.getProperty("test.azure.container");
+    private static final String AZURE_TEST_KEY = System.getProperty("test.azure.key");
+    private static final String AZURE_TEST_SASTOKEN = System.getProperty("test.azure.sas_token");
+
+    private static AzureHttpFixture fixture = new AzureHttpFixture(USE_FIXTURE, AZURE_TEST_ACCOUNT, AZURE_TEST_CONTAINER);
+
+    private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("repository-azure")
+        .module("snapshot-repo-test-kit")
+        .keystore("azure.client.repository_test_kit.account", AZURE_TEST_ACCOUNT)
+        .keystore(
+            "azure.client.repository_test_kit.key",
+            () -> AZURE_TEST_KEY,
+            s -> AZURE_TEST_KEY != null && AZURE_TEST_KEY.isEmpty() == false
+        )
+        .keystore(
+            "azure.client.repository_test_kit.sas_token",
+            () -> AZURE_TEST_SASTOKEN,
+            s -> AZURE_TEST_SASTOKEN != null && AZURE_TEST_SASTOKEN.isEmpty() == false
+        )
+        .setting(
+            "azure.client.repository_test_kit.endpoint_suffix",
+            () -> "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + fixture.getAddress(),
+            s -> USE_FIXTURE
+        )
+        .apply(c -> {
+            if (USE_FIXTURE) {
+                // test fixture does not support CAS yet; TODO fix this
+                c.systemProperty("test.repository_test_kit.skip_cas", "true");
+            }
+        })
+        .build();
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(fixture).around(cluster);
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @Override
     protected String repositoryType() {

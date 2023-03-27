@@ -570,7 +570,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
     private Optional<Join> ensureTermAtLeast(DiscoveryNode sourceNode, long targetTerm) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-        if (electionStrategy.shouldJoinLeaderInTerm(getCurrentTerm(), targetTerm)) {
+        if (getCurrentTerm() < targetTerm) {
             return Optional.of(joinLeaderInTerm(new StartJoinRequest(sourceNode, targetTerm)));
         }
         return Optional.empty();

@@ -88,9 +88,7 @@ public class EventEmitterServiceTests extends ESTestCase {
             assertTrue(response.isAccepted());
             assertEquals(response.isDebug(), request.isDebug());
             if (response.isDebug()) {
-                assertEquals(response.getAnalyticsEvent(), emittedEvent);
-            } else {
-                assertNull(response.getAnalyticsEvent());
+                assertEquals(((PostAnalyticsEventAction.DebugResponse) response).analyticsEvent(), emittedEvent);
             }
 
             return response.isAccepted();

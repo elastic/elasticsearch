@@ -21,7 +21,8 @@ public class AnalyticsEventSearchClick extends AnalyticsEvent {
         "interaction_event",
         false,
         (p, c) -> new AnalyticsEventSearchClick(
-            c,
+            c.eventCollectionName(),
+            c.eventTime(),
             (AnalyticsEventSessionData) p[0],
             (AnalyticsEventUserData) p[1],
             (AnalyticsEventPageData) p[2],
@@ -66,18 +67,6 @@ public class AnalyticsEventSearchClick extends AnalyticsEvent {
         super(eventCollectionName, eventTime, session, user);
         this.page = page;
         this.search = search;
-    }
-
-    public AnalyticsEventSearchClick(
-        Context context,
-        AnalyticsEventSessionData session,
-        AnalyticsEventUserData user,
-        AnalyticsEventPageData page,
-        AnalyticsEventSearchData search
-    ) {
-        super(context, session, user);
-        this.page = Objects.requireNonNull(page, "page");
-        this.search = Objects.requireNonNull(search, "search");
     }
 
     public AnalyticsEventSearchClick(StreamInput in) throws IOException {

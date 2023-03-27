@@ -219,7 +219,7 @@ public class FanOutListener<T> implements ActionListener<T> {
                     // multiple subscribers, but they are currently in reverse order of subscription so reverse them back
                     Cell prevCell = null;
                     while (true) {
-                        final var nextCell = currCell.next;
+                        final Cell nextCell = currCell.next;
                         currCell.next = prevCell;
                         if (nextCell == null) {
                             break;

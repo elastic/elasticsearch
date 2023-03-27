@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.application.analytics.event;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xcontent.ContextParser;
 
 import java.io.IOException;
@@ -17,17 +19,16 @@ import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventPageData.PAGE_REFERRER_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventPageData.PAGE_TITLE_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventPageData.PAGE_URL_FIELD;
-import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventPageDataTests.randomEventPageData;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventSearchData.SEARCH_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventSearchData.SEARCH_QUERY_FIELD;
-import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventSearchDataTests.randomEventSearchData;
-import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventSessionDataTests.randomEventSessionData;
-import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventUserDataTests.randomEventUserData;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.createAnalyticsContextMockFromEvent;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.createPayloadFromEvent;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.randomSearchClickEvent;
 
 public class AnalyticsEventSearchClickTests extends AbstractEventTestCase<AnalyticsEventSearchClick> {
 
     @SuppressWarnings("unchecked")
-    public void assertToXContentAdditionalFields(Map<String, Object> eventMap, AnalyticsEventSearchClick event) {
+    protected void assertToXContentAdditionalFields(Map<String, Object> eventMap, AnalyticsEventSearchClick event) {
         // Check page field content.
         assertTrue(eventMap.containsKey(PAGE_FIELD.getPreferredName()));
         Map<String, String> pageDataMap = (Map<String, String>) eventMap.get(PAGE_FIELD.getPreferredName());
@@ -41,6 +42,32 @@ public class AnalyticsEventSearchClickTests extends AbstractEventTestCase<Analyt
         assertEquals(event.search().query(), searchDataMap.get(SEARCH_QUERY_FIELD.getPreferredName()));
     }
 
+    public void testFromXContentFailsWhenPageDataAreMissing() throws IOException {
+        AnalyticsEvent event = createTestInstance();
+        BytesReference payload = createPayloadFromEvent(event, PAGE_FIELD.getPreferredName());
+
+        AnalyticsEvent.Context context = createAnalyticsContextMockFromEvent(event);
+
+        expectThrows(
+            IllegalArgumentException.class,
+            LoggerMessageFormat.format("Required [{}]", PAGE_FIELD.getPreferredName()),
+            () -> parsePageEventData(context, payload)
+        );
+    }
+
+    public void testFromXContentFailsWhenSearchDataAreMissing() throws IOException {
+        AnalyticsEvent event = createTestInstance();
+        BytesReference payload = createPayloadFromEvent(event, SEARCH_FIELD.getPreferredName());
+
+        AnalyticsEvent.Context context = createAnalyticsContextMockFromEvent(event);
+
+        expectThrows(
+            IllegalArgumentException.class,
+            LoggerMessageFormat.format("Required [{}]", SEARCH_FIELD.getPreferredName()),
+            () -> parsePageEventData(context, payload)
+        );
+    }
+
     @Override
     protected Writeable.Reader<AnalyticsEventSearchClick> instanceReader() {
         return AnalyticsEventSearchClick::new;
@@ -48,14 +75,7 @@ public class AnalyticsEventSearchClickTests extends AbstractEventTestCase<Analyt
 
     @Override
     protected AnalyticsEventSearchClick createTestInstance() {
-        return new AnalyticsEventSearchClick(
-            randomIdentifier(),
-            randomLong(),
-            randomEventSessionData(),
-            randomEventUserData(),
-            randomEventPageData(),
-            randomEventSearchData()
-        );
+        return randomSearchClickEvent();
     }
 
     @Override

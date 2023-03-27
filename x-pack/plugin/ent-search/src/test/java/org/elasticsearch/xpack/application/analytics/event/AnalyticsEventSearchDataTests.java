@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -26,12 +25,10 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventSearchData.SEARCH_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventSearchData.SEARCH_QUERY_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.convertMapToJson;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.randomEventSearchData;
 
 public class AnalyticsEventSearchDataTests extends AbstractWireSerializingTestCase<AnalyticsEventSearchData> {
-
-    public static AnalyticsEventSearchData randomEventSearchData() {
-        return new AnalyticsEventSearchData(randomIdentifier());
-    }
 
     public void testToXContent() throws IOException {
         AnalyticsEventSearchData search = randomEventSearchData();
@@ -96,12 +93,6 @@ public class AnalyticsEventSearchDataTests extends AbstractWireSerializingTestCa
     private AnalyticsEventSearchData parseSearchData(BytesReference json) throws IOException {
         try (XContentParser contentParser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json.array())) {
             return AnalyticsEventSearchData.fromXContent(contentParser, null);
-        }
-    }
-
-    private BytesReference convertMapToJson(Map<String, Object> map) throws IOException {
-        try (XContentBuilder builder = JsonXContent.contentBuilder().map(map)) {
-            return BytesReference.bytes(builder);
         }
     }
 }

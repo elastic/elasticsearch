@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -24,14 +23,12 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.convertMapToJson;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.randomEventUserData;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventUserData.USER_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventUserData.USER_ID_FIELD;
 
 public class AnalyticsEventUserDataTests extends AbstractWireSerializingTestCase<AnalyticsEventUserData> {
-
-    public static AnalyticsEventUserData randomEventUserData() {
-        return new AnalyticsEventUserData(randomIdentifier());
-    }
 
     public void testToXContent() throws IOException {
         AnalyticsEventUserData user = randomEventUserData();
@@ -109,12 +106,6 @@ public class AnalyticsEventUserDataTests extends AbstractWireSerializingTestCase
     private AnalyticsEventUserData parseUserData(BytesReference json) throws IOException {
         try (XContentParser contentParser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json.array())) {
             return AnalyticsEventUserData.fromXContent(contentParser, null);
-        }
-    }
-
-    private BytesReference convertMapToJson(Map<String, Object> map) throws IOException {
-        try (XContentBuilder builder = JsonXContent.contentBuilder().map(map)) {
-            return BytesReference.bytes(builder);
         }
     }
 }

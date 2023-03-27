@@ -74,15 +74,15 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
         project.getPluginManager().apply(FindTransportClassesPlugin.class);
 
-        // project.getTasks().named("test").configure(task -> { task.finalizedBy(project.getTasks().named("transportTestExistCheck")); });
+        // project.getTasks().named("test").configure(task -> { task.finalizedBy(project.getTasks().named("findTransportClassesTask")); });
 
-        project.getTasks().named("transportTestExistCheck").configure(task -> { task.mustRunAfter("compileJava"); });
+        project.getTasks().named("findTransportClassesTask").configure(task -> { task.mustRunAfter("compileJava"); });
         project.getTasks().named("koverVerify", KoverVerificationTask.class).configure(t -> {
-            // t.dependsOn(project.getTasks().named("transportTestExistCheck"));// should I declare task dependency explicitly? *1
-            FindTransportClassesTask transportTestExistCheck = project.getTasks()
-                .named("transportTestExistCheck", FindTransportClassesTask.class)
+            // t.dependsOn(project.getTasks().named("findTransportClassesTask"));// should I declare task dependency explicitly? *1
+            FindTransportClassesTask findTransportClassesTask = project.getTasks()
+                .named("findTransportClassesTask", FindTransportClassesTask.class)
                 .get();
-            t.dependsOn(transportTestExistCheck);
+            t.dependsOn(findTransportClassesTask);
 
             t.doFirst(t2 -> {
                 project.getExtensions().configure(KoverProjectConfig.class, kover -> {
@@ -95,19 +95,19 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                                 2: Task failed with an exception.
                                 -----------
                                 * What went wrong:
-                                A problem was found with the configuration of task ':client:client-benchmark-noop-api-plugin:transportTestExistCheck' (type 'FindTransportClassesTask').
+                                A problem was found with the configuration of task ':client:client-benchmark-noop-api-plugin:findTransportClassesTask' (type 'FindTransportClassesTask').
                                 - Gradle detected a problem with the following location: '/Users/przemyslawgomulka/workspace/pgomulka/elasticsearch/client/client-benchmark-noop-api-plugin/build/generated-resources/transport-classes.txt'.
 
-                                Reason: Task ':client:client-benchmark-noop-api-plugin:jarHell' uses this output of task ':client:client-benchmark-noop-api-plugin:transportTestExistCheck' without declaring an explicit or implicit dependency. This can lead to incorrect results being produced, depending on what order the tasks are executed.
+                                Reason: Task ':client:client-benchmark-noop-api-plugin:jarHell' uses this output of task ':client:client-benchmark-noop-api-plugin:findTransportClassesTask' without declaring an explicit or implicit dependency. This can lead to incorrect results being produced, depending on what order the tasks are executed.
 
                                 Possible solutions:
-                                1. Declare task ':client:client-benchmark-noop-api-plugin:transportTestExistCheck' as an input of ':client:client-benchmark-noop-api-plugin:jarHell'.
-                                2. Declare an explicit dependency on ':client:client-benchmark-noop-api-plugin:transportTestExistCheck' from ':client:client-benchmark-noop-api-plugin:jarHell' using Task#dependsOn.
-                                3. Declare an explicit dependency on ':client:client-benchmark-noop-api-plugin:transportTestExistCheck' from ':client:client-benchmark-noop-api-plugin:jarHell' using Task#mustRunAfter.
+                                1. Declare task ':client:client-benchmark-noop-api-plugin:findTransportClassesTask' as an input of ':client:client-benchmark-noop-api-plugin:jarHell'.
+                                2. Declare an explicit dependency on ':client:client-benchmark-noop-api-plugin:findTransportClassesTask' from ':client:client-benchmark-noop-api-plugin:jarHell' using Task#dependsOn.
+                                3. Declare an explicit dependency on ':client:client-benchmark-noop-api-plugin:findTransportClassesTask' from ':client:client-benchmark-noop-api-plugin:jarHell' using Task#mustRunAfter.
 
                                 */
                                 // this is causing gradle.8.0 deprecation failures
-                                List<String> transportClasses = readTransportClasses(transportTestExistCheck.getOutputFile());
+                                List<String> transportClasses = readTransportClasses(findTransportClassesTask.getOutputFile());
                                 koverClassFilter.getIncludes().addAll(transportClasses);
                             });
                             rule.setTarget(VerificationTarget.CLASS);
@@ -144,13 +144,13 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         try {
             // - Gradle detected a problem with the following location:
             // '/Users/przemyslawgomulka/workspace/pgomulka/elasticsearch/modules/aggregations/build/generated-resources/transport-classes.txt'.
-            // Reason: Task ':modules:aggregations:test' uses this output of task ':modules:aggregations:transportTestExistCheck' without
+            // Reason: Task ':modules:aggregations:test' uses this output of task ':modules:aggregations:findTransportClassesTask' without
             // declaring an explicit or implicit dependency. This can lead to incorrect results being produced, depending on what order the
             // tasks are executed. Please refer to https://docs.gradle.org/7.6.1/userguide/validation_problems.html#implicit_dependency for
             // more details about this problem.
             // Provider<RegularFile> file = project.getLayout().getBuildDirectory().file(TransportTestExistTask.TRANSPORT_CLASSES);
             // RegularFileProperty file = project.getTasks()
-            // .named("transportTestExistCheck", TransportTestExistTask.class)
+            // .named("findTransportClassesTask", TransportTestExistTask.class)
             // .get()
             // .getOutputFile();
             Path path = file.get().getAsFile().toPath();

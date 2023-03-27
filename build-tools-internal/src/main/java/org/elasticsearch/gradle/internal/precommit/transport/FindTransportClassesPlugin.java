@@ -25,17 +25,14 @@ public class FindTransportClassesPlugin extends PrecommitPlugin {
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
         TaskProvider<FindTransportClassesTask> transportTestExistTask = project.getTasks()
-            .register("transportTestExistCheck", FindTransportClassesTask.class);
+            .register("findTransportClassesTask", FindTransportClassesTask.class);
         project.getPlugins().withType(JavaPlugin.class, javaPlugin -> {
             transportTestExistTask.configure(t -> {
                 FileCollection mainSourceSet = GradleUtils.getJavaSourceSets(project)
                     .getByName(SourceSet.MAIN_SOURCE_SET_NAME)
                     .getOutput()
                     .getClassesDirs();
-                FileCollection testSourceSet = GradleUtils.getJavaSourceSets(project)
-                    .getByName(SourceSet.TEST_SOURCE_SET_NAME)
-                    .getOutput()
-                    .getClassesDirs();
+                t.setMainSources(mainSourceSet);
 
                 Configuration serverDependencyConfig = project.getConfigurations().create("serverDependencyConfig");
                 DependencyHandler dependencyHandler = project.getDependencies();
@@ -43,19 +40,10 @@ public class FindTransportClassesPlugin extends PrecommitPlugin {
                     deps -> deps.add(dependencyHandler.create(dependencyHandler.project(Map.of("path", ":server"))))
                 );
 
-                Configuration testFrameworkConfig = project.getConfigurations().create("testFrameworkConfig");
-                testFrameworkConfig.defaultDependencies(
-                    deps -> deps.add(dependencyHandler.create(dependencyHandler.project(Map.of("path", ":test:framework"))))
-                );
-
-                t.setMainSources(mainSourceSet);
                 FileCollection compileClassPath = serverDependencyConfig.plus(
                     project.getConfigurations().getByName(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME)
                 );
                 t.setCompileClasspath(compileClassPath);
-                FileCollection byName = testFrameworkConfig.plus(
-                    project.getConfigurations().getByName(JavaPlugin.TEST_COMPILE_CLASSPATH_CONFIGURATION_NAME)
-                );
             });
         });
         return transportTestExistTask;

@@ -15,7 +15,7 @@ import org.elasticsearch.gradle.fixtures.LocalRepositoryFixture
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.ClassRule
 
-class TransportTestExistPluginNonJavaFuncTest extends AbstractGradleInternalPluginFuncTest {
+class FindTransportClassesNonJavaFuncTest extends AbstractGradleInternalPluginFuncTest {
     Class<? extends FindTransportClassesPlugin> pluginClassUnderTest = FindTransportClassesPlugin.class
 
     @Shared
@@ -34,10 +34,10 @@ class TransportTestExistPluginNonJavaFuncTest extends AbstractGradleInternalPlug
     def "non java projects will not fail"() {
         given:
         when:
-        def result = gradleRunner(":transportTestExistCheck").build()
+        def result = gradleRunner(":findTransportClassesTask").build()
 
         then:
-        result.task(":transportTestExistCheck").outcome == TaskOutcome.SUCCESS
+        result.task(":findTransportClassesTask").outcome == TaskOutcome.SUCCESS
     }
 
 }

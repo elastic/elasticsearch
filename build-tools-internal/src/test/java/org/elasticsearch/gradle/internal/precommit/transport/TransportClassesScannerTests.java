@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 
-public class TransportTestsScannerClasses {
+public class TransportClassesScannerTests {
     String writeable = "org.elasticsearch.gradle.internal.precommit.transport.test_classes.Writeable";
 
     @Test

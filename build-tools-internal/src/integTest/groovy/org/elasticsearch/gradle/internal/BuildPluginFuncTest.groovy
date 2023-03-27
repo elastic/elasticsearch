@@ -152,7 +152,7 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
             tasks.named('loggerUsageCheck').configure { enabled = false }
             // tested elsewhere
             tasks.named('thirdPartyAudit').configure { enabled = false }
-            tasks.named('transportTestExistCheck').configure { enabled = false }
+            tasks.named('findTransportClassesTask').configure { enabled = false }
             """
         when:
         def result = gradleRunner("check").build()

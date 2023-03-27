@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
-// Verifies if every transport class has a corresponding transport test class
+// Finds subclasses of Writeable - aka transport classes
 @CacheableTask
 public abstract class FindTransportClassesTask extends PrecommitTask {
     private static final String MISSING_TRANSPORT_TESTS_FILE = "transport-tests/missing-transport-tests.txt";

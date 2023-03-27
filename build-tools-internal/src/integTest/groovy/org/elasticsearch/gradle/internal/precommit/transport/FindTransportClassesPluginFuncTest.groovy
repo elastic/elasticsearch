@@ -15,7 +15,7 @@ import org.elasticsearch.gradle.fixtures.LocalRepositoryFixture
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.ClassRule
 
-class TransportTestExistPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
+class FindTransportClassesPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
     Class<? extends FindTransportClassesPlugin> pluginClassUnderTest = FindTransportClassesPlugin.class
 
     @Shared
@@ -51,10 +51,10 @@ class TransportTestExistPluginFuncTest extends AbstractGradleInternalPluginFuncT
         """
 
         when:
-        def result = gradleRunner(":transportTestExistCheck").build()
+        def result = gradleRunner(":findTransportClassesTask").build()
 
         then:
-        result.task(":transportTestExistCheck").outcome == TaskOutcome.SUCCESS
+        result.task(":findTransportClassesTask").outcome == TaskOutcome.SUCCESS
     }
 
     def "can scan transport classes"() {
@@ -78,16 +78,16 @@ class TransportTestExistPluginFuncTest extends AbstractGradleInternalPluginFuncT
         """
 
         when:
-        def result = gradleRunner(":transportTestExistCheck").build()
+        def result = gradleRunner(":findTransportClassesTask").build()
 
         then:
-        result.task(":transportTestExistCheck").outcome == TaskOutcome.SUCCESS
+        result.task(":findTransportClassesTask").outcome == TaskOutcome.SUCCESS
 
         when:
-        result = gradleRunner(":transportTestExistCheck").build()
+        result = gradleRunner(":findTransportClassesTask").build()
 
         then:
-        result.task(":transportTestExistCheck").outcome == TaskOutcome.UP_TO_DATE
+        result.task(":findTransportClassesTask").outcome == TaskOutcome.UP_TO_DATE
     }
 
     def "can fail when transport classes missing a test"() {
@@ -102,10 +102,10 @@ class TransportTestExistPluginFuncTest extends AbstractGradleInternalPluginFuncT
         """
 
         when:
-        def result = gradleRunner(":transportTestExistCheck").buildAndFail()
+        def result = gradleRunner(":findTransportClassesTask").buildAndFail()
 
         then:
-        result.task(":transportTestExistCheck").outcome == TaskOutcome.FAILED
+        result.task(":findTransportClassesTask").outcome == TaskOutcome.FAILED
         result.getOutput().contains("There are 1 missing tests for classes")
         result.getOutput().contains("org.acme.MissingTest")
     }

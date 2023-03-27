@@ -67,10 +67,6 @@ public abstract class ElectionStrategy {
         return voteCollection.isQuorum(lastCommittedConfiguration) && voteCollection.isQuorum(latestPublishedConfiguration);
     }
 
-    public boolean shouldJoinLeaderInTerm(long currentTerm, long targetTerm) {
-        return currentTerm < targetTerm;
-    }
-
     /**
      * The extension point to be overridden by plugins. Defines additional constraints on the election quorum.
      * @param localNode                  the local node for the election quorum

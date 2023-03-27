@@ -166,7 +166,7 @@ public class CoordinationState {
      * @throws CoordinationStateRejectedException if the arguments were incompatible with the current state of this object.
      */
     public Join handleStartJoin(StartJoinRequest startJoinRequest) {
-        if (electionStrategy.shouldJoinLeaderInTerm(getCurrentTerm(), startJoinRequest.getTerm()) == false) {
+        if (startJoinRequest.getTerm() <= getCurrentTerm()) {
             logger.debug(
                 "handleStartJoin: ignoring [{}] as term provided is not greater than current term [{}]",
                 startJoinRequest,

@@ -145,7 +145,7 @@ public class PostWriteRefresh {
                     shardRouting.allocationId().getId(),
                     indexShard.getOperationPrimaryTerm(),
                     true,
-                    "Unable to refresh an unpomotable shard",
+                    "mark unpromotable copy as stale after refresh failure",
                     e,
                     ActionListener.runAfter(
                         ActionListener.wrap(

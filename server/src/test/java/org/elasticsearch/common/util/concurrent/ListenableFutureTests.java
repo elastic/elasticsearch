@@ -16,7 +16,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ReachabilityChecker;
 import org.junit.After;
 
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
@@ -68,7 +67,7 @@ public class ListenableFutureTests extends ESTestCase {
         assertTrue(future.isDone());
     }
 
-    public void testConcurrentListenerRegistrationAndCompletion() throws BrokenBarrierException, InterruptedException {
+    public void testConcurrentListenerRegistrationAndCompletion() throws InterruptedException {
         final int numberOfThreads = scaledRandomIntBetween(2, 32);
         final int completingThread = randomIntBetween(0, numberOfThreads - 1);
         final ListenableFuture<String> future = new ListenableFuture<>();
@@ -89,41 +88,37 @@ public class ListenableFutureTests extends ESTestCase {
             final int threadNum = i;
             Thread thread = new Thread(() -> {
                 threadContext.putTransient("key", threadNum);
-                try {
-                    barrier.await();
-                    if (threadNum == completingThread) {
-                        // we need to do more than just call onResponse as this often results in synchronous
-                        // execution of the listeners instead of actually going async
-                        final int waitTime = randomIntBetween(0, 50);
-                        Thread.sleep(waitTime);
-                        logger.info("completing the future after sleeping {}ms", waitTime);
-                        future.onResponse("");
-                        logger.info("future received response");
-                    } else {
-                        logger.info("adding listener {}", threadNum);
-                        future.addListener(ActionListener.wrap(s -> {
-                            logger.info("listener {} received value {}", threadNum, s);
-                            assertEquals("", s);
-                            assertThat(threadContext.getTransient("key"), is(threadNum));
-                            numResponses.incrementAndGet();
-                            listenersLatch.countDown();
-                        }, e -> {
-                            logger.error(() -> "listener " + threadNum + " caught unexpected exception", e);
-                            numExceptions.incrementAndGet();
-                            listenersLatch.countDown();
-                        }), executorService, threadContext);
-                        logger.info("listener {} added", threadNum);
-                    }
-                    barrier.await();
-                } catch (InterruptedException | BrokenBarrierException e) {
-                    throw new AssertionError(e);
+                safeAwait(barrier);
+                if (threadNum == completingThread) {
+                    // we need to do more than just call onResponse as this often results in synchronous
+                    // execution of the listeners instead of actually going async
+                    final int waitTime = randomIntBetween(0, 50);
+                    safeSleep(waitTime);
+                    logger.info("completing the future after sleeping {}ms", waitTime);
+                    future.onResponse("");
+                    logger.info("future received response");
+                } else {
+                    logger.info("adding listener {}", threadNum);
+                    future.addListener(ActionListener.wrap(s -> {
+                        logger.info("listener {} received value {}", threadNum, s);
+                        assertEquals("", s);
+                        assertThat(threadContext.getTransient("key"), is(threadNum));
+                        numResponses.incrementAndGet();
+                        listenersLatch.countDown();
+                    }, e -> {
+                        logger.error(() -> "listener " + threadNum + " caught unexpected exception", e);
+                        numExceptions.incrementAndGet();
+                        listenersLatch.countDown();
+                    }), executorService, threadContext);
+                    logger.info("listener {} added", threadNum);
                 }
+                safeAwait(barrier);
             });
             thread.start();
         }
 
-        barrier.await();
-        barrier.await();
+        safeAwait(barrier);
+        safeAwait(barrier);
         listenersLatch.await();
 
         assertEquals(numberOfThreads - 1, numResponses.get());

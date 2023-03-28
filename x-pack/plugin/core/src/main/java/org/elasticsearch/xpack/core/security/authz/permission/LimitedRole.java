@@ -38,7 +38,7 @@ import java.util.Set;
  */
 public final class LimitedRole implements Role {
 
-    private final static Logger logger = LogManager.getLogger(LimitedRole.class);
+    private static final Logger logger = LogManager.getLogger(LimitedRole.class);
     private final Role baseRole;
     private final Role limitedByRole;
 

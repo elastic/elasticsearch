@@ -1301,7 +1301,7 @@ public final class Authentication implements ToXContentObject {
                     + effectiveSubjectVersion
                     + "] to ["
                     + olderVersion
-                    + "]."
+                    + "]"
             );
             final Map<String, Object> rewrittenMetadata = new HashMap<>(metadata);
             rewrittenMetadata.put(

@@ -129,7 +129,7 @@ public class CrossClusterAccessAuthenticationService {
         final Subject effectiveSubject = authentication.getEffectiveSubject();
         final User user = effectiveSubject.getUser();
         if (CrossClusterAccessUser.is(user)) {
-            logger.debug("Request [{}] performed by internal user [{}]. Will use pre-defined role descriptors.", request, user.principal());
+            logger.debug("Request [{}] performed by internal user [{}]. Will use pre-defined role descriptors", request, user.principal());
             return CrossClusterAccessUser.subjectInfoWithRoleDescriptors(
                 effectiveSubject.getTransportVersion(),
                 effectiveSubject.getRealm().getNodeName()

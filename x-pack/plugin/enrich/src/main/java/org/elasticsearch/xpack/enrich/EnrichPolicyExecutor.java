@@ -7,15 +7,21 @@
 
 package org.elasticsearch.xpack.enrich;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -29,6 +35,8 @@ import java.util.concurrent.Semaphore;
 import java.util.function.LongSupplier;
 
 public class EnrichPolicyExecutor {
+
+    private static final Logger logger = LogManager.getLogger(EnrichPolicyExecutor.class);
 
     public static final String TASK_ACTION = "policy_execution";
 
@@ -69,6 +77,7 @@ public class EnrichPolicyExecutor {
         ActionListener<ExecuteEnrichPolicyAction.Response> listener
     ) {
         long nowTimestamp = nowSupplier.getAsLong();
+        String policyName = request.getName();
         String enrichIndexName = EnrichPolicy.getIndexName(request.getName(), nowTimestamp);
         Releasable policyLock = tryLockingPolicy(request.getName(), enrichIndexName);
         try {
@@ -77,14 +86,19 @@ public class EnrichPolicyExecutor {
             internalRequest.setParentTask(request.getParentTask());
             client.execute(InternalExecutePolicyAction.INSTANCE, internalRequest, ActionListener.wrap(response -> {
                 if (response.getStatus() != null) {
+                    logger.debug("Unlocking enrich policy [{}:{}] on complete with no task scheduled", policyName, enrichIndexName);
                     policyLock.close();
                     listener.onResponse(response);
                 } else {
                     assert response.getTaskId() != null : "If the execute response does not have a status it must return a task id";
-                    awaitTaskCompletionAndThenRelease(response.getTaskId(), policyLock);
+                    awaitTaskCompletionAndThenRelease(response.getTaskId(), () -> {
+                        logger.debug("Unlocking enrich policy [{}:{}] on completion of task status", policyName, enrichIndexName);
+                        policyLock.close();
+                    }, policyName, enrichIndexName);
                     listener.onResponse(response);
                 }
             }, e -> {
+                logger.debug("Unlocking enrich policy [{}:{}] on failure to execute internal action", policyName, enrichIndexName);
                 policyLock.close();
                 listener.onFailure(e);
             }));
@@ -138,11 +152,54 @@ public class EnrichPolicyExecutor {
         };
     }
 
-    private void awaitTaskCompletionAndThenRelease(TaskId taskId, Releasable policyLock) {
-        GetTaskRequest getTaskRequest = new GetTaskRequest();
-        getTaskRequest.setTaskId(taskId);
-        getTaskRequest.setWaitForCompletion(true);
-        client.admin().cluster().getTask(getTaskRequest, ActionListener.wrap(policyLock::close));
+    private void awaitTaskCompletionAndThenRelease(
+        TaskId taskId,
+        Releasable policyLock,
+        final String policyName,
+        final String enrichIndexName
+    ) {
+        GetTaskRequest getTaskRequest = new GetTaskRequest().setTaskId(taskId).setWaitForCompletion(true).setTimeout(TimeValue.MAX_VALUE);
+        client.admin().cluster().getTask(getTaskRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(GetTaskResponse getTaskResponse) {
+                policyLock.close();
+            }
+
+            @Override
+            public void onFailure(Exception exception) {
+                if (ExceptionsHelper.unwrap(exception, ResourceNotFoundException.class) != null) {
+                    // Could not find task, which means it completed, failed, or the node is gone. Clean up policy lock.
+                    logger.debug(
+                        "Assuming async policy [{}:{}] execution task [{}] has ended after not being able to retrieve it from remote host",
+                        policyName,
+                        enrichIndexName,
+                        taskId
+                    );
+                    policyLock.close();
+                } else if (ExceptionsHelper.unwrap(exception, ElasticsearchTimeoutException.class) != null) {
+                    // Timeout occurred while waiting for completion, launch the wait again
+                    logger.debug(
+                        "Retrying task wait after encountering timeout during async policy execution result [{}:{}]",
+                        policyName,
+                        enrichIndexName
+                    );
+                    awaitTaskCompletionAndThenRelease(taskId, policyLock, policyName, enrichIndexName);
+                } else {
+                    // We've encountered an unforeseen problem while waiting for the policy to complete. Could be a network error or
+                    // something else. Instead of keeping the policy locked forever and potentially jamming the enrich feature during
+                    // an unstable cluster event, we should unlock it and accept the possibility of an inconsistent execution.
+                    logger.error(
+                        "Emergency unlock for enrich policy ["
+                            + policyName
+                            + ":"
+                            + enrichIndexName
+                            + "] on failure to determine task status caused by unhandled exception",
+                        exception
+                    );
+                    policyLock.close();
+                }
+            }
+        });
     }
 
     private Runnable createPolicyRunner(

@@ -213,8 +213,6 @@ public class AuthorizationService {
         final Subject subject,
         final ActionListener<RoleDescriptorsIntersection> listener
     ) {
-        logger.trace("Getting role descriptors intersection of [{}] for remote cluster [{}]", subject.getUser(), remoteClusterAlias);
-
         if (isInternal(subject.getUser())) {
             final String message = "the user ["
                 + subject.getUser().principal()

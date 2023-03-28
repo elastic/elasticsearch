@@ -11,6 +11,7 @@ import io.netty.channel.ChannelOption;
 import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.ssl.SslHandshakeTimeoutException;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
@@ -616,9 +617,11 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                         .filter(entry -> entry.getKey() instanceof NioChannelOption<?>)
                         .collect(Collectors.toUnmodifiableMap(entry -> entry.getKey().name(), Map.Entry::getValue));
                     assertThat(options.get(ChannelOption.SO_KEEPALIVE.name()), is(true));
-                    assertThat(options.get(OPTION_TCP_KEEP_IDLE.name()), equalTo(100));
-                    assertThat(options.get(OPTION_TCP_KEEP_INTERVAL.name()), equalTo(101));
-                    assertThat(options.get(OPTION_TCP_KEEP_COUNT.name()), equalTo(102));
+                    if (false == Constants.WINDOWS) {
+                        assertThat(options.get(OPTION_TCP_KEEP_IDLE.name()), equalTo(100));
+                        assertThat(options.get(OPTION_TCP_KEEP_INTERVAL.name()), equalTo(101));
+                        assertThat(options.get(OPTION_TCP_KEEP_COUNT.name()), equalTo(102));
+                    }
                 }
 
                 final TcpChannel acceptedChannel = getAcceptedChannel(originalTransport, connection);

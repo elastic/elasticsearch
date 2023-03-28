@@ -28,16 +28,14 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
@@ -69,6 +67,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     protected final CounterMetric computationsSubmitted = new CounterMetric();
     protected final CounterMetric computationsExecuted = new CounterMetric();
     protected final CounterMetric computationsConverged = new CounterMetric();
+    protected final MeanMetric computedShardMovements = new MeanMetric();
     protected final CounterMetric cumulativeComputationTime = new CounterMetric();
     protected final CounterMetric cumulativeReconciliationTime = new CounterMetric();
 
@@ -197,12 +196,13 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private void setCurrentDesiredBalance(DesiredBalance newDesiredBalance) {
         if (logger.isTraceEnabled()) {
             var diff = DesiredBalance.hasChanges(currentDesiredBalance, newDesiredBalance)
-                ? "Diff: " + diff(currentDesiredBalance, newDesiredBalance)
+                ? "Diff: " + DesiredBalance.humanReadableDiff(currentDesiredBalance, newDesiredBalance)
                 : "No changes";
             logger.trace("Desired balance updated: {}. {}", newDesiredBalance, diff);
         } else {
             logger.debug("Desired balance updated for [{}]", newDesiredBalance.lastConvergedIndex());
         }
+        computedShardMovements.inc(DesiredBalance.shardMovements(currentDesiredBalance, newDesiredBalance));
         currentDesiredBalance = newDesiredBalance;
     }
 
@@ -237,6 +237,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             computationsExecuted.count(),
             computationsConverged.count(),
             desiredBalanceComputer.iterations.sum(),
+            computedShardMovements.sum(),
             cumulativeComputationTime.count(),
             cumulativeReconciliationTime.count()
         );
@@ -328,27 +329,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             final long finished = threadPool.relativeTimeInMillis();
             metric.inc(finished - started);
         }
-    }
-
-    private static String diff(DesiredBalance old, DesiredBalance updated) {
-        var intersection = Sets.intersection(old.assignments().keySet(), updated.assignments().keySet());
-        var diff = Sets.difference(Sets.union(old.assignments().keySet(), updated.assignments().keySet()), intersection);
-
-        var newLine = System.lineSeparator();
-        var builder = new StringBuilder();
-        for (ShardId shardId : intersection) {
-            var oldAssignment = old.getAssignment(shardId);
-            var updatedAssignment = updated.getAssignment(shardId);
-            if (Objects.equals(oldAssignment, updatedAssignment) == false) {
-                builder.append(newLine).append(shardId).append(": ").append(oldAssignment).append(" -> ").append(updatedAssignment);
-            }
-        }
-        for (ShardId shardId : diff) {
-            var oldAssignment = old.getAssignment(shardId);
-            var updatedAssignment = updated.getAssignment(shardId);
-            builder.append(newLine).append(shardId).append(": ").append(oldAssignment).append(" -> ").append(updatedAssignment);
-        }
-        return builder.append(newLine).toString();
     }
 
     private static Set<String> getNodeIds(RoutingNodes nodes) {

@@ -237,6 +237,7 @@ public class InboundHandler {
                     message.takeBreakerReleaseControl()
                 );
             } catch (Exception e) {
+                assert false : e;
                 sendErrorResponse(
                     action,
                     new TcpTransportChannel(

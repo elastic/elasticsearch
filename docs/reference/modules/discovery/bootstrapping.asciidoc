@@ -10,6 +10,11 @@ for use in a <<restart-upgrade,full cluster restart>>, and freshly-started nodes
 that are joining a running cluster obtain this information from the cluster's
 elected master.
 
+IMPORTANT: After the cluster forms successfully for the first time, remove the
+`cluster.initial_master_nodes` setting from each node's configuration. Do not
+use this setting when restarting a cluster or adding a new node to an existing
+cluster.
+
 The initial set of master-eligible nodes is defined in the
 <<initial_master_nodes,`cluster.initial_master_nodes` setting>>. This should be
 set to a list containing one of the following items for each master-eligible

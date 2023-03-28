@@ -39,12 +39,8 @@ public class FieldNamesFieldMapperTests extends MetadataMapperTestCase {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {}
 
-    private static SortedSet<String> set(String... values) {
-        return new TreeSet<>(Arrays.asList(values));
-    }
-
     private static void assertFieldNames(Set<String> expected, ParsedDocument doc) {
-        assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("_field_names")), containsInAnyOrder(expected));
+        assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("_field_names")), containsInAnyOrder(expected.toArray()));
     }
 
     public void testFieldType() throws Exception {

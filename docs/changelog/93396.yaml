@@ -1,0 +1,69 @@
+pr: 93396
+summary: Add support for Reciprocal Rank Fusion to the search API
+area: Ranking
+type: feature
+issues: []
+highlight:
+  title: Add support for Reciprocal Rank Fusion to the search API
+  body: |-
+    This change at a high level adds global re-ranking on the coordinating
+    node at the end of query reduction prior to the fetch phase. The
+    singular re-ranking model added in this change is reciprocal rank fusion
+    (RRF) which follows the basic formula for merging `1...n` sets of
+    results sets together with `sum(1/(k+d))` where k is a ranking constant
+    and d is a document's scored position within a result set from a query.
+
+    The API for this change adds a `rerank` top-level element to the search
+    endpoint. An example:
+
+    ```
+    {
+      "query": {
+        "match": {
+          "product": {
+            "query": "brown shoes"
+          }
+        }
+      },
+      "knn": {
+        "field": "product-vector",
+        "query_vector": [54, 10, -2],
+        "k": 20,
+        "num_candidates": 75
+      },
+      "rank": {
+         "rrf": {
+            "window_size": 100,
+            "rank_constant": 20
+         }
+      }
+    }
+    ```
+
+    The above example will execute two separate queries for the match query
+    and the kNN query. It will preserve separate result sets up the point
+    where the queries are re-ranked using RRF.
+
+    Currently the API does not support multiple BM25 queries, but there is a
+    natural extension point using a similar pattern to multiple kNN queries.
+
+    Design Decisions:
+
+    * I explored updating the `SearchContext` with multiple queries; however, a single, top-level query is explicitly designed for, throughout the various phases, so the change would have been both fragile and complex. Instead, I have added a `RerankQueryBuilder` which behaves similarly to a boolean query with only disjunctions (should clauses). This allows us to use this query still for aggregations and total hits, but where we can keep each disjunction separate so we can run a search against each one.
+    * A good chunk of the change is in `QueryPhase` at the shard level. Here we explicitly look for a `RerankQueryBuilder` in the `SearchContext` and take a different code path there to run the multiple queries required for re-ranking. If there are aggregations or total hits specified, we run a boolean query with disjunctions and size 0 to prevent scoring.
+    * `QueryPhaseResult` has an inner class `SingleSearchResult` that contains items required for each query's results.
+      * For a standard query *without* re-ranking, `QueryPhaseResult` has a primary single search result that behaves exactly like `QueryPhaseResult` did without an inner class. This allows this change to be significantly smaller in scope.
+      * `QueryPhaseResult` now also has secondary single search results that are used only for re-ranking. Each one of these is a result set for an individual query for re-ranking.
+      * I explored variations of how to break up multiple results including a singular List of query results, but having a primary query search result makes things much easier to preserve original behavior without additionally introducing new bugs or refactoring a massive number of tests.
+    * I decided for a proof of concept to not do any additional optimizations as part of `QueryPhaseConsumer` so all the results are combined just prior to re-ranking in `SearchPhaseController`.
+    * Profiling and explain are not yet, supported. These seem like they should be follow-ups as each may be a large PR on its own.
+
+    Open Questions:
+
+    * Do the elements that became part of each query make sense in `SingleSearchResult`. In particular I'm curious about `DocValueFormat[] sortValueFormats` and `RescoreDocIds rescoreDocIds`. Guessing `sortValueFormats` may just need to be at the top level since sort is a top-level element in the search API.
+    * What does behavior for sort look like? I would probably apply this to all standard queries. Maybe query builder should specify if sort is ignored? Right now for kNN results I explicitly remove any additional sorts.
+    * What does behavior for re-score look like?
+    * Is the re-ranking in the appropriate place at the end of `SearchPhaseController#reducedQueryPhase`. I could see this making a script re-ranker difficult in the future, but maybe this is just not possible? Would we want information from the fetch phase in future re-rankers? Maybe that can come as a follow up where we move the re-ranking to post fetch phase and fetch for multiple query results instead of just the final re-ranked top docs?
+    * What should the behavior for timeouts and early search be during a search with multiple queries?
+    * What does this break that I'm missing :) ?
+  notable: true

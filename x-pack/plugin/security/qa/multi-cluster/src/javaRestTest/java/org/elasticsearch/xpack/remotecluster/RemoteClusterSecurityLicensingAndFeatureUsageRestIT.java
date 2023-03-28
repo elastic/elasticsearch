@@ -15,6 +15,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -43,6 +44,8 @@ import static org.hamcrest.Matchers.not;
 public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends AbstractRemoteClusterSecurityTestCase {
 
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
+
+    private static final String REMOTE_INDEX_NAME = "remote_index";
     public static final String CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE_NAME = "configurable-cross-cluster-access";
 
     static {
@@ -50,6 +53,7 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
             .name("fulfilling-cluster")
             .nodes(1)
             .apply(commonClusterConfig)
+            .setting("xpack.license.self_generated.type", "basic")
             .setting("remote_cluster_server.enabled", "true")
             .setting("remote_cluster.port", "0")
             .setting("xpack.security.remote_cluster_server.ssl.enabled", "true")
@@ -62,17 +66,18 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
             .name("query-cluster")
             .nodes(1)
             .apply(commonClusterConfig)
+            .setting("xpack.license.self_generated.type", "basic")
             .setting("xpack.security.remote_cluster_client.ssl.enabled", "true")
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
             .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
                 if (API_KEY_MAP_REF.get() == null) {
-                    final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
+                    final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey(Strings.format("""
                         [
                           {
-                             "names": ["remote_index"],
+                             "names": ["%s"],
                              "privileges": ["read", "read_cross_cluster"]
                           }
-                        ]""");
+                        ]""", REMOTE_INDEX_NAME));
                     API_KEY_MAP_REF.set(apiKeyMap);
                 }
                 return (String) API_KEY_MAP_REF.get().get("encoded");
@@ -84,22 +89,39 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
     // Use a RuleChain to ensure that fulfilling cluster is started before query cluster
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
-    public void testCrossClusterAccessFeatureTrackingAndLicensing() throws Exception {
-        // Check that feature is not tracked before we configure remote clusters.
-        // The moment we configure remote clusters, they will establish a connection
-        // and the feature usage will be tracked.
-        assertFeatureNotTracked(fulfillingClusterClient);
-        assertFeatureNotTracked(client());
+    /**
+     * Note: This method is overridden in order to avoid waiting for the successful connection.
+     * We start with the basic license which does not support the cross cluster access feature,
+     * hence we don't expect the remote cluster handshake to succeed when remote cluster is configured.
+     *
+     * @param isProxyMode {@code true} if proxy mode should be configured, {@code false} if sniff mode should be configured
+     * @throws Exception in case of unexpected errors
+     */
+    @Override
+    protected void configureRemoteClusters(boolean isProxyMode) throws Exception {
+        // This method assume the cross cluster access API key is already configured in keystore
+        final Settings.Builder builder = Settings.builder();
+        if (isProxyMode) {
+            builder.put("cluster.remote.my_remote_cluster.mode", "proxy")
+                .put("cluster.remote.my_remote_cluster.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0));
+        } else {
+            builder.put("cluster.remote.my_remote_cluster.mode", "sniff")
+                .putList("cluster.remote.my_remote_cluster.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0));
+        }
+        updateClusterSettings(builder.build());
+    }
 
-        configureRemoteClusters();
+    public void testCrossClusterAccessFeatureTrackingAndLicensing() throws Exception {
+        final boolean useProxyMode = randomBoolean();
+        configureRemoteClusters(useProxyMode);
 
         // Fulfilling cluster
         {
             // Index some documents, so we can attempt to search them from the querying cluster
             final Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
             bulkRequest.setJsonEntity(Strings.format("""
-                { "index": { "_index": "remote_index" } }
-                { "foo": "bar" }\n"""));
+                { "index": { "_index": "%s" } }
+                { "foo": "bar" }\n""", REMOTE_INDEX_NAME));
             assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
         }
 
@@ -107,40 +129,59 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
         {
             // Create user role with privileges for remote indices
             final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
-            putRoleRequest.setJsonEntity("""
+            putRoleRequest.setJsonEntity(Strings.format("""
                 {
                   "remote_indices": [
                     {
-                      "names": ["remote_index"],
+                      "names": ["%s"],
                       "privileges": ["read", "read_cross_cluster"],
                       "clusters": ["my_remote_cluster"]
                     }
                   ]
-                }""");
+                }""", REMOTE_INDEX_NAME));
             assertOK(adminClient().performRequest(putRoleRequest));
             final var putUserRequest = new Request("PUT", "/_security/user/" + REMOTE_SEARCH_USER);
-            putUserRequest.setJsonEntity("""
+            putUserRequest.setJsonEntity(Strings.format("""
                 {
-                  "password": "x-pack-test-password",
-                  "roles" : ["remote_search"]
-                }""");
+                  "password": "%s",
+                  "roles" : ["%s"]
+                }""", PASS.toString(), REMOTE_SEARCH_ROLE));
             assertOK(adminClient().performRequest(putUserRequest));
 
-            // Check that we can search the fulfilling cluster from the querying cluster
-            final var searchRequest = new Request(
+            final Request searchRequest = new Request(
                 "GET",
                 String.format(
                     Locale.ROOT,
                     "/%s:%s/_search?ccs_minimize_roundtrips=%s",
                     randomFrom("my_remote_cluster", "*", "my_remote_*"),
-                    randomFrom("remote_index", "*"),
+                    randomFrom(REMOTE_INDEX_NAME, "*"),
                     randomBoolean()
                 )
             );
+
+            // Check that CCS fails because we cannot establish connection due to the license check.
+            if (useProxyMode) {
+                // TODO: We should improve error handling so we get actual cause instead just NoSeedNodeLeftException.
+                var exception = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(searchRequest));
+                assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(500));
+                assertThat(exception.getMessage(), containsString("Unable to open any proxy connections to cluster [my_remote_cluster]"));
+            } else {
+                assertRequestFailsDueToUnsupportedLicense(() -> performRequestWithRemoteSearchUser(searchRequest));
+            }
+
+            // We start the trial license which supports all features.
+            startTrialLicense(fulfillingClusterClient);
+            startTrialLicense(client());
+
+            // Check that feature is not tracked before we send CCS request.
+            assertFeatureNotTracked(fulfillingClusterClient);
+            assertFeatureNotTracked(client());
+
+            // Check that we can search the fulfilling cluster from the querying cluster after license upgrade to trial.
             final Response response = performRequestWithRemoteSearchUser(searchRequest);
             assertOK(response);
             final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
-            assertSearchResultContainsIndices(searchResponse, "remote_index");
+            assertSearchResultContainsIndices(searchResponse, REMOTE_INDEX_NAME);
 
             // Check that the feature is tracked on both QC and FC.
             assertFeatureTracked(client());
@@ -187,6 +228,13 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
 
     private void deleteLicenseFromCluster(RestClient client) throws IOException {
         Request request = new Request(HttpDelete.METHOD_NAME, "_license");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(USER, PASS)));
+        Response response = client.performRequest(request);
+        assertOK(response);
+    }
+
+    private void startTrialLicense(RestClient client) throws IOException {
+        Request request = new Request("POST", "/_license/start_trial?acknowledge=true");
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(USER, PASS)));
         Response response = client.performRequest(request);
         assertOK(response);

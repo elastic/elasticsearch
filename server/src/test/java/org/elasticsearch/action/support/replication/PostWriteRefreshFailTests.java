@@ -101,7 +101,7 @@ public class PostWriteRefreshFailTests extends IndexShardTestCase {
             assertEquals(shard.routingEntry().allocationId().getId(), invocation.getArgument(1));
             assertEquals(shard.getOperationPrimaryTerm(), (long) invocation.getArgument(2));
             assertTrue(invocation.getArgument(3));
-            assertEquals("Unable to refresh an unpomotable shard", invocation.getArgument(4));
+            assertEquals("mark unpromotable copy as stale after refresh failure", invocation.getArgument(4));
             Exception exception = invocation.getArgument(5);
             assertEquals(RemoteTransportException.class, exception.getClass());
             assertEquals(errorMessage, exception.getCause().getMessage());

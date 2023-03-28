@@ -572,7 +572,7 @@ public class CoordinationState {
             }
         }
 
-        default void getLatestStoredState(ActionListener<ClusterState> listener) {
+        default void getLatestStoredState(long term, ActionListener<ClusterState> listener) {
             listener.onResponse(null);
         }
 

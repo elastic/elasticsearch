@@ -36,7 +36,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.cluster.coordination.PreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME;
+import static org.elasticsearch.cluster.coordination.StatefulPreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
@@ -46,10 +46,10 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class PreVoteCollectorTests extends ESTestCase {
+public class StatefulPreVoteCollectorTests extends ESTestCase {
 
     private DeterministicTaskQueue deterministicTaskQueue;
-    private PreVoteCollector preVoteCollector;
+    private StatefulPreVoteCollector preVoteCollector;
     private boolean electionOccurred = false;
     private DiscoveryNode localNode;
     private Map<DiscoveryNode, PreVoteResponse> responsesByNode = new HashMap<>();
@@ -116,7 +116,7 @@ public class PreVoteCollectorTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
 
-        preVoteCollector = new PreVoteCollector(transportService, () -> {
+        preVoteCollector = new StatefulPreVoteCollector(transportService, () -> {
             assert electionOccurred == false;
             electionOccurred = true;
         }, l -> {}, ElectionStrategy.DEFAULT_INSTANCE, () -> healthStatus);

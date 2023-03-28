@@ -191,6 +191,24 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     }
 
     @Override
+    @AwaitsFix(bugUrl = "ES-5645")
+    public void testCannotSetInitialConfigurationWithoutLocalNode() {
+        // Stateless masters automatically bootstrap themselves so this test doesn't make sense here
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "ES-5645")
+    public void testCannotSetInitialConfigurationWithoutQuorum() {
+        // Stateless masters automatically bootstrap themselves so this test doesn't make sense here
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "ES-5645")
+    public void testSettingInitialConfigurationTriggersElection() {
+        // Stateless masters automatically bootstrap themselves so this test doesn't make sense here
+    }
+
+    @Override
     public void testJoiningNodeReceivesFullState() {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
             cluster.runRandomly();
@@ -412,7 +430,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
     static class AtomicRegisterElectionStrategy extends ElectionStrategy {
         private final AtomicRegister register;
-        private long lastWonTerm = -1;
 
         AtomicRegisterElectionStrategy(AtomicRegister register) {
             this.register = register;
@@ -441,16 +458,12 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             CoordinationMetadata.VotingConfiguration lastAcceptedConfiguration,
             CoordinationState.VoteCollection joinVotes
         ) {
-            if (lastWonTerm == localCurrentTerm) {
-                return joinVotes.containsVoteFor(localNode);
-            }
+            assert lastCommittedConfiguration.isEmpty() == false;
+            assert lastAcceptedConfiguration.isEmpty() == false;
 
-            // Safety is guaranteed by the blob store CAS, elect the current node immediately as
-            // master and let the blob store decide whether this node should be the master.
-            return lastCommittedConfiguration.isEmpty() == false && lastAcceptedConfiguration.isEmpty() == false
-            // if there's a leader that's not the local node wait, otherwise win the election immediately
-            // (use the leader node id instead of equals to take into account restarts)
-                && joinVotes.containsVoteFor(localNode);
+            // Safety is guaranteed by the blob store CAS which guaranteed that we only create one StartJoinRequest per term, so elect as
+            // the master the current node as soon as it has voted for itself.
+            return joinVotes.containsVoteFor(localNode);
         }
 
         @Override
@@ -473,7 +486,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                 if (witness != currentTerm) {
                     throw new CoordinationStateRejectedException("could not claim " + electionTerm + ", current term is " + witness);
                 }
-                lastWonTerm = electionTerm;
                 return new StartJoinRequest(localNode, electionTerm);
             });
         }
@@ -597,8 +609,8 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                     0L,
                     0L,
                     localNode,
-                    CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG,
-                    CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG,
+                    CoordinationMetadata.VotingConfiguration.of(localNode),
+                    CoordinationMetadata.VotingConfiguration.of(localNode),
                     0L
                 )
             );
@@ -656,10 +668,10 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                                     .coordinationMetadata(
                                         new CoordinationMetadata(
                                             latestClusterState.term(),
-                                            // Keep the previous configuration so the assertions don't complain about
-                                            // a different commited configuration, we'll change it right away
+                                            // Keep the previous configuration so the assertions don't complain about a different committed
+                                            // configuration, we'll change it right away
                                             latestAcceptedState.getLastCommittedConfiguration(),
-                                            new CoordinationMetadata.VotingConfiguration(Set.of(localNode.getId())),
+                                            CoordinationMetadata.VotingConfiguration.of(localNode),
                                             Set.of()
                                         )
                                     )

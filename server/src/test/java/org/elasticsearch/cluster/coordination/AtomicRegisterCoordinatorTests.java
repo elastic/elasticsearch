@@ -396,7 +396,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         private final Function<Long, Optional<DiscoveryNode>> getLeaderForTermIfAlive;
         private final AtomicRegister register;
         private long lastWonTerm = -1;
-        private long maxTermSeen = 0;
 
         AtomicRegisterElectionStrategy(AtomicRegister register, Function<Long, Optional<DiscoveryNode>> getLeaderForTermIfAlive) {
             this.getLeaderForTermIfAlive = getLeaderForTermIfAlive;
@@ -440,11 +439,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
 
         @Override
-        public long getMaxTermSeen() {
-            return maxTermSeen;
-        }
-
-        @Override
         public boolean isPublishQuorum(
             CoordinationState.VoteCollection voteCollection,
             CoordinationMetadata.VotingConfiguration lastCommittedConfiguration,
@@ -456,12 +450,16 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
 
         @Override
-        public void onNewElection(DiscoveryNode localNode, long proposedTerm, ActionListener<Void> listener) {
+        public void onNewElection(DiscoveryNode localNode, long proposedTerm, ActionListener<StartJoinRequest> listener) {
             ActionListener.completeWith(listener, () -> {
-                maxTermSeen = Math.max(maxTermSeen, Math.max(proposedTerm, register.readCurrentTerm()));
-                register.claimTerm(proposedTerm);
-                lastWonTerm = proposedTerm;
-                return null;
+                final var currentTerm = register.readCurrentTerm();
+                final var electionTerm = Math.max(proposedTerm, currentTerm + 1);
+                final var witness = register.compareAndExchange(currentTerm, electionTerm);
+                if (witness != currentTerm) {
+                    throw new CoordinationStateRejectedException("could not claim " + electionTerm + ", current term is " + witness);
+                }
+                lastWonTerm = electionTerm;
+                return new StartJoinRequest(localNode, electionTerm);
             });
         }
 
@@ -539,18 +537,19 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
     }
 
-    static class AtomicRegister {
+    private static class AtomicRegister {
         private long currentTerm;
 
-        private long readCurrentTerm() {
+        long readCurrentTerm() {
             return currentTerm;
         }
 
-        void claimTerm(long proposedTerm) {
-            if (currentTerm >= proposedTerm) {
-                throw new CoordinationStateRejectedException("could not claim " + proposedTerm + ", current term is " + currentTerm);
+        long compareAndExchange(long expected, long updated) {
+            final var witness = currentTerm;
+            if (currentTerm == expected) {
+                currentTerm = updated;
             }
-            currentTerm = proposedTerm;
+            return witness;
         }
     }
 

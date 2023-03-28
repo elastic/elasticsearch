@@ -31,22 +31,6 @@ public record DesiredBalance(long lastConvergedIndex, Map<ShardId, ShardAssignme
         return Objects.equals(a.assignments, b.assignments) == false;
     }
 
-    public int unassigned() {
-        int unassigned = 0;
-        for (ShardAssignment assignment : assignments.values()) {
-            unassigned += assignment.unassigned();
-        }
-        return unassigned;
-    }
-
-    public int total() {
-        int total = 0;
-        for (ShardAssignment assignment : assignments.values()) {
-            total += assignment.total();
-        }
-        return total;
-    }
-
     public static int shardMovements(DesiredBalance old, DesiredBalance updated) {
         var intersection = Sets.intersection(old.assignments().keySet(), updated.assignments().keySet());
         int movements = 0;

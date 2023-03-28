@@ -12,6 +12,44 @@ org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuil
 org.elasticsearch.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder
 org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder
 
+
+    lines covered percentage for class 'org.elasticsearch.aggregations.metric.MatrixStatsAggregationBuilder' is 21.052600, but expected minimum is 100
+    lines covered percentage for class 'org.elasticsearch.aggregations.pipeline.BucketSelectorPipelineAggregationBuilder' is 64.772700, but expected minimum is 100
+    lines covered percentage for class 'org.elasticsearch.aggregations.metric.RunningStats' is 96.610200, but expected minimum is 100
+    lines covered percentage for class 'org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder' is 71.171200, but expected minimum is 100
+    lines covered percentage for class 'org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder' is 93.258400, but expected minimum is 100
+    lines covered percentage for class 'org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder$RoundingInfo' is 91.176500, but expected minimum is 100
+    lines covered percentage for class 'org.elasticsearch.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder' is 91.566300, but expected minimum is 100
+
+false positives. have constructor and writeTo covered
+    lines covered percentage for class 'org.elasticsearch.aggregations.metric.RunningStats' is 96.610200, but expected minimum is 100
+    lines covered percentage for class 'org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder' is 71.171200, but expected minimum is 100
+    lines covered percentage for class 'org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder' is 93.258400, but expected minimum is 100
+    lines covered percentage for class 'org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder$RoundingInfo' is 91.176500, but expected minimum is 100
+
+RunningStats is covered by InternalMatrixStatsTests - an aggergation style test (testing more than 1 class)
+DerivativePipelineAggregationBuilder is covered by DerivativePipelineAggregationBuilderTests - has a dedicated test but coverage is not high enough
+
+    lines covered percentage for class 'org.elasticsearch.aggregations.bucket.adjacency.InternalAdjacencyMatrix' is 96.969700, but expected minimum is 100
+    lines covered percentage for class 'org.elasticsearch.aggregations.bucket.adjacency.InternalAdjacencyMatrix$InternalBucket' is 93.939400, but expected minimum is 100
+    lines covered percentage for class 'org.elasticsearch.aggregations.bucket.histogram.InternalAutoDateHistogram' is 95.370400, but expected minimum is 100
+    lines covered percentage for class 'org.elasticsearch.aggregations.bucket.histogram.InternalAutoDateHistogram$Bucket' is 94.444400, but expected minimum is 100
+    lines covered percentage for class 'org.elasticsearch.aggregations.bucket.histogram.InternalAutoDateHistogram$BucketInfo' is 95.238100, but expected minimum is 100
+    lines covered percentage for class 'org.elasticsearch.aggregations.metric.InternalMatrixStats' is 58.400000, but expected minimum is 100
+
+    not a transport - this is due to limiation in regex
+    lines covered percentage for class 'org.elasticsearch.aggregations.metric.InternalMatrixStats$Fields' is 0.000000, but expected minimum is 100
+
+    those do not have a coverage
+    lines covered percentage for class 'org.elasticsearch.aggregations.bucket.timeseries.InternalTimeSeries' is 97.826100, but expected minimum is 100
+    lines covered percentage for class 'org.elasticsearch.aggregations.bucket.timeseries.InternalTimeSeries$InternalBucket' is 72.222200, but expected minimum is 100
+    lines covered percentage for class 'org.elasticsearch.aggregations.bucket.timeseries.TimeSeriesAggregationBuilder' is 86.046500, but expected minimum is 100
+    lines covered percentage for class 'org.elasticsearch.aggregations.pipeline.BucketSortPipelineAggregationBuilder' is 89.855100, but expected minimum is 100
+    lines covered percentage for class 'org.elasticsearch.aggregations.pipeline.Derivative' is 90.000000, but expected minimum is 100
+    lines covered percentage for class 'org.elasticsearch.aggregations.pipeline.MovFnPipelineAggregationBuilder' is 70.786500, but expected minimum is 100
+
+
+
 // ':modules:ingest-common:transportTestExistCheck'.
 org.elasticsearch.ingest.common.GrokProcessorGetAction$Response
 org.elasticsearch.ingest.common.GrokProcessorGetAction$Request

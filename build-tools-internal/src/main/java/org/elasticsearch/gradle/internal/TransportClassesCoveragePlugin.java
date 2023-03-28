@@ -27,8 +27,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class TransportClassesCoveragePlugin implements Plugin<Project> {
     @Override
@@ -78,7 +80,7 @@ public class TransportClassesCoveragePlugin implements Plugin<Project> {
                                 rule.setEnabled(true);
                                 rule.bound(bound -> {
                                     bound.setMinValue(100);
-                                    bound.setCounter(CounterType.INSTRUCTION);
+                                    bound.setCounter(CounterType.LINE);
                                     bound.setValueType(VerificationValueType.COVERED_PERCENTAGE);
                                 });
                             });
@@ -114,11 +116,15 @@ public class TransportClassesCoveragePlugin implements Plugin<Project> {
 
     private Collection<String> includes(Set<String> transportClasses) {
         // when testing inner classes the enclosed class has to be included too
-        return transportClasses.stream().map(this::escapeDollar).collect(Collectors.toSet());
+        return transportClasses.stream().flatMap(this::includeEnclosingClassForInner)
+            .collect(Collectors.toSet());
     }
 
-    private String escapeDollar(String transportClass) {
-        return transportClass.replaceAll("\\$.*", "*");
+    private Stream<String> includeEnclosingClassForInner(String name) {
+        if (name.contains("$")) {
+            return Stream.of(name, name.substring(0, name.indexOf('$')));
+        }
+        return Stream.of(name);
     }
 
     private Collection<String> excludes(Set<String> transportClasses) {

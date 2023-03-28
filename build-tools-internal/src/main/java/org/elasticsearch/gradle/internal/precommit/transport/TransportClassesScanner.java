@@ -51,7 +51,7 @@ public class TransportClassesScanner {
             .filter(n -> isSubclassOf(n, cl, Set.of(writeableClass)))
             .collect(Collectors.toSet());
 
-        transportClasses.removeAll(skipMissingClasses);
+       // transportClasses.removeAll(skipMissingClasses);
         return transportClasses;
     }
 

@@ -513,11 +513,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             );
         }
 
-        private PersistentClusterState getLatestClusterState() {
-            return getClusterStateForTerm(register.readCurrentTerm());
-        }
-
-        private PersistentClusterState getClusterStateForTerm(long termGoal) {
+        PersistentClusterState getClusterStateForTerm(long termGoal) {
             for (long term = termGoal; term > 0; term--) {
                 var persistedState = clusterStateByTerm.get(term);
                 if (persistedState != null) {
@@ -603,9 +599,9 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
 
         @Override
-        public void getLatestStoredState(ActionListener<ClusterState> listener) {
+        public void getLatestStoredState(long term, ActionListener<ClusterState> listener) {
             ActionListener.completeWith(listener, () -> {
-                var latestClusterState = sharedStore.getLatestClusterState();
+                var latestClusterState = sharedStore.getClusterStateForTerm(term - 1);
                 if (latestClusterState == null) {
                     return null;
                 }

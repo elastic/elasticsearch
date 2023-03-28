@@ -31,7 +31,7 @@ public class PostAnalyticsEventRequestSerializingTests extends AbstractWireSeria
     public void testValidateInvalidEventTypes() {
         List<String> invalidEventTypes = List.of(randomIdentifier(), randomEventType().toUpperCase(Locale.ROOT));
 
-        for(String eventType : invalidEventTypes) {
+        for (String eventType : invalidEventTypes) {
             PostAnalyticsEventAction.Request request = new PostAnalyticsEventAction.Request(
                 randomIdentifier(),
                 eventType,

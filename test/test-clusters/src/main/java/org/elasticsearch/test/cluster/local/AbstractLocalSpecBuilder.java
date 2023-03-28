@@ -166,6 +166,12 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
         return cast(this);
     }
 
+    @Override
+    public T keystore(String key, Supplier<String> supplier, Predicate<LocalClusterSpec.LocalNodeSpec> predicate) {
+        this.keystoreProviders.add(s -> predicate.test(s) ? Map.of(key, supplier.get()) : Map.of());
+        return cast(this);
+    }
+
     public List<SettingsProvider> getKeystoreProviders() {
         return inherit(() -> parent.getKeystoreProviders(), keystoreProviders);
     }

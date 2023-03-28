@@ -17,7 +17,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestFileUpload extends BaseRestHandler {
@@ -29,11 +29,13 @@ public class RestFileUpload extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, "/_upload"));
+        return List.of(new Route(POST, "/_upload"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-
+        // TZ implement the resumable download here
+        
+        return channel -> client.execute(PromoteDataStreamAction.INSTANCE, request, channel);
     }
 }

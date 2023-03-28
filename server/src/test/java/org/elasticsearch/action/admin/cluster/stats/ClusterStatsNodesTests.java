@@ -276,9 +276,9 @@ public class ClusterStatsNodesTests extends ESTestCase {
         {
             // two nodes, same ip addresses, different data paths, same device
             InetAddress address1 = InetAddresses.forString("192.168.0.1");
-            FsInfo.Path path1 = new FsInfo.Path("/app/data1", "/app (/dev/mapper/lxc-data)", 3, 2, 1);
+            FsInfo.Path path1 = new FsInfo.Path("/app/data1", "/dev/sda", 3, 2, 1);
             InetAddress address2 = InetAddresses.forString("192.168.0.1");
-            FsInfo.Path path2 = new FsInfo.Path("/app/data2", "/app (/dev/mapper/lxc-data)", 3, 2, 1);
+            FsInfo.Path path2 = new FsInfo.Path("/app/data2", "/dev/sda", 3, 2, 1);
             ClusterStatsNodes.ClusterFsStatsDeduplicator deduplicator = new ClusterStatsNodes.ClusterFsStatsDeduplicator(1);
             deduplicator.add(address1, newFsInfo(path1));
             deduplicator.add(address2, newFsInfo(path2));

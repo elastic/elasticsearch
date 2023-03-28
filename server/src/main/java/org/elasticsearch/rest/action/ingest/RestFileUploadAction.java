@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.ingest.attachment;
+package org.elasticsearch.rest.action.ingest;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -21,7 +21,7 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 @ServerlessScope(Scope.PUBLIC)
-public class RestFileUpload extends BaseRestHandler {
+public class RestFileUploadAction extends BaseRestHandler {
 
     @Override
     public String getName() {

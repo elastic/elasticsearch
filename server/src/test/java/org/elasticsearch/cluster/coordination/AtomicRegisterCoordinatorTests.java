@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -23,7 +24,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.ClusterStateUpdaters;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
@@ -245,9 +245,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         private final TimeValue maxTimeSinceLastHeartbeat;
         private final AtomicRegister register;
 
-        private DiscoveryNode currentLeader;
-        private long currentTerm;
-        private Scheduler.Cancellable heartbeatTask;
+        private volatile HeartbeatTask heartbeatTask;
 
         StoreHeartbeatService(
             SharedStore sharedStore,
@@ -264,33 +262,15 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
 
         @Override
-        public void start(DiscoveryNode currentLeader, long term) {
-            this.currentLeader = currentLeader;
-            this.currentTerm = term;
-
-            sendHeartBeatToStore();
-            this.heartbeatTask = threadPool.scheduleWithFixedDelay(
-                this::sendHeartBeatToStore,
-                heartbeatFrequency,
-                ThreadPool.Names.GENERIC
-            );
-        }
-
-        private void sendHeartBeatToStore() {
-            if (register.readCurrentTerm() == currentTerm) {
-                sharedStore.writeHeartBeat(new HeartBeat(currentLeader, currentTerm, threadPool.absoluteTimeInMillis()));
-            }
-            // TODO: become candidate if the currentTerm read from the register is greater than the local term
+        public void start(DiscoveryNode currentLeader, long term, ActionListener<Long> completionListener) {
+            final var newHeartbeatTask = new HeartbeatTask(currentLeader, term, completionListener);
+            heartbeatTask = newHeartbeatTask;
+            newHeartbeatTask.run();
         }
 
         @Override
         public void stop() {
-            this.currentLeader = null;
-            this.currentTerm = 0;
-            var heartBeatTask = this.heartbeatTask;
-            if (heartBeatTask != null) {
-                heartBeatTask.cancel();
-            }
+            heartbeatTask = null;
         }
 
         private Optional<DiscoveryNode> isLeaderAlive() {
@@ -303,6 +283,36 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                 return Optional.of(latestHeartBeat.leader());
             } else {
                 return Optional.empty();
+            }
+        }
+
+        private class HeartbeatTask extends ActionRunnable<Long> {
+            private final DiscoveryNode currentLeader;
+            private final long heartbeatTerm;
+
+            HeartbeatTask(DiscoveryNode currentLeader, long heartbeatTerm, ActionListener<Long> listener) {
+                super(listener);
+                this.currentLeader = currentLeader;
+                this.heartbeatTerm = heartbeatTerm;
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                if (heartbeatTask != HeartbeatTask.this) {
+                    // already cancelled
+                    return;
+                }
+
+                final var registerTerm = register.readCurrentTerm();
+                if (registerTerm == heartbeatTerm) {
+                    ActionListener.run(listener, l -> {
+                        sharedStore.writeHeartBeat(new HeartBeat(currentLeader, heartbeatTerm, threadPool.absoluteTimeInMillis()));
+                        threadPool.schedule(HeartbeatTask.this, heartbeatFrequency, ThreadPool.Names.GENERIC);
+                    });
+                } else {
+                    assert heartbeatTerm < registerTerm;
+                    listener.onResponse(registerTerm);
+                }
             }
         }
     }

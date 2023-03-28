@@ -137,7 +137,9 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
     }
 
     private void checkRemoteIndicesXPackUsage() throws IOException {
-        assertTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+        if (false == TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            return;
+        }
         final var putRoleRequest = new Request("PUT", "/_security/role/role1");
         putRoleRequest.setJsonEntity("""
             {

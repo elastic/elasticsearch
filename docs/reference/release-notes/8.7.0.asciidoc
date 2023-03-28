@@ -244,16 +244,20 @@ Ingest Node::
 * Make `GeoIpProcessor` backing database instance pluggable {es-pull}93285[#93285]
 
 Machine Learning::
+* Add identification of multimodal distribution to anomaly explanations {ml-pull}2440[#2440]
 * Add the ability to include and exclude values in Frequent items {es-pull}92414[#92414]
 * Better error when `aggregate_metric_double` used in scrolling datafeeds {es-pull}92232[#92232] (issue: {es-issue}90592[#90592])
+* Implement extension pruning in frequent items to improve runtime {es-pull}92322[#92322]
 * Improve `frequent_items` performance using global ordinals {es-pull}93304[#93304]
 * Improve anomaly detection results indexing speed {es-pull}92417[#92417]
 * Improve frequent items runtime {es-pull}93255[#93255]
 * Increase the default timeout for the start trained model deployment API {es-pull}92328[#92328]
 * Option to delete user-added annotations for the reset/delete job APIs {es-pull}91698[#91698] (issue: {es-issue}74310[#74310])
 * Persist data counts and datafeed timing stats asynchronously {es-pull}93000[#93000]
+* Remove the PyTorch inference work queue as now handled in Elasticsearch {ml-pull}2456[#2456]
 * Text Embedding search {es-pull}93531[#93531]
-* implement extension pruning in frequent items to improve runtime {es-pull}92322[#92322]
+* Upgrade PyTorch to version 1.13.1 {ml-pull}2430[#2430]
+
 
 Mapping::
 * Switch to Lucene's new `IntField/LongField/FloatField/DoubleField` {es-pull}93165[#93165]

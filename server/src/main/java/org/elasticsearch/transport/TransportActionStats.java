@@ -18,7 +18,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 
 public record TransportActionStats(
-    String action,
     long requestCount,
     long totalRequestSize,
     long[] requestSizeHistogram,
@@ -28,7 +27,7 @@ public record TransportActionStats(
 ) implements Writeable, ToXContentObject {
 
     public TransportActionStats(StreamInput in) throws IOException {
-        this(in.readString(), in.readVLong(), in.readVLong(), in.readVLongArray(), in.readVLong(), in.readVLong(), in.readVLongArray());
+        this(in.readVLong(), in.readVLong(), in.readVLongArray(), in.readVLong(), in.readVLong(), in.readVLongArray());
     }
 
     @Override
@@ -81,7 +80,6 @@ public record TransportActionStats(
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(action);
         out.writeVLong(requestCount);
         out.writeVLong(totalRequestSize);
         out.writeVLongArray(requestSizeHistogram);

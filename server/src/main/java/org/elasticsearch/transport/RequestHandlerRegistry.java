@@ -125,6 +125,6 @@ public class RequestHandlerRegistry<Request extends TransportRequest> implements
     }
 
     public TransportActionStats getStats() {
-        return statsTracker.getStats(action);
+        return statsTracker.getStats();
     }
 }

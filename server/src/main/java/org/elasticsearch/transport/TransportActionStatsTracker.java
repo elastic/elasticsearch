@@ -76,9 +76,8 @@ public class TransportActionStatsTracker {
         responseStats.addStats(messageSize);
     }
 
-    public TransportActionStats getStats(String action) {
+    public TransportActionStats getStats() {
         return new TransportActionStats(
-            action,
             requestStats.count().longValue(),
             requestStats.totalSize().longValue(),
             requestStats.getHistogram(),

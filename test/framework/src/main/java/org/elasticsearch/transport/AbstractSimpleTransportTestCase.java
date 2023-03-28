@@ -3124,7 +3124,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         final var statsBeforeRequest = serviceB.transport().getStats().getTransportActionStats();
         assertEquals(Set.of(HANDSHAKE_ACTION_NAME), statsBeforeRequest.keySet());
         final var handshakeStats = statsBeforeRequest.get(HANDSHAKE_ACTION_NAME);
-        assertEquals(HANDSHAKE_ACTION_NAME, handshakeStats.action());
         assertEquals(1, handshakeStats.requestCount());
         assertEquals(1, handshakeStats.responseCount());
         assertThat(handshakeStats.totalRequestSize(), greaterThanOrEqualTo(16L));

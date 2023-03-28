@@ -72,15 +72,7 @@ public class TransportStatsTests extends ESTestCase {
         responseSizeHistogram[3] = 13;
         responseSizeHistogram[5] = 14;
 
-        final var exampleActionStats = new TransportActionStats(
-            "internal:test/action",
-            7,
-            8,
-            requestSizeHistogram,
-            11,
-            12,
-            responseSizeHistogram
-        );
+        final var exampleActionStats = new TransportActionStats(7, 8, requestSizeHistogram, 11, 12, responseSizeHistogram);
 
         assertEquals(
             Strings.toString(
@@ -93,7 +85,7 @@ public class TransportStatsTests extends ESTestCase {
                     ByteSizeUnit.MB.toBytes(6),
                     new long[0],
                     new long[0],
-                    Map.of(exampleActionStats.action(), exampleActionStats)
+                    Map.of("internal:test/action", exampleActionStats)
                 ),
                 false,
                 true

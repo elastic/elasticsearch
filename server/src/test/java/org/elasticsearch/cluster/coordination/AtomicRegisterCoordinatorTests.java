@@ -537,14 +537,14 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
     }
 
-    static class AtomicRegister {
+    private static class AtomicRegister {
         private long currentTerm;
 
-        private long readCurrentTerm() {
+        long readCurrentTerm() {
             return currentTerm;
         }
 
-        private long compareAndExchange(long expected, long updated) {
+        long compareAndExchange(long expected, long updated) {
             final var witness = currentTerm;
             if (currentTerm == expected) {
                 currentTerm = updated;

@@ -312,6 +312,12 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
                 final User user = authentication.getEffectiveSubject().getUser();
                 if (SystemUser.is(user)) {
+                    logger.trace(
+                        "Action [{}] towards [{}] initiated by the system user. "
+                            + "Sending request with internal cross cluster access user headers",
+                        action,
+                        remoteClusterAlias
+                    );
                     final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
                         remoteClusterCredentials.credentials(),
                         CrossClusterAccessUser.subjectInfoWithEmptyRoleDescriptors(
@@ -329,6 +335,17 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         remoteClusterAlias,
                         authentication.getEffectiveSubject(),
                         ActionListener.wrap(roleDescriptorsIntersection -> {
+                            logger.trace(
+                                () -> "Sending role descriptors intersection ["
+                                    + roleDescriptorsIntersection
+                                    + "] of subject ["
+                                    + authentication.getEffectiveSubject()
+                                    + "] for action ["
+                                    + action
+                                    + "] to remote cluster ["
+                                    + remoteClusterAlias
+                                    + "]"
+                            );
                             if (roleDescriptorsIntersection.isEmpty()) {
                                 throw authzService.remoteActionDenied(authentication, action, remoteClusterAlias);
                             }

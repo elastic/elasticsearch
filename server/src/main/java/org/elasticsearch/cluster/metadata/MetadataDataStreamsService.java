@@ -11,14 +11,13 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.AckedBatchedClusterStateUpdateTask;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -55,7 +54,7 @@ public class MetadataDataStreamsService {
                 ClusterState clusterState
             ) {
                 return new Tuple<>(
-                    modifyDataLifecycle(clusterState, modifyLifecycleTask.dataStreamNames(), modifyLifecycleTask.dataLifecycle()),
+                    modifyDataLifecycle(clusterState, modifyLifecycleTask.getDataStreamNames(), modifyLifecycleTask.getDataLifecycle()),
                     modifyLifecycleTask
                 );
             }
@@ -246,36 +245,28 @@ public class MetadataDataStreamsService {
     /**
      * A cluster state update task that consists of the cluster state request and the listeners that need to be notified upon completion.
      */
-    record ModifyLifecycleTask(
-        List<String> dataStreamNames,
-        @Nullable DataLifecycle dataLifecycle,
-        TimeValue ackTimeout,
-        ActionListener<AcknowledgedResponse> listener
-    ) implements ClusterStateTaskListener, ClusterStateAckListener {
+    static class ModifyLifecycleTask extends AckedBatchedClusterStateUpdateTask {
 
-        @Override
-        public void onFailure(Exception e) {
-            listener.onFailure(e);
+        private final List<String> dataStreamNames;
+        private final DataLifecycle dataLifecycle;
+
+        ModifyLifecycleTask(
+            List<String> dataStreamNames,
+            @Nullable DataLifecycle dataLifecycle,
+            TimeValue ackTimeout,
+            ActionListener<AcknowledgedResponse> listener
+        ) {
+            super(ackTimeout, listener);
+            this.dataStreamNames = dataStreamNames;
+            this.dataLifecycle = dataLifecycle;
         }
 
-        @Override
-        public boolean mustAck(DiscoveryNode discoveryNode) {
-            return true;
+        public List<String> getDataStreamNames() {
+            return dataStreamNames;
         }
 
-        @Override
-        public void onAllNodesAcked() {
-            listener.onResponse(AcknowledgedResponse.TRUE);
-        }
-
-        @Override
-        public void onAckFailure(Exception e) {
-            listener.onResponse(AcknowledgedResponse.FALSE);
-        }
-
-        @Override
-        public void onAckTimeout() {
-            listener.onResponse(AcknowledgedResponse.FALSE);
+        public DataLifecycle getDataLifecycle() {
+            return dataLifecycle;
         }
     }
 }

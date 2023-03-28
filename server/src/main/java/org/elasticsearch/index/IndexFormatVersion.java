@@ -27,6 +27,7 @@ public final class IndexFormatVersion implements Comparable<IndexFormatVersion> 
     public static final IndexFormatVersion V_7_0_0 = new IndexFormatVersion(7_00_00_99);
     public static final IndexFormatVersion V_7_2_0 = new IndexFormatVersion(7_02_00_99);
     public static final IndexFormatVersion V_8_0_0 = new IndexFormatVersion(8_00_00_99);
+    public static final IndexFormatVersion V_8_5_0 = new IndexFormatVersion(8_05_00_99);
     public static final IndexFormatVersion V_8_8_0 = new IndexFormatVersion(8_08_00_99);
 
     public static final IndexFormatVersion CURRENT = V_8_8_0;
@@ -82,6 +83,11 @@ public final class IndexFormatVersion implements Comparable<IndexFormatVersion> 
     @Deprecated(forRemoval = true)
     public Version toVersion() {
         return Version.fromId(id);
+    }
+
+    @Deprecated(forRemoval = true)
+    public static IndexFormatVersion fromVersion(Version version) {
+        return IndexFormatVersion.fromId(version.id);
     }
 
     public boolean after(IndexFormatVersion version) {

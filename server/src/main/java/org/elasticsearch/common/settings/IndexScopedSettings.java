@@ -247,8 +247,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         // error out on those validations, we will check with the creation version present at index
         // creation time, as well as on index update settings.
         if (indexVersion.equals(IndexFormatVersion.ZERO) == false
-            && indexVersion.before(IndexFormatVersion.V_7_0_0)
-            && indexVersion.onOrAfter(IndexFormatVersion.V_8_0_0)) {
+            && (indexVersion.before(IndexFormatVersion.V_7_0_0)
+            || indexVersion.onOrAfter(IndexFormatVersion.V_8_0_0))) {
             throw new IllegalArgumentException("unknown setting [" + setting.getKey() + "]");
         }
     }

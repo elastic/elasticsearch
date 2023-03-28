@@ -178,6 +178,9 @@ setup:
   - match: { error.root_cause.0.reason: "[knn] queries cannot be provided directly, use the [knn] body parameter instead" }
 ---
 "Vector similarity search only":
+  - skip:
+      version: ' - 8.7.99'
+      reason: 'kNN similarity added in 8.8'
   - do:
       search:
         index: test
@@ -196,6 +199,9 @@ setup:
   - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
 ---
 "Vector similarity with filter only":
+  - skip:
+      version: ' - 8.7.99'
+      reason: 'kNN similarity added in 8.8'
   - do:
       search:
         index: test

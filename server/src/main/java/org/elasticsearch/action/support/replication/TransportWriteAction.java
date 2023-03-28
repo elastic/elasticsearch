@@ -11,6 +11,7 @@ package org.elasticsearch.action.support.replication;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest;
@@ -24,6 +25,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -421,6 +423,7 @@ public abstract class TransportWriteAction<
         private final Logger logger;
         private final PostWriteRefresh postWriteRefresh;
         private final Consumer<Runnable> postWriteAction;
+        private final TimeValue postWriteRefreshTimeout;
 
         AsyncAfterWriteAction(
             final IndexShard indexShard,
@@ -448,6 +451,7 @@ public abstract class TransportWriteAction<
                 pendingOps.incrementAndGet();
             }
             this.logger = logger;
+            this.postWriteRefreshTimeout = request instanceof BulkShardRequest bsr ? bsr.timeout : null;
             assert pendingOps.get() >= 0 && pendingOps.get() <= 3 : "pendingOps was: " + pendingOps.get();
         }
 
@@ -499,7 +503,13 @@ public abstract class TransportWriteAction<
                 };
                 // If the post refresh action is null, this is just the replica and we only call the static method
                 if (postWriteRefresh != null) {
-                    postWriteRefresh.refreshShard(request.getRefreshPolicy(), indexShard, location, refreshListener);
+                    postWriteRefresh.refreshShard(
+                        request.getRefreshPolicy(),
+                        indexShard,
+                        location,
+                        refreshListener,
+                        postWriteRefreshTimeout
+                    );
                 } else {
                     PostWriteRefresh.refreshReplicaShard(request.getRefreshPolicy(), indexShard, location, refreshListener);
                 }

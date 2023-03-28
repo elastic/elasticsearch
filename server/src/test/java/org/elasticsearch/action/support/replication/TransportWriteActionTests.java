@@ -77,6 +77,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -169,7 +170,13 @@ public class TransportWriteActionTests extends ESTestCase {
 
             @SuppressWarnings({ "unchecked", "rawtypes" })
             ArgumentCaptor<ActionListener<Boolean>> refreshListener = ArgumentCaptor.forClass((Class) ActionListener.class);
-            verify(testAction.postWriteRefresh).refreshShard(eq(RefreshPolicy.IMMEDIATE), eq(indexShard), any(), refreshListener.capture());
+            verify(testAction.postWriteRefresh).refreshShard(
+                eq(RefreshPolicy.IMMEDIATE),
+                eq(indexShard),
+                any(),
+                refreshListener.capture(),
+                isNull()
+            );
 
             // Now we can fire the listener manually and we'll get a response
             refreshListener.getValue().onResponse(true);
@@ -208,7 +215,8 @@ public class TransportWriteActionTests extends ESTestCase {
                 eq(RefreshPolicy.WAIT_UNTIL),
                 eq(indexShard),
                 any(),
-                refreshListener.capture()
+                refreshListener.capture(),
+                isNull()
             );
 
             // Now we can fire the listener manually and we'll get a response

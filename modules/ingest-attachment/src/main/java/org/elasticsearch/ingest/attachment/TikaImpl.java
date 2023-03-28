@@ -15,13 +15,22 @@ import org.apache.tika.mime.MediaType;
 import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.parser.Parser;
 import org.apache.tika.parser.ParserDecorator;
+import org.apache.pdfbox.io.MemoryUsageSetting;
+import org.apache.pdfbox.text.PDFTextStripper;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.encryption.InvalidPasswordException;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.bootstrap.FilePermissionUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.ElasticsearchParseException;
 
 import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.reflect.ReflectPermission;
@@ -50,6 +59,7 @@ import java.util.Set;
  * Do NOT make public
  */
 final class TikaImpl {
+    private static final Logger LOGGER = LogManager.getLogger(TikaImpl.class);
 
     /** Exclude some formats */
     private static final Set<MediaType> EXCLUDES = new HashSet<>(
@@ -69,7 +79,6 @@ final class TikaImpl {
         // documents
         new org.apache.tika.parser.html.HtmlParser(),
         new org.apache.tika.parser.microsoft.rtf.RTFParser(),
-        new org.apache.tika.parser.pdf.PDFParser(),
         new org.apache.tika.parser.txt.TXTParser(),
         new org.apache.tika.parser.microsoft.OfficeParser(),
         new org.apache.tika.parser.microsoft.OldExcelParser(),
@@ -86,15 +95,41 @@ final class TikaImpl {
     private static final Tika TIKA_INSTANCE = new Tika(PARSER_INSTANCE.getDetector(), PARSER_INSTANCE);
 
     /**
+     * parses PDFs
+     */
+    static String parsePDF(final InputStream content) throws IOException{
+      PDDocument pdfDocument;
+      try {
+        pdfDocument = PDDocument.load(content, MemoryUsageSetting.setupTempFileOnly());
+      } catch (InvalidPasswordException e) {
+        throw new ElasticsearchParseException("document is encrypted");
+      }
+      if (pdfDocument.isEncrypted()) {
+        throw new ElasticsearchParseException("document is encrypted");
+      }
+      PDFTextStripper stripper = new PDFTextStripper();
+      return stripper.getText(pdfDocument);
+    }
+
+    /**
      * parses with tika, throwing any exception hit while parsing the document
      */
     static String parse(final byte content[], final Metadata metadata, final int limit) throws TikaException, IOException {
         // check that its not unprivileged code like a script
         SpecialPermission.check();
-
         try {
             return AccessController.doPrivileged(
-                (PrivilegedExceptionAction<String>) () -> TIKA_INSTANCE.parseToString(new ByteArrayInputStream(content), metadata, limit),
+                (PrivilegedExceptionAction<String>) () -> {
+                    ByteArrayInputStream stream = new ByteArrayInputStream(content);
+                    MediaType mimetype = TIKA_INSTANCE.getDetector().detect(stream, metadata);
+                    if (mimetype == MediaType.application("pdf")) {
+                        return parsePDF(stream);
+                    } else {
+                        return TIKA_INSTANCE.parseToString(stream, metadata, limit);
+
+                    }
+                }
+                ,
                 RESTRICTED_CONTEXT
             );
         } catch (PrivilegedActionException e) {
@@ -124,6 +159,7 @@ final class TikaImpl {
         // property/env access needed for parsing
         perms.add(new PropertyPermission("*", "read"));
         perms.add(new RuntimePermission("getenv.TIKA_CONFIG"));
+        perms.add(new RuntimePermission("getenv.*"));
 
         try {
             // add permissions for resource access:

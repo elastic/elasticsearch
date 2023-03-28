@@ -50,6 +50,7 @@ public class TikaDocTests extends ESTestCase {
     void assertParseable(Path fileName) throws Exception {
         try {
             byte bytes[] = Files.readAllBytes(fileName);
+            logger.debug(fileName);
             String parsedContent = TikaImpl.parse(bytes, new Metadata(), -1);
             assertNotNull(parsedContent);
             assertFalse(parsedContent.isEmpty());

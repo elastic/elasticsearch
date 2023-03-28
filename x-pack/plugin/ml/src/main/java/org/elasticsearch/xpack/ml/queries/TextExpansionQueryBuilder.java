@@ -168,7 +168,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     ) throws IOException {
         var boolQuery = QueryBuilders.boolQuery();
         for (var weightedToken : textExpansionResults.getWeightedTokens()) {
-            boolQuery.should(QueryBuilders.termQuery(fieldName, Integer.toString(weightedToken.token())).boost(weightedToken.weight()));
+            boolQuery.should(QueryBuilders.termQuery(fieldName, weightedToken.token()).boost(weightedToken.weight()));
         }
         boolQuery.minimumShouldMatch(1);
         return boolQuery;

@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -875,9 +876,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         assert mode == Mode.CANDIDATE : "expected candidate but was " + mode;
         assert getLocalNode().isMasterNode() : getLocalNode() + " became a leader but is not master-eligible";
 
+        final var leaderTerm = getCurrentTerm();
         logger.debug(
             "handleJoinRequest: coordinator becoming LEADER in term {} (was {}, lastKnownLeader was [{}])",
-            getCurrentTerm(),
+            leaderTerm,
             mode,
             lastKnownLeader
         );
@@ -891,10 +893,31 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         clusterFormationFailureHelper.stop();
         closePrevotingAndElectionScheduler();
         preVoteCollector.update(getPreVoteResponse(), getLocalNode());
-        leaderHeartbeatService.start(getLocalNode(), getCurrentTerm());
+        leaderHeartbeatService.start(
+            getLocalNode(),
+            leaderTerm,
+            new ThreadedActionListener<>(transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION), new ActionListener<>() {
+                @Override
+                public void onResponse(Long newTerm) {
+                    assert newTerm != null && newTerm > leaderTerm : newTerm + " vs " + leaderTerm;
+                    updateMaxTermSeen(newTerm);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // TODO tests for heartbeat failures
+                    logger.debug(() -> Strings.format("heartbeat failure in term [%s]", leaderTerm), e);
+                    synchronized (mutex) {
+                        if (getCurrentTerm() == leaderTerm) {
+                            becomeCandidate("leaderHeartbeatService");
+                        }
+                    }
+                }
+            })
+        );
 
         assert leaderChecker.leader() == null : leaderChecker.leader();
-        followersChecker.updateFastResponseState(getCurrentTerm(), mode);
+        followersChecker.updateFastResponseState(leaderTerm, mode);
 
         updateSingleNodeClusterChecker();
     }

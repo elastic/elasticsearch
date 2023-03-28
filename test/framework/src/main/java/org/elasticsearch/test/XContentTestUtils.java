@@ -277,10 +277,10 @@ public final class XContentTestUtils {
         // parser.currentName() can be null for root object and unnamed objects in arrays
         if (parser.currentName() != null) {
             // dots in randomized field names need to be escaped, we use that character as the path separator
-            currentPath.push(parser.currentName().replaceAll("\\.", "\\\\."));
+            currentPath.addLast(parser.currentName().replaceAll("\\.", "\\\\."));
         }
         if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            validPaths.add(String.join(".", (Iterable<String>)currentPath::descendingIterator));
+            validPaths.add(String.join(".", currentPath));
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 if (parser.currentToken() == XContentParser.Token.START_OBJECT
                     || parser.currentToken() == XContentParser.Token.START_ARRAY) {
@@ -292,15 +292,15 @@ public final class XContentTestUtils {
             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                 if (parser.currentToken() == XContentParser.Token.START_OBJECT
                     || parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                    currentPath.push(Integer.toString(itemCount));
+                    currentPath.addLast(Integer.toString(itemCount));
                     validPaths.addAll(getInsertPaths(parser, currentPath));
-                    currentPath.pop();
+                    currentPath.removeLast();
                 }
                 itemCount++;
             }
         }
         if (parser.currentName() != null) {
-            currentPath.pop();
+            currentPath.removeLast();
         }
         return validPaths;
     }

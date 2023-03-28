@@ -37,6 +37,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
+// TZ that's the IngestDocument instance that returns bytes
 /**
  * Represents a single document being captured before indexing and holds the source and metadata (like id, type and index).
  */

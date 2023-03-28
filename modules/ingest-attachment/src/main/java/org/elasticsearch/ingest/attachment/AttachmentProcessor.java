@@ -90,6 +90,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
     public IngestDocument execute(IngestDocument ingestDocument) {
         Map<String, Object> additionalFields = new HashMap<>();
 
+        // XXX TZ This loads the whole file in the heap..
         byte[] input = ingestDocument.getFieldValueAsBytes(field, ignoreMissing);
         String resourceNameInput = null;
         if (resourceName != null) {

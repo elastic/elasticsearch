@@ -693,7 +693,12 @@ public class FileRolesStoreTests extends ESTestCase {
 
         Map<String, Object> usageStats = store.usageStats();
 
-        assertThat(usageStats.get("size"), is(flsDlsEnabled ? 9 : 6));
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            assertThat(usageStats.get("size"), is(flsDlsEnabled ? 10 : 7));
+            assertThat(usageStats.get("remote_indices"), is(1L));
+        } else {
+            assertThat(usageStats.get("size"), is(flsDlsEnabled ? 9 : 6));
+        }
         assertThat(usageStats.get("fls"), is(flsDlsEnabled));
         assertThat(usageStats.get("dls"), is(flsDlsEnabled));
     }

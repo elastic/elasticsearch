@@ -43,6 +43,8 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * {@link RoutingNodes} represents a copy the routing information contained in the {@link ClusterState cluster state}.
@@ -967,6 +969,10 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         @Override
         public UnassignedIterator iterator() {
             return new UnassignedIterator();
+        }
+
+        public Stream<ShardRouting> stream() {
+            return StreamSupport.stream(spliterator(), false);
         }
 
         /**

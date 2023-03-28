@@ -31,6 +31,7 @@ import org.elasticsearch.plugins.PluginRuntimeInfo;
 import org.elasticsearch.search.aggregations.support.AggregationInfo;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
@@ -229,6 +230,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         }
         return new NodeInfo(
             VersionUtils.randomVersion(random()),
+            TransportVersionUtils.randomVersion(random()),
             build,
             node,
             settings,

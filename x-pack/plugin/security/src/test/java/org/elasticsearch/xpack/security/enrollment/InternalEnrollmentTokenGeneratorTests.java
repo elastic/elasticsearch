@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.enrollment;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -222,6 +223,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                 List.of(
                     new NodeInfo(
                         Version.CURRENT,
+                        TransportVersion.CURRENT,
                         null,
                         new DiscoveryNode("node-name", "1", buildNewFakeTransportAddress(), Map.of(), Set.of(), Version.CURRENT),
                         null,
@@ -254,6 +256,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                 List.of(
                     new NodeInfo(
                         Version.CURRENT,
+                        TransportVersion.CURRENT,
                         null,
                         new DiscoveryNode("node-name", "1", buildNewFakeTransportAddress(), Map.of(), Set.of(), Version.CURRENT),
                         null,

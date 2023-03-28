@@ -12,7 +12,14 @@ import org.elasticsearch.xpack.core.ml.notifications.InferenceAuditMessage;
 
 public class InferenceAuditor extends AbstractMlAuditor<InferenceAuditMessage> {
 
-    public InferenceAuditor(Client client, ClusterService clusterService) {
+    private final boolean includeNodeInfo;
+
+    public InferenceAuditor(Client client, ClusterService clusterService, boolean includeNodeInfo) {
         super(client, InferenceAuditMessage::new, clusterService);
+        this.includeNodeInfo = includeNodeInfo;
+    }
+
+    public boolean includeNodeInfo() {
+        return includeNodeInfo;
     }
 }

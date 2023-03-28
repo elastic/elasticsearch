@@ -28,9 +28,11 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -228,6 +230,18 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         List<? extends TaskContext<JoinTask>> taskContexts,
         long term
     ) {
+        final ClusterState initialState = currentState;
+        currentState = taskContexts.stream()
+            .map(TaskContext::getTask)
+            .map(JoinTask::initialState)
+            .filter(Objects::nonNull)
+            .max(Comparator.comparingLong(ClusterState::term).thenComparingLong(ClusterState::version))
+            .filter(
+                clusterState -> clusterState.term() > initialState.term()
+                    || (clusterState.term() == initialState.term() && clusterState.version() > initialState.version())
+            )
+            .orElse(currentState);
+
         assert currentState.nodes().getMasterNodeId() == null : currentState;
         assert currentState.term() < term : term + " vs " + currentState;
         DiscoveryNodes currentNodes = currentState.nodes();

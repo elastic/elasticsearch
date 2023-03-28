@@ -117,17 +117,21 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
         final ActionListener<Authentication> authenticationListener
     ) {
         if (false == CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST.contains(securityAction)) {
-            final String message = "Action ["
-                + securityAction
-                + "] is not allowed as a cross cluster operation on the dedicated remote cluster server port";
-            logger.debug(message);
-            authenticationListener.onFailure(new IllegalArgumentException(message));
+            onFailureWithDebugLog(
+                securityAction,
+                request,
+                authenticationListener,
+                new IllegalArgumentException(
+                    "action ["
+                        + securityAction
+                        + "] is not allowed as a cross cluster operation on the dedicated remote cluster server port"
+                )
+            );
         } else {
             try {
                 validateHeaders();
             } catch (Exception ex) {
-                logger.debug("Header validation failed for cross cluster action [" + securityAction + "]", ex);
-                authenticationListener.onFailure(ex);
+                onFailureWithDebugLog(securityAction, request, authenticationListener, ex);
                 return;
             }
             crossClusterAccessAuthcService.authenticate(securityAction, request, authenticationListener);
@@ -158,6 +162,23 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
                     + "Please ensure you have configured remote cluster credentials on the cluster originating the request."
             );
         }
+    }
+
+    private static void onFailureWithDebugLog(
+        final String securityAction,
+        final TransportRequest request,
+        final ActionListener<Authentication> authenticationListener,
+        final Exception ex
+    ) {
+        logger.debug(
+            () -> "Cross cluster access request ["
+                + request.getClass()
+                + "] with action ["
+                + securityAction
+                + "] failed pre-authentication validation",
+            ex
+        );
+        authenticationListener.onFailure(ex);
     }
 
 }

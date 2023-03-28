@@ -117,7 +117,7 @@ public class ServerTransportFilterTests extends ESTestCase {
             var actual = expectThrows(IllegalArgumentException.class, listener::actionGet);
             assertThat(
                 actual.getMessage(),
-                equalTo("Action [" + action + "] is not allowed as a cross cluster operation on the dedicated remote cluster server port")
+                equalTo("action [" + action + "] is not allowed as a cross cluster operation on the dedicated remote cluster server port")
             );
             verify(authcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
             verify(crossClusterAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
@@ -150,7 +150,7 @@ public class ServerTransportFilterTests extends ESTestCase {
             verifyNoMoreInteractions(authzService);
             assertThat(
                 actual.getMessage(),
-                equalTo("Action [" + action + "] is not allowed as a cross cluster operation on the dedicated remote cluster server port")
+                equalTo("action [" + action + "] is not allowed as a cross cluster operation on the dedicated remote cluster server port")
             );
         }
         verify(crossClusterAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
@@ -207,7 +207,7 @@ public class ServerTransportFilterTests extends ESTestCase {
             verifyNoMoreInteractions(authzService);
             assertThat(
                 actual.getMessage(),
-                equalTo("Action [" + action + "] is not allowed as a cross cluster operation on the dedicated remote cluster server port")
+                equalTo("action [" + action + "] is not allowed as a cross cluster operation on the dedicated remote cluster server port")
             );
         }
         verify(crossClusterAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
@@ -234,7 +234,7 @@ public class ServerTransportFilterTests extends ESTestCase {
                 assertThat(
                     actual.getMessage(),
                     equalTo(
-                        "Action [" + action + "] is not allowed as a cross cluster operation on the dedicated remote cluster server port"
+                        "action [" + action + "] is not allowed as a cross cluster operation on the dedicated remote cluster server port"
                     )
                 );
                 verifyNoMoreInteractions(authzService);

@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.index.analysis;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 
@@ -29,7 +30,7 @@ import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_Q
  *
  * @see AnalysisRegistry
  */
-public interface IndexAnalyzers {
+public interface IndexAnalyzers extends Closeable {
 
     enum AnalyzerType { ANALYZER, NORMALIZER, WHITESPACE }
 
@@ -95,6 +96,71 @@ public interface IndexAnalyzers {
      */
     default List<String> reload(AnalysisRegistry analysisRegistry, IndexSettings indexSettings) throws IOException {
         return List.of();
+    }
+
+    default void close() throws IOException { }
+
+    static IndexAnalyzers of(Map<String, NamedAnalyzer> analyzers) {
+        return of(analyzers, Map.of(), Map.of(), false);
+    }
+
+    static IndexAnalyzers of(Map<String, NamedAnalyzer> analyzers,
+                             Map<String, NamedAnalyzer> tokenizers) {
+        return of(analyzers, tokenizers, Map.of(), false);
+    }
+
+    static IndexAnalyzers of(Map<String, NamedAnalyzer> analyzers,
+                             Map<String, NamedAnalyzer> normalizers,
+                             Map<String, NamedAnalyzer> whitespaceNormalizers,
+                             boolean closeable) {
+        return new IndexAnalyzers() {
+            @Override
+            public NamedAnalyzer getAnalyzer(AnalyzerType type, String name) {
+                return switch (type) {
+                    case ANALYZER -> analyzers.get(name);
+                    case NORMALIZER -> normalizers.get(name);
+                    case WHITESPACE -> whitespaceNormalizers.get(name);
+                };
+            }
+
+            @Override
+            public void close() throws IOException {
+                if (closeable) {
+                    IOUtils.close(
+                        Stream.of(analyzers.values().stream(), normalizers.values().stream(), whitespaceNormalizers.values().stream())
+                            .flatMap(s -> s)
+                            .filter(a -> a.scope() == AnalyzerScope.INDEX)
+                            .toList()
+                    );
+                }
+            }
+
+            @Override
+            public List<String> reload(AnalysisRegistry registry, IndexSettings indexSettings) throws IOException {
+
+                List<NamedAnalyzer> reloadableAnalyzers = analyzers.values()
+                    .stream()
+                    .filter(a -> a.analyzer() instanceof ReloadableCustomAnalyzer)
+                    .toList();
+                if (reloadableAnalyzers.isEmpty()) {
+                    return List.of();
+                }
+
+                final Map<String, TokenizerFactory> tokenizerFactories = registry.buildTokenizerFactories(indexSettings);
+                final Map<String, CharFilterFactory> charFilterFactories = registry.buildCharFilterFactories(indexSettings);
+                final Map<String, TokenFilterFactory> tokenFilterFactories = registry.buildTokenFilterFactories(indexSettings);
+                final Map<String, Settings> settings = indexSettings.getSettings().getGroups("index.analysis.analyzer");
+
+                for (NamedAnalyzer analyzer : reloadableAnalyzers) {
+                    String name = analyzer.name();
+                    Settings analyzerSettings = settings.get(name);
+                    ReloadableCustomAnalyzer reloadableAnalyzer = (ReloadableCustomAnalyzer) analyzer.analyzer();
+                    reloadableAnalyzer.reload(name, analyzerSettings, tokenizerFactories, charFilterFactories, tokenFilterFactories);
+                }
+
+                return reloadableAnalyzers.stream().map(NamedAnalyzer::name).toList();
+            }
+        };
     }
 
 }

@@ -58,6 +58,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.HeaderWarningAppender;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
@@ -1677,11 +1678,12 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Creates an IndexAnalyzers with a single default analyzer
      */
     protected IndexAnalyzers createDefaultIndexAnalyzers() {
-        return new IndexAnalyzers(
-            Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
-            Map.of(),
-            Map.of()
-        );
+        return (type, name) -> {
+            if (type == IndexAnalyzers.AnalyzerType.ANALYZER && "default".equals(name)) {
+                return Lucene.STANDARD_ANALYZER;
+            }
+            return null;
+        };
     }
 
     /**

@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -201,7 +202,7 @@ public final class AnalysisRegistry implements Closeable {
     /**
      * Creates an index-level {@link IndexAnalyzers} from this registry using the given index settings
      */
-    public CloseableIndexAnalyzers build(IndexSettings indexSettings) throws IOException {
+    public IndexAnalyzers build(IndexSettings indexSettings) throws IOException {
         final Map<String, CharFilterFactory> charFilterFactories = buildCharFilterFactories(indexSettings);
         final Map<String, TokenizerFactory> tokenizerFactories = buildTokenizerFactories(indexSettings);
         final Map<String, TokenFilterFactory> tokenFilterFactories = buildTokenFilterFactories(indexSettings);
@@ -585,7 +586,7 @@ public final class AnalysisRegistry implements Closeable {
         }
     }
 
-    public static CloseableIndexAnalyzers build(
+    public static IndexAnalyzers build(
         IndexSettings indexSettings,
         Map<String, AnalyzerProvider<?>> analyzerProviders,
         Map<String, AnalyzerProvider<?>> normalizerProviders,
@@ -649,6 +650,11 @@ public final class AnalysisRegistry implements Closeable {
             throw new IllegalArgumentException("no default analyzer configured");
         }
         defaultAnalyzer.checkAllowedInMode(AnalysisMode.ALL);
+        if (Objects.equals(defaultAnalyzer.name(), DEFAULT_ANALYZER_NAME) == false) {
+            throw new IllegalStateException(
+                "default analyzer must have the name [default] but was: [" + defaultAnalyzer.name() + "]"
+            );
+        }
 
         if (analyzers.containsKey("default_index")) {
             throw new IllegalArgumentException(
@@ -664,7 +670,7 @@ public final class AnalysisRegistry implements Closeable {
                 throw new IllegalArgumentException("analyzer name must not start with '_'. got \"" + analyzer.getKey() + "\"");
             }
         }
-        return new CloseableIndexAnalyzers(analyzers, normalizers, whitespaceNormalizers);
+        return IndexAnalyzers.of(analyzers, normalizers, whitespaceNormalizers, true);
     }
 
     private static NamedAnalyzer produceAnalyzer(

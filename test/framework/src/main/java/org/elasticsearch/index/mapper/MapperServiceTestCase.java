@@ -27,6 +27,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -119,11 +120,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected static IndexAnalyzers createIndexAnalyzers() {
-        return new IndexAnalyzers(
-            Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
-            Map.of(),
-            Map.of()
-        );
+        return (type, name) -> Lucene.STANDARD_ANALYZER;
     }
 
     protected final String randomIndexOptions() {

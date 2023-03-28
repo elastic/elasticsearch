@@ -52,6 +52,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
@@ -1211,12 +1212,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         @Override
         public IndexAnalyzers getIndexAnalyzers() {
-            NamedAnalyzer defaultAnalyzer = new NamedAnalyzer(
-                AnalysisRegistry.DEFAULT_ANALYZER_NAME,
-                AnalyzerScope.GLOBAL,
-                new StandardAnalyzer()
-            );
-            return new IndexAnalyzers(Map.of(AnalysisRegistry.DEFAULT_ANALYZER_NAME, defaultAnalyzer), Map.of(), Map.of());
+            return (type, name) -> Lucene.STANDARD_ANALYZER;
         }
 
     }

@@ -37,7 +37,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.analysis.CloseableIndexAnalyzers;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.cache.query.IndexQueryCache;
 import org.elasticsearch.index.cache.query.QueryCache;
@@ -497,7 +497,7 @@ public final class IndexModule {
             snapshotCommitSuppliers
         );
         QueryCache queryCache = null;
-        CloseableIndexAnalyzers indexAnalyzers = null;
+        IndexAnalyzers indexAnalyzers = null;
         boolean success = false;
         try {
             if (indexSettings.getValue(INDEX_QUERY_CACHE_ENABLED_SETTING)) {

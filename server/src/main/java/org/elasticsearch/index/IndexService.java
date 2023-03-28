@@ -38,7 +38,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.WriteStateException;
-import org.elasticsearch.index.analysis.CloseableIndexAnalyzers;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -125,7 +124,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicBoolean deleted = new AtomicBoolean(false);
     private final IndexSettings indexSettings;
-    private final CloseableIndexAnalyzers indexAnalyzers;
+    private final IndexAnalyzers indexAnalyzers;
     private final List<SearchOperationListener> searchOperationListeners;
     private final List<IndexingOperationListener> indexingOperationListeners;
     private final BooleanSupplier allowExpensiveQueries;
@@ -157,7 +156,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         XContentParserConfiguration parserConfiguration,
         SimilarityService similarityService,
         ShardStoreDeleter shardStoreDeleter,
-        CloseableIndexAnalyzers indexAnalyzers,
+        IndexAnalyzers indexAnalyzers,
         EngineFactory engineFactory,
         CircuitBreakerService circuitBreakerService,
         BigArrays bigArrays,

@@ -140,9 +140,7 @@ public class IndexMetadataVerifier {
 
             IndexSettings indexSettings = new IndexSettings(indexMetadata, this.settings);
 
-            final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarityMap = new AbstractMap<
-                String,
-                TriFunction<Settings, Version, ScriptService, Similarity>>() {
+            final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarityMap = new AbstractMap<>() {
                 @Override
                 public boolean containsKey(Object key) {
                     return true;
@@ -169,22 +167,7 @@ public class IndexMetadataVerifier {
                 }
             });
 
-            final Map<String, NamedAnalyzer> analyzerMap = new AbstractMap<String, NamedAnalyzer>() {
-                @Override
-                public NamedAnalyzer get(Object key) {
-                    assert key instanceof String : "key must be a string but was: " + key.getClass();
-                    return new NamedAnalyzer((String) key, AnalyzerScope.INDEX, fakeDefault.analyzer());
-                }
-
-                // this entrySet impl isn't fully correct but necessary as IndexAnalyzers will iterate
-                // over all analyzers to close them
-                @Override
-                public Set<Entry<String, NamedAnalyzer>> entrySet() {
-                    return Collections.emptySet();
-                }
-            };
-
-            MapperService mapperService = new MapperService(
+            try (MapperService mapperService = new MapperService(
                 indexSettings,
                 (type, name) -> new NamedAnalyzer(name, AnalyzerScope.INDEX, fakeDefault.analyzer()),
                 parserConfiguration,
@@ -193,8 +176,9 @@ public class IndexMetadataVerifier {
                 () -> null,
                 indexSettings.getMode().idFieldMapperWithoutFieldData(),
                 scriptService
-            );
-            mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
+            )) {
+                mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
+            }
 
         } catch (Exception ex) {
             // Wrap the inner exception so we have the index name in the exception message

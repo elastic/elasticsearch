@@ -123,7 +123,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
     @Override
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
-        return new IndexAnalyzers(
+        return IndexAnalyzers.of(
             Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
             Map.ofEntries(
                 Map.entry("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())),
@@ -152,7 +152,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
                         } }
                     )
                 )
-            )
+            ),
+            true
         );
     }
 

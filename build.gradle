@@ -269,8 +269,10 @@ allprojects {
         }
       }
     }
+
   }
 
+  apply plugin: 'elasticsearch.kover'
   apply plugin: 'elasticsearch.formatting'
 }
 

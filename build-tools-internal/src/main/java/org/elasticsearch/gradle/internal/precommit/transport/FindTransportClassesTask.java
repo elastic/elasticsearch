@@ -43,7 +43,7 @@ import javax.inject.Inject;
 @CacheableTask
 public abstract class FindTransportClassesTask extends PrecommitTask {
     private static final String MISSING_TRANSPORT_TESTS_FILE = "transport-tests/missing-transport-tests.txt";
-    public static final String TRANSPORT_CLASSES = "generated-resources/transport-classes.txt";
+    public static final String TRANSPORT_CLASSES = "tmp/transport-classes.txt";
     private FileCollection mainSources;
     private FileCollection compileClasspath;
     Set<String> skipClasses = new HashSet<>();
@@ -51,14 +51,14 @@ public abstract class FindTransportClassesTask extends PrecommitTask {
     @Inject
     public FindTransportClassesTask(ProjectLayout projectLayout) {
         setDescription("Runs TransportTestExistTask on output directories of all source sets");
-        getOutputFile().convention(projectLayout.getBuildDirectory().file(TRANSPORT_CLASSES));
+        getTransportClasses().convention(projectLayout.getBuildDirectory().file(TRANSPORT_CLASSES));
     }
 
     @Inject
     abstract public WorkerExecutor getWorkerExecutor();
 
     @OutputFile
-    public abstract RegularFileProperty getOutputFile();
+    public abstract RegularFileProperty getTransportClasses();
 
     @TaskAction
     public void runTask() {
@@ -67,7 +67,7 @@ public abstract class FindTransportClassesTask extends PrecommitTask {
             parameters.getMainSources().setFrom(mainSources);
             parameters.getCompileClasspath().setFrom(compileClasspath);
             parameters.getSkipClasses().set(skipClasses);
-            parameters.getOutputFile().set(getOutputFile());
+            parameters.getIncludeClasses().set(getTransportClasses());
         });
     }
 
@@ -93,7 +93,8 @@ public abstract class FindTransportClassesTask extends PrecommitTask {
     abstract static class TransportTestExistWorkAction implements WorkAction<Parameters> {
 
         @Inject
-        public TransportTestExistWorkAction() {}
+        public TransportTestExistWorkAction() {
+        }
 
         @Override
         public void execute() {
@@ -105,25 +106,18 @@ public abstract class FindTransportClassesTask extends PrecommitTask {
                 getParameters().getCompileClasspath().getFiles()
             );
 
-            Path path = getParameters().getOutputFile().getAsFile().get().toPath();
+            Path includePath = getParameters().getIncludeClasses().getAsFile().get().toPath();
             try {
-                Files.createDirectories(path.getParent());
+                Files.createDirectories(includePath.getParent());
 
-                try (PrintWriter out = new PrintWriter(Files.newOutputStream(path))) {
-                    for (String transportClass : transportClasses) {
-                        out.println(escapeDollar(transportClass));
-                    }
+                try (PrintWriter out = new PrintWriter(Files.newOutputStream(includePath))) {
+                    transportClasses.forEach(out::println);
                 }
             } catch (IOException e) {
                 throw new GradleException("Cannot create transport classes file", e);
             }
-
         }
 
-        private String escapeDollar(String transportClass) {
-            // coverage tools like jacoco use a simplistic regex model
-            return transportClass.replaceAll("\\$.*", "*");
-        }
     }
 
     private static Set<String> loadClassesToSkip() {
@@ -142,7 +136,8 @@ public abstract class FindTransportClassesTask extends PrecommitTask {
 
         SetProperty<String> getSkipClasses();
 
-        RegularFileProperty getOutputFile();
+        RegularFileProperty getIncludeClasses();
+
     }
 
 }

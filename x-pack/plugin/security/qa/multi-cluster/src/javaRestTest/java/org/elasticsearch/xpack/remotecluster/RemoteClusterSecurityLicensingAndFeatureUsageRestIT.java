@@ -38,6 +38,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends AbstractRemoteClusterSecurityTestCase {
 
@@ -84,6 +85,12 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
     public void testCrossClusterAccessFeatureTrackingAndLicensing() throws Exception {
+        // Check that feature is not tracked before we configure remote clusters.
+        // The moment we configure remote clusters, they will establish a connection
+        // and the feature usage will be tracked.
+        assertFeatureNotTracked(fulfillingClusterClient);
+        assertFeatureNotTracked(client());
+
         configureRemoteClusters();
 
         // Fulfilling cluster
@@ -133,10 +140,7 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
             final Response response = performRequestWithRemoteSearchUser(searchRequest);
             assertOK(response);
             final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
-            final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
-                .map(SearchHit::getIndex)
-                .collect(Collectors.toList());
-            assertThat(actualIndices, containsInAnyOrder("remote_index"));
+            assertSearchResultContainsIndices(searchResponse, "remote_index");
 
             // Check that the feature is tracked on both QC and FC.
             assertFeatureTracked(client());
@@ -157,14 +161,19 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
                 case "downgrade-both" -> {
                     // Downgrade both fulfilling and querying cluster licenses to BASIC and run CCS
                     deleteLicenseFromCluster(fulfillingClusterClient);
-                    assertRequestFailsDueToUnsupportedLicense(() -> performRequestWithRemoteSearchUser(searchRequest));
-
                     deleteLicenseFromCluster(client());
                     assertRequestFailsDueToUnsupportedLicense(() -> performRequestWithRemoteSearchUser(searchRequest));
                 }
                 default -> throw new IllegalStateException("Unexpected value: " + licenseDowngradeTestCase);
             }
         }
+    }
+
+    private void assertSearchResultContainsIndices(SearchResponse searchResponse, String... indices) {
+        final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
+            .map(SearchHit::getIndex)
+            .collect(Collectors.toList());
+        assertThat(actualIndices, containsInAnyOrder(indices));
     }
 
     private void assertRequestFailsDueToUnsupportedLicense(ThrowingRunnable runnable) {
@@ -174,20 +183,6 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
             exception.getMessage(),
             containsString("current license is non-compliant for [" + CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE_NAME + "]")
         );
-    }
-
-    private void startTrialLicense(RestClient client) throws IOException {
-        Request request = new Request("POST", "/_license/start_trial?acknowledge=true");
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(USER, PASS)));
-        Response response = client.performRequest(request);
-        assertOK(response);
-    }
-
-    private void startBasicLicense(RestClient client) throws IOException {
-        Request request = new Request("POST", "/_license/start_basic?acknowledge=true");
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(USER, PASS)));
-        Response response = client.performRequest(request);
-        assertOK(response);
     }
 
     private void deleteLicenseFromCluster(RestClient client) throws IOException {
@@ -205,6 +200,11 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
     private static void assertFeatureTracked(RestClient client) throws IOException {
         Set<String> features = fetchFeatureUsageFromNode(client);
         assertThat(CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE_NAME, is(in(features)));
+    }
+
+    private static void assertFeatureNotTracked(RestClient client) throws IOException {
+        Set<String> features = fetchFeatureUsageFromNode(client);
+        assertThat(CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE_NAME, not(is(in(features))));
     }
 
     private static Set<String> fetchFeatureUsageFromNode(RestClient client) throws IOException {

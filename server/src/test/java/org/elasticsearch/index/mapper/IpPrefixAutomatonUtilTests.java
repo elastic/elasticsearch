@@ -21,6 +21,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 
+import static org.elasticsearch.index.mapper.IpPrefixAutomatonUtil.buildIpPrefixAutomaton;
 import static org.elasticsearch.index.mapper.IpPrefixAutomatonUtil.parseIp6Prefix;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
@@ -76,94 +77,108 @@ public class IpPrefixAutomatonUtilTests extends ESTestCase {
 
     public void testBuildPrefixAutomaton() throws UnknownHostException {
         {
-            CompiledAutomaton compiledAutomaton = IpPrefixAutomatonUtil.buildIpPrefixAutomaton("10");
-            byte[] encode = InetAddressPoint.encode(InetAddress.getByName("1.2.3.4"));
-            assertFalse(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
-            encode = InetAddressPoint.encode(InetAddress.getByName("10.2.3.4"));
-            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
-            encode = InetAddressPoint.encode(InetAddress.getByName("2.2.3.4"));
-            assertFalse(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
-            encode = InetAddressPoint.encode(InetAddress.getByName("1::1"));
-            assertFalse(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
-            encode = InetAddressPoint.encode(InetAddress.getByName("10::1"));
-            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
-            encode = InetAddressPoint.encode(InetAddress.getByName("100::1"));
-            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
-            encode = InetAddressPoint.encode(InetAddress.getByName("1000::1"));
-            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
-            encode = InetAddressPoint.encode(InetAddress.getByName("1000::1.2.3.4"));
-            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
+            CompiledAutomaton a = buildIpPrefixAutomaton("10");
+            assertFalse(accepts(a, "1.2.3.4"));
+            assertTrue(accepts(a, "10.2.3.4"));
+            assertFalse(accepts(a, "2.2.3.4"));
+            assertFalse(accepts(a, "1::1"));
+            assertTrue(accepts(a, "10::1"));
+            assertTrue(accepts(a, "100::1"));
+            assertTrue(accepts(a, "1000::1"));
+            assertTrue(accepts(a, "1000::1.2.3.4"));
         }
         {
-            CompiledAutomaton compiledAutomaton = IpPrefixAutomatonUtil.buildIpPrefixAutomaton("1");
-            byte[] encode = InetAddressPoint.encode(InetAddress.getByName("1.2.3.4"));
-            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
-            encode = InetAddressPoint.encode(InetAddress.getByName("10.2.3.4"));
-            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
-            encode = InetAddressPoint.encode(InetAddress.getByName("2.2.3.4"));
-            assertFalse(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
-            encode = InetAddressPoint.encode(InetAddress.getByName("1af::1:2"));
-            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
-            encode = InetAddressPoint.encode(InetAddress.getByName("1f::1:2"));
-            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
-            encode = InetAddressPoint.encode(InetAddress.getByName("::1:2"));
-            assertFalse(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
-            encode = InetAddressPoint.encode(InetAddress.getByName("1cce:e003:0:0:9279:d8d3:ffff:ffff"));
-            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
+            CompiledAutomaton a = buildIpPrefixAutomaton("1");
+            assertTrue(accepts(a, "1.2.3.4"));
+            assertTrue(accepts(a, "10.2.3.4"));
+            assertFalse(accepts(a, "2.2.3.4"));
+            assertTrue(accepts(a, "1af::1:2"));
+            assertTrue(accepts(a, "1f::1:2"));
+            assertFalse(accepts(a, "::1:2"));
+            assertTrue(accepts(a, "1cce:e003:0:0:9279:d8d3:ffff:ffff"));
 
         }
         {
-            CompiledAutomaton compiledAutomaton = IpPrefixAutomatonUtil.buildIpPrefixAutomaton("1.");
-            byte[] encode = InetAddressPoint.encode(InetAddress.getByName("1.2.3.4"));
-            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
-            encode = InetAddressPoint.encode(InetAddress.getByName("10.2.3.4"));
-            assertFalse(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
-            encode = InetAddressPoint.encode(InetAddress.getByName("2.2.3.4"));
-            assertFalse(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
+            CompiledAutomaton a = buildIpPrefixAutomaton("0");
+            assertTrue(accepts(a, "0.2.3.4"));
+            assertFalse(accepts(a, "::1.1.2.3"));
+            assertFalse(accepts(a, "1c7:21d6:ffff:ffff:6852:f279::"));
+            assertFalse(accepts(a, "0000::127.0.0.1"));
         }
         {
-            CompiledAutomaton compiledAutomaton = IpPrefixAutomatonUtil.buildIpPrefixAutomaton("1:2");
-            byte[] encode = InetAddressPoint.encode(InetAddress.getByName("1:2::1"));
-            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
-            encode = InetAddressPoint.encode(InetAddress.getByName("1:2a::1"));
-            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
-            encode = InetAddressPoint.encode(InetAddress.getByName("1:2ab::1"));
-            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
-            encode = InetAddressPoint.encode(InetAddress.getByName("1:2ab5::1"));
-            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
-            encode = InetAddressPoint.encode(InetAddress.getByName("10:2::3:4"));
-            assertFalse(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
-            encode = InetAddressPoint.encode(InetAddress.getByName("::1:2:3:4"));
-            assertFalse(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
+            CompiledAutomaton a = buildIpPrefixAutomaton("00");
+            assertFalse(accepts(a, "0.2.3.4"));
+            assertFalse(accepts(a, "::1.1.2.3"));
+            assertFalse(accepts(a, "c7:21d6:ffff:ffff:6852:f279::"));
+            assertFalse(accepts(a, "0000::127.0.0.1"));
         }
         {
-            CompiledAutomaton compiledAutomaton = IpPrefixAutomatonUtil.buildIpPrefixAutomaton("::1:2");
-            byte[] encode = InetAddressPoint.encode(InetAddress.getByName("::1:2"));
-            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
-            encode = InetAddressPoint.encode(InetAddress.getByName("0:0:1:2::1"));
-            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
-            encode = InetAddressPoint.encode(InetAddress.getByName("1:2ab::1"));
-            assertFalse(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
+            CompiledAutomaton a = buildIpPrefixAutomaton("0:");
+            assertTrue(accepts(a, "0.2.3.4"));
+            assertTrue(accepts(a, "::1.1.2.3"));
+            assertTrue(accepts(a, "0:21d6:ffff:ffff:6852:f279::"));
+            assertTrue(accepts(a, "0000::127.0.0.1"));
+            assertFalse(accepts(a, "0001:21d6:ffff:ffff:6852:f279::"));
         }
         {
-            CompiledAutomaton compiledAutomaton = IpPrefixAutomatonUtil.buildIpPrefixAutomaton("1::1.2");
-            byte[] encode = InetAddressPoint.encode(InetAddress.getByName("1::1.2.3.4"));
-            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
-            encode = InetAddressPoint.encode(InetAddress.getByName("1::1.3.2.4"));
-            assertFalse(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
-            encode = InetAddressPoint.encode(InetAddress.getByName("1::1.22.3.4"));
-            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
+            CompiledAutomaton a = buildIpPrefixAutomaton(":");
+            assertTrue(accepts(a, "0.2.3.4"));
+            assertTrue(accepts(a, "::1.1.2.3"));
+            assertTrue(accepts(a, "0:21d6:ffff:ffff:6852:f279::"));
+            assertTrue(accepts(a, "::"));
+            assertFalse(accepts(a, "1::1"));
         }
         {
-            CompiledAutomaton compiledAutomaton = IpPrefixAutomatonUtil.buildIpPrefixAutomaton("201.");
-            byte[] encode = InetAddressPoint.encode(InetAddress.getByName("c935:1902::643f:9e65:0:0"));
-            assertFalse(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
+            CompiledAutomaton a = buildIpPrefixAutomaton("1.");
+            assertTrue(accepts(a, "1.2.3.4"));
+            assertFalse(accepts(a, "10.2.3.4"));
+            assertFalse(accepts(a, "2.2.3.4"));
         }
         {
-            CompiledAutomaton compiledAutomaton = IpPrefixAutomatonUtil.buildIpPrefixAutomaton("935");
-            byte[] encode = InetAddressPoint.encode(InetAddress.getByName("0935:1902::643f:9e65:0:0"));
-            assertTrue(compiledAutomaton.runAutomaton.run(encode, 0, encode.length));
+            CompiledAutomaton a = buildIpPrefixAutomaton("1:2");
+            assertTrue(accepts(a, "1:2::1"));
+            assertTrue(accepts(a, "1:2a::1"));
+            assertTrue(accepts(a, "1:2ab::1"));
+            assertTrue(accepts(a, "1:2ab5::1"));
+            assertFalse(accepts(a, "::1:2:3:4"));
+            assertFalse(accepts(a, "10:2::3:4"));
         }
+        {
+            CompiledAutomaton a = buildIpPrefixAutomaton("::1:2");
+            assertTrue(accepts(a, "::1:2"));
+            assertTrue(accepts(a, "0:0:1:2::1"));
+            assertFalse(accepts(a, "1:2ab::1"));
+        }
+        {
+            CompiledAutomaton a = buildIpPrefixAutomaton("1::1.2");
+            assertTrue(accepts(a, "1::1.2.3.4"));
+            assertFalse(accepts(a, "1::1.3.2.4"));
+            assertTrue(accepts(a, "1::1.22.3.4"));
+        }
+        {
+            CompiledAutomaton a = buildIpPrefixAutomaton("201.");
+            assertFalse(accepts(a, "c935:1902::643f:9e65:0:0"));
+        }
+        {
+            CompiledAutomaton a = buildIpPrefixAutomaton("935");
+            assertTrue(accepts(a, "0935:1902::643f:9e65:0:0"));
+        }
+        {
+            CompiledAutomaton a = buildIpPrefixAutomaton("239");
+            assertTrue(accepts(a, "239.27.240.24"));
+            assertTrue(accepts(a, "239f:a360::25bb:828f:ffff:ffff"));
+            assertFalse(accepts(a, "2309:a360::25bb:828f:ffff:ffff"));
+        }
+        {
+            CompiledAutomaton a = buildIpPrefixAutomaton("255");
+            assertTrue(accepts(a, "255.27.240.24"));
+            assertTrue(accepts(a, "255:a360::25bb:828f:ffff:ffff"));
+        }
+    }
+
+    private static boolean accepts(CompiledAutomaton compiledAutomaton, String address) throws UnknownHostException {
+        byte[] encoded = InetAddressPoint.encode(InetAddress.getByName(address));
+        return compiledAutomaton.runAutomaton.run(encoded, 0, encoded.length);
     }
 
     public void testParseIp6Prefix() {

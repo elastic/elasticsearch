@@ -151,10 +151,10 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
                 @Override
                 public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
                     String description = "executing enrich policy ["
-                            + request.getName()
-                            + "] creating new enrich index ["
-                            + request.getEnrichIndexName()
-                            + "]";
+                        + request.getName()
+                        + "] creating new enrich index ["
+                        + request.getEnrichIndexName()
+                        + "]";
                     return new ExecuteEnrichPolicyTask(id, type, action, description, parentTaskId, headers);
                 }
             });

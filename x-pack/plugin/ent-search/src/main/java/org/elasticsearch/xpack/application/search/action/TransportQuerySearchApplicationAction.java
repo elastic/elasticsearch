@@ -24,7 +24,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
-import org.elasticsearch.script.mustache.SearchTemplateRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -33,8 +32,11 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.search.SearchApplication;
+import org.elasticsearch.xpack.application.search.SearchApplicationQueryParams;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class TransportQuerySearchApplicationAction extends SearchApplicationTransportAction<
     QuerySearchApplicationAction.Request,
@@ -75,22 +77,39 @@ public class TransportQuerySearchApplicationAction extends SearchApplicationTran
         this.xContentRegistry = xContentRegistry;
     }
 
+    private static SearchSourceBuilder applyTemplate(
+        ScriptService scriptService,
+        Script script,
+        SearchApplicationQueryParams queryParams,
+        NamedXContentRegistry xContentRegistry
+    ) throws IOException {
+        Map<String, Object> mergedTemplateParams = new HashMap<>(script.getParams());
+        mergedTemplateParams.putAll(queryParams.templateParams());
+        TemplateScript compiledTemplate = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(mergedTemplateParams);
+        String request_str = compiledTemplate.execute();
+        XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
+            .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, request_str)) {
+            SearchSourceBuilder builder = SearchSourceBuilder.searchSource();
+            builder.parseXContent(parser, false);
+            return builder;
+        }
+    }
+
     @Override
     protected void doExecute(QuerySearchApplicationAction.Request request, ActionListener<SearchResponse> listener) {
-        systemIndexService.getSearchApplication(request.getName(), new ActionListener<>() {
+        systemIndexService.getSearchApplication(request.name(), new ActionListener<>() {
             @Override
             public void onResponse(SearchApplication searchApplication) {
                 final Script script = searchApplication.searchApplicationTemplate().script();
                 final SearchSourceBuilder source;
                 try {
-                    source = applyTemplate(scriptService, script, xContentRegistry);
+                    source = applyTemplate(scriptService, script, request.queryParams(), xContentRegistry);
                 } catch (IOException exc) {
-                    listener.onFailure(new RuntimeException(exc));
+                    listener.onFailure(exc);
                     return;
                 }
                 SearchRequest request = new SearchRequest(searchApplication.indices()).source(source);
-                SearchTemplateRequest templateRequest = new SearchTemplateRequest(request);
-                // logger.info(templateRequest);
 
                 client.execute(SearchAction.INSTANCE, request, new ActionListener<>() {
                     @Override
@@ -110,18 +129,5 @@ public class TransportQuerySearchApplicationAction extends SearchApplicationTran
                 listener.onFailure(e);
             }
         });
-    }
-
-    private static SearchSourceBuilder applyTemplate(ScriptService scriptService, Script script, NamedXContentRegistry xContentRegistry)
-        throws IOException {
-        TemplateScript compiledTemplate = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(script.getParams());
-        String request_str = compiledTemplate.execute();
-        XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
-            .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, request_str)) {
-            SearchSourceBuilder builder = SearchSourceBuilder.searchSource();
-            builder.parseXContent(parser, false);
-            return builder;
-        }
     }
 }

@@ -9,13 +9,12 @@ package org.elasticsearch.xpack.application.search.action;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.application.search.SearchApplicationQueryParams;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -34,25 +33,33 @@ public class QuerySearchApplicationAction extends ActionType<SearchResponse> {
     public static class Request extends ActionRequest {
         private final String name;
 
+        private final SearchApplicationQueryParams queryParams;
+
         public Request(StreamInput in) throws IOException {
             super(in);
             this.name = in.readString();
+            this.queryParams = new SearchApplicationQueryParams(in);
         }
 
-        public Request(String name) {
+        public Request(String name, SearchApplicationQueryParams queryParams) {
             this.name = name;
+            this.queryParams = queryParams;
         }
 
-        public String getName() {
+        public String name() {
             return name;
+        }
+
+        public SearchApplicationQueryParams queryParams() {
+            return queryParams;
         }
 
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
 
-            if (name == null || name.isEmpty()) {
-                validationException = addValidationError("name missing", validationException);
+            if (Strings.isEmpty(name)) {
+                validationException = addValidationError("Search Application name is missing", validationException);
             }
 
             return validationException;
@@ -62,6 +69,7 @@ public class QuerySearchApplicationAction extends ActionType<SearchResponse> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(name);
+            queryParams.writeTo(out);
         }
 
         @Override
@@ -69,35 +77,12 @@ public class QuerySearchApplicationAction extends ActionType<SearchResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             QuerySearchApplicationAction.Request request = (QuerySearchApplicationAction.Request) o;
-            return Objects.equals(name, request.name);
+            return Objects.equals(name, request.name) && Objects.equals(queryParams, request.queryParams);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(name);
-        }
-    }
-
-    public static class Response extends ActionResponse implements ToXContentObject {
-        private final String name;
-
-        public Response(String name) {
-            this.name = name;
-        }
-
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            name = in.readString();
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return null;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-
+            return Objects.hash(name, queryParams);
         }
     }
 }

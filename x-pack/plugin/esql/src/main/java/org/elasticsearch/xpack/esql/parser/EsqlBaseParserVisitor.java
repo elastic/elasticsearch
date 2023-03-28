@@ -277,6 +277,24 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitDropCommand(EsqlBaseParser.DropCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#dissectCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitDissectCommand(EsqlBaseParser.DissectCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#commandOptions}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitCommandOptions(EsqlBaseParser.CommandOptionsContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#commandOption}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitCommandOption(EsqlBaseParser.CommandOptionContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#booleanValue}.
    * @param ctx the parse tree
    * @return the visitor result

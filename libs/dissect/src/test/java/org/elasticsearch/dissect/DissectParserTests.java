@@ -444,6 +444,24 @@ public class DissectParserTests extends ESTestCase {
         }
     }
 
+    public void testGetOutputKeyNames() {
+        assertOutputKeys("%{a} %{b}", List.of("a", "b"));
+        assertOutputKeys("%{a->} %{b}", List.of("a", "b"));
+        assertOutputKeys("%{?a} %{b}", List.of("b"));
+        assertOutputKeys("%{+a} %{b} %{+a}", List.of("a", "b"));
+        assertOutputKeys("%{a} %{b} %{*c} %{&c}", List.of("a", "b", "c"));
+    }
+
+    public void testGetReferenceKeyNames() {
+        assertReferenceKeys("%{a} %{b}", List.of());
+        assertReferenceKeys("%{a->} %{b}", List.of());
+        assertReferenceKeys("%{?a} %{b}", List.of());
+        assertReferenceKeys("%{+a} %{b} %{+a}", List.of());
+        assertReferenceKeys("%{*a} %{&a}", List.of("a"));
+        assertReferenceKeys("%{a} %{b} %{*c} %{&c}", List.of("c"));
+        assertReferenceKeys("%{a} %{b} %{*c} %{&c} %{*d} %{&d}", List.of("c", "d"));
+    }
+
     private DissectException assertFail(String pattern, String input) {
         return expectThrows(DissectException.class, () -> new DissectParser(pattern, null).forceParse(input));
     }
@@ -484,5 +502,15 @@ public class DissectParserTests extends ESTestCase {
             final String key = expectedKeys.get(i);
             assertThat(results.get(key), Matchers.equalTo(expectedValues.get(i)));
         }
+    }
+
+    private void assertOutputKeys(String pattern, List<String> expectedKeys) {
+        DissectParser parser = new DissectParser(pattern, "");
+        assertEquals(expectedKeys, parser.outputKeyNames());
+    }
+
+    private void assertReferenceKeys(String pattern, List<String> expectedKeys) {
+        DissectParser parser = new DissectParser(pattern, "");
+        assertEquals(expectedKeys, parser.referenceKeyNames());
     }
 }

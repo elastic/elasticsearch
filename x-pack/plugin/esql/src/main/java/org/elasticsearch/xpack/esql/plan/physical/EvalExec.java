@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.compute.ann.Experimental;
-import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -16,6 +15,8 @@ import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 @Experimental
 public class EvalExec extends UnaryExec {
@@ -33,7 +34,7 @@ public class EvalExec extends UnaryExec {
 
     @Override
     public List<Attribute> output() {
-        return Eval.output(fields, child().output());
+        return mergeOutputAttributes(fields, child().output());
     }
 
     @Override

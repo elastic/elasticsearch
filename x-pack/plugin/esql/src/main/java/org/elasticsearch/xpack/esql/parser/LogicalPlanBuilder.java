@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.elasticsearch.dissect.DissectException;
+import org.elasticsearch.dissect.DissectParser;
+import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
@@ -17,10 +20,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
+import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
@@ -34,7 +39,9 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
@@ -62,6 +69,58 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitEvalCommand(EsqlBaseParser.EvalCommandContext ctx) {
         return p -> new Eval(source(ctx), p, visitFields(ctx.fields()));
+    }
+
+    @Override
+    public PlanFactory visitDissectCommand(EsqlBaseParser.DissectCommandContext ctx) {
+        return p -> {
+            String pattern = visitString(ctx.string()).fold().toString();
+            Map<String, Object> options = visitCommandOptions(ctx.commandOptions());
+            String appendSeparator = "";
+            for (Map.Entry<String, Object> item : options.entrySet()) {
+                if (item.getKey().equals("append_separator") == false) {
+                    throw new ParsingException(source(ctx), "Invalid option for dissect: [{}]", item.getKey());
+                }
+                if (item.getValue() instanceof String == false) {
+                    throw new ParsingException(
+                        source(ctx),
+                        "Invalid value for dissect append_separator: expected a string, but was [{}]",
+                        item.getValue()
+                    );
+                }
+                appendSeparator = (String) item.getValue();
+            }
+            Source src = source(ctx);
+
+            try {
+                DissectParser parser = new DissectParser(pattern, appendSeparator);
+                List<String> referenceKeys = parser.referenceKeyNames();
+                if (referenceKeys.size() > 0) {
+                    throw new ParsingException(src, "Reference keys not supported in dissect patterns: [%{*{}}]", referenceKeys.get(0));
+                }
+                List<Attribute> keys = parser.outputKeyNames()
+                    .stream()
+                    .map(x -> new ReferenceAttribute(src, x, DataTypes.KEYWORD))
+                    .map(Attribute.class::cast)
+                    .toList();
+
+                return new Dissect(src, p, expression(ctx.primaryExpression()), new Dissect.Parser(pattern, appendSeparator, parser), keys);
+            } catch (DissectException e) {
+                throw new ParsingException(src, "Invalid pattern for dissect: [{}]", pattern);
+            }
+        };
+    }
+
+    @Override
+    public Map<String, Object> visitCommandOptions(EsqlBaseParser.CommandOptionsContext ctx) {
+        if (ctx == null) {
+            return Map.of();
+        }
+        Map<String, Object> result = new HashMap<>();
+        for (EsqlBaseParser.CommandOptionContext option : ctx.commandOption()) {
+            result.put(visitIdentifier(option.identifier()), expression(option.constant()).fold());
+        }
+        return result;
     }
 
     @Override

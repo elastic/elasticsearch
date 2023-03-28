@@ -928,6 +928,14 @@ public class AnalyzerTests extends ESTestCase {
             """, errorMsg);
     }
 
+    public void testUnsupportedFieldsInDissect() {
+        var errorMsg = "Cannot use field [point] with unsupported type [geo_point]";
+        verifyUnsupported("""
+            from test
+            | dissect point \"%{foo}\"
+            """, errorMsg);
+    }
+
     private void verifyUnsupported(String query, String errorMessage) {
         verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
     }

@@ -35,6 +35,7 @@ processingCommand
     | statsCommand
     | whereCommand
     | dropCommand
+    | dissectCommand
     ;
 
 whereCommand
@@ -146,6 +147,18 @@ projectClause
 
 dropCommand
     : DROP sourceIdentifier (COMMA sourceIdentifier)*
+    ;
+
+dissectCommand
+    : DISSECT primaryExpression string commandOptions?
+    ;
+
+commandOptions
+    : commandOption (COMMA commandOption)*
+    ;
+
+commandOption
+    : identifier ASSIGN constant
     ;
 
 booleanValue

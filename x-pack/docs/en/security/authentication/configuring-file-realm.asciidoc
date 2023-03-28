@@ -2,8 +2,8 @@ To use the `file` or `native` realms when any other realms are configured and
 enabled, you need to explicitly configure them in the `elasticsearch.yml` file.
 
 If no other realms are configured and enabled, you don't need to explicitly
-configure a `file` realm. The `file` and `native` realms are added to the realm
-chain by default then.  Unless configured otherwise, the `file` realm is added
+configure a `file` or `native` realm and they are added to the realm
+chain by default.  Unless configured otherwise, the `file` realm is added
 first, followed by the `native` realm.
 
 IMPORTANT: While it is possible to define multiple instances of some other

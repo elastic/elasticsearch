@@ -202,7 +202,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         NodeHealthService nodeHealthService,
         CircuitBreakerService circuitBreakerService,
         Reconfigurator reconfigurator,
-        LeaderHeartbeatService leaderHeartbeatService
+        LeaderHeartbeatService leaderHeartbeatService,
+        PreVoteCollector.Factory preVoteCollectorFactory
     ) {
         this.settings = settings;
         this.transportService = transportService;
@@ -243,7 +244,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.singleNodeClusterSeedHostsCheckInterval = SINGLE_NODE_CLUSTER_SEED_HOSTS_CHECK_INTERVAL_SETTING.get(settings);
         this.random = random;
         this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, random, transportService.getThreadPool());
-        this.preVoteCollector = new PreVoteCollector(
+        this.preVoteCollector = preVoteCollectorFactory.create(
             transportService,
             this::startElection,
             this::updateMaxTermSeen,

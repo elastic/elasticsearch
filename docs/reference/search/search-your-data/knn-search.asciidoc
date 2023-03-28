@@ -407,10 +407,10 @@ each score in the sum. In the example above, the scores will be calculated as
 score = 0.9 * match_score + 0.1 * knn_score
 ```
 
-The `knn` option can also be used with <<search-aggregations, `aggregations`>>. 
-In general, {es} computes aggregations over all documents that match the search. 
-So for approximate kNN search, aggregations are calculated on the top `k` 
-nearest documents. If the search also includes a `query`, then aggregations are 
+The `knn` option can also be used with <<search-aggregations, `aggregations`>>.
+In general, {es} computes aggregations over all documents that match the search.
+So for approximate kNN search, aggregations are calculated on the top `k`
+nearest documents. If the search also includes a `query`, then aggregations are
 calculated on the combined set of `knn` and `query` matches.
 
 [discrete]
@@ -419,30 +419,30 @@ calculated on the combined set of `knn` and `query` matches.
 
 experimental[]
 
-kNN search enables you to perform semantic search by using a previously deployed 
-{ml-docs}/ml-nlp-search-compare.html#ml-nlp-text-embedding[text embedding model]. 
+kNN search enables you to perform semantic search by using a previously deployed
+{ml-docs}/ml-nlp-search-compare.html#ml-nlp-text-embedding[text embedding model].
 Instead of literal matching on search terms, semantic search retrieves results
 based on the intent and the contextual meaning of a search query.
 
-Under the hood, the text embedding NLP model generates a dense vector from the 
-input query string called `model_text` you provide. Then, it is searched 
-against an index containing dense vectors created with the same text embedding 
+Under the hood, the text embedding NLP model generates a dense vector from the
+input query string called `model_text` you provide. Then, it is searched
+against an index containing dense vectors created with the same text embedding
 {ml} model. The search results are semantically similar as learned by the model.
 
 [IMPORTANT]
 =====================
 To perform semantic search:
 
-* you need an index that contains the dense vector representation of the input 
+* you need an index that contains the dense vector representation of the input
 data to search against,
 
-* you must use the same text embedding model for search that you used to create 
+* you must use the same text embedding model for search that you used to create
 the dense vectors from the input data,
 
 * the text embedding NLP model deployment must be started.
 =====================
 
-Reference the deployed text embedding model in the `query_vector_builder` object 
+Reference the deployed text embedding model in the `query_vector_builder` object
 and provide the search query as `model_text`:
 
 [source,js]
@@ -466,14 +466,14 @@ and provide the search query as `model_text`:
 // NOTCONSOLE
 
 <1> The {nlp} task to perform. It must be `text_embedding`.
-<2> The ID of the text embedding model to use to generate the dense vectors from 
-the query string. Use the same model that generated the embeddings from the 
+<2> The ID of the text embedding model to use to generate the dense vectors from
+the query string. Use the same model that generated the embeddings from the
 input text in the index you search against.
-<3> The query string from which the model generates the dense vector 
+<3> The query string from which the model generates the dense vector
 representation.
 
-For more information on how to deploy a trained model and use it to create text 
-embeddings, refer to this 
+For more information on how to deploy a trained model and use it to create text
+embeddings, refer to this
 {ml-docs}/ml-nlp-text-emb-vector-search-example.html[end-to-end example].
 
 
@@ -524,6 +524,52 @@ The scoring for a doc with the above configured boosts would be:
 ```
 score = 0.9 * match_score + 0.1 * knn_score_image-vector + 0.5 * knn_score_title-vector
 ```
+
+[discrete]
+==== Search kNN with expected similarity
+
+While kNN is a powerful tool, it always tries to return `k` nearest neighbors. Consequently, when using `knn` with
+a `filter`, you could filter out all relevant documents and only have irrelevant ones left to search. In that situation,
+`knn` will still do its best to return `k` nearest neighbors, even though those neighbors could be far away in the
+vector space.
+
+To alleviate this worry, there is a `similarity` parameter available in the `knn` clause. This value is the required
+minimum similarity for a vector to be considered a match. The `knn` search flow with this parameter is as follows:
+
++
+--
+* Apply any user provided `filter` queries
+* Explore the vector space to get `k` vectors
+* Do not return any vectors that are further away than the configured `similarity`
+--
+
+Here is an example. In this example we search for the given `query_vector` for `k` nearest neighbors. However, with
+`filter` applied and requiring that the found vectors have at least the provided `similarity` between them.
+[source,console]
+----
+POST image-index/_search
+{
+  "knn": {
+    "field": "image-vector",
+    "query_vector": [1, 5, -20],
+    "k": 5,
+    "num_candidates": 50,
+    "similarity": 36,
+    "filter": {
+      "term": {
+        "file-type": "png"
+      }
+    }
+  },
+  "fields": ["title"],
+  "_source": false
+}
+----
+// TEST[continued]
+
+In our data set, the only document with the file type of `png` has a vector of `[42, 8, -15]`. The `l2_norm` distance
+between `[42, 8, -15]` and `[1, 5, -20]` is `41.412`, which is greater than the configured similarity of `36`. Meaning,
+this search will return no hits.
 
 [discrete]
 [[knn-indexing-considerations]]

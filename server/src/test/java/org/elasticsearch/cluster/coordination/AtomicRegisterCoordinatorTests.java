@@ -283,8 +283,9 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                 @Override
                 public void onResponse(HeartBeat heartBeat) {
                     if (heartBeat == null
-                        || heartBeat.timeSinceLastHeartbeatInMillis(threadPool.absoluteTimeInMillis()) < maxTimeSinceLastHeartbeat
-                            .millis()) {
+                        || maxTimeSinceLastHeartbeat.millis() <= heartBeat.timeSinceLastHeartbeatInMillis(
+                            threadPool.absoluteTimeInMillis()
+                        )) {
                         runnable.run();
                     } else {
                         logger.trace("runIfNoRecentLeader: found recent leader");

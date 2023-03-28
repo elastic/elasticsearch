@@ -126,7 +126,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
                 AnalyticsEvent.Type.valueOf(eventType.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
                 validationException = addValidationError(
-                    LoggerMessageFormat.format("invalid event type: {}", eventType),
+                    LoggerMessageFormat.format(null, "invalid event type: [{}]", eventType),
                     validationException
                 );
             }

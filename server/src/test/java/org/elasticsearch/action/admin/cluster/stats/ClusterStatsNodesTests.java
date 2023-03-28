@@ -222,7 +222,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
         }
 
         {
-            // two nodes, same ip addresses, but different data paths on different devices
+            // two nodes, same ip address, but different data paths on different devices
             InetAddress address1 = InetAddresses.forString("192.168.0.1");
             FsInfo.Path path1 = new FsInfo.Path("/data/a", "/dev/sda", 3, 2, 1);
             InetAddress address2 = InetAddresses.forString("192.168.0.1");
@@ -256,7 +256,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
         }
 
         {
-            // two nodes, same ip addresses, same data paths, same device
+            // two nodes, same ip address, same data path, same device
             InetAddress address1 = InetAddresses.forString("192.168.0.1");
             FsInfo.Path path1 = new FsInfo.Path("/app/data", "/app (/dev/mapper/lxc-data)", 3, 2, 1);
             InetAddress address2 = InetAddresses.forString("192.168.0.1");
@@ -274,7 +274,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
         }
 
         {
-            // two nodes, same ip addresses, different data paths, same device
+            // two nodes, same ip address, different data paths, same device
             InetAddress address1 = InetAddresses.forString("192.168.0.1");
             FsInfo.Path path1 = new FsInfo.Path("/app/data1", "/dev/sda", 3, 2, 1);
             InetAddress address2 = InetAddresses.forString("192.168.0.1");

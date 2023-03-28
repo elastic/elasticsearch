@@ -330,6 +330,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     sendWithCrossClusterAccessHeaders(crossClusterAccessHeaders, connection, action, request, options, handler);
                 } else if (User.isInternal(user)) {
                     final String message = "internal user [" + user.principal() + "] should not be used for cross cluster requests";
+                    logger.debug(message);
                     assert false : message;
                     throw new IllegalArgumentException(message);
                 } else {

@@ -136,7 +136,7 @@ public final class LimitedRole implements Role {
             logger.trace(
                 () -> "Base role ["
                     + Strings.arrayToCommaDelimitedString(baseRole.names())
-                    + "] does define any role descriptors for remote cluster alias ["
+                    + "] does not define any role descriptors for remote cluster alias ["
                     + remoteClusterAlias
                     + "]"
             );
@@ -149,7 +149,7 @@ public final class LimitedRole implements Role {
             logger.trace(
                 () -> "Limited-by role ["
                     + Strings.arrayToCommaDelimitedString(limitedByRole.names())
-                    + "] does define any role descriptors for remote cluster alias ["
+                    + "] does not define any role descriptors for remote cluster alias ["
                     + remoteClusterAlias
                     + "]"
             );

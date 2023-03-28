@@ -334,7 +334,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
         @Override
         public CoordinationState.PersistedState createFreshPersistedState(DiscoveryNode localNode, BooleanSupplier disruptStorage) {
-            return new AtomicRegisterPersistedState(localNode, atomicRegister, sharedStore);
+            return new AtomicRegisterPersistedState(localNode, sharedStore);
         }
 
         @Override
@@ -347,7 +347,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             NamedWriteableRegistry namedWriteableRegistry,
             BooleanSupplier disruptStorage
         ) {
-            return new AtomicRegisterPersistedState(newLocalNode, atomicRegister, sharedStore);
+            return new AtomicRegisterPersistedState(newLocalNode, sharedStore);
         }
 
         @Override
@@ -556,14 +556,12 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
     class AtomicRegisterPersistedState implements CoordinationState.PersistedState {
         private final DiscoveryNode localNode;
-        private final AtomicRegister atomicRegister;
         private final SharedStore sharedStore;
         private long currentTerm;
         private ClusterState latestAcceptedState;
 
-        AtomicRegisterPersistedState(DiscoveryNode localNode, AtomicRegister atomicRegister, SharedStore sharedStore) {
+        AtomicRegisterPersistedState(DiscoveryNode localNode, SharedStore sharedStore) {
             this.localNode = localNode;
-            this.atomicRegister = atomicRegister;
             this.sharedStore = sharedStore;
             this.latestAcceptedState = ClusterStateUpdaters.addStateNotRecoveredBlock(
                 clusterState(
@@ -595,16 +593,9 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         @Override
         public void setLastAcceptedState(ClusterState clusterState) {
             if (clusterState.nodes().isLocalNodeElectedMaster()) {
-                writeClusterState(clusterState);
+                sharedStore.writeClusterState(clusterState);
             }
             latestAcceptedState = clusterState;
-        }
-
-        void writeClusterState(ClusterState state) {
-            if (atomicRegister.readCurrentTerm() > state.term()) {
-                throw new RuntimeException("Conflicting cluster state update");
-            }
-            sharedStore.writeClusterState(state);
         }
 
         @Override

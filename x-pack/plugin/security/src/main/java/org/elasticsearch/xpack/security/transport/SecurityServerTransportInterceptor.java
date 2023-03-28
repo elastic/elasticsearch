@@ -302,7 +302,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 }
 
                 logger.trace(
-                    "Sending [{}] request to [{}] with cross cluster access headers for [{}] action",
+                    "Sending [{}] request for [{}] action to [{}] with cross cluster access headers",
                     request.getClass(),
                     remoteClusterAlias,
                     action
@@ -314,7 +314,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final User user = authentication.getEffectiveSubject().getUser();
                 if (SystemUser.is(user)) {
                     logger.trace(
-                        "Request [{}] with action [{}] towards [{}] initiated by the system user. "
+                        "Request [{}] for action [{}] towards [{}] initiated by the system user. "
                             + "Sending request with internal cross cluster access user headers",
                         request.getClass(),
                         action,
@@ -329,9 +329,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     );
                     sendWithCrossClusterAccessHeaders(crossClusterAccessHeaders, connection, action, request, options, handler);
                 } else if (User.isInternal(user)) {
-                    throw illegalArgumentExceptionWithDebugLog(
-                        "Internal user [" + user.principal() + "] should not be used for cross cluster requests"
-                    );
+                    final String message = "Internal user [" + user.principal() + "] should not be used for cross cluster requests";
+                    assert false : message;
+                    throw illegalArgumentExceptionWithDebugLog(message);
                 } else {
                     authzService.getRoleDescriptorsIntersectionForRemoteCluster(
                         remoteClusterAlias,

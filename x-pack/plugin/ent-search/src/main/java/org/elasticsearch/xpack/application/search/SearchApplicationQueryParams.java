@@ -45,8 +45,8 @@ public class SearchApplicationQueryParams implements ToXContentObject, Writeable
     }
 
     public SearchApplicationQueryParams(Map<String, Object> templateParams) {
-        Objects.requireNonNull(templateParams, "Query parameters must not be null");
-        this.templateParams = templateParams;
+        // TODO Understand how can we make the parser build the object using the default constructor instead of this one
+        this.templateParams = Objects.requireNonNullElse(templateParams, Map.of());
     }
 
     public SearchApplicationQueryParams(StreamInput in) throws IOException {

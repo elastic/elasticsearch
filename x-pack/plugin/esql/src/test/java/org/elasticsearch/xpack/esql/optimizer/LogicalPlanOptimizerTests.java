@@ -73,6 +73,7 @@ import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class LogicalPlanOptimizerTests extends ESTestCase {
@@ -147,6 +148,23 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var agg = as(limit.child(), Aggregate.class);
         assertThat(Expressions.names(agg.aggregates()), contains("avg(salary)", "last_name", "first_name"));
         assertThat(Expressions.names(agg.groupings()), contains("last_name", "first_name"));
+    }
+
+    public void testQlComparisonOptimizationsApply() {
+        var plan = plan("""
+            from test
+            | where (1 + 4) < salary
+            """);
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+
+        // The core QL optimizations rotate constants to the right.
+        var condition = as(filter.condition(), GreaterThan.class);
+        assertThat(Expressions.name(condition.left()), equalTo("salary"));
+        assertThat(Expressions.name(condition.right()), equalTo("1 + 4"));
+        var con = as(condition.right(), Literal.class);
+        assertThat(con.value(), equalTo(5));
     }
 
     public void testCombineLimits() {

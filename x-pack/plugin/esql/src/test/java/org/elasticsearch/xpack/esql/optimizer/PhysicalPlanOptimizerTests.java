@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -506,8 +505,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(filter.child(), FieldExtractExec.class);
         var source = source(extract.child());
 
-        assertTrue(filter.condition() instanceof GreaterThan);
-        assertTrue(((GreaterThan) filter.condition()).left() instanceof Round);
+        var gt = as(filter.condition(), GreaterThan.class);
+        as(gt.left(), Round.class);
 
         QueryBuilder query = source.query();
         assertTrue(query instanceof RangeQueryBuilder);
@@ -553,8 +552,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(filter.child(), FieldExtractExec.class);
         var source = source(extract.child());
 
-        assertTrue(filter.condition() instanceof BinaryComparison);
-        assertTrue(((BinaryComparison) filter.condition()).left() instanceof Round);
+        var gt = as(filter.condition(), GreaterThan.class);
+        as(gt.left(), Round.class);
         assertNull(source.query());
     }
 

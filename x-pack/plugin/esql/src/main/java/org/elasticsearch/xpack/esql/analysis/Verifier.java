@@ -16,18 +16,25 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 
 public class Verifier {
     Collection<Failure> verify(LogicalPlan plan) {
@@ -121,8 +128,61 @@ public class Verifier {
                     );
                 }
             }
+            p.forEachExpression(e -> {
+                if (e instanceof BinaryComparison bc) {
+                    Failure f = validateBinaryComparison(bc);
+                    if (f != null) {
+                        failures.add(f);
+                    }
+                }
+            });
         });
 
         return failures;
+    }
+
+    /**
+     * Limit QL's comparisons to types we support.
+     */
+    public static Failure validateBinaryComparison(BinaryComparison bc) {
+        if (bc.left().dataType().isNumeric()) {
+            if (false == bc.right().dataType().isNumeric()) {
+                return fail(
+                    bc,
+                    "first argument of [{}] is [numeric] so second argument must also be [numeric] but was [{}]",
+                    bc.sourceText(),
+                    bc.right().dataType().typeName()
+                );
+            }
+            return null;
+        }
+
+        List<DataType> allowed = new ArrayList<>();
+        allowed.add(DataTypes.KEYWORD);
+        allowed.add(DataTypes.DATETIME);
+        if (bc instanceof Equals || bc instanceof NotEquals) {
+            allowed.add(DataTypes.BOOLEAN);
+        }
+        Expression.TypeResolution r = TypeResolutions.isType(
+            bc.left(),
+            t -> allowed.contains(t),
+            bc.sourceText(),
+            FIRST,
+            allowed.stream().map(a -> a.typeName()).toArray(String[]::new)
+        );
+        if (false == r.resolved()) {
+            return fail(bc, r.message());
+        }
+        if (bc.left().dataType() != bc.right().dataType()) {
+            return fail(
+                bc,
+                "first argument of [{}] is [{}] so second argument must also be [{}] but was [{}]",
+                bc.sourceText(),
+                bc.left().dataType().typeName(),
+                bc.left().dataType().typeName(),
+                bc.right().dataType().typeName()
+            );
+        }
+        return null;
     }
 }

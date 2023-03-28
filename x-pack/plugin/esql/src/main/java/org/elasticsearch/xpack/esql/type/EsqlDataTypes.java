@@ -123,6 +123,13 @@ public final class EsqlDataTypes {
         return t != OBJECT && t != NESTED;
     }
 
+    /**
+     * Supported types that can be contained in a block.
+     */
+    public static boolean isRepresentable(DataType t) {
+        return t != OBJECT && t != NESTED && t != UNSUPPORTED && t != DATE_PERIOD && t != TIME_DURATION;
+    }
+
     public static boolean areCompatible(DataType left, DataType right) {
         if (left == right) {
             return true;

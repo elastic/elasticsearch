@@ -474,11 +474,7 @@ public class SearchExecutionContextTests extends ESTestCase {
     }
 
     private static MapperService createMapperService(IndexSettings indexSettings, MappingLookup mappingLookup) {
-        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
-            singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, null)),
-            emptyMap(),
-            emptyMap()
-        );
+        IndexAnalyzers indexAnalyzers = IndexAnalyzers.of(singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, null)));
         IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
         Supplier<SearchExecutionContext> searchExecutionContextSupplier = () -> { throw new UnsupportedOperationException(); };

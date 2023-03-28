@@ -323,13 +323,13 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                 int encodedLon = GeoEncodingUtils.encodeLongitude(point.getLon());
                 long lonLat = (((long) encodedLon) << 32) | encodedLat & 0xffffffffL;
                 points[i] = lonLat;
-                sortValues[i] = SortOrder.ASC.equals(sortOrder) ? i : numPoints - i;
+                sortValues[i] = i;
             }
             int lineSize = Math.min(numPoints, size);
             // re-sort line to be ascending
             long[] linePoints = Arrays.copyOf(points, lineSize);
             double[] lineSorts = Arrays.copyOf(sortValues, lineSize);
-            new PathArraySorter(linePoints, lineSorts, SortOrder.ASC).sort();
+            new PathArraySorter(linePoints, lineSorts, sortOrder).sort();
 
             lines.put(String.valueOf(groupOrd), new InternalGeoLine("_name", linePoints, lineSorts, null, complete, true, sortOrder, size));
 

@@ -57,15 +57,13 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
 
     @Override
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
-        return new IndexAnalyzers(
+        return IndexAnalyzers.of(
             Map.of(
                 "default",
                 new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer()),
                 "simple",
                 new NamedAnalyzer("simple", AnalyzerScope.INDEX, new SimpleAnalyzer())
-            ),
-            Map.of(),
-            Map.of()
+            )
         );
     }
 

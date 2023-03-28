@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.application.analytics.action.PostAnalyticsEventAc
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent.Type.PAGEVIEW;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent.Type.SEARCH;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent.Type.SEARCH_CLICK;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.createAnalyticsContextMockFromEvent;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.createPayloadFromEvent;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.randomPageViewEvent;
@@ -58,7 +60,7 @@ public class AnalyticsEventFactoryTests extends ESTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             event.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                assertEquals(event, AnalyticsEventFactory.INSTANCE.fromStreamInput(PAGEVIEW, in));
+                assertEquals(event, AnalyticsEventFactory.INSTANCE.fromStreamInput(SEARCH, in));
             }
         }
     }
@@ -68,7 +70,7 @@ public class AnalyticsEventFactoryTests extends ESTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             event.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                assertEquals(event, AnalyticsEventFactory.INSTANCE.fromStreamInput(PAGEVIEW, in));
+                assertEquals(event, AnalyticsEventFactory.INSTANCE.fromStreamInput(SEARCH_CLICK, in));
             }
         }
     }

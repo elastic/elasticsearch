@@ -228,7 +228,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     @Override
     protected CoordinatorStrategy getCoordinatorStrategy() {
         var atomicRegister = new AtomicRegister();
-        var sharedStore = new SharedStore(atomicRegister);
+        var sharedStore = new SharedStore();
         return new AtomicRegisterCoordinatorStrategy(atomicRegister, sharedStore);
     }
 
@@ -534,14 +534,9 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
     record PersistentClusterState(long term, long version, Metadata state) {}
 
-    static class SharedStore {
+    private static class SharedStore {
         private final Map<Long, PersistentClusterState> clusterStateByTerm = new HashMap<>();
         private HeartBeat heartBeat;
-        private final AtomicRegister register;
-
-        SharedStore(AtomicRegister register) {
-            this.register = register;
-        }
 
         private void writeClusterState(ClusterState clusterState) {
             clusterStateByTerm.put(
@@ -560,11 +555,11 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             return null;
         }
 
-        private void writeHeartBeat(HeartBeat newHeartBeat) {
+        void writeHeartBeat(HeartBeat newHeartBeat) {
             this.heartBeat = newHeartBeat;
         }
 
-        private HeartBeat getLatestHeartbeat() {
+        HeartBeat getLatestHeartbeat() {
             return heartBeat;
         }
     }

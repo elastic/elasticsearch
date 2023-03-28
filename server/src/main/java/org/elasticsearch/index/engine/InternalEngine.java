@@ -1961,6 +1961,7 @@ public class InternalEngine extends Engine {
             && relativeTimeInNanosSupplier.getAsLong() - lastFlushTimestamp < flushThresholdAgeInNanos) {
             return false;
         }
+        logger.info("--> FLUSH time {} {}", relativeTimeInNanosSupplier.getAsLong() - lastFlushTimestamp, flushThresholdAgeInNanos);
         /*
          * We flush to reduce the size of uncommitted translog but strictly speaking the uncommitted size won't always be
          * below the flush-threshold after a flush. To avoid getting into an endless loop of flushing, we only enable the

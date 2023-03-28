@@ -8,11 +8,14 @@
 
 package org.elasticsearch.action.admin.indices.template.get;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -40,6 +43,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
 
         @Nullable
         private final String name;
+        private boolean includeDefaults;
 
         /**
          * @param name A template name or pattern, or {@code null} to retrieve all templates.
@@ -49,17 +53,34 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
                 throw new IllegalArgumentException("template name may not contain ','");
             }
             this.name = name;
+            this.includeDefaults = false;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             name = in.readOptionalString();
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+                includeDefaults = in.readBoolean();
+            } else {
+                includeDefaults = false;
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalString(name);
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+                out.writeBoolean(includeDefaults);
+            }
+        }
+
+        public void includeDefaults(boolean includeDefaults) {
+            this.includeDefaults = includeDefaults;
+        }
+
+        public boolean includeDefaults() {
+            return includeDefaults;
         }
 
         @Override
@@ -98,14 +119,26 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         public static final ParseField INDEX_TEMPLATE = new ParseField("index_template");
 
         private final Map<String, ComposableIndexTemplate> indexTemplates;
+        private final RolloverConditions rolloverConditions;
 
         public Response(StreamInput in) throws IOException {
             super(in);
             indexTemplates = in.readMap(StreamInput::readString, ComposableIndexTemplate::new);
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+                rolloverConditions = in.readOptionalWriteable(RolloverConditions::new);
+            } else {
+                rolloverConditions = null;
+            }
         }
 
         public Response(Map<String, ComposableIndexTemplate> indexTemplates) {
             this.indexTemplates = indexTemplates;
+            this.rolloverConditions = null;
+        }
+
+        public Response(Map<String, ComposableIndexTemplate> indexTemplates, RolloverConditions rolloverConditions) {
+            this.indexTemplates = indexTemplates;
+            this.rolloverConditions = rolloverConditions;
         }
 
         public Map<String, ComposableIndexTemplate> indexTemplates() {
@@ -115,6 +148,9 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(indexTemplates, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+                out.writeOptionalWriteable(rolloverConditions);
+            }
         }
 
         @Override
@@ -122,12 +158,12 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             GetComposableIndexTemplateAction.Response that = (GetComposableIndexTemplateAction.Response) o;
-            return Objects.equals(indexTemplates, that.indexTemplates);
+            return Objects.equals(indexTemplates, that.indexTemplates) && Objects.equals(rolloverConditions, that.rolloverConditions);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(indexTemplates);
+            return Objects.hash(indexTemplates, rolloverConditions);
         }
 
         @Override
@@ -137,7 +173,8 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
             for (Map.Entry<String, ComposableIndexTemplate> indexTemplate : this.indexTemplates.entrySet()) {
                 builder.startObject();
                 builder.field(NAME.getPreferredName(), indexTemplate.getKey());
-                builder.field(INDEX_TEMPLATE.getPreferredName(), indexTemplate.getValue(), params);
+                builder.field(INDEX_TEMPLATE.getPreferredName());
+                indexTemplate.getValue().toXContent(builder, params, rolloverConditions);
                 builder.endObject();
             }
             builder.endArray();

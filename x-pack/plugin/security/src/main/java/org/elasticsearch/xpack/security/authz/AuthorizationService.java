@@ -208,7 +208,7 @@ public class AuthorizationService {
         authorizationEngine.getUserPrivileges(authorizationInfo, wrapPreservingContext(listener, threadContext));
     }
 
-    public void retrieveRemoteAccessRoleDescriptorsIntersection(
+    public void getRoleDescriptorsIntersectionForRemoteCluster(
         final String remoteClusterAlias,
         final Subject subject,
         final ActionListener<RoleDescriptorsIntersection> listener
@@ -216,7 +216,7 @@ public class AuthorizationService {
         if (isInternal(subject.getUser())) {
             final String message = "the user ["
                 + subject.getUser().principal()
-                + "] is an internal user and we should never try to retrieve its remote access roles descriptors";
+                + "] is an internal user and we should never try to retrieve its roles descriptors towards a remote cluster";
             assert false : message;
             listener.onFailure(new IllegalArgumentException(message));
             return;
@@ -229,7 +229,7 @@ public class AuthorizationService {
             subject,
             wrapPreservingContext(
                 listener.delegateFailure(
-                    (delegatedLister, resolvedAuthzInfo) -> authorizationEngine.getRemoteAccessRoleDescriptorsIntersection(
+                    (delegatedLister, resolvedAuthzInfo) -> authorizationEngine.getRoleDescriptorsIntersectionForRemoteCluster(
                         remoteClusterAlias,
                         resolvedAuthzInfo,
                         wrapPreservingContext(delegatedLister, threadContext)

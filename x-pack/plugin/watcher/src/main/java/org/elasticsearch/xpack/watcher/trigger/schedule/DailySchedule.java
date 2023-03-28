@@ -66,9 +66,7 @@ public class DailySchedule extends CronnableSchedule {
 
     static String[] crons(DayTimes[] times) {
         assert times.length > 0 : "at least one time must be defined";
-        return Arrays.stream(times)
-            .map(DayTimes::cron)
-            .toArray(String[]::new);
+        return Arrays.stream(times).map(DayTimes::cron).toArray(String[]::new);
     }
 
     public static class Parser implements Schedule.Parser<DailySchedule> {

@@ -62,9 +62,7 @@ public class WeeklySchedule extends CronnableSchedule {
 
     static String[] crons(WeekTimes[] times) {
         assert times.length > 0 : "at least one time must be defined";
-        return Arrays.stream(times)
-            .flatMap(wt -> wt.crons().stream())
-            .toArray(String[]::new);
+        return Arrays.stream(times).flatMap(wt -> wt.crons().stream()).toArray(String[]::new);
     }
 
     public static class Parser implements Schedule.Parser<WeeklySchedule> {

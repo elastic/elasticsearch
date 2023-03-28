@@ -15,13 +15,10 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Stream;
 
-import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_ANALYZER_NAME;
 import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME;
-import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_QUOTED_ANALYZER_NAME;
 
 /**
  * IndexAnalyzers contains a name to analyzer mapping for a specific index.
@@ -32,7 +29,11 @@ import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_Q
  */
 public interface IndexAnalyzers extends Closeable {
 
-    enum AnalyzerType { ANALYZER, NORMALIZER, WHITESPACE }
+    enum AnalyzerType {
+        ANALYZER,
+        NORMALIZER,
+        WHITESPACE
+    }
 
     /**
      * Returns an analyzer of the given type mapped to the given name, or {@code null} if
@@ -98,21 +99,22 @@ public interface IndexAnalyzers extends Closeable {
         return List.of();
     }
 
-    default void close() throws IOException { }
+    default void close() throws IOException {}
 
     static IndexAnalyzers of(Map<String, NamedAnalyzer> analyzers) {
         return of(analyzers, Map.of(), Map.of(), false);
     }
 
-    static IndexAnalyzers of(Map<String, NamedAnalyzer> analyzers,
-                             Map<String, NamedAnalyzer> tokenizers) {
+    static IndexAnalyzers of(Map<String, NamedAnalyzer> analyzers, Map<String, NamedAnalyzer> tokenizers) {
         return of(analyzers, tokenizers, Map.of(), false);
     }
 
-    static IndexAnalyzers of(Map<String, NamedAnalyzer> analyzers,
-                             Map<String, NamedAnalyzer> normalizers,
-                             Map<String, NamedAnalyzer> whitespaceNormalizers,
-                             boolean closeable) {
+    static IndexAnalyzers of(
+        Map<String, NamedAnalyzer> analyzers,
+        Map<String, NamedAnalyzer> normalizers,
+        Map<String, NamedAnalyzer> whitespaceNormalizers,
+        boolean closeable
+    ) {
         return new IndexAnalyzers() {
             @Override
             public NamedAnalyzer getAnalyzer(AnalyzerType type, String name) {

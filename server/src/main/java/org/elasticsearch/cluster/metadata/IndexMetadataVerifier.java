@@ -19,7 +19,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
@@ -167,16 +166,18 @@ public class IndexMetadataVerifier {
                 }
             });
 
-            try (MapperService mapperService = new MapperService(
-                indexSettings,
-                (type, name) -> new NamedAnalyzer(name, AnalyzerScope.INDEX, fakeDefault.analyzer()),
-                parserConfiguration,
-                similarityService,
-                mapperRegistry,
-                () -> null,
-                indexSettings.getMode().idFieldMapperWithoutFieldData(),
-                scriptService
-            )) {
+            try (
+                MapperService mapperService = new MapperService(
+                    indexSettings,
+                    (type, name) -> new NamedAnalyzer(name, AnalyzerScope.INDEX, fakeDefault.analyzer()),
+                    parserConfiguration,
+                    similarityService,
+                    mapperRegistry,
+                    () -> null,
+                    indexSettings.getMode().idFieldMapperWithoutFieldData(),
+                    scriptService
+                )
+            ) {
                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
             }
 

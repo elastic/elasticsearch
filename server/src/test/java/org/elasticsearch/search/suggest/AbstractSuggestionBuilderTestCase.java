@@ -46,7 +46,6 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
@@ -160,7 +159,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             );
             ScriptService scriptService = mock(ScriptService.class);
             MappedFieldType fieldType = mockFieldType(suggestionBuilder.field());
-            IndexAnalyzers indexAnalyzers = (type, name) -> new NamedAnalyzer(name, AnalyzerScope.INDEX, new SimpleAnalyzer());;
+            IndexAnalyzers indexAnalyzers = (type, name) -> new NamedAnalyzer(name, AnalyzerScope.INDEX, new SimpleAnalyzer());
+            ;
             MapperService mapperService = mock(MapperService.class);
             when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
             when(scriptService.compile(any(Script.class), any())).then(

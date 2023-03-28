@@ -651,9 +651,7 @@ public final class AnalysisRegistry implements Closeable {
         }
         defaultAnalyzer.checkAllowedInMode(AnalysisMode.ALL);
         if (Objects.equals(defaultAnalyzer.name(), DEFAULT_ANALYZER_NAME) == false) {
-            throw new IllegalStateException(
-                "default analyzer must have the name [default] but was: [" + defaultAnalyzer.name() + "]"
-            );
+            throw new IllegalStateException("default analyzer must have the name [default] but was: [" + defaultAnalyzer.name() + "]");
         }
 
         if (analyzers.containsKey("default_index")) {

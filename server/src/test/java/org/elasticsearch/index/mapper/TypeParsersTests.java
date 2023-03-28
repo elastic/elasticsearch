@@ -22,7 +22,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;

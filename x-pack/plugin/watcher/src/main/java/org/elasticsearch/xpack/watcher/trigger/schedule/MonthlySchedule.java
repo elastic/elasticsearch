@@ -62,7 +62,7 @@ public class MonthlySchedule extends CronnableSchedule {
 
     static String[] crons(MonthTimes[] times) {
         assert times.length > 0 : "at least one time must be defined";
-        return Arrays.stream(times).flatMap(mt -> mt.crons().stream()).toArray(String[]::new);
+        return Arrays.stream(times).flatMap(mt -> mt.crons().stream()).distinct().toArray(String[]::new);
     }
 
     public static class Parser implements Schedule.Parser<MonthlySchedule> {

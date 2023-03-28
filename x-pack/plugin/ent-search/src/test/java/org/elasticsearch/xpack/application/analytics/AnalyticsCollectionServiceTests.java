@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.application.analytics;
 
 import org.apache.logging.log4j.util.TriConsumer;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -21,6 +23,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -46,6 +49,7 @@ import static org.mockito.Mockito.when;
 public class AnalyticsCollectionServiceTests extends ESTestCase {
 
     private ThreadPool threadPool;
+
     private VerifyingClient client;
 
     @Before
@@ -147,24 +151,84 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
         ClusterState clusterState = createClusterState();
 
         AnalyticsCollectionResolver analyticsCollectionResolver = mock(AnalyticsCollectionResolver.class);
-        when(analyticsCollectionResolver.collection(eq(clusterState), eq(collectionName))).thenReturn(
-            new AnalyticsCollection(collectionName)
-        );
 
         AnalyticsCollectionService analyticsService = new AnalyticsCollectionService(client, analyticsCollectionResolver);
-        AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
-            calledTimes.incrementAndGet();
+            if (action instanceof CreateDataStreamAction) {
+                CreateDataStreamAction.Request createDataStreamRequest = (CreateDataStreamAction.Request) request;
+                throw new ResourceAlreadyExistsException(createDataStreamRequest.getName());
+            } else {
+                fail("client called with unexpected request: " + request.toString());
+            }
             return null;
         });
 
         expectThrows(
             ResourceAlreadyExistsException.class,
-            "analytics collection " + collectionName + " already exists",
+            "analytics collection [" + collectionName + "] already exists",
+            () -> awaitPutAnalyticsCollection(analyticsService, clusterState, collectionName)
+        );
+    }
+
+    public void testCreateAnalyticsCollectionESException() {
+        String collectionName = randomIdentifier();
+        ClusterState clusterState = createClusterState();
+
+        ElasticsearchStatusException dataStreamCreateException = new ElasticsearchStatusException(
+            "message",
+            randomFrom(RestStatus.values())
+        );
+
+        AnalyticsCollectionResolver analyticsCollectionResolver = mock(AnalyticsCollectionResolver.class);
+
+        AnalyticsCollectionService analyticsService = new AnalyticsCollectionService(client, analyticsCollectionResolver);
+        client.setVerifier((action, request, listener) -> {
+            if (action instanceof CreateDataStreamAction) {
+                throw dataStreamCreateException;
+            } else {
+                fail("client called with unexpected request: " + request.toString());
+            }
+            return null;
+        });
+
+        ElasticsearchException createCollectionException = expectThrows(
+            ElasticsearchException.class,
+            "error while creating analytics collection [" + collectionName + "]",
             () -> awaitPutAnalyticsCollection(analyticsService, clusterState, collectionName)
         );
 
-        assertEquals(calledTimes.get(), 0);
+        assertNotNull(createCollectionException.getCause());
+        assertEquals(dataStreamCreateException.status(), createCollectionException.status());
+        assertEquals(dataStreamCreateException, createCollectionException.getCause());
+    }
+
+    public void testCreateAnalyticsCollectionGenericException() {
+        String collectionName = randomIdentifier();
+        ClusterState clusterState = createClusterState();
+
+        RuntimeException dataStreamCreateException = new RuntimeException("message");
+
+        AnalyticsCollectionResolver analyticsCollectionResolver = mock(AnalyticsCollectionResolver.class);
+
+        AnalyticsCollectionService analyticsService = new AnalyticsCollectionService(client, analyticsCollectionResolver);
+        client.setVerifier((action, request, listener) -> {
+            if (action instanceof CreateDataStreamAction) {
+                throw dataStreamCreateException;
+            } else {
+                fail("client called with unexpected request: " + request.toString());
+            }
+            return null;
+        });
+
+        ElasticsearchException createCollectionException = expectThrows(
+            ElasticsearchException.class,
+            "error while creating analytics collection [" + collectionName + "]",
+            () -> awaitPutAnalyticsCollection(analyticsService, clusterState, collectionName)
+        );
+
+        assertNotNull(createCollectionException.getCause());
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, createCollectionException.status());
+        assertEquals(dataStreamCreateException, createCollectionException.getCause());
     }
 
     public void testCreateAnalyticsCollectionOnNonMasterNode() {
@@ -183,9 +247,6 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
         ClusterState clusterState = createClusterState();
 
         AnalyticsCollectionResolver analyticsCollectionResolver = mock(AnalyticsCollectionResolver.class);
-        when(analyticsCollectionResolver.collection(eq(clusterState), eq(collectionName))).thenReturn(
-            new AnalyticsCollection(collectionName)
-        );
 
         AnalyticsCollectionService analyticsService = new AnalyticsCollectionService(client, analyticsCollectionResolver);
 
@@ -218,17 +279,83 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
         ClusterState clusterState = createClusterState();
 
         AnalyticsCollectionResolver analyticsCollectionResolver = mock(AnalyticsCollectionResolver.class);
-        when(analyticsCollectionResolver.collection(eq(clusterState), eq(collectionName))).thenThrow(
-            new ResourceNotFoundException(collectionName)
-        );
 
-        AnalyticsCollectionService analyticsService = new AnalyticsCollectionService(mock(Client.class), analyticsCollectionResolver);
+        AnalyticsCollectionService analyticsService = new AnalyticsCollectionService(client, analyticsCollectionResolver);
+
+        client.setVerifier((action, request, listener) -> {
+            if (action instanceof DeleteDataStreamAction) {
+                DeleteDataStreamAction.Request deleteDataStreamRequest = (DeleteDataStreamAction.Request) request;
+                throw new ResourceNotFoundException(deleteDataStreamRequest.getNames()[0]);
+            } else {
+                fail("client called with unexpected request: " + request.toString());
+            }
+            return null;
+        });
 
         expectThrows(
             ResourceNotFoundException.class,
-            collectionName,
+            "analytics collection [" + collectionName + "] does not exists",
             () -> awaitDeleteAnalyticsCollection(analyticsService, clusterState, collectionName)
         );
+    }
+
+    public void testDeleteMissingAnalyticsCollectionESException() {
+        String collectionName = randomIdentifier();
+        ClusterState clusterState = createClusterState();
+        ElasticsearchStatusException deleteDataStreamException = new ElasticsearchStatusException(
+            "message",
+            randomFrom(RestStatus.values())
+        );
+        AnalyticsCollectionResolver analyticsCollectionResolver = mock(AnalyticsCollectionResolver.class);
+
+        AnalyticsCollectionService analyticsService = new AnalyticsCollectionService(client, analyticsCollectionResolver);
+
+        client.setVerifier((action, request, listener) -> {
+            if (action instanceof DeleteDataStreamAction) {
+                throw deleteDataStreamException;
+            } else {
+                fail("client called with unexpected request: " + request.toString());
+            }
+            return null;
+        });
+
+        ElasticsearchException deleteCollectionException = expectThrows(
+            ElasticsearchException.class,
+            "error while deleting analytics collection [" + collectionName + "]",
+            () -> awaitDeleteAnalyticsCollection(analyticsService, clusterState, collectionName)
+        );
+
+        assertNotNull(deleteCollectionException.getCause());
+        assertEquals(deleteDataStreamException.status(), deleteCollectionException.status());
+        assertEquals(deleteDataStreamException, deleteCollectionException.getCause());
+    }
+
+    public void testDeleteMissingAnalyticsCollectionGenericException() {
+        String collectionName = randomIdentifier();
+        ClusterState clusterState = createClusterState();
+        RuntimeException deleteDataStreamException = new RuntimeException("message");
+        AnalyticsCollectionResolver analyticsCollectionResolver = mock(AnalyticsCollectionResolver.class);
+
+        AnalyticsCollectionService analyticsService = new AnalyticsCollectionService(client, analyticsCollectionResolver);
+
+        client.setVerifier((action, request, listener) -> {
+            if (action instanceof DeleteDataStreamAction) {
+                throw deleteDataStreamException;
+            } else {
+                fail("client called with unexpected request: " + request.toString());
+            }
+            return null;
+        });
+
+        ElasticsearchException deleteCollectionException = expectThrows(
+            ElasticsearchException.class,
+            "error while deleting analytics collection [" + collectionName + "]",
+            () -> awaitDeleteAnalyticsCollection(analyticsService, clusterState, collectionName)
+        );
+
+        assertNotNull(deleteCollectionException.getCause());
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, deleteCollectionException.status());
+        assertEquals(deleteDataStreamException, deleteCollectionException.getCause());
     }
 
     public void testDeleteAnalyticsCollectionOnNonMasterNode() {

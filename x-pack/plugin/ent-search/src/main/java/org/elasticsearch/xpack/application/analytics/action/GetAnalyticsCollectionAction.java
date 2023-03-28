@@ -36,9 +36,13 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
     public static class Request extends MasterNodeReadRequest<Request> {
         private final String[] names;
 
+        public Request(String[] names) {
+            this.names = Objects.requireNonNull(names);
+        }
+
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.names = in.readOptionalStringArray();
+            this.names = in.readStringArray();
         }
 
         @Override
@@ -46,14 +50,10 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
             return null;
         }
 
-        public Request(String[] names) {
-            this.names = names;
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeOptionalStringArray(names);
+            out.writeStringArray(names);
         }
 
         public String[] getNames() {

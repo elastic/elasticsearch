@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.application.search;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
@@ -19,8 +20,10 @@ import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
+import static org.elasticsearch.test.ESTestCase.randomMap;
 
 public final class SearchApplicationTestUtils {
 
@@ -56,4 +59,9 @@ public final class SearchApplicationTestUtils {
         final Script script = new Script(ScriptType.INLINE, "mustache", query, Collections.singletonMap(paramName, paramValue));
         return new SearchApplicationTemplate(script);
     }
+
+    public static SearchApplicationQueryParams randomSearchApplicationQueryParams() {
+        return new SearchApplicationQueryParams(randomMap(0, 10, () -> Tuple.tuple(randomIdentifier(), randomAlphaOfLengthBetween(0, 10))));
+    }
+
 }

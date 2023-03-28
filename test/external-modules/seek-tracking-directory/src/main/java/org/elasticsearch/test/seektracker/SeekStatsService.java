@@ -16,9 +16,7 @@ public class SeekStatsService {
     private final Map<String, IndexSeekTracker> seeks = new HashMap<>();
 
     public IndexSeekTracker registerIndex(String index) {
-        IndexSeekTracker tracker = new IndexSeekTracker();
-        seeks.put(index, tracker);
-        return tracker;
+        return seeks.computeIfAbsent(index, IndexSeekTracker::new);
     }
 
     public Map<String, IndexSeekTracker> getSeekStats() {

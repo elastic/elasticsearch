@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -202,7 +203,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         NodeHealthService nodeHealthService,
         CircuitBreakerService circuitBreakerService,
         Reconfigurator reconfigurator,
-        LeaderHeartbeatService leaderHeartbeatService
+        LeaderHeartbeatService leaderHeartbeatService,
+        PreVoteCollector.Factory preVoteCollectorFactory
     ) {
         this.settings = settings;
         this.transportService = transportService;
@@ -243,7 +245,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.singleNodeClusterSeedHostsCheckInterval = SINGLE_NODE_CLUSTER_SEED_HOSTS_CHECK_INTERVAL_SETTING.get(settings);
         this.random = random;
         this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, random, transportService.getThreadPool());
-        this.preVoteCollector = new PreVoteCollector(
+        this.preVoteCollector = preVoteCollectorFactory.create(
             transportService,
             this::startElection,
             this::updateMaxTermSeen,
@@ -510,6 +512,11 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
     }
 
+    private long getTermForNewElection() {
+        assert Thread.holdsLock(mutex);
+        return Math.max(getCurrentTerm(), maxTermSeen) + 1;
+    }
+
     private void startElection() {
         synchronized (mutex) {
             // The preVoteCollector is only active while we are candidate, but it does not call this method with synchronisation, so we have
@@ -520,23 +527,23 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     return;
                 }
 
-                final StartJoinRequest startJoinRequest = new StartJoinRequest(getLocalNode(), Math.max(getCurrentTerm(), maxTermSeen) + 1);
-                logger.debug("starting election with {}", startJoinRequest);
-                broadcastStartJoinRequest(startJoinRequest, getDiscoveredNodes());
+                final var electionTerm = getTermForNewElection();
+                logger.debug("starting election for {} in term {}", getLocalNode(), electionTerm);
+                broadcastStartJoinRequest(getLocalNode(), electionTerm, getDiscoveredNodes());
             }
         }
     }
 
-    private void broadcastStartJoinRequest(StartJoinRequest startJoinRequest, List<DiscoveryNode> discoveredNodes) {
-        electionStrategy.onNewElection(startJoinRequest.getSourceNode(), startJoinRequest.getTerm(), new ActionListener<>() {
+    private void broadcastStartJoinRequest(DiscoveryNode candidateMasterNode, long term, List<DiscoveryNode> discoveredNodes) {
+        electionStrategy.onNewElection(candidateMasterNode, term, new ActionListener<>() {
             @Override
-            public void onResponse(Void unused) {
+            public void onResponse(StartJoinRequest startJoinRequest) {
                 discoveredNodes.forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.debug(Strings.format("election attempt failed, dropping [%s]", startJoinRequest), e);
+                logger.debug(Strings.format("election attempt for [%s] in term [%d] failed", candidateMasterNode, term), e);
             }
         });
     }
@@ -545,9 +552,9 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         assert Thread.holdsLock(mutex);
         assert mode == Mode.LEADER : "expected to be leader on abdication but was " + mode;
         assert newMaster.isMasterNode() : "should only abdicate to master-eligible node but was " + newMaster;
-        final StartJoinRequest startJoinRequest = new StartJoinRequest(newMaster, Math.max(getCurrentTerm(), maxTermSeen) + 1);
-        logger.info("abdicating to {} with term {}", newMaster, startJoinRequest.getTerm());
-        broadcastStartJoinRequest(startJoinRequest, getLastAcceptedState().nodes().mastersFirstStream().toList());
+        final var electionTerm = getTermForNewElection();
+        logger.info("abdicating to {} with term {}", newMaster, electionTerm);
+        broadcastStartJoinRequest(newMaster, electionTerm, getLastAcceptedState().nodes().mastersFirstStream().toList());
         // handling of start join messages on the local node will be dispatched to the coordination thread-pool
         assert mode == Mode.LEADER : "should still be leader after sending abdication messages " + mode;
         // explicitly move node to candidate state so that the next cluster state update task yields an onNoLongerMaster event
@@ -569,7 +576,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
     private Optional<Join> ensureTermAtLeast(DiscoveryNode sourceNode, long targetTerm) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-        if (electionStrategy.shouldJoinLeaderInTerm(getCurrentTerm(), targetTerm)) {
+        if (getCurrentTerm() < targetTerm) {
             return Optional.of(joinLeaderInTerm(new StartJoinRequest(sourceNode, targetTerm)));
         }
         return Optional.empty();
@@ -869,9 +876,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         assert mode == Mode.CANDIDATE : "expected candidate but was " + mode;
         assert getLocalNode().isMasterNode() : getLocalNode() + " became a leader but is not master-eligible";
 
+        final var leaderTerm = getCurrentTerm();
         logger.debug(
             "handleJoinRequest: coordinator becoming LEADER in term {} (was {}, lastKnownLeader was [{}])",
-            getCurrentTerm(),
+            leaderTerm,
             mode,
             lastKnownLeader
         );
@@ -885,10 +893,31 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         clusterFormationFailureHelper.stop();
         closePrevotingAndElectionScheduler();
         preVoteCollector.update(getPreVoteResponse(), getLocalNode());
-        leaderHeartbeatService.start(getLocalNode(), getCurrentTerm());
+        leaderHeartbeatService.start(
+            getLocalNode(),
+            leaderTerm,
+            new ThreadedActionListener<>(transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION), new ActionListener<>() {
+                @Override
+                public void onResponse(Long newTerm) {
+                    assert newTerm != null && newTerm > leaderTerm : newTerm + " vs " + leaderTerm;
+                    updateMaxTermSeen(newTerm);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // TODO tests for heartbeat failures
+                    logger.debug(() -> Strings.format("heartbeat failure in term [%s]", leaderTerm), e);
+                    synchronized (mutex) {
+                        if (getCurrentTerm() == leaderTerm) {
+                            becomeCandidate("leaderHeartbeatService");
+                        }
+                    }
+                }
+            })
+        );
 
         assert leaderChecker.leader() == null : leaderChecker.leader();
-        followersChecker.updateFastResponseState(getCurrentTerm(), mode);
+        followersChecker.updateFastResponseState(leaderTerm, mode);
 
         updateSingleNodeClusterChecker();
     }
@@ -1379,8 +1408,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
     }
 
-    private void getLatestStoredStateAfterWinningAnElection(ActionListener<ClusterState> listener) {
-        persistedStateSupplier.get().getLatestStoredState(listener.delegateResponse((delegate, e) -> {
+    private void getLatestStoredStateAfterWinningAnElection(ActionListener<ClusterState> listener, long joiningTerm) {
+        persistedStateSupplier.get().getLatestStoredState(joiningTerm, listener.delegateResponse((delegate, e) -> {
             synchronized (mutex) {
                 // TODO: add test coverage for this branch
                 becomeCandidate("failed fetching latest stored state");

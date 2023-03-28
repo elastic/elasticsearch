@@ -62,10 +62,10 @@ public class ClusterStatsNodes implements ToXContentFragment {
 
     ClusterStatsNodes(List<ClusterStatsNodeResponse> nodeResponses) {
         this.versions = new HashSet<>();
-        this.fs = new FsInfo.Path();
         this.plugins = new HashSet<>();
 
-        Set<InetAddress> seenAddresses = Sets.newHashSetWithExpectedSize(nodeResponses.size());
+        ClusterFsStatsDeduplicator deduplicator = new ClusterFsStatsDeduplicator(nodeResponses.size());
+
         List<NodeInfo> nodeInfos = new ArrayList<>(nodeResponses.size());
         List<NodeStats> nodeStats = new ArrayList<>(nodeResponses.size());
         for (ClusterStatsNodeResponse nodeResponse : nodeResponses) {
@@ -74,16 +74,12 @@ public class ClusterStatsNodes implements ToXContentFragment {
             this.versions.add(nodeResponse.nodeInfo().getVersion());
             this.plugins.addAll(nodeResponse.nodeInfo().getInfo(PluginsAndModules.class).getPluginInfos());
 
-            // now do the stats that should be deduped by hardware (implemented by ip deduping)
             TransportAddress publishAddress = nodeResponse.nodeInfo().getInfo(TransportInfo.class).address().publishAddress();
             final InetAddress inetAddress = publishAddress.address().getAddress();
-            if (seenAddresses.add(inetAddress) == false) {
-                continue;
-            }
-            if (nodeResponse.nodeStats().getFs() != null) {
-                this.fs.add(nodeResponse.nodeStats().getFs().getTotal());
-            }
+            deduplicator.add(inetAddress, nodeResponse.nodeStats().getFs());
         }
+        this.fs = deduplicator.getTotal();
+
         this.counts = new Counts(nodeInfos);
         this.os = new OsStats(nodeInfos, nodeStats);
         this.process = new ProcessStats(nodeStats);
@@ -845,6 +841,31 @@ public class ClusterStatsNodes implements ToXContentFragment {
             return indexingPressureStats.toXContent(builder, params);
         }
 
+    }
+
+    static class ClusterFsStatsDeduplicator {
+
+        private final Set<InetAddress> seenAddresses;
+        private final FsInfo.Path total = new FsInfo.Path();
+
+        ClusterFsStatsDeduplicator(int expectedSize) {
+            seenAddresses = Sets.newHashSetWithExpectedSize(expectedSize);
+        }
+
+        public void add(InetAddress inetAddress, FsInfo fsInfo) {
+            if (seenAddresses.add(inetAddress) == false) {
+                return;
+            }
+            if (fsInfo != null) {
+                total.add(fsInfo.getTotal());
+            }
+        }
+
+        public FsInfo.Path getTotal() {
+            FsInfo.Path result = new FsInfo.Path();
+            result.add(total);
+            return result;
+        }
     }
 
 }

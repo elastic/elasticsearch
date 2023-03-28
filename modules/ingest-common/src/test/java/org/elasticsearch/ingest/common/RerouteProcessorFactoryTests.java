@@ -51,6 +51,17 @@ public class RerouteProcessorFactoryTests extends ESTestCase {
         assertThat(e.getMessage(), Matchers.equalTo("[destination] can only be set if dataset and namespace are not set"));
     }
 
+    public void testFieldReference() throws Exception {
+        create("{{foo}}", "{{{bar}}}");
+    }
+
+    public void testInvalidFieldReference() throws Exception {
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> create("{{foo}}-{{bar}}", "foo"));
+        assertThat(e.getMessage(), Matchers.equalTo("[dataset] '{{foo}}-{{bar}}' is not a valid field reference"));
+
+        e = expectThrows(ElasticsearchParseException.class, () -> create("{{{{foo}}}}", "foo"));
+        assertThat(e.getMessage(), Matchers.equalTo("[dataset] '{{{{foo}}}}' is not a valid field reference"));
+    }
 
     private static RerouteProcessor create(String dataset, String namespace) throws Exception {
         Map<String, Object> config = new HashMap<>();

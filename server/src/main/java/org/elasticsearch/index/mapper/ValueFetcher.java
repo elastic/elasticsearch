@@ -72,4 +72,30 @@ public interface ValueFetcher {
      * The stored field or source requirements of this value fetcher
      */
     StoredFieldsSpec storedFieldsSpec();
+
+    ValueFetcher EMPTY = new ValueFetcher() {
+        @Override
+        public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) {
+            return List.of();
+        }
+
+        @Override
+        public StoredFieldsSpec storedFieldsSpec() {
+            return StoredFieldsSpec.NO_REQUIREMENTS;
+        }
+    };
+
+    static ValueFetcher singleton(Object value) {
+        return new ValueFetcher() {
+            @Override
+            public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) {
+                return List.of(value);
+            }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return StoredFieldsSpec.NO_REQUIREMENTS;
+            }
+        };
+    }
 }

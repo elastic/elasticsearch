@@ -60,7 +60,7 @@ public record DesiredBalance(long lastConvergedIndex, Map<ShardId, ShardAssignme
         return movements;
     }
 
-    public static int shardMovements(ShardAssignment old, ShardAssignment updated) {
+    private static int shardMovements(ShardAssignment old, ShardAssignment updated) {
         var movements = 0;
         for (String nodeId : updated.nodeIds()) {
             if (old.nodeIds().contains(nodeId) == false) {
@@ -73,7 +73,7 @@ public record DesiredBalance(long lastConvergedIndex, Map<ShardId, ShardAssignme
             // exclude new shard copies
             movements -= Math.max(0, updated.total() - old.total());
         }
-
+        assert movements >= 0 : "Unexpected movement count [" + movements + "] between [" + old + "] and [" + updated + "]";
         return movements;
     }
 

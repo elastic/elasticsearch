@@ -8,8 +8,10 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -20,57 +22,58 @@ public class DesiredBalanceTests extends ESTestCase {
 
         assertThat(
             "no shard movements when no changes",
-            DesiredBalance.shardMovements(new ShardAssignment(Set.of("a", "b"), 2, 0, 0), new ShardAssignment(Set.of("a", "b"), 2, 0, 0)),
+            shardMovements(new ShardAssignment(Set.of("a", "b"), 2, 0, 0), new ShardAssignment(Set.of("a", "b"), 2, 0, 0)),
             equalTo(0)
         );
 
         assertThat(
             "no shard movements when starting new shard copy",
-            DesiredBalance.shardMovements(
-                new ShardAssignment(Set.of("a", "b"), 2, 0, 0),
-                new ShardAssignment(Set.of("a", "b", "c"), 3, 0, 0)
-            ),
+            shardMovements(new ShardAssignment(Set.of("a", "b"), 2, 0, 0), new ShardAssignment(Set.of("a", "b", "c"), 3, 0, 0)),
             equalTo(0)
         );
 
         assertThat(
             "no shard movements when starting unassigned shard",
-            DesiredBalance.shardMovements(
-                new ShardAssignment(Set.of("a", "b"), 3, 1, 0),
-                new ShardAssignment(Set.of("a", "b", "c"), 3, 0, 0)
-            ),
+            shardMovements(new ShardAssignment(Set.of("a", "b"), 3, 1, 0), new ShardAssignment(Set.of("a", "b", "c"), 3, 0, 0)),
             equalTo(0)
         );
 
         assertThat(
             "no shard movements when new shard copy is unassigned",
-            DesiredBalance.shardMovements(new ShardAssignment(Set.of("a", "b"), 2, 0, 0), new ShardAssignment(Set.of("a", "b"), 3, 1, 0)),
+            shardMovements(new ShardAssignment(Set.of("a", "b"), 2, 0, 0), new ShardAssignment(Set.of("a", "b"), 3, 1, 0)),
             equalTo(0)
         );
 
         assertThat(
             "1 shard movement",
-            DesiredBalance.shardMovements(new ShardAssignment(Set.of("a", "b"), 2, 0, 0), new ShardAssignment(Set.of("a", "c"), 2, 0, 0)),
+            shardMovements(new ShardAssignment(Set.of("a", "b"), 2, 0, 0), new ShardAssignment(Set.of("a", "c"), 2, 0, 0)),
             equalTo(1)
         );
 
         assertThat(
             "2 shard movement",
-            DesiredBalance.shardMovements(new ShardAssignment(Set.of("a", "b"), 2, 0, 0), new ShardAssignment(Set.of("c", "d"), 2, 0, 0)),
+            shardMovements(new ShardAssignment(Set.of("a", "b"), 2, 0, 0), new ShardAssignment(Set.of("c", "d"), 2, 0, 0)),
             equalTo(2)
         );
 
         assertThat(
             "no shard movements when shard become unassigned",
-            DesiredBalance.shardMovements(new ShardAssignment(Set.of("a", "b"), 2, 0, 0), new ShardAssignment(Set.of("a"), 2, 1, 0)),
+            shardMovements(new ShardAssignment(Set.of("a", "b"), 2, 0, 0), new ShardAssignment(Set.of("a"), 2, 1, 0)),
             equalTo(0)
         );
 
         assertThat(
             "no shard movements when removing shard copy",
-            DesiredBalance.shardMovements(new ShardAssignment(Set.of("a", "b"), 2, 0, 0), new ShardAssignment(Set.of("a"), 1, 0, 0)),
+            shardMovements(new ShardAssignment(Set.of("a", "b"), 2, 0, 0), new ShardAssignment(Set.of("a"), 1, 0, 0)),
             equalTo(0)
         );
     }
 
+    private static int shardMovements(ShardAssignment old, ShardAssignment updated) {
+        return DesiredBalance.shardMovements(of(old), of(updated));
+    }
+
+    private static DesiredBalance of(ShardAssignment assignment) {
+        return new DesiredBalance(1, Map.of(new ShardId("index", "_na_", 0), assignment));
+    }
 }

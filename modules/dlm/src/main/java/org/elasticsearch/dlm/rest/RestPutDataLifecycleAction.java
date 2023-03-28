@@ -34,7 +34,7 @@ public class RestPutDataLifecycleAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, "/_data_stream/_lifecycle"), new Route(PUT, "/_data_stream/{name}/_lifecycle"));
+        return List.of(new Route(PUT, "/_data_stream/{name}/_lifecycle"));
     }
 
     @Override

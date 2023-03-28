@@ -11,16 +11,7 @@ Sets the lifecycle of the targeted data streams.
 [[dlm-put-lifecycle-request]]
 ==== {api-request-title}
 
-`PUT _data_stream/_lifecycle`
 `PUT _data_stream/<data-stream>/_lifecycle`
-
-[[dlm-put-lifecycle-prereqs]]
-==== {api-prereq-title}
-
-// TODO Update security
-// * If the {es} {security-features} are enabled, you must have the <role>
-// cluster privilege to use this API. For more information, see
-// <<security-privileges>>.
 
 [[dlm-put-lifecycle-desc]]
 ==== {api-description-title}

@@ -11,16 +11,7 @@ Gets the lifecycle of a set of data streams.
 [[dlm-get-lifecycle-request]]
 ==== {api-request-title}
 
-`GET _data_stream/_lifecycle`
 `GET _data_stream/<data-stream>/_lifecycle`
-
-[[dlm-get-lifecycle-prereqs]]
-==== {api-prereq-title}
-
-// TODO Update security
-// * If the {es} {security-features} are enabled, you must have the <role>
-// cluster privilege to use this API. For more information, see
-// <<security-privileges>>.
 
 [[dlm-get-lifecycle-desc]]
 ==== {api-description-title}

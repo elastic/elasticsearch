@@ -31,7 +31,7 @@ public class RestGetDataLifecycleAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_data_stream/_lifecycle"), new Route(GET, "/_data_stream/{name}/_lifecycle"));
+        return List.of(new Route(GET, "/_data_stream/{name}/_lifecycle"));
     }
 
     @Override

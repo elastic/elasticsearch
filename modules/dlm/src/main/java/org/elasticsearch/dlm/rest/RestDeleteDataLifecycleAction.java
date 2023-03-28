@@ -31,7 +31,7 @@ public class RestDeleteDataLifecycleAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(DELETE, "/_data_stream/_lifecycle"), new Route(DELETE, "/_data_stream/{name}/_lifecycle"));
+        return List.of(new Route(DELETE, "/_data_stream/{name}/_lifecycle"));
     }
 
     @Override

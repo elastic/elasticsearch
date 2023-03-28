@@ -11,16 +11,7 @@ Deletes the lifecycle from a set of data streams.
 [[dlm-delete-lifecycle-request]]
 ==== {api-request-title}
 
-`DELETE _data_stream/_lifecycle`
 `DELETE _data_stream/<data-stream>/_lifecycle`
-
-[[dlm-delete-lifecycle-prereqs]]
-==== {api-prereq-title}
-
-// TODO Update security
-// * If the {es} {security-features} are enabled, you must have the <role>
-// cluster privilege to use this API. For more information, see
-// <<security-privileges>>.
 
 [[dlm-delete-lifecycle-desc]]
 ==== {api-description-title}
@@ -32,8 +23,8 @@ the request fails and returns an error.
 ==== {api-path-parms-title}
 
 `<data-stream>`::
-(Required, string) Comma-separated list of data streams used to limit the request. Supports wildcards (`*`).
-To target all data streams omit this parameter or use `*` or `_all`.
+(Required, string) Comma-separated list of data streams used to limit the request. Supports wildcards but it is not
+possible to target all data streams at once with `*`.
 
 [role="child_attributes"]
 [[delete-data-lifecycle-api-query-parms]]

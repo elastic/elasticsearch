@@ -179,6 +179,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         testAggregator(SortOrder.ASC);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94838")
     public void testDescending() throws IOException {
         testAggregator(SortOrder.DESC);
     }

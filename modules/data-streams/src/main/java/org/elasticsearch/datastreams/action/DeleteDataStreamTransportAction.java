@@ -42,7 +42,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.action.datastreams.DataStreamsActionUtil.getDataStreamNames;
+import static org.elasticsearch.datastreams.action.DataStreamsActionUtil.getDataStreamNames;
 
 public class DeleteDataStreamTransportAction extends AcknowledgedTransportMasterNodeAction<DeleteDataStreamAction.Request> {
 

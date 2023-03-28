@@ -19,7 +19,8 @@ esplugin {
 }
 archivesBaseName = 'dlm'
 dependencies {
-  testImplementation project(':modules:data-streams')
+  implementation project(path: ':modules:data-streams')
+    testImplementation project(':modules:data-streams')
 }
 
 addQaCheckDependencies(project)

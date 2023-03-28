@@ -173,7 +173,7 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
         logger.debug(
             () -> "Cross cluster access request ["
                 + request.getClass()
-                + "] with action ["
+                + "] for action ["
                 + securityAction
                 + "] failed pre-authentication validation",
             ex

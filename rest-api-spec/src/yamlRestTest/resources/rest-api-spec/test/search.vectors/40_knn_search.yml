@@ -321,7 +321,7 @@ setup:
             num_candidates: 3
             k: 3
             field: vector
-            similarity: 110
+            similarity: 11
             query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
 
   - length: {hits.hits: 1}
@@ -339,7 +339,7 @@ setup:
             num_candidates: 3
             k: 3
             field: vector
-            similarity: 110
+            similarity: 11
             query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
             filter: {"term": {"name": "moose.jpg"}}
 

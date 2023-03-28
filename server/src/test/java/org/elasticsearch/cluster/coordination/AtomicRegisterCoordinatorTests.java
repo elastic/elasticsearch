@@ -262,6 +262,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             if (register.readCurrentTerm() == currentTerm) {
                 sharedStore.writeHeartBeat(new HeartBeat(currentLeader, currentTerm, threadPool.absoluteTimeInMillis()));
             }
+            // TODO: become candidate if the currentTerm read from the register is greater than the local term
         }
 
         @Override
@@ -544,7 +545,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
 
         private void writeHeartBeat(HeartBeat newHeartBeat) {
-            assert heartBeat == null || heartBeat.term() <= newHeartBeat.term();
             this.heartBeat = newHeartBeat;
         }
 

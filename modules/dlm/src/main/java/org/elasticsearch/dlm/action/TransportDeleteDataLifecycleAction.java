@@ -16,9 +16,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.dlm.ModifyDataLifecycleService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -30,7 +30,7 @@ import java.util.List;
  */
 public class TransportDeleteDataLifecycleAction extends AcknowledgedTransportMasterNodeAction<DeleteDataLifecycleAction.Request> {
 
-    private final ModifyDataLifecycleService modifyDataLifecycleService;
+    private final MetadataDataStreamsService metadataDataStreamsService;
 
     @Inject
     public TransportDeleteDataLifecycleAction(
@@ -39,7 +39,7 @@ public class TransportDeleteDataLifecycleAction extends AcknowledgedTransportMas
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        ModifyDataLifecycleService modifyDataLifecycleService
+        MetadataDataStreamsService metadataDataStreamsService
     ) {
         super(
             DeleteDataLifecycleAction.NAME,
@@ -51,7 +51,7 @@ public class TransportDeleteDataLifecycleAction extends AcknowledgedTransportMas
             indexNameExpressionResolver,
             ThreadPool.Names.SAME
         );
-        this.modifyDataLifecycleService = modifyDataLifecycleService;
+        this.metadataDataStreamsService = metadataDataStreamsService;
     }
 
     @Override
@@ -67,7 +67,7 @@ public class TransportDeleteDataLifecycleAction extends AcknowledgedTransportMas
             request.getNames(),
             request.indicesOptions()
         );
-        modifyDataLifecycleService.removeLifecycle(dataStreamNames, request.ackTimeout(), listener);
+        metadataDataStreamsService.removeLifecycle(dataStreamNames, request.ackTimeout(), request.masterNodeTimeout(), listener);
     }
 
     @Override

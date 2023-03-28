@@ -13,16 +13,26 @@ import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateAckListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.function.Function;
 
 /**
@@ -32,10 +42,27 @@ public class MetadataDataStreamsService {
 
     private final ClusterService clusterService;
     private final IndicesService indicesService;
+    private final MasterServiceTaskQueue<ModifyLifecycleTask> taskQueue;
 
     public MetadataDataStreamsService(ClusterService clusterService, IndicesService indicesService) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
+        ClusterStateTaskExecutor<ModifyLifecycleTask> executor = new SimpleBatchedAckListenerTaskExecutor<>() {
+
+            @Override
+            public Tuple<ClusterState, ClusterStateAckListener> executeTask(
+                ModifyLifecycleTask modifyLifecycleTask,
+                ClusterState clusterState
+            ) {
+                return new Tuple<>(
+                    modifyDataLifecycle(clusterState, modifyLifecycleTask.dataStreamNames(), modifyLifecycleTask.dataLifecycle()),
+                    modifyLifecycleTask
+                );
+            }
+        };
+        // We chose priority high because changing the lifecycle is changing the retention of a backing index, so processing it quickly
+        // can either free space when the retention is shortened, or prevent an index to be deleted when the retention is extended.
+        this.taskQueue = clusterService.createTaskQueue("modify-lifecycle", Priority.HIGH, executor);
     }
 
     public void modifyDataStream(final ModifyDataStreamsAction.Request request, final ActionListener<AcknowledgedResponse> listener) {
@@ -55,6 +82,31 @@ public class MetadataDataStreamsService {
                 }
             });
         }
+    }
+
+    /**
+     * Submits the task to set the lifecycle to the requested data streams.
+     */
+    public void setLifecycle(
+        final List<String> dataStreamNames,
+        DataLifecycle lifecycle,
+        TimeValue ackTimeout,
+        TimeValue masterTimeout,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
+        taskQueue.submitTask("set-lifecycle", new ModifyLifecycleTask(dataStreamNames, lifecycle, ackTimeout, listener), masterTimeout);
+    }
+
+    /**
+     * Submits the task to remove the lifecycle from the requested data streams.
+     */
+    public void removeLifecycle(
+        List<String> dataStreamNames,
+        TimeValue ackTimeout,
+        TimeValue masterTimeout,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        taskQueue.submitTask("delete-lifecycle", new ModifyLifecycleTask(dataStreamNames, null, ackTimeout, listener), masterTimeout);
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
@@ -88,6 +140,38 @@ public class MetadataDataStreamsService {
             updatedMetadata = builder.build();
         }
 
+        return ClusterState.builder(currentState).metadata(updatedMetadata).build();
+    }
+
+    /**
+     * Creates an updated cluster state in which the requested data streams have the data lifecycle provided.
+     * Visible for testing.
+     */
+    static ClusterState modifyDataLifecycle(
+        ClusterState currentState,
+        List<String> dataStreamNames,
+        @Nullable DataLifecycle dataLifecycle
+    ) {
+        Metadata updatedMetadata = currentState.metadata();
+        Metadata.Builder builder = Metadata.builder(updatedMetadata);
+        for (var dataStreamName : dataStreamNames) {
+            var dataStream = validateDataStream(updatedMetadata, dataStreamName);
+            builder.put(
+                new DataStream(
+                    dataStream.getName(),
+                    dataStream.getIndices(),
+                    dataStream.getGeneration(),
+                    dataStream.getMetadata(),
+                    dataStream.isHidden(),
+                    dataStream.isReplicated(),
+                    dataStream.isSystem(),
+                    dataStream.isAllowCustomRouting(),
+                    dataStream.getIndexMode(),
+                    dataLifecycle
+                )
+            );
+        }
+        updatedMetadata = builder.build();
         return ClusterState.builder(currentState).metadata(updatedMetadata).build();
     }
 
@@ -159,4 +243,39 @@ public class MetadataDataStreamsService {
         return index;
     }
 
+    /**
+     * A cluster state update task that consists of the cluster state request and the listeners that need to be notified upon completion.
+     */
+    record ModifyLifecycleTask(
+        List<String> dataStreamNames,
+        @Nullable DataLifecycle dataLifecycle,
+        TimeValue ackTimeout,
+        ActionListener<AcknowledgedResponse> listener
+    ) implements ClusterStateTaskListener, ClusterStateAckListener {
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+
+        @Override
+        public boolean mustAck(DiscoveryNode discoveryNode) {
+            return true;
+        }
+
+        @Override
+        public void onAllNodesAcked() {
+            listener.onResponse(AcknowledgedResponse.TRUE);
+        }
+
+        @Override
+        public void onAckFailure(Exception e) {
+            listener.onResponse(AcknowledgedResponse.FALSE);
+        }
+
+        @Override
+        public void onAckTimeout() {
+            listener.onResponse(AcknowledgedResponse.FALSE);
+        }
+    }
 }

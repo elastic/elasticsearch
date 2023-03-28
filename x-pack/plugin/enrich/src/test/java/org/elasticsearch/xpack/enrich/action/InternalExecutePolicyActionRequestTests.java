@@ -33,10 +33,17 @@ public class InternalExecutePolicyActionRequestTests extends AbstractWireSeriali
         boolean waitForCompletion = instance.isWaitForCompletion();
 
         switch (between(0, 2)) {
-            case 0 -> policyName = randomAlphaOfLength(4);
-            case 1 -> enrichIndexName = randomAlphaOfLength(6);
-            case 2 -> waitForCompletion = waitForCompletion == false;
-            default -> throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                policyName = randomAlphaOfLength(4);
+                break;
+            case 1:
+                enrichIndexName = randomAlphaOfLength(6);
+                break;
+            case 2:
+                waitForCompletion = waitForCompletion == false;
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
 
         Request request = new Request(policyName, enrichIndexName);

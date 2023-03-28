@@ -8,6 +8,12 @@
 
 package org.elasticsearch.ingest.attachment;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.pdfbox.io.MemoryUsageSetting;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.encryption.InvalidPasswordException;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.metadata.Metadata;
@@ -15,23 +21,16 @@ import org.apache.tika.mime.MediaType;
 import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.parser.Parser;
 import org.apache.tika.parser.ParserDecorator;
-import org.apache.pdfbox.io.MemoryUsageSetting;
-import org.apache.pdfbox.text.PDFTextStripper;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.pdmodel.encryption.InvalidPasswordException;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.LogManager;
-
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.bootstrap.FilePermissionUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.jdk.JarHell;
-import org.elasticsearch.ElasticsearchParseException;
 
 import java.io.ByteArrayInputStream;
-import java.io.InputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.lang.reflect.ReflectPermission;
 import java.net.URISyntaxException;
@@ -97,18 +96,18 @@ final class TikaImpl {
     /**
      * parses PDFs
      */
-    static String parsePDF(final InputStream content) throws IOException{
-      PDDocument pdfDocument;
-      try {
-        pdfDocument = PDDocument.load(content, MemoryUsageSetting.setupTempFileOnly());
-      } catch (InvalidPasswordException e) {
-        throw new ElasticsearchParseException("document is encrypted");
-      }
-      if (pdfDocument.isEncrypted()) {
-        throw new ElasticsearchParseException("document is encrypted");
-      }
-      PDFTextStripper stripper = new PDFTextStripper();
-      return stripper.getText(pdfDocument);
+    static String parsePDF(final InputStream content) throws IOException {
+        PDDocument pdfDocument;
+        try {
+            pdfDocument = PDDocument.load(content, MemoryUsageSetting.setupTempFileOnly());
+        } catch (InvalidPasswordException e) {
+            throw new ElasticsearchParseException("document is encrypted");
+        }
+        if (pdfDocument.isEncrypted()) {
+            throw new ElasticsearchParseException("document is encrypted");
+        }
+        PDFTextStripper stripper = new PDFTextStripper();
+        return stripper.getText(pdfDocument);
     }
 
     /**
@@ -118,20 +117,16 @@ final class TikaImpl {
         // check that its not unprivileged code like a script
         SpecialPermission.check();
         try {
-            return AccessController.doPrivileged(
-                (PrivilegedExceptionAction<String>) () -> {
-                    ByteArrayInputStream stream = new ByteArrayInputStream(content);
-                    MediaType mimetype = TIKA_INSTANCE.getDetector().detect(stream, metadata);
-                    if (mimetype == MediaType.application("pdf")) {
-                        return parsePDF(stream);
-                    } else {
-                        return TIKA_INSTANCE.parseToString(stream, metadata, limit);
+            return AccessController.doPrivileged((PrivilegedExceptionAction<String>) () -> {
+                ByteArrayInputStream stream = new ByteArrayInputStream(content);
+                MediaType mimetype = TIKA_INSTANCE.getDetector().detect(stream, metadata);
+                if (mimetype == MediaType.application("pdf")) {
+                    return parsePDF(stream);
+                } else {
+                    return TIKA_INSTANCE.parseToString(stream, metadata, limit);
 
-                    }
                 }
-                ,
-                RESTRICTED_CONTEXT
-            );
+            }, RESTRICTED_CONTEXT);
         } catch (PrivilegedActionException e) {
             // checked exception from tika: unbox it
             Throwable cause = e.getCause();

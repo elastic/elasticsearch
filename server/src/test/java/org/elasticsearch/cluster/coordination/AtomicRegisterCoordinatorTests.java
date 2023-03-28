@@ -430,7 +430,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
     static class AtomicRegisterElectionStrategy extends ElectionStrategy {
         private final AtomicRegister register;
-        private long lastWonTerm = -1;
 
         AtomicRegisterElectionStrategy(AtomicRegister register) {
             this.register = register;
@@ -487,7 +486,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                 if (witness != currentTerm) {
                     throw new CoordinationStateRejectedException("could not claim " + electionTerm + ", current term is " + witness);
                 }
-                lastWonTerm = electionTerm;
                 return new StartJoinRequest(localNode, electionTerm);
             });
         }

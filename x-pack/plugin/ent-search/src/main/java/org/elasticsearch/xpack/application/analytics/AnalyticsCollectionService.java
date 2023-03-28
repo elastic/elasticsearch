@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.application.analytics;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -17,6 +19,9 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.application.analytics.action.DeleteAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.action.GetAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.action.PutAnalyticsCollectionAction;
@@ -30,6 +35,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
  * As a consequence, this service is mostly a facade for the data stream API.
  */
 public class AnalyticsCollectionService {
+
+    private static final Logger logger = LogManager.getLogger(AnalyticsCollectionService.class);
 
     private final Client clientWithOrigin;
 
@@ -74,20 +81,33 @@ public class AnalyticsCollectionService {
         // This operation is supposed to be executed on the master node only.
         assert (state.nodes().isLocalNodeElectedMaster());
 
-        try {
-            analyticsCollectionResolver.collection(state, request.getName());
-            listener.onFailure(new ResourceAlreadyExistsException("analytics collection {} already exists", request.getName()));
-        } catch (ResourceNotFoundException e) {
-            AnalyticsCollection collection = new AnalyticsCollection(request.getName());
-            CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(collection.getEventDataStream());
+        AnalyticsCollection collection = new AnalyticsCollection(request.getName());
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(collection.getEventDataStream());
 
-            ActionListener<AcknowledgedResponse> createDataStreamListener = ActionListener.wrap(
-                resp -> listener.onResponse(new PutAnalyticsCollectionAction.Response(resp.isAcknowledged(), request.getName())),
-                listener::onFailure
-            );
+        ActionListener<AcknowledgedResponse> createDataStreamListener = ActionListener.wrap(
+            r -> listener.onResponse(new PutAnalyticsCollectionAction.Response(r.isAcknowledged(), request.getName())),
+            (Exception e) -> {
+                if (e instanceof ResourceAlreadyExistsException) {
+                    listener.onFailure(
+                        new ResourceAlreadyExistsException("analytics collection [{}] already exists", request.getName(), e)
+                    );
+                    return;
+                }
 
-            clientWithOrigin.execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest, createDataStreamListener);
-        }
+                RestStatus status = RestStatus.INTERNAL_SERVER_ERROR;
+
+                if (e instanceof ElasticsearchException) {
+                    status = ((ElasticsearchException) e).status();
+                }
+
+                e = new ElasticsearchStatusException("error while creating analytics collection [{}]", status, e, request.getName());
+                logger.error(e.getMessage(), e);
+
+                listener.onFailure(e);
+            }
+        );
+
+        clientWithOrigin.execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest, createDataStreamListener);
     }
 
     /**
@@ -105,12 +125,28 @@ public class AnalyticsCollectionService {
         // This operation is supposed to be executed on the master node.
         assert (state.nodes().isLocalNodeElectedMaster());
 
-        try {
-            AnalyticsCollection collection = analyticsCollectionResolver.collection(state, request.getCollectionName());
-            DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(collection.getEventDataStream());
-            clientWithOrigin.execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamRequest, listener);
-        } catch (ResourceNotFoundException e) {
+        AnalyticsCollection collection = new AnalyticsCollection(request.getCollectionName());
+        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(collection.getEventDataStream());
+        ActionListener<AcknowledgedResponse> deleteDataStreamListener = ActionListener.wrap(listener::onResponse, (Exception e) -> {
+            if (e instanceof ResourceNotFoundException) {
+                listener.onFailure(
+                    new ResourceNotFoundException("analytics collection [{}] does not exists", request.getCollectionName(), e)
+                );
+                return;
+            }
+
+            RestStatus status = RestStatus.INTERNAL_SERVER_ERROR;
+
+            if (e instanceof ElasticsearchException) {
+                status = ((ElasticsearchException) e).status();
+            }
+
+            e = new ElasticsearchStatusException("error while deleting analytics collection [{}]", status, e, request.getCollectionName());
+            logger.error(e.getMessage(), e);
+
             listener.onFailure(e);
-        }
+        });
+
+        clientWithOrigin.execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamRequest, deleteDataStreamListener);
     }
 }

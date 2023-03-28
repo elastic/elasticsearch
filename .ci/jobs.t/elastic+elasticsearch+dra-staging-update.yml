@@ -22,18 +22,9 @@
             fi
 
             RM_BRANCH="%BRANCH%" && [[ "%BRANCH%" == "main" ]] && RM_BRANCH=master
-            BEATS_MANIFEST=$(curl -sS https://artifacts-staging.elastic.co/beats/latest/${RM_BRANCH}.json | jq -r '.manifest_url')
             ML_MANIFEST=$(curl -sS https://artifacts-staging.elastic.co/ml-cpp/latest/${RM_BRANCH}.json | jq -r '.manifest_url')
             ES_MANIFEST=$(curl -sS https://artifacts-staging.elastic.co/elasticsearch/latest/${RM_BRANCH}.json | jq -r '.manifest_url')
-            ES_BEATS_DEPENDENCY=$(curl -sS $ES_MANIFEST | jq -r '.projects.elasticsearch.dependencies[] | select(.prefix == "beats") | .build_uri')
             ES_ML_DEPENDENCY=$(curl -sS $ES_MANIFEST | jq -r '.projects.elasticsearch.dependencies[] | select(.prefix == "ml-cpp") | .build_uri')
-
-            if [ "$BEATS_MANIFEST" = "$ES_BEATS_DEPENDENCY" ]; then
-              echo "ES has the latest beats"
-            else
-              echo "Need to trigger a build, $BEATS_MANIFEST available but ES has $ES_BEATS_DEPENDENCY"
-              exit 0
-            fi
 
             if [ "$ML_MANIFEST" = "$ES_ML_DEPENDENCY" ]; then
               echo "ES has the latest ml-cpp"

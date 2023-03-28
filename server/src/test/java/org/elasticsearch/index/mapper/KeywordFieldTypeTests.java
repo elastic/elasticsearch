@@ -274,8 +274,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
                         } }
                     )
                 )
-            ),
-            true
+            )
         );
     }
 }

@@ -14,7 +14,6 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -27,7 +26,7 @@ public class IndexAnalyzersTests extends ESTestCase {
         analyzers.put(AnalysisRegistry.DEFAULT_ANALYZER_NAME, analyzer);
 
         // if only "default" is set in the map, all getters should return the same analyzer
-        try (IndexAnalyzers indexAnalyzers = IndexAnalyzers.of(analyzers, Collections.emptyMap(), Collections.emptyMap(), true)) {
+        try (IndexAnalyzers indexAnalyzers = IndexAnalyzers.of(analyzers)) {
             assertSame(analyzer, indexAnalyzers.getDefaultIndexAnalyzer());
             assertSame(analyzer, indexAnalyzers.getDefaultSearchAnalyzer());
             assertSame(analyzer, indexAnalyzers.getDefaultSearchQuoteAnalyzer());
@@ -37,7 +36,7 @@ public class IndexAnalyzersTests extends ESTestCase {
             AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME,
             new NamedAnalyzer("my_search_analyzer", AnalyzerScope.INDEX, new StandardAnalyzer())
         );
-        try (IndexAnalyzers indexAnalyzers = IndexAnalyzers.of(analyzers, Collections.emptyMap(), Collections.emptyMap(), true)) {
+        try (IndexAnalyzers indexAnalyzers = IndexAnalyzers.of(analyzers)) {
             assertSame(analyzer, indexAnalyzers.getDefaultIndexAnalyzer());
             assertEquals("my_search_analyzer", indexAnalyzers.getDefaultSearchAnalyzer().name());
             assertEquals("my_search_analyzer", indexAnalyzers.getDefaultSearchQuoteAnalyzer().name());
@@ -47,7 +46,7 @@ public class IndexAnalyzersTests extends ESTestCase {
             AnalysisRegistry.DEFAULT_SEARCH_QUOTED_ANALYZER_NAME,
             new NamedAnalyzer("my_search_quote_analyzer", AnalyzerScope.INDEX, new StandardAnalyzer())
         );
-        try (IndexAnalyzers indexAnalyzers = IndexAnalyzers.of(analyzers, Collections.emptyMap(), Collections.emptyMap(), true)) {
+        try (IndexAnalyzers indexAnalyzers = IndexAnalyzers.of(analyzers)) {
             assertSame(analyzer, indexAnalyzers.getDefaultIndexAnalyzer());
             assertEquals("my_search_analyzer", indexAnalyzers.getDefaultSearchAnalyzer().name());
             assertEquals("my_search_quote_analyzer", indexAnalyzers.getDefaultSearchQuoteAnalyzer().name());
@@ -81,7 +80,7 @@ public class IndexAnalyzersTests extends ESTestCase {
             }
         };
 
-        IndexAnalyzers ia = IndexAnalyzers.of(Map.of("default", a), Map.of("n", n), Map.of("w", w), true);
+        IndexAnalyzers ia = IndexAnalyzers.of(Map.of("default", a), Map.of("n", n), Map.of("w", w));
         ia.close();
         assertEquals(3, closes.get());
 

@@ -152,8 +152,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
                         } }
                     )
                 )
-            ),
-            true
+            )
         );
     }
 

@@ -102,18 +102,17 @@ public interface IndexAnalyzers extends Closeable {
     default void close() throws IOException {}
 
     static IndexAnalyzers of(Map<String, NamedAnalyzer> analyzers) {
-        return of(analyzers, Map.of(), Map.of(), false);
+        return of(analyzers, Map.of(), Map.of());
     }
 
     static IndexAnalyzers of(Map<String, NamedAnalyzer> analyzers, Map<String, NamedAnalyzer> tokenizers) {
-        return of(analyzers, tokenizers, Map.of(), false);
+        return of(analyzers, tokenizers, Map.of());
     }
 
     static IndexAnalyzers of(
         Map<String, NamedAnalyzer> analyzers,
         Map<String, NamedAnalyzer> normalizers,
-        Map<String, NamedAnalyzer> whitespaceNormalizers,
-        boolean closeable
+        Map<String, NamedAnalyzer> whitespaceNormalizers
     ) {
         return new IndexAnalyzers() {
             @Override
@@ -127,14 +126,12 @@ public interface IndexAnalyzers extends Closeable {
 
             @Override
             public void close() throws IOException {
-                if (closeable) {
-                    IOUtils.close(
-                        Stream.of(analyzers.values().stream(), normalizers.values().stream(), whitespaceNormalizers.values().stream())
-                            .flatMap(s -> s)
-                            .filter(a -> a.scope() == AnalyzerScope.INDEX)
-                            .toList()
-                    );
-                }
+                IOUtils.close(
+                    Stream.of(analyzers.values().stream(), normalizers.values().stream(), whitespaceNormalizers.values().stream())
+                        .flatMap(s -> s)
+                        .filter(a -> a.scope() == AnalyzerScope.INDEX)
+                        .toList()
+                );
             }
 
             @Override

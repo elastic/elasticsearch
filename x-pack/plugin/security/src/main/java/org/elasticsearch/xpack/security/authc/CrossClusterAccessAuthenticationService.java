@@ -57,8 +57,6 @@ public class CrossClusterAccessAuthenticationService {
         final Authenticator.Context authcContext = authenticationService.newContext(action, request, false);
         final ThreadContext threadContext = authcContext.getThreadContext();
 
-        logger.trace("Authenticating cross cluster access for request [{}]", authcContext.getRequest());
-
         final CrossClusterAccessHeaders crossClusterAccessHeaders;
         try {
             // parse and add as authentication token as early as possible so that failure events in audit log include API key ID
@@ -191,7 +189,6 @@ public class CrossClusterAccessAuthenticationService {
                 }
             }
         }
-
     }
 
     private Version getMinNodeVersion() {

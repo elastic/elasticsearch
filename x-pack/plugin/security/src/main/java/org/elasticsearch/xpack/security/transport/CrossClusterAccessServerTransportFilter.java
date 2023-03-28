@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.security.transport;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
@@ -37,6 +39,9 @@ import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubj
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
 
 final class CrossClusterAccessServerTransportFilter extends ServerTransportFilter {
+
+    private static final Logger logger = LogManager.getLogger(CrossClusterAccessServerTransportFilter.class);
+
     // pkg-private for testing
     static final Set<String> ALLOWED_TRANSPORT_HEADERS;
     static {
@@ -112,17 +117,16 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
         final ActionListener<Authentication> authenticationListener
     ) {
         if (false == CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST.contains(securityAction)) {
-            authenticationListener.onFailure(
-                new IllegalArgumentException(
-                    "action ["
-                        + securityAction
-                        + "] is not allowed as a cross cluster operation on the dedicated remote cluster server port"
-                )
-            );
+            final String message = "Action ["
+                + securityAction
+                + "] is not allowed as a cross cluster operation on the dedicated remote cluster server port";
+            logger.debug(message);
+            authenticationListener.onFailure(new IllegalArgumentException(message));
         } else {
             try {
                 validateHeaders();
             } catch (Exception ex) {
+                logger.debug("Header validation failed for cross cluster action [" + securityAction + "]", ex);
                 authenticationListener.onFailure(ex);
                 return;
             }

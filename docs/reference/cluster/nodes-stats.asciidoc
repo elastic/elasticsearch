@@ -2026,8 +2026,31 @@ incoming requests and outgoing responses.
 .Properties of `actions.*.requests` and `actions.*.responses`
 [%collapsible]
 =======
+`count`::
+(integer)
+The total number of requests received, or responses sent, for the current
+action.
+
+`total_size`::
+(<<byte-units,byte value>>)
+The total size (as a human-readable string) of all requests received, or
+responses sent, for the current action.
+
+`total_size_in_bytes`::
+(integer)
+The total size in bytes of all requests received, or responses sent, for the
+current action.
+
+`histogram`::
+(array)
+A breakdown of the distribution of sizes of requests received, or responses
+sent, for the current action.
++
+.Properties of `histogram`
+[%collapsible]
+========
 `ge`::
-(string)
+(<<byte-units,byte value>>)
 The inclusive lower bound of the bucket as a human-readable string. May be
 omitted on the first bucket if this bucket has no lower bound.
 
@@ -2037,7 +2060,7 @@ The inclusive lower bound of the bucket in bytes. May be omitted on the first
 bucket if this bucket has no lower bound.
 
 `lt`::
-(string)
+(<<byte-units,byte value>>)
 The exclusive upper bound of the bucket as a human-readable string. May be
 omitted on the last bucket if this bucket has no upper bound.
 
@@ -2050,6 +2073,7 @@ bucket if this bucket has no upper bound.
 (integer)
 The number of times a request was received, or a response sent, with a size
 within the bounds of this bucket.
+========
 =======
 
 ======

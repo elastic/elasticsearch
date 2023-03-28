@@ -26,11 +26,19 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.Strings.format;
 
+/**
+ * This query provides a simple post-filter for the provided Query. The query is assumed to be a Knn(Float|Byte)VectorQuery.
+ */
 public class VectorSimilarityQuery extends Query {
     private final float similarity;
     private final float docScore;
     private final Query innerKnnQuery;
 
+    /**
+     * @param innerKnnQuery A {@link org.apache.lucene.search.KnnFloatVectorQuery} or {@link org.apache.lucene.search.KnnByteVectorQuery}
+     * @param similarity The similarity threshold originally provided (used in explanations)
+     * @param docScore The similarity transformed into a score threshold applied after gathering the nearest neighbors
+     */
     public VectorSimilarityQuery(Query innerKnnQuery, float similarity, float docScore) {
         this.similarity = similarity;
         this.docScore = docScore;
@@ -54,7 +62,7 @@ public class VectorSimilarityQuery extends Query {
     public Query rewrite(IndexReader reader) throws IOException {
         Query rewrittenInnerQuery = innerKnnQuery.rewrite(reader);
         if (rewrittenInnerQuery instanceof MatchNoDocsQuery) {
-            return new MatchNoDocsQuery();
+            return rewrittenInnerQuery;
         }
         if (rewrittenInnerQuery == innerKnnQuery) {
             return this;

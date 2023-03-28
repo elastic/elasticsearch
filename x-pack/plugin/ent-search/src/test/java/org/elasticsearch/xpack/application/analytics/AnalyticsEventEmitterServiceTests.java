@@ -35,7 +35,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class EventEmitterServiceTests extends ESTestCase {
+public class AnalyticsEventEmitterServiceTests extends ESTestCase {
     public void testEmitEventWhenCollectionExists() throws IOException {
         // Preparing a randomRequest
         PostAnalyticsEventAction.Request request = randomRequest();
@@ -51,7 +51,7 @@ public class EventEmitterServiceTests extends ESTestCase {
         when(analyticsEventFactoryMock.fromRequest(request)).thenReturn(emittedEvent);
 
         // Create the event emitter
-        EventEmitterService eventEmitter = new EventEmitterService(
+        AnalyticsEventEmitterService eventEmitter = new AnalyticsEventEmitterService(
             analyticsEventFactoryMock,
             mock(AnalyticsCollectionResolver.class),
             mock(ClusterService.class)
@@ -66,14 +66,19 @@ public class EventEmitterServiceTests extends ESTestCase {
 
         // Instantiate a log appender mock to check event logging behavior.
         MockLogAppender mockLogAppender = new MockLogAppender();
-        Logger eventEmitterServiceLogger = LogManager.getLogger(EventEmitterService.class);
+        Logger eventEmitterServiceLogger = LogManager.getLogger(AnalyticsEventEmitterService.class);
         Loggers.addAppender(eventEmitterServiceLogger, mockLogAppender);
         mockLogAppender.start();
 
         String expectedLogMessage = LoggerMessageFormat.format("""
             {"hash":{}}""", emittedEvent.hashCode());
         mockLogAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation("event message", EventEmitterService.class.getName(), Level.INFO, expectedLogMessage)
+            new MockLogAppender.SeenEventExpectation(
+                "event message",
+                AnalyticsEventEmitterService.class.getName(),
+                Level.INFO,
+                expectedLogMessage
+            )
         );
 
         @SuppressWarnings("unchecked")
@@ -109,7 +114,7 @@ public class EventEmitterServiceTests extends ESTestCase {
         // Create the event emitter
         AnalyticsCollectionResolver analyticsCollectionResolver = mock(AnalyticsCollectionResolver.class);
         when(analyticsCollectionResolver.collection(any(), eq(request.eventCollectionName()))).thenThrow(ResourceNotFoundException.class);
-        EventEmitterService eventEmitter = new EventEmitterService(
+        AnalyticsEventEmitterService eventEmitter = new AnalyticsEventEmitterService(
             mock(AnalyticsEventFactory.class),
             analyticsCollectionResolver,
             mock(ClusterService.class)
@@ -117,7 +122,7 @@ public class EventEmitterServiceTests extends ESTestCase {
 
         // Instantiate a log appender mock to check event logging behavior.
         Appender mockLogAppender = mock(Appender.class);
-        Logger eventEmitterServiceLogger = LogManager.getLogger(EventEmitterService.class);
+        Logger eventEmitterServiceLogger = LogManager.getLogger(AnalyticsEventEmitterService.class);
         when(mockLogAppender.getName()).thenReturn(randomIdentifier());
         Loggers.addAppender(eventEmitterServiceLogger, mockLogAppender);
 
@@ -145,7 +150,7 @@ public class EventEmitterServiceTests extends ESTestCase {
         // Create the event emitter
         AnalyticsEventFactory analyticsEventFactory = mock(AnalyticsEventFactory.class);
         when(analyticsEventFactory.fromRequest(request)).thenThrow(IOException.class);
-        EventEmitterService eventEmitter = new EventEmitterService(
+        AnalyticsEventEmitterService eventEmitter = new AnalyticsEventEmitterService(
             analyticsEventFactory,
             mock(AnalyticsCollectionResolver.class),
             mock(ClusterService.class)
@@ -153,7 +158,7 @@ public class EventEmitterServiceTests extends ESTestCase {
 
         // Instantiate a log appender mock to check event logging behavior.
         Appender mockLogAppender = mock(Appender.class);
-        Logger eventEmitterServiceLogger = LogManager.getLogger(EventEmitterService.class);
+        Logger eventEmitterServiceLogger = LogManager.getLogger(AnalyticsEventEmitterService.class);
         when(mockLogAppender.getName()).thenReturn(randomIdentifier());
         Loggers.addAppender(eventEmitterServiceLogger, mockLogAppender);
 

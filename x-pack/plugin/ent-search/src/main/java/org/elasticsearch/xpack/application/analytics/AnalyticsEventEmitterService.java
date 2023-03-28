@@ -29,8 +29,8 @@ import java.util.Objects;
  * Event will be emitted in using a specific logger created for the purpose of logging analytics events.
  * The log file is formatted as a ndjson file (one json per line). We send formatted JSON to the logger directly.
  */
-public class EventEmitterService {
-    private static final Logger logger = LogManager.getLogger(EventEmitterService.class);
+public class AnalyticsEventEmitterService {
+    private static final Logger logger = LogManager.getLogger(AnalyticsEventEmitterService.class);
 
     private static final Marker ANALYTICS_MARKER = MarkerManager.getMarker("org.elasticsearch.xpack.application.analytics");
 
@@ -41,11 +41,11 @@ public class EventEmitterService {
     private final AnalyticsEventFactory analyticsEventFactory;
 
     @Inject
-    public EventEmitterService(AnalyticsCollectionResolver analyticsCollectionResolver, ClusterService clusterService) {
+    public AnalyticsEventEmitterService(AnalyticsCollectionResolver analyticsCollectionResolver, ClusterService clusterService) {
         this(AnalyticsEventFactory.INSTANCE, analyticsCollectionResolver, clusterService);
     }
 
-    public EventEmitterService(
+    public AnalyticsEventEmitterService(
         AnalyticsEventFactory analyticsEventFactory,
         AnalyticsCollectionResolver analyticsCollectionResolver,
         ClusterService clusterService

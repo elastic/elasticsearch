@@ -120,12 +120,12 @@ final class TikaImpl {
             return AccessController.doPrivileged((PrivilegedExceptionAction<String>) () -> {
                 ByteArrayInputStream stream = new ByteArrayInputStream(content);
                 MediaType mimetype = TIKA_INSTANCE.getDetector().detect(stream, metadata);
-                if (mimetype == MediaType.application("pdf")) {
-                    return parsePDF(stream);
-                } else {
-                    return TIKA_INSTANCE.parseToString(stream, metadata, limit);
+                // if (mimetype == MediaType.application("pdf")) {
+                // return parsePDF(stream);
+                // } else {
+                return TIKA_INSTANCE.parseToString(stream, metadata, limit);
 
-                }
+                // }
             }, RESTRICTED_CONTEXT);
         } catch (PrivilegedActionException e) {
             // checked exception from tika: unbox it

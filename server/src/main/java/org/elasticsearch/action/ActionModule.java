@@ -419,6 +419,7 @@ import org.elasticsearch.rest.action.ingest.RestDeletePipelineAction;
 import org.elasticsearch.rest.action.ingest.RestGetPipelineAction;
 import org.elasticsearch.rest.action.ingest.RestPutPipelineAction;
 import org.elasticsearch.rest.action.ingest.RestSimulatePipelineAction;
+import org.elasticsearch.ingest.attachment.RestFileUpload;
 import org.elasticsearch.rest.action.search.RestClearScrollAction;
 import org.elasticsearch.rest.action.search.RestCountAction;
 import org.elasticsearch.rest.action.search.RestExplainAction;
@@ -890,6 +891,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetPipelineAction());
         registerHandler.accept(new RestDeletePipelineAction());
         registerHandler.accept(new RestSimulatePipelineAction());
+        registerHandler.accept(new RestFileUpload());
 
         // Dangling indices API
         registerHandler.accept(new RestListDanglingIndicesAction());

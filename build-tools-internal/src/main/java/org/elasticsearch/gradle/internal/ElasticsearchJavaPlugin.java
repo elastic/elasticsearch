@@ -8,13 +8,6 @@
 
 package org.elasticsearch.gradle.internal;
 
-import kotlinx.kover.KoverPlugin;
-import kotlinx.kover.api.CounterType;
-import kotlinx.kover.api.DefaultIntellijEngine;
-import kotlinx.kover.api.KoverProjectConfig;
-import kotlinx.kover.api.VerificationTarget;
-import kotlinx.kover.api.VerificationValueType;
-import kotlinx.kover.tasks.KoverVerificationTask;
 import nebula.plugin.info.InfoBrokerPlugin;
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
@@ -22,14 +15,11 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.info.BuildParams;
-import org.elasticsearch.gradle.internal.precommit.transport.FindTransportClassesPlugin;
-import org.elasticsearch.gradle.internal.precommit.transport.FindTransportClassesTask;
 import org.gradle.api.Action;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
@@ -40,11 +30,6 @@ import org.gradle.external.javadoc.CoreJavadocOptions;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.gradle.internal.conventions.util.Util.toStringable;

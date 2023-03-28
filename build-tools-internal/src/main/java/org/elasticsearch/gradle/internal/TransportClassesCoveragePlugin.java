@@ -27,7 +27,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -38,11 +37,13 @@ public class TransportClassesCoveragePlugin implements Plugin<Project> {
             project.getPluginManager().apply(KoverPlugin.class);
             project.getPluginManager().apply(FindTransportClassesPlugin.class);
 
-            FindTransportClassesTask findTransportClassesTask = project.getTasks()
-                .named("findTransportClassesTask", FindTransportClassesTask.class)
-                .get();
-
-//        findTransportClassesTask.dependsOn(project.getTasks().named("test"));
+            /*
+            Kover applies itself to all tasks of type Test. see KoverProjectApplier.kt
+                 tasks.withType<Test>().configureEach {
+                 applyToTestTask(extension, engineProvider)
+                }
+                therefore the section below is trying to remove the expensive test tasks from the instrumentation
+             */
             project.getExtensions().configure(KoverProjectConfig.class, kover -> {
                 kover.instrumentation(instrumentation -> {
                     instrumentation.getExcludeTasks().add("internalClusterTest");
@@ -51,18 +52,15 @@ public class TransportClassesCoveragePlugin implements Plugin<Project> {
                 });
             });
 
-
-            TaskProvider<KoverVerificationTask> koverVerify = project.getTasks()
-                .named("koverVerify", KoverVerificationTask.class);
-//        project.getTasks().named("check")
-//            .configure(task -> task.dependsOn(koverVerify));
+            TaskProvider<KoverVerificationTask> koverVerify = project.getTasks().named("koverVerify", KoverVerificationTask.class);
+            project.getTasks().named("check").configure(task -> task.dependsOn(koverVerify));
 
             koverVerify.configure(t -> {
+                FindTransportClassesTask findTransportClassesTask = getFindTransportClassesTask(project);
                 t.dependsOn(findTransportClassesTask);
 
                 t.doFirst(t2 -> {
                     project.getExtensions().configure(KoverProjectConfig.class, kover -> {
-
 
                         kover.verify(verify -> {
                             verify.rule(rule -> {
@@ -89,7 +87,7 @@ public class TransportClassesCoveragePlugin implements Plugin<Project> {
             // adding a fake rule so that verification can run. the real rule is added with doFirst because of transportClass scanning being
             // done after tests
             project.getExtensions().configure(KoverProjectConfig.class, kover -> {
-//                kover.getEngine().set(DefaultIntellijEngine.INSTANCE);
+                // kover.getEngine().set(DefaultIntellijEngine.INSTANCE);
                 kover.verify(verify -> {
                     verify.rule(rule -> {
                         rule.bound(bound -> {
@@ -104,6 +102,13 @@ public class TransportClassesCoveragePlugin implements Plugin<Project> {
 
     }
 
+    private static FindTransportClassesTask getFindTransportClassesTask(Project project) {
+        FindTransportClassesTask findTransportClassesTask = project.getTasks()
+            .named("findTransportClassesTask", FindTransportClassesTask.class)
+            .get();
+        return findTransportClassesTask;
+    }
+
     private Collection<String> includes(Set<String> transportClasses) {
         // when testing inner classes the enclosed class has to be included too
         return transportClasses.stream().map(this::escapeDollar).collect(Collectors.toSet());
@@ -114,10 +119,11 @@ public class TransportClassesCoveragePlugin implements Plugin<Project> {
     }
 
     private Collection<String> excludes(Set<String> transportClasses) {
-        //when inner class was a transport class its enclosing class had to be included (see #includes)
-        //but if an enclosing class is not a transport class it should be excluded
-        return transportClasses.stream().filter(name -> name.contains("$"))
-            .map(name -> name.substring(0, name.indexOf('$'))) //get enclosing name
+        // when inner class was a transport class its enclosing class had to be included (see #includes)
+        // but if an enclosing class is not a transport class it should be excluded
+        return transportClasses.stream()
+            .filter(name -> name.contains("$"))
+            .map(name -> name.substring(0, name.indexOf('$'))) // get enclosing name
             .filter(name -> transportClasses.contains(name) == false)
             .collect(Collectors.toSet());
     }

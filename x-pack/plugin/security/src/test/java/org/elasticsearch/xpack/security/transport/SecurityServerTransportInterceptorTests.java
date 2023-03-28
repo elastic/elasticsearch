@@ -23,9 +23,7 @@ import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.license.License;
 import org.elasticsearch.license.MockLicenseState;
-import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -128,7 +126,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         threadContext = threadPool.getThreadContext();
         securityContext = spy(new SecurityContext(settings, threadPool.getThreadContext()));
         mockLicenseState = MockLicenseState.createMock();
-        Mockito.when(mockLicenseState.isAllowed(Security.CROSS_CLUSTER_ACCESS_FEATURE)).thenReturn(true);
+        Mockito.when(mockLicenseState.isAllowed(Security.CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE)).thenReturn(true);
     }
 
     @After
@@ -592,42 +590,18 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     public void testSendWithCrossClusterAccessHeadersWithUnsupportedLicense() throws Exception {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
-        // Randomly select license operation mode which is less than ENTERPRISE and not TRIAL.
-        final TestUtils.UpdatableLicenseState unsupportedLicenseState = new TestUtils.UpdatableLicenseState();
-        unsupportedLicenseState.update(
-            randomValueOtherThanMany(
-                mode -> mode.compareTo(Security.CROSS_CLUSTER_ACCESS_FEATURE.getMinimumOperationMode()) >= 0
-                    || mode == License.OperationMode.TRIAL,
-                () -> randomFrom(License.OperationMode.values())
-            ),
-            true,
-            null
-        );
+        final MockLicenseState unsupportedLicenseState = MockLicenseState.createMock();
+        Mockito.when(unsupportedLicenseState.isAllowed(Security.CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE)).thenReturn(false);
 
-        final String authType = randomFrom("internal", "user", "apikey");
-        final Authentication authentication = switch (authType) {
-            case "internal" -> AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build();
-            case "user" -> AuthenticationTestHelper.builder()
-                .user(new User(randomAlphaOfLengthBetween(3, 10), randomRoles()))
-                .realm()
-                .build();
-            case "apikey" -> AuthenticationTestHelper.builder().apiKey().build();
-            default -> throw new IllegalStateException("unexpected case");
-        };
-        authentication.writeToContext(threadContext);
-        final RemoteClusterCredentialsResolver remoteClusterCredentialsResolver = mock(RemoteClusterCredentialsResolver.class);
+        AuthenticationTestHelper.builder().build().writeToContext(threadContext);
         final String remoteClusterAlias = randomAlphaOfLengthBetween(5, 10);
-        final String remoteClusterCredential = ApiKeyService.withApiKeyPrefix(randomAlphaOfLengthBetween(10, 42));
-        when(remoteClusterCredentialsResolver.resolve(any())).thenReturn(
-            Optional.of(new RemoteClusterCredentials(remoteClusterAlias, remoteClusterCredential))
-        );
-        final AuthorizationService authzService = mock(AuthorizationService.class);
+        final RemoteClusterCredentialsResolver remoteClusterCredentialsResolver = mockRemoteClusterCredentialsResolver(remoteClusterAlias);
 
         final SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
             threadPool,
             mock(AuthenticationService.class),
-            authzService,
+            mock(AuthorizationService.class),
             mock(SSLService.class),
             securityContext,
             new DestructiveOperations(
@@ -640,18 +614,9 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             ignored -> Optional.of(remoteClusterAlias)
         );
 
-        final AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
-            @Override
-            public <T extends TransportResponse> void sendRequest(
-                Transport.Connection connection,
-                String action,
-                TransportRequest request,
-                TransportRequestOptions options,
-                TransportResponseHandler<T> handler
-            ) {
-                fail("sender should not be called");
-            }
-        });
+        final AsyncSender sender = interceptor.interceptSender(
+            mock(AsyncSender.class, ignored -> { throw new AssertionError("sender should not be called"); })
+        );
         final Transport.Connection connection = mock(Transport.Connection.class);
         when(connection.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
         final AtomicBoolean calledHandleException = new AtomicBoolean(false);
@@ -680,22 +645,24 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertThat(actualException.get().getCause(), instanceOf(ElasticsearchSecurityException.class));
         assertThat(
             actualException.get().getCause().getMessage(),
-            equalTo("current license is non-compliant for [" + Security.CROSS_CLUSTER_ACCESS_FEATURE.getName() + "]")
+            equalTo("current license is non-compliant for [" + Security.CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE.getName() + "]")
         );
         verify(remoteClusterCredentialsResolver, times(1)).resolve(eq(remoteClusterAlias));
         assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY), nullValue());
         assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY), nullValue());
     }
 
+    private RemoteClusterCredentialsResolver mockRemoteClusterCredentialsResolver(String remoteClusterAlias) {
+        final RemoteClusterCredentialsResolver remoteClusterCredentialsResolver = mock(RemoteClusterCredentialsResolver.class);
+        final String remoteClusterCredential = ApiKeyService.withApiKeyPrefix(randomAlphaOfLengthBetween(10, 42));
+        when(remoteClusterCredentialsResolver.resolve(any())).thenReturn(
+            Optional.of(new RemoteClusterCredentials(remoteClusterAlias, remoteClusterCredential))
+        );
+        return remoteClusterCredentialsResolver;
+    }
+
     public void testSendWithCrossClusterAccessHeaders() throws Exception {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
-        final TestUtils.UpdatableLicenseState supportedLicenseState = new TestUtils.UpdatableLicenseState();
-        supportedLicenseState.update(
-            randomFrom(Security.CROSS_CLUSTER_ACCESS_FEATURE.getMinimumOperationMode(), License.OperationMode.TRIAL),
-            true,
-            null
-        );
 
         final String authType = randomFrom("internal", "user", "apikey");
         final Authentication authentication = switch (authType) {
@@ -734,7 +701,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             ),
             mock(CrossClusterAccessAuthenticationService.class),
             remoteClusterCredentialsResolver,
-            supportedLicenseState,
+            mockLicenseState,
             ignored -> Optional.of(remoteClusterAlias)
         );
 

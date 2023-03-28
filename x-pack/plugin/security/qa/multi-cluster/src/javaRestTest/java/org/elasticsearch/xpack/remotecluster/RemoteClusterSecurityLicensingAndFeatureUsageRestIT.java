@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.is;
 public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends AbstractRemoteClusterSecurityTestCase {
 
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
-    public static final String SECURITY_CROSS_CLUSTER_ACCESS_FEATURE_NAME = "security-cross-cluster-access";
+    public static final String CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE_NAME = "configurable-cross-cluster-access";
 
     static {
         fulfillingCluster = ElasticsearchCluster.local()
@@ -172,7 +172,7 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
         assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         assertThat(
             exception.getMessage(),
-            containsString("current license is non-compliant for [" + SECURITY_CROSS_CLUSTER_ACCESS_FEATURE_NAME + "]")
+            containsString("current license is non-compliant for [" + CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE_NAME + "]")
         );
     }
 
@@ -204,7 +204,7 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
 
     private static void assertFeatureTracked(RestClient client) throws IOException {
         Set<String> features = fetchFeatureUsageFromNode(client);
-        assertThat(SECURITY_CROSS_CLUSTER_ACCESS_FEATURE_NAME, is(in(features)));
+        assertThat(CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE_NAME, is(in(features)));
     }
 
     private static Set<String> fetchFeatureUsageFromNode(RestClient client) throws IOException {

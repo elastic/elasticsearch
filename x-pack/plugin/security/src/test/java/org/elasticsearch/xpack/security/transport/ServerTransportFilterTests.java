@@ -20,9 +20,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.license.License;
 import org.elasticsearch.license.MockLicenseState;
-import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportChannel;
@@ -64,6 +62,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -93,7 +92,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         crossClusterAccessAuthcService = mock(CrossClusterAccessAuthenticationService.class);
         when(crossClusterAccessAuthcService.getAuthenticationService()).thenReturn(authcService);
         mockLicenseState = MockLicenseState.createMock();
-        Mockito.when(mockLicenseState.isAllowed(Security.CROSS_CLUSTER_ACCESS_FEATURE)).thenReturn(true);
+        Mockito.when(mockLicenseState.isAllowed(Security.CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE)).thenReturn(true);
     }
 
     public void testInbound() {
@@ -340,36 +339,23 @@ public class ServerTransportFilterTests extends ESTestCase {
     }
 
     public void testCrossClusterAccessInboundFailsWithUnsupportedLicense() {
-        TransportRequest request = mock(TransportRequest.class);
-        Authentication authentication = AuthenticationTestHelper.builder().build();
+        final MockLicenseState unsupportedLicenseState = MockLicenseState.createMock();
+        Mockito.when(unsupportedLicenseState.isAllowed(Security.CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE)).thenReturn(false);
+
+        ServerTransportFilter crossClusterAccessFilter = getNodeCrossClusterAccessFilter(unsupportedLicenseState);
+        PlainActionFuture<Void> listener = new PlainActionFuture<>();
         String action = randomBoolean() ? randomFrom(CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST) : "_action";
-        doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
-        doAnswer(getAnswer(authentication, true)).when(crossClusterAccessAuthcService)
-            .authenticate(eq(action), eq(request), anyActionListener());
+        crossClusterAccessFilter.inbound(action, mock(TransportRequest.class), channel, listener);
 
-        final TestUtils.UpdatableLicenseState unsupportedLicenseState = new TestUtils.UpdatableLicenseState();
-        unsupportedLicenseState.update(
-            randomValueOtherThanMany(
-                mode -> mode.compareTo(Security.CROSS_CLUSTER_ACCESS_FEATURE.getMinimumOperationMode()) >= 0
-                    || mode == License.OperationMode.TRIAL,
-                () -> randomFrom(License.OperationMode.values())
-            ),
-            true,
-            null
-        );
-
-        ServerTransportFilter filter = getNodeCrossClusterAccessFilter(unsupportedLicenseState);
-        PlainActionFuture<Void> listener = spy(new PlainActionFuture<>());
-        filter.inbound(action, request, channel, listener);
-
-        var actual = expectThrows(ElasticsearchSecurityException.class, listener::actionGet);
+        ElasticsearchSecurityException actualException = expectThrows(ElasticsearchSecurityException.class, listener::actionGet);
         assertThat(
-            actual.getMessage(),
-            equalTo("current license is non-compliant for [" + Security.CROSS_CLUSTER_ACCESS_FEATURE.getName() + "]")
+            actualException.getMessage(),
+            equalTo("current license is non-compliant for [" + Security.CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE.getName() + "]")
         );
-        verify(authcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
+
+        // License check should be executed first, hence we don't expect authc/authz to be even attempted.
         verify(crossClusterAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
-        verifyNoMoreInteractions(authzService);
+        verifyNoInteractions(authzService, authcService);
     }
 
     public void testAllowsNodeActions() {

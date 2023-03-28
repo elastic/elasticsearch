@@ -117,8 +117,10 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
         final TransportRequest request,
         final ActionListener<Authentication> authenticationListener
     ) {
-        if (false == Security.CROSS_CLUSTER_ACCESS_FEATURE.check(licenseState)) {
-            authenticationListener.onFailure(LicenseUtils.newComplianceException(Security.CROSS_CLUSTER_ACCESS_FEATURE.getName()));
+        if (false == Security.CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE.check(licenseState)) {
+            authenticationListener.onFailure(
+                LicenseUtils.newComplianceException(Security.CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE.getName())
+            );
 
         } else if (false == CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST.contains(securityAction)) {
             authenticationListener.onFailure(

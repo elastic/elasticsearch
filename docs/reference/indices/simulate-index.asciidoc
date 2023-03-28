@@ -51,16 +51,20 @@ privilege>> to use this API.
 
 `<index>`::
 (Required, string)
-Name of the index to simulate. 
+Name of the index to simulate.
 
 [[simulate-index-api-query-params]]
 ==== {api-query-parms-title}
 ////
 `cause`::
-(Optional, string) The reason for running the simulation. 
+(Optional, string) The reason for running the simulation.
 ////
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+`include_defaults`::
+(Optional, Boolean) Functionality in experimental:[]. If `true`, return all default settings in the response.
+Defaults to `false`.
 
 [role="child_attributes"]
 [[simulate-index-api-response-body]]
@@ -68,7 +72,7 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 `overlapping`::
 (array) Any templates that also matched the index but were superseded by a higher-priority template.
-Response includes an empty array if there are no overlapping templates. 
+Response includes an empty array if there are no overlapping templates.
 +
 .Properties of `overlapping`
 [%collapsible%open]
@@ -76,13 +80,13 @@ Response includes an empty array if there are no overlapping templates.
 `name`::
 (string) Name of the superseded template.
 
-`index_patterns`:: 
+`index_patterns`::
 (array) Index patterns that the superseded template applies to.
 ====
 
 `template`::
 (object)
-The settings, mappings, and aliases that would be applied to the index. 
+The settings, mappings, and aliases that would be applied to the index.
 +
 .Properties of `template`
 [%collapsible%open]
@@ -128,13 +132,13 @@ Omitted from the response if no mappings would be applied.
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=settings]
 +
-Response includes an empty object if no settings would be applied. 
+Response includes an empty object if no settings would be applied.
 ====
 
 [[simulate-index-api-example]]
 ==== {api-examples-title}
 
-The following example shows the configuration that would be applied to `my-index-000001` by 
+The following example shows the configuration that would be applied to `my-index-000001` by
 an existing template.
 
 [source,console]

@@ -314,8 +314,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final User user = authentication.getEffectiveSubject().getUser();
                 if (SystemUser.is(user)) {
                     logger.trace(
-                        "Action [{}] towards [{}] initiated by the system user. "
+                        "Request [{}] with action [{}] towards [{}] initiated by the system user. "
                             + "Sending request with internal cross cluster access user headers",
+                        request.getClass(),
                         action,
                         remoteClusterAlias
                     );
@@ -337,13 +338,13 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         authentication.getEffectiveSubject(),
                         ActionListener.wrap(roleDescriptorsIntersection -> {
                             logger.trace(
-                                () -> "Sending role descriptors intersection ["
-                                    + roleDescriptorsIntersection
-                                    + "] of subject ["
+                                () -> "Subject ["
                                     + authentication.getEffectiveSubject()
+                                    + "] has role descriptors intersection ["
+                                    + roleDescriptorsIntersection
                                     + "] for action ["
                                     + action
-                                    + "] to remote cluster ["
+                                    + "] towards remote cluster ["
                                     + remoteClusterAlias
                                     + "]"
                             );

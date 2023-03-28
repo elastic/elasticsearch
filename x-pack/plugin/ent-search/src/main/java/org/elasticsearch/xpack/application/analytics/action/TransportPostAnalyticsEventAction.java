@@ -14,19 +14,19 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.application.analytics.EventEmitterService;
+import org.elasticsearch.xpack.application.analytics.AnalyticsEventEmitterService;
 import org.elasticsearch.xpack.application.utils.LicenseUtils;
 
 /**
  * Transport implementation for the {@link PostAnalyticsEventAction}.
- * It executes the {@link EventEmitterService#emitEvent} method if the XPack license is valid, else it calls
+ * It executes the {@link AnalyticsEventEmitterService#emitEvent} method if the XPack license is valid, else it calls
  * the listener's onFailure method with the appropriate exception.
  */
 public class TransportPostAnalyticsEventAction extends HandledTransportAction<
     PostAnalyticsEventAction.Request,
     PostAnalyticsEventAction.Response> {
 
-    private final EventEmitterService eventEmitterService;
+    private final AnalyticsEventEmitterService eventEmitterService;
 
     private final XPackLicenseState xPackLicenseState;
 
@@ -34,7 +34,7 @@ public class TransportPostAnalyticsEventAction extends HandledTransportAction<
     public TransportPostAnalyticsEventAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        EventEmitterService eventEmitterService,
+        AnalyticsEventEmitterService eventEmitterService,
         XPackLicenseState xPackLicenseState
     ) {
         super(PostAnalyticsEventAction.NAME, transportService, actionFilters, PostAnalyticsEventAction.Request::new);
@@ -44,8 +44,9 @@ public class TransportPostAnalyticsEventAction extends HandledTransportAction<
 
     /**
      * Executes the actual handling of the action. It calls the {@link LicenseUtils#runIfSupportedLicense} method with
-     * the XPack license state to check if the license is valid. If the license is valid, it calls the {@link EventEmitterService#emitEvent}
-     * method with the request and listener. Else, it calls the listener's onFailure method with the appropriate exception.
+     * the XPack license state to check if the license is valid. If the license is valid, it calls the
+     * {@link AnalyticsEventEmitterService#emitEvent} method with the request and listener. Else, it calls the listener's onFailure method
+     * with the appropriate exception.
      *
      * @param task The {@link Task} associated with the action.
      * @param request The {@link PostAnalyticsEventAction.Request} object containing the request parameters.

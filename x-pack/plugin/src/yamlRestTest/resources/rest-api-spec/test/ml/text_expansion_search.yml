@@ -9,8 +9,6 @@ setup:
       indices.create:
         index: index-with-rank-features
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               source_text:
@@ -24,8 +22,6 @@ setup:
       indices.create:
         index: unrelated
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               source_text:

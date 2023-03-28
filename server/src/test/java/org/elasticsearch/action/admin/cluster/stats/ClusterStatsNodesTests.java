@@ -272,6 +272,23 @@ public class ClusterStatsNodesTests extends ESTestCase {
             assertThat(total.getFree().getBytes(), equalTo(4L));
             assertThat(total.getAvailable().getBytes(), equalTo(2L));
         }
+
+        {
+            // two nodes, same ip addresses, different data paths, same device
+            InetAddress address1 = InetAddresses.forString("192.168.0.1");
+            FsInfo.Path path1 = new FsInfo.Path("/app/data1", "/app (/dev/mapper/lxc-data)", 3, 2, 1);
+            InetAddress address2 = InetAddresses.forString("192.168.0.1");
+            FsInfo.Path path2 = new FsInfo.Path("/app/data2", "/app (/dev/mapper/lxc-data)", 3, 2, 1);
+            ClusterStatsNodes.ClusterFsStatsDeduplicator deduplicator = new ClusterStatsNodes.ClusterFsStatsDeduplicator(1);
+            deduplicator.add(address1, newFsInfo(path1));
+            deduplicator.add(address2, newFsInfo(path2));
+            FsInfo.Path total = deduplicator.getTotal();
+
+            // since the paths aren't the same, it doesn't trigger the special case -- it's just the same device and doesn't sum
+            assertThat(total.getTotal().getBytes(), equalTo(3L));
+            assertThat(total.getFree().getBytes(), equalTo(2L));
+            assertThat(total.getAvailable().getBytes(), equalTo(1L));
+        }
     }
 
     private static FsInfo newFsInfo(FsInfo.Path... paths) {

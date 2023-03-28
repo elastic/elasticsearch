@@ -108,7 +108,7 @@ Let's retrieve the lifecycles:
 
 [source,console]
 --------------------------------------------------
-GET _data_stream/_lifecycle
+GET _data_stream/my-data-stream*/_lifecycle
 --------------------------------------------------
 
 The response will look like the following:

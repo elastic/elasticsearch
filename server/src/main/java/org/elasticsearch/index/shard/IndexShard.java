@@ -3708,6 +3708,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                  * check if we should roll the translog generation.
                  */
                 if (shouldPeriodicallyFlush()) {
+                    logger.debug("submitting async flush request");
                     final AbstractRunnable flush = new AbstractRunnable() {
                         @Override
                         public void onFailure(final Exception e) {
@@ -3728,7 +3729,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             afterWriteOperation();
                         }
                     };
-                    logger.info("--> dispatching flush");
                     threadPool.executor(ThreadPool.Names.FLUSH).execute(flush);
                 } else if (shouldRollTranslogGeneration()) {
                     logger.debug("submitting async roll translog generation request");

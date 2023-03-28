@@ -198,8 +198,6 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
         );
 
         assertNotNull(createCollectionException.getCause());
-        System.out.println(dataStreamCreateException.status());
-        System.out.println(createCollectionException.status());
         assertEquals(dataStreamCreateException.status(), createCollectionException.status());
         assertEquals(dataStreamCreateException, createCollectionException.getCause());
     }

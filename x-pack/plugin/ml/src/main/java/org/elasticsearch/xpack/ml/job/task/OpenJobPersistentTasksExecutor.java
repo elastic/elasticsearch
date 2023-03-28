@@ -111,14 +111,15 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         MlMemoryTracker memoryTracker,
         Client client,
         IndexNameExpressionResolver expressionResolver,
-        XPackLicenseState licenseState
+        XPackLicenseState licenseState,
+        boolean includeNodeInfo
     ) {
         super(MlTasks.JOB_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME, settings, clusterService, memoryTracker, expressionResolver);
         this.autodetectProcessManager = Objects.requireNonNull(autodetectProcessManager);
         this.datafeedConfigProvider = Objects.requireNonNull(datafeedConfigProvider);
         this.client = Objects.requireNonNull(client);
         this.jobResultsProvider = new JobResultsProvider(client, settings, expressionResolver);
-        this.auditor = new AnomalyDetectionAuditor(client, clusterService);
+        this.auditor = new AnomalyDetectionAuditor(client, clusterService, includeNodeInfo);
         this.licenseState = licenseState;
         clusterService.addListener(event -> clusterState = event.state());
     }

@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
+import org.elasticsearch.cluster.coordination.StatefulPreVoteCollector;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -203,7 +204,8 @@ public class DiscoveryModule {
                 nodeHealthService,
                 circuitBreakerService,
                 new Reconfigurator(settings, clusterSettings),
-                LeaderHeartbeatService.NO_OP
+                LeaderHeartbeatService.NO_OP,
+                StatefulPreVoteCollector::new
             );
         } else {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");

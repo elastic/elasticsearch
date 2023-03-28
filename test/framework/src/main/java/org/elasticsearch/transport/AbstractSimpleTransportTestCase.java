@@ -909,7 +909,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
                 @Override
                 protected void doRun() throws Exception {
-                    go.await();
+                    safeAwait(go);
                     for (int iter = 0; iter < 10; iter++) {
                         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
                         final String info = sender + "_B_" + iter;

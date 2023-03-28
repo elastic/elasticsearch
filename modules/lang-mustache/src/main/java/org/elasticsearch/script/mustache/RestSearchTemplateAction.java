@@ -72,12 +72,22 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             searchTemplateRequest = SearchTemplateRequest.fromXContent(parser);
         }
         searchTemplateRequest.setRequest(searchRequest);
-
+        prepareRequest(searchTemplateRequest, request);
         return channel -> client.execute(SearchTemplateAction.INSTANCE, searchTemplateRequest, new RestStatusToXContentListener<>(channel));
     }
 
     @Override
     protected Set<String> responseParams() {
         return RESPONSE_PARAMS;
+    }
+
+    /**
+     * Parses the rest request on top of the SearchTemplateRequest, preserving
+     * values that are not overridden by the rest request.
+     */
+    private static void prepareRequest(final SearchTemplateRequest searchTemplateRequest, RestRequest request) {
+        if (request.hasParam("explain")) {
+            searchTemplateRequest.setExplain(request.paramAsBoolean("explain", false));
+        }
     }
 }

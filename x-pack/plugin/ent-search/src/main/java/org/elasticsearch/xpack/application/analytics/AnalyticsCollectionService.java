@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.application.analytics;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.application.analytics.action.DeleteAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.action.GetAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.action.PutAnalyticsCollectionAction;
@@ -94,13 +93,12 @@ public class AnalyticsCollectionService {
                     return;
                 }
 
-                RestStatus status = RestStatus.INTERNAL_SERVER_ERROR;
-
-                if (e instanceof ElasticsearchException) {
-                    status = ((ElasticsearchException) e).status();
-                }
-
-                e = new ElasticsearchStatusException("error while creating analytics collection [{}]", status, e, request.getName());
+                e = new ElasticsearchStatusException(
+                    "error while creating analytics collection [{}]",
+                    ExceptionsHelper.status(e),
+                    e,
+                    request.getName()
+                );
                 logger.error(e.getMessage(), e);
 
                 listener.onFailure(e);
@@ -129,19 +127,17 @@ public class AnalyticsCollectionService {
         DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(collection.getEventDataStream());
         ActionListener<AcknowledgedResponse> deleteDataStreamListener = ActionListener.wrap(listener::onResponse, (Exception e) -> {
             if (e instanceof ResourceNotFoundException) {
-                listener.onFailure(
-                    new ResourceNotFoundException("analytics collection [{}] does not exists", request.getCollectionName(), e)
-                );
+                listener.onFailure(new ResourceNotFoundException("analytics collection [{}] does not exists", request.getCollectionName()));
                 return;
             }
 
-            RestStatus status = RestStatus.INTERNAL_SERVER_ERROR;
+            e = new ElasticsearchStatusException(
+                "error while deleting analytics collection [{}]",
+                ExceptionsHelper.status(e),
+                e,
+                request.getCollectionName()
+            );
 
-            if (e instanceof ElasticsearchException) {
-                status = ((ElasticsearchException) e).status();
-            }
-
-            e = new ElasticsearchStatusException("error while deleting analytics collection [{}]", status, e, request.getCollectionName());
             logger.error(e.getMessage(), e);
 
             listener.onFailure(e);

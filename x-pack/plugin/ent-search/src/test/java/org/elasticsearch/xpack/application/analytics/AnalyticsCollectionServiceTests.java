@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.application.analytics;
 
 import org.apache.logging.log4j.util.TriConsumer;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -190,12 +191,15 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
             return null;
         });
 
-        ElasticsearchStatusException createCollectionException = expectThrows(
-            ElasticsearchStatusException.class,
+        ElasticsearchException createCollectionException = expectThrows(
+            ElasticsearchException.class,
             "error while creating analytics collection [" + collectionName + "]",
             () -> awaitPutAnalyticsCollection(analyticsService, clusterState, collectionName)
         );
 
+        assertNotNull(createCollectionException.getCause());
+        System.out.println(dataStreamCreateException.status());
+        System.out.println(createCollectionException.status());
         assertEquals(dataStreamCreateException.status(), createCollectionException.status());
         assertEquals(dataStreamCreateException, createCollectionException.getCause());
     }
@@ -218,12 +222,13 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
             return null;
         });
 
-        ElasticsearchStatusException createCollectionException = expectThrows(
-            ElasticsearchStatusException.class,
+        ElasticsearchException createCollectionException = expectThrows(
+            ElasticsearchException.class,
             "error while creating analytics collection [" + collectionName + "]",
             () -> awaitPutAnalyticsCollection(analyticsService, clusterState, collectionName)
         );
 
+        assertNotNull(createCollectionException.getCause());
         assertEquals(RestStatus.INTERNAL_SERVER_ERROR, createCollectionException.status());
         assertEquals(dataStreamCreateException, createCollectionException.getCause());
     }
@@ -316,12 +321,13 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
             return null;
         });
 
-        ElasticsearchStatusException deleteCollectionException = expectThrows(
-            ElasticsearchStatusException.class,
+        ElasticsearchException deleteCollectionException = expectThrows(
+            ElasticsearchException.class,
             "error while deleting analytics collection [" + collectionName + "]",
             () -> awaitDeleteAnalyticsCollection(analyticsService, clusterState, collectionName)
         );
 
+        assertNotNull(deleteCollectionException.getCause());
         assertEquals(deleteDataStreamException.status(), deleteCollectionException.status());
         assertEquals(deleteDataStreamException, deleteCollectionException.getCause());
     }
@@ -343,12 +349,13 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
             return null;
         });
 
-        ElasticsearchStatusException deleteCollectionException = expectThrows(
-            ElasticsearchStatusException.class,
+        ElasticsearchException deleteCollectionException = expectThrows(
+            ElasticsearchException.class,
             "error while deleting analytics collection [" + collectionName + "]",
             () -> awaitDeleteAnalyticsCollection(analyticsService, clusterState, collectionName)
         );
 
+        assertNotNull(deleteCollectionException.getCause());
         assertEquals(RestStatus.INTERNAL_SERVER_ERROR, deleteCollectionException.status());
         assertEquals(deleteDataStreamException, deleteCollectionException.getCause());
     }

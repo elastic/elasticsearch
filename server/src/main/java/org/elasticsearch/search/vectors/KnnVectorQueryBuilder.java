@@ -65,6 +65,17 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         this.vectorSimilarity = vectorSimilarity;
     }
 
+    // Tests only
+    KnnVectorQueryBuilder(String fieldName, byte[] queryVector, float[] floatQueryVector, int numCands, Float vectorSimilarity) {
+        assert queryVector != null ^ floatQueryVector != null;
+        this.fieldName = fieldName;
+        this.queryVector = floatQueryVector;
+        this.byteQueryVector = queryVector;
+        this.numCands = numCands;
+        this.filterQueries = new ArrayList<>();
+        this.vectorSimilarity = vectorSimilarity;
+    }
+
     public KnnVectorQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.fieldName = in.readString();

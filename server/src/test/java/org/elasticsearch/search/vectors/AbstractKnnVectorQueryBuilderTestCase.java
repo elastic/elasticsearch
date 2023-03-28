@@ -19,7 +19,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -194,7 +193,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         assertThat(rewrittenQuery, instanceOf(MatchNoneQueryBuilder.class));
     }
 
-    public void testBWCVersionSerialization() throws IOException {
+    public void testBWCVersionSerializationFilters() throws IOException {
         float[] bwcFloat = new float[VECTOR_DIMENSION];
         KnnVectorQueryBuilder query = createTestQueryBuilder();
         if (query.queryVector() != null) {
@@ -204,48 +203,68 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                 bwcFloat[i] = query.getByteQueryVector()[i];
             }
         }
-        KnnVectorQueryBuilder queryWithNoFilters = new KnnVectorQueryBuilder(query.getFieldName(), bwcFloat, query.numCands(), null)
+
+        KnnVectorQueryBuilder queryNoFilters = new KnnVectorQueryBuilder(query.getFieldName(), bwcFloat, query.numCands(), null)
             .queryName(query.queryName())
             .boost(query.boost());
 
-        KnnVectorQueryBuilder queryNoByteQuery = new KnnVectorQueryBuilder(query.getFieldName(), bwcFloat, query.numCands(), null)
-            .queryName(query.queryName())
-            .boost(query.boost())
-            .addFilterQueries(query.filterQueries());
-
-        TransportVersion newVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersion.V_8_7_0,
-            TransportVersion.CURRENT
-        );
-        TransportVersion beforeByteQueryVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersion.V_8_2_0,
-            TransportVersion.V_8_6_0
-        );
         TransportVersion beforeFilterVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersion.V_8_0_0,
             TransportVersion.V_8_1_0
         );
 
-        assertSerialization(query, newVersion);
-        assertSerialization(queryNoByteQuery, beforeByteQueryVersion);
-        assertSerialization(queryWithNoFilters, beforeFilterVersion);
+        assertBWCSerialization(query, queryNoFilters, beforeFilterVersion);
+    }
 
-        for (var tuple : List.of(
-            Tuple.tuple(beforeByteQueryVersion, queryNoByteQuery),
-            Tuple.tuple(beforeFilterVersion, queryWithNoFilters)
-        )) {
-            try (BytesStreamOutput output = new BytesStreamOutput()) {
-                output.setTransportVersion(tuple.v1());
-                output.writeNamedWriteable(query);
-                try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry())) {
-                    in.setTransportVersion(tuple.v1());
-                    KnnVectorQueryBuilder deserializedQuery = (KnnVectorQueryBuilder) in.readNamedWriteable(QueryBuilder.class);
-                    assertEquals(tuple.v2(), deserializedQuery);
-                    assertEquals(tuple.v2().hashCode(), deserializedQuery.hashCode());
-                }
+    public void testBWCVersionSerializationSimilarity() throws IOException {
+        KnnVectorQueryBuilder query = createTestQueryBuilder();
+        KnnVectorQueryBuilder queryNoSimilarity = new KnnVectorQueryBuilder(query.getFieldName(), query.getByteQueryVector(), query.queryVector(), query.numCands(), null)
+            .queryName(query.queryName())
+            .boost(query.boost())
+            .addFilterQueries(query.filterQueries());
+        TransportVersion beforeSimilarity = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.V_8_7_0,
+            TransportVersion.V_8_8_0
+        );
+        assertBWCSerialization(query, queryNoSimilarity, beforeSimilarity);
+    }
+
+
+    public void testBWCVersionSerializationByteQuery() throws IOException {
+        float[] bwcFloat = new float[VECTOR_DIMENSION];
+        KnnVectorQueryBuilder query = createTestQueryBuilder();
+        if (query.queryVector() != null) {
+            bwcFloat = query.queryVector();
+        } else {
+            for (int i = 0; i < query.getByteQueryVector().length; i++) {
+                bwcFloat[i] = query.getByteQueryVector()[i];
+            }
+        }
+        KnnVectorQueryBuilder queryNoByteQuery = new KnnVectorQueryBuilder(query.getFieldName(), bwcFloat, query.numCands(), null)
+            .queryName(query.queryName())
+            .boost(query.boost())
+            .addFilterQueries(query.filterQueries());
+
+        TransportVersion beforeByteQueryVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.V_8_2_0,
+            TransportVersion.V_8_6_0
+        );
+        assertBWCSerialization(query, queryNoByteQuery, beforeByteQueryVersion);
+    }
+
+    private void assertBWCSerialization(QueryBuilder newQuery, QueryBuilder bwcQuery, TransportVersion version) throws IOException {
+        assertSerialization(bwcQuery, version);
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(version);
+            output.writeNamedWriteable(newQuery);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry())) {
+                in.setTransportVersion(version);
+                KnnVectorQueryBuilder deserializedQuery = (KnnVectorQueryBuilder) in.readNamedWriteable(QueryBuilder.class);
+                assertEquals(bwcQuery, deserializedQuery);
+                assertEquals(bwcQuery.hashCode(), deserializedQuery.hashCode());
             }
         }
     }

@@ -201,6 +201,39 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
         }
     }
 
+    public void testWithDotsInTokenNames() throws IOException {
+        String modelId = "text-expansion-dots-in-tokens";
+        String indexName = modelId + "-index";
+
+        createTextExpansionModel(modelId);
+        putModelDefinition(modelId, BASE_64_ENCODED_MODEL, RAW_MODEL_SIZE);
+        putVocabulary(List.of("these", "are", "my", "words", "the", "washing", "machine", ".", "##."), modelId);
+        startDeployment(modelId);
+
+        // '.' are invalid rank feature field names and will be replaced with '__'
+        List<String> inputs = List.of("these are my words.");
+
+        // index tokens
+        createRankFeaturesIndex(indexName);
+        var pipelineId = putPipeline(modelId);
+        bulkIndexThroughPipeline(inputs, indexName, pipelineId);
+
+        // Test text expansion search against the indexed rank features
+        for (var input : inputs) {
+            var textExpansionSearchResponse = textExpansionSearch(indexName, input, modelId, "ml.tokens");
+            assertOkWithErrorMessage(textExpansionSearchResponse);
+            Map<String, Object> responseMap = responseAsMap(textExpansionSearchResponse);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> hits = (List<Map<String, Object>>) MapHelper.dig("hits.hits", responseMap);
+            Map<String, Object> topHit = hits.get(0);
+            String sourceText = (String) MapHelper.dig("_source.text_field", topHit);
+            assertEquals(input, sourceText);
+            // check the token names containing dots have been changed
+            Object s = MapHelper.dig("_source.ml.tokens.__", topHit);
+            assertNotNull(s);
+        }
+    }
+
     public void testSearchWithMissingModel() throws IOException {
         String modelId = "missing-model";
         String indexName = modelId + "-index";

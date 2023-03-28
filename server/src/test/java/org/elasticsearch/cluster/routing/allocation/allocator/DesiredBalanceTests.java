@@ -45,6 +45,12 @@ public class DesiredBalanceTests extends ESTestCase {
         );
 
         assertThat(
+            "1 shard movements when existing shard is moved and new shard copy is unassigned",
+            shardMovements(new ShardAssignment(Set.of("a", "b"), 2, 0, 0), new ShardAssignment(Set.of("a", "c"), 3, 1, 0)),
+            equalTo(1)
+        );
+
+        assertThat(
             "1 shard movement",
             shardMovements(new ShardAssignment(Set.of("a", "b"), 2, 0, 0), new ShardAssignment(Set.of("a", "c"), 2, 0, 0)),
             equalTo(1)

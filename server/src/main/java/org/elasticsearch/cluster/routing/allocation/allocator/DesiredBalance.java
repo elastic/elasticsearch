@@ -45,17 +45,11 @@ public record DesiredBalance(long lastConvergedIndex, Map<ShardId, ShardAssignme
     }
 
     private static int shardMovements(ShardAssignment old, ShardAssignment updated) {
-        var movements = 0;
+        var movements = Math.min(0, old.assigned() - updated.assigned());// compensate newly started shards
         for (String nodeId : updated.nodeIds()) {
             if (old.nodeIds().contains(nodeId) == false) {
                 movements++;
             }
-        }
-        if (movements > 0) {
-            // exclude newly assigned shards
-            movements -= Math.max(0, old.unassigned() - updated.unassigned());
-            // exclude new shard copies
-            movements -= Math.max(0, updated.total() - old.total());
         }
         assert movements >= 0 : "Unexpected movement count [" + movements + "] between [" + old + "] and [" + updated + "]";
         return movements;

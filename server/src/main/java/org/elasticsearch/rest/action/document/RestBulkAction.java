@@ -93,6 +93,7 @@ public class RestBulkAction extends BaseRestHandler {
             request.getRestApiVersion()
         );
 
+        // TZ hello bulk route
         return channel -> client.bulk(bulkRequest, new RestStatusToXContentListener<>(channel));
     }
 

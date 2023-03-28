@@ -81,6 +81,7 @@ public class BulkRequest extends ActionRequest
     public BulkRequest() {}
 
     public BulkRequest(StreamInput in) throws IOException {
+        // TZ This is where the stream is read
         super(in);
         waitForActiveShards = ActiveShardCount.readFrom(in);
         requests.addAll(in.readList(i -> DocWriteRequest.readDocumentRequest(null, i)));

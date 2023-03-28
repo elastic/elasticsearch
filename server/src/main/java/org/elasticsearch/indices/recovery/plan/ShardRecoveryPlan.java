@@ -126,26 +126,11 @@ public class ShardRecoveryPlan {
         );
     }
 
-    public static class SnapshotFilesToRecover implements Iterable<BlobStoreIndexShardSnapshot.FileInfo> {
+    public record SnapshotFilesToRecover(IndexId indexId, String repository, List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles)
+        implements
+            Iterable<BlobStoreIndexShardSnapshot.FileInfo> {
+
         public static final SnapshotFilesToRecover EMPTY = new SnapshotFilesToRecover(null, null, emptyList());
-
-        private final IndexId indexId;
-        private final String repository;
-        private final List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles;
-
-        public SnapshotFilesToRecover(IndexId indexId, String repository, List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles) {
-            this.indexId = indexId;
-            this.repository = repository;
-            this.snapshotFiles = snapshotFiles;
-        }
-
-        public IndexId getIndexId() {
-            return indexId;
-        }
-
-        public String getRepository() {
-            return repository;
-        }
 
         public int size() {
             return snapshotFiles.size();
@@ -153,10 +138,6 @@ public class ShardRecoveryPlan {
 
         public boolean isEmpty() {
             return snapshotFiles.isEmpty();
-        }
-
-        public List<BlobStoreIndexShardSnapshot.FileInfo> getSnapshotFiles() {
-            return snapshotFiles;
         }
 
         @Override

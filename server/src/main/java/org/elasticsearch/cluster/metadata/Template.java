@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -210,6 +211,14 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return toXContent(builder, params, null);
+    }
+
+    /**
+     * Converts the template to XContent and passes the RolloverConditions, when provided, to the lifecycle.
+     */
+    public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConditions rolloverConditions)
+        throws IOException {
         builder.startObject();
         if (this.settings != null) {
             builder.startObject(SETTINGS.getPreferredName());
@@ -238,7 +247,8 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             builder.endObject();
         }
         if (this.lifecycle != null) {
-            builder.field(LIFECYCLE.getPreferredName(), lifecycle);
+            builder.field(LIFECYCLE.getPreferredName());
+            lifecycle.toXContent(builder, params, rolloverConditions);
         }
         builder.endObject();
         return builder;

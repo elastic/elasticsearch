@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
-import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -23,6 +22,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -32,12 +32,13 @@ import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.scheduler.TimeValueSchedule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -46,7 +47,6 @@ import java.time.Clock;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 /**
@@ -75,13 +75,12 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     private final ResultDeduplicator<TransportRequest, Void> transportActionsDeduplicator;
     private final LongSupplier nowSupplier;
     private final Clock clock;
+    private final DataLifecycleErrorStore errorStore;
     private volatile boolean isMaster = false;
     private volatile TimeValue pollInterval;
+    private volatile RolloverConditions rolloverConditions;
     private SchedulerEngine.Job scheduledJob;
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
-    // we use this rollover supplier to facilitate testing until we'll be able to read the
-    // rollover configuration from a cluster setting
-    private Function<String, RolloverRequest> defaultRolloverRequestSupplier;
 
     public DataLifecycleService(
         Settings settings,
@@ -89,7 +88,8 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         ClusterService clusterService,
         Clock clock,
         ThreadPool threadPool,
-        LongSupplier nowSupplier
+        LongSupplier nowSupplier,
+        DataLifecycleErrorStore errorStore
     ) {
         this.settings = settings;
         this.client = client;
@@ -97,9 +97,10 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         this.clock = clock;
         this.transportActionsDeduplicator = new ResultDeduplicator<>(threadPool.getThreadContext());
         this.nowSupplier = nowSupplier;
+        this.errorStore = errorStore;
         this.scheduledJob = null;
         this.pollInterval = DLM_POLL_INTERVAL_SETTING.get(settings);
-        this.defaultRolloverRequestSupplier = this::getDefaultRolloverRequest;
+        this.rolloverConditions = clusterService.getClusterSettings().get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING);
     }
 
     /**
@@ -108,6 +109,8 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     public void init() {
         clusterService.addListener(this);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DLM_POLL_INTERVAL_SETTING, this::updatePollInterval);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING, this::updateRolloverConditions);
     }
 
     @Override
@@ -126,6 +129,9 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
             } else {
                 // we were the master, and now we aren't
                 cancelJob();
+                // clear the deduplicator on master failover so we could re-send the requests in case we're re-elected
+                transportActionsDeduplicator.clear();
+                errorStore.clearStore();
             }
         }
     }
@@ -136,6 +142,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         if (engine != null) {
             engine.stop();
         }
+        errorStore.clearStore();
     }
 
     @Override
@@ -155,19 +162,31 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     // default visibility for testing purposes
     void run(ClusterState state) {
         for (DataStream dataStream : state.metadata().dataStreams().values()) {
+            clearErrorStoreForUnmanagedIndices(dataStream);
             if (dataStream.getLifecycle() == null) {
                 continue;
             }
 
+            String writeIndex = dataStream.getWriteIndex().getName();
             try {
                 maybeExecuteRollover(state, dataStream);
             } catch (Exception e) {
                 logger.error(() -> String.format(Locale.ROOT, "DLM failed to rollver data stream [%s]", dataStream.getName()), e);
+                DataStream latestDataStream = clusterService.state().metadata().dataStreams().get(dataStream.getName());
+                if (latestDataStream != null) {
+                    if (latestDataStream.getWriteIndex().getName().equals(writeIndex)) {
+                        // data stream has not been rolled over in the meantime so record the error against the write index we
+                        // attempted the rollover
+                        errorStore.recordError(writeIndex, e);
+                    }
+                }
             }
 
             try {
                 maybeExecuteRetention(state, dataStream);
             } catch (Exception e) {
+                // individual index errors would be reported via the API action listener for every delete call
+                // we could potentially record errors at a data stream level and expose it via the _data_stream API?
                 logger.error(
                     () -> String.format(Locale.ROOT, "DLM failed to execute retention for data stream [%s]", dataStream.getName()),
                     e
@@ -176,13 +195,30 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         }
     }
 
+    /**
+     * This clears the error store for the case where a data stream or some backing indices were managed by DLM, failed in their
+     * lifecycle execution, and then they were not managed by DLM (maybe they were switched to ILM).
+     */
+    private void clearErrorStoreForUnmanagedIndices(DataStream dataStream) {
+        Metadata metadata = clusterService.state().metadata();
+        for (String indexName : errorStore.getAllIndices()) {
+            IndexMetadata indexMeta = metadata.index(indexName);
+            if (indexMeta == null) {
+                errorStore.clearRecordedError(indexName);
+            } else if (dataStream.isIndexManagedByDLM(indexMeta.getIndex(), metadata::index) == false) {
+                errorStore.clearRecordedError(indexName);
+            }
+        }
+    }
+
     private void maybeExecuteRollover(ClusterState state, DataStream dataStream) {
-        if (dataStream.isIndexManagedByDLM(dataStream.getWriteIndex(), state.metadata()::index)) {
-            RolloverRequest rolloverRequest = defaultRolloverRequestSupplier.apply(dataStream.getName());
+        Index writeIndex = dataStream.getWriteIndex();
+        if (dataStream.isIndexManagedByDLM(writeIndex, state.metadata()::index)) {
+            RolloverRequest rolloverRequest = getDefaultRolloverRequest(dataStream.getName());
             transportActionsDeduplicator.executeOnce(
                 rolloverRequest,
-                ActionListener.noop(),
-                (req, reqListener) -> rolloverDataStream(rolloverRequest, reqListener)
+                new ErrorRecordingActionListener(writeIndex.getName(), errorStore),
+                (req, reqListener) -> rolloverDataStream(writeIndex.getName(), rolloverRequest, reqListener)
             );
         }
     }
@@ -199,21 +235,20 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
 
                 // there's an opportunity here to batch the delete requests (i.e. delete 100 indices / request)
                 // let's start simple and reevaluate
-                DeleteIndexRequest deleteRequest = new DeleteIndexRequest(backingIndex.getIndex().getName()).masterNodeTimeout(
-                    TimeValue.MAX_VALUE
-                );
+                String indexName = backingIndex.getIndex().getName();
+                DeleteIndexRequest deleteRequest = new DeleteIndexRequest(indexName).masterNodeTimeout(TimeValue.MAX_VALUE);
 
                 // time to delete the index
                 transportActionsDeduplicator.executeOnce(
                     deleteRequest,
-                    ActionListener.noop(),
+                    new ErrorRecordingActionListener(indexName, errorStore),
                     (req, reqListener) -> deleteIndex(deleteRequest, retention, reqListener)
                 );
             }
         }
     }
 
-    private void rolloverDataStream(RolloverRequest rolloverRequest, ActionListener<Void> listener) {
+    private void rolloverDataStream(String writeIndexName, RolloverRequest rolloverRequest, ActionListener<Void> listener) {
         // "saving" the rollover target name here so we don't capture the entire request
         String rolloverTarget = rolloverRequest.getRolloverTarget();
         logger.trace("DLM issues rollover request for data stream [{}]", rolloverTarget);
@@ -241,8 +276,19 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(() -> Strings.format("DLM rollover of [%s] failed", rolloverTarget), e);
-                listener.onFailure(e);
+                logger.error(() -> Strings.format("DLM encountered an error trying to rollover data steam [%s]", rolloverTarget), e);
+                DataStream dataStream = clusterService.state().metadata().dataStreams().get(rolloverTarget);
+                if (dataStream == null || dataStream.getWriteIndex().getName().equals(writeIndexName) == false) {
+                    // the data stream has another write index so no point in recording an error for the previous write index we were
+                    // attempting to rollover
+                    // if there are persistent issues with rolling over this data stream, the next DLM run will attempt to rollover the
+                    // _current_ write index and the error problem should surface then
+                    listener.onResponse(null);
+                } else {
+                    // the data stream has NOT been rolled over since we issued our rollover request, so let's record the
+                    // error against the data stream's write index.
+                    listener.onFailure(e);
+                }
             }
         });
     }
@@ -251,7 +297,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         assert deleteIndexRequest.indices() != null && deleteIndexRequest.indices().length == 1 : "DLM deletes one index at a time";
         // "saving" the index name here so we don't capture the entire request
         String targetIndex = deleteIndexRequest.indices()[0];
-        logger.trace("DLM issue delete request for index [{}]", targetIndex);
+        logger.trace("DLM issues request to delete index [{}]", targetIndex);
         client.admin().indices().delete(deleteIndexRequest, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
@@ -261,7 +307,21 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(() -> Strings.format("DLM request to delete [%s] failed", targetIndex), e);
+                if (e instanceof IndexNotFoundException) {
+                    // index was already deleted, treat this as a success
+                    errorStore.clearRecordedError(targetIndex);
+                    listener.onResponse(null);
+                    return;
+                }
+
+                if (e instanceof SnapshotInProgressException) {
+                    logger.info(
+                        "DLM was unable to delete index [{}] because it's currently being snapshotted. Retrying on the next DLM run",
+                        targetIndex
+                    );
+                } else {
+                    logger.error(() -> Strings.format("DLM encountered an error trying to delete index [%s]", targetIndex), e);
+                }
                 listener.onFailure(e);
             }
         });
@@ -276,36 +336,43 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     }
 
     /**
-     * Calculate the age of the index since creation or rollover time if the index was already rolled.
-     * The rollover target is the data stream name the index is a part of.
+     * Action listener that records the encountered failure using the provided recordError callback for the
+     * provided target index. If the listener is notified of success it will clear the recorded entry for the provided
+     * target index using the clearErrorRecord callback.
      */
-    static TimeValue getCreationOrRolloverDate(String rolloverTarget, IndexMetadata index) {
-        RolloverInfo rolloverInfo = index.getRolloverInfos().get(rolloverTarget);
-        if (rolloverInfo != null) {
-            return TimeValue.timeValueMillis(rolloverInfo.getTime());
-        } else {
-            return TimeValue.timeValueMillis(index.getCreationDate());
+    static class ErrorRecordingActionListener implements ActionListener<Void> {
+        private final String targetIndex;
+        private final DataLifecycleErrorStore errorStore;
+
+        ErrorRecordingActionListener(String targetIndex, DataLifecycleErrorStore errorStore) {
+            this.targetIndex = targetIndex;
+            this.errorStore = errorStore;
+        }
+
+        @Override
+        public void onResponse(Void unused) {
+            errorStore.clearRecordedError(targetIndex);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            errorStore.recordError(targetIndex, e);
         }
     }
 
     private RolloverRequest getDefaultRolloverRequest(String dataStream) {
         RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null).masterNodeTimeout(TimeValue.MAX_VALUE);
-        rolloverRequest.setConditions(
-            RolloverConditions.newBuilder()
-                // TODO get rollover from cluster setting once we have it
-                .addMaxIndexAgeCondition(TimeValue.timeValueDays(7))
-                .addMaxPrimaryShardSizeCondition(ByteSizeValue.ofGb(50))
-                .addMaxPrimaryShardDocsCondition(200_000_000L)
-                // don't rollover an empty index
-                .addMinIndexDocsCondition(1L)
-                .build()
-        );
+        rolloverRequest.setConditions(rolloverConditions);
         return rolloverRequest;
     }
 
     private void updatePollInterval(TimeValue newInterval) {
         this.pollInterval = newInterval;
         maybeScheduleJob();
+    }
+
+    private void updateRolloverConditions(RolloverConditions newRolloverConditions) {
+        this.rolloverConditions = newRolloverConditions;
     }
 
     private void cancelJob() {
@@ -342,7 +409,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     }
 
     // package visibility for testing
-    void setDefaultRolloverRequestSupplier(Function<String, RolloverRequest> defaultRolloverRequestSupplier) {
-        this.defaultRolloverRequestSupplier = defaultRolloverRequestSupplier;
+    DataLifecycleErrorStore getErrorStore() {
+        return errorStore;
     }
 }

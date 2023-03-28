@@ -9,6 +9,7 @@ package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.allocator.ClusterBalanceStats;
@@ -35,19 +36,23 @@ import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.singleCh
 public class DesiredBalanceResponse extends ActionResponse implements ChunkedToXContentObject {
 
     private static final TransportVersion CLUSTER_BALANCE_STATS_VERSION = TransportVersion.V_8_7_0;
+    private static final TransportVersion CLUSTER_INFO_VERSION = TransportVersion.V_8_8_0;
 
     private final DesiredBalanceStats stats;
     private final ClusterBalanceStats clusterBalanceStats;
     private final Map<String, Map<Integer, DesiredShards>> routingTable;
+    private final ClusterInfo clusterInfo;
 
     public DesiredBalanceResponse(
         DesiredBalanceStats stats,
         ClusterBalanceStats clusterBalanceStats,
-        Map<String, Map<Integer, DesiredShards>> routingTable
+        Map<String, Map<Integer, DesiredShards>> routingTable,
+        ClusterInfo clusterInfo
     ) {
         this.stats = stats;
         this.clusterBalanceStats = clusterBalanceStats;
         this.routingTable = routingTable;
+        this.clusterInfo = clusterInfo;
     }
 
     public static DesiredBalanceResponse from(StreamInput in) throws IOException {
@@ -56,7 +61,8 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
             in.getTransportVersion().onOrAfter(CLUSTER_BALANCE_STATS_VERSION)
                 ? ClusterBalanceStats.readFrom(in)
                 : ClusterBalanceStats.EMPTY,
-            in.readImmutableMap(StreamInput::readString, v -> v.readImmutableMap(StreamInput::readVInt, DesiredShards::from))
+            in.readImmutableMap(StreamInput::readString, v -> v.readImmutableMap(StreamInput::readVInt, DesiredShards::from)),
+            in.getTransportVersion().onOrAfter(CLUSTER_INFO_VERSION) ? new ClusterInfo(in) : ClusterInfo.EMPTY
         );
     }
 
@@ -64,7 +70,7 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);
         if (out.getTransportVersion().onOrAfter(CLUSTER_BALANCE_STATS_VERSION)) {
-            clusterBalanceStats.writeTo(out);
+            out.writeWriteable(clusterBalanceStats);
         }
         out.writeMap(
             routingTable,
@@ -75,6 +81,9 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
                 (desiredShardsOut, desiredShards) -> desiredShards.writeTo(desiredShardsOut)
             )
         );
+        if (out.getTransportVersion().onOrAfter(CLUSTER_INFO_VERSION)) {
+            out.writeWriteable(clusterInfo);
+        }
     }
 
     @Override
@@ -87,7 +96,11 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
                 (builder, p) -> builder.startObject("routing_table")
             ),
             routingTableToXContentChunked(),
-            singleChunk((builder, p) -> builder.endObject(), (builder, p) -> builder.endObject())
+            singleChunk(
+                (builder, p) -> builder.endObject(),
+                (builder, p) -> builder.startObject("cluster_info").value(clusterInfo).endObject(),
+                (builder, p) -> builder.endObject()
+            )
         );
     }
 
@@ -114,18 +127,23 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
         return routingTable;
     }
 
+    public ClusterInfo getClusterInfo() {
+        return clusterInfo;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         return o instanceof DesiredBalanceResponse that
             && Objects.equals(stats, that.stats)
             && Objects.equals(clusterBalanceStats, that.clusterBalanceStats)
-            && Objects.equals(routingTable, that.routingTable);
+            && Objects.equals(routingTable, that.routingTable)
+            && Objects.equals(clusterInfo, that.clusterInfo);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(stats, clusterBalanceStats, routingTable);
+        return Objects.hash(stats, clusterBalanceStats, routingTable, clusterInfo);
     }
 
     @Override
@@ -136,6 +154,8 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
             + clusterBalanceStats
             + ", routingTable="
             + routingTable
+            + ", clusterInfo="
+            + clusterInfo
             + "}";
     }
 
@@ -171,45 +191,57 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
         String node,
         boolean nodeIsDesired,
         @Nullable String relocatingNode,
-        boolean relocatingNodeIsDesired,
+        @Nullable Boolean relocatingNodeIsDesired,
         int shardId,
         String index,
         @Nullable Double forecastWriteLoad,
-        @Nullable Long forecastShardSizeInBytes
+        @Nullable Long forecastShardSizeInBytes,
+        List<String> tierPreference
     ) implements Writeable, ToXContentObject {
 
         private static final TransportVersion ADD_FORECASTS_VERSION = TransportVersion.V_8_7_0;
+        private static final TransportVersion ADD_TIER_PREFERENCE = TransportVersion.V_8_8_0;
+        private static final TransportVersion NULLABLE_RELOCATING_NODE_IS_DESIRED = TransportVersion.V_8_8_0;
+
+        public ShardView {
+            assert (relocatingNode == null) == (relocatingNodeIsDesired == null)
+                : "relocatingNodeIsDesired should only be set when relocatingNode is set";
+        }
 
         public static ShardView from(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(ADD_FORECASTS_VERSION)) {
-                return new ShardView(
-                    ShardRoutingState.fromValue(in.readByte()),
-                    in.readBoolean(),
-                    in.readOptionalString(),
-                    in.readBoolean(),
-                    in.readOptionalString(),
-                    in.readBoolean(),
-                    in.readVInt(),
-                    in.readString(),
-                    in.readOptionalDouble(),
-                    in.readOptionalLong()
-                );
+            ShardRoutingState state = ShardRoutingState.fromValue(in.readByte());
+            boolean primary = in.readBoolean();
+            String node = in.readOptionalString();
+            boolean nodeIsDesired = in.readBoolean();
+            String relocatingNode = in.readOptionalString();
+            Boolean relocatingNodeIsDesired;
+            if (in.getTransportVersion().onOrAfter(NULLABLE_RELOCATING_NODE_IS_DESIRED)) {
+                relocatingNodeIsDesired = in.readOptionalBoolean();
             } else {
-                var shardView = new ShardView(
-                    ShardRoutingState.fromValue(in.readByte()),
-                    in.readBoolean(),
-                    in.readOptionalString(),
-                    in.readBoolean(),
-                    in.readOptionalString(),
-                    in.readBoolean(),
-                    in.readVInt(),
-                    in.readString(),
-                    null,
-                    null
-                );
-                in.readOptionalWriteable(AllocationId::new);
-                return shardView;
+                boolean wireRelocatingNodeIsDesired = in.readBoolean();
+                relocatingNodeIsDesired = relocatingNode == null ? null : wireRelocatingNodeIsDesired;
             }
+            int shardId = in.readVInt();
+            String index = in.readString();
+            Double forecastWriteLoad = in.getTransportVersion().onOrAfter(ADD_FORECASTS_VERSION) ? in.readOptionalDouble() : null;
+            Long forecastShardSizeInBytes = in.getTransportVersion().onOrAfter(ADD_FORECASTS_VERSION) ? in.readOptionalLong() : null;
+            if (in.getTransportVersion().onOrAfter(ADD_FORECASTS_VERSION) == false) {
+                in.readOptionalWriteable(AllocationId::new);
+            }
+            List<String> tierPreference = in.getTransportVersion().onOrAfter(ADD_TIER_PREFERENCE) ? in.readStringList() : List.of();
+            return new ShardView(
+                state,
+                primary,
+                node,
+                nodeIsDesired,
+                relocatingNode,
+                relocatingNodeIsDesired,
+                shardId,
+                index,
+                forecastWriteLoad,
+                forecastShardSizeInBytes,
+                tierPreference
+            );
         }
 
         @Override
@@ -219,7 +251,11 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
             out.writeOptionalString(node);
             out.writeBoolean(nodeIsDesired);
             out.writeOptionalString(relocatingNode);
-            out.writeBoolean(relocatingNodeIsDesired);
+            if (out.getTransportVersion().onOrAfter(NULLABLE_RELOCATING_NODE_IS_DESIRED)) {
+                out.writeOptionalBoolean(relocatingNodeIsDesired);
+            } else {
+                out.writeBoolean(relocatingNodeIsDesired != null && relocatingNodeIsDesired);
+            }
             out.writeVInt(shardId);
             out.writeString(index);
             if (out.getTransportVersion().onOrAfter(ADD_FORECASTS_VERSION)) {
@@ -228,21 +264,25 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
             } else {
                 out.writeMissingWriteable(AllocationId.class);
             }
+            if (out.getTransportVersion().onOrAfter(ADD_TIER_PREFERENCE)) {
+                out.writeStringCollection(tierPreference);
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject()
+                .field("index", index)
+                .field("shard_id", shardId)
                 .field("state", state.toString())
                 .field("primary", primary)
                 .field("node", node)
                 .field("node_is_desired", nodeIsDesired)
                 .field("relocating_node", relocatingNode)
                 .field("relocating_node_is_desired", relocatingNodeIsDesired)
-                .field("shard_id", shardId)
-                .field("index", index)
                 .field("forecast_write_load", forecastWriteLoad)
                 .field("forecast_shard_size_in_bytes", forecastShardSizeInBytes)
+                .field("tier_preference", tierPreference)
                 .endObject();
         }
     }
@@ -271,5 +311,4 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
                 .endObject();
         }
     }
-
 }

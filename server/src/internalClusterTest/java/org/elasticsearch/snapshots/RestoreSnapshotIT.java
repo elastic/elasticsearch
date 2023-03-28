@@ -222,7 +222,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testRestoreIncreasesPrimaryTerms() {
         final String indexName = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettingsNoReplicas(2).build());
+        createIndex(indexName, 2, 0);
         ensureGreen(indexName);
 
         if (randomBoolean()) {

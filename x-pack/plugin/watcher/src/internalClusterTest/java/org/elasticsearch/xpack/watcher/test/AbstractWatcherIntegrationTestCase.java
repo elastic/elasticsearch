@@ -29,7 +29,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockMustacheScriptEngine;
@@ -110,7 +110,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
-            .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
+            .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             // we do this by default in core, but for watcher this isn't needed and only adds noise.
             .put("index.store.mock.check_index_on_close", false)
             // watcher settings that should work despite randomization

@@ -64,12 +64,15 @@ public class TransportClassesCoveragePlugin implements Plugin<Project> {
 
                         kover.verify(verify -> {
                             verify.rule(rule -> {
-
                                 rule.overrideClassFilter(koverClassFilter -> {
                                     Set<String> transportClasses = readAllLines(findTransportClassesTask.getTransportClasses());
+                                    if (transportClasses.size() == 0) {
+                                        koverClassFilter.getExcludes().add("*");
+                                    } else {
+                                        koverClassFilter.getIncludes().addAll(includes(transportClasses));
+                                        koverClassFilter.getExcludes().addAll(excludes(transportClasses));
+                                    }
 
-                                    koverClassFilter.getIncludes().addAll(includes(transportClasses));
-                                    koverClassFilter.getExcludes().addAll(excludes(transportClasses));
                                 });
                                 rule.setTarget(VerificationTarget.CLASS);
                                 rule.setEnabled(true);

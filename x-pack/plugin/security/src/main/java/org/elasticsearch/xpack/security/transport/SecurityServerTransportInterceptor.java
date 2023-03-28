@@ -292,7 +292,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final String remoteClusterAlias = remoteClusterCredentials.clusterAlias();
 
                 if (connection.getTransportVersion().before(VERSION_CROSS_CLUSTER_ACCESS_REALM)) {
-                    throw new IllegalArgumentException(
+                    throw illegalArgumentExceptionWithDebugLog(
                         "Settings for remote cluster ["
                             + remoteClusterAlias
                             + "] indicate cross cluster access headers should be sent but target cluster version ["
@@ -301,7 +301,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     );
                 }
 
-                logger.debug(
+                logger.trace(
                     "Sending [{}] request to [{}] with cross cluster access headers for [{}] action",
                     request.getClass(),
                     remoteClusterAlias,
@@ -329,10 +329,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     );
                     sendWithCrossClusterAccessHeaders(crossClusterAccessHeaders, connection, action, request, options, handler);
                 } else if (User.isInternal(user)) {
-                    final String message = "internal user [" + user.principal() + "] should not be used for cross cluster requests";
-                    logger.debug(message);
-                    assert false : message;
-                    throw new IllegalArgumentException(message);
+                    throw illegalArgumentExceptionWithDebugLog(
+                        "Internal user [" + user.principal() + "] should not be used for cross cluster requests"
+                    );
                 } else {
                     authzService.getRoleDescriptorsIntersectionForRemoteCluster(
                         remoteClusterAlias,
@@ -382,6 +381,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 } catch (Exception e) {
                     contextRestoreHandler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
                 }
+            }
+
+            private static IllegalArgumentException illegalArgumentExceptionWithDebugLog(String message) {
+                logger.debug(message);
+                return new IllegalArgumentException(message);
             }
         };
     }

@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexFormatVersion;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.query.TermsQueryBuilder;
@@ -109,7 +110,7 @@ public class SplitIndexIT extends ESIntegTestCase {
             useRoutingPartition = randomBoolean();
         }
         if (useRouting && useMixedRouting == false && useRoutingPartition) {
-            int numRoutingShards = MetadataCreateIndexService.calculateNumRoutingShards(secondSplitShards, Version.CURRENT) - 1;
+            int numRoutingShards = MetadataCreateIndexService.calculateNumRoutingShards(secondSplitShards, IndexFormatVersion.CURRENT) - 1;
             settings.put("index.routing_partition_size", randomIntBetween(1, numRoutingShards));
             if (useNested) {
                 createInitialIndex.setMapping("_routing", "required=true", "nested1", "type=nested");

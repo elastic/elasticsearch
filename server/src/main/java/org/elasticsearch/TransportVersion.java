@@ -182,7 +182,7 @@ public class TransportVersion implements Comparable<TransportVersion> {
                             + sameUniqueId
                             + " have the same unique id. Each TransportVersion should have a different unique id";
                 } catch (IllegalAccessException e) {
-                    assert false : "Version field [" + fieldName + "] should be public";
+                    assert false : "TransportVersion field [" + fieldName + "] should be public";
                 }
             }
         }

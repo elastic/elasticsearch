@@ -581,7 +581,7 @@ public final class IndexSettings {
     );
 
     private final Index index;
-    private final Version version;
+    private final IndexFormatVersion version;
     private final Logger logger;
     private final String nodeName;
     private final Settings nodeSettings;
@@ -763,7 +763,7 @@ public final class IndexSettings {
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         softDeleteEnabled = scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
-        assert softDeleteEnabled || version.before(Version.V_8_0_0) : "soft deletes must be enabled in version " + version;
+        assert softDeleteEnabled || version.before(IndexFormatVersion.V_8_0_0) : "soft deletes must be enabled in version " + version;
         softDeleteRetentionOperations = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
         retentionLeaseMillis = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING).millis();
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
@@ -939,7 +939,7 @@ public final class IndexSettings {
      * @see IndexMetadata#SETTING_VERSION_CREATED
      */
     public Version getIndexVersionCreated() {
-        return version;
+        return version.toVersion();
     }
 
     /**
@@ -993,12 +993,12 @@ public final class IndexSettings {
      */
     public synchronized boolean updateIndexMetadata(IndexMetadata indexMetadata) {
         final Settings newSettings = indexMetadata.getSettings();
-        Version newIndexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(newSettings);
+        IndexFormatVersion newIndexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(newSettings);
         if (version.equals(newIndexVersion) == false) {
             throw new IllegalArgumentException("version mismatch on settings update expected: " + version + " but was: " + newIndexVersion);
         }
-        Version newCompatibilityVersion = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(newSettings);
-        Version compatibilityVersion = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(settings);
+        IndexFormatVersion newCompatibilityVersion = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(newSettings);
+        IndexFormatVersion compatibilityVersion = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(settings);
         if (compatibilityVersion.equals(newCompatibilityVersion) == false) {
             throw new IllegalArgumentException(
                 "compatibility version mismatch on settings update expected: "

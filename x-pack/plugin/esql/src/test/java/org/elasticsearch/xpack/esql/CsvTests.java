@@ -61,8 +61,8 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.compute.operator.DriverRunner.runToCompletion;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
-import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvValues;
-import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPage;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPageFromCsv;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.TEST_INDEX_SIMPLE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
@@ -84,8 +84,7 @@ import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
  * languages:integer,languages.long:long. The mapping has "long" as a sub-field of "languages". ES knows what to do with sub-field, but
  * employees.csv is specifically defining "languages.long" as "long" and also has duplicated columns for these two.
  *
- * ATM the first line from employees.csv file is not synchronized with the mapping itself, mainly because atm we do not support certain data
- * types (still_hired field should be “boolean”, birth_date and hire_date should be “date” fields).
+ * ATM the first line from employees.csv file is not synchronized with the mapping itself.
  *
  * When we add support for more field types, CsvTests should change to support the new Block types. Same goes for employees.csv file
  * (the schema needs adjustment) and the mapping-default.json file (to add or change an existing field).
@@ -167,7 +166,7 @@ public class CsvTests extends ESTestCase {
     }
 
     public void doTest() throws Throwable {
-        Tuple<Page, List<String>> testData = loadPage(CsvTests.class.getResource("/" + CsvTestsDataLoader.DATA));
+        Tuple<Page, List<String>> testData = loadPageFromCsv(CsvTests.class.getResource("/" + CsvTestsDataLoader.DATA));
         LocalExecutionPlanner planner = new LocalExecutionPlanner(
             BigArrays.NON_RECYCLING_INSTANCE,
             threadPool,
@@ -176,7 +175,7 @@ public class CsvTests extends ESTestCase {
         );
 
         var actualResults = executePlan(planner);
-        var expected = loadCsvValues(testCase.expectedResults);
+        var expected = loadCsvSpecValues(testCase.expectedResults);
 
         var log = logResults() ? LOGGER : null;
         assertResults(expected, actualResults, log);

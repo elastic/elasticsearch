@@ -35,6 +35,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.Strings.delimitedListToStringArray;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.SpecReader.shouldSkipLine;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
@@ -50,10 +51,29 @@ public final class CsvTestUtils {
         return testName.endsWith("-Ignore") == false;
     }
 
-    public static Tuple<Page, List<String>> loadPage(URL source) throws Exception {
+    public static Tuple<Page, List<String>> loadPageFromCsv(URL source) throws Exception {
 
         record CsvColumn(String name, Type type, BuilderWrapper builderWrapper) {
             void append(String stringValue) {
+                if (stringValue.contains(",")) {// multi-value field
+                    builderWrapper().builder().beginPositionEntry();
+
+                    String[] arrayOfValues = delimitedListToStringArray(stringValue, ",");
+                    List<Object> convertedValues = new ArrayList<>(arrayOfValues.length);
+                    for (String value : arrayOfValues) {
+                        if (value.length() == 0) {// this means there shouldn't be any null value in a multi-value field ie [a,,b,c]
+                            throw new IllegalArgumentException(
+                                format(null, "Unexpected missing value in a multi-value column; found value [{}]", stringValue)
+                            );
+                        }
+                        convertedValues.add(type.convert(value));
+                    }
+                    convertedValues.stream().sorted().forEach(v -> builderWrapper().append().accept(v));
+                    builderWrapper().builder().endPositionEntry();
+
+                    return;
+                }
+
                 var converted = stringValue.length() == 0 ? null : type.convert(stringValue);
                 builderWrapper().append().accept(converted);
             }
@@ -69,7 +89,7 @@ public final class CsvTestUtils {
                 line = line.trim();
                 // ignore comments
                 if (shouldSkipLine(line) == false) {
-                    var entries = Strings.delimitedListToStringArray(line, ",");
+                    var entries = delimitedListToStringArray(line, ",");
                     for (int i = 0; i < entries.length; i++) {
                         entries[i] = entries[i].trim();
                     }
@@ -105,19 +125,20 @@ public final class CsvTestUtils {
                     }
                     // data rows
                     else {
-                        if (entries.length != columns.length) {
+                        String[] mvCompressedEntries = compressCommaSeparatedMVs(lineNumber, entries);
+                        if (mvCompressedEntries.length != columns.length) {
                             throw new IllegalArgumentException(
                                 format(
                                     null,
                                     "Error line [{}]: Incorrect number of entries; expected [{}] but found [{}]",
                                     lineNumber,
                                     columns.length,
-                                    entries.length
+                                    mvCompressedEntries.length
                                 )
                             );
                         }
-                        for (int i = 0; i < entries.length; i++) {
-                            var entry = entries[i];
+                        for (int i = 0; i < mvCompressedEntries.length; i++) {
+                            var entry = mvCompressedEntries[i];
                             try {
                                 columns[i].append(entry);
                             } catch (Exception e) {
@@ -140,9 +161,69 @@ public final class CsvTestUtils {
         return new Tuple<>(new Page(blocks), columnNames);
     }
 
+    /**
+     * Takes an array of strings and for each pair of an opening bracket "[" in one string and a closing "]" in another string
+     * it creates a single concatenated comma-separated String of all the values between the opening bracket entry and the closing bracket
+     * entry.
+     */
+    static String[] compressCommaSeparatedMVs(int lineNumber, String[] entries) {
+        var mvCompressedEntries = new ArrayList<String>();
+        String previousMvValue = null;
+        StringBuilder mvValue = null;
+        for (int i = 0; i < entries.length; i++) {
+            var entry = entries[i];
+            if (entry.startsWith("[")) {
+                if (previousMvValue != null) {
+                    throw new IllegalArgumentException(
+                        format(
+                            null,
+                            "Error line [{}]: Unexpected start of a multi-value field value; current token [{}], previous token [{}]",
+                            lineNumber,
+                            entry,
+                            previousMvValue
+                        )
+                    );
+                }
+                if (entry.endsWith("]")) {
+                    if (entry.length() > 2) {// single-valued multivalue field :shrug:
+                        mvCompressedEntries.add(entry.substring(1, entry.length() - 1));
+                    } else {// empty multivalue field
+                        mvCompressedEntries.add("");
+                    }
+                } else {
+                    mvValue = new StringBuilder();
+                    previousMvValue = entry.substring(1);
+                    mvValue.append(previousMvValue);
+                }
+            } else if (entry.endsWith("]")) {
+                if (previousMvValue == null) {
+                    throw new IllegalArgumentException(
+                        format(
+                            null,
+                            "Error line [{}]: Unexpected end of a multi-value field value (no previous starting point); found [{}]",
+                            lineNumber,
+                            entry
+                        )
+                    );
+                }
+                mvValue.append("," + entry.substring(0, entry.length() - 1));
+                mvCompressedEntries.add(mvValue.toString());
+                mvValue = null;
+                previousMvValue = null;
+            } else {
+                if (mvValue != null) {// mid-MV value
+                    mvValue.append("," + entry);
+                } else {
+                    mvCompressedEntries.add(entry);
+                }
+            }
+        }
+        return mvCompressedEntries.toArray(String[]::new);
+    }
+
     public record ExpectedResults(List<String> columnNames, List<Type> columnTypes, List<List<Object>> values) {}
 
-    public static ExpectedResults loadCsvValues(String csv) {
+    public static ExpectedResults loadCsvSpecValues(String csv) {
         List<String> columnNames;
         List<Type> columnTypes;
 
@@ -172,13 +253,25 @@ public final class CsvTestUtils {
                 List<Object> rowValues = new ArrayList<>(row.size());
                 for (int i = 0; i < row.size(); i++) {
                     String value = row.get(i);
-                    if (value != null) {
-                        value = value.trim();
-                        if (value.equalsIgnoreCase(NULL_VALUE)) {
-                            value = null;
-                        }
+                    if (value == null || value.trim().equalsIgnoreCase(NULL_VALUE)) {
+                        value = null;
+                        rowValues.add(columnTypes.get(i).convert(value));
+                        continue;
                     }
-                    rowValues.add(columnTypes.get(i).convert(value));
+
+                    value = value.trim();
+                    if (value.startsWith("[") ^ value.endsWith("]")) {
+                        throw new IllegalArgumentException("Incomplete multi-value (opening and closing square brackets) found " + value);
+                    }
+                    if (value.contains(",") && value.startsWith("[")) {// commas outside a multi-value should be ok
+                        List<Object> listOfMvValues = new ArrayList<>();
+                        for (String mvValue : delimitedListToStringArray(value.substring(1, value.length() - 1), ",")) {
+                            listOfMvValues.add(columnTypes.get(i).convert(mvValue.trim()));
+                        }
+                        rowValues.add(listOfMvValues);
+                    } else {
+                        rowValues.add(columnTypes.get(i).convert(value));
+                    }
                 }
                 values.add(rowValues);
             }

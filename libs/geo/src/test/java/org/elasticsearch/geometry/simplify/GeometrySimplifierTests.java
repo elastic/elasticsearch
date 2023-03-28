@@ -9,11 +9,21 @@
 package org.elasticsearch.geometry.simplify;
 
 import org.elasticsearch.geometry.Line;
-import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiPolygon;
+import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.text.ParseException;
 import java.util.Arrays;
 import java.util.PriorityQueue;
+import java.util.zip.GZIPInputStream;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -22,13 +32,6 @@ import static org.hamcrest.Matchers.not;
 
 public abstract class GeometrySimplifierTests extends ESTestCase {
     protected abstract SimplificationErrorCalculator calculator();
-
-    public void testPoint() {
-        GeometrySimplifier<Point> simplifier = new GeometrySimplifier.Points();
-        Point point = new Point(0, 0);
-        Point simplified = simplifier.simplify(point);
-        assertThat("Same point", simplified, equalTo(point));
-    }
 
     public void testShortLine() {
         GeometrySimplifier<Line> simplifier = new GeometrySimplifier.LineStrings(10, calculator());
@@ -117,35 +120,94 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         assertThat("Same line", streamSimplified, equalTo(simplified));
     }
 
-    private boolean pointExistsOnLine(double x, double y, Line line) {
-        for (int i = 0; i < line.length() - 1; i++) {
-            if (pointInSegment(x, y, line.getX(i), line.getY(i), line.getX(i + 1), line.getY(i + 1))) {
-                return true;
-            }
+    public void testCircularLine() {
+        int maxPoints = 10;
+        double centerX = 6;
+        double centerY = 48;
+        double radius = 10;
+        Line line = makeCircularLine(maxPoints, centerX, centerY, radius);
+        assertPointsOnCircle(centerX, centerY, radius, line);
+        GeometrySimplifier<Line> simplifier = new GeometrySimplifier.LineStrings(maxPoints, calculator());
+        // Test full geometry simplification
+        Line simplified = simplifier.simplify(line);
+        assertLineEnds(maxPoints, simplified, line);
+        assertPointsOnCircle(centerX, centerY, radius, simplified);
+
+        // Test streaming simplification
+        simplifier.reset();
+        for (int i = 0; i < line.length(); i++) {
+            simplifier.consume(line.getX(i), line.getY(i));
         }
-        return false;
+        Line streamSimplified = simplifier.produce();
+        assertLineEnds(maxPoints, streamSimplified, line);
+        assertPointsOnCircle(centerX, centerY, radius, streamSimplified);
+        assertThat("Same line", streamSimplified, equalTo(simplified));
     }
 
-    private boolean pointInSegment(double x, double y, double x1, double y1, double x2, double y2) {
-        boolean betweenX = (x1 <= x && x <= x2) || (x2 <= x && x <= x1);
-        boolean betweenY = (y1 <= y && y <= y2) || (y2 <= y && y <= y1);
-        if (betweenX && betweenY) {
-            double deltaX = x2 - x1;
-            double deltaY = y2 - y1;
-            if (deltaX > deltaY) {
-                return interpolationMatch(x, y, x1, y1, deltaX, deltaY);
-            } else {
-                return interpolationMatch(y, x, y1, x1, deltaY, deltaX);
-            }
+    public void testCircularPolygon() {
+        int maxPoints = 10;
+        double centerX = 6;
+        double centerY = 48;
+        double radius = 10;
+        Polygon polygon = makeCircularPolygon(maxPoints, centerX, centerY, radius);
+        assertPointsOnCircle(centerX, centerY, radius, polygon);
+        GeometrySimplifier<Polygon> simplifier = new GeometrySimplifier.Polygons(maxPoints, calculator());
+        // Test full geometry simplification
+        Polygon simplified = simplifier.simplify(polygon);
+        assertPolygonEnds(maxPoints, simplified, polygon);
+        assertPointsOnCircle(centerX, centerY, radius, simplified);
+
+        // Test streaming simplification
+        simplifier.reset();
+        LinearRing ring = polygon.getPolygon();
+        for (int i = 0; i < ring.length(); i++) {
+            simplifier.consume(ring.getX(i), ring.getY(i));
         }
-        return false;
+        Polygon streamSimplified = simplifier.produce();
+        assertPolygonEnds(maxPoints, simplified, polygon);
+        assertPointsOnCircle(centerX, centerY, radius, streamSimplified);
+        assertThat("Same line", streamSimplified, equalTo(simplified));
+        StringBuilder sb = new StringBuilder("GEOMETRYCOLLECTION(");
+        sb.append(debugPolygon(polygon));
+        sb.append(", ");
+        sb.append(debugPolygon(simplified));
+        // System.out.println(sb.append(")"));
     }
 
-    private boolean interpolationMatch(double a, double b, double a1, double b1, double deltaA, double deltaB) {
-        double epsilon = Math.max(1e-10, deltaB / 1e5);
-        double fraction = (a - a1) / deltaA;
-        double expectedB = b1 + fraction * deltaB;
-        return Math.abs(b - expectedB) < epsilon;
+    public void testComplexGeoJsonMultiPolygon() throws IOException, ParseException {
+        int maxPoints1 = 2000;
+        int maxPoints2 = 100;
+        StringBuilder sb = new StringBuilder();
+        Polygon[] polygons = makePolygonsFromGeoJsonFile("us.json.gz");
+        MultiPolygon multiPolygon = new MultiPolygon(Arrays.asList(polygons));
+        for (int maxPoints : new int[] { maxPoints1, maxPoints2 }) {
+            GeometrySimplifier<MultiPolygon> simplifier = new GeometrySimplifier.MultiPolygons(maxPoints, calculator());
+            MultiPolygon simplifiedMultiPolygon = simplifier.simplify(multiPolygon);
+            for (int i = 0; i < simplifiedMultiPolygon.size(); i++) {
+                Polygon polygon = multiPolygon.get(i);
+                Polygon simplified = simplifiedMultiPolygon.get(i);
+                // assertPolygonEnds(-1, simplified, polygon); // TODO: make an assertion that makes sense
+                if (sb.length() == 0) {
+                    sb.append("GEOMETRYCOLLECTION(");
+                } else {
+                    sb.append(", ");
+                }
+                sb.append(debugPolygon(simplified));
+            }
+        }
+        // System.out.println(sb.append(")"));
+    }
+
+    private String debugPolygon(Polygon polygon) {
+        StringBuilder sb = new StringBuilder("POLYGON((");
+        LinearRing ring = polygon.getPolygon();
+        for (int i = 0; i < ring.length(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(ring.getX(i)).append(" ").append(ring.getY(i));
+        }
+        return sb.append("))").toString();
     }
 
     public void testPriorityQueue() {
@@ -199,6 +261,94 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         }
     }
 
+    private Line makeCircularLine(int maxPoints, double centerX, double centerY, double radius) {
+        int length = maxPoints * 10;
+        double[] x = new double[length];
+        double[] y = new double[length];
+        for (int i = 0; i < length; i++) {
+            x[i] = centerX + radius * Math.cos(Math.toRadians(360.0 * i / length));
+            y[i] = centerY + radius * Math.sin(Math.toRadians(360.0 * i / length));
+        }
+        Line line = new Line(x, y);
+        assertPointsOnCircle(centerX, centerY, radius, line);
+        return line;
+    }
+
+    private Polygon makeCircularPolygon(int maxPoints, double centerX, double centerY, double radius) {
+        int length = maxPoints * 10;
+        double[] x = new double[length + 1];
+        double[] y = new double[length + 1];
+        for (int i = 0; i < length; i++) {
+            x[i] = centerX + radius * Math.cos(Math.toRadians(360.0 * i / length));
+            y[i] = centerY + radius * Math.sin(Math.toRadians(360.0 * i / length));
+        }
+        x[length] = x[0];
+        y[length] = y[0];
+        Polygon polygon = new Polygon(new LinearRing(x, y));
+        assertPointsOnCircle(centerX, centerY, radius, polygon);
+        return polygon;
+    }
+
+    private Polygon[] makePolygonsFromGeoJsonFile(String filename) throws IOException, ParseException {
+        String json = loadJsonFile(filename);
+        org.apache.lucene.geo.Polygon[] lucenePolygons = org.apache.lucene.geo.Polygon.fromGeoJSON(json);
+        Polygon[] polygons = new Polygon[lucenePolygons.length];
+        for (int i = 0; i < lucenePolygons.length; i++) {
+            assert lucenePolygons[i].numHoles() == 0;
+            double[] x = lucenePolygons[i].getPolyLons();
+            double[] y = lucenePolygons[i].getPolyLats();
+            assertThat("First and last points are the same", x[x.length - 1], equalTo(x[0]));
+            assertThat("First and last points are the same", y[y.length - 1], equalTo(y[0]));
+            polygons[i] = new Polygon(new LinearRing(x, y));
+        }
+        return polygons;
+    }
+
+    private String loadJsonFile(String name) throws IOException {
+        InputStream is = getClass().getResourceAsStream(name);
+        if (is == null) {
+            throw new FileNotFoundException("classpath resource not found: " + name);
+        }
+        if (name.endsWith(".gz")) {
+            is = new GZIPInputStream(is);
+        }
+        BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
+        StringBuilder builder = new StringBuilder();
+        reader.lines().forEach(builder::append);
+        return builder.toString();
+    }
+
+    private boolean pointExistsOnLine(double x, double y, Line line) {
+        for (int i = 0; i < line.length() - 1; i++) {
+            if (pointInSegment(x, y, line.getX(i), line.getY(i), line.getX(i + 1), line.getY(i + 1))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean pointInSegment(double x, double y, double x1, double y1, double x2, double y2) {
+        boolean betweenX = (x1 <= x && x <= x2) || (x2 <= x && x <= x1);
+        boolean betweenY = (y1 <= y && y <= y2) || (y2 <= y && y <= y1);
+        if (betweenX && betweenY) {
+            double deltaX = x2 - x1;
+            double deltaY = y2 - y1;
+            if (deltaX > deltaY) {
+                return interpolationMatch(x, y, x1, y1, deltaX, deltaY);
+            } else {
+                return interpolationMatch(y, x, y1, x1, deltaY, deltaX);
+            }
+        }
+        return false;
+    }
+
+    private boolean interpolationMatch(double a, double b, double a1, double b1, double deltaA, double deltaB) {
+        double epsilon = Math.max(1e-10, deltaB / 1e5);
+        double fraction = (a - a1) / deltaA;
+        double expectedB = b1 + fraction * deltaB;
+        return Math.abs(b - expectedB) < epsilon;
+    }
+
     private void assertLineEnds(int maxPoints, Line simplified, Line line) {
         assertThat("Line shortened", simplified.length(), equalTo(maxPoints));
         assertThat("First point X", simplified.getX(0), equalTo(line.getX(0)));
@@ -207,9 +357,39 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         assertThat("Last point Y", simplified.getY(simplified.length() - 1), equalTo(line.getY(line.length() - 1)));
     }
 
+    private void assertPolygonEnds(int maxPoints, Polygon simplified, Polygon original) {
+        LinearRing ring = simplified.getPolygon();
+        LinearRing originalRing = original.getPolygon();
+        if (maxPoints > 0) {
+            assertThat("Polygon shortened", ring.length(), equalTo(Math.min(maxPoints, original.getPolygon().length())));
+        }
+        assertThat("First point X", ring.getX(0), equalTo(originalRing.getX(0)));
+        assertThat("First point Y", ring.getY(0), equalTo(originalRing.getY(0)));
+        assertThat("Last point X", ring.getX(ring.length() - 1), equalTo(originalRing.getX(originalRing.length() - 1)));
+        assertThat("Last point Y", ring.getY(ring.length() - 1), equalTo(originalRing.getY(originalRing.length() - 1)));
+    }
+
     private void assertLinePointNeverHave(Line line, double y) {
         for (int i = 0; i < line.length(); i++) {
             assertThat("Expect points[" + i + "] with y=" + y + " to be removed", line.getY(i), not(closeTo(y, 1e-10)));
+        }
+    }
+
+    private void assertPointsOnCircle(double centerX, double centerY, double radius, Line line) {
+        assertPointsOnCircle(centerX, centerY, radius, line.getX(), line.getY());
+    }
+
+    private void assertPointsOnCircle(double centerX, double centerY, double radius, Polygon polygon) {
+        assertPointsOnCircle(centerX, centerY, radius, polygon.getPolygon().getX(), polygon.getPolygon().getY());
+    }
+
+    private void assertPointsOnCircle(double centerX, double centerY, double radius, double[] x, double[] y) {
+        for (int i = 0; i < x.length; i++) {
+            double dx = x[i] - centerX;
+            double dy = y[i] - centerY;
+            double pRadius = Math.sqrt(dx * dx + dy * dy);
+            String onLine = "Expect point (" + x[i] + "," + y[i] + ") to lie on circle with radius " + radius;
+            assertThat(onLine, pRadius, closeTo(radius, 1e-10));
         }
     }
 }

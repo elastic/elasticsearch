@@ -42,7 +42,7 @@ public class SimplificationErrorCalculatorTests extends ESTestCase {
         }
     }
 
-    private static class TestPoint implements SimplificationErrorCalculator.PointLike {
+    static class TestPoint implements SimplificationErrorCalculator.PointLike {
         double x;
         double y;
 

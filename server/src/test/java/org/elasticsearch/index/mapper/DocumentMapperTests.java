@@ -103,7 +103,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
 
     @Override
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
-        return new IndexAnalyzers(
+        return IndexAnalyzers.of(
             Map.of(
                 "default",
                 new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer()),
@@ -111,9 +111,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 new NamedAnalyzer("keyword", AnalyzerScope.INDEX, new KeywordAnalyzer()),
                 "whitespace",
                 new NamedAnalyzer("whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer())
-            ),
-            Map.of(),
-            Map.of()
+            )
         );
     }
 

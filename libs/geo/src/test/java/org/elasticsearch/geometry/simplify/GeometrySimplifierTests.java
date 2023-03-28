@@ -20,7 +20,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
-public class GeometrySimplifierTests extends ESTestCase {
+public abstract class GeometrySimplifierTests extends ESTestCase {
+    protected abstract SimplificationErrorCalculator calculator();
 
     public void testPoint() {
         GeometrySimplifier<Point> simplifier = new GeometrySimplifier.Points();
@@ -30,7 +31,7 @@ public class GeometrySimplifierTests extends ESTestCase {
     }
 
     public void testShortLine() {
-        GeometrySimplifier<Line> simplifier = new GeometrySimplifier.LineStrings(10);
+        GeometrySimplifier<Line> simplifier = new GeometrySimplifier.LineStrings(10, calculator());
         Line line = new Line(new double[] { -1, 0, 1 }, new double[] { -1, 0, 1 });
 
         // Test full geometry simplification
@@ -48,7 +49,7 @@ public class GeometrySimplifierTests extends ESTestCase {
 
     public void testStraightLine() {
         int maxPoints = 10;
-        GeometrySimplifier<Line> simplifier = new GeometrySimplifier.LineStrings(maxPoints);
+        GeometrySimplifier<Line> simplifier = new GeometrySimplifier.LineStrings(maxPoints, calculator());
         double[] x = new double[100];
         double[] y = new double[100];
         for (int i = 0; i < 100; i++) {
@@ -68,18 +69,23 @@ public class GeometrySimplifierTests extends ESTestCase {
         }
         Line streamSimplified = simplifier.produce();
         assertLineEnds(maxPoints, streamSimplified, line);
-        // TODO: add assertion that lines lie on top of one another, even if with different points
-        // Alternatively add increased simplification where co-linear points are removed
-        // assertThat("Same line", streamSimplified, equalTo(simplified));
+        for (int i = 0; i < line.length(); i++) {
+            double px = line.getX(i);
+            double py = line.getY(i);
+            String onLine = "Expect point (" + px + "," + py + ") to lie on line";
+            assertTrue(onLine, pointExistsOnLine(px, py, simplified));
+            assertTrue(onLine, pointExistsOnLine(px, py, streamSimplified));
+        }
     }
 
     public void testZigZagLine() {
         int maxPoints = 10;
         int zigSize = 2;
-        GeometrySimplifier<Line> simplifier = new GeometrySimplifier.LineStrings(maxPoints);
-        double[] x = new double[maxPoints * zigSize + 1];
-        double[] y = new double[maxPoints * zigSize + 1];
-        for (int i = 0; i < maxPoints * zigSize + 1; i++) {
+        int lineLength = (maxPoints - 1) * zigSize + 1; // chosen to get rid of all y-crossings during simplification
+        GeometrySimplifier<Line> simplifier = new GeometrySimplifier.LineStrings(maxPoints, calculator());
+        double[] x = new double[lineLength];
+        double[] y = new double[lineLength];
+        for (int i = 0; i < lineLength; i++) {
             x[i] = -1.0 + 2.0 * i / (maxPoints * zigSize);
             int offset = i % (2 * zigSize);
             if (offset > zigSize) {
@@ -88,7 +94,6 @@ public class GeometrySimplifierTests extends ESTestCase {
             y[i] = -1.0 + offset;
         }
         Line line = new Line(x, y);
-
         // Test full geometry simplification
         Line simplified = simplifier.simplify(line);
         assertLineEnds(maxPoints, simplified, line);
@@ -102,9 +107,45 @@ public class GeometrySimplifierTests extends ESTestCase {
         Line streamSimplified = simplifier.produce();
         assertLineEnds(maxPoints, streamSimplified, line);
         assertLinePointNeverHave(simplified, 0.0);
-        // TODO: add assertion that lines lie on top of one another, even if with different points
-        // Alternatively add increased simplification where co-linear points are removed
-        // assertThat("Same line", streamSimplified, equalTo(simplified));
+        for (int i = 0; i < line.length(); i++) {
+            double px = line.getX(i);
+            double py = line.getY(i);
+            String onLine = "Expect point (" + px + "," + py + ") to lie on line";
+            assertTrue(onLine, pointExistsOnLine(px, py, simplified));
+            assertTrue(onLine, pointExistsOnLine(px, py, streamSimplified));
+        }
+        assertThat("Same line", streamSimplified, equalTo(simplified));
+    }
+
+    private boolean pointExistsOnLine(double x, double y, Line line) {
+        for (int i = 0; i < line.length() - 1; i++) {
+            if (pointInSegment(x, y, line.getX(i), line.getY(i), line.getX(i + 1), line.getY(i + 1))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean pointInSegment(double x, double y, double x1, double y1, double x2, double y2) {
+        boolean betweenX = (x1 <= x && x <= x2) || (x2 <= x && x <= x1);
+        boolean betweenY = (y1 <= y && y <= y2) || (y2 <= y && y <= y1);
+        if (betweenX && betweenY) {
+            double deltaX = x2 - x1;
+            double deltaY = y2 - y1;
+            if (deltaX > deltaY) {
+                return interpolationMatch(x, y, x1, y1, deltaX, deltaY);
+            } else {
+                return interpolationMatch(y, x, y1, x1, deltaY, deltaX);
+            }
+        }
+        return false;
+    }
+
+    private boolean interpolationMatch(double a, double b, double a1, double b1, double deltaA, double deltaB) {
+        double epsilon = Math.max(1e-10, deltaB / 1e5);
+        double fraction = (a - a1) / deltaA;
+        double expectedB = b1 + fraction * deltaB;
+        return Math.abs(b - expectedB) < epsilon;
     }
 
     public void testPriorityQueue() {
@@ -113,7 +154,7 @@ public class GeometrySimplifierTests extends ESTestCase {
             queue.add(randomInt(100));
         }
         int previous = 0;
-        while (!queue.isEmpty()) {
+        while (queue.isEmpty() == false) {
             Integer number = queue.poll();
             // System.out.println(number);
             assertThat("Should be sorted", number, greaterThanOrEqualTo(previous));
@@ -130,7 +171,7 @@ public class GeometrySimplifierTests extends ESTestCase {
             errors[i] = error;
         }
         GeometrySimplifier.PointError previous = null;
-        while (!queue.isEmpty()) {
+        while (queue.isEmpty() == false) {
             GeometrySimplifier.PointError error = queue.poll();
             System.out.println(error);
             if (previous != null) {
@@ -148,7 +189,7 @@ public class GeometrySimplifierTests extends ESTestCase {
             }
         }
         previous = null;
-        while (!queue.isEmpty()) {
+        while (queue.isEmpty() == false) {
             GeometrySimplifier.PointError error = queue.poll();
             System.out.println(error);
             if (previous != null) {

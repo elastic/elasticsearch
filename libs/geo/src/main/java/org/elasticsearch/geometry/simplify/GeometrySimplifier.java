@@ -65,10 +65,10 @@ public abstract class GeometrySimplifier<T extends Geometry> {
         }
     }
 
-    public static class PointError implements Comparable<PointError> {
+    public static class PointError implements SimplificationErrorCalculator.PointLike, Comparable<PointError> {
         private int index;
-        private final double x;
-        private final double y;
+        final double x;
+        final double y;
         double error = 0;
 
         PointError(int index, double x, double y) {
@@ -86,17 +86,29 @@ public abstract class GeometrySimplifier<T extends Geometry> {
         public String toString() {
             return "[" + index + "] POINT( " + x + " " + y + " ) [error:" + error + "]";
         }
+
+        @Override
+        public double getX() {
+            return x;
+        }
+
+        @Override
+        public double getY() {
+            return y;
+        }
     }
 
     public static class LineStrings extends GeometrySimplifier<Line> {
         private final int maxPoints;
+        private final SimplificationErrorCalculator calculator;
         private final PointError[] points;
         private int length;
 
         private final PriorityQueue<PointError> queue = new PriorityQueue<>();
 
-        public LineStrings(int maxPoints) {
+        public LineStrings(int maxPoints, SimplificationErrorCalculator calculator) {
             this.maxPoints = maxPoints;
+            this.calculator = calculator;
             this.points = new PointError[maxPoints];
             this.length = 0;
         }
@@ -123,14 +135,13 @@ public abstract class GeometrySimplifier<T extends Geometry> {
             PointError pointError = new PointError(length, x, y);
             if (length > 1) {
                 // we need at least three points to calculate the error of the middle point
-                points[length - 1].error = calculateError(points[length - 2], points[length - 1], pointError);
+                points[length - 1].error = calculator.calculateError(points[length - 2], points[length - 1], pointError);
                 queue.add(points[length - 1]);
             }
             if (length == maxPoints) {
                 // Remove point with lowest error
                 PointError toRemove = queue.remove();
                 removeAndAdd(toRemove.index, pointError);
-                queue.add(pointError);
             } else {
                 this.points[length] = pointError;
                 length++;
@@ -158,7 +169,7 @@ public abstract class GeometrySimplifier<T extends Geometry> {
 
         private void updateErrorAt(int index) {
             if (index > 0 && index < length - 1) { // do not reset first and last points as they always have error 0 by definition
-                double error = calculateError(points[index - 1], points[index], points[index + 1]);
+                double error = calculator.calculateError(points[index - 1], points[index], points[index + 1]);
                 double delta = Math.abs(error - points[index].error);
                 points[index].error = error;
                 if (delta > 1e-10) {
@@ -168,28 +179,6 @@ public abstract class GeometrySimplifier<T extends Geometry> {
                     }
                 }
             }
-        }
-
-        private double calculateError(PointError left, PointError middle, PointError right) {
-            // Offset coordinates so left is at the origin
-            double leftX = 0;
-            double leftY = 0;
-            double middleX = middle.x - left.x;
-            double middleY = middle.y - left.y;
-            double rightX = right.x - left.x;
-            double rightY = right.y - left.y;
-            // Rotate coordinates so that a->c is horizontal
-            double len = Math.sqrt(rightX * rightX + rightY * rightY);
-            double cos = rightX / len;
-            double sin = rightY / len;
-            double middleXrotated = middleX * cos + middleY * sin;
-            double middleYrotated = middleY * cos - middleX * sin;
-            double rightXrotated = rightX * cos + rightY * sin;
-            double rightYrotated = rightY * cos - rightX * sin;
-            assert Math.abs(rightYrotated) < 1e-10;
-            assert Math.abs(rightXrotated - len) < len / 1e10;
-            // Return distance to x-axis TODO: also include back-paths for Frechet distance calculation
-            return Math.abs(middleYrotated);
         }
 
         @Override

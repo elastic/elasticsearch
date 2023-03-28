@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.searchablesnapshots.preallocate;
+package org.elasticsearch.blobcache.preallocate;
 
 import com.sun.jna.Native;
 import com.sun.jna.Platform;

@@ -5,11 +5,10 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.searchablesnapshots.preallocate;
+package org.elasticsearch.blobcache.preallocate;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.SuppressForbidden;
 
@@ -26,10 +25,18 @@ public class Preallocate {
 
     private static final Logger logger = LogManager.getLogger(Preallocate.class);
 
+    private static final boolean IS_LINUX;
+    private static final boolean IS_MACOS;
+    static {
+        String osName = System.getProperty("os.name");
+        IS_LINUX = osName.startsWith("Linux");
+        IS_MACOS = osName.startsWith("Mac OS X");
+    }
+
     public static void preallocate(final Path cacheFile, final long fileSize) throws IOException {
-        if (Constants.LINUX) {
+        if (IS_LINUX) {
             preallocate(cacheFile, fileSize, new LinuxPreallocator());
-        } else if (Constants.MAC_OS_X) {
+        } else if (IS_MACOS) {
             preallocate(cacheFile, fileSize, new MacOsPreallocator());
         } else {
             preallocate(cacheFile, fileSize, new NoNativePreallocator());

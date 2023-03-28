@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.searchablesnapshots.preallocate;
+package org.elasticsearch.blobcache.preallocate;
 
 final class NoNativePreallocator implements Preallocator {
 

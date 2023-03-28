@@ -37,12 +37,13 @@ public class RestQuerySearchApplicationAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-
-        try (XContentParser contentParser = restRequest.contentParser()) {
-            SearchApplicationQueryParams queryParams = SearchApplicationQueryParams.parse(contentParser);
-            QuerySearchApplicationAction.Request request = new QuerySearchApplicationAction.Request(restRequest.param("name"), queryParams);
-            return channel -> client.execute(QuerySearchApplicationAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        SearchApplicationQueryParams queryParams = new SearchApplicationQueryParams();
+        if (restRequest.hasContent()) {
+            try (XContentParser contentParser = restRequest.contentParser()) {
+                queryParams = SearchApplicationQueryParams.parse(contentParser);
+            }
         }
-
+        QuerySearchApplicationAction.Request request = new QuerySearchApplicationAction.Request(restRequest.param("name"), queryParams);
+        return channel -> client.execute(QuerySearchApplicationAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

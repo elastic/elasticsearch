@@ -218,8 +218,7 @@ public class RemoteClusterSecurityRestWithMultipleRemotesIT extends AbstractRemo
     }
 
     private void searchAndAssertIndicesFound(String searchPath, String... expectedIndices) throws IOException {
-        final var searchRequest = new Request("GET", searchPath);
-        final Response response = performRequestWithRemoteSearchUser(searchRequest);
+        final Response response = performRequestWithRemoteSearchUser(new Request("GET", searchPath));
         assertOK(response);
         final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
         final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())

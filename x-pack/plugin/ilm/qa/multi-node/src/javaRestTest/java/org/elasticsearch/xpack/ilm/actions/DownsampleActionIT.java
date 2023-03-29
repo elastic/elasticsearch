@@ -295,10 +295,10 @@ public class DownsampleActionIT extends ESRestTestCase {
         createNewSingletonPolicy(client(), policy, phaseName, new DownsampleAction(ConfigTestHelpers.randomInterval()));
         updatePolicy(client(), index, policy);
 
-        String rollupIndex = waitAndGetRollupIndexName(client(), index);
-        assertNull("Rollup index should not have been created", rollupIndex);
-        assertBusy(() -> assertTrue("Source index should not have been deleted", indexExists(index)));
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep(phaseName).getKey())));
+        String rollupIndex = getRollupIndexName(client(), index);
+        assertNull("Rollup index should not have been created", rollupIndex);
+        assertTrue("Source index should not have been deleted", indexExists(index));
     }
 
     /**

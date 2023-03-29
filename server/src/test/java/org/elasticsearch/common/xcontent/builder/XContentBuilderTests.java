@@ -14,11 +14,13 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentGenerator;
@@ -40,10 +42,12 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TimeZone;
 
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -476,5 +480,56 @@ public class XContentBuilderTests extends ESTestCase {
                 assertThat(actualValues, hasEntry(e.getKey(), e.getValue()));
             }
         }
+    }
+
+    private static class NonXContentable {}
+
+    private static class XContentable implements ToXContent {
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return null;
+        }
+    }
+
+    private void assertNotXContentable(Object o, Class<?> type) {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> XContentBuilder.ensureToXContentable(o));
+        assertThat(e.getMessage(), equalTo("Cannot write type [" + type.getCanonicalName() + "] to x-content"));
+    }
+
+    public void testIsXContentable() throws IOException {
+        assertNotXContentable(new NonXContentable(), NonXContentable.class);
+    }
+
+    public void testSetIsXContentable() throws IOException {
+        XContentBuilder.ensureToXContentable(Set.of("a", "b"));
+        assertNotXContentable(Set.of(new NonXContentable()), NonXContentable.class);
+    }
+
+    public void testListIsXContentable() throws IOException {
+        XContentBuilder.ensureToXContentable(List.of("a", "b"));
+        assertNotXContentable(List.of(new NonXContentable()), NonXContentable.class);
+    }
+
+    public void testMapIsXContentable() throws IOException {
+        XContentBuilder.ensureToXContentable(Map.of("a", "b", "c", "d"));
+        assertNotXContentable(Map.of("a", new NonXContentable()), NonXContentable.class);
+    }
+
+    public void testObjectArrayIsXContentable() throws IOException {
+        XContentBuilder.ensureToXContentable(new Object[] { "a", "b" });
+        assertNotXContentable(new Object[] { new NonXContentable() }, NonXContentable.class);
+    }
+
+    public void testIterableIsXContentable() {
+        XContentBuilder.ensureToXContentable((Iterable<String>) () -> List.of("a", "b").iterator());
+        assertNotXContentable((Iterable<NonXContentable>) () -> List.of(new NonXContentable()).iterator(), NonXContentable.class);
+    }
+
+    public void testPathIsXContentable() {
+        XContentBuilder.ensureToXContentable(createTempDir());
+    }
+
+    public void testXContentIsXContentable() {
+        XContentBuilder.ensureToXContentable(new XContentable());
     }
 }

@@ -52,9 +52,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.ObjLongConsumer;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
@@ -74,7 +74,7 @@ public class JoinHelper {
     private final NodeHealthService nodeHealthService;
     private final JoinReasonService joinReasonService;
     private final CircuitBreakerService circuitBreakerService;
-    private final Consumer<ActionListener<ClusterState>> latestStoredStateSupplier;
+    private final ObjLongConsumer<ActionListener<ClusterState>> latestStoredStateSupplier;
 
     private final Map<Tuple<DiscoveryNode, JoinRequest>, PendingJoinInfo> pendingOutgoingJoins = ConcurrentCollections.newConcurrentMap();
     private final AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();
@@ -93,7 +93,7 @@ public class JoinHelper {
         JoinReasonService joinReasonService,
         CircuitBreakerService circuitBreakerService,
         Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection,
-        Consumer<ActionListener<ClusterState>> latestStoredStateSupplier
+        ObjLongConsumer<ActionListener<ClusterState>> latestStoredStateSupplier
     ) {
         this.joinTaskQueue = masterService.createTaskQueue(
             "node-join",
@@ -458,6 +458,7 @@ public class JoinHelper {
             assert closed == false : "CandidateJoinAccumulator closed";
             closed = true;
             if (newMode == Mode.LEADER) {
+                final var joiningTerm = currentTermSupplier.getAsLong();
                 final JoinTask joinTask = JoinTask.completingElection(joinRequestAccumulator.entrySet().stream().map(entry -> {
                     final DiscoveryNode discoveryNode = entry.getKey();
                     final var data = entry.getValue();
@@ -467,12 +468,12 @@ public class JoinHelper {
                         joinReasonService.getJoinReason(discoveryNode, Mode.CANDIDATE),
                         data.v2()
                     );
-                }), currentTermSupplier.getAsLong());
+                }), joiningTerm);
                 latestStoredStateSupplier.accept(new ActionListener<>() {
                     @Override
                     public void onResponse(ClusterState latestStoredClusterState) {
                         joinTaskQueue.submitTask(
-                            "elected-as-master ([" + joinTask.nodeCount() + "] nodes joined)",
+                            "elected-as-master ([" + joinTask.nodeCount() + "] nodes joined in term " + joiningTerm + ")",
                             joinTask.alsoRefreshState(latestStoredClusterState),
                             null
                         );
@@ -482,7 +483,7 @@ public class JoinHelper {
                     public void onFailure(Exception e) {
                         joinRequestAccumulator.values().forEach(joinCallback -> joinCallback.v2().onFailure(e));
                     }
-                });
+                }, joiningTerm);
             } else {
                 assert newMode == Mode.FOLLOWER : newMode;
                 joinRequestAccumulator.values()

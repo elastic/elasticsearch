@@ -455,7 +455,7 @@ public class PercolatorFieldMapper extends FieldMapper {
                 // write the version id to the stream first
                 // NOTE: if needed, at some later point this can be replaced with a specific version number
                 // if the format needs to change again
-                TransportVersion.writeVersion(out, clusterTransportVersion);
+                TransportVersion.writeVersion(clusterTransportVersion, out);
                 out.setTransportVersion(clusterTransportVersion);
             }
 

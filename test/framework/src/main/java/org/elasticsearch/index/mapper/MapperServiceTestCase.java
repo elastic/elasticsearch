@@ -120,11 +120,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected static IndexAnalyzers createIndexAnalyzers() {
-        return new IndexAnalyzers(
-            Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
-            Map.of(),
-            Map.of()
-        );
+        return IndexAnalyzers.of(Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())));
     }
 
     protected final String randomIndexOptions() {

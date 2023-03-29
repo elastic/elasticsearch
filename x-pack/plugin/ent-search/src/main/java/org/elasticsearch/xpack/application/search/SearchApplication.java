@@ -49,10 +49,9 @@ public class SearchApplication implements Writeable, ToXContentObject {
             final String name = (String) params[0];
             // If name is provided, check that it matches the resource name. We don't want it to be updatable
             if (name != null && name.equals(resourceName) == false) {
-                    throw new IllegalArgumentException(
-                        "Search Application name [" + name + "] does not match the resource name: [" + resourceName + "]"
-                    );
-                }
+                throw new IllegalArgumentException(
+                    "Search Application name [" + name + "] does not match the resource name: [" + resourceName + "]"
+                );
             }
             @SuppressWarnings("unchecked")
             final String[] indices = ((List<String>) params[1]).toArray(String[]::new);
@@ -90,7 +89,6 @@ public class SearchApplication implements Writeable, ToXContentObject {
 
         Objects.requireNonNull(indices, "Search Application indices cannot be null");
         this.indices = Arrays.copyOf(indices, indices.length);
-        Arrays.sort(this.indices);
 
         this.analyticsCollectionName = analyticsCollectionName;
         this.updatedAtMillis = updatedAtMillis;

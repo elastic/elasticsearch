@@ -68,7 +68,7 @@ public class PerFieldMapperCodec extends FilterCodec {
     };
 
     public PerFieldMapperCodec(Lucene95Codec.Mode compressionMode, MapperService mapperService, BigArrays bigArrays) {
-        super("PerFieldMapperCodec", new Lucene95Codec(compressionMode));
+        super("Lucene95", new Lucene95Codec(compressionMode));
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
         this.tsdbDocValuesFormat = new ES87TSDBDocValuesFormat();

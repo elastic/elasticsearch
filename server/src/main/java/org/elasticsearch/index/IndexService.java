@@ -124,6 +124,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicBoolean deleted = new AtomicBoolean(false);
     private final IndexSettings indexSettings;
+    private final IndexAnalyzers indexAnalyzers;
     private final List<SearchOperationListener> searchOperationListeners;
     private final List<IndexingOperationListener> indexingOperationListeners;
     private final BooleanSupplier allowExpensiveQueries;
@@ -192,6 +193,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.expressionResolver = expressionResolver;
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.snapshotCommitSupplier = snapshotCommitSupplier;
+        this.indexAnalyzers = indexAnalyzers;
         if (needsMapperService(indexSettings, indexCreationContext)) {
             assert indexAnalyzers != null;
             this.mapperService = new MapperService(
@@ -357,7 +359,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     bitsetFilterCache,
                     indexCache,
                     indexFieldData,
-                    mapperService,
+                    indexAnalyzers,
                     refreshTask,
                     fsyncTask,
                     trimTranslogTask,

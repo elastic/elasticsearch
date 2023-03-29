@@ -11,6 +11,9 @@ You can use {filebeat} to monitor the {es} log files, collect log events, and
 ship them to the monitoring cluster. Your recent logs are visible on the
 *Monitoring* page in {kib}.
 
+IMPORTANT: If you're using {agent}, do not deploy {filebeat} for log collection.
+Instead, configure the {es} integration to collect logs.
+
 //NOTE: The tagged regions are re-used in the Stack Overview.
 
 . Verify that {es} is running and that the monitoring cluster is ready to

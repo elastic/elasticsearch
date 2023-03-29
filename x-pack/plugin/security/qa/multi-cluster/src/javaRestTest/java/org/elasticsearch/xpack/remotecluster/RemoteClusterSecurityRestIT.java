@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.remotecluster;
 
+import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
@@ -52,6 +54,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             .setting("xpack.security.remote_cluster_server.ssl.enabled", "true")
             .setting("xpack.security.remote_cluster_server.ssl.key", "remote-cluster.key")
             .setting("xpack.security.remote_cluster_server.ssl.certificate", "remote-cluster.crt")
+            .setting("xpack.security.authc.token.enabled", "true")
             .keystore("xpack.security.remote_cluster_server.ssl.secure_key_passphrase", "remote-cluster-password")
             .build();
 
@@ -60,6 +63,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             .apply(commonClusterConfig)
             .setting("xpack.security.remote_cluster_client.ssl.enabled", "true")
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
+            .setting("xpack.security.authc.token.enabled", "true")
             .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
                 if (API_KEY_MAP_REF.get() == null) {
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
@@ -309,18 +313,41 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
     }
 
     private Response performRequestWithRemoteSearchUser(final Request request) throws IOException {
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(REMOTE_SEARCH_USER, PASS)));
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerFromRandomAuthMethod(REMOTE_SEARCH_USER, PASS))
+        );
         return client().performRequest(request);
     }
 
     private Response performRequestWithRemoteMetricUser(final Request request) throws IOException {
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(REMOTE_METRIC_USER, PASS)));
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerFromRandomAuthMethod(REMOTE_METRIC_USER, PASS))
+        );
         return client().performRequest(request);
     }
 
     private Response performRequestWithLocalSearchUser(final Request request) throws IOException {
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue("local_search_user", PASS)));
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerFromRandomAuthMethod("local_search_user", PASS))
+        );
         return client().performRequest(request);
     }
 
+    private String headerFromRandomAuthMethod(final String username, final SecureString password) throws IOException {
+        final boolean useBearerTokenAuth = randomBoolean();
+        if (useBearerTokenAuth) {
+            final Request request = new Request(HttpPost.METHOD_NAME, "/_security/oauth2/token");
+            request.setJsonEntity(String.format(Locale.ROOT, """
+                {
+                  "grant_type":"password",
+                  "username":"%s",
+                  "password":"%s"
+                }
+                """, username, password));
+            final Map<String, Object> responseBody = entityAsMap(adminClient().performRequest(request));
+            return "Bearer " + responseBody.get("access_token");
+        } else {
+            return basicAuthHeaderValue(username, password);
+        }
+    }
 }

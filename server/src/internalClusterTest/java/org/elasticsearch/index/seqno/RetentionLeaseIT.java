@@ -131,11 +131,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
     public void testRetentionLeaseSyncedOnRemove() throws Exception {
         final int numberOfReplicas = 2 - scaledRandomIntBetween(0, 2);
         internalCluster().ensureAtLeastNumDataNodes(1 + numberOfReplicas);
-        final Settings settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", numberOfReplicas)
-            .build();
-        createIndex("index", settings);
+        createIndex("index", 1, numberOfReplicas);
         ensureGreen("index");
         final String primaryShardNodeId = clusterService().state().routingTable().index("index").shard(0).primaryShard().currentNodeId();
         final String primaryShardNodeName = clusterService().state().nodes().get(primaryShardNodeId).getName();

@@ -489,6 +489,12 @@ public class XContentBuilderTests extends ESTestCase {
         }
     }
 
+    private enum XContentableEnum {
+        A,
+        B,
+        C
+    }
+
     private void assertNotXContentable(Object o, Class<?> type) {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> XContentBuilder.ensureToXContentable(o));
         assertThat(e.getMessage(), equalTo("Cannot write type [" + type.getCanonicalName() + "] to x-content"));
@@ -511,6 +517,10 @@ public class XContentBuilderTests extends ESTestCase {
     public void testMapIsXContentable() throws IOException {
         XContentBuilder.ensureToXContentable(Map.of("a", "b", "c", "d"));
         assertNotXContentable(Map.of("a", new NonXContentable()), NonXContentable.class);
+
+        Map<Object, Object> nonStringKey = Map.of(1, 2);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> XContentBuilder.ensureToXContentable(nonStringKey));
+        assertThat(e.getMessage(), equalTo("Cannot write non-String map key [java.lang.Integer] to x-content"));
     }
 
     public void testObjectArrayIsXContentable() throws IOException {
@@ -529,5 +539,9 @@ public class XContentBuilderTests extends ESTestCase {
 
     public void testXContentIsXContentable() {
         XContentBuilder.ensureToXContentable(new XContentable());
+    }
+
+    public void testEnumIsXContentable() {
+        XContentBuilder.ensureToXContentable(XContentableEnum.A);
     }
 }

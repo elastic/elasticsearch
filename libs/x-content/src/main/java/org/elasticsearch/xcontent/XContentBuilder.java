@@ -1320,7 +1320,11 @@ public final class XContentBuilder implements Closeable, Flushable {
             }
         } else if (value instanceof Map<?, ?> map) {
             for (Map.Entry<?, ?> entry : map.entrySet()) {
-                ensureToXContentable(entry.getKey());
+                if (entry.getKey() instanceof String == false) {
+                    throw new IllegalArgumentException(
+                        "Cannot write non-String map key [" + entry.getKey().getClass().getCanonicalName() + "] to x-content"
+                    );
+                }
                 ensureToXContentable(entry.getValue());
             }
         } else if (value instanceof Path) {
@@ -1331,7 +1335,7 @@ public final class XContentBuilder implements Closeable, Flushable {
             for (Object v : iterable) {
                 ensureToXContentable(v);
             }
-        } else if (value instanceof ToXContent) {
+        } else if (value instanceof ToXContent || value instanceof Enum<?>) {
             return;
         } else {
             Class<?> type = value.getClass();

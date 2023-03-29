@@ -514,7 +514,10 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         public void beforeCommit(long term, long version, ActionListener<Void> listener) {
             // TODO: add a test to ensure that this gets called
             final var currentTerm = register.readCurrentTerm();
-            if (currentTerm > term) {
+            if (currentTerm == term) {
+                listener.onResponse(null);
+            } else {
+                assert term < currentTerm : term + " vs " + currentTerm;
                 listener.onFailure(
                     new CoordinationStateRejectedException(
                         Strings.format(
@@ -525,9 +528,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                         )
                     )
                 );
-            } else {
-                assert currentTerm == term : currentTerm + " vs " + term;
-                listener.onResponse(null);
             }
         }
     }

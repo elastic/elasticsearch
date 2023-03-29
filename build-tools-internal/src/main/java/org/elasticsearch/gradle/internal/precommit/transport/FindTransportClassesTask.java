@@ -104,6 +104,7 @@ public abstract class FindTransportClassesTask extends PrecommitTask {
                 getParameters().getMainSources().getFiles(),
                 getParameters().getCompileClasspath().getFiles()
             );
+            transportClasses.removeAll(classesToSkip);
 
             Path includePath = getParameters().getIncludeClasses().getAsFile().get().toPath();
             try {

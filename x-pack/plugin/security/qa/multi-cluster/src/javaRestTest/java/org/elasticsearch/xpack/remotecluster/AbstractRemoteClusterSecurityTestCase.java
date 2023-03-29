@@ -77,9 +77,13 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         if (fulfillingClusterClient != null) {
             return;
         }
-        assert fulfillingCluster != null;
-        final int numberOfFcNodes = fulfillingCluster.getHttpAddresses().split(",").length;
-        final String url = fulfillingCluster.getHttpAddress(randomIntBetween(0, numberOfFcNodes - 1));
+        fulfillingClusterClient = buildRestClient(fulfillingCluster);
+    }
+
+    static RestClient buildRestClient(ElasticsearchCluster targetCluster) {
+        assert targetCluster != null;
+        final int numberOfFcNodes = targetCluster.getHttpAddresses().split(",").length;
+        final String url = targetCluster.getHttpAddress(randomIntBetween(0, numberOfFcNodes - 1));
 
         final int portSeparator = url.lastIndexOf(':');
         final var httpHost = new HttpHost(url.substring(0, portSeparator), Integer.parseInt(url.substring(portSeparator + 1)), "http");
@@ -90,7 +94,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
             throw new UncheckedIOException(e);
         }
         builder.setStrictDeprecationMode(true);
-        fulfillingClusterClient = builder.build();
+        return builder.build();
     }
 
     @AfterClass
@@ -134,26 +138,28 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
 
     protected void configureRemoteClusters() throws Exception {
         // This method assume the cross cluster access API key is already configured in keystore
-        configureRemoteClusters(randomBoolean());
+        configureRemoteCluster(fulfillingCluster, randomBoolean());
     }
 
-    /**
-     * Returns API key ID of cross cluster access API key.
-     */
     protected void configureRemoteClusters(boolean isProxyMode) throws Exception {
+        // This method assume the cross cluster access API key is already configured in keystore
+        configureRemoteCluster(fulfillingCluster, isProxyMode);
+    }
+
+    protected void configureRemoteCluster(ElasticsearchCluster targetFulfillingCluster, boolean isProxyMode) throws Exception {
         // This method assume the cross cluster access API key is already configured in keystore
         final Settings.Builder builder = Settings.builder();
         if (isProxyMode) {
             builder.put("cluster.remote.my_remote_cluster.mode", "proxy")
-                .put("cluster.remote.my_remote_cluster.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0));
+                .put("cluster.remote.my_remote_cluster.proxy_address", targetFulfillingCluster.getRemoteClusterServerEndpoint(0));
         } else {
             builder.put("cluster.remote.my_remote_cluster.mode", "sniff")
-                .putList("cluster.remote.my_remote_cluster.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0));
+                .putList("cluster.remote.my_remote_cluster.seeds", targetFulfillingCluster.getRemoteClusterServerEndpoint(0));
         }
         updateClusterSettings(builder.build());
 
         // Ensure remote cluster is connected
-        final int numberOfFcNodes = fulfillingCluster.getHttpAddresses().split(",").length;
+        final int numberOfFcNodes = targetFulfillingCluster.getHttpAddresses().split(",").length;
         final Request remoteInfoRequest = new Request("GET", "/_remote/info");
         assertBusy(() -> {
             final Response remoteInfoResponse = adminClient().performRequest(remoteInfoRequest);
@@ -169,8 +175,12 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     }
 
     protected static Response performRequestAgainstFulfillingCluster(Request request) throws IOException {
+        return performRequestWithDefaultUser(fulfillingClusterClient, request);
+    }
+
+    protected static Response performRequestWithDefaultUser(RestClient targetFulfillingClusterClient, Request request) throws IOException {
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(USER, PASS)));
-        return fulfillingClusterClient.performRequest(request);
+        return targetFulfillingClusterClient.performRequest(request);
     }
 
     // TODO centralize common usage of this across all tests

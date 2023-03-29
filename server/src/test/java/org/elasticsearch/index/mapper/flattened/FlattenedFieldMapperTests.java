@@ -35,6 +35,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
@@ -533,14 +534,12 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             switch (j) {
                 case 1 -> example.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
                 case 2 -> {
-                    // NOTE: we remove duplicates from the list to avoid issues with duplicate keywords.
-                    // Moreover we make sure the list has at least 2 elements.
-                    final List<String> randomList = new ArrayList<>(
-                        new HashSet<>(randomList(2, 10, () -> String.valueOf(randomIntBetween(10000, 20000))))
-                    );
-                    if (randomList.size() == 1) {
-                        randomList.add(randomList.get(0) + 1);
+                    int size = randomIntBetween(2, 10);
+                    final Set<String> stringSet = new HashSet<>();
+                    while (stringSet.size() < size) {
+                        stringSet.add(String.valueOf(randomIntBetween(10_000, 20_000)));
                     }
+                    final List<String> randomList = new ArrayList<>(stringSet);
                     Collections.sort(randomList);
                     example.put(randomAlphaOfLength(6), randomList);
                 }

@@ -72,8 +72,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Map;
 
 /**
@@ -735,28 +733,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return syntheticFieldLoader(simpleName());
-    }
-
-    protected SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
         if (hasScript()) {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }
         if (fieldType().hasDocValues()) {
-            return new FlattenedSortedSetDocValuesSyntheticFieldLoader(name() + "._keyed", simpleName) {
-
-                @Override
-                protected BytesRef convert(BytesRef value) {
-                    byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
-                    String v = new String(bytes, StandardCharsets.UTF_8);
-                    return value;
-                }
-
-                @Override
-                protected BytesRef preserve(BytesRef value) {
-                    return BytesRef.deepCopyOf(value);
-                }
-            };
+            return new FlattenedSortedSetDocValuesSyntheticFieldLoader(name() + "._keyed", simpleName());
         }
 
         throw new IllegalArgumentException(

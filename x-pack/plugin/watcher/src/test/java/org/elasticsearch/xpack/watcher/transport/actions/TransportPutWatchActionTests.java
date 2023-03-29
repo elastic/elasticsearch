@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
@@ -86,10 +87,8 @@ public class TransportPutWatchActionTests extends ESTestCase {
 
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterState clusterState = mock(ClusterState.class);
-        final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
         when(clusterService.state()).thenReturn(clusterState);
-        when(clusterState.nodes()).thenReturn(discoveryNodes);
-        when(discoveryNodes.getMinNodeVersion()).thenReturn(Version.CURRENT);
+        when(clusterState.getMinTransportVersion()).thenReturn(TransportVersion.CURRENT);
 
         action = new TransportPutWatchAction(
             transportService,

@@ -32,7 +32,7 @@ import java.util.Objects;
 public class AnalyticsEventEmitterService {
     private static final Logger logger = LogManager.getLogger(AnalyticsEventEmitterService.class);
 
-    private static final Marker ANALYTICS_MARKER = MarkerManager.getMarker("org.elasticsearch.xpack.application.analytics");
+    private static final Marker ANALYTICS_MARKER = MarkerManager.getMarker("ANALYTICS_EVENT");
 
     private final ClusterService clusterService;
 

@@ -213,7 +213,7 @@ public class TransportVersion implements Comparable<TransportVersion> {
         return new TransportVersion(id, "<unknown>");
     }
 
-    public static void writeVersion(StreamOutput out, TransportVersion version) throws IOException {
+    public static void writeVersion(TransportVersion version, StreamOutput out) throws IOException {
         out.writeVInt(version.id);
     }
 
@@ -265,6 +265,10 @@ public class TransportVersion implements Comparable<TransportVersion> {
     @Override
     public int compareTo(TransportVersion other) {
         return Integer.compare(this.id, other.id);
+    }
+
+    public static TransportVersion fromString(String str) {
+        return TransportVersion.fromId(Integer.parseInt(str));
     }
 
     @Override

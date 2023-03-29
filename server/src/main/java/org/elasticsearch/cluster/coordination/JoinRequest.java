@@ -70,7 +70,7 @@ public class JoinRequest extends TransportRequest {
         super.writeTo(out);
         sourceNode.writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-            TransportVersion.writeVersion(out, transportVersion);
+            TransportVersion.writeVersion(transportVersion, out);
         }
         out.writeLong(minimumTerm);
         out.writeOptionalWriteable(optionalJoin.orElse(null));

@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
@@ -40,10 +39,10 @@ import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -108,21 +107,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         Setting.Property.NodeScope
     );
 
-    private static final Boolean UNTRUSTED_REMOTE_CLUSTER_FEATURE_FLAG_REGISTERED;
-
-    static {
-        final String property = System.getProperty("es.untrusted_remote_cluster_feature_flag_registered");
-        if (Build.CURRENT.isSnapshot() && property != null) {
-            throw new IllegalArgumentException(
-                "es.untrusted_remote_cluster_feature_flag_registered " + "is only supported in non-snapshot builds"
-            );
-        }
-        UNTRUSTED_REMOTE_CLUSTER_FEATURE_FLAG_REGISTERED = Booleans.parseBoolean(property, null);
-    }
+    private static final FeatureFlag UNTRUSTED_REMOTE_CLUSTER_FEATURE_FLAG = FeatureFlag.legacyRegisteredFlag("untrusted_remote_cluster");
 
     public static boolean isUntrustedRemoteClusterEnabled() {
-        return Build.CURRENT.isSnapshot()
-            || (UNTRUSTED_REMOTE_CLUSTER_FEATURE_FLAG_REGISTERED != null && UNTRUSTED_REMOTE_CLUSTER_FEATURE_FLAG_REGISTERED);
+        return UNTRUSTED_REMOTE_CLUSTER_FEATURE_FLAG.isEnabled();
     }
 
     private final boolean ignoreDeserializationErrors;

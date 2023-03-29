@@ -52,6 +52,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -73,6 +74,7 @@ public class JoinHelper {
     private final NodeHealthService nodeHealthService;
     private final JoinReasonService joinReasonService;
     private final CircuitBreakerService circuitBreakerService;
+    private final Consumer<ActionListener<ClusterState>> latestStoredStateSupplier;
 
     private final Map<Tuple<DiscoveryNode, JoinRequest>, PendingJoinInfo> pendingOutgoingJoins = ConcurrentCollections.newConcurrentMap();
     private final AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();
@@ -90,7 +92,8 @@ public class JoinHelper {
         NodeHealthService nodeHealthService,
         JoinReasonService joinReasonService,
         CircuitBreakerService circuitBreakerService,
-        Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection
+        Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection,
+        Consumer<ActionListener<ClusterState>> latestStoredStateSupplier
     ) {
         this.joinTaskQueue = masterService.createTaskQueue(
             "node-join",
@@ -103,6 +106,7 @@ public class JoinHelper {
         this.currentTermSupplier = currentTermSupplier;
         this.nodeHealthService = nodeHealthService;
         this.joinReasonService = joinReasonService;
+        this.latestStoredStateSupplier = latestStoredStateSupplier;
 
         transportService.registerRequestHandler(
             JOIN_ACTION_NAME,
@@ -464,7 +468,21 @@ public class JoinHelper {
                         data.v2()
                     );
                 }), currentTermSupplier.getAsLong());
-                joinTaskQueue.submitTask("elected-as-master ([" + joinTask.nodeCount() + "] nodes joined)", joinTask, null);
+                latestStoredStateSupplier.accept(new ActionListener<>() {
+                    @Override
+                    public void onResponse(ClusterState latestStoredClusterState) {
+                        joinTaskQueue.submitTask(
+                            "elected-as-master ([" + joinTask.nodeCount() + "] nodes joined)",
+                            joinTask.alsoRefreshState(latestStoredClusterState),
+                            null
+                        );
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        joinRequestAccumulator.values().forEach(joinCallback -> joinCallback.v2().onFailure(e));
+                    }
+                });
             } else {
                 assert newMode == Mode.FOLLOWER : newMode;
                 joinRequestAccumulator.values()

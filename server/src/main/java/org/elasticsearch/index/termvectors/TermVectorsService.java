@@ -22,6 +22,7 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -241,7 +242,7 @@ public class TermVectorsService {
         } else {
             return mapperService.indexAnalyzer(
                 field,
-                f -> { throw new IllegalArgumentException("No analyzer configured for field " + f); }
+                f -> Lucene.KEYWORD_ANALYZER    // if no analyzer configured it must be untokenized so return a keyword analyzer
             );
         }
     }

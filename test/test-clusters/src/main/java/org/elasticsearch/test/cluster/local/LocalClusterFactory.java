@@ -8,6 +8,8 @@
 
 package org.elasticsearch.test.cluster.local;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.test.cluster.ClusterFactory;
@@ -66,10 +68,12 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
     private static final String ENABLE_DEBUG_JVM_ARGS = "-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=";
     private static final int DEFAULT_DEBUG_PORT = 5007;
 
+    private final ObjectMapper objectMapper;
     private final DistributionResolver distributionResolver;
     private Path baseWorkingDir;
 
     public LocalClusterFactory(DistributionResolver distributionResolver) {
+        this.objectMapper = new ObjectMapper();
         this.distributionResolver = distributionResolver;
     }
 
@@ -136,6 +140,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             createKeystore();
             addKeystoreSettings();
             addKeystoreFiles();
+            writeSecureSecretsFile();
             configureSecurity();
 
             startElasticsearch();
@@ -405,6 +410,21 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
                     throw new RuntimeException(e);
                 }
             });
+        }
+
+        private void writeSecureSecretsFile() {
+            if (spec.getSecrets().isEmpty() == false) {
+                try {
+                    Path secretsFile = configDir.resolve("secrets/secrets.json");
+                    Files.createDirectories(secretsFile.getParent());
+                    Map<String, Object> secretsFileContent = new HashMap<>();
+                    secretsFileContent.put("secrets", spec.getSecrets());
+                    secretsFileContent.put("metadata", Map.of("version", "1", "compatibility", spec.getVersion().toString()));
+                    Files.writeString(secretsFile, objectMapper.writeValueAsString(secretsFileContent));
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
         }
 
         private void configureSecurity() {

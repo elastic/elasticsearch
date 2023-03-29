@@ -885,7 +885,7 @@ flattened field:
               third: [ "1", "2", "3" ]
           # NOTE 2: the missing '1213' value below is not a mistake.
           # Flattened fields use SortedSetDocValues, which means they discard duplicate key/value pairs
-          # like `key1.key8` => `c` which exists twice in the input document.
+          # like `flattened_a.list1` => `1213` which exists twice in the input document.
           # NOTE 3: watch out for string vs numeric sorting
           list1: [ "1011", "1213", "789" ]
         single_flattened:

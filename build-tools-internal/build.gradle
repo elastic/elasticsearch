@@ -249,7 +249,10 @@ dependencies {
   api enforcedPlatform(buildLibs.jackson.platform)
   api localGroovy()
   api gradleApi()
-
+//  implementation ('org.jacoco:jacoco:0.8.9-SNAPSHOT'){
+//      exclude group: 'org.jacoco', module: 'org.jacoco.examples'
+//      exclude group: 'org.jacoco', module: 'org.jacoco.doc'
+//  }
   api "org.elasticsearch:build-conventions:$version"
   api "org.elasticsearch.gradle:build-tools:$version"
 
@@ -314,8 +317,6 @@ dependencies {
   testImplementation buildLibs.spock.junit4
   testImplementation buildLibs.json.assert
   integTestImplementation buildLibs.xmlunit.core
-  api 'org.jetbrains.kotlinx:kover:0.6.1'
-  api 'org.jetbrains.intellij.deps:intellij-coverage-agent:1.0.683'
 
 }
 

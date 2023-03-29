@@ -8,101 +8,85 @@
 
 package org.elasticsearch.gradle.internal;
 
-import kotlinx.kover.KoverPlugin;
-import kotlinx.kover.api.CounterType;
-import kotlinx.kover.api.KoverProjectConfig;
-import kotlinx.kover.api.VerificationTarget;
-import kotlinx.kover.api.VerificationValueType;
-import kotlinx.kover.tasks.KoverVerificationTask;
-
 import org.elasticsearch.gradle.internal.precommit.transport.FindTransportClassesPlugin;
 import org.elasticsearch.gradle.internal.precommit.transport.FindTransportClassesTask;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
 import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.TaskProvider;
+import org.gradle.testing.jacoco.plugins.JacocoPlugin;
+import org.gradle.testing.jacoco.plugins.JacocoPluginExtension;
+import org.gradle.testing.jacoco.tasks.JacocoCoverageVerification;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class TransportClassesCoveragePlugin implements Plugin<Project> {
+    private static final Logger LOGGER = Logging.getLogger(TransportClassesCoveragePlugin.class);
+
     @Override
     public void apply(Project project) {
         project.getPluginManager().withPlugin("elasticsearch.build", plugin -> {
-            project.getPluginManager().apply(KoverPlugin.class);
+            project.getRepositories().maven(maven -> { maven.setUrl("https://oss.sonatype.org/content/repositories/snapshots/"); });
+
+            project.getPluginManager().apply(JacocoPlugin.class);
             project.getPluginManager().apply(FindTransportClassesPlugin.class);
 
-            /*
-            Kover applies itself to all tasks of type Test. see KoverProjectApplier.kt
-                 tasks.withType<Test>().configureEach {
-                 applyToTestTask(extension, engineProvider)
-                }
-                therefore the section below is trying to remove the expensive test tasks from the instrumentation
-             */
-            project.getExtensions().configure(KoverProjectConfig.class, kover -> {
-                kover.instrumentation(instrumentation -> {
-                    instrumentation.getExcludeTasks().add("internalClusterTest");
-                    instrumentation.getExcludeTasks().add("yamlRestTest");
-                    instrumentation.getExcludeTasks().add("yamlRestTestV7CompatTest");
-                });
-            });
+            // support for java 20
+            project.getExtensions().getByType(JacocoPluginExtension.class).setToolVersion("0.8.9-20230327.073737-36");
 
-            TaskProvider<KoverVerificationTask> koverVerify = project.getTasks().named("koverVerify", KoverVerificationTask.class);
-            project.getTasks().named("check").configure(task -> task.dependsOn(koverVerify));
+            // this is suggested by gradle jacoco doc https://docs.gradle.org/current/userguide/jacoco_plugin.html
+            project.getTasks().named("test").configure(task -> { task.finalizedBy(project.getTasks().named("jacocoTestReport")); });
+            TaskProvider<Task> jacocoTestReport = project.getTasks().named("jacocoTestReport");
+            jacocoTestReport.configure(task -> { task.dependsOn(project.getTasks().named("test")); });
 
-            koverVerify.configure(t -> {
+            TaskProvider<JacocoCoverageVerification> verify = project.getTasks()
+                .named("jacocoTestCoverageVerification", JacocoCoverageVerification.class);
+            project.getTasks().named("check").configure(task -> task.dependsOn(verify));
+
+            verify.configure(t -> {
                 FindTransportClassesTask findTransportClassesTask = getFindTransportClassesTask(project);
+                t.dependsOn(jacocoTestReport);
                 t.dependsOn(findTransportClassesTask);
 
-                t.doFirst(t2 -> {
-                    project.getExtensions().configure(KoverProjectConfig.class, kover -> {
+                t.doFirst(aTask -> {
+                    var task = (JacocoCoverageVerification) aTask;
+                    task.getViolationRules().rule(jacocoViolationRule -> {
 
-                        kover.verify(verify -> {
-                            verify.rule(rule -> {
-                                rule.overrideClassFilter(koverClassFilter -> {
-                                    Set<String> transportClasses = readAllLines(findTransportClassesTask.getTransportClasses());
-                                    if (transportClasses.size() == 0) {
-                                        koverClassFilter.getExcludes().add("*");
-                                    } else {
-                                        koverClassFilter.getIncludes().addAll(includes(transportClasses));
-                                        koverClassFilter.getExcludes().addAll(excludes(transportClasses));
-                                    }
-
-                                });
-                                rule.setTarget(VerificationTarget.CLASS);
-                                rule.setEnabled(true);
-                                rule.bound(bound -> {
-                                    bound.setMinValue(100);
-                                    bound.setCounter(CounterType.LINE);
-                                    bound.setValueType(VerificationValueType.COVERED_PERCENTAGE);
-                                });
-                            });
+                        Set<String> transportClasses = readAllLines(findTransportClassesTask.getTransportClasses());
+                        jacocoViolationRule.setElement("CLASS");
+                        jacocoViolationRule.limit(l -> {
+                            l.setCounter("LINE");
+                            l.setValue("COVEREDRATIO");
+                            l.setMinimum(BigDecimal.valueOf(0.1));
+                        });
+                        List<String> includes = includes(transportClasses);
+                        jacocoViolationRule.setIncludes(includes);
+                        LOGGER.info(String.format(Locale.ROOT, "classes included in coverage rule %s", includes));
+                    });
+                    // adding a fake rule so that verification can run.
+                    // the real rule is added with doFirst because of transportClass scanning being done after tests
+                    task.getViolationRules().rule(jacocoViolationRule -> {
+                        jacocoViolationRule.limit(l -> {
+                            l.setCounter("LINE");
+                            l.setValue("COVEREDRATIO");
+                            l.setMinimum(BigDecimal.valueOf(0.0));
                         });
                     });
 
                 });
             });
-            // adding a fake rule so that verification can run. the real rule is added with doFirst because of transportClass scanning being
-            // done after tests
-            project.getExtensions().configure(KoverProjectConfig.class, kover -> {
-                // kover.getEngine().set(DefaultIntellijEngine.INSTANCE);
-                kover.verify(verify -> {
-                    verify.rule(rule -> {
-                        rule.bound(bound -> {
-                            bound.setMinValue(0);
-                            bound.setCounter(CounterType.INSTRUCTION);
-                            bound.setValueType(VerificationValueType.COVERED_PERCENTAGE);
-                        });
-                    });
-                });
-            });
+
         });
 
     }
@@ -114,27 +98,19 @@ public class TransportClassesCoveragePlugin implements Plugin<Project> {
         return findTransportClassesTask;
     }
 
-    private Collection<String> includes(Set<String> transportClasses) {
-        // when testing inner classes the enclosed class has to be included too
-        return transportClasses.stream().flatMap(this::includeEnclosingClassForInner)
-            .collect(Collectors.toSet());
+    private List<String> includes(Set<String> transportClasses) {
+        return transportClasses.stream().map(this::includeEnclosingClassForInner).collect(Collectors.toList());
     }
 
-    private Stream<String> includeEnclosingClassForInner(String name) {
+    private String includeEnclosingClassForInner(String name) {
         if (name.contains("$")) {
-            return Stream.of(name, name.substring(0, name.indexOf('$')));
+            return escapeDollar(name);
         }
-        return Stream.of(name);
+        return name;
     }
 
-    private Collection<String> excludes(Set<String> transportClasses) {
-        // when inner class was a transport class its enclosing class had to be included (see #includes)
-        // but if an enclosing class is not a transport class it should be excluded
-        return transportClasses.stream()
-            .filter(name -> name.contains("$"))
-            .map(name -> name.substring(0, name.indexOf('$'))) // get enclosing name
-            .filter(name -> transportClasses.contains(name) == false)
-            .collect(Collectors.toSet());
+    private String escapeDollar(String name) {
+        return name.replace("$", ".");
     }
 
     private static Set<String> readAllLines(RegularFileProperty file) {

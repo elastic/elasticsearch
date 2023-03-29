@@ -416,14 +416,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         ) {
             return new AtomicRegisterPersistedState(newLocalNode, sharedStore);
         }
-
-        @Override
-        public CoordinationMetadata.VotingConfiguration getInitialConfigurationForNode(
-            DiscoveryNode localNode,
-            CoordinationMetadata.VotingConfiguration initialConfiguration
-        ) {
-            return new CoordinationMetadata.VotingConfiguration(Set.of(localNode.getId()));
-        }
     }
 
     static class SingleNodeReconfigurator extends Reconfigurator {

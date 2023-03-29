@@ -442,8 +442,10 @@ public class MasterService extends AbstractLifecycleComponent {
     ) {
         clusterStatePublisher.publish(
             clusterStatePublicationEvent,
-            // fork the completion of publicationListener back onto the master service thread, mainly for legacy reasons; note that this
-            // might be rejected if the MasterService shut down mid-publication
+            // Fork the completion of publicationListener back onto the master service thread, mainly for legacy reasons; note that this
+            // might be rejected if the MasterService shut down mid-publication. The master service thread remains idle until this listener
+            // is completed at the end of the publication, at which point the publicationListener performs various bits of cleanup and then
+            // picks up the next waiting task.
             new ThreadedActionListener<>(
                 threadPoolExecutor,
                 new ContextPreservingActionListener<>(threadPool.getThreadContext().newRestorableContext(false), publicationListener)
@@ -1210,9 +1212,13 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         private void onCompletion() {
+            assert ThreadPool.assertCurrentThreadPool(MASTER_UPDATE_THREAD_NAME);
+
             currentlyExecutingBatch = null;
             if (totalQueueSize.decrementAndGet() > 0) {
                 starvationWatcher.onNonemptyQueue();
+                // We are already on the master update thread so forking is unnecessary (apart from that it detects shutdown via rejection)
+                // TODO stop forking here, just check for shutdown directly
                 forkQueueProcessor();
             } else {
                 starvationWatcher.onEmptyQueue();

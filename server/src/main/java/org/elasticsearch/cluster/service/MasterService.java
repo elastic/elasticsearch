@@ -96,11 +96,10 @@ public class MasterService extends AbstractLifecycleComponent {
 
     private final ClusterStateTaskExecutor<ClusterStateUpdateTask> unbatchedExecutor;
 
-    ClusterStatePublisher clusterStatePublisher;
+    private ClusterStatePublisher clusterStatePublisher;
+    private Supplier<ClusterState> clusterStateSupplier;
 
     private final String nodeName;
-
-    private java.util.function.Supplier<ClusterState> clusterStateSupplier;
 
     private volatile TimeValue slowTaskLoggingThreshold;
     private final TimeValue starvationLoggingThreshold;
@@ -144,7 +143,7 @@ public class MasterService extends AbstractLifecycleComponent {
         clusterStatePublisher = publisher;
     }
 
-    public synchronized void setClusterStateSupplier(java.util.function.Supplier<ClusterState> clusterStateSupplier) {
+    public synchronized void setClusterStateSupplier(Supplier<ClusterState> clusterStateSupplier) {
         this.clusterStateSupplier = clusterStateSupplier;
     }
 

@@ -172,7 +172,7 @@ public class CloseIndexIT extends ESIntegTestCase {
 
         final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         assertThat(clusterState.metadata().indices().get(indexName).getState(), is(IndexMetadata.State.OPEN));
-        assertThat(clusterState.routingTable().allShards().stream().allMatch(ShardRouting::unassigned), is(true));
+        assertThat(clusterState.routingTable().allShards().allMatch(ShardRouting::unassigned), is(true));
 
         assertBusy(() -> closeIndices(client().admin().indices().prepareClose(indexName).setWaitForActiveShards(ActiveShardCount.NONE)));
         assertIndexIsClosed(indexName);
@@ -377,13 +377,8 @@ public class CloseIndexIT extends ESIntegTestCase {
 
     public void testCloseIndexWaitForActiveShards() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0) // no replicas to avoid recoveries that could fail the index closing
-                .build()
-        );
+        // no replicas to avoid recoveries that could fail the index closing
+        createIndex(indexName, 2, 0);
 
         final int nbDocs = randomIntBetween(0, 50);
         indexRandom(
@@ -534,10 +529,7 @@ public class CloseIndexIT extends ESIntegTestCase {
     public void testResyncPropagatePrimaryTerm() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
         final String indexName = "closed_indices_promotion";
-        createIndex(
-            indexName,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2).build()
-        );
+        createIndex(indexName, 1, 2);
         indexRandom(
             randomBoolean(),
             randomBoolean(),
@@ -568,13 +560,7 @@ public class CloseIndexIT extends ESIntegTestCase {
     public void testSearcherId() throws Exception {
         final String indexName = "test_commit_id";
         final int numberOfShards = randomIntBetween(1, 5);
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build()
-        );
+        createIndex(indexName, numberOfShards, 0);
         indexRandom(
             randomBoolean(),
             randomBoolean(),

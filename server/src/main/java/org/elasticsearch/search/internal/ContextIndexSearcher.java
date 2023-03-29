@@ -57,11 +57,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * The interval at which we check for search cancellation when we cannot use
      * a {@link CancellableBulkScorer}. See {@link #intersectScorerAndBitSet}.
      */
-    private static int CHECK_CANCELLED_SCORER_INTERVAL = 1 << 11;
+    private static final int CHECK_CANCELLED_SCORER_INTERVAL = 1 << 11;
 
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
-    private MutableQueryTimeout cancellable;
+    private final MutableQueryTimeout cancellable;
 
     public ContextIndexSearcher(
         IndexReader reader,

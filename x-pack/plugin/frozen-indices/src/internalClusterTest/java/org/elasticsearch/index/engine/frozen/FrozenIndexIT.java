@@ -71,10 +71,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
     public void testTimestampRangeRecalculatedOnStalePrimaryAllocation() throws IOException {
         final List<String> nodeNames = internalCluster().startNodes(2);
 
-        createIndex(
-            "index",
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()
-        );
+        createIndex("index", 1, 1);
 
         final IndexResponse indexResponse = client().prepareIndex("index")
             .setSource(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, "2010-01-06T02:03:04.567Z")
@@ -329,9 +326,9 @@ public class FrozenIndexIT extends ESIntegTestCase {
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("test-index")).actionGet());
         // include the frozen indices
         {
-            final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest("test-*").keepAlive(
-                TimeValue.timeValueMinutes(2)
-            );
+            final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest("test-*").indicesOptions(
+                IndicesOptions.strictExpandOpenAndForbidClosed()
+            ).keepAlive(TimeValue.timeValueMinutes(2));
             final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPointInTimeRequest).actionGet().getPointInTimeId();
             try {
                 SearchResponse resp = client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)).get();
@@ -343,9 +340,9 @@ public class FrozenIndexIT extends ESIntegTestCase {
         }
         // exclude the frozen indices
         {
-            final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest("test-*").indicesOptions(
-                IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled()
-            ).keepAlive(TimeValue.timeValueMinutes(2));
+            final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest("test-*").keepAlive(
+                TimeValue.timeValueMinutes(2)
+            );
             final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPointInTimeRequest).actionGet().getPointInTimeId();
             try {
                 SearchResponse resp = client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)).get();

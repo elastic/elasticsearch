@@ -9,6 +9,7 @@
 package org.elasticsearch.xcontent;
 
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Streams;
 
@@ -1302,4 +1303,45 @@ public final class XContentBuilder implements Closeable, Flushable {
         }
     }
 
+    /**
+     * Checks whether the given value is writeable as x-content.
+     *
+     * If the value cannot be passed to {@link #value(Object)} without
+     * error, an error {@link IllegalArgumentException} is thrown.
+     */
+    public static void ensureToXContentable(@Nullable Object value) {
+        if (value == null) {
+            return;
+        }
+
+        if (value instanceof Object[] array) {
+            for (Object v : array) {
+                ensureToXContentable(v);
+            }
+        } else if (value instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (entry.getKey() instanceof String == false) {
+                    throw new IllegalArgumentException(
+                        "Cannot write non-String map key [" + entry.getKey().getClass().getName() + "] to x-content"
+                    );
+                }
+                ensureToXContentable(entry.getValue());
+            }
+        } else if (value instanceof Path) {
+            // Path implements Iterable<Path> and causes endless recursion and a StackOverFlow if treated as an Iterable here
+            return;
+        } else if (value instanceof Iterable<?> iterable) {
+            // Iterable also implicitly handles Set and List
+            for (Object v : iterable) {
+                ensureToXContentable(v);
+            }
+        } else if (value instanceof ToXContent || value instanceof Enum<?>) {
+            return;
+        } else {
+            Class<?> type = value.getClass();
+            if (WRITERS.containsKey(type) == false) {
+                throw new IllegalArgumentException("Cannot write type [" + type.getCanonicalName() + "] to x-content");
+            }
+        }
+    }
 }

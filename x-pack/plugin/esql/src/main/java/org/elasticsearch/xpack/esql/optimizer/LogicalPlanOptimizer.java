@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -48,6 +49,8 @@ import java.util.List;
 import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
+import static org.elasticsearch.xpack.ql.expression.Expressions.asAttributes;
 
 public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
@@ -76,6 +79,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             new PushDownAndCombineLimits(),
             new PushDownAndCombineFilters(),
             new PushDownEval(),
+            new PushDownDissect(),
             new PushDownAndCombineOrderBy(),
             new PruneOrderByBeforeStats(),
             new PruneRedundantSortClauses()
@@ -186,7 +190,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 var l2 = (int) childLimit.limit().fold();
                 return new Limit(limit.source(), Literal.of(limitSource, Math.min(l1, l2)), childLimit.child());
             } else if (limit.child()instanceof UnaryPlan unary) {
-                if (unary instanceof Project || unary instanceof Eval) {
+                if (unary instanceof Project || unary instanceof Eval || unary instanceof Dissect) {
                     return unary.replaceChild(limit.replaceChild(unary.child()));
                 }
                 // check if there's a 'visible' descendant limit lower than the current one
@@ -285,6 +289,13 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                     attributes.add(ne.toAttribute());
                 }
                 plan = maybePushDownPastUnary(filter, eval, e -> e instanceof Attribute && attributes.contains(e));
+            } else if (child instanceof Dissect dissect) {
+                // Push down filters that do not rely on attributes created by Dissect
+                List<Attribute> attributes = new ArrayList<>(dissect.extractedFields().size());
+                for (Attribute ne : dissect.extractedFields()) {
+                    attributes.add(ne.toAttribute());
+                }
+                plan = maybePushDownPastUnary(filter, dissect, e -> e instanceof Attribute && attributes.contains(e));
             } else if (child instanceof Project) {
                 return pushDownPastProject(filter);
             } else if (child instanceof OrderBy orderBy) {
@@ -343,11 +354,28 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 return orderBy.replaceChild(eval.replaceChild(orderBy.child()));
             } else if (child instanceof Project) {
                 var projectWithEvalChild = pushDownPastProject(eval);
-                var fieldProjections = eval.fields().stream().map(NamedExpression::toAttribute).toList();
-                return projectWithEvalChild.withProjections(Eval.outputExpressions(fieldProjections, projectWithEvalChild.projections()));
+                var fieldProjections = asAttributes(eval.fields());
+                return projectWithEvalChild.withProjections(mergeOutputExpressions(fieldProjections, projectWithEvalChild.projections()));
             }
 
             return eval;
+        }
+    }
+
+    // same as for PushDownEval
+    protected static class PushDownDissect extends OptimizerRules.OptimizerRule<Dissect> {
+        @Override
+        protected LogicalPlan rule(Dissect dissect) {
+            LogicalPlan child = dissect.child();
+
+            if (child instanceof OrderBy orderBy) {
+                return orderBy.replaceChild(dissect.replaceChild(orderBy.child()));
+            } else if (child instanceof Project) {
+                var projectWithChild = pushDownPastProject(dissect);
+                return projectWithChild.withProjections(mergeOutputExpressions(dissect.extractedFields(), projectWithChild.projections()));
+            }
+
+            return dissect;
         }
     }
 
@@ -385,7 +413,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             OrderBy pullable = null;
             if (plan instanceof OrderBy o) {
                 pullable = o;
-            } else if (plan instanceof Filter || plan instanceof Eval || plan instanceof Project) {
+            } else if (plan instanceof Dissect || plan instanceof Eval || plan instanceof Filter || plan instanceof Project) {
                 pullable = findPullableOrderBy(((UnaryPlan) plan).child());
             }
             return pullable;

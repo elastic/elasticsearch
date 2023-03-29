@@ -91,7 +91,6 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
             NlpTask.Request request = processor.getRequestBuilder(nlpConfig)
                 .buildRequest(text, requestIdStr, nlpConfig.getTokenization().getTruncate(), nlpConfig.getTokenization().getSpan());
             logger.debug(() -> format("handling request [%s]", requestIdStr));
-            logger.trace(() -> "Inference Request " + request.processInput().utf8ToString());
             if (request.tokenization().anyTruncated()) {
                 logger.debug("[{}] [{}] input truncated", getModelId(), getRequestId());
             }

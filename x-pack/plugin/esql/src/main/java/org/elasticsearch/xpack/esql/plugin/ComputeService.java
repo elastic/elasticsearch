@@ -22,6 +22,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -124,7 +125,7 @@ public class ComputeService {
         acquireSearchContexts(rootTask, indexNames, ActionListener.wrap(searchContexts -> {
             boolean success = false;
             List<Driver> drivers = new ArrayList<>();
-            Runnable release = () -> Releasables.close(() -> Releasables.close(searchContexts), () -> Releasables.close(drivers));
+            Releasable release = () -> Releasables.close(() -> Releasables.close(searchContexts), () -> Releasables.close(drivers));
             try {
                 LocalExecutionPlanner planner = new LocalExecutionPlanner(
                     bigArrays,
@@ -147,37 +148,20 @@ public class ComputeService {
 
                 new DriverRunner() {
                     @Override
-                    protected void start(Driver driver, ActionListener<Void> done) {
+                    protected void start(Driver driver, ActionListener<Void> driverListener) {
                         EsqlComputeEngineAction.Request request = new EsqlComputeEngineAction.Request(driver);
                         request.setParentTask(parentTask);
                         client.executeLocally(
                             EsqlComputeEngineAction.INSTANCE,
                             request,
-                            ActionListener.wrap(r -> done.onResponse(null), done::onFailure)
+                            ActionListener.wrap(r -> driverListener.onResponse(null), driverListener::onFailure)
                         );
                     }
-                }.runToCompletion(drivers, new ActionListener<>() {
-                    @Override
-                    public void onResponse(List<Driver.Result> results) {
-                        release.run();
-                        Exception e = Driver.Result.collectFailures(results);
-                        if (e != null) {
-                            listener.onFailure(e);
-                        } else {
-                            listener.onResponse(collectedPages);
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        release.run();
-                        listener.onFailure(e);
-                    }
-                });
+                }.runToCompletion(drivers, ActionListener.releaseAfter(listener.map(unused -> collectedPages), release));
                 success = true;
             } finally {
                 if (success == false) {
-                    release.run();
+                    release.close();
                 }
             }
         }, listener::onFailure));

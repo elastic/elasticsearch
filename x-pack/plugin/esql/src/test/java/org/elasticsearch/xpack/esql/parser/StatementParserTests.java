@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.Order;
+import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
@@ -32,6 +34,7 @@ import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.List;
 
@@ -428,6 +431,40 @@ public class StatementParserTests extends ESTestCase {
         }
     }
 
+    public void testDissectPattern() {
+        LogicalPlan cmd = processingCommand("dissect a \"%{foo}\"");
+        assertEquals(Dissect.class, cmd.getClass());
+        Dissect dissect = (Dissect) cmd;
+        assertEquals("%{foo}", dissect.parser().pattern());
+        assertEquals("", dissect.parser().appendSeparator());
+        assertEquals(List.of(referenceAttribute("foo", KEYWORD)), dissect.extractedFields());
+
+        cmd = processingCommand("dissect a \"%{foo}\" append_separator=\",\"");
+        assertEquals(Dissect.class, cmd.getClass());
+        dissect = (Dissect) cmd;
+        assertEquals("%{foo}", dissect.parser().pattern());
+        assertEquals(",", dissect.parser().appendSeparator());
+        assertEquals(List.of(referenceAttribute("foo", KEYWORD)), dissect.extractedFields());
+
+        for (Tuple<String, String> queryWithUnexpectedCmd : List.of(
+            Tuple.tuple("from a | dissect foo \"\"", "[]"),
+            Tuple.tuple("from a | dissect foo \" \"", "[ ]"),
+            Tuple.tuple("from a | dissect foo \"no fields\"", "[no fields]")
+        )) {
+            ParsingException pe = expectThrows(ParsingException.class, () -> statement(queryWithUnexpectedCmd.v1()));
+            assertThat(pe.getMessage(), containsString("Invalid pattern for dissect: " + queryWithUnexpectedCmd.v2()));
+        }
+
+        ParsingException pe = expectThrows(ParsingException.class, () -> statement("from a | dissect foo \"%{*a}:%{&a}\""));
+        assertThat(pe.getMessage(), containsString("Reference keys not supported in dissect patterns: [%{*a}]"));
+
+        pe = expectThrows(ParsingException.class, () -> statement("from a | dissect foo \"%{bar}\" invalid_option=3"));
+        assertThat(pe.getMessage(), containsString("Invalid option for dissect: [invalid_option]"));
+
+        pe = expectThrows(ParsingException.class, () -> statement("from a | dissect foo \"%{bar}\" append_separator=3"));
+        assertThat(pe.getMessage(), containsString("Invalid value for dissect append_separator: expected a string, but was [3]"));
+    }
+
     private void assertIdentifierAsIndexPattern(String identifier, String statement) {
         LogicalPlan from = statement(statement);
         assertThat(from, instanceOf(UnresolvedRelation.class));
@@ -447,6 +484,10 @@ public class StatementParserTests extends ESTestCase {
 
     private static UnresolvedAttribute attribute(String name) {
         return new UnresolvedAttribute(EMPTY, name);
+    }
+
+    private static ReferenceAttribute referenceAttribute(String name, DataType type) {
+        return new ReferenceAttribute(EMPTY, name, type);
     }
 
     private static Literal integer(int i) {

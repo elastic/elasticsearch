@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.common.lucene.BytesRefs.toBytesRef;
 import static org.elasticsearch.compute.data.Block.constantNullBlock;
 
 public final class BlockUtils {
@@ -145,4 +146,20 @@ public final class BlockUtils {
         }
         return builder;
     }
+
+    public static void appendValue(Block.Builder builder, Object val, ElementType type) {
+        if (val == null) {
+            builder.appendNull();
+            return;
+        }
+        switch (type) {
+            case LONG -> ((LongBlock.Builder) builder).appendLong((Long) val);
+            case INT -> ((IntBlock.Builder) builder).appendInt((Integer) val);
+            case BYTES_REF -> ((BytesRefBlock.Builder) builder).appendBytesRef(toBytesRef(val));
+            case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble((Double) val);
+            case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean((Boolean) val);
+            default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
+        }
+    }
+
 }

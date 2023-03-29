@@ -161,3 +161,15 @@ setup:
       _internal.get_desired_balance: { }
 
   - is_true: 'routing_table.test.0.current.0.tier_preference'
+
+---
+"Test computed_shard_movements":
+
+  - skip:
+      version: " - 8.7.99"
+      reason: "computed_shard_movements added in in 8.8.0"
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - gte: { stats.computed_shard_movements: 0 }

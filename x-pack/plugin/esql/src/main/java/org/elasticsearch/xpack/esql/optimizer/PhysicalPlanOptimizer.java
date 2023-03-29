@@ -11,6 +11,7 @@ import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode;
+import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.FieldSort;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
@@ -215,18 +216,22 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                     projectAll.set(FALSE);
                 }
                 if (keepCollecting.get()) {
-                    p.forEachExpression(NamedExpression.class, ne -> {
-                        var attr = ne.toAttribute();
-                        // filter out aliases declared before the exchange
-                        if (ne instanceof Alias as) {
-                            aliases.put(attr, as.child());
-                            fieldAttributes.remove(attr);
-                        } else {
-                            if (aliases.containsKey(attr) == false) {
-                                fieldAttributes.add(attr);
+                    if (p instanceof DissectExec dissect) {
+                        fieldAttributes.removeAll(dissect.extractedFields());
+                    } else {
+                        p.forEachExpression(NamedExpression.class, ne -> {
+                            var attr = ne.toAttribute();
+                            // filter out aliases declared before the exchange
+                            if (ne instanceof Alias as) {
+                                aliases.put(attr, as.child());
+                                fieldAttributes.remove(attr);
+                            } else {
+                                if (aliases.containsKey(attr) == false) {
+                                    fieldAttributes.add(attr);
+                                }
                             }
-                        }
-                    });
+                        });
+                    }
                 }
                 if (p instanceof ExchangeExec exec) {
                     keepCollecting.set(FALSE);

@@ -458,6 +458,36 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitDropCommand(EsqlBaseParser.DropCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#dissectCommand}.
+   * @param ctx the parse tree
+   */
+  void enterDissectCommand(EsqlBaseParser.DissectCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#dissectCommand}.
+   * @param ctx the parse tree
+   */
+  void exitDissectCommand(EsqlBaseParser.DissectCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#commandOptions}.
+   * @param ctx the parse tree
+   */
+  void enterCommandOptions(EsqlBaseParser.CommandOptionsContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#commandOptions}.
+   * @param ctx the parse tree
+   */
+  void exitCommandOptions(EsqlBaseParser.CommandOptionsContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#commandOption}.
+   * @param ctx the parse tree
+   */
+  void enterCommandOption(EsqlBaseParser.CommandOptionContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#commandOption}.
+   * @param ctx the parse tree
+   */
+  void exitCommandOption(EsqlBaseParser.CommandOptionContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#booleanValue}.
    * @param ctx the parse tree
    */

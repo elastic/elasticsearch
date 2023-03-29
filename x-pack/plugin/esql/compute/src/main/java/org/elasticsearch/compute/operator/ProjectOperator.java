@@ -15,13 +15,10 @@ import java.util.Arrays;
 import java.util.BitSet;
 
 @Experimental
-public class ProjectOperator implements Operator {
+public class ProjectOperator extends AbstractPageMappingOperator {
 
     private final BitSet bs;
     private Block[] blocks;
-
-    private Page lastInput;
-    boolean finished = false;
 
     public record ProjectOperatorFactory(BitSet mask) implements OperatorFactory {
 
@@ -46,47 +43,20 @@ public class ProjectOperator implements Operator {
     }
 
     @Override
-    public boolean needsInput() {
-        return lastInput == null && finished == false;
-    }
-
-    @Override
-    public void addInput(Page page) {
-        lastInput = page;
-    }
-
-    @Override
-    public void finish() {
-        finished = true;
-    }
-
-    @Override
-    public boolean isFinished() {
-        return lastInput == null && finished;
-    }
-
-    @Override
-    public Page getOutput() {
-        if (lastInput == null) {
-            return null;
-        }
+    protected Page process(Page page) {
         if (blocks == null) {
             blocks = new Block[bs.cardinality()];
         }
 
         Arrays.fill(blocks, null);
         int b = 0;
-        int positionCount = lastInput.getPositionCount();
-        for (int i = bs.nextSetBit(0); i >= 0 && i < lastInput.getBlockCount(); i = bs.nextSetBit(i + 1)) {
-            var block = lastInput.getBlock(i);
+        int positionCount = page.getPositionCount();
+        for (int i = bs.nextSetBit(0); i >= 0 && i < page.getBlockCount(); i = bs.nextSetBit(i + 1)) {
+            var block = page.getBlock(i);
             blocks[b++] = block;
         }
-        lastInput = null;
         return new Page(positionCount, blocks);
     }
-
-    @Override
-    public void close() {}
 
     @Override
     public String toString() {

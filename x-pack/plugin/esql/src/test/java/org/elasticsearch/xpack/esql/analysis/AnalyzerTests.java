@@ -748,6 +748,40 @@ public class AnalyzerTests extends ESTestCase {
         as(limit.child(), EsRelation.class);
     }
 
+    private static final String[] COMPARISONS = new String[] { "==", "!=", "<", "<=", ">", ">=" };
+
+    public void testCompareIntToString() {
+        for (String comparison : COMPARISONS) {
+            var e = expectThrows(VerificationException.class, () -> analyze("""
+                from test
+                | where emp_no COMPARISON "foo"
+                """.replace("COMPARISON", comparison)));
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "first argument of [emp_no COMPARISON \"foo\"] is [numeric] so second argument must also be [numeric] but was [keyword]"
+                        .replace("COMPARISON", comparison)
+                )
+            );
+        }
+    }
+
+    public void testCompareStringToInt() {
+        for (String comparison : COMPARISONS) {
+            var e = expectThrows(VerificationException.class, () -> analyze("""
+                from test
+                | where "foo" COMPARISON emp_no
+                """.replace("COMPARISON", comparison)));
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "first argument of [\"foo\" COMPARISON emp_no] is [keyword] so second argument must also be [keyword] but was [integer]"
+                        .replace("COMPARISON", comparison)
+                )
+            );
+        }
+    }
+
     public void testDateFormatOnInt() {
         verifyUnsupported("""
             from test
@@ -925,6 +959,14 @@ public class AnalyzerTests extends ESTestCase {
         verifyUnsupported("""
             from test
             | sort int, point
+            """, errorMsg);
+    }
+
+    public void testUnsupportedFieldsInDissect() {
+        var errorMsg = "Cannot use field [point] with unsupported type [geo_point]";
+        verifyUnsupported("""
+            from test
+            | dissect point \"%{foo}\"
             """, errorMsg);
     }
 

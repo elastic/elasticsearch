@@ -94,6 +94,7 @@ public class EvalMapperTests extends ESTestCase {
             new DateTrunc(Source.EMPTY, date, dateInterval) };
 
         for (Expression expression : expressions) {
+            logger.info("checking {}", expression.getClass());
             Supplier<EvalOperator.ExpressionEvaluator> supplier = EvalMapper.toEvaluator(expression, layout);
             EvalOperator.ExpressionEvaluator evaluator1 = supplier.get();
             EvalOperator.ExpressionEvaluator evaluator2 = supplier.get();

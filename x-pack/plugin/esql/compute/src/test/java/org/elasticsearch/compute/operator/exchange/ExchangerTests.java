@@ -200,7 +200,7 @@ public class ExchangerTests extends ESTestCase {
         for (ExchangeSinkHandler sinkExchanger : sinkExchangers) {
             sourceExchanger.addRemoteSink(sinkExchanger::fetchPageAsync, randomIntBetween(1, 10));
         }
-        ListenableActionFuture<Void> future = new ListenableActionFuture<>();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         try (RefCountingListener ref = new RefCountingListener(future)) {
             for (Driver driver : drivers) {
                 Driver.start(threadPool.executor("esql_test_executor"), driver, ref.acquire());

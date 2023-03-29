@@ -296,6 +296,26 @@ public final class DissectParser {
         return results;
     }
 
+    public List<String> outputKeyNames() {
+        List<String> result = new ArrayList<>();
+        for (DissectPair matchPair : matchPairs) {
+            if (matchPair.key.getModifier() != DissectKey.Modifier.NAMED_SKIP && result.contains(matchPair.key.getName()) == false) {
+                result.add(matchPair.key.getName());
+            }
+        }
+        return result;
+    }
+
+    public List<String> referenceKeyNames() {
+        List<String> result = new ArrayList<>();
+        for (DissectPair matchPair : matchPairs) {
+            if (matchPair.key.getModifier() == DissectKey.Modifier.FIELD_NAME && result.contains(matchPair.key.getName()) == false) {
+                result.add(matchPair.key.getName());
+            }
+        }
+        return result;
+    }
+
     /**
      * A tuple class to hold the dissect key and delimiter
      */
@@ -309,7 +329,7 @@ public final class DissectParser {
             this.delimiter = delimiter;
         }
 
-        private DissectKey getKey() {
+        DissectKey getKey() {
             return key;
         }
 

@@ -32,6 +32,7 @@ import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
+import org.elasticsearch.compute.operator.StringExtractOperator;
 import org.elasticsearch.compute.operator.TopNOperator;
 import org.elasticsearch.compute.operator.TopNOperator.TopNOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
@@ -41,6 +42,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.Exchan
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
@@ -68,6 +70,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.HashMap;
@@ -156,6 +159,8 @@ public class LocalExecutionPlanner {
             return planTopN(topNExec, context);
         } else if (node instanceof EvalExec eval) {
             return planEval(eval, context);
+        } else if (node instanceof DissectExec dissect) {
+            return planDissect(dissect, context);
         } else if (node instanceof ProjectExec project) {
             return planProject(project, context);
         } else if (node instanceof FilterExec filter) {
@@ -308,6 +313,28 @@ public class LocalExecutionPlanner {
             layout.appendChannel(namedExpression.toAttribute().id());
             source = source.with(new EvalOperatorFactory(evaluatorSupplier, toElementType(namedExpression.dataType())), layout.build());
         }
+        return source;
+    }
+
+    private PhysicalOperation planDissect(DissectExec dissect, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(dissect.child(), context);
+        Layout.Builder layout = source.layout.builder();
+        for (NamedExpression namedExpression : dissect.extractedFields()) {
+            layout.appendChannel(namedExpression.toAttribute().id());
+        }
+        final Expression expr = dissect.inputExpression();
+        String[] attributeNames = Expressions.names(dissect.extractedFields()).toArray(new String[0]);
+        ElementType[] types = new ElementType[dissect.extractedFields().size()];
+        Arrays.fill(types, ElementType.BYTES_REF);
+
+        source = source.with(
+            new StringExtractOperator.StringExtractOperatorFactory(
+                attributeNames,
+                EvalMapper.toEvaluator(expr, layout.build()),
+                () -> (input) -> dissect.parser().parser().parse(input)
+            ),
+            layout.build()
+        );
         return source;
     }
 

@@ -55,7 +55,9 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
         configProvider = new DataFrameAnalyticsConfigProvider(
             client(),
             xContentRegistry(),
-            new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class)),
+            // We can't change the signature of createComponents to e.g. pass differing values of includeNodeInfo to pass to the
+            // DataFrameAnalyticsAuditor constructor. Instead we generate a random boolean value for that purpose.
+            new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class), randomBoolean()),
             getInstanceFromNode(ClusterService.class)
         );
         dummyAuthenticationHeader = Authentication.newRealmAuthentication(

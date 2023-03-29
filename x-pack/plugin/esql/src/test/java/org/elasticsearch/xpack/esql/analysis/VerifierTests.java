@@ -87,6 +87,13 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testNonStringFieldsInDissect() {
+        assertEquals(
+            "1:21: Dissect only supports KEYWORD values, found expression [emp_no] type [INTEGER]",
+            error("from test | dissect emp_no \"%{foo}\"")
+        );
+    }
+
     private String error(String query) {
         return error(query, defaultAnalyzer);
     }

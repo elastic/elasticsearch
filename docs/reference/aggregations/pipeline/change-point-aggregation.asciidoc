@@ -71,21 +71,64 @@ The found change point type and its related values. Possible types:
 * `trend_change`: there is an overall trend change occurring at this point
 --
 
-==== Response example
+==== Example
+
+
+The following example uses the Kibana sample data logs data set.
+
 [source,js]
 --------------------------------------------------
-    "changes" : {
+GET kibana_sample_data_logs/_search
+{
+  "aggs": {
+    "date":{ <1>
+      "date_histogram": {
+        "field": "@timestamp",
+        "fixed_interval": "1d"
+      },
+      "aggs": {
+        "avg": { <2>
+          "avg": {
+            "field": "bytes"
+          }
+        }
+      }
+    },
+    "change_points_avg": { <3>
+      "change_point": {
+        "buckets_path": "date>avg" <4>
+      }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+<1> A date histogram aggregation that creates buckets with one day long 
+interval.
+<2> A sibling aggregation of the `date` aggregation that calculates the average 
+value of the `bytes` field within every bucket.
+<3> The change point detection aggregation configuration object.
+<4> The path of the aggregation values to detect change points. In this case, 
+the input of the change point aggregation is the value of `avg` which is a 
+sibling aggregation of `date`.
+
+
+The request returns a response that is similar to the following: 
+
+[source,js]
+--------------------------------------------------
+    "change_points_avg" : {
       "bucket" : {
-        "key" : "2022-01-28T23:00:00.000Z", <1>
-        "doc_count" : 48, <2>
-        "ticket_price" : { <3>
-          "value" : 1187.61083984375
+        "key" : "2023-04-29T00:00:00.000Z", <1>
+        "doc_count" : 329, <2>
+        "avg" : { <3>
+          "value" : 4737.209726443769
         }
       },
       "type" : { <4>
-        "distribution_change" : {
-          "p_value" : 0.023753965139433175, <5>
-          "change_point" : 40 <6>
+        "dip" : {
+          "p_value" : 3.8999455212466465e-10, <5>
+          "change_point" : 41 <6>
         }
       }
     }

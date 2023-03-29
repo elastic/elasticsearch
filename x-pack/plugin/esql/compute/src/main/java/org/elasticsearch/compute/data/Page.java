@@ -110,6 +110,28 @@ public final class Page implements Writeable {
         return new Page(false, positionCount, newBlocks);
     }
 
+    /**
+     * Creates a new page, appending the given blocks to the existing blocks in this Page.
+     *
+     * @param toAdd the blocks to append
+     * @return a new Page with the block appended
+     * @throws IllegalArgumentException if one of the given blocks does not have the same number of
+     *        positions as the blocks in this Page
+     */
+    public Page appendBlocks(Block[] toAdd) {
+        for (Block block : toAdd) {
+            if (positionCount != block.getPositionCount()) {
+                throw new IllegalArgumentException("Block does not have same position count");
+            }
+        }
+
+        Block[] newBlocks = Arrays.copyOf(blocks, blocks.length + toAdd.length);
+        for (int i = 0; i < toAdd.length; i++) {
+            newBlocks[blocks.length + i] = toAdd[i];
+        }
+        return new Page(false, positionCount, newBlocks);
+    }
+
     @Override
     public int hashCode() {
         int result = Objects.hash(positionCount);

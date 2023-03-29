@@ -1107,7 +1107,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     nodeHealthService,
                     new NoneCircuitBreakerService(),
                     coordinationServices.getReconfigurator(),
-                    coordinationServices.getLeaderHeartbeatService()
+                    coordinationServices.getLeaderHeartbeatService(),
+                    coordinationServices.getPreVoteCollectorFactory()
                 );
                 coordinationDiagnosticsService = new CoordinationDiagnosticsService(
                     clusterService,
@@ -1488,6 +1489,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         Reconfigurator getReconfigurator();
 
         LeaderHeartbeatService getLeaderHeartbeatService();
+
+        PreVoteCollector.Factory getPreVoteCollectorFactory();
     }
 
     public class DefaultCoordinatorStrategy implements CoordinatorStrategy {
@@ -1522,6 +1525,11 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 @Override
                 public LeaderHeartbeatService getLeaderHeartbeatService() {
                     return LeaderHeartbeatService.NO_OP;
+                }
+
+                @Override
+                public PreVoteCollector.Factory getPreVoteCollectorFactory() {
+                    return StatefulPreVoteCollector::new;
                 }
             };
         }

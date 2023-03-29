@@ -24,14 +24,22 @@ import static java.util.Collections.emptyList;
 /**
  * Value fetcher that loads from doc values.
  */
+ // TODO rename this? It doesn't load from doc values, it loads from fielddata
+ // Which might be doc values, but might not be...
 public final class DocValueFetcher implements ValueFetcher {
     private final DocValueFormat format;
     private final IndexFieldData<?> ifd;
     private FormattedDocValues formattedDocValues;
+    private final StoredFieldsSpec storedFieldsSpec;
 
-    public DocValueFetcher(DocValueFormat format, IndexFieldData<?> ifd) {
+    public DocValueFetcher(DocValueFormat format, IndexFieldData<?> ifd, StoredFieldsSpec storedFieldsSpec) {
         this.format = format;
         this.ifd = ifd;
+        this.storedFieldsSpec = storedFieldsSpec;
+    }
+
+    public DocValueFetcher(DocValueFormat format, IndexFieldData<?> ifd) {
+        this(format, ifd, StoredFieldsSpec.NO_REQUIREMENTS);
     }
 
     @Override
@@ -53,6 +61,6 @@ public final class DocValueFetcher implements ValueFetcher {
 
     @Override
     public StoredFieldsSpec storedFieldsSpec() {
-        return StoredFieldsSpec.NO_REQUIREMENTS;
+        return storedFieldsSpec;
     }
 }

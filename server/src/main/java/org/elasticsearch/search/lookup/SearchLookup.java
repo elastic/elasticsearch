@@ -127,7 +127,7 @@ public class SearchLookup implements SourceProvider {
             context,
             new LeafDocLookup(fieldTypeLookup, this::getForField, context),
             sourceProvider,
-            new LeafStoredFieldsLookup(fieldTypeLookup, LeafFieldLookupProvider.fromStoredFields().apply(context))
+            new LeafStoredFieldsLookup(fieldTypeLookup, fieldLookupProvider.apply(context))
         );
     }
 

@@ -31,8 +31,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.application.search.SearchApplication;
-import org.elasticsearch.xpack.application.search.SearchApplicationQueryParams;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -77,57 +75,45 @@ public class TransportQuerySearchApplicationAction extends SearchApplicationTran
         this.xContentRegistry = xContentRegistry;
     }
 
-    private static SearchSourceBuilder applyTemplate(
-        ScriptService scriptService,
-        Script script,
-        SearchApplicationQueryParams queryParams,
-        NamedXContentRegistry xContentRegistry
-    ) throws IOException {
+    private static Map<String, Object> mergeTemplateParams(QuerySearchApplicationAction.Request request, Script script) {
         Map<String, Object> mergedTemplateParams = new HashMap<>(script.getParams());
-        mergedTemplateParams.putAll(queryParams.templateParams());
-        TemplateScript compiledTemplate = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(mergedTemplateParams);
-        String request_str = compiledTemplate.execute();
+        mergedTemplateParams.putAll(request.queryParams().templateParams());
+
+        return mergedTemplateParams;
+    }
+
+    @Override
+    protected void doExecute(QuerySearchApplicationAction.Request request, ActionListener<SearchResponse> listener) {
+        systemIndexService.getSearchApplication(request.name(), listener.delegateFailure((l, searchApplication) -> {
+            final Script script = searchApplication.searchApplicationTemplate().script();
+
+            try {
+                final SearchSourceBuilder sourceBuilder = renderTemplate(script, mergeTemplateParams(request, script));
+                SearchRequest searchRequest = new SearchRequest(searchApplication.indices()).source(sourceBuilder);
+
+                client.execute(
+                    SearchAction.INSTANCE,
+                    searchRequest,
+                    listener.delegateFailure((l2, searchResponse) -> l2.onResponse(searchResponse))
+                );
+            } catch (IOException exc) {
+                l.onFailure(exc);
+            }
+        }));
+    }
+
+    private SearchSourceBuilder renderTemplate(Script script, Map<String, Object> templateParams) throws IOException {
+
+        TemplateScript compiledTemplate = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(templateParams);
+        String requestSource = compiledTemplate.execute();
+
         XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
             .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, request_str)) {
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, requestSource)) {
             SearchSourceBuilder builder = SearchSourceBuilder.searchSource();
             builder.parseXContent(parser, false);
             return builder;
         }
     }
 
-    @Override
-    protected void doExecute(QuerySearchApplicationAction.Request request, ActionListener<SearchResponse> listener) {
-        systemIndexService.getSearchApplication(request.name(), new ActionListener<>() {
-            @Override
-            public void onResponse(SearchApplication searchApplication) {
-                final Script script = searchApplication.searchApplicationTemplate().script();
-                final SearchSourceBuilder source;
-                try {
-                    source = applyTemplate(scriptService, script, request.queryParams(), xContentRegistry);
-                } catch (IOException exc) {
-                    listener.onFailure(exc);
-                    return;
-                }
-                SearchRequest request = new SearchRequest(searchApplication.indices()).source(source);
-
-                client.execute(SearchAction.INSTANCE, request, new ActionListener<>() {
-                    @Override
-                    public void onResponse(SearchResponse searchResponse) {
-                        listener.onResponse(searchResponse);
-                    }
-
-                    @Override
-                    public void onFailure(Exception exc) {
-                        listener.onFailure(exc);
-                    }
-                });
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
-    }
 }

@@ -485,7 +485,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         return null;
     }
 
-    public void updateXPackLicenseState(License license) {
+    private void updateXPackLicenseState(License license) {
         long time = clock.millis();
         if (license == LicensesMetadata.LICENSE_TOMBSTONE) {
             // implies license has been explicitly deleted
@@ -495,7 +495,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         checkForExpiredLicense(license);
     }
 
-    public boolean checkForExpiredLicense(License license) {
+    private boolean checkForExpiredLicense(License license) {
         long time = clock.millis();
         if (license != null) {
             final boolean active;

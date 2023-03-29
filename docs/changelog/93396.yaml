@@ -16,7 +16,8 @@ highlight:
     The API for this change adds a `rerank` top-level element to the search
     endpoint. An example:
 
-    ```
+    [source,Java]
+    ----
     {
       "query": {
         "match": {
@@ -38,7 +39,7 @@ highlight:
          }
       }
     }
-    ```
+    ----
 
     The above example will execute two separate queries for the match query
     and the kNN query. It will preserve separate result sets up the point

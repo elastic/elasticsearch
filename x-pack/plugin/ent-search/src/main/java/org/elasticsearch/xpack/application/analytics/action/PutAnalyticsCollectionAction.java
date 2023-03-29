@@ -123,6 +123,7 @@ public class PutAnalyticsCollectionAction extends ActionType<PutAnalyticsCollect
             return isAcknowledged() == response.isAcknowledged() && Objects.equals(name, response.name);
         }
 
+        @Override
         protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
             builder.field(COLLECTION_NAME_FIELD.getPreferredName(), name);
         }

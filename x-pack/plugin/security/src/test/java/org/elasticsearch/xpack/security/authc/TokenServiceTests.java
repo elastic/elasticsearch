@@ -124,7 +124,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
- public class TokenServiceTests extends ESTestCase {
+public class TokenServiceTests extends ESTestCase {
 
     private static ThreadPool threadPool;
     private static final Settings settings = Settings.builder()

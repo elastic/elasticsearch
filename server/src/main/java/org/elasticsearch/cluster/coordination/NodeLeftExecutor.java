@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -18,6 +19,9 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecutor.Task> {
 
@@ -47,14 +51,16 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
 
     @Override
     public ClusterState execute(BatchExecutionContext<Task> batchExecutionContext) throws Exception {
-        final ClusterState initialState = batchExecutionContext.initialState();
-        final DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(initialState.nodes());
+        ClusterState initialState = batchExecutionContext.initialState();
+        DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(initialState.nodes());
+        Map<String, TransportVersion> transportVersions = new HashMap<>(initialState.transportVersions());
         boolean removed = false;
         for (final var taskContext : batchExecutionContext.taskContexts()) {
             final var task = taskContext.getTask();
             final String reason;
             if (initialState.nodes().nodeExists(task.node())) {
                 remainingNodesBuilder.remove(task.node());
+                transportVersions.remove(task.node().getId());
                 removed = true;
                 reason = task.reason();
             } else {
@@ -77,7 +83,7 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
         try (var ignored = batchExecutionContext.dropHeadersContext()) {
             // suppress deprecation warnings e.g. from reroute()
 
-            final var remainingNodesClusterState = remainingNodesClusterState(initialState, remainingNodesBuilder);
+            final var remainingNodesClusterState = remainingNodesClusterState(initialState, remainingNodesBuilder, transportVersions);
             final var ptasksDisassociatedState = PersistentTasksCustomMetadata.disassociateDeadNodes(remainingNodesClusterState);
             return allocationService.disassociateDeadNodes(
                 ptasksDisassociatedState,
@@ -90,8 +96,12 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
     // visible for testing
     // hook is used in testing to ensure that correct cluster state is used to test whether a
     // rejoin or reroute is needed
-    protected ClusterState remainingNodesClusterState(final ClusterState currentState, DiscoveryNodes.Builder remainingNodesBuilder) {
-        return ClusterState.builder(currentState).nodes(remainingNodesBuilder).build();
+    protected ClusterState remainingNodesClusterState(
+        ClusterState currentState,
+        DiscoveryNodes.Builder remainingNodesBuilder,
+        Map<String, TransportVersion> transportVersions
+    ) {
+        return ClusterState.builder(currentState).nodes(remainingNodesBuilder).transportVersions(transportVersions).build();
     }
 
 }

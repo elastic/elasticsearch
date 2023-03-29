@@ -901,3 +901,22 @@ flattened field:
             code: "1243"
 
   - is_false: fields
+
+---
+flattened field no doc values:
+  - skip:
+      version: " - 8.7.0"
+      reason: support for synthetic source on flattened fields added in 8.8.0
+
+  - do:
+      catch: /field \[flattened\] of type \[flattened\] doesn't support synthetic source because it doesn't have doc values and isn't stored/
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              flattened:
+                type: flattened
+                doc_values: false

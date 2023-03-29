@@ -18,6 +18,15 @@ setup:
               number_of_replicas: 0
 
   - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
       search_application.put:
         name: test-search-application
         body:
@@ -68,6 +77,11 @@ teardown:
         index: test-search-index2
         ignore: 404
 
+  - do:
+      indices.delete:
+        index: test-index
+        ignore: 404
+
 ---
 "Query Search Application with default parameters":
 
@@ -107,3 +121,39 @@ teardown:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc2" }
+
+---
+"Query Search Application - not found":
+
+  - do:
+      catch: "missing"
+      search_application.query:
+        name: nonexisting-test-search-application
+        body:
+          params:
+            field_name: field3
+            field_value: value3
+
+---
+"Query Search Application - no read permissions on index":
+
+  - do:
+      search_application.put:
+        name: test-search-application
+        body:
+          indices: [ "test-search-index1", "test-search-index2", "test-index" ]
+          analytics_collection_name: "test-analytics"
+          template:
+            script:
+              source:
+                query:
+                  term:
+                    "{{field_name}}": "{{field_value}}"
+              params:
+                field_name: field1
+                field_value: value1
+
+  - do:
+      catch: "forbidden"
+      search_application.query:
+        name: test-search-application

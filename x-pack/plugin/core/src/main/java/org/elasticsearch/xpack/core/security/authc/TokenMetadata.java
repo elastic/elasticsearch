@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
@@ -102,7 +101,7 @@ public final class TokenMetadata extends AbstractNamedDiffable<ClusterState.Cust
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumIndexCompatibilityVersion().transportVersion;
+        return TransportVersion.MINIMUM_COMPATIBLE;
     }
 
     @Override

@@ -75,6 +75,20 @@ final class AzureStorageSettings {
         () -> ACCOUNT_SETTING
     );
 
+    public static final AffixSetting<String> ENDPOINT_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "endpoint",
+        key -> Setting.simpleString(key, Property.NodeScope),
+        () -> ACCOUNT_SETTING
+    );
+
+    public static final AffixSetting<String> SECONDARY_ENDPOINT_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "secondary_endpoint",
+        key -> Setting.simpleString(key, Property.NodeScope),
+        () -> ACCOUNT_SETTING
+    );
+
     public static final AffixSetting<TimeValue> TIMEOUT_SETTING = Setting.affixKeySetting(
         AZURE_CLIENT_PREFIX_KEY,
         "timeout",
@@ -129,11 +143,13 @@ final class AzureStorageSettings {
         int maxRetries,
         Proxy.Type proxyType,
         String proxyHost,
-        Integer proxyPort
+        Integer proxyPort,
+        String endpoint,
+        String secondaryEndpoint
     ) {
         this.account = account;
         this.sasToken = sasToken;
-        this.connectString = buildConnectString(account, key, sasToken, endpointSuffix);
+        this.connectString = buildConnectString(account, key, sasToken, endpointSuffix, endpoint, secondaryEndpoint);
         this.endpointSuffix = endpointSuffix;
         this.timeout = timeout;
         this.maxRetries = maxRetries;
@@ -157,10 +173,6 @@ final class AzureStorageSettings {
         }
     }
 
-    public String getSasToken() {
-        return sasToken;
-    }
-
     public String getEndpointSuffix() {
         return endpointSuffix;
     }
@@ -181,7 +193,14 @@ final class AzureStorageSettings {
         return connectString;
     }
 
-    private static String buildConnectString(String account, @Nullable String key, @Nullable String sasToken, String endpointSuffix) {
+    private static String buildConnectString(
+        String account,
+        @Nullable String key,
+        @Nullable String sasToken,
+        String endpointSuffix,
+        @Nullable String endpoint,
+        @Nullable String secondaryEndpoint
+    ) {
         final boolean hasSasToken = Strings.hasText(sasToken);
         final boolean hasKey = Strings.hasText(key);
         if (hasSasToken == false && hasKey == false) {
@@ -197,9 +216,34 @@ final class AzureStorageSettings {
         } else {
             connectionStringBuilder.append(";SharedAccessSignature=").append(sasToken);
         }
-        if (Strings.hasText(endpointSuffix)) {
+        final boolean hasEndpointSuffix = Strings.hasText(endpointSuffix);
+        final boolean hasEndpoint = Strings.hasText(endpoint);
+        final boolean hasSecondaryEndpoint = Strings.hasText(secondaryEndpoint);
+
+        if (hasEndpointSuffix && hasEndpoint) {
+            throw new SettingsException("Both an endpoint suffix as well as a primary endpoint were set");
+        }
+
+        if (hasEndpointSuffix && hasSecondaryEndpoint) {
+            throw new SettingsException("Both an endpoint suffix as well as a secondary endpoint were set");
+        }
+
+        if (hasEndpoint == false && hasSecondaryEndpoint) {
+            throw new SettingsException("A primary endpoint is required when setting a secondary endpoint");
+        }
+
+        if (hasEndpointSuffix) {
             connectionStringBuilder.append(";EndpointSuffix=").append(endpointSuffix);
         }
+
+        if (hasEndpoint) {
+            connectionStringBuilder.append(";BlobEndpoint=").append(endpoint);
+        }
+
+        if (hasSecondaryEndpoint) {
+            connectionStringBuilder.append(";BlobSecondaryEndpoint=").append(secondaryEndpoint);
+        }
+
         return connectionStringBuilder.toString();
     }
 
@@ -253,7 +297,9 @@ final class AzureStorageSettings {
                 getValue(settings, clientName, MAX_RETRIES_SETTING),
                 getValue(settings, clientName, PROXY_TYPE_SETTING),
                 getValue(settings, clientName, PROXY_HOST_SETTING),
-                getValue(settings, clientName, PROXY_PORT_SETTING)
+                getValue(settings, clientName, PROXY_PORT_SETTING),
+                getValue(settings, clientName, ENDPOINT_SETTING),
+                getValue(settings, clientName, SECONDARY_ENDPOINT_SETTING)
             );
         }
     }

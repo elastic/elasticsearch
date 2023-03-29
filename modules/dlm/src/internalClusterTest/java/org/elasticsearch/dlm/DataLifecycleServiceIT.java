@@ -9,7 +9,6 @@ package org.elasticsearch.dlm;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -240,11 +239,8 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         String firstGenerationIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1L);
 
         // mark the first generation index as read-only so deletion fails when we enable the retention configuration
-        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(firstGenerationIndex);
-        updateSettingsRequest.settings(Settings.builder().put(READ_ONLY.settingName(), true));
+        updateIndexSettings(Settings.builder().put(READ_ONLY.settingName(), true), firstGenerationIndex);
         try {
-            client().admin().indices().updateSettings(updateSettingsRequest);
-
             // TODO replace this with an API call to update the lifecycle for the data stream once available
             PlainActionFuture.get(
                 fut -> internalCluster().getCurrentMasterNodeInstance(ClusterService.class)

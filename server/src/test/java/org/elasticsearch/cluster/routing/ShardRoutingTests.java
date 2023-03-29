@@ -447,17 +447,18 @@ public class ShardRoutingTests extends AbstractWireSerializingTestCase<ShardRout
 
     public void testSummaryContainsImportantFields() {
         var shard = createTestInstance();
+        var summary = shard.shortSummary();
 
-        assertThat("index name", shard.shortSummary(), containsString('[' + shard.getIndexName() + ']'));
-        assertThat("shard id", shard.shortSummary(), containsString(shard.shardId().toString()));
-        assertThat("primary/replica", shard.shortSummary(), containsString(shard.primary() ? "[P]" : "[R]"));
-        assertThat("current node id", shard.shortSummary(), containsString("node[" + shard.currentNodeId() + ']'));
+        assertThat("index name", summary, containsString('[' + shard.getIndexName() + ']'));
+        assertThat("shard id", summary, containsString(shard.shardId().toString()));
+        assertThat("primary/replica", summary, containsString(shard.primary() ? "[P]" : "[R]"));
+        assertThat("current node id", summary, containsString("node[" + shard.currentNodeId() + ']'));
         if (shard.relocating()) {
-            assertThat("relocating node id", shard.shortSummary(), containsString("relocating [" + shard.relocatingNodeId() + ']'));
+            assertThat("relocating node id", summary, containsString("relocating [" + shard.relocatingNodeId() + ']'));
         }
-        assertThat("state", shard.shortSummary(), containsString("s[" + shard.state() + "]"));
+        assertThat("state", summary, containsString("s[" + shard.state() + "]"));
         if (shard.role() != ShardRouting.Role.DEFAULT) {
-            assertThat("role", shard.shortSummary(), containsString("[" + shard.role() + "]"));
+            assertThat("role", summary, containsString("[" + shard.role() + "]"));
         }
     }
 }

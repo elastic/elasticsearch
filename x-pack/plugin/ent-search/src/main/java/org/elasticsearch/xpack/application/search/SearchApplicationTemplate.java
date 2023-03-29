@@ -21,6 +21,11 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * Search template included in a {@link SearchApplication}. It will be used for searching using the
+ * {@link org.elasticsearch.xpack.application.search.action.QuerySearchApplicationAction}, overriding the parameters included on it via
+ * {@link SearchApplicationQueryParams}
+ */
 public class SearchApplicationTemplate implements ToXContentObject, Writeable {
     private final Script script;
 

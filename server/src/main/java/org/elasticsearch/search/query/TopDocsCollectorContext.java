@@ -75,6 +75,13 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
     }
 
     /**
+     * Returns the number of top docs to retrieve
+     */
+    final int numHits() {
+        return numHits;
+    }
+
+    /**
      * Returns true if the top docs should be re-scored after initial search
      */
     boolean shouldRescore() {
@@ -169,7 +176,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         }
 
         @Override
-        Collector create(Collector in) {
+        Collector create(Collector in) throws IOException {
             assert in == null;
             return topDocsCollector;
         }
@@ -418,68 +425,66 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
      */
     static TopDocsCollectorContext createTopDocsCollectorContext(SearchContext searchContext, boolean hasFilterCollector)
         throws IOException {
+        final IndexReader reader = searchContext.searcher().getIndexReader();
+        final Query query = searchContext.rewrittenQuery();
+        // top collectors don't like a size of 0
+        final int totalNumDocs = Math.max(1, reader.numDocs());
         if (searchContext.size() == 0) {
             // no matter what the value of from is
             return new EmptyTopDocsCollectorContext(searchContext.sort(), searchContext.trackTotalHitsUpTo());
+        } else if (searchContext.scrollContext() != null) {
+            // we can disable the tracking of total hits after the initial scroll query
+            // since the total hits is preserved in the scroll context.
+            int trackTotalHitsUpTo = searchContext.scrollContext().totalHits != null
+                ? SearchContext.TRACK_TOTAL_HITS_DISABLED
+                : SearchContext.TRACK_TOTAL_HITS_ACCURATE;
+            // no matter what the value of from is
+            int numDocs = Math.min(searchContext.size(), totalNumDocs);
+            return new ScrollingTopDocsCollectorContext(
+                reader,
+                query,
+                searchContext.scrollContext(),
+                searchContext.sort(),
+                numDocs,
+                searchContext.trackScores(),
+                searchContext.numberOfShards(),
+                trackTotalHitsUpTo,
+                hasFilterCollector
+            );
+        } else if (searchContext.collapse() != null) {
+            boolean trackScores = searchContext.sort() == null ? true : searchContext.trackScores();
+            int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
+            return new CollapsingTopDocsCollectorContext(
+                searchContext.collapse(),
+                searchContext.sort(),
+                numDocs,
+                trackScores,
+                searchContext.searchAfter()
+            );
         } else {
-            final IndexReader reader = searchContext.searcher().getIndexReader();
-            final Query query = searchContext.rewrittenQuery();
-            // top collectors don't like a size of 0
-            final int totalNumDocs = Math.max(1, reader.numDocs());
-            if (searchContext.scrollContext() != null) {
-                // we can disable the tracking of total hits after the initial scroll query
-                // since the total hits is preserved in the scroll context.
-                int trackTotalHitsUpTo = searchContext.scrollContext().totalHits != null
-                    ? SearchContext.TRACK_TOTAL_HITS_DISABLED
-                    : SearchContext.TRACK_TOTAL_HITS_ACCURATE;
-                // no matter what the value of from is
-                int numDocs = Math.min(searchContext.size(), totalNumDocs);
-                return new ScrollingTopDocsCollectorContext(
-                    reader,
-                    query,
-                    searchContext.scrollContext(),
-                    searchContext.sort(),
-                    numDocs,
-                    searchContext.trackScores(),
-                    searchContext.numberOfShards(),
-                    trackTotalHitsUpTo,
-                    hasFilterCollector
-                );
-            } else if (searchContext.collapse() != null) {
-                boolean trackScores = searchContext.sort() == null ? true : searchContext.trackScores();
-                int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
-                return new CollapsingTopDocsCollectorContext(
-                    searchContext.collapse(),
-                    searchContext.sort(),
-                    numDocs,
-                    trackScores,
-                    searchContext.searchAfter()
-                );
-            } else {
-                int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
-                final boolean rescore = searchContext.rescore().isEmpty() == false;
-                if (rescore) {
-                    assert searchContext.sort() == null;
-                    for (RescoreContext rescoreContext : searchContext.rescore()) {
-                        numDocs = Math.max(numDocs, rescoreContext.getWindowSize());
-                    }
+            int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
+            final boolean rescore = searchContext.rescore().isEmpty() == false;
+            if (rescore) {
+                assert searchContext.sort() == null;
+                for (RescoreContext rescoreContext : searchContext.rescore()) {
+                    numDocs = Math.max(numDocs, rescoreContext.getWindowSize());
                 }
-                return new SimpleTopDocsCollectorContext(
-                    reader,
-                    query,
-                    searchContext.sort(),
-                    searchContext.searchAfter(),
-                    numDocs,
-                    searchContext.trackScores(),
-                    searchContext.trackTotalHitsUpTo(),
-                    hasFilterCollector
-                ) {
-                    @Override
-                    boolean shouldRescore() {
-                        return rescore;
-                    }
-                };
             }
+            return new SimpleTopDocsCollectorContext(
+                reader,
+                query,
+                searchContext.sort(),
+                searchContext.searchAfter(),
+                numDocs,
+                searchContext.trackScores(),
+                searchContext.trackTotalHitsUpTo(),
+                hasFilterCollector
+            ) {
+                @Override
+                boolean shouldRescore() {
+                    return rescore;
+                }
+            };
         }
     }
 

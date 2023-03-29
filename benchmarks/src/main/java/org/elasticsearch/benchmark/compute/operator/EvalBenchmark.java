@@ -11,6 +11,7 @@ package org.elasticsearch.benchmark.compute.operator;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -65,13 +66,13 @@ public class EvalBenchmark {
         }
     }
 
-    @Param({ "abs", "add", "date_trunc", "equal_to" })
+    @Param({ "abs", "add", "date_trunc", "equal_to_const", "long_equal_to_long", "long_equal_to_int" })
     public String operation;
 
     private static Operator operator(String operation) {
         ElementType elementType = switch (operation) {
             case "abs", "add", "date_trunc" -> ElementType.LONG;
-            case "equal_to" -> ElementType.BOOLEAN;
+            case "equal_to_const", "long_equal_to_long", "long_equal_to_int" -> ElementType.BOOLEAN;
             default -> throw new IllegalArgumentException();
         };
         return new EvalOperator(evaluator(operation), elementType);
@@ -101,12 +102,22 @@ public class EvalBenchmark {
                     layout(timestamp)
                 ).get();
             }
-            case "equal_to" -> {
+            case "equal_to_const" -> {
                 FieldAttribute longField = longField();
                 yield EvalMapper.toEvaluator(
-                    new Equals(Source.EMPTY, longField, new Literal(Source.EMPTY, 100_000, DataTypes.LONG)),
+                    new Equals(Source.EMPTY, longField, new Literal(Source.EMPTY, 100_000L, DataTypes.LONG)),
                     layout(longField)
                 ).get();
+            }
+            case "long_equal_to_long" -> {
+                FieldAttribute lhs = longField();
+                FieldAttribute rhs = longField();
+                yield EvalMapper.toEvaluator(new Equals(Source.EMPTY, lhs, rhs), layout(lhs, rhs)).get();
+            }
+            case "long_equal_to_int" -> {
+                FieldAttribute lhs = longField();
+                FieldAttribute rhs = intField();
+                yield EvalMapper.toEvaluator(new Equals(Source.EMPTY, lhs, rhs), layout(lhs, rhs)).get();
             }
             default -> throw new UnsupportedOperationException();
         };
@@ -114,6 +125,10 @@ public class EvalBenchmark {
 
     private static FieldAttribute longField() {
         return new FieldAttribute(Source.EMPTY, "long", new EsField("long", DataTypes.LONG, Map.of(), true));
+    }
+
+    private static FieldAttribute intField() {
+        return new FieldAttribute(Source.EMPTY, "int", new EsField("int", DataTypes.INTEGER, Map.of(), true));
     }
 
     private static Layout layout(FieldAttribute... fields) {
@@ -153,10 +168,18 @@ public class EvalBenchmark {
                     }
                 }
             }
-            case "equal_to" -> {
+            case "equal_to_const" -> {
                 BooleanVector v = actual.<BooleanBlock>getBlock(1).asVector();
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     if (v.getBoolean(i) != (i == 1)) {
+                        throw new AssertionError("[" + operation + "] expected [" + (i == 1) + "] but was [" + v.getBoolean(i) + "]");
+                    }
+                }
+            }
+            case "long_equal_to_long", "long_equal_to_int" -> {
+                BooleanVector v = actual.<BooleanBlock>getBlock(2).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    if (v.getBoolean(i) != true) {
                         throw new AssertionError("[" + operation + "] expected [" + (i == 1) + "] but was [" + v.getBoolean(i) + "]");
                     }
                 }
@@ -167,12 +190,30 @@ public class EvalBenchmark {
 
     private static Page page(String operation) {
         return switch (operation) {
-            case "abs", "add", "date_trunc", "equal_to" -> {
+            case "abs", "add", "date_trunc", "equal_to_const" -> {
                 var builder = LongBlock.newBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     builder.appendLong(i * 100_000);
                 }
                 yield new Page(builder.build());
+            }
+            case "long_equal_to_long" -> {
+                var lhs = LongBlock.newBlockBuilder(BLOCK_LENGTH);
+                var rhs = LongBlock.newBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    lhs.appendLong(i * 100_000);
+                    rhs.appendLong(i * 100_000);
+                }
+                yield new Page(lhs.build(), rhs.build());
+            }
+            case "long_equal_to_int" -> {
+                var lhs = LongBlock.newBlockBuilder(BLOCK_LENGTH);
+                var rhs = IntBlock.newBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    lhs.appendLong(i * 100_000);
+                    rhs.appendInt(i * 100_000);
+                }
+                yield new Page(lhs.build(), rhs.build());
             }
             default -> throw new UnsupportedOperationException();
         };

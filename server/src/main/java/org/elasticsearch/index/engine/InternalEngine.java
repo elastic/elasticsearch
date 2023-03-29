@@ -51,6 +51,8 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
@@ -61,6 +63,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -194,6 +197,10 @@ public class InternalEngine extends Engine {
 
     private final LongSupplier relativeTimeInNanosSupplier;
 
+    private volatile long lastFlushTimestamp;
+
+    private final ByteSizeValue totalDiskSpace;
+
     public InternalEngine(EngineConfig engineConfig) {
         this(engineConfig, IndexWriter.MAX_DOCS, LocalCheckpointTracker::new);
     }
@@ -202,6 +209,7 @@ public class InternalEngine extends Engine {
         super(engineConfig);
         this.maxDocs = maxDocs;
         this.relativeTimeInNanosSupplier = config().getRelativeTimeInNanosSupplier();
+        this.lastFlushTimestamp = relativeTimeInNanosSupplier.getAsLong(); // default to creation timestamp
         final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
         store.incRef();
         IndexWriter writer = null;
@@ -225,6 +233,7 @@ public class InternalEngine extends Engine {
                 });
                 assert translog.getGeneration() != null;
                 this.translog = translog;
+                this.totalDiskSpace = new ByteSizeValue(Environment.getFileStore(translog.location()).getTotalSpace(), ByteSizeUnit.BYTES);
                 this.softDeletesPolicy = newSoftDeletesPolicy();
                 this.combinedDeletionPolicy = new CombinedDeletionPolicy(
                     logger,
@@ -1910,6 +1919,21 @@ public class InternalEngine extends Engine {
 
     @Override
     public void writeIndexingBuffer() throws EngineException {
+        // If we're already halfway through the flush thresholds, then we do a flush. This will save us from writing segments twice
+        // independently in a short period of time, once to reclaim IndexWriter buffer memory and then to reclaim the translog. For
+        // memory-constrained deployments that need to refresh often to reclaim memory, this may require flushing 2x more often than
+        // expected, but the general assumption is that this downside is an ok trade-off given the benefit of flushing the whole content of
+        // the indexing buffer less often.
+        final long flushThresholdSizeInBytes = Math.max(
+            Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1,
+            config().getIndexSettings().getFlushThresholdSize(totalDiskSpace).getBytes() / 2
+        );
+        final long flushThresholdAgeInNanos = config().getIndexSettings().getFlushThresholdAge().getNanos() / 2;
+        if (shouldPeriodicallyFlush(flushThresholdSizeInBytes, flushThresholdAgeInNanos)) {
+            flush(false, false);
+            return;
+        }
+
         // TODO: revise https://github.com/elastic/elasticsearch/pull/34553 to use IndexWriter.flushNextBuffer to flush only the largest
         // pending DWPT. Note that benchmarking this PR with a heavy update user case (geonames) and a small heap (1GB) caused OOM.
         refresh("write indexing buffer", SearcherScope.INTERNAL, false);
@@ -1917,6 +1941,12 @@ public class InternalEngine extends Engine {
 
     @Override
     public boolean shouldPeriodicallyFlush() {
+        final long flushThresholdSizeInBytes = config().getIndexSettings().getFlushThresholdSize(totalDiskSpace).getBytes();
+        final long flushThresholdAgeInNanos = config().getIndexSettings().getFlushThresholdAge().getNanos();
+        return shouldPeriodicallyFlush(flushThresholdSizeInBytes, flushThresholdAgeInNanos);
+    }
+
+    private boolean shouldPeriodicallyFlush(long flushThresholdSizeInBytes, long flushThresholdAgeInNanos) {
         ensureOpen();
         if (shouldPeriodicallyFlushAfterBigMerge.get()) {
             return true;
@@ -1927,8 +1957,8 @@ public class InternalEngine extends Engine {
         final long translogGenerationOfLastCommit = translog.getMinGenerationForSeqNo(
             localCheckpointOfLastCommit + 1
         ).translogFileGeneration;
-        final long flushThreshold = config().getIndexSettings().getFlushThresholdSize().getBytes();
-        if (translog.sizeInBytesByMinGen(translogGenerationOfLastCommit) < flushThreshold) {
+        if (translog.sizeInBytesByMinGen(translogGenerationOfLastCommit) < flushThresholdSizeInBytes
+            && relativeTimeInNanosSupplier.getAsLong() - lastFlushTimestamp < flushThresholdAgeInNanos) {
             return false;
         }
         /*
@@ -1992,11 +2022,15 @@ public class InternalEngine extends Engine {
                     try {
                         translog.rollGeneration();
                         logger.trace("starting commit for flush; commitTranslog=true");
+                        long lastFlushTimestamp = relativeTimeInNanosSupplier.getAsLong();
                         commitIndexWriter(indexWriter, translog);
                         logger.trace("finished commit for flush");
                         // we need to refresh in order to clear older version values
                         refresh("version_table_flush", SearcherScope.INTERNAL, true);
                         translog.trimUnreferencedReaders();
+                        // Use the timestamp from when the flush started, but only update it in case of success, so that any exception in
+                        // the above lines would not lead the engine to think that it recently flushed, when it did not.
+                        this.lastFlushTimestamp = lastFlushTimestamp;
                     } catch (AlreadyClosedException e) {
                         failOnTragicEvent(e);
                         throw e;

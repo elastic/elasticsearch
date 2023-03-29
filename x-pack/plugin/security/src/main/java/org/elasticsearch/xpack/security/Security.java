@@ -482,6 +482,15 @@ public class Security extends Plugin
         License.OperationMode.STANDARD
     );
 
+    /**
+     * Configurable cross cluster access is Enterprise feature.
+     */
+    public static final LicensedFeature.Momentary CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE = LicensedFeature.momentary(
+        null,
+        "configurable-cross-cluster-access",
+        License.OperationMode.ENTERPRISE
+    );
+
     private static final Logger logger = LogManager.getLogger(Security.class);
 
     private final Settings settings;
@@ -924,7 +933,8 @@ public class Security extends Plugin
                 securityContext.get(),
                 destructiveOperations,
                 crossClusterAccessAuthcService,
-                remoteClusterCredentialsResolver
+                remoteClusterCredentialsResolver,
+                getLicenseState()
             )
         );
 

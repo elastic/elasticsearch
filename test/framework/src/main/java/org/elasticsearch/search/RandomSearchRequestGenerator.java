@@ -259,7 +259,7 @@ public class RandomSearchRequestGenerator {
                 }
                 int k = randomIntBetween(1, 100);
                 int numCands = randomIntBetween(k, 1000);
-                knnSearchBuilders.add(new KnnSearchBuilder(field, vector, k, numCands));
+                knnSearchBuilders.add(new KnnSearchBuilder(field, vector, k, numCands, randomBoolean() ? null : randomFloat()));
             }
             builder.knnSearch(knnSearchBuilders);
         }

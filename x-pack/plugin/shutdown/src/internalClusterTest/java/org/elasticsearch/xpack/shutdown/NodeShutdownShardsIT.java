@@ -414,7 +414,14 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         final String nodeA = internalCluster().startNode();
         final String nodeAId = getNodeId(nodeA);
 
-        createIndex("index", 1, 0);
+        createIndex(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("index.routing.allocation.include._name", nodeA)
+                .build()
+        );
 
         ensureYellow("index");
 

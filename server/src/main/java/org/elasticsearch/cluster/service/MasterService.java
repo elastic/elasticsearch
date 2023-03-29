@@ -1217,8 +1217,9 @@ public class MasterService extends AbstractLifecycleComponent {
             currentlyExecutingBatch = null;
             if (totalQueueSize.decrementAndGet() > 0) {
                 starvationWatcher.onNonemptyQueue();
-                // We are already on the master update thread so forking is unnecessary (apart from that it detects shutdown via rejection)
-                // TODO stop forking here, just check for shutdown directly
+                // We are already on the master update thread so forking seems unnecessary, except that:
+                // - it detects shutdown via rejection
+                // - it avoids the stack overflow that could occur when recursing here, whilst being much neater than the iterative impl
                 forkQueueProcessor();
             } else {
                 starvationWatcher.onEmptyQueue();

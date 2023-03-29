@@ -74,19 +74,19 @@ privilege>> to use this API.
 `<index-template>`::
 (Optional, string)
 Name of the index template to simulate.
-To test a template configuration before you add it to the cluster,
+To test a template configuration before you add it to the cluster, 
 omit this parameter and specify the template configuration in the request body.
 
 [[simulate-template-api-query-params]]
 ==== {api-query-parms-title}
 ////
 `cause`::
-(Optional, string) The reason for using the specified template for the simulation.
+(Optional, string) The reason for using the specified template for the simulation. 
 ////
 
 `create`::
-(Optional, Boolean) If `true`, the template passed in the body is
-only used if no existing templates match the same index patterns.
+(Optional, Boolean) If `true`, the template passed in the body is 
+only used if no existing templates match the same index patterns. 
 If `false`, the simulation uses the template with the highest priority.
 Note that the template is not permanently added or updated in either case;
 it is only used for the simulation.
@@ -114,7 +114,7 @@ include::{es-ref-dir}/indices/put-index-template.asciidoc[tag=index-template-api
 .Properties of `overlapping`
 [%collapsible%open]
 ====
-`index_patterns`::
+`index_patterns`:: 
 (array) Index patterns that the superseded template applies to.
 
 `name`::
@@ -123,7 +123,7 @@ include::{es-ref-dir}/indices/put-index-template.asciidoc[tag=index-template-api
 
 `template`::
 (object)
-The settings, mappings, and aliases that would be applied to matching indices.
+The settings, mappings, and aliases that would be applied to matching indices. 
 +
 .Properties of `template`
 [%collapsible%open]
@@ -227,8 +227,8 @@ The response shows the index settings, mappings, and aliases applied by the `fin
 [[simulate-template-config-ex]]
 ===== Simulating an arbitrary template configuration
 
-To see what settings will be applied by a template before you add it to the cluster,
-you can pass a template configuration in the request body.
+To see what settings will be applied by a template before you add it to the cluster, 
+you can pass a template configuration in the request body. 
 The specified template is used for the simulation if it has a higher priority than existing templates.
 
 [source,console]
@@ -266,8 +266,8 @@ The response shows any overlapping templates with a lower priority.
       }
     },
     "mappings" : {
-      "properties" : {
-        "@timestamp" : {
+      "properties" : { 
+        "@timestamp" : {           
           "type" : "date"
         }
       }

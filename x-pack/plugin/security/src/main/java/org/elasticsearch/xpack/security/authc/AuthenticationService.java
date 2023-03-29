@@ -219,13 +219,6 @@ public class AuthenticationService {
         authenticatorChain.authenticateAsync(context, listener);
     }
 
-    /**
-     * This must be called after the HTTP request has been authenticated.
-     */
-    public void auditSuccess(RestRequest restRequest) {
-        auditTrailService.get().authenticationSuccess(restRequest);
-    }
-
     public void expire(String principal) {
         if (lastSuccessfulAuthCache != null) {
             numInvalidation.incrementAndGet();

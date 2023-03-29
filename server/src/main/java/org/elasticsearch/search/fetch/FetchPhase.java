@@ -25,8 +25,6 @@ import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsPhase;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.FieldLookup;
-import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.profile.ProfileResult;
@@ -93,31 +91,6 @@ public class FetchPhase {
         @Override
         public Source getSource(LeafReaderContext ctx, int doc) throws IOException {
             return source;
-        }
-    }
-
-    private static class PreloadedFieldLookupProvider implements LeafFieldLookupProvider {
-
-        Map<String, List<Object>> storedFields;
-        LeafFieldLookupProvider backUpLoader;
-        Supplier<LeafFieldLookupProvider> loaderSupplier;
-
-        @Override
-        public void populateFieldLookup(FieldLookup fieldLookup, int doc) throws IOException {
-            String field = fieldLookup.fieldType().name();
-            if (storedFields.containsKey(field)) {
-                fieldLookup.setValues(storedFields.get(field));
-            }
-            // stored field not preloaded, go and get it directly
-            if (backUpLoader == null) {
-                backUpLoader = loaderSupplier.get();
-            }
-            backUpLoader.populateFieldLookup(fieldLookup, doc);
-        }
-
-        void setNextReader(LeafReaderContext ctx) {
-            backUpLoader = null;
-            loaderSupplier = () -> LeafFieldLookupProvider.fromStoredFields().apply(ctx);
         }
     }
 

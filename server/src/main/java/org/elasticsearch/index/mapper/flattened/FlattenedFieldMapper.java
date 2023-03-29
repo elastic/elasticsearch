@@ -757,6 +757,13 @@ public final class FlattenedFieldMapper extends FieldMapper {
             };
         }
 
-        throw new IllegalStateException("field [" + name() + "] of type [" + typeName() + "] has no doc values");
+        throw new IllegalArgumentException(
+            "field ["
+                + name()
+                + "] of type ["
+                + typeName()
+                + "] doesn't support synthetic source "
+                + "because it doesn't have doc values and isn't stored"
+        );
     }
 }

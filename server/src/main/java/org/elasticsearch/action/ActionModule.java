@@ -891,7 +891,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetPipelineAction());
         registerHandler.accept(new RestDeletePipelineAction());
         registerHandler.accept(new RestSimulatePipelineAction());
-        registerHandler.accept(new RestFileUpload());
+        registerHandler.accept(new RestFileUploadAction());
 
         // Dangling indices API
         registerHandler.accept(new RestListDanglingIndicesAction());

@@ -23,8 +23,9 @@ the request fails and returns an error.
 ==== {api-path-parms-title}
 
 `<data-stream>`::
-(Required, string) Comma-separated list of data streams used to limit the request. Supports wildcards but it is not
-possible to target all data streams at once with `*`.
+(Required, string) Comma-separated list of data streams used to limit the request. Supports wildcards (`*`).
+To target all data streams omit this parameter or use `*` or `_all`.
+
 
 [role="child_attributes"]
 [[delete-data-lifecycle-api-query-parms]]

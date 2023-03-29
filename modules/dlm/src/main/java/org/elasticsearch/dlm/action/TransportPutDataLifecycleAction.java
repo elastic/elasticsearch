@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.datastreams.action.DataStreamsActionUtil;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -31,6 +32,7 @@ import java.util.List;
 public class TransportPutDataLifecycleAction extends AcknowledgedTransportMasterNodeAction<PutDataLifecycleAction.Request> {
 
     private final MetadataDataStreamsService metadataDataStreamsService;
+    private final SystemIndices systemIndices;
 
     @Inject
     public TransportPutDataLifecycleAction(
@@ -39,7 +41,8 @@ public class TransportPutDataLifecycleAction extends AcknowledgedTransportMaster
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        MetadataDataStreamsService metadataDataStreamsService
+        MetadataDataStreamsService metadataDataStreamsService,
+        SystemIndices systemIndices
     ) {
         super(
             PutDataLifecycleAction.NAME,
@@ -52,6 +55,7 @@ public class TransportPutDataLifecycleAction extends AcknowledgedTransportMaster
             ThreadPool.Names.SAME
         );
         this.metadataDataStreamsService = metadataDataStreamsService;
+        this.systemIndices = systemIndices;
     }
 
     @Override
@@ -67,6 +71,9 @@ public class TransportPutDataLifecycleAction extends AcknowledgedTransportMaster
             request.getNames(),
             request.indicesOptions()
         );
+        for (String name : dataStreamNames) {
+            systemIndices.validateDataStreamAccess(name, threadPool.getThreadContext());
+        }
         metadataDataStreamsService.setLifecycle(
             dataStreamNames,
             request.getLifecycle(),

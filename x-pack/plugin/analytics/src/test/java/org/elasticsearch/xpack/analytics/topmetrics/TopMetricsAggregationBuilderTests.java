@@ -86,6 +86,11 @@ public class TopMetricsAggregationBuilderTests extends AbstractXContentSerializi
         return new TopMetricsAggregationBuilder(randomAlphaOfLength(5), sortBuilders, between(1, 100), metricFields);
     }
 
+    @Override
+    protected TopMetricsAggregationBuilder mutateInstance(TopMetricsAggregationBuilder instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testClientBuilder() throws IOException {
         AbstractXContentTestCase.xContentTester(this::createParser, this::createTestInstance, this::toXContentThroughClientBuilder, p -> {
             p.nextToken();

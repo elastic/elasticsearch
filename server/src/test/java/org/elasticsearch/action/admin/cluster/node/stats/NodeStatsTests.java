@@ -69,6 +69,7 @@ import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPoolStats;
+import org.elasticsearch.transport.TransportActionStats;
 import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
@@ -635,8 +636,9 @@ public class NodeStatsTests extends ESTestCase {
         ShardRouting shardRouting = ShardRouting.newUnassigned(
             shardId,
             true,
-            RecoverySource.PeerRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "message")
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "message"),
+            ShardRouting.Role.DEFAULT
         );
         Path path = createTempDir().resolve("indices")
             .resolve(shardRouting.shardId().getIndex().getUUID())
@@ -835,7 +837,8 @@ public class NodeStatsTests extends ESTestCase {
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 IntStream.range(0, HandlingTimeTracker.BUCKET_COUNT).mapToLong(i -> randomNonNegativeLong()).toArray(),
-                IntStream.range(0, HandlingTimeTracker.BUCKET_COUNT).mapToLong(i -> randomNonNegativeLong()).toArray()
+                IntStream.range(0, HandlingTimeTracker.BUCKET_COUNT).mapToLong(i -> randomNonNegativeLong()).toArray(),
+                Map.of("test-action", new TransportActionStats(1, 2, new long[29], 3, 4, new long[29]))
             )
             : null;
         HttpStats httpStats = null;

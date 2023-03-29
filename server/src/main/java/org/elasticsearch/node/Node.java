@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
@@ -91,6 +90,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Releasables;
@@ -112,6 +112,7 @@ import org.elasticsearch.health.metadata.HealthMetadataService;
 import org.elasticsearch.health.node.DiskHealthIndicatorService;
 import org.elasticsearch.health.node.HealthInfoCache;
 import org.elasticsearch.health.node.LocalHealthMonitor;
+import org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.health.stats.HealthApiStats;
 import org.elasticsearch.http.HttpServerTransport;
@@ -152,6 +153,7 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
+import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
@@ -202,6 +204,7 @@ import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
+import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
@@ -607,8 +610,7 @@ public class Node implements Closeable {
             BigArrays bigArrays = createBigArrays(pageCacheRecycler, circuitBreakerService);
             modules.add(settingsModule);
             final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry);
-            final PersistedClusterStateService persistedClusterStateService = new PersistedClusterStateService(
-                nodeEnvironment,
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(
                 xContentRegistry,
                 clusterService.getClusterSettings(),
                 threadPool::relativeTimeInMillis
@@ -731,7 +733,7 @@ public class Node implements Closeable {
                     clusterModule.getIndexNameExpressionResolver(),
                     repositoriesServiceReference::get,
                     tracer,
-                    clusterModule.getAllocationService().getAllocationDeciders()
+                    clusterModule.getAllocationService()
                 )
             ).toList();
 
@@ -857,16 +859,13 @@ public class Node implements Closeable {
             );
 
             actionModule.getReservedClusterStateService().installStateHandler(new ReservedRepositoryAction(repositoryService));
+            actionModule.getReservedClusterStateService().installStateHandler(new ReservedPipelineAction());
 
             FileSettingsService fileSettingsService = new FileSettingsService(
                 clusterService,
                 actionModule.getReservedClusterStateService(),
-                environment,
-                client
+                environment
             );
-
-            actionModule.getReservedClusterStateService()
-                .installStateHandler(new ReservedPipelineAction(ingestService, fileSettingsService));
 
             RestoreService restoreService = new RestoreService(
                 clusterService,
@@ -901,6 +900,7 @@ public class Node implements Closeable {
                 clusterService.getClusterApplierService(),
                 clusterService.getClusterSettings(),
                 pluginsService.filterPlugins(DiscoveryPlugin.class),
+                pluginsService.filterPlugins(ClusterCoordinationPlugin.class),
                 clusterModule.getAllocationService(),
                 environment.configFile(),
                 gatewayMetaState,
@@ -997,7 +997,13 @@ public class Node implements Closeable {
                 discoveryModule.getCoordinator(),
                 masterHistoryService
             );
-            HealthService healthService = createHealthService(clusterService, clusterModule, coordinationDiagnosticsService, threadPool);
+            HealthService healthService = createHealthService(
+                clusterService,
+                clusterModule,
+                coordinationDiagnosticsService,
+                threadPool,
+                systemIndices
+            );
             HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, settings);
             LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, nodeService, threadPool, client);
             HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
@@ -1064,9 +1070,16 @@ public class Node implements Closeable {
                 }
                 b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
                 pluginComponents.forEach(p -> {
-                    @SuppressWarnings("unchecked")
-                    Class<Object> pluginClass = (Class<Object>) p.getClass();
-                    b.bind(pluginClass).toInstance(p);
+                    if (p instanceof PluginComponentBinding<?, ?> pcb) {
+                        @SuppressWarnings("unchecked")
+                        Class<Object> clazz = (Class<Object>) pcb.inter();
+                        b.bind(clazz).toInstance(pcb.impl());
+
+                    } else {
+                        @SuppressWarnings("unchecked")
+                        Class<Object> clazz = (Class<Object>) p.getClass();
+                        b.bind(clazz).toInstance(p);
+                    }
                 });
                 b.bind(PersistentTasksService.class).toInstance(persistentTasksService);
                 b.bind(PersistentTasksClusterService.class).toInstance(persistentTasksClusterService);
@@ -1109,10 +1122,12 @@ public class Node implements Closeable {
             // reroute, which needs to call into the allocation service. We close the loop here:
             clusterModule.setExistingShardsAllocators(injector.getInstance(GatewayAllocator.class));
 
-            List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream()
-                .filter(p -> p instanceof LifecycleComponent)
-                .map(p -> (LifecycleComponent) p)
-                .toList();
+            List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream().map(p -> {
+                if (p instanceof PluginComponentBinding<?, ?> pcb) {
+                    return pcb.impl();
+                }
+                return p;
+            }).filter(p -> p instanceof LifecycleComponent).map(p -> (LifecycleComponent) p).toList();
             resourcesToClose.addAll(pluginLifecycleComponents);
             resourcesToClose.add(injector.getInstance(PeerRecoverySourceService.class));
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
@@ -1199,7 +1214,8 @@ public class Node implements Closeable {
         ClusterService clusterService,
         ClusterModule clusterModule,
         CoordinationDiagnosticsService coordinationDiagnosticsService,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        SystemIndices systemIndices
     ) {
         List<HealthIndicatorService> preflightHealthIndicatorServices = Collections.singletonList(
             new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService)
@@ -1207,10 +1223,11 @@ public class Node implements Closeable {
         var serverHealthIndicatorServices = new ArrayList<>(
             List.of(
                 new RepositoryIntegrityHealthIndicatorService(clusterService),
-                new ShardsAvailabilityHealthIndicatorService(clusterService, clusterModule.getAllocationService())
+                new ShardsAvailabilityHealthIndicatorService(clusterService, clusterModule.getAllocationService(), systemIndices)
             )
         );
         serverHealthIndicatorServices.add(new DiskHealthIndicatorService(clusterService));
+        serverHealthIndicatorServices.add(new ShardsCapacityHealthIndicatorService(clusterService));
         var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
             .stream()
             .flatMap(plugin -> plugin.getHealthIndicatorServices().stream())
@@ -1227,22 +1244,22 @@ public class Node implements Closeable {
         ClusterService clusterService,
         RepositoriesService repositoryService
     ) {
-        final List<RecoveryPlannerPlugin> recoveryPlannerPlugins = pluginsService.filterPlugins(RecoveryPlannerPlugin.class);
-        if (recoveryPlannerPlugins.isEmpty()) {
+        final List<RecoveryPlannerService> recoveryPlannerServices = pluginsService.filterPlugins(RecoveryPlannerPlugin.class)
+            .stream()
+            .map(
+                plugin -> plugin.createRecoveryPlannerService(
+                    new ShardSnapshotsService(client, repositoryService, threadPool, clusterService)
+                )
+            )
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .toList();
+        if (recoveryPlannerServices.isEmpty()) {
             return new PeerOnlyRecoveryPlannerService();
+        } else if (recoveryPlannerServices.size() > 1) {
+            throw new IllegalStateException("Expected a single RecoveryPlannerService but got: " + recoveryPlannerServices.size());
         }
-
-        if (recoveryPlannerPlugins.size() > 1) {
-            throw new IllegalStateException("A single RecoveryPlannerPlugin was expected but got: " + recoveryPlannerPlugins);
-        }
-
-        final ShardSnapshotsService shardSnapshotsService = new ShardSnapshotsService(
-            client,
-            repositoryService,
-            threadPool,
-            clusterService
-        );
-        return recoveryPlannerPlugins.get(0).createRecoveryPlannerService(shardSnapshotsService);
+        return recoveryPlannerServices.get(0);
     }
 
     private WriteLoadForecaster getWriteLoadForecaster(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
@@ -1260,6 +1277,30 @@ public class Node implements Closeable {
         }
 
         return writeLoadForecasters.get(0);
+    }
+
+    private PersistedClusterStateService newPersistedClusterStateService(
+        NamedXContentRegistry xContentRegistry,
+        ClusterSettings clusterSettings,
+        LongSupplier relativeTimeMillisSupplier
+    ) {
+        final List<ClusterCoordinationPlugin.PersistedClusterStateServiceFactory> persistedClusterStateServiceFactories = pluginsService
+            .filterPlugins(ClusterCoordinationPlugin.class)
+            .stream()
+            .map(ClusterCoordinationPlugin::getPersistedClusterStateServiceFactory)
+            .flatMap(Optional::stream)
+            .toList();
+
+        if (persistedClusterStateServiceFactories.size() > 1) {
+            throw new IllegalStateException("multiple persisted-state-service factories found: " + persistedClusterStateServiceFactories);
+        }
+
+        if (persistedClusterStateServiceFactories.size() == 1) {
+            return persistedClusterStateServiceFactories.get(0)
+                .newPersistedClusterStateService(nodeEnvironment, xContentRegistry, clusterSettings, relativeTimeMillisSupplier);
+        }
+
+        return new PersistedClusterStateService(nodeEnvironment, xContentRegistry, clusterSettings, relativeTimeMillisSupplier);
     }
 
     protected TransportService newTransportService(
@@ -1360,7 +1401,8 @@ public class Node implements Closeable {
             injector.getInstance(MetaStateService.class),
             injector.getInstance(IndexMetadataVerifier.class),
             injector.getInstance(MetadataUpgrader.class),
-            injector.getInstance(PersistedClusterStateService.class)
+            injector.getInstance(PersistedClusterStateService.class),
+            pluginsService.filterPlugins(ClusterCoordinationPlugin.class)
         );
         if (Assertions.ENABLED) {
             try {
@@ -1386,6 +1428,13 @@ public class Node implements Closeable {
             transportService.boundAddress(),
             pluginsService.flatMap(Plugin::getBootstrapChecks).toList()
         );
+
+        final FileSettingsService fileSettingsService = injector.getInstance(FileSettingsService.class);
+        fileSettingsService.start();
+        // if we are using the readiness service, listen for the file settings being applied
+        if (ReadinessService.enabled(environment)) {
+            fileSettingsService.addFileChangedListener(injector.getInstance(ReadinessService.class));
+        }
 
         clusterService.addStateApplier(transportService.getTaskManager());
         // start after transport service so the local disco is known
@@ -1437,7 +1486,6 @@ public class Node implements Closeable {
             }
         }
 
-        injector.getInstance(FileSettingsService.class).start();
         injector.getInstance(HttpServerTransport.class).start();
 
         if (WRITE_PORTS_FILE_SETTING.get(settings())) {
@@ -1449,6 +1497,10 @@ public class Node implements Closeable {
             if (ReadinessService.enabled(environment)) {
                 ReadinessService readiness = injector.getInstance(ReadinessService.class);
                 readiness.addBoundAddressListener(address -> writePortsFile("readiness", address));
+            }
+
+            if (RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.get(environment.settings())) {
+                writePortsFile("remote_cluster", transport.boundRemoteAccessAddress());
             }
         }
 

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,7 +20,7 @@ public class AuthenticateRequest extends ActionRequest {
 
     public AuthenticateRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().before(Version.V_8_5_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_5_0)) {
             // Older versions included the username as a field
             in.readString();
         }
@@ -37,7 +37,7 @@ public class AuthenticateRequest extends ActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_8_5_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_5_0)) {
             throw new IllegalStateException("cannot send authenticate request to a node of earlier version");
         }
     }

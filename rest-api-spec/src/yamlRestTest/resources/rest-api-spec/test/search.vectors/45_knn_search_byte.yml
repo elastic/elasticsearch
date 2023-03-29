@@ -7,8 +7,6 @@ setup:
       indices.create:
         index: test
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               name:
@@ -178,3 +176,61 @@ setup:
               num_candidates: 1
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.root_cause.0.reason: "[knn] queries cannot be provided directly, use the [knn] body parameter instead" }
+---
+"Vector similarity search only":
+  - skip:
+      version: ' - 8.7.99'
+      reason: 'kNN similarity added in 8.8'
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            num_candidates: 3
+            k: 3
+            field: vector
+            similarity: 1.0
+            query_vector: [5, 4.0, 3, 2.0, 127]
+
+  - length: {hits.hits: 1}
+
+  - match: {hits.hits.0._id: "3"}
+  - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
+---
+"Vector similarity with filter only":
+  - skip:
+      version: ' - 8.7.99'
+      reason: 'kNN similarity added in 8.8'
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            num_candidates: 3
+            k: 3
+            field: vector
+            similarity: 1.0
+            query_vector: [5, 4.0, 3, 2.0, 127]
+            filter: {"term": {"name": "rabbit.jpg"}}
+
+  - length: {hits.hits: 1}
+
+  - match: {hits.hits.0._id: "3"}
+  - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            num_candidates: 3
+            k: 3
+            field: vector
+            similarity: 1
+            query_vector: [5, 4.0, 3, 2.0, 127]
+            filter: {"term": {"name": "cow.jpg"}}
+
+  - length: {hits.hits: 0}

@@ -7,13 +7,10 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -37,8 +34,8 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
         );
     }
 
-    public static QuestionAnsweringConfigUpdate mutateForVersion(QuestionAnsweringConfigUpdate instance, Version version) {
-        if (version.before(Version.V_8_1_0)) {
+    public static QuestionAnsweringConfigUpdate mutateForVersion(QuestionAnsweringConfigUpdate instance, TransportVersion version) {
+        if (version.before(TransportVersion.V_8_1_0)) {
             return new QuestionAnsweringConfigUpdate(
                 instance.getQuestion(),
                 instance.getNumTopClasses(),
@@ -71,7 +68,12 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
     }
 
     @Override
-    protected QuestionAnsweringConfigUpdate mutateInstanceForVersion(QuestionAnsweringConfigUpdate instance, Version version) {
+    protected QuestionAnsweringConfigUpdate mutateInstance(QuestionAnsweringConfigUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected QuestionAnsweringConfigUpdate mutateInstanceForVersion(QuestionAnsweringConfigUpdate instance, TransportVersion version) {
         return mutateForVersion(instance, version);
     }
 
@@ -170,15 +172,5 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
 
     public static QuestionAnsweringConfigUpdate createRandom() {
         return randomUpdate();
-    }
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
-    }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(new MlInferenceNamedXContentProvider().getNamedWriteables());
     }
 }

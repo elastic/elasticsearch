@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -17,8 +18,8 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.sandbox.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -245,7 +246,7 @@ public final class DateFieldMapper extends FieldMapper {
         private final Parameter<Boolean> ignoreMalformed;
 
         private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
-        private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
+        private final Parameter<OnScriptError> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
 
         private final Resolution resolution;
         private final Version indexCreatedVersion;
@@ -303,9 +304,13 @@ public final class DateFieldMapper extends FieldMapper {
             DateFieldScript.Factory factory = scriptCompiler.compile(script.get(), DateFieldScript.CONTEXT);
             return factory == null
                 ? null
-                : (lookup, ctx, doc, consumer) -> factory.newFactory(name, script.get().getParams(), lookup, buildFormatter())
-                    .newInstance(ctx)
-                    .runForDoc(doc, consumer::accept);
+                : (lookup, ctx, doc, consumer) -> factory.newFactory(
+                    name,
+                    script.get().getParams(),
+                    lookup,
+                    buildFormatter(),
+                    OnScriptError.FAIL
+                ).newInstance(ctx).runForDoc(doc, consumer::accept);
         }
 
         @Override
@@ -785,7 +790,7 @@ public final class DateFieldMapper extends FieldMapper {
                     name(),
                     resolution.numericType().getValuesSourceType(),
                     sourceValueFetcher(sourcePaths),
-                    searchLookup.source(),
+                    searchLookup,
                     resolution.getDefaultToScriptFieldFactory()
                 );
             }
@@ -903,16 +908,19 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     private void indexValue(DocumentParserContext context, long timestamp) {
-        if (indexed) {
-            context.doc().add(new LongPoint(fieldType().name(), timestamp));
-        }
-        if (hasDocValues) {
+        if (indexed && hasDocValues) {
+            context.doc().add(new LongField(fieldType().name(), timestamp));
+        } else if (hasDocValues) {
             context.doc().add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
-        } else if (store || indexed) {
-            context.addToFieldNames(fieldType().name());
+        } else if (indexed) {
+            context.doc().add(new LongPoint(fieldType().name(), timestamp));
         }
         if (store) {
             context.doc().add(new StoredField(fieldType().name(), timestamp));
+        }
+        if (hasDocValues == false && (indexed || store)) {
+            // When the field doesn't have doc values so that we can run exists queries, we also need to index the field name separately.
+            context.addToFieldNames(fieldType().name());
         }
     }
 

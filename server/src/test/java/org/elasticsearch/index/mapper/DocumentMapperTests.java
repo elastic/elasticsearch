@@ -63,7 +63,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         assertThat(stage1.mappers().getMapper("age"), nullValue());
         assertThat(stage1.mappers().getMapper("obj1.prop1"), nullValue());
         // but merged should
-        DocumentParser documentParser = new DocumentParser(null, null, null, null);
+        DocumentParser documentParser = new DocumentParser(null, null);
         DocumentMapper mergedMapper = new DocumentMapper(documentParser, merged, merged.toCompressedXContent());
         assertThat(mergedMapper.mappers().getMapper("age"), notNullValue());
         assertThat(mergedMapper.mappers().getMapper("obj1.prop1"), notNullValue());
@@ -103,7 +103,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
 
     @Override
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
-        return new IndexAnalyzers(
+        return IndexAnalyzers.of(
             Map.of(
                 "default",
                 new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer()),
@@ -111,9 +111,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 new NamedAnalyzer("keyword", AnalyzerScope.INDEX, new KeywordAnalyzer()),
                 "whitespace",
                 new NamedAnalyzer("whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer())
-            ),
-            Map.of(),
-            Map.of()
+            )
         );
     }
 

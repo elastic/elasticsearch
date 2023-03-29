@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -459,7 +460,7 @@ public class TokenServiceTests extends ESTestCase {
         String iv,
         String salt
     ) {
-        if (authentication.getEffectiveSubject().getVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH)) {
+        if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH)) {
             return new RefreshTokenStatus(invalidated, authentication, refreshed, refreshInstant, supersedingTokens, iv, salt);
         } else {
             return new RefreshTokenStatus(
@@ -674,7 +675,7 @@ public class TokenServiceTests extends ESTestCase {
             .build(false);
         mockGetTokenFromId(tokenService, UUIDs.randomBase64UUID(), authentication, false);
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
-        storeTokenHeader(requestContext, generateAccessToken(tokenService, Version.V_7_1_0));
+        storeTokenHeader(requestContext, generateAccessToken(tokenService, TransportVersion.V_7_1_0));
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -693,7 +694,7 @@ public class TokenServiceTests extends ESTestCase {
             .build(false);
         mockGetTokenFromId(tokenService, UUIDs.randomBase64UUID(), authentication, false);
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
-        storeTokenHeader(requestContext, generateAccessToken(tokenService, randomFrom(Version.V_7_2_0, Version.V_7_3_2)));
+        storeTokenHeader(requestContext, generateAccessToken(tokenService, randomFrom(TransportVersion.V_7_2_0, TransportVersion.V_7_3_2)));
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -802,7 +803,7 @@ public class TokenServiceTests extends ESTestCase {
         final String newRefreshToken = UUIDs.randomBase64UUID();
         final byte[] iv = tokenService.getRandomBytes(TokenService.IV_BYTES);
         final byte[] salt = tokenService.getRandomBytes(TokenService.SALT_BYTES);
-        final Version version = tokenService.getTokenVersionCompatibility();
+        final TransportVersion version = tokenService.getTokenVersionCompatibility();
         String encryptedTokens = tokenService.encryptSupersedingTokens(newAccessToken, newRefreshToken, refrehToken, iv, salt);
         RefreshTokenStatus refreshTokenStatus = newRefreshTokenStatus(
             false,
@@ -813,7 +814,7 @@ public class TokenServiceTests extends ESTestCase {
             Base64.getEncoder().encodeToString(iv),
             Base64.getEncoder().encodeToString(salt)
         );
-        refreshTokenStatus.setVersion(version);
+        refreshTokenStatus.setTransportVersion(version);
         mockGetTokenAsyncForDecryptedToken(newAccessToken);
         tokenService.decryptAndReturnSupersedingTokens(refrehToken, refreshTokenStatus, securityTokensIndex, authentication, tokenFuture);
         if (version.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
@@ -850,7 +851,7 @@ public class TokenServiceTests extends ESTestCase {
             userTokenId
         );
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        storeTokenHeader(threadContext, tokenService.prependVersionAndEncodeAccessToken(token.getVersion(), accessToken));
+        storeTokenHeader(threadContext, tokenService.prependVersionAndEncodeAccessToken(token.getTransportVersion(), accessToken));
 
         PlainActionFuture<UserToken> authFuture = new PlainActionFuture<>();
         when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(false);
@@ -895,7 +896,7 @@ public class TokenServiceTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
             GetResponse response = mock(GetResponse.class);
-            Version tokenVersion = tokenService.getTokenVersionCompatibility();
+            TransportVersion tokenVersion = tokenService.getTokenVersionCompatibility();
             final String possiblyHashedUserTokenId;
             if (tokenVersion.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
                 possiblyHashedUserTokenId = TokenService.hashTokenString(userTokenId);
@@ -929,7 +930,7 @@ public class TokenServiceTests extends ESTestCase {
         Authentication authentication,
         Map<String, Object> metadata
     ) {
-        final Version tokenVersion = tokenService.getTokenVersionCompatibility();
+        final TransportVersion tokenVersion = tokenService.getTokenVersionCompatibility();
         final String possiblyHashedUserTokenId;
         if (tokenVersion.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
             possiblyHashedUserTokenId = TokenService.hashTokenString(userTokenId);
@@ -948,7 +949,7 @@ public class TokenServiceTests extends ESTestCase {
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
             GetResponse response = mock(GetResponse.class);
             final String possiblyHashedUserTokenId;
-            if (userToken.getVersion().onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
+            if (userToken.getTransportVersion().onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
                 possiblyHashedUserTokenId = TokenService.hashTokenString(userToken.getId());
             } else {
                 possiblyHashedUserTokenId = userToken.getId();
@@ -978,7 +979,7 @@ public class TokenServiceTests extends ESTestCase {
 
     private void mockFindTokenFromRefreshToken(String refreshToken, UserToken userToken, @Nullable RefreshTokenStatus refreshTokenStatus) {
         String storedRefreshToken;
-        if (userToken.getVersion().onOrAfter(TokenService.VERSION_HASHED_TOKENS)) {
+        if (userToken.getTransportVersion().onOrAfter(TokenService.VERSION_HASHED_TOKENS)) {
             storedRefreshToken = TokenService.hashTokenString(refreshToken);
         } else {
             storedRefreshToken = refreshToken;
@@ -1071,7 +1072,7 @@ public class TokenServiceTests extends ESTestCase {
         return anotherDataNode;
     }
 
-    private String generateAccessToken(TokenService tokenService, Version version) throws Exception {
+    private String generateAccessToken(TokenService tokenService, TransportVersion version) throws Exception {
         String accessTokenString = UUIDs.randomBase64UUID();
         if (version.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
             accessTokenString = TokenService.hashTokenString(accessTokenString);

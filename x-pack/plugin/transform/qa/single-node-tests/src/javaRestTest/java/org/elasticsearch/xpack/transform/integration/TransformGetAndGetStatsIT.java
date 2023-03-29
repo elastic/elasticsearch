@@ -13,6 +13,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.junit.After;
@@ -380,7 +381,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         String transformSrc = "reviews_cont_pivot_test";
         createReviewsIndex(transformSrc);
         final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, null);
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "dest": {
                 "index": "%s"
@@ -450,7 +451,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         long now = Instant.now().toEpochMilli() - 1_000;
         for (int i = 0; i < numDocs; i++) {
             // Doing only new users so that there is a deterministic number of docs for progress
-            bulk.append(formatted("""
+            bulk.append(Strings.format("""
                 {"index":{"_index":"%s"}}
                 {"user_id":"user_%s","business_id":"business_%s","stars":%s,"timestamp":%s}
                 """, transformSrc, randomFrom(42, 47, 113), 10, 5, now));
@@ -497,7 +498,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
 
         int numberOfTransforms = randomIntBetween(1_500, 4_000);
         for (int i = 0; i < numberOfTransforms; ++i) {
-            String transformId = formatted("t-%05d", i);
+            String transformId = Strings.format("t-%05d", i);
             final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, null);
             createTransformRequest.setJsonEntity(config);
             assertOK(client().performRequest(createTransformRequest));
@@ -519,20 +520,20 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
             assertEquals(size, configs.size());
             assertEquals(size, stats.size());
 
-            assertThat(configs.get(0).get("id"), equalTo(formatted("t-%05d", from)));
-            assertThat(configs.get(configs.size() - 1).get("id"), equalTo(formatted("t-%05d", from + size - 1)));
-            assertThat(stats.get(0).get("id"), equalTo(formatted("t-%05d", from)));
-            assertThat(stats.get(stats.size() - 1).get("id"), equalTo(formatted("t-%05d", from + size - 1)));
+            assertThat(configs.get(0).get("id"), equalTo(Strings.format("t-%05d", from)));
+            assertThat(configs.get(configs.size() - 1).get("id"), equalTo(Strings.format("t-%05d", from + size - 1)));
+            assertThat(stats.get(0).get("id"), equalTo(Strings.format("t-%05d", from)));
+            assertThat(stats.get(stats.size() - 1).get("id"), equalTo(Strings.format("t-%05d", from + size - 1)));
 
             if (size > 2) {
                 int randomElement = randomIntBetween(1, size - 1);
-                assertThat(configs.get(randomElement).get("id"), equalTo(formatted("t-%05d", from + randomElement)));
-                assertThat(stats.get(randomElement).get("id"), equalTo(formatted("t-%05d", from + randomElement)));
+                assertThat(configs.get(randomElement).get("id"), equalTo(Strings.format("t-%05d", from + randomElement)));
+                assertThat(stats.get(randomElement).get("id"), equalTo(Strings.format("t-%05d", from + randomElement)));
             }
         }
 
         for (int i = 0; i < numberOfTransforms; ++i) {
-            deleteTransform(formatted("t-%05d", i));
+            deleteTransform(Strings.format("t-%05d", i));
         }
     }
 

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.eql.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -62,6 +62,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     private String resultPosition = "tail";
     private List<FieldAndFormat> fetchFields;
     private Map<String, Object> runtimeMappings = emptyMap();
+    private int maxSamplesPerKey = RequestDefaults.MAX_SAMPLES_PER_KEY;
 
     // Async settings
     private TimeValue waitForCompletionTimeout = null;
@@ -81,6 +82,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     static final String KEY_RESULT_POSITION = "result_position";
     static final String KEY_FETCH_FIELDS = "fields";
     static final String KEY_RUNTIME_MAPPINGS = "runtime_mappings";
+    static final String KEY_MAX_SAMPLES_PER_KEY = "max_samples_per_key";
 
     static final ParseField FILTER = new ParseField(KEY_FILTER);
     static final ParseField TIMESTAMP_FIELD = new ParseField(KEY_TIMESTAMP_FIELD);
@@ -94,6 +96,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     static final ParseField KEEP_ON_COMPLETION = new ParseField(KEY_KEEP_ON_COMPLETION);
     static final ParseField RESULT_POSITION = new ParseField(KEY_RESULT_POSITION);
     static final ParseField FETCH_FIELDS_FIELD = SearchSourceBuilder.FETCH_FIELDS_FIELD;
+    static final ParseField MAX_SAMPLES_PER_KEY = new ParseField(KEY_MAX_SAMPLES_PER_KEY);
 
     private static final ObjectParser<EqlSearchRequest, Void> PARSER = objectParser(EqlSearchRequest::new);
 
@@ -112,22 +115,25 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         size = in.readVInt();
         fetchSize = in.readVInt();
         query = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_15_0)) {
             this.ccsMinimizeRoundtrips = in.readBoolean();
         }
         this.waitForCompletionTimeout = in.readOptionalTimeValue();
         this.keepAlive = in.readOptionalTimeValue();
         this.keepOnCompletion = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_17_8)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_17_8)) {
             resultPosition = in.readString();
         }
-        if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
             if (in.readBoolean()) {
                 fetchFields = in.readList(FieldAndFormat::new);
             }
             runtimeMappings = in.readMap();
         } else {
             runtimeMappings = emptyMap();
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            maxSamplesPerKey = in.readInt();
         }
     }
 
@@ -179,6 +185,10 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
 
         if (runtimeMappings != null) {
             validationException = validateRuntimeMappings(runtimeMappings, validationException);
+        }
+
+        if (maxSamplesPerKey < 1) {
+            validationException = addValidationError("max_samples_per_key must be greater than 0", validationException);
         }
 
         return validationException;
@@ -234,6 +244,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         if (runtimeMappings != null) {
             builder.field(KEY_RUNTIME_MAPPINGS, runtimeMappings);
         }
+        builder.field(KEY_MAX_SAMPLES_PER_KEY, maxSamplesPerKey);
 
         return builder;
     }
@@ -267,6 +278,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         parser.declareString(EqlSearchRequest::resultPosition, RESULT_POSITION);
         parser.declareField(EqlSearchRequest::fetchFields, EqlSearchRequest::parseFetchFields, FETCH_FIELDS_FIELD, ValueType.VALUE_ARRAY);
         parser.declareObject(EqlSearchRequest::runtimeMappings, (p, c) -> p.map(), SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD);
+        parser.declareInt(EqlSearchRequest::maxSamplesPerKey, MAX_SAMPLES_PER_KEY);
         return parser;
     }
 
@@ -406,6 +418,15 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         return this;
     }
 
+    public int maxSamplesPerKey() {
+        return maxSamplesPerKey;
+    }
+
+    public EqlSearchRequest maxSamplesPerKey(int maxSamplesPerKey) {
+        this.maxSamplesPerKey = maxSamplesPerKey;
+        return this;
+    }
+
     private static List<FieldAndFormat> parseFetchFields(XContentParser parser) throws IOException {
         List<FieldAndFormat> result = new ArrayList<>();
         Token token = parser.currentToken();
@@ -430,21 +451,24 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         out.writeVInt(size);
         out.writeVInt(fetchSize);
         out.writeString(query);
-        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_15_0)) {
             out.writeBoolean(ccsMinimizeRoundtrips);
         }
         out.writeOptionalTimeValue(waitForCompletionTimeout);
         out.writeOptionalTimeValue(keepAlive);
         out.writeBoolean(keepOnCompletion);
-        if (out.getVersion().onOrAfter(Version.V_7_17_8)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_17_8)) {
             out.writeString(resultPosition);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
             out.writeBoolean(fetchFields != null);
             if (fetchFields != null) {
                 out.writeList(fetchFields);
             }
             out.writeGenericMap(runtimeMappings);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            out.writeInt(maxSamplesPerKey);
         }
     }
 
@@ -471,7 +495,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             && Objects.equals(keepAlive, that.keepAlive)
             && Objects.equals(resultPosition, that.resultPosition)
             && Objects.equals(fetchFields, that.fetchFields)
-            && Objects.equals(runtimeMappings, that.runtimeMappings);
+            && Objects.equals(runtimeMappings, that.runtimeMappings)
+            && Objects.equals(maxSamplesPerKey, that.maxSamplesPerKey);
     }
 
     @Override
@@ -491,7 +516,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             keepAlive,
             resultPosition,
             fetchFields,
-            runtimeMappings
+            runtimeMappings,
+            maxSamplesPerKey
         );
     }
 

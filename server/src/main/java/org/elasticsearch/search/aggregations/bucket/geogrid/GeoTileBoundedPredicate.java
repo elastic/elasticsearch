@@ -29,7 +29,7 @@ public class GeoTileBoundedPredicate {
             leftX = rightX = minY = maxY = -1;
             maxTiles = 0;
         } else {
-            final long tiles = 1L << precision;
+            final int tiles = 1 << precision;
             // compute minX, minY
             final int minX = GeoTileUtils.getXTile(bbox.left(), tiles);
             final int minY = GeoTileUtils.getYTile(bbox.top(), tiles);
@@ -45,7 +45,7 @@ public class GeoTileBoundedPredicate {
             this.rightX = maxTile.getMinX() == bbox.right() ? maxX : maxX + 1;
             this.maxY = maxTile.getMaxY() == bbox.bottom() ? maxY : maxY + 1;
             if (crossesDateline) {
-                this.maxTiles = (tiles + this.rightX - this.leftX) * (this.maxY - this.minY);
+                this.maxTiles = ((long) tiles + this.rightX - this.leftX) * (this.maxY - this.minY);
             } else {
                 this.maxTiles = (long) (this.rightX - this.leftX) * (this.maxY - this.minY);
             }

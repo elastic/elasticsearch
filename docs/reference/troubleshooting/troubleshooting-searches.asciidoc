@@ -65,6 +65,9 @@ PUT my-index-000001
 {
   "mappings": {
     "properties": {
+      "@timestamp": {
+        "type": "date"
+      },
       "my-field": {
         "type": "keyword"
       },
@@ -225,6 +228,21 @@ If the field does not return any values, check the data ingestion process. The
 field may have a different name.
 
 [discrete]
+[[troubleshooting-searches-latest-data]]
+=== Check the latest value
+
+For time-series data, confirm there is non-filtered data within the attempted
+time range. For example, if you are trying to query the latest data for the
+`@timestamp` field, run the following to see if the max `@timestamp` falls
+within the attempted range:
+
+[source,console]
+----
+GET my-index-000001/_search?sort=@timestamp:desc&size=1
+----
+//TEST[continued]
+
+[discrete]
 [[troubleshooting-searches-validate-explain-profile]]
 === Validate, explain, and profile queries
 
@@ -298,3 +316,24 @@ For static settings, you need to create a new index with the correct settings.
 Next, you can reindex the data into that index. For data streams, refer to
 <<change-static-index-setting-for-a-data-stream,Change a static index setting
 for a data stream>>.
+
+[discrete]
+[[troubleshooting-slow-searches]]
+=== Find slow queries
+
+<<index-modules-slowlog,Slow logs>> can help pinpoint slow performing search 
+requests. Enabling <<auditing-settings,audit logging>> on top can help determine 
+query source. Add the following settings to the `elasticsearch.yml` configuration file
+to trace queries. The resulting logging is verbose, so disable these settings when not 
+troubleshooting.
+
+[source,yaml]
+----
+xpack.security.audit.enabled: true
+xpack.security.audit.logfile.events.include: _all
+xpack.security.audit.logfile.events.emit_request_body: true
+----
+
+Refer to
+https://www.elastic.co/blog/advanced-tuning-finding-and-fixing-slow-elasticsearch-queries[Advanced
+tuning: finding and fixing slow Elasticsearch queries] for more information.

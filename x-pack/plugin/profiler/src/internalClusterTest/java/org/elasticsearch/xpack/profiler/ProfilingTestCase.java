@@ -33,7 +33,6 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(ProfilingPlugin.PROFILING_ENABLED.getKey(), true)
             .put(NetworkModule.TRANSPORT_TYPE_KEY, Netty4Plugin.NETTY_TRANSPORT_NAME)
             .put(NetworkModule.HTTP_TYPE_KEY, Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME)
             .build();
@@ -101,7 +100,7 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
         indexDoc(
             "profiling-stackframes",
             "QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf",
-            Map.of("Stackframe.function.name", "_raw_spin_unlock_irqrestore")
+            Map.of("Stackframe.function.name", List.of("_raw_spin_unlock_irqrestore", "inlined_frame_1", "inlined_frame_0"))
         );
         indexDoc("profiling-executables", "QCCDqjSg3bMK1C4YRK6Tiw", Map.of("Executable.file.name", "libc.so.6"));
 

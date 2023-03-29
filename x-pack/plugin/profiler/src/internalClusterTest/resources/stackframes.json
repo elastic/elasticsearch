@@ -8,32 +8,32 @@
   "mappings": {
     "_doc": {
       "_source": {
-        "mode": "synthetic"
+        "enabled": true
       },
       "properties": {
         "ecs.version": {
           "type": "keyword",
-          "index": true
+          "index": true,
+          "doc_values": false,
+          "store": false
         },
         "Stackframe.line.number": {
           "type": "integer",
-          "index": false
+          "index": false,
+          "doc_values": false,
+          "store": false
         },
         "Stackframe.file.name": {
           "type": "keyword",
-          "index": false
-        },
-        "Stackframe.source.type": {
-          "type": "short",
-          "index": false
+          "index": false,
+          "doc_values": false,
+          "store": false
         },
         "Stackframe.function.name": {
           "type": "keyword",
-          "index": false
-        },
-        "Stackframe.function.offset": {
-          "type": "integer",
-          "index": false
+          "index": false,
+          "doc_values": false,
+          "store": false
         }
       }
     }

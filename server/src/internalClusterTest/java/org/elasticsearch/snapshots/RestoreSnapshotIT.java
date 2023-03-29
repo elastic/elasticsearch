@@ -222,7 +222,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testRestoreIncreasesPrimaryTerms() {
         final String indexName = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettingsNoReplicas(2).build());
+        createIndex(indexName, 2, 0);
         ensureGreen(indexName);
 
         if (randomBoolean()) {
@@ -649,11 +649,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         cluster().wipeIndices("test-idx");
 
         logger.info("--> restore index");
-        client.admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "100b").build())
-            .get();
+        updateClusterSettings(Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "100b"));
         ActionFuture<RestoreSnapshotResponse> restoreSnapshotResponse = client.admin()
             .cluster()
             .prepareRestoreSnapshot("test-repo", "test-snap")
@@ -671,11 +667,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         }, 30, TimeUnit.SECONDS);
 
         // run at full speed again
-        client.admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().putNull(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()).build())
-            .get();
+        updateClusterSettings(Settings.builder().putNull(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()));
 
         // check that restore now completes quickly (i.e. within 20 seconds)
         assertThat(restoreSnapshotResponse.get(20L, TimeUnit.SECONDS).getRestoreInfo().totalShards(), greaterThan(0));
@@ -832,7 +824,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
             if (initialSettings.isEmpty() == false) {
                 logger.info("--> apply initial blocks to index");
-                client().admin().indices().prepareUpdateSettings("test-idx").setSettings(initialSettingsBuilder).get();
+                updateIndexSettings(initialSettingsBuilder, "test-idx");
             }
 
             createSnapshot("test-repo", "test-snap", Collections.singletonList("test-idx"));

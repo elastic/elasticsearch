@@ -1,5 +1,0 @@
-pr: 92065
-summary: Update the default `cluster.routing.allocation.balance.disk_usage`
-area: Allocation
-type: enhancement
-issues: []

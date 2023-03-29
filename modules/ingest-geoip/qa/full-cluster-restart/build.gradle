@@ -7,88 +7,27 @@
  */
 
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 
-def useFixture = providers.environmentVariable("geoip_use_service")
-  .map { s -> Boolean.parseBoolean(s) == false }
-  .getOrElse(true)
 
-def fixtureAddress = {
-  assert useFixture: 'closure should not be used without a fixture'
-  int ephemeralPort = tasks.getByPath(":test:fixtures:geoip-fixture:postProcessFixture").ext."test.fixtures.geoip-fixture-restart.tcp.80"
-  assert ephemeralPort > 0
-  return "http://127.0.0.1:${ephemeralPort}/"
+dependencies {
+  javaRestTestImplementation project(':test:fixtures:geoip-fixture')
+  javaRestTestImplementation(testArtifact(project(":qa:full-cluster-restart"), "javaRestTest"))
 }
 
-if (useFixture) {
-  apply plugin: 'elasticsearch.test.fixtures'
-  testFixtures.useFixture(':test:fixtures:geoip-fixture', 'geoip-fixture-restart')
-}
+assert Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() == 8 :
+  "If we are targeting a branch other than 8, we should enable migration tests"
 
-tasks.withType(Test).configureEach {
-  if (useFixture) {
-    nonInputProperties.systemProperty "geoip_endpoint", "${-> fixtureAddress()}"
-  }
-}
-
-BuildParams.bwcVersions.withWireCompatible(v -> v.before("8.0.0")) { bwcVersion, baseName ->
-  def baseCluster = testClusters.register(baseName) {
-    testDistribution = "DEFAULT"
-    if (bwcVersion.before(BuildParams.bwcVersions.minimumWireCompatibleVersion)) {
-      // When testing older versions we have to first upgrade to 7.last
-      versions = [bwcVersion.toString(), BuildParams.bwcVersions.minimumWireCompatibleVersion.toString(), project.version]
-    } else {
-      versions = [bwcVersion.toString(), project.version]
-    }
-    numberOfNodes = 2
-    // some tests rely on the translog not being flushed
-    setting 'indices.memory.shard_inactive_time', '60m'
-    setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-    setting 'xpack.security.enabled', 'false'
-    if (useFixture) {
-      setting 'ingest.geoip.downloader.endpoint', { "${-> fixtureAddress()}" }
-    }
-    requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
-  }
-
-  tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
-    useCluster baseCluster
-    mustRunAfter("precommit")
-    doFirst {
-      delete("${buildDir}/cluster/shared/repo/${baseName}")
-    }
-
-    systemProperty 'tests.is_old_cluster', 'true'
-  }
-
-  tasks.register("${baseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
-    useCluster baseCluster
-    dependsOn "${baseName}#oldClusterTest"
-    doFirst {
-      baseCluster.get().goToNextVersion()
-      if (bwcVersion.before(BuildParams.bwcVersions.minimumWireCompatibleVersion)) {
-        // When doing a full cluster restart of older versions we actually have to upgrade twice. First to 7.last, then to the current version.
-        baseCluster.get().goToNextVersion()
-      }
-    }
-    systemProperty 'tests.is_old_cluster', 'false'
-  }
-
-  String oldVersion = bwcVersion.toString().minus("-SNAPSHOT")
-  tasks.matching { it.name.startsWith(baseName) && it.name.endsWith("ClusterTest") }.configureEach {
-    it.systemProperty 'tests.old_cluster_version', oldVersion
-    it.systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-    it.nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c -> c.allHttpSocketURI.join(",")))
-    it.nonInputProperties.systemProperty('tests.clustername', baseName)
-  }
-
-  tasks.register(bwcTaskName(bwcVersion)) {
-    dependsOn tasks.named("${baseName}#upgradedClusterTest")
+// once we are ready to test migrations from 8.x to 9.x, we can set the compatible version to 8.0.0
+// see https://github.com/elastic/elasticsearch/pull/93666
+BuildParams.bwcVersions.withWireCompatible(v -> v.before("7.0.0")) { bwcVersion, baseName ->
+  tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.old_cluster_version", bwcVersion)
   }
 }

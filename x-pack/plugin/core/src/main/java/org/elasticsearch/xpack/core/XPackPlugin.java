@@ -19,9 +19,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -41,7 +41,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
@@ -156,7 +156,7 @@ public class XPackPlugin extends XPackClientPlugin
     // These should not be directly accessed as they cannot be overridden in tests. Please use the getters so they can be overridden.
     private static final SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
     private static final SetOnce<SSLService> sslService = new SetOnce<>();
-    private static final SetOnce<LicenseService> licenseService = new SetOnce<>();
+    private static final SetOnce<ClusterStateLicenseService> licenseService = new SetOnce<>();
     private static final SetOnce<LongSupplier> epochMillisSupplier = new SetOnce<>();
 
     public XPackPlugin(final Settings settings) {
@@ -179,7 +179,7 @@ public class XPackPlugin extends XPackClientPlugin
         return getSharedSslService();
     }
 
-    protected LicenseService getLicenseService() {
+    protected ClusterStateLicenseService getLicenseService() {
         return getSharedLicenseService();
     }
 
@@ -195,8 +195,8 @@ public class XPackPlugin extends XPackClientPlugin
         XPackPlugin.sslService.set(sslService);
     }
 
-    protected void setLicenseService(LicenseService licenseService) {
-        XPackPlugin.licenseService.set(licenseService);
+    protected void setLicenseService(ClusterStateLicenseService clusterStateLicenseService) {
+        XPackPlugin.licenseService.set(clusterStateLicenseService);
     }
 
     protected void setLicenseState(XPackLicenseState licenseState) {
@@ -215,7 +215,7 @@ public class XPackPlugin extends XPackClientPlugin
         return ssl;
     }
 
-    public static LicenseService getSharedLicenseService() {
+    public static ClusterStateLicenseService getSharedLicenseService() {
         return licenseService.get();
     }
 
@@ -307,14 +307,12 @@ public class XPackPlugin extends XPackClientPlugin
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationDeciders allocationDeciders
+        AllocationService allocationService
     ) {
         List<Object> components = new ArrayList<>();
 
         final SSLService sslService = createSSLService(environment, resourceWatcherService);
-        setLicenseService(
-            new LicenseService(settings, threadPool, clusterService, getClock(), environment, resourceWatcherService, getLicenseState())
-        );
+        setLicenseService(new ClusterStateLicenseService(settings, threadPool, clusterService, getClock(), getLicenseState()));
 
         setEpochMillisSupplier(threadPool::absoluteTimeInMillis);
 
@@ -339,6 +337,7 @@ public class XPackPlugin extends XPackClientPlugin
         actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_TIERS, DataTiersUsageTransportAction.class));
         actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_STREAMS, DataStreamUsageTransportAction.class));
         actions.add(new ActionHandler<>(XPackInfoFeatureAction.DATA_STREAMS, DataStreamInfoTransportAction.class));
+        actions.add(new ActionHandler<>(XPackUsageFeatureAction.HEALTH, HealthApiUsageTransportAction.class));
         return actions;
     }
 
@@ -467,6 +466,7 @@ public class XPackPlugin extends XPackClientPlugin
      */
     private SSLService createSSLService(Environment environment, ResourceWatcherService resourceWatcherService) {
         final Map<String, SslConfiguration> sslConfigurations = SSLService.getSSLConfigurations(environment);
+        // Must construct the reloader before the SSL service so that we don't miss any config changes, see #54867
         final SSLConfigurationReloader reloader = new SSLConfigurationReloader(resourceWatcherService, sslConfigurations.values());
         final SSLService sslService = new SSLService(environment, sslConfigurations);
         reloader.setSSLService(sslService);

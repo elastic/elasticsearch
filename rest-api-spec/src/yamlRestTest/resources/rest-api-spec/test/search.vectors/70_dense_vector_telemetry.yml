@@ -8,7 +8,6 @@ setup:
         body:
           settings:
             index.number_of_shards: 2
-            index.number_of_replicas: 0
           mappings:
             properties:
               vector1:
@@ -32,7 +31,6 @@ setup:
         body:
           settings:
             index.number_of_shards: 2
-            index.number_of_replicas: 0
           mappings:
             properties:
               vector1:

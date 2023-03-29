@@ -40,6 +40,11 @@ public class HistogramGroupConfigSerializingTests extends AbstractXContentSerial
         return randomHistogramGroupConfig(random());
     }
 
+    @Override
+    protected HistogramGroupConfig mutateInstance(HistogramGroupConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testValidateNoMapping() throws IOException {
         ActionRequestValidationException e = new ActionRequestValidationException();
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();

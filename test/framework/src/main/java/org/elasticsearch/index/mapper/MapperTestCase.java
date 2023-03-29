@@ -49,7 +49,8 @@ import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -70,8 +71,10 @@ import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.matchesPattern;
@@ -276,9 +279,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 b.field("field");
                 example.value.accept(b);
             }));
-            IndexableField[] fields = doc.rootDoc().getFields("field");
-            assertThat(fields, equalTo(new IndexableField[0]));
-            assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")), equalTo(new String[] { "field" }));
+            List<IndexableField> fields = doc.rootDoc().getFields("field");
+            assertThat(fields, empty());
+            assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")), contains("field"));
         }
     }
 
@@ -317,7 +320,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     protected static void assertHasNorms(LuceneDocument doc, String field) {
-        IndexableField[] fields = doc.getFields(field);
+        List<IndexableField> fields = doc.getFields(field);
         for (IndexableField indexableField : fields) {
             IndexableFieldType indexableFieldType = indexableField.fieldType();
             if (indexableFieldType.indexOptions() != IndexOptions.NONE) {
@@ -329,7 +332,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     protected static void assertNoDocValuesField(LuceneDocument doc, String field) {
-        IndexableField[] fields = doc.getFields(field);
+        List<IndexableField> fields = doc.getFields(field);
         for (IndexableField indexableField : fields) {
             assertEquals(DocValuesType.NONE, indexableField.fieldType().docValuesType());
         }
@@ -354,7 +357,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
         @SuppressWarnings("unchecked") // Syntactic sugar in tests
         T fieldType = (T) mapperService.fieldType("field");
-        assertThat(checker.apply(fieldType).name(), equalTo(metricType));
+        assertThat(checker.apply(fieldType).toString(), equalTo(metricType));
     }
 
     public final void testEmptyName() {
@@ -509,14 +512,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 SearchLookup lookup = new SearchLookup(
                     mapperService::fieldType,
                     fieldDataLookup(mapperService),
-                    new SourceLookup.ReaderSourceProvider()
+                    SourceProvider.fromStoredFields()
                 );
                 ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.getForField(ft, MappedFieldType.FielddataOperation.SEARCH));
                 IndexSearcher searcher = newSearcher(iw);
                 LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
-                lookup.source().setSegmentAndDocument(context, 0);
+                Source source = lookup.getSource(context, 0);
                 valueFetcher.setNextReader(context);
-                result.set(valueFetcher.fetchValues(lookup.source(), 0, new ArrayList<>()));
+                result.set(valueFetcher.fetchValues(source, 0, new ArrayList<>()));
             }
         );
         return result.get();
@@ -530,7 +533,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             iw -> {
                 IndexSearcher searcher = newSearcher(iw);
                 MappedFieldType ft = mapperService.fieldType("field");
-                SearchLookup searchLookup = new SearchLookup(null, null, mapperService.mappingLookup().getSourceProvider());
+                SourceProvider sourceProvider = mapperService.mappingLookup().isSourceSynthetic()
+                    ? (ctx, doc) -> { throw new IllegalArgumentException("Can't load source in scripts in synthetic mode"); }
+                    : SourceProvider.fromStoredFields();
+                SearchLookup searchLookup = new SearchLookup(null, null, sourceProvider);
                 IndexFieldData<?> sfd = ft.fielddataBuilder(
                     new FieldDataContext("", () -> searchLookup, Set::of, MappedFieldType.FielddataOperation.SCRIPT)
                 ).build(null, null);
@@ -811,12 +817,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
         ParsedDocument doc = mapperService.documentMapper().parse(source);
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
-            SourceLookup sourceLookup = new SourceLookup(new SourceLookup.ReaderSourceProvider());
-            sourceLookup.setSegmentAndDocument(ir.leaves().get(0), 0);
+            Source s = SourceProvider.fromStoredFields().getSource(ir.leaves().get(0), 0);
             docValueFetcher.setNextReader(ir.leaves().get(0));
             nativeFetcher.setNextReader(ir.leaves().get(0));
-            List<Object> fromDocValues = docValueFetcher.fetchValues(sourceLookup, 0, new ArrayList<>());
-            List<Object> fromNative = nativeFetcher.fetchValues(sourceLookup, 0, new ArrayList<>());
+            List<Object> fromDocValues = docValueFetcher.fetchValues(s, 0, new ArrayList<>());
+            List<Object> fromNative = nativeFetcher.fetchValues(s, 0, new ArrayList<>());
             /*
              * The native fetcher uses byte, short, etc but doc values always
              * uses long or double. This difference is fine because on the outside
@@ -923,7 +928,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         SearchLookup lookup = new SearchLookup(
             f -> fieldType,
             (f, s, t) -> { throw new UnsupportedOperationException(); },
-            new SourceLookup.ReaderSourceProvider()
+            (ctx, docid) -> Source.fromBytes(doc.source())
         );
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
@@ -946,8 +951,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         if (allowsNullValues()) {
             ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
-            assertThat(doc.docs().get(0).getFields("field").length, equalTo(0));
-            assertThat(doc.docs().get(0).getFields("_field_names").length, equalTo(0));
+            assertThat(doc.docs().get(0).getFields("field"), empty());
+            assertThat(doc.docs().get(0).getFields("_field_names"), empty());
         } else {
             expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.nullField("field"))));
         }

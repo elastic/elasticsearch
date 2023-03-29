@@ -106,7 +106,7 @@ public class Debug extends Command {
                     sb.append(entry.getKey().name());
                     sb.append("***");
                     for (Transformation tf : entry.getValue()) {
-                        sb.append(tf.ruleName());
+                        sb.append(tf.name());
                         sb.append("\n");
                         sb.append(NodeUtils.diffString(tf.before(), tf.after()));
                         sb.append("\n");
@@ -127,7 +127,7 @@ public class Debug extends Command {
                     int counter = 0;
                     for (Transformation tf : entry.getValue()) {
                         if (tf.hasChanged()) {
-                            plans.put(tf.ruleName() + "#" + ++counter, tf.after());
+                            plans.put(tf.name() + "#" + ++counter, tf.after());
                         }
                     }
                 }

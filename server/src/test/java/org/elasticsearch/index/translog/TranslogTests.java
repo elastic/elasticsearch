@@ -25,8 +25,7 @@ import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.tests.util.LineFileDocs;
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.elasticsearch.Assertions;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
@@ -45,6 +44,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
@@ -63,7 +63,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -76,6 +76,7 @@ import org.junit.Before;
 import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.CopyOption;
@@ -98,6 +99,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -275,6 +277,10 @@ public class TranslogTests extends ESTestCase {
     }
 
     private TranslogConfig getTranslogConfig(final Path path, final Settings settings) {
+        return getTranslogConfig(path, settings, null);
+    }
+
+    private TranslogConfig getTranslogConfig(final Path path, final Settings settings, OperationListener listener) {
         final ByteSizeValue bufferSize = randomFrom(
             TranslogConfig.DEFAULT_BUFFER_SIZE,
             new ByteSizeValue(8, ByteSizeUnit.KB),
@@ -288,7 +294,8 @@ public class TranslogTests extends ESTestCase {
             indexSettings,
             NON_RECYCLING_INSTANCE,
             bufferSize,
-            randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS
+            randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS,
+            Objects.requireNonNullElse(listener, (d, s, l) -> {})
         );
     }
 
@@ -530,7 +537,7 @@ public class TranslogTests extends ESTestCase {
                 builder.startObject();
                 copy.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.endObject();
-                assertThat(Strings.toString(builder), equalTo(XContentHelper.stripWhitespace(formatted("""
+                assertThat(Strings.toString(builder), equalTo(XContentHelper.stripWhitespace(Strings.format("""
                     {
                       "translog": {
                         "operations": 4,
@@ -1576,6 +1583,55 @@ public class TranslogTests extends ESTestCase {
 
             assertThat(persistedSeqNos, contains(1L, 2L));
             thread.join();
+        }
+    }
+
+    public void testTranslogOperationListener() throws IOException {
+        Path tempDir = createTempDir();
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build();
+
+        final ArrayList<Long> seqNos = new ArrayList<>();
+        final ArrayList<Location> locations = new ArrayList<>();
+        final ArrayList<BytesReference> datas = new ArrayList<>();
+        OperationListener listener = (data, seqNo, location) -> {
+            seqNos.add(seqNo);
+            locations.add(location);
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                try {
+                    data.writeTo(output);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                datas.add(output.bytes());
+            }
+
+        };
+        TranslogConfig config = getTranslogConfig(tempDir, settings, listener);
+
+        try (Translog translog = createTranslog(config)) {
+            Location location1 = translog.add(indexOp(randomAlphaOfLength(10), 0, primaryTerm.get()));
+            Location location2 = translog.add(TranslogOperationsUtils.indexOp(randomAlphaOfLength(10), 1, primaryTerm.get()));
+            long firstGeneration = translog.getGeneration().translogFileGeneration;
+            assertThat(location1.generation, equalTo(firstGeneration));
+            assertThat(location2.generation, equalTo(firstGeneration));
+
+            translog.rollGeneration();
+
+            Location location3 = translog.add(TranslogOperationsUtils.indexOp(randomAlphaOfLength(10), 3, primaryTerm.get()));
+            Location location4 = translog.add(TranslogOperationsUtils.indexOp(randomAlphaOfLength(10), 2, primaryTerm.get()));
+            long secondGeneration = translog.getGeneration().translogFileGeneration;
+            assertThat(location3.generation, equalTo(secondGeneration));
+            assertThat(location4.generation, equalTo(secondGeneration));
+
+            assertThat(seqNos, equalTo(List.of(0L, 1L, 3L, 2L)));
+            assertThat(locations, equalTo(List.of(location1, location2, location3, location4)));
+
+            for (int i = 0; i < 4; ++i) {
+                try (BufferedChecksumStreamInput stream = new BufferedChecksumStreamInput(datas.get(i).streamInput(), "test")) {
+                    Translog.Operation operation = Translog.readOperation(stream);
+                    assertThat(operation, equalTo(translog.readOperation(locations.get(i))));
+                }
+            }
         }
     }
 
@@ -3296,12 +3352,16 @@ public class TranslogTests extends ESTestCase {
         Engine.IndexResult eIndexResult = new Engine.IndexResult(1, randomPrimaryTerm, randomSeqNum, true, eIndex.id());
         Translog.Index index = new Translog.Index(eIndex, eIndexResult);
 
-        Version wireVersion = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
+        TransportVersion wireVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersion.CURRENT
+        );
         BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(wireVersion);
+        out.setTransportVersion(wireVersion);
         Translog.Operation.writeOperation(out, index);
         StreamInput in = out.bytes().streamInput();
-        in.setVersion(wireVersion);
+        in.setTransportVersion(wireVersion);
         Translog.Index serializedIndex = (Translog.Index) Translog.Operation.readOperation(in);
         assertEquals(index, serializedIndex);
 
@@ -3321,10 +3381,10 @@ public class TranslogTests extends ESTestCase {
         Translog.Delete delete = new Translog.Delete(eDelete, eDeleteResult);
 
         out = new BytesStreamOutput();
-        out.setVersion(wireVersion);
+        out.setTransportVersion(wireVersion);
         Translog.Operation.writeOperation(out, delete);
         in = out.bytes().streamInput();
-        in.setVersion(wireVersion);
+        in.setTransportVersion(wireVersion);
         Translog.Delete serializedDelete = (Translog.Delete) Translog.Operation.readOperation(in);
         assertEquals(delete, serializedDelete);
     }

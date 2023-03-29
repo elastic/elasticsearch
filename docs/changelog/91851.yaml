@@ -1,7 +1,0 @@
-pr: 91851
-summary: Simplify and optimize deduplication of `RepositoryData` for a non-caching
-  repository instance
-area: Snapshot/Restore
-type: bug
-issues:
- - 89952

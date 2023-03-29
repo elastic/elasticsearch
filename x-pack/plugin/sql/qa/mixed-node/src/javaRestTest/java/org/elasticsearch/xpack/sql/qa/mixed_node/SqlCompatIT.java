@@ -50,11 +50,11 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
             bwcVersion = nodes.getBWCVersion();
             newNodesClient = buildClient(
                 restClientSettings(),
-                nodes.getNewNodes().stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new)
+                nodes.getNewNodes().stream().map(TestNode::publishAddress).toArray(HttpHost[]::new)
             );
             oldNodesClient = buildClient(
                 restClientSettings(),
-                nodes.getBWCNodes().stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new)
+                nodes.getBWCNodes().stream().map(TestNode::publishAddress).toArray(HttpHost[]::new)
             );
         }
     }
@@ -157,7 +157,7 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         assertThat(cursor, Matchers.not(Matchers.emptyOrNullString()));
 
         Request scrollReq = new Request("POST", "_sql");
-        scrollReq.setJsonEntity(formatted("{\"cursor\": \"%s\"}", cursor));
+        scrollReq.setJsonEntity(Strings.format("{\"cursor\": \"%s\"}", cursor));
         ResponseException exception = expectThrows(ResponseException.class, () -> client2.performRequest(scrollReq));
 
         assertThat(

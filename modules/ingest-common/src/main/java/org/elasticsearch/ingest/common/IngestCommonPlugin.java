@@ -53,6 +53,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+        var matcherWatchdog = createGrokThreadWatchdog(parameters);
         return Map.ofEntries(
             entry(DateProcessor.TYPE, new DateProcessor.Factory(parameters.scriptService)),
             entry(SetProcessor.TYPE, new SetProcessor.Factory(parameters.scriptService)),
@@ -70,7 +71,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
             entry(ForEachProcessor.TYPE, new ForEachProcessor.Factory(parameters.scriptService)),
             entry(DateIndexNameProcessor.TYPE, new DateIndexNameProcessor.Factory(parameters.scriptService)),
             entry(SortProcessor.TYPE, new SortProcessor.Factory()),
-            entry(GrokProcessor.TYPE, new GrokProcessor.Factory(createGrokThreadWatchdog(parameters))),
+            entry(GrokProcessor.TYPE, new GrokProcessor.Factory(matcherWatchdog)),
             entry(ScriptProcessor.TYPE, new ScriptProcessor.Factory(parameters.scriptService)),
             entry(DotExpanderProcessor.TYPE, new DotExpanderProcessor.Factory()),
             entry(JsonProcessor.TYPE, new JsonProcessor.Factory()),
@@ -86,7 +87,8 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
             entry(NetworkDirectionProcessor.TYPE, new NetworkDirectionProcessor.Factory(parameters.scriptService)),
             entry(CommunityIdProcessor.TYPE, new CommunityIdProcessor.Factory()),
             entry(FingerprintProcessor.TYPE, new FingerprintProcessor.Factory()),
-            entry(RegisteredDomainProcessor.TYPE, new RegisteredDomainProcessor.Factory())
+            entry(RegisteredDomainProcessor.TYPE, new RegisteredDomainProcessor.Factory()),
+            entry(RedactProcessor.TYPE, new RedactProcessor.Factory(matcherWatchdog))
         );
     }
 

@@ -1,6 +1,0 @@
-pr: 91710
-summary: Support fields with commas in data frame analytics `analyzed_fields`
-area: Machine Learning
-type: bug
-issues:
- - 72541

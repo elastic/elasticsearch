@@ -28,7 +28,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
  * A {@link Directory} which wraps a read-only "real" directory with a wrapper that allows no-op (in-memory) commits, and peer recoveries
  * of the same, so that we can start a shard on a completely readonly data set.
  */
-public class InMemoryNoOpCommitDirectory extends FilterDirectory {
+class InMemoryNoOpCommitDirectory extends FilterDirectory {
 
     private final Directory realDirectory;
     private final Set<String> deletedFiles = new CopyOnWriteArraySet<>();

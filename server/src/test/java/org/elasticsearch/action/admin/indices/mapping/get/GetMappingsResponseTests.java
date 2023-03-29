@@ -11,18 +11,16 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
-import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 
 public class GetMappingsResponseTests extends AbstractWireSerializingTestCase<GetMappingsResponse> {
 
@@ -44,7 +42,7 @@ public class GetMappingsResponseTests extends AbstractWireSerializingTestCase<Ge
     }
 
     @Override
-    protected GetMappingsResponse mutateInstance(GetMappingsResponse instance) throws IOException {
+    protected GetMappingsResponse mutateInstance(GetMappingsResponse instance) {
         return mutate(instance);
     }
 
@@ -68,20 +66,15 @@ public class GetMappingsResponseTests extends AbstractWireSerializingTestCase<Ge
         return resp;
     }
 
-    public void testChunkedXContentUsesChunkPerIndex() {
-        final int indexCount = randomIntBetween(1, 10);
-        final var response = new GetMappingsResponse(
-            IntStream.range(0, indexCount)
-                .mapToObj(i -> "index-" + i)
-                .collect(Collectors.toUnmodifiableMap(Function.identity(), k -> createMappingsForIndex()))
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            new GetMappingsResponse(
+                IntStream.range(0, randomIntBetween(1, 10))
+                    .mapToObj(i -> "index-" + i)
+                    .collect(Collectors.toUnmodifiableMap(Function.identity(), k -> createMappingsForIndex()))
+            ),
+            response -> response.mappings().size() + 2
         );
-        final var chunks = response.toXContentChunked(EMPTY_PARAMS);
-        int chunkCount = 0;
-        while (chunks.hasNext()) {
-            chunks.next();
-            chunkCount++;
-        }
-        assertEquals(2 + indexCount, chunkCount);
     }
 
     // Not meant to be exhaustive

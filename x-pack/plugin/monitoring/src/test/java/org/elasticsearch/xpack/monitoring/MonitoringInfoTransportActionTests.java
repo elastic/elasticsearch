@@ -6,14 +6,14 @@
  */
 package org.elasticsearch.xpack.monitoring;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -59,7 +59,7 @@ public class MonitoringInfoTransportActionTests extends ESTestCase {
     }
 
     public void testUsage() throws Exception {
-        final Version serializedVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+        TransportVersion serializedVersion = TransportVersionUtils.randomCompatibleVersion(random());
         final boolean collectionEnabled = randomBoolean();
         int localCount = randomIntBetween(0, 5);
         List<Exporter> exporterList = new ArrayList<>();
@@ -105,10 +105,10 @@ public class MonitoringInfoTransportActionTests extends ESTestCase {
         usageAction.masterOperation(null, null, null, future);
         MonitoringFeatureSetUsage monitoringUsage = (MonitoringFeatureSetUsage) future.get().getUsage();
         BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(serializedVersion);
+        out.setTransportVersion(serializedVersion);
         monitoringUsage.writeTo(out);
         StreamInput in = out.bytes().streamInput();
-        in.setVersion(serializedVersion);
+        in.setTransportVersion(serializedVersion);
         XPackFeatureSet.Usage serializedUsage = new MonitoringFeatureSetUsage(in);
         for (XPackFeatureSet.Usage usage : Arrays.asList(monitoringUsage, serializedUsage)) {
             ObjectPath source;

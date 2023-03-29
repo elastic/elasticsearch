@@ -276,7 +276,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         String indexEndingInNumbers = indexPrefix + "-" + num;
         assertThat(
             MetadataRolloverService.generateRolloverIndexName(indexEndingInNumbers),
-            equalTo(indexPrefix + "-" + formatted("%06d", num + 1))
+            equalTo(indexPrefix + "-" + Strings.format("%06d", num + 1))
         );
         assertThat(MetadataRolloverService.generateRolloverIndexName("index-name-1"), equalTo("index-name-000002"));
         assertThat(MetadataRolloverService.generateRolloverIndexName("index-name-2"), equalTo("index-name-000003"));

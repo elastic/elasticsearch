@@ -1,5 +1,0 @@
-pr: 90553
-summary: Upgrade XContent to Jackson 2.14.0 and enable Fast Double Parser
-area: Infra/Core
-type: enhancement
-issues: []

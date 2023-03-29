@@ -12,12 +12,15 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction.Request;
 
-import java.io.IOException;
-
 public class DeleteTransformActionRequestTests extends AbstractWireSerializingTestCase<Request> {
     @Override
     protected Request createTestInstance() {
-        return new Request(randomAlphaOfLengthBetween(1, 20), randomBoolean(), TimeValue.parseTimeValue(randomTimeValue(), "timeout"));
+        return new Request(
+            randomAlphaOfLengthBetween(1, 20),
+            randomBoolean(),
+            randomBoolean(),
+            TimeValue.parseTimeValue(randomTimeValue(), "timeout")
+        );
     }
 
     @Override
@@ -26,18 +29,20 @@ public class DeleteTransformActionRequestTests extends AbstractWireSerializingTe
     }
 
     @Override
-    protected Request mutateInstance(Request instance) throws IOException {
+    protected Request mutateInstance(Request instance) {
         String id = instance.getId();
         boolean force = instance.isForce();
+        boolean deleteDestIndex = instance.isDeleteDestIndex();
         TimeValue timeout = instance.timeout();
 
-        switch (between(0, 2)) {
+        switch (between(0, 3)) {
             case 0 -> id += randomAlphaOfLengthBetween(1, 5);
             case 1 -> force ^= true;
-            case 2 -> timeout = new TimeValue(timeout.duration() + randomLongBetween(1, 5), timeout.timeUnit());
+            case 2 -> deleteDestIndex ^= true;
+            case 3 -> timeout = new TimeValue(timeout.duration() + randomLongBetween(1, 5), timeout.timeUnit());
             default -> throw new AssertionError("Illegal randomization branch");
         }
 
-        return new Request(id, force, timeout);
+        return new Request(id, force, deleteDestIndex, timeout);
     }
 }

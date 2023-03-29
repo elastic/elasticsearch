@@ -11,9 +11,12 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
+import java.io.IOException;
 import java.util.Arrays;
 
+import static org.elasticsearch.common.util.BigLongArray.writePages;
 import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
 
 /**
@@ -34,6 +37,11 @@ final class BigByteArray extends AbstractBigArray implements ByteArray {
         for (int i = 0; i < pages.length; ++i) {
             pages[i] = newBytePage(i);
         }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        writePages(out, Math.toIntExact(size), pages, Byte.BYTES, BYTE_PAGE_SIZE);
     }
 
     @Override

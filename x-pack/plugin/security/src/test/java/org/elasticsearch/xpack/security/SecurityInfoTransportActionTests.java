@@ -113,6 +113,12 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         final boolean transportSSLEnabled = randomBoolean();
         settings.put("xpack.security.transport.ssl.enabled", transportSSLEnabled);
 
+        // Remote cluster server requires security to be enabled
+        final boolean remoteClusterPortEnabled = explicitlyDisabled ? false : randomBoolean();
+        settings.put("remote_cluster_server.enabled", remoteClusterPortEnabled);
+        final boolean remoteClusterSslEnabled = randomBoolean();
+        settings.put("xpack.security.remote_cluster_server.ssl.enabled", remoteClusterSslEnabled);
+
         boolean configureEnabledFlagForTokenService = randomBoolean();
         final boolean tokenServiceEnabled;
         if (configureEnabledFlagForTokenService) {
@@ -265,6 +271,11 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
                 } else {
                     assertThat(source.getValue("ssl.http.enabled"), is(httpSSLEnabled));
                     assertThat(source.getValue("ssl.transport.enabled"), is(transportSSLEnabled));
+                    if (remoteClusterPortEnabled) {
+                        assertThat(source.getValue("ssl.remote_cluster_server.enabled"), is(remoteClusterSslEnabled));
+                    } else {
+                        assertThat(source.getValue("ssl.remote_cluster_server.enabled"), nullValue());
+                    }
                 }
                 assertThat(source.getValue("realms"), is(nullValue()));
                 assertThat(source.getValue("token_service"), is(nullValue()));

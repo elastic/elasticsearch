@@ -12,6 +12,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -23,7 +24,7 @@ public class SortedSetDocValuesStringFieldScript extends StringFieldScript {
     boolean hasValue = false;
 
     public SortedSetDocValuesStringFieldScript(String fieldName, SearchLookup searchLookup, LeafReaderContext ctx) {
-        super(fieldName, Map.of(), searchLookup, ctx);
+        super(fieldName, Map.of(), searchLookup, OnScriptError.FAIL, ctx);
         try {
             sortedSetDocValues = DocValues.getSortedSet(ctx.reader(), fieldName);
         } catch (IOException e) {

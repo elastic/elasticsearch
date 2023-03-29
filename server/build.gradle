@@ -77,6 +77,12 @@ dependencies {
 
 }
 
+spotless {
+  java {
+    targetExclude "src/main/java/org/elasticsearch/Version.java"
+  }
+}
+
 tasks.named("forbiddenPatterns").configure {
     exclude '**/*.json'
     exclude '**/*.jmx'
@@ -130,10 +136,16 @@ sourceSets.main.compiledBy(generateModulesList, generatePluginsList)
 if (BuildParams.isSnapshotBuild() == false) {
     tasks.named("test").configure {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
+        systemProperty 'es.dlm_feature_flag_enabled', 'true'
     }
     tasks.named("internalClusterTest").configure {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
+        systemProperty 'es.dlm_feature_flag_enabled', 'true'
     }
+}
+
+tasks.named("test").configure {
+    systemProperty 'es.insecure_network_trace_enabled', 'true'
 }
 
 tasks.named("thirdPartyAudit").configure {

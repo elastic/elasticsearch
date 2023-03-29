@@ -1,7 +1,7 @@
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 dependencies {
   javaRestTestImplementation project(path: xpackModule('core'))
@@ -45,8 +45,6 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   setting 'xpack.security.http.ssl.key_passphrase', 'http-password'
   setting 'xpack.security.http.ssl.certificate_authorities', 'ca.crt'
   setting 'xpack.security.http.ssl.client_authentication', 'optional'
-
-  setting 'xpack.security.authc.jwt.principal_claims', 'sub,oid,client_id,azp,appid,email'
 
   setting 'xpack.security.authc.realms.file.admin_file.order', '0'
 

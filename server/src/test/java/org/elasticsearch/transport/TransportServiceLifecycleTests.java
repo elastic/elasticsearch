@@ -9,6 +9,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -135,7 +136,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
                     return super.executor(name);
                 }
             };
-            final var tcpTransport = MockTransportService.newMockTransport(Settings.EMPTY, Version.CURRENT, threadPool);
+            final var tcpTransport = MockTransportService.newMockTransport(Settings.EMPTY, TransportVersion.CURRENT, threadPool);
             transportService = new TransportService(
                 Settings.EMPTY,
                 tcpTransport,

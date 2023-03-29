@@ -789,7 +789,7 @@ public class GetActionIT extends ESIntegTestCase {
     void indexSingleDocumentWithStringFieldsGeneratedFromText(boolean stored, boolean sourceEnabled) {
 
         String storedString = stored ? "true" : "false";
-        String createIndexSource = formatted("""
+        String createIndexSource = Strings.format("""
             {
               "settings": {
                 "index.translog.flush_threshold_size": "1pb",

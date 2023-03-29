@@ -85,7 +85,7 @@ public class CircuitBreakerTests extends ESTestCase {
 
             @Override
             public void fetchHits(Iterable<List<HitReference>> refs, ActionListener<List<List<SearchHit>>> listener) {}
-        }, mockCriteria(), randomIntBetween(10, 500), new Limit(1000, 0), CIRCUIT_BREAKER);
+        }, mockCriteria(), randomIntBetween(10, 500), new Limit(1000, 0), CIRCUIT_BREAKER, 1);
 
         CIRCUIT_BREAKER.startBreaking();
         iterator.pushToStack(new SampleIterator.Page(CB_STACK_SIZE_PRECISION - 1));
@@ -137,7 +137,8 @@ public class CircuitBreakerTests extends ESTestCase {
                 mockCriteria(),
                 randomIntBetween(10, 500),
                 new Limit(1000, 0),
-                eqlCircuitBreaker
+                eqlCircuitBreaker,
+                1
             );
 
             // unfortunately, mocking an actual result set it extremely complicated

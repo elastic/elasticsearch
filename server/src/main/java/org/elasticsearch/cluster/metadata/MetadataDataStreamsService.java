@@ -114,12 +114,12 @@ public class MetadataDataStreamsService {
         }
 
         // add index to data stream
-        builder.put(dataStream.getDataStream().addBackingIndex(metadata, index.getWriteIndex()));
+        builder.put(dataStream.addBackingIndex(metadata, index.getWriteIndex()));
     }
 
     private static void removeBackingIndex(Metadata metadata, Metadata.Builder builder, String dataStreamName, String indexName) {
         boolean indexNotRemoved = true;
-        var dataStream = validateDataStream(metadata, dataStreamName).getDataStream();
+        DataStream dataStream = validateDataStream(metadata, dataStreamName);
         for (Index backingIndex : dataStream.getIndices()) {
             if (backingIndex.getName().equals(indexName)) {
                 builder.put(dataStream.removeBackingIndex(backingIndex));
@@ -143,12 +143,12 @@ public class MetadataDataStreamsService {
         }
     }
 
-    private static IndexAbstraction.DataStream validateDataStream(Metadata metadata, String dataStreamName) {
+    private static DataStream validateDataStream(Metadata metadata, String dataStreamName) {
         IndexAbstraction dataStream = metadata.getIndicesLookup().get(dataStreamName);
         if (dataStream == null || dataStream.getType() != IndexAbstraction.Type.DATA_STREAM) {
             throw new IllegalArgumentException("data stream [" + dataStreamName + "] not found");
         }
-        return (IndexAbstraction.DataStream) dataStream;
+        return (DataStream) dataStream;
     }
 
     private static IndexAbstraction validateIndex(Metadata metadata, String indexName) {

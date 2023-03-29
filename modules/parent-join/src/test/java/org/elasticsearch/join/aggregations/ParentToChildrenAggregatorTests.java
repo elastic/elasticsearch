@@ -279,7 +279,6 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
     private static List<Field> createParentDocument(String id, String kwd) {
         return Arrays.asList(
             new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Field.Store.NO),
-            new SortedSetDocValuesField("kwd", new BytesRef(kwd)),
             new Field("kwd", new BytesRef(kwd), KeywordFieldMapper.Defaults.FIELD_TYPE),
             new StringField("join_field", PARENT_TYPE, Field.Store.NO),
             createJoinField(PARENT_TYPE, id)

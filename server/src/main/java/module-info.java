@@ -6,6 +6,8 @@
  * Side Public License, v 1.
  */
 
+import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
+
 /** The Elasticsearch Server Module. */
 module org.elasticsearch.server {
     requires java.logging;
@@ -13,6 +15,7 @@ module org.elasticsearch.server {
     requires java.sql;
     requires java.management;
     requires jdk.unsupported;
+    requires java.net.http; // required by ingest-geoip's dependency maxmind.geoip2 https://github.com/elastic/elasticsearch/issues/93553
 
     requires org.elasticsearch.cli;
     requires org.elasticsearch.base;
@@ -22,8 +25,8 @@ module org.elasticsearch.server {
     requires org.elasticsearch.securesm;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.logging;
-    requires org.elasticsearch.plugin.api;
-    requires org.elasticsearch.plugin.analysis.api;
+    requires org.elasticsearch.plugin;
+    requires org.elasticsearch.plugin.analysis;
 
     requires com.sun.jna;
     requires hppc;
@@ -136,6 +139,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.support;
     exports org.elasticsearch.action.support.broadcast;
     exports org.elasticsearch.action.support.broadcast.node;
+    exports org.elasticsearch.action.support.broadcast.unpromotable;
     exports org.elasticsearch.action.support.master;
     exports org.elasticsearch.action.support.master.info;
     exports org.elasticsearch.action.support.nodes;
@@ -202,6 +206,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.path;
     exports org.elasticsearch.common.recycler;
     exports org.elasticsearch.common.regex;
+    exports org.elasticsearch.common.scheduler;
     exports org.elasticsearch.common.settings;
     exports org.elasticsearch.common.text;
     exports org.elasticsearch.common.time;
@@ -229,6 +234,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.cache.query;
     exports org.elasticsearch.index.cache.request;
     exports org.elasticsearch.index.codec;
+    exports org.elasticsearch.index.codec.tsdb;
     exports org.elasticsearch.index.codec.bloomfilter;
     exports org.elasticsearch.index.engine;
     exports org.elasticsearch.index.fielddata;
@@ -358,6 +364,8 @@ module org.elasticsearch.server {
 
     opens org.elasticsearch.common.logging to org.apache.logging.log4j.core;
 
+    exports org.elasticsearch.action.dlm;
+
     provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
     provides org.elasticsearch.xcontent.XContentBuilderExtension with org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
@@ -368,5 +376,9 @@ module org.elasticsearch.server {
 
     uses org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
 
-    provides org.apache.lucene.codecs.PostingsFormat with org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat;
+    provides org.apache.lucene.codecs.PostingsFormat
+        with
+            org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat,
+            org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
+    provides org.apache.lucene.codecs.DocValuesFormat with ES87TSDBDocValuesFormat;
 }

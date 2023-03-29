@@ -275,10 +275,9 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     void validate(ActionListener<Void> listener) {
-        ClientHelper.executeWithHeadersAsync(
-            transformConfig.getHeaders(),
-            ClientHelper.TRANSFORM_ORIGIN,
+        ClientHelper.executeAsyncWithOrigin(
             client,
+            ClientHelper.TRANSFORM_ORIGIN,
             ValidateTransformAction.INSTANCE,
             new ValidateTransformAction.Request(transformConfig, false, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT),
             ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure)

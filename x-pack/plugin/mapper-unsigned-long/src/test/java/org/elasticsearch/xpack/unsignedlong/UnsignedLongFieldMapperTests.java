@@ -9,13 +9,18 @@ package org.elasticsearch.xpack.unsignedlong;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
@@ -26,7 +31,10 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesPattern;
 
 public class UnsignedLongFieldMapperTests extends MapperTestCase {
 
@@ -66,27 +74,17 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         // test indexing of values as string
         {
             ParsedDocument doc = mapper.parse(source(b -> b.field("field", "18446744073709551615")));
-            IndexableField[] fields = doc.rootDoc().getFields("field");
-            assertEquals(2, fields.length);
-            IndexableField pointField = fields[0];
-            assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
-            assertFalse(pointField.fieldType().stored());
-            assertEquals(9223372036854775807L, pointField.numericValue().longValue());
-            IndexableField dvField = fields[1];
-            assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-            assertEquals(9223372036854775807L, dvField.numericValue().longValue());
-            assertFalse(dvField.fieldType().stored());
+            List<IndexableField> fields = doc.rootDoc().getFields("field");
+            assertEquals(1, fields.size());
+            assertEquals("LongField <field:9223372036854775807>", fields.get(0).toString());
         }
 
         // test indexing values as integer numbers
         {
             ParsedDocument doc = mapper.parse(source(b -> b.field("field", 9223372036854775807L)));
-            IndexableField[] fields = doc.rootDoc().getFields("field");
-            assertEquals(2, fields.length);
-            IndexableField pointField = fields[0];
-            assertEquals(-1L, pointField.numericValue().longValue());
-            IndexableField dvField = fields[1];
-            assertEquals(-1L, dvField.numericValue().longValue());
+            List<IndexableField> fields = doc.rootDoc().getFields("field");
+            assertEquals(1, fields.size());
+            assertEquals("LongField <field:-1>", fields.get(0).toString());
         }
 
         // test that indexing values as number with decimal is not allowed
@@ -100,9 +98,9 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
     public void testNotIndexed() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "unsigned_long").field("index", false)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "18446744073709551615")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        IndexableField dvField = fields[0];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        IndexableField dvField = fields.get(0);
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
         assertEquals(9223372036854775807L, dvField.numericValue().longValue());
     }
@@ -110,9 +108,9 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
     public void testNoDocValues() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "unsigned_long").field("doc_values", false)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "18446744073709551615")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        IndexableField pointField = fields[0];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        IndexableField pointField = fields.get(0);
         assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
         assertEquals(9223372036854775807L, pointField.numericValue().longValue());
         assertAggregatableConsistency(mapper.mappers().getFieldType("field"));
@@ -121,15 +119,10 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
     public void testStore() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "unsigned_long").field("store", true)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "18446744073709551615")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(3, fields.length);
-        IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
-        assertEquals(9223372036854775807L, pointField.numericValue().longValue());
-        IndexableField dvField = fields[1];
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-        assertEquals(9223372036854775807L, dvField.numericValue().longValue());
-        IndexableField storedField = fields[2];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertEquals("LongField <field:9223372036854775807>", fields.get(0).toString());
+        IndexableField storedField = fields.get(1);
         assertTrue(storedField.fieldType().stored());
         assertEquals("18446744073709551615", storedField.stringValue());
     }
@@ -150,7 +143,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         {
             DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
             ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
-            assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
+            assertThat(doc.rootDoc().getFields("field"), empty());
         }
 
         // test that if null value is defined, it is used
@@ -160,12 +153,9 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
             );
             ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
             ;
-            IndexableField[] fields = doc.rootDoc().getFields("field");
-            assertEquals(2, fields.length);
-            IndexableField pointField = fields[0];
-            assertEquals(9223372036854775807L, pointField.numericValue().longValue());
-            IndexableField dvField = fields[1];
-            assertEquals(9223372036854775807L, dvField.numericValue().longValue());
+            List<IndexableField> fields = doc.rootDoc().getFields("field");
+            assertEquals(1, fields.size());
+            assertEquals("LongField <field:9223372036854775807>", fields.get(0).toString());
         }
     }
 
@@ -196,12 +186,10 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
             assertThat(e.getCause().getMessage(), containsString("Value \"0.9\" has a decimal part"));
         }
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomFrom("100.", "100.0", "100.00", 100.0, 100.0f))));
-        assertThat(doc.rootDoc().getFields("field")[0].numericValue().longValue(), equalTo(Long.MIN_VALUE + 100L));
-        assertThat(doc.rootDoc().getFields("field")[1].numericValue().longValue(), equalTo(Long.MIN_VALUE + 100L));
+        assertThat(doc.rootDoc().getFields("field").get(0).numericValue().longValue(), equalTo(Long.MIN_VALUE + 100L));
 
         doc = mapper.parse(source(b -> b.field("field", randomFrom("0.", "0.0", ".00", 0.0, 0.0f))));
-        assertThat(doc.rootDoc().getFields("field")[0].numericValue().longValue(), equalTo(Long.MIN_VALUE));
-        assertThat(doc.rootDoc().getFields("field")[1].numericValue().longValue(), equalTo(Long.MIN_VALUE));
+        assertThat(doc.rootDoc().getFields("field").get(0).numericValue().longValue(), equalTo(Long.MIN_VALUE));
     }
 
     public void testIndexingOutOfRangeValues() throws Exception {
@@ -329,6 +317,19 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         );
     }
 
+    public void testTimeSeriesIndexDefault() throws Exception {
+        var randomMetricType = randomFrom(TimeSeriesParams.MetricType.scalar());
+        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension_field");
+        var mapperService = createMapperService(indexSettings.build(), fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_metric", randomMetricType.toString());
+        }));
+        var ft = (UnsignedLongFieldMapper.UnsignedLongFieldType) mapperService.fieldType("field");
+        assertThat(ft.getMetricType(), equalTo(randomMetricType));
+        assertThat(ft.isIndexed(), is(false));
+    }
+
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
         Number n = randomNumericValue();
@@ -354,11 +355,74 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        throw new AssumptionViolatedException("not supported");
+        assumeFalse("unsigned_long doesn't support ignore_malformed with synthetic _source", ignoreMalformed);
+        return new NumberSyntheticSourceSupport();
     }
 
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    final class NumberSyntheticSourceSupport implements SyntheticSourceSupport {
+        private final BigInteger nullValue = usually() ? null : BigInteger.valueOf(randomNonNegativeLong());
+
+        @Override
+        public SyntheticSourceExample example(int maxVals) {
+            if (randomBoolean()) {
+                Tuple<Object, Object> v = generateValue();
+                return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
+            }
+            List<Tuple<Object, Object>> values = randomList(1, maxVals, this::generateValue);
+            List<Object> in = values.stream().map(Tuple::v1).toList();
+            List<Object> outList = values.stream().map(Tuple::v2).sorted().toList();
+            Object out = outList.size() == 1 ? outList.get(0) : outList;
+            return new SyntheticSourceExample(in, out, this::mapping);
+        }
+
+        private Tuple<Object, Object> generateValue() {
+            if (nullValue != null && randomBoolean()) {
+                return Tuple.tuple(null, nullValue);
+            }
+            long n = randomNonNegativeLong();
+            BigInteger b = BigInteger.valueOf(n);
+            if (b.signum() < 0) {
+                b = b.add(BigInteger.ONE.shiftLeft(64));
+            }
+            return Tuple.tuple(n, b);
+        }
+
+        private void mapping(XContentBuilder b) throws IOException {
+            minimalMapping(b);
+            if (nullValue != null) {
+                b.field("null_value", nullValue);
+            }
+            if (rarely()) {
+                b.field("index", false);
+            }
+            if (rarely()) {
+                b.field("store", false);
+            }
+        }
+
+        @Override
+        public List<SyntheticSourceInvalidExample> invalidExample() {
+            return List.of(
+                new SyntheticSourceInvalidExample(
+                    matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it doesn't have doc values"),
+                    b -> {
+                        minimalMapping(b);
+                        b.field("doc_values", false);
+                    }
+                ),
+                new SyntheticSourceInvalidExample(
+                    matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it ignores malformed numbers"),
+                    b -> {
+                        minimalMapping(b);
+                        b.field("ignore_malformed", true);
+                    }
+                )
+            );
+        }
     }
 }

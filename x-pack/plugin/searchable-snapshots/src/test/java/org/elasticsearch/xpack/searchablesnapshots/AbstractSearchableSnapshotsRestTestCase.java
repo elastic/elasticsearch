@@ -157,7 +157,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
                         long n;
                         while ((n = remainingDocs.decrementAndGet()) >= 0) {
-                            bulkBody.append(String.format(Locale.ROOT, """
+                            bulkBody.append(Strings.format("""
                                     {"index": {"_id":"%d"} }
                                     {"field": %d, "text": "Document number %d"}
                                 """, n, n, n));
@@ -253,7 +253,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
                 String sourceOnlySnapshot = "source-only-snap-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
                 final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + WRITE_REPOSITORY_NAME + '/' + sourceOnlySnapshot);
                 request.addParameter("wait_for_completion", "true");
-                request.setJsonEntity(formatted("""
+                request.setJsonEntity(Strings.format("""
                     {
                         "include_global_state": false,
                         "indices" : "%s"

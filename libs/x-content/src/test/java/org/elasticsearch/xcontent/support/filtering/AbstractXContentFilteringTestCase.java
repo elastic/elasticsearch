@@ -305,7 +305,6 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/80160")
     public void testDotsAndDoubleWildcardInExcludedFieldName() throws IOException {
         testFilter(
             builder -> builder.startObject().endObject(),
@@ -314,7 +313,6 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
             singleton("**.baz"),
             true
         );
-        // bug of double wildcard in excludes report in https://github.com/FasterXML/jackson-core/issues/700
         testFilter(
             builder -> builder.startObject().startObject("foo").field("baz", "test").endObject().endObject(),
             builder -> builder.startObject().startObject("foo").field("bar", "test").field("baz", "test").endObject().endObject(),
@@ -333,6 +331,61 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
     private void testFilter(Builder expected, Builder sample, Set<String> includes, Set<String> excludes, boolean matchFieldNamesWithDots)
         throws IOException {
         assertFilterResult(expected.apply(createBuilder()), filter(sample, includes, excludes, matchFieldNamesWithDots));
+    }
+
+    public void testArrayWithEmptyObjectInInclude() throws IOException {
+        testFilter(
+            builder -> builder.startObject().startArray("foo").startObject().field("bar", "baz").endObject().endArray().endObject(),
+            builder -> builder.startObject()
+                .startArray("foo")
+                .startObject()
+                .field("bar", "baz")
+                .endObject()
+                .startObject()
+                .endObject()
+                .endArray()
+                .endObject(),
+            singleton("foo.bar"),
+            emptySet(),
+            true
+        );
+    }
+
+    public void testArrayWithEmptyArrayInInclude() throws IOException {
+        testFilter(
+            builder -> builder.startObject().startArray("foo").startObject().field("bar", "baz").endObject().endArray().endObject(),
+            builder -> builder.startObject()
+                .startArray("foo")
+                .startObject()
+                .field("bar", "baz")
+                .endObject()
+                .startArray()
+                .endArray()
+                .endArray()
+                .endObject(),
+            singleton("foo.bar"),
+            emptySet(),
+            true
+        );
+    }
+
+    public void testArrayWithLastObjectSkipped() throws IOException {
+        testFilter(
+            builder -> builder.startObject().startArray("foo").startObject().field("bar", "baz").endObject().endArray().endObject(),
+            builder -> builder.startObject()
+                .startArray("foo")
+                .startObject()
+                .field("bar", "baz")
+                .endObject()
+                .startObject()
+                .field("skipped", "value")
+                .endObject()
+                .endArray()
+                .endObject(),
+            singleton("foo.bar"),
+            emptySet(),
+            true
+        );
     }
 
     protected abstract void assertFilterResult(XContentBuilder expected, XContentBuilder actual);
@@ -354,13 +407,9 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
             return filterOnBuilder(sample, includes, excludes);
         }
         FilterPath[] excludesFilter = FilterPath.compile(excludes);
-        if (excludesFilter != null && Arrays.stream(excludesFilter).anyMatch(FilterPath::hasDoubleWildcard)) {
-            /*
-             * If there are any double wildcard filters the parser based
-             * filtering produced weird invalid json. Just field names
-             * and no objects?! Weird. Anyway, we can't use it.
-             */
-            assertFalse("can't filter on builder with dotted wildcards in exclude", matchFieldNamesWithDots);
+        if (excludesFilter != null
+            && Arrays.stream(excludesFilter).anyMatch(FilterPath::hasDoubleWildcard)
+            && matchFieldNamesWithDots == false) {
             return filterOnBuilder(sample, includes, excludes);
         }
         return filterOnParser(sample, includes, excludes, matchFieldNamesWithDots);

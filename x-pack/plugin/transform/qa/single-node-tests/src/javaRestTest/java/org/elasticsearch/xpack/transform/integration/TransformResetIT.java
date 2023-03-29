@@ -13,6 +13,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -68,9 +69,8 @@ public class TransformResetIT extends TransformRestTestCase {
         indicesCreated = true;
     }
 
-    @SuppressWarnings("unchecked")
     public void testReset() throws Exception {
-        String transformId = "old_transform";
+        String transformId = "transform-1";
         String transformDest = transformId + "_idx";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformDest);
 
@@ -79,7 +79,60 @@ public class TransformResetIT extends TransformRestTestCase {
             getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1
         );
-        String config = formatted("""
+        String config = createConfig(transformDest);
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        // Verify that reset works on a new transform
+        resetTransform(transformId, false);
+
+        // Start the transform
+        startTransform(transformId);
+
+        // Verify that reset doesn't work when the transform is running
+        ResponseException e = expectThrows(ResponseException.class, () -> resetTransform(transformId, false));
+        assertThat(e.getMessage(), containsString("Cannot reset transform [transform-1] as the task is running. Stop the task first"));
+
+        // Verify that reset with [force=true] works even when the transform is running
+        resetTransform(transformId, true);
+
+        // Start the transform again
+        startTransform(transformId);
+
+        // Verify that reset works on a stopped transform
+        stopTransform(transformId, false);
+        resetTransform(transformId, false);
+    }
+
+    public void testResetDeletesDestinationIndex() throws Exception {
+        String transformId = "transform-2";
+        String transformDest = transformId + "_idx";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformDest);
+
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1
+        );
+        String config = createConfig(transformDest);
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        assertFalse(indexExists(transformDest));
+
+        startTransform(transformId);
+        waitForTransformCheckpoint(transformId, 1);
+        stopTransform(transformId, false);
+        assertTrue(indexExists(transformDest));
+
+        resetTransform(transformId, false);
+        assertFalse(indexExists(transformDest));
+    }
+
+    private static String createConfig(String transformDestIndex) {
+        return Strings.format("""
             {
               "dest": {
                 "index": "%s"
@@ -103,29 +156,6 @@ public class TransformResetIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""", transformDest, REVIEWS_INDEX_NAME);
-        createTransformRequest.setJsonEntity(config);
-        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
-        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-
-        // Verify that reset works on a new transform
-        resetTransform(transformId, false);
-
-        // Start the transform
-        startTransform(transformId);
-
-        // Verify that reset doesn't work when the transform is running
-        ResponseException e = expectThrows(ResponseException.class, () -> resetTransform(transformId, false));
-        assertThat(e.getMessage(), containsString("Cannot reset transform [old_transform] as the task is running. Stop the task first"));
-
-        // Verify that reset with [force=true] works even when the transform is running
-        resetTransform(transformId, true);
-
-        // Start the transform again
-        startTransform(transformId);
-
-        // Verify that reset works on a stopped transform
-        stopTransform(transformId, false);
-        resetTransform(transformId, false);
+            }""", transformDestIndex, REVIEWS_INDEX_NAME);
     }
 }

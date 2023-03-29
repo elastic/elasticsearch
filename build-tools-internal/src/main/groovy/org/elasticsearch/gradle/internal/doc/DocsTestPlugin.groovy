@@ -38,7 +38,7 @@ class DocsTestPlugin implements Plugin<Project> {
 
     @Override
     void apply(Project project) {
-        project.pluginManager.apply('elasticsearch.internal-yaml-rest-test')
+        project.pluginManager.apply('elasticsearch.legacy-yaml-rest-test')
 
         String distribution = System.getProperty('tests.distribution', 'default')
         // The distribution can be configured with -Dtests.distribution on the command line

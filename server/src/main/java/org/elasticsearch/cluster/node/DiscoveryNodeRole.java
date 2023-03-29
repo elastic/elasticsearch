@@ -42,6 +42,19 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
         USE_STATELESS_FEATURE_FLAG = useStateless;
     }
 
+    /**
+     * A feature flag to indicate if serverless is available or not. Defaults to false.
+     */
+    private static final String USE_SERVERLESS_SYSTEM_PROPERTY = "es.serverless";
+    private static final Boolean USE_SERVERLESS_FEATURE_FLAG;
+    static {
+        final Boolean useStateless = Booleans.parseBoolean(System.getProperty(USE_SERVERLESS_SYSTEM_PROPERTY), false);
+        if (useStateless && Build.CURRENT.isSnapshot() == false) {
+            throw new IllegalArgumentException("Enabling serverless usage is only supported in snapshot builds");
+        }
+        USE_SERVERLESS_FEATURE_FLAG = useStateless;
+    }
+
     private final String roleName;
 
     /**
@@ -405,6 +418,10 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
 
     public static boolean hasStatelessFeatureFlag() {
         return USE_STATELESS_FEATURE_FLAG;
+    }
+
+    public static boolean hasServerlessFeatureFlag() {
+        return USE_SERVERLESS_FEATURE_FLAG;
     }
 
     private static void ensureNoStatelessFeatureFlag(DiscoveryNodeRole role) {

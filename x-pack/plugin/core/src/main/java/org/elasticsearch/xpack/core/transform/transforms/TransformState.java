@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -146,7 +146,7 @@ public class TransformState implements Task.Status, PersistentTaskState {
     public TransformState(StreamInput in) throws IOException {
         taskState = TransformTaskState.fromStream(in);
         indexerState = IndexerState.fromStream(in);
-        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_3_0)) {
             position = in.readOptionalWriteable(TransformIndexerPosition::new);
         } else {
             Map<String, Object> pos = in.readMap();
@@ -155,12 +155,12 @@ public class TransformState implements Task.Status, PersistentTaskState {
         checkpoint = in.readLong();
         reason = in.readOptionalString();
         progress = in.readOptionalWriteable(TransformProgress::new);
-        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_3_0)) {
             node = in.readOptionalWriteable(NodeAttributes::new);
         } else {
             node = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {
             shouldStopAtNextCheckpoint = in.readBoolean();
         } else {
             shouldStopAtNextCheckpoint = false;
@@ -244,7 +244,7 @@ public class TransformState implements Task.Status, PersistentTaskState {
     public void writeTo(StreamOutput out) throws IOException {
         taskState.writeTo(out);
         indexerState.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_3_0)) {
             out.writeOptionalWriteable(position);
         } else {
             out.writeGenericMap(position != null ? position.getIndexerPosition() : null);
@@ -252,10 +252,10 @@ public class TransformState implements Task.Status, PersistentTaskState {
         out.writeLong(checkpoint);
         out.writeOptionalString(reason);
         out.writeOptionalWriteable(progress);
-        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_3_0)) {
             out.writeOptionalWriteable(node);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {
             out.writeBoolean(shouldStopAtNextCheckpoint);
         }
     }

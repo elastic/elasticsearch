@@ -3,11 +3,10 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.util.GradleUtils
 
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 apply plugin: 'elasticsearch.validate-rest-spec'
 apply plugin: 'elasticsearch.internal-test-artifact'
-apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 archivesBaseName = 'x-pack'
 
@@ -66,6 +65,11 @@ if (BuildParams.isSnapshotBuild() == false) {
   // Since there is no infrastructure in place (anytime soon) to generate licenses using the production
   // private key, these tests are blacklisted in non-snapshot test runs
   restTestBlacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*', 'license/30_enterprise_license/*'])
+
+  // TODO: Remove the following when RCS feature is released
+  // cross_cluster_access privilege is only available when untrusted_remote_cluster_feature_flag_registered is enabled
+  // which requires snapshot build
+  restTestBlacklist.add('privileges/11_builtin/Test get builtin privileges')
 }
 
 tasks.named("yamlRestTest").configure {
@@ -78,7 +82,6 @@ tasks.named("yamlRestTestV7CompatTest").configure {
     'unsigned_long/50_script_values/Scripted sort values',
     'unsigned_long/50_script_values/script_score query',
     'unsigned_long/50_script_values/Script query',
-    'data_stream/140_data_stream_aliases/Fix IndexNotFoundException error when handling remove alias action',
     'aggregate-metrics/90_tsdb_mappings/aggregate_double_metric with time series mappings',
     'aggregate-metrics/90_tsdb_mappings/aggregate_double_metric with wrong time series mappings',
     'analytics/histogram/histogram with wrong time series mappings',

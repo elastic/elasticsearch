@@ -24,6 +24,7 @@ import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.TermVectorsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene95.Lucene95Codec;
+import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.store.ChecksumIndexInput;
@@ -72,6 +73,12 @@ public class PerFieldMapperCodec extends Codec {
     // assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMapperCodec.class)
     // : "PerFieldMapperCodec must subclass the latest lucene codec: " + Lucene.LATEST_CODEC;
     // }
+
+    private final PostingsFormat postingsFormat = new PerFieldPostingsFormat() {
+        public PostingsFormat getPostingsFormatForField(String field) {
+            return PerFieldMapperCodec.this.getPostingsFormatForField(field);
+        }
+    };
 
     public PerFieldMapperCodec(Lucene95Codec.Mode compressionMode, MapperService mapperService, BigArrays bigArrays) {
         super("Lucene95");
@@ -162,7 +169,7 @@ public class PerFieldMapperCodec extends Codec {
 
     @Override
     public PostingsFormat postingsFormat() {
-        return l95.postingsFormat();
+        return this.postingsFormat;
     }
 
     @Override

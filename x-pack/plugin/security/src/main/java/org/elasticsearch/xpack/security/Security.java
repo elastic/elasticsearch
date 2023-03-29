@@ -371,6 +371,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
@@ -541,7 +542,7 @@ public class Security extends Plugin
             ).map(Setting::getKey).sorted().toList();
             if (false == remoteClusterCredentialsSettingKeys.isEmpty()) {
                 throw new IllegalArgumentException(
-                    org.elasticsearch.core.Strings.format(
+                    format(
                         "Found [%s] remote clusters with credentials [%s]. Security [%s] must be enabled to connect to them. "
                             + "Please either enable security or remove these settings from the keystore.",
                         remoteClusterCredentialsSettingKeys.size(),

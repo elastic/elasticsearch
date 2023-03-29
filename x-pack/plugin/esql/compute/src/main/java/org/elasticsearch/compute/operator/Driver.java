@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ListenableActionFuture;
@@ -22,9 +21,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -48,7 +45,7 @@ public class Driver implements Runnable, Releasable, Describable {
     private final List<Operator> activeOperators;
     private final Releasable releasable;
 
-    private final AtomicBoolean cancelled = new AtomicBoolean(false);
+    private final AtomicReference<String> cancelReason = new AtomicReference<>();
     private final AtomicReference<ListenableActionFuture<Void>> blocked = new AtomicReference<>();
     private final AtomicReference<DriverStatus> status;
 
@@ -105,9 +102,6 @@ public class Driver implements Runnable, Releasable, Describable {
      * thread to do other work instead of blocking or busy-spinning on the blocked operator.
      */
     public ListenableActionFuture<Void> run(TimeValue maxTime, int maxIterations) {
-        if (cancelled.get()) {
-            throw new CancellationException();
-        }
         long maxTimeNanos = maxTime.nanos();
         long startTime = System.nanoTime();
         int iter = 0;
@@ -146,7 +140,7 @@ public class Driver implements Runnable, Releasable, Describable {
     }
 
     private ListenableActionFuture<Void> runSingleLoopIteration() {
-
+        ensureNotCancelled();
         boolean movedPage = false;
 
         for (int i = 0; i < activeOperators.size() - 1; i++) {
@@ -203,14 +197,21 @@ public class Driver implements Runnable, Releasable, Describable {
         return Operator.NOT_BLOCKED;
     }
 
-    public void cancel() {
-        if (cancelled.compareAndSet(false, true)) {
+    public void cancel(String reason) {
+        if (cancelReason.compareAndSet(null, reason)) {
             synchronized (this) {
                 ListenableActionFuture<Void> fut = this.blocked.get();
                 if (fut != null) {
-                    fut.onFailure(new TaskCancelledException("cancelled"));
+                    fut.onFailure(new TaskCancelledException(reason));
                 }
             }
+        }
+    }
+
+    private void ensureNotCancelled() {
+        String reason = cancelReason.get();
+        if (reason != null) {
+            throw new TaskCancelledException(reason);
         }
     }
 
@@ -218,49 +219,6 @@ public class Driver implements Runnable, Releasable, Describable {
         int maxIterations = 10000;
         driver.status.set(driver.buildStatus(DriverStatus.Status.STARTING));  // Report status for the tasks API
         schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, executor, driver, listener);
-    }
-
-    public static class Result {
-        public static RuntimeException collectFailures(List<Driver.Result> results) {
-            List<Exception> failures = results.stream().filter(r -> r.isSuccess() == false).map(Result::getFailure).toList();
-            if (failures.isEmpty()) {
-                return null;
-            }
-            List<Exception> failuresToReport = failures.stream().filter(e -> e instanceof CancellationException == false).toList();
-            failuresToReport = failuresToReport.isEmpty() ? failures : failuresToReport;
-            Iterator<Exception> e = failuresToReport.iterator();
-            var exception = e.next();
-            ElasticsearchException result = new ElasticsearchException("Compute engine failure:{}", exception, exception.getMessage());
-            while (e.hasNext()) {
-                result.addSuppressed(e.next());
-            }
-            return result;
-        }
-
-        public static Result success() {
-            return new Result(null);
-        }
-
-        public static Result failure(Exception e) {
-            return new Result(e);
-        }
-
-        private final Exception failure;
-
-        private Result(Exception failure) {
-            this.failure = failure;
-        }
-
-        public boolean isSuccess() {
-            return failure == null;
-        }
-
-        public Exception getFailure() {
-            if (failure == null) {
-                throw new IllegalStateException("not a failure");
-            }
-            return failure;
-        }
     }
 
     private static void schedule(TimeValue maxTime, int maxIterations, Executor executor, Driver driver, ActionListener<Void> listener) {
@@ -276,9 +234,7 @@ public class Driver implements Runnable, Releasable, Describable {
                     schedule(maxTime, maxIterations, executor, driver, listener);
                 } else {
                     synchronized (driver) {
-                        if (driver.cancelled.get()) {
-                            throw new CancellationException();
-                        }
+                        driver.ensureNotCancelled();
                         driver.blocked.set(fut);
                     }
                     fut.addListener(
@@ -311,6 +267,10 @@ public class Driver implements Runnable, Releasable, Describable {
     @Override
     public String describe() {
         return description.get();
+    }
+
+    public String sessionId() {
+        return sessionId;
     }
 
     public DriverStatus status() {

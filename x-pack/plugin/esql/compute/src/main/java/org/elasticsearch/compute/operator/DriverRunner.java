@@ -7,13 +7,15 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Run a set of drivers to completion.
@@ -22,62 +24,71 @@ public abstract class DriverRunner {
     /**
      * Start a driver.
      */
-    protected abstract void start(Driver driver, ActionListener<Void> done);
+    protected abstract void start(Driver driver, ActionListener<Void> driverListener);
 
     /**
      * Run all drivers to completion asynchronously.
      */
-    public void runToCompletion(List<Driver> drivers, ActionListener<List<Driver.Result>> listener) {
-        if (drivers.isEmpty()) {
-            listener.onResponse(List.of());
-            return;
-        }
+    public void runToCompletion(List<Driver> drivers, ActionListener<Void> listener) {
+        AtomicReference<Exception> failure = new AtomicReference<>();
         CountDown counter = new CountDown(drivers.size());
-        AtomicArray<Driver.Result> results = new AtomicArray<>(drivers.size());
-
-        for (int d = 0; d < drivers.size(); d++) {
-            int index = d;
-            Driver driver = drivers.get(index);
-            ActionListener<Void> done = new ActionListener<>() {
+        for (Driver driver : drivers) {
+            ActionListener<Void> driverListener = new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
-                    results.setOnce(index, Driver.Result.success());
-                    if (counter.countDown()) {
-                        done();
-                    }
+                    done();
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    results.set(index, Driver.Result.failure(e));
-                    drivers.forEach(Driver::cancel);
-                    if (counter.countDown()) {
-                        done();
+                    failure.getAndUpdate(first -> {
+                        if (first == null) {
+                            return e;
+                        }
+                        if (ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null) {
+                            return first;
+                        } else {
+                            if (ExceptionsHelper.unwrap(first, TaskCancelledException.class) != null) {
+                                return e;
+                            } else {
+                                first.addSuppressed(e);
+                                return first;
+                            }
+                        }
+                    });
+                    for (Driver d : drivers) {
+                        if (driver != d) {
+                            d.cancel("Driver [" + driver.sessionId() + "] was cancelled or failed");
+                        }
                     }
+                    done();
                 }
 
                 private void done() {
-                    listener.onResponse(results.asList());
+                    if (counter.countDown()) {
+                        Exception error = failure.get();
+                        if (error != null) {
+                            listener.onFailure(error);
+                        } else {
+                            listener.onResponse(null);
+                        }
+                    }
                 }
             };
-            start(driver, done);
+
+            start(driver, driverListener);
         }
     }
 
     public static void runToCompletion(Executor executor, List<Driver> drivers) {
-        if (drivers.isEmpty()) {
-            return;
-        }
-        PlainActionFuture<List<Driver.Result>> listener = new PlainActionFuture<>();
-        new DriverRunner() {
+        DriverRunner runner = new DriverRunner() {
             @Override
-            protected void start(Driver driver, ActionListener<Void> done) {
-                Driver.start(executor, driver, done);
+            protected void start(Driver driver, ActionListener<Void> driverListener) {
+                Driver.start(executor, driver, driverListener);
             }
-        }.runToCompletion(drivers, listener);
-        RuntimeException e = Driver.Result.collectFailures(listener.actionGet());
-        if (e != null) {
-            throw e;
-        }
+        };
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        runner.runToCompletion(drivers, future);
+        future.actionGet();
     }
 }

@@ -91,7 +91,7 @@ public class EsqlComputeEngineAction extends ActionType<ActionResponse.Empty> {
 
         @Override
         protected void onCancelled() {
-            driver.cancel();
+            driver.cancel(getReasonCancelled());
         }
 
         @Override

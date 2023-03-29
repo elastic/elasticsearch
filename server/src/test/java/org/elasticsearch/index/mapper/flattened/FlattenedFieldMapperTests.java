@@ -583,4 +583,9 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.field("type", "flattened");
         }
     }
+
+    @Override
+    protected boolean supportsCopyTo() {
+        return false;
+    }
 }

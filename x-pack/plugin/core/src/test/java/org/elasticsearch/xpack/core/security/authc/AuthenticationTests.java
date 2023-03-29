@@ -818,10 +818,9 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(authenticationV6.encode(), equalTo(headerV6));
 
         // Rewrite for a different version
-        final Version nodeVersion = VersionUtils.randomIndexCompatibleVersion(random());// TODO are we going to use transport version for
-                                                                                        // index compatibility?
-        final Authentication rewrittenAuthentication = authenticationV6.maybeRewriteForOlderVersion(nodeVersion.transportVersion);
-        assertThat(rewrittenAuthentication.getEffectiveSubject().getTransportVersion(), equalTo(nodeVersion.transportVersion));
+        final TransportVersion newVersion = TransportVersionUtils.randomCompatibleVersion(random());
+        final Authentication rewrittenAuthentication = authenticationV6.maybeRewriteForOlderVersion(newVersion);
+        assertThat(rewrittenAuthentication.getEffectiveSubject().getTransportVersion(), equalTo(newVersion));
         assertThat(rewrittenAuthentication.getEffectiveSubject().getUser(), equalTo(authenticationV6.getEffectiveSubject().getUser()));
         assertThat(rewrittenAuthentication.getAuthenticationType(), equalTo(Authentication.AuthenticationType.REALM));
         assertThat(rewrittenAuthentication.isRunAs(), is(false));
@@ -841,17 +840,17 @@ public class AuthenticationTests extends ESTestCase {
             ? AuthenticationTestHelper.builder().crossClusterAccess().build()
             : AuthenticationTestHelper.builder().build();
 
-        final Version versionBeforeCrossClusterAccessRealm = VersionUtils.getPreviousVersion(Version.V_8_8_0);
-        final Version version = VersionUtils.randomVersionBetween(
+        final TransportVersion versionBeforeCrossClusterAccessRealm = TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_8_0);
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            versionBeforeCrossClusterAccessRealm.minimumCompatibilityVersion(),
+            TransportVersion.V_7_17_0,  // the minimum compatible version of 8.8.0
             versionBeforeCrossClusterAccessRealm
         );
 
         if (authentication.isCrossClusterAccess()) {
             final var ex = expectThrows(
                 IllegalArgumentException.class,
-                () -> authentication.maybeRewriteForOlderVersion(version.transportVersion)
+                () -> authentication.maybeRewriteForOlderVersion(version)
             );
             assertThat(
                 ex.getMessage(),
@@ -859,13 +858,13 @@ public class AuthenticationTests extends ESTestCase {
                     "versions of Elasticsearch before ["
                         + Authentication.VERSION_CROSS_CLUSTER_ACCESS_REALM
                         + "] can't handle cross cluster access authentication and attempted to rewrite for ["
-                        + version.transportVersion
+                        + version
                         + "]"
                 )
             );
         } else {
             // Assert that rewriting took place; the details of rewriting logic are checked in other tests
-            assertThat(authentication.maybeRewriteForOlderVersion(version.transportVersion), not(equalTo(authentication)));
+            assertThat(authentication.maybeRewriteForOlderVersion(version), not(equalTo(authentication)));
         }
     }
 

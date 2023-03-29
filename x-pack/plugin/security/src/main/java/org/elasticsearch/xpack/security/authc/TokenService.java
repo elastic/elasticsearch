@@ -1428,8 +1428,8 @@ public final class TokenService {
     }
 
     TransportVersion getTokenVersionCompatibility() {
-        // newly minted tokens are compatible with the min node version in the cluster
-        return clusterService.state().nodes().getMinNodeVersion().transportVersion;// should there be getMinNodeTransportVersion ?
+        // newly minted tokens are compatible with the min transport version in the cluster
+        return clusterService.state().getMinTransportVersion();
     }
 
     public static Boolean isTokenServiceEnabled(Settings settings) {

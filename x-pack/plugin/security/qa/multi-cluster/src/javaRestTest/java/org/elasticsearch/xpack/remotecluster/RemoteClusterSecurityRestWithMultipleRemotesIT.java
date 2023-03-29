@@ -12,12 +12,10 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.xcontent.ObjectPath;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
@@ -33,10 +31,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 public class RemoteClusterSecurityRestWithMultipleRemotesIT extends AbstractRemoteClusterSecurityTestCase {
 
@@ -110,7 +104,7 @@ public class RemoteClusterSecurityRestWithMultipleRemotesIT extends AbstractRemo
 
         // Second fulfilling cluster
         {
-            // In the basic model, we need to set up the role of FC
+            // In the basic model, we need to set up the role on the FC
             final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
             putRoleRequest.setJsonEntity("""
                 {
@@ -167,8 +161,8 @@ public class RemoteClusterSecurityRestWithMultipleRemotesIT extends AbstractRemo
                 }""");
             assertOK(adminClient().performRequest(putUserRequest));
 
-            // Can search locally and across both remotes
-            searchAndExpectIndices(
+            // Can search across local cluster and both remotes
+            searchAndAssertIndicesFound(
                 String.format(
                     Locale.ROOT,
                     "/local_index,%s:%s/_search?ccs_minimize_roundtrips=%s",
@@ -181,8 +175,8 @@ public class RemoteClusterSecurityRestWithMultipleRemotesIT extends AbstractRemo
                 "local_index"
             );
 
-            // Can search across both remotes with cluster alias wildcard
-            searchAndExpectIndices(
+            // Can search across both remotes using cluster alias wildcard
+            searchAndAssertIndicesFound(
                 String.format(
                     Locale.ROOT,
                     "/%s:%s/_search?ccs_minimize_roundtrips=%s",
@@ -194,8 +188,8 @@ public class RemoteClusterSecurityRestWithMultipleRemotesIT extends AbstractRemo
                 "cluster2_index1"
             );
 
-            // Can search across both remotes cluster with explicit cluster aliases
-            searchAndExpectIndices(
+            // Can search across both remotes cluster using explicit cluster aliases
+            searchAndAssertIndicesFound(
                 String.format(
                     Locale.ROOT,
                     "/my_remote_cluster:%s,my_remote_cluster_2:%s/_search?ccs_minimize_roundtrips=%s",
@@ -210,7 +204,7 @@ public class RemoteClusterSecurityRestWithMultipleRemotesIT extends AbstractRemo
             // Can search single remote cluster
             boolean searchFirstCluster = randomBoolean();
             String expectedIndex = searchFirstCluster ? "cluster1_index1" : "cluster2_index1";
-            searchAndExpectIndices(
+            searchAndAssertIndicesFound(
                 String.format(
                     Locale.ROOT,
                     "/%s:%s/_search?ccs_minimize_roundtrips=%s",
@@ -223,7 +217,7 @@ public class RemoteClusterSecurityRestWithMultipleRemotesIT extends AbstractRemo
         }
     }
 
-    private void searchAndExpectIndices(String searchPath, String... expectedIndices) throws IOException {
+    private void searchAndAssertIndicesFound(String searchPath, String... expectedIndices) throws IOException {
         final var searchRequest = new Request("GET", searchPath);
         final Response response = performRequestWithRemoteSearchUser(searchRequest);
         assertOK(response);
@@ -236,34 +230,8 @@ public class RemoteClusterSecurityRestWithMultipleRemotesIT extends AbstractRemo
 
     @Override
     protected void configureRemoteClusters() throws Exception {
-        configureRemoteCluster(fulfillingCluster, randomBoolean());
-
-        boolean isProxyMode = randomBoolean();
-        final Settings.Builder builder = Settings.builder();
-        final String clusterAlias = "my_remote_cluster_2";
-        if (isProxyMode) {
-            builder.put("cluster.remote." + clusterAlias + ".mode", "proxy")
-                .put("cluster.remote." + clusterAlias + ".proxy_address", secondFulfillingCluster.getTransportEndpoint(0));
-        } else {
-            builder.put("cluster.remote." + clusterAlias + ".mode", "sniff")
-                .putList("cluster.remote." + clusterAlias + ".seeds", secondFulfillingCluster.getTransportEndpoint(0));
-        }
-        updateClusterSettings(builder.build());
-
-        // Ensure remote cluster is connected
-        final int numberOfFcNodes = secondFulfillingCluster.getHttpAddresses().split(",").length;
-        final Request remoteInfoRequest = new Request("GET", "/_remote/info");
-        assertBusy(() -> {
-            final Response remoteInfoResponse = adminClient().performRequest(remoteInfoRequest);
-            assertOK(remoteInfoResponse);
-            final Map<String, Object> remoteInfoMap = responseAsMap(remoteInfoResponse);
-            assertThat(remoteInfoMap, hasKey(clusterAlias));
-            assertThat(ObjectPath.eval(clusterAlias + ".connected", remoteInfoMap), is(true));
-            if (false == isProxyMode) {
-                assertThat(ObjectPath.eval(clusterAlias + ".num_nodes_connected", remoteInfoMap), equalTo(numberOfFcNodes));
-            }
-            assertThat(ObjectPath.eval(clusterAlias + ".cluster_credentials", remoteInfoMap), nullValue());
-        });
+        super.configureRemoteClusters();
+        configureRemoteCluster("my_remote_cluster_2", secondFulfillingCluster, true, randomBoolean());
     }
 
     private Response performRequestWithRemoteSearchUser(final Request request) throws IOException {

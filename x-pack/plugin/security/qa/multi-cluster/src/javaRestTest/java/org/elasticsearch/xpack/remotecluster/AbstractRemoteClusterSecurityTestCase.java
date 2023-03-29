@@ -37,6 +37,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCase {
 
@@ -137,24 +138,34 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     }
 
     protected void configureRemoteClusters() throws Exception {
-        // This method assume the cross cluster access API key is already configured in keystore
         configureRemoteCluster(fulfillingCluster, randomBoolean());
     }
 
     protected void configureRemoteClusters(boolean isProxyMode) throws Exception {
-        // This method assume the cross cluster access API key is already configured in keystore
         configureRemoteCluster(fulfillingCluster, isProxyMode);
     }
 
-    protected void configureRemoteCluster(ElasticsearchCluster targetFulfillingCluster, boolean isProxyMode) throws Exception {
-        // This method assume the cross cluster access API key is already configured in keystore
+    private void configureRemoteCluster(ElasticsearchCluster targetFulfillingCluster, boolean isProxyMode) throws Exception {
+        configureRemoteCluster("my_remote_cluster", fulfillingCluster, false, isProxyMode);
+    }
+
+    void configureRemoteCluster(
+        String clusterAlias,
+        ElasticsearchCluster targetFulfillingCluster,
+        boolean basicSecurity,
+        boolean isProxyMode
+    ) throws Exception {
+        // For configurable remote cluster security, this method assumes the cross cluster access API key is already configured in keystore
         final Settings.Builder builder = Settings.builder();
+        final String remoteClusterEndpoint = basicSecurity
+            ? targetFulfillingCluster.getTransportEndpoint(0)
+            : targetFulfillingCluster.getRemoteClusterServerEndpoint(0);
         if (isProxyMode) {
-            builder.put("cluster.remote.my_remote_cluster.mode", "proxy")
-                .put("cluster.remote.my_remote_cluster.proxy_address", targetFulfillingCluster.getRemoteClusterServerEndpoint(0));
+            builder.put("cluster.remote." + clusterAlias + ".mode", "proxy")
+                .put("cluster.remote." + clusterAlias + ".proxy_address", remoteClusterEndpoint);
         } else {
-            builder.put("cluster.remote.my_remote_cluster.mode", "sniff")
-                .putList("cluster.remote.my_remote_cluster.seeds", targetFulfillingCluster.getRemoteClusterServerEndpoint(0));
+            builder.put("cluster.remote." + clusterAlias + ".mode", "sniff")
+                .putList("cluster.remote." + clusterAlias + ".seeds", remoteClusterEndpoint);
         }
         updateClusterSettings(builder.build());
 
@@ -165,12 +176,17 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
             final Response remoteInfoResponse = adminClient().performRequest(remoteInfoRequest);
             assertOK(remoteInfoResponse);
             final Map<String, Object> remoteInfoMap = responseAsMap(remoteInfoResponse);
-            assertThat(remoteInfoMap, hasKey("my_remote_cluster"));
-            assertThat(ObjectPath.eval("my_remote_cluster.connected", remoteInfoMap), is(true));
+            assertThat(remoteInfoMap, hasKey(clusterAlias));
+            assertThat(ObjectPath.eval(clusterAlias + ".connected", remoteInfoMap), is(true));
             if (false == isProxyMode) {
-                assertThat(ObjectPath.eval("my_remote_cluster.num_nodes_connected", remoteInfoMap), equalTo(numberOfFcNodes));
+                assertThat(ObjectPath.eval(clusterAlias + ".num_nodes_connected", remoteInfoMap), equalTo(numberOfFcNodes));
             }
-            assertThat(ObjectPath.eval("my_remote_cluster.cluster_credentials", remoteInfoMap), equalTo("::es_redacted::"));
+            final String credentialsValue = ObjectPath.eval(clusterAlias + ".cluster_credentials", remoteInfoMap);
+            if (basicSecurity) {
+                assertThat(credentialsValue, nullValue());
+            } else {
+                assertThat(credentialsValue, equalTo("::es_redacted::"));
+            }
         });
     }
 

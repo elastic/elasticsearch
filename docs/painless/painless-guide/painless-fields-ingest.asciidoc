@@ -1,38 +1,30 @@
 [[painless-field]]
 === Accessing document values in Painless
 
-==== The doc API
-The `doc` variable is available in search contexts that operate on individual documents.  It exposes two methods from the Java Map interface,
-'get' and 'containsKey'.  In painless, Maps can use either the square brace or field syntax for working on fields, ie doc['myfield'] or
-`doc.myfield`.  If the field has dots in it's name, the script must use square brace syntax.
+The fields API is an alternative to `doc`.  Either API
 
-`doc` has a key for each field in the mapping.  The value is always a list, which may be empty if a document has no field data (doc values)
-for that field.  The field data is the internal lucene representation, so, for text fields, it's a sorted list of tokens.  Scripts can
-use `.value` instead of `[0]` to access the first value of a field.
+==== Writing robust scripts with `doc`
 
-
-
-* exposes doc values directly
-* .value shortcut
-* requires doc_values: true
-* doc values is always a List
-* key for every mapping
-* map-like
-Supported:
-- List get(Object key)
-- boolean containsKey(Object key)
-Unsupported:
-- int size()
-- boolean isEmpty()
-- boolean containsValue(Object value)
-- List put(String key, ScriptDocValues<?> value)
-- List remove(Object key)
-- putAll(Map)
-- void clear()
-- Set keySet()
-- Collection values()
-- Set<Map.Entry<String, ScriptDocValues<?>>> entrySet()
-* dot syntax directly works directly
+ * exposes doc values directly
+ * .value shortcut
+ * doc values is always a List
+ * key for every mapping
+ * map-like
+   Supported:
+   - List get(Object key)
+   - boolean containsKey(Object key)
+   Unsupported:
+   - int size()
+   - boolean isEmpty()
+   - boolean containsValue(Object value)
+   - List put(String key, ScriptDocValues<?> value)
+   - List remove(Object key)
+   - putAll(Map)
+   - void clear()
+   - Set keySet()
+   - Collection values()
+   - Set<Map.Entry<String, ScriptDocValues<?>>> entrySet()
+ * dot syntax directly works directly
 
 Some documents may be missing a value for a field, so it is recommended
 [source,Painless]
@@ -42,25 +34,11 @@ if (doc['myfield'].size == 0) {
 }
 ----
 
-If your script may run against multiple indices, some may not have mappings for the field, so it would need to check if the doc has the key
-as well.
-[source,Painless]
-----
-if (!doc.containsKey('myfield') || doc['myfield'].size == 0) {
-  return;
-}
-----
+==== Writing robust scripts with `field`
 
-==== The field API
-
-* handles missing values
-* handles missing mappings
-* source fallback
-
-https://www.elastic.co/guide/en/elasticsearch/reference/current/doc-values.html
-
-
-=== Accessing document values in Painless
+ * handles missing values
+ * handles missing mappings
+ * source fallback
 
 Document values are available for fields using the `Field` object.
 

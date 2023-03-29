@@ -79,9 +79,9 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc1 = mapper.parse(source(this::writeField));
 
-        IndexableField[] fields = doc1.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        assertThat(fields[0], Matchers.instanceOf(FeatureField.class));
+        List<IndexableField> fields = doc1.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertThat(fields.get(0), Matchers.instanceOf(FeatureField.class));
         FeatureField featureField1 = null;
         FeatureField featureField2 = null;
         for (IndexableField field : fields) {
@@ -106,9 +106,9 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc1 = mapper.parse(source(this::writeField));
 
-        IndexableField[] fields = doc1.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        assertThat(fields[0], Matchers.instanceOf(FeatureField.class));
+        List<IndexableField> fields = doc1.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertThat(fields.get(0), Matchers.instanceOf(FeatureField.class));
         FeatureField featureField1 = null;
         FeatureField featureField2 = null;
         for (IndexableField field : fields) {

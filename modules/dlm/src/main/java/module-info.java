@@ -14,4 +14,7 @@ module org.elasticsearch.dlm {
     requires org.apache.logging.log4j;
 
     exports org.elasticsearch.dlm;
+    exports org.elasticsearch.dlm.action;
+    exports org.elasticsearch.dlm.rest;
+
 }

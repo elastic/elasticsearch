@@ -55,10 +55,10 @@ import java.util.List;
  * }`
  *
  */
-class FlattenedFieldSyntheticWriter {
+class FlattenedFieldSyntheticWriterHelper {
     private final SortedSetDocValues dv;
 
-    FlattenedFieldSyntheticWriter(final SortedSetDocValues dv) {
+    FlattenedFieldSyntheticWriterHelper(final SortedSetDocValues dv) {
         this.dv = dv;
     }
 

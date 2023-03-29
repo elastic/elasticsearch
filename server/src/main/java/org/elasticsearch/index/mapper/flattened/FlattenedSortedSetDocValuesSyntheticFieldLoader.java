@@ -94,11 +94,11 @@ public class FlattenedSortedSetDocValuesSyntheticFieldLoader extends SortedSetDo
     private static class FlattenedFieldDocValuesLoader implements DocValuesLoader, DocValuesFieldValues {
         private final SortedSetDocValues dv;
         private boolean hasValue;
-        private final FlattenedFieldSyntheticWriter writer;
+        private final FlattenedFieldSyntheticWriterHelper writer;
 
         FlattenedFieldDocValuesLoader(final SortedSetDocValues dv) {
             this.dv = dv;
-            this.writer = new FlattenedFieldSyntheticWriter(dv);
+            this.writer = new FlattenedFieldSyntheticWriterHelper(dv);
         }
 
         @Override

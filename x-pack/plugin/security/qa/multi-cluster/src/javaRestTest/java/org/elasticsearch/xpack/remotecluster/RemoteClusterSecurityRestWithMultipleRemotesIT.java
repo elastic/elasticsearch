@@ -188,7 +188,7 @@ public class RemoteClusterSecurityRestWithMultipleRemotesIT extends AbstractRemo
                 "cluster2_index1"
             );
 
-            // Can search across both remotes cluster using explicit cluster aliases
+            // Can search across both remotes using explicit cluster aliases
             searchAndAssertIndicesFound(
                 String.format(
                     Locale.ROOT,
@@ -201,7 +201,7 @@ public class RemoteClusterSecurityRestWithMultipleRemotesIT extends AbstractRemo
                 "cluster2_index1"
             );
 
-            // Can search single remote cluster
+            // Can search single remote
             boolean searchFirstCluster = randomBoolean();
             String expectedIndex = searchFirstCluster ? "cluster1_index1" : "cluster2_index1";
             searchAndAssertIndicesFound(

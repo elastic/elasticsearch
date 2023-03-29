@@ -5,6 +5,35 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+/*
+
+  File Upload API.
+
+  1. The client asks for an upload key
+
+  POST /_upload/key
+  {
+    "filename": "myfile.pdf",
+    "filetype": "application/pdf",
+    "size": 12345
+  }
+
+  <key>
+
+  2. The file gets uploaded
+
+  POST /_upload/<key>
+  <DATA>
+
+  3. Then it's available to the attachment plugin via a classical call:
+
+  PUT my-index-000001/_doc/my_id?pipeline=attachment
+  {
+    "data": "file:key",
+  }
+
+
+ */
 package org.elasticsearch.rest.action.ingest;
 
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -19,18 +48,22 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestFileUploadAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "upload_action";
+        return "ingest_file_upload_action";
     }
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_upload"));
+        return List.of(
+            new Route(POST, "/_upload/key"),    // returns a key
+            new Route(POST, "/_upload/{key}"), // used to transfer the file
+        );
     }
 
     @Override

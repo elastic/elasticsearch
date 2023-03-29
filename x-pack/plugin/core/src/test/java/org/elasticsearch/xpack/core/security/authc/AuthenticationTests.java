@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -19,7 +18,6 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -848,10 +846,7 @@ public class AuthenticationTests extends ESTestCase {
         );
 
         if (authentication.isCrossClusterAccess()) {
-            final var ex = expectThrows(
-                IllegalArgumentException.class,
-                () -> authentication.maybeRewriteForOlderVersion(version)
-            );
+            final var ex = expectThrows(IllegalArgumentException.class, () -> authentication.maybeRewriteForOlderVersion(version));
             assertThat(
                 ex.getMessage(),
                 containsString(

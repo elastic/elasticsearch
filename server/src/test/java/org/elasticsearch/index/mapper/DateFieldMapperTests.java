@@ -36,6 +36,7 @@ import java.util.List;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -88,9 +89,9 @@ public class DateFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "2016-03-11")));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        IndexableField field = fields[0];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        IndexableField field = fields.get(0);
         assertEquals(1, field.fieldType().pointIndexDimensionCount());
         assertEquals(8, field.fieldType().pointNumBytes());
         assertFalse(field.fieldType().stored());
@@ -105,9 +106,9 @@ public class DateFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "2016-03-11")));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        IndexableField dvField = fields[0];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        IndexableField dvField = fields.get(0);
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
     }
 
@@ -117,9 +118,9 @@ public class DateFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "2016-03-11")));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        IndexableField pointField = fields[0];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        IndexableField pointField = fields.get(0);
         assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
     }
 
@@ -129,12 +130,12 @@ public class DateFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "2016-03-11")));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField field = fields[0];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        IndexableField field = fields.get(0);
         assertEquals(1, field.fieldType().pointIndexDimensionCount());
         assertEquals(DocValuesType.SORTED_NUMERIC, field.fieldType().docValuesType());
-        IndexableField storedField = fields[1];
+        IndexableField storedField = fields.get(1);
         assertTrue(storedField.fieldType().stored());
         assertEquals(1457654400000L, storedField.numericValue().longValue());
     }
@@ -166,9 +167,9 @@ public class DateFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", 1457654400)));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        IndexableField field = fields[0];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        IndexableField field = fields.get(0);
         assertEquals(1457654400000L, field.numericValue().longValue());
     }
 
@@ -185,14 +186,14 @@ public class DateFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 
         ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
-        assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
+        assertThat(doc.rootDoc().getFields("field"), empty());
 
         mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("null_value", "2016-03-11")));
 
         doc = mapper.parse(source(b -> b.nullField("field")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        IndexableField field = fields[0];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        IndexableField field = fields.get(0);
         assertEquals(1, field.fieldType().pointIndexDimensionCount());
         assertEquals(8, field.fieldType().pointNumBytes());
         assertEquals("LongField <field:1457654400000>", field.toString());
@@ -205,7 +206,7 @@ public class DateFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 
         ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
-        assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
+        assertThat(doc.rootDoc().getFields("field"), empty());
 
         MapperService mapperService = createMapperService(
             fieldMapping(b -> b.field("type", "date_nanos").field("null_value", "2016-03-11"))
@@ -215,9 +216,9 @@ public class DateFieldMapperTests extends MapperTestCase {
         long expectedNullValue = ft.parse("2016-03-11");
 
         doc = mapperService.documentMapper().parse(source(b -> b.nullField("field")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        IndexableField field = fields[0];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        IndexableField field = fields.get(0);
         assertEquals(1, field.fieldType().pointIndexDimensionCount());
         assertEquals(8, field.fieldType().pointNumBytes());
         assertEquals(DocValuesType.SORTED_NUMERIC, field.fieldType().docValuesType());
@@ -264,11 +265,11 @@ public class DateFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", formatter.format(randomDate))));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
 
         long millis = randomDate.withZoneSameInstant(ZoneOffset.UTC).toInstant().toEpochMilli();
-        assertEquals(millis, fields[0].numericValue().longValue());
+        assertEquals(millis, fields.get(0).numericValue().longValue());
     }
 
     public void testMergeDate() throws IOException {

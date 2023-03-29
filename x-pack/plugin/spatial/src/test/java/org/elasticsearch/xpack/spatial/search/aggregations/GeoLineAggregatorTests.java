@@ -179,7 +179,6 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         testAggregator(SortOrder.ASC);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94838")
     public void testDescending() throws IOException {
         testAggregator(SortOrder.DESC);
     }
@@ -330,6 +329,12 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             // re-sort line to be ascending
             long[] linePoints = Arrays.copyOf(points, lineSize);
             double[] lineSorts = Arrays.copyOf(sortValues, lineSize);
+            // When we combine sort DESC with limit (size less than number of points), we actually truncate off the beginning of the data
+            if (lineSize < points.length && sortOrder == SortOrder.DESC) {
+                int offset = points.length - lineSize;
+                System.arraycopy(points, offset, linePoints, 0, lineSize);
+                System.arraycopy(sortValues, offset, lineSorts, 0, lineSize);
+            }
             new PathArraySorter(linePoints, lineSorts, sortOrder).sort();
 
             lines.put(String.valueOf(groupOrd), new InternalGeoLine("_name", linePoints, lineSorts, null, complete, true, sortOrder, size));

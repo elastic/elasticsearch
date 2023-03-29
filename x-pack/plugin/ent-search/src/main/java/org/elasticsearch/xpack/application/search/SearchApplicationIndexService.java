@@ -285,7 +285,6 @@ public class SearchApplicationIndexService {
                     .field(SearchApplication.INDICES_FIELD.getPreferredName(), app.indices())
                     .field(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName(), app.analyticsCollectionName())
                     .field(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName(), app.updatedAtMillis())
-                    .field(SearchApplication.TEMPLATE_FIELD.getPreferredName(), app.searchTemplate())
                     .directFieldAsBase64(
                         SearchApplication.BINARY_CONTENT_FIELD.getPreferredName(),
                         os -> writeSearchApplicationBinaryWithVersion(app, os, clusterService.state().nodes().getMinNodeVersion())

@@ -42,28 +42,37 @@ public class SearchApplication implements Writeable, ToXContentObject {
 
     private final String name;
     private final String[] indices;
-    private long updatedAtMillis = System.currentTimeMillis();
+    private final long updatedAtMillis;
     private final String analyticsCollectionName;
     private final SearchApplicationTemplate searchApplicationTemplate;
 
     /**
      * Public constructor.
      *
-     * @param name                    The name of the search application.
-     * @param indices                 The list of indices targeted by this search application.
-     * @param analyticsCollectionName The name of the associated analytics collection.
+     * @param name                      The name of the search application.
+     * @param indices                   The list of indices targeted by this search application.
+     * @param analyticsCollectionName   The name of the associated analytics collection.
+     * @param updatedAtMillis           Last updated time in milliseconds for the search application.
+     * @param searchApplicationTemplate The search application template to be used on search
      */
     public SearchApplication(
         String name,
         String[] indices,
         @Nullable String analyticsCollectionName,
+        long updatedAtMillis,
         @Nullable SearchApplicationTemplate searchApplicationTemplate
     ) {
+        if (Strings.isNullOrEmpty(name)) {
+            throw new IllegalArgumentException("Search Application name cannot be null or blank");
+        }
         this.name = name;
-        this.indices = indices;
-        Arrays.sort(indices);
+
+        Objects.requireNonNull(indices, "Search Application indices cannot be null");
+        this.indices = indices.clone();
+        Arrays.sort(this.indices);
 
         this.analyticsCollectionName = analyticsCollectionName;
+        this.updatedAtMillis = updatedAtMillis;
         this.searchApplicationTemplate = searchApplicationTemplate;
     }
 
@@ -108,15 +117,6 @@ public class SearchApplication implements Writeable, ToXContentObject {
             return newApp;
         }
     );
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
-        out.writeStringArray(indices);
-        out.writeOptionalString(analyticsCollectionName);
-        out.writeLong(updatedAtMillis);
-        out.writeOptionalWriteable(searchTemplate);
-    }
 
     public static final ParseField NAME_FIELD = new ParseField("name");
     public static final ParseField INDICES_FIELD = new ParseField("indices");

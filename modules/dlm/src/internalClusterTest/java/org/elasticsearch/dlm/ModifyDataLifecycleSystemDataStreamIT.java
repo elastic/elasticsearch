@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -49,8 +50,8 @@ import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -81,13 +82,13 @@ public class ModifyDataLifecycleSystemDataStreamIT extends ESIntegTestCase {
     @SuppressWarnings("unchecked")
     public void testDataLifecycleOnSystemDataStream() throws Exception {
         String systemDataStream = ".test-data-stream";
-        RequestOptions reqOptionsWithHeader = RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "product").build();
-
+        RequestOptions correctProductHeader = RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "product").build();
+        RequestOptions wrongProductHeader = RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "wrong").build();
         try (RestClient restClient = createRestClient()) {
             // Set-up system data stream
             {
                 Request putRequest = new Request("PUT", "/_data_stream/" + systemDataStream);
-                putRequest.setOptions(reqOptionsWithHeader);
+                putRequest.setOptions(correctProductHeader);
                 Response putResponse = restClient.performRequest(putRequest);
                 assertThat(putResponse.getStatusLine().getStatusCode(), is(200));
             }
@@ -144,14 +145,37 @@ public class ModifyDataLifecycleSystemDataStreamIT extends ESIntegTestCase {
                     {
                       "lifecycle": {}
                     }""");
+                // No header
+                ResponseException re = expectThrows(ResponseException.class, () -> restClient.performRequest(putRequest));
+                assertThat(re.getMessage(), containsString("reserved for system"));
+
+                // wrong header
+                putRequest.setOptions(wrongProductHeader);
+                re = expectThrows(ResponseException.class, () -> restClient.performRequest(putRequest));
+                assertThat(re.getMessage(), containsString("may not be accessed by product [wrong]"));
+
+                // correct
+                putRequest.setOptions(correctProductHeader);
                 Response putResponse = restClient.performRequest(putRequest);
                 assertThat(putResponse.getStatusLine().getStatusCode(), is(200));
             }
 
             // delete
-            Request deleteRequest = new Request("DELETE", "/_data_stream/" + systemDataStream + "/_lifecycle");
-            Response deleteResponse = restClient.performRequest(deleteRequest);
-            assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
+            {
+                Request deleteRequest = new Request("DELETE", "/_data_stream/" + systemDataStream + "/_lifecycle");
+                ResponseException re = expectThrows(ResponseException.class, () -> restClient.performRequest(deleteRequest));
+                assertThat(re.getMessage(), containsString("reserved for system"));
+
+                // wrong header
+                deleteRequest.setOptions(wrongProductHeader);
+                re = expectThrows(ResponseException.class, () -> restClient.performRequest(deleteRequest));
+                assertThat(re.getMessage(), containsString("may not be accessed by product [wrong]"));
+
+                // correct
+                deleteRequest.setOptions(correctProductHeader);
+                Response deleteResponse = restClient.performRequest(deleteRequest);
+                assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
+            }
         }
     }
 
@@ -214,10 +238,7 @@ public class ModifyDataLifecycleSystemDataStreamIT extends ESIntegTestCase {
         public void cleanUpFeature(ClusterService clusterService, Client client, ActionListener<ResetFeatureStateStatus> listener) {
             Collection<SystemDataStreamDescriptor> dataStreamDescriptors = getSystemDataStreamDescriptors();
             final DeleteDataStreamAction.Request request = new DeleteDataStreamAction.Request(
-                dataStreamDescriptors.stream()
-                    .map(SystemDataStreamDescriptor::getDataStreamName)
-                    .collect(Collectors.toList())
-                    .toArray(Strings.EMPTY_ARRAY)
+                dataStreamDescriptors.stream().map(SystemDataStreamDescriptor::getDataStreamName).toList().toArray(Strings.EMPTY_ARRAY)
             );
             EnumSet<Option> options = request.indicesOptions().options();
             options.add(Option.IGNORE_UNAVAILABLE);

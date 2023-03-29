@@ -52,9 +52,4 @@ public class RestPutDataLifecycleAction extends BaseRestHandler {
         putLifecycleRequest.indicesOptions(IndicesOptions.fromRequest(request, putLifecycleRequest.indicesOptions()));
         return channel -> client.execute(PutDataLifecycleAction.INSTANCE, putLifecycleRequest, new RestToXContentListener<>(channel));
     }
-
-    @Override
-    public boolean allowSystemIndexAccessByDefault() {
-        return true;
-    }
 }

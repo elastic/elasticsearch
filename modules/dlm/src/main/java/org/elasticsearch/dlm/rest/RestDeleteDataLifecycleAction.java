@@ -46,9 +46,4 @@ public class RestDeleteDataLifecycleAction extends BaseRestHandler {
             new RestToXContentListener<>(channel)
         );
     }
-
-    @Override
-    public boolean allowSystemIndexAccessByDefault() {
-        return true;
-    }
 }

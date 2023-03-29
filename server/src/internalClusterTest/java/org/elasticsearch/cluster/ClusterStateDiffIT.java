@@ -49,7 +49,6 @@ import org.elasticsearch.snapshots.SnapshotsInProgressSerializationTests;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -242,9 +241,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             transports.put(id, TransportVersionUtils.randomVersion(random()));
         }
 
-        ClusterState.Builder builder = ClusterState.builder(clusterState).nodes(nodes);
-        builder.transportVersions(transports);
-        return builder;
+        return ClusterState.builder(clusterState).nodes(nodes).transportVersions(transports);
     }
 
     /**

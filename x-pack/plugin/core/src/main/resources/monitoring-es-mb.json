@@ -2042,7 +2042,20 @@
                   "type": "keyword"
                 },
                 "read_exceptions": {
-                  "type": "nested"
+                  "type": "nested",
+                  "properties": {
+                    "exception": {
+                      "type": "object",
+                      "properties": {
+                        "type" : {
+                          "type": "keyword"
+                        },
+                        "reason": {
+                          "type": "text"
+                        }
+                      }
+                    }
+                  }
                 },
                 "shard_id": {
                   "type": "long"

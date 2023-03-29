@@ -131,12 +131,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     }
 
     public void testUpdateMappingWithoutTypeMultiObjects() {
-        client().admin()
-            .indices()
-            .prepareCreate("test")
-            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
-            .execute()
-            .actionGet();
+        createIndex("test", 1, 0);
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setSource("""

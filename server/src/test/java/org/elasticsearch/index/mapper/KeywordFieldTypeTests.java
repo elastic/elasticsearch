@@ -19,7 +19,6 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.sandbox.search.DocValuesTermsQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.RegexpQuery;
@@ -45,7 +44,6 @@ import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.script.ScriptCompiler;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -103,13 +101,11 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermsQuery() {
         MappedFieldType ft = new KeywordFieldType("field");
-        List<BytesRef> terms = new ArrayList<>();
-        terms.add(new BytesRef("foo"));
-        terms.add(new BytesRef("bar"));
+        BytesRef[] terms = new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") };
         assertEquals(new TermInSetQuery("field", terms), ft.termsQuery(Arrays.asList("foo", "bar"), MOCK_CONTEXT));
 
         MappedFieldType ft2 = new KeywordFieldType("field", false, true, Map.of());
-        assertEquals(new DocValuesTermsQuery("field", terms), ft2.termsQuery(Arrays.asList("foo", "bar"), MOCK_CONTEXT));
+        assertEquals(SortedSetDocValuesField.newSlowSetQuery("field", terms), ft2.termsQuery(Arrays.asList("foo", "bar"), MOCK_CONTEXT));
 
         MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(
@@ -250,7 +246,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     }
 
     private static IndexAnalyzers createIndexAnalyzers() {
-        return new IndexAnalyzers(
+        return IndexAnalyzers.of(
             Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
             Map.ofEntries(
                 Map.entry("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())),

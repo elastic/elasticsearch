@@ -14,8 +14,10 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.util.Optional;
+import java.util.Set;
 
 public class MessagesTests extends ESTestCase {
 
@@ -240,6 +242,7 @@ public class MessagesTests extends ESTestCase {
         );
         JoinRequest initialJoinRequest = new JoinRequest(
             initialJoin.getSourceNode(),
+            TransportVersionUtils.randomVersion(),
             randomNonNegativeLong(),
             randomBoolean() ? Optional.empty() : Optional.of(initialJoin)
         );
@@ -251,12 +254,21 @@ public class MessagesTests extends ESTestCase {
                 if (randomBoolean() && joinRequest.getOptionalJoin().isPresent() == false) {
                     return new JoinRequest(
                         createNode(randomAlphaOfLength(10)),
+                        joinRequest.getTransportVersion(),
                         joinRequest.getMinimumTerm(),
                         joinRequest.getOptionalJoin()
                     );
                 } else if (randomBoolean()) {
                     return new JoinRequest(
                         joinRequest.getSourceNode(),
+                        TransportVersionUtils.randomVersion(Set.of(joinRequest.getTransportVersion())),
+                        joinRequest.getMinimumTerm(),
+                        joinRequest.getOptionalJoin()
+                    );
+                } else if (randomBoolean()) {
+                    return new JoinRequest(
+                        joinRequest.getSourceNode(),
+                        joinRequest.getTransportVersion(),
                         randomValueOtherThan(joinRequest.getMinimumTerm(), ESTestCase::randomNonNegativeLong),
                         joinRequest.getOptionalJoin()
                     );
@@ -276,7 +288,12 @@ public class MessagesTests extends ESTestCase {
                             )
                         );
                     }
-                    return new JoinRequest(joinRequest.getSourceNode(), joinRequest.getMinimumTerm(), newOptionalJoin);
+                    return new JoinRequest(
+                        joinRequest.getSourceNode(),
+                        joinRequest.getTransportVersion(),
+                        joinRequest.getMinimumTerm(),
+                        newOptionalJoin
+                    );
                 }
             }
         );

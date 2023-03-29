@@ -343,7 +343,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 final Transport.Connection connection = openConnectionStep.result();
                 final DiscoveryNode node = connection.getNode();
                 logger.debug(() -> format("[%s] failed to open managed connection to seed node: [%s]", clusterAlias, node), e);
-                IOUtils.closeWhileHandlingException(openConnectionStep.result());
+                IOUtils.closeWhileHandlingException(connection);
                 onFailure.accept(e);
             });
         } else {

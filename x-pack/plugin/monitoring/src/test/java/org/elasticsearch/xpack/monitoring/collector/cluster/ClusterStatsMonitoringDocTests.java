@@ -755,7 +755,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     ],
                     "version": "%s"
                   }
-                }
+                },
+                "transport_versions": []
               },
               "cluster_settings": {
                 "cluster": {

@@ -75,13 +75,6 @@ public class TransportQuerySearchApplicationAction extends SearchApplicationTran
         this.xContentRegistry = xContentRegistry;
     }
 
-    private static Map<String, Object> mergeTemplateParams(QuerySearchApplicationAction.Request request, Script script) {
-        Map<String, Object> mergedTemplateParams = new HashMap<>(script.getParams());
-        mergedTemplateParams.putAll(request.queryParams().templateParams());
-
-        return mergedTemplateParams;
-    }
-
     @Override
     protected void doExecute(QuerySearchApplicationAction.Request request, ActionListener<SearchResponse> listener) {
         systemIndexService.getSearchApplication(request.name(), listener.delegateFailure((l, searchApplication) -> {
@@ -102,8 +95,14 @@ public class TransportQuerySearchApplicationAction extends SearchApplicationTran
         }));
     }
 
-    private SearchSourceBuilder renderTemplate(Script script, Map<String, Object> templateParams) throws IOException {
+    private static Map<String, Object> mergeTemplateParams(QuerySearchApplicationAction.Request request, Script script) {
+        Map<String, Object> mergedTemplateParams = new HashMap<>(script.getParams());
+        mergedTemplateParams.putAll(request.queryParams().templateParams());
 
+        return mergedTemplateParams;
+    }
+
+    private SearchSourceBuilder renderTemplate(Script script, Map<String, Object> templateParams) throws IOException {
         TemplateScript compiledTemplate = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(templateParams);
         String requestSource = compiledTemplate.execute();
 
@@ -115,5 +114,4 @@ public class TransportQuerySearchApplicationAction extends SearchApplicationTran
             return builder;
         }
     }
-
 }

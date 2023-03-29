@@ -22,6 +22,10 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * Query parameters for a {@link org.elasticsearch.xpack.application.search.action.QuerySearchApplicationAction}. For now, they contain
+ * just the template parameters to override in the search request, but can potentially include more options and parameters in the future
+ */
 public class SearchApplicationQueryParams implements ToXContentObject, Writeable {
 
     public static final ParseField TEMPLATE_PARAMS_FIELD = new ParseField("params");

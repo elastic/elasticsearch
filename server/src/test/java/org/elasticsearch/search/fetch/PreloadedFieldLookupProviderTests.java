@@ -9,7 +9,6 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.memory.MemoryIndex;
@@ -35,7 +34,7 @@ public class PreloadedFieldLookupProviderTests extends ESTestCase {
 
         MappedFieldType fieldType = mock(MappedFieldType.class);
         when(fieldType.name()).thenReturn("foo");
-        when(fieldType.valueForDisplay(any())).then(invocation -> ((String)invocation.getArguments()[0]).toUpperCase(Locale.ROOT));
+        when(fieldType.valueForDisplay(any())).then(invocation -> ((String) invocation.getArguments()[0]).toUpperCase(Locale.ROOT));
         FieldLookup fieldLookup = new FieldLookup(fieldType);
 
         lookup.populateFieldLookup(fieldLookup, 0);

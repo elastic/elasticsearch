@@ -24,8 +24,8 @@ import static java.util.Collections.emptyList;
 /**
  * Value fetcher that loads from doc values.
  */
- // TODO rename this? It doesn't load from doc values, it loads from fielddata
- // Which might be doc values, but might not be...
+// TODO rename this? It doesn't load from doc values, it loads from fielddata
+// Which might be doc values, but might not be...
 public final class DocValueFetcher implements ValueFetcher {
     private final DocValueFormat format;
     private final IndexFieldData<?> ifd;

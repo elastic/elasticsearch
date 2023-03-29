@@ -95,8 +95,8 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         searchRequest.source()
             .knnSearch(
                 List.of(
-                    new KnnSearchBuilder(randomAlphaOfLength(10), new float[] { 1, 2 }, 5, 10),
-                    new KnnSearchBuilder(randomAlphaOfLength(10), new float[] { 4, 12, 41 }, 3, 5)
+                    new KnnSearchBuilder(randomAlphaOfLength(10), new float[] { 1, 2 }, 5, 10, randomBoolean() ? null : randomFloat()),
+                    new KnnSearchBuilder(randomAlphaOfLength(10), new float[] { 4, 12, 41 }, 3, 5, randomBoolean() ? null : randomFloat())
                 )
             );
         expectThrows(
@@ -109,7 +109,10 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             )
         );
 
-        searchRequest.source().knnSearch(List.of(new KnnSearchBuilder(randomAlphaOfLength(10), new float[] { 1, 2 }, 5, 10)));
+        searchRequest.source()
+            .knnSearch(
+                List.of(new KnnSearchBuilder(randomAlphaOfLength(10), new float[] { 1, 2 }, 5, 10, randomBoolean() ? null : randomFloat()))
+            );
         // Shouldn't throw because its just one KNN request
         copyWriteable(
             searchRequest,

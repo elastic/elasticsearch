@@ -28,7 +28,6 @@ import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -100,8 +99,7 @@ public class RestAllocationAction extends AbstractCatAction {
     private Table buildTable(RestRequest request, final ClusterStateResponse state, final NodesStatsResponse stats) {
         final Map<String, Integer> allocs = new HashMap<>();
 
-        for (Iterator<ShardRouting> iterator = state.getState().routingTable().allShards().iterator(); iterator.hasNext();) {
-            ShardRouting shard = iterator.next();
+        for (ShardRouting shard : state.getState().routingTable().allShardsIterator()) {
             String nodeId = "UNASSIGNED";
             if (shard.assignedToNode()) {
                 nodeId = shard.currentNodeId();

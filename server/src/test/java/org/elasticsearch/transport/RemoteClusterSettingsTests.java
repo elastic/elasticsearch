@@ -10,18 +10,18 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
 import static org.elasticsearch.test.NodeRoles.remoteClusterClientNode;
-import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION;
+import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_NODE_ATTRIBUTE;
@@ -32,6 +32,7 @@ import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.not;
 
 public class RemoteClusterSettingsTests extends ESTestCase {
@@ -75,34 +76,22 @@ public class RemoteClusterSettingsTests extends ESTestCase {
         assertThat(REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(alias).get(Settings.EMPTY), emptyCollectionOf(String.class));
     }
 
-    public void testAuthorizationDefault() {
+    public void testCredentialsDefault() {
         final String alias = randomAlphaOfLength(8);
-        assertThat(REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(alias).get(Settings.EMPTY), emptyString());
+        final Settings.Builder builder = Settings.builder();
+        if (randomBoolean()) {
+            builder.setSecureSettings(new MockSecureSettings());
+        }
+        assertThat(REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(alias).get(builder.build()).toString(), emptyString());
     }
 
-    public void testAuthorizationFiltered() {
+    public void testCredentialsIsSecureSetting() {
         final String alias = randomAlphaOfLength(8);
-        assertThat(
-            REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(alias).getProperties(),
-            Matchers.hasItem(Setting.Property.Filtered)
-        );
+        assertThat(REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(alias), isA(SecureSetting.class));
     }
 
     public void testProxyDefault() {
         final String alias = randomAlphaOfLength(8);
         assertThat(REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(alias).get(Settings.EMPTY), equalTo(""));
-    }
-
-    public void testRemoteClusterEmptyOrNullApiKey() {
-        // simple validation
-        Settings settings = Settings.builder()
-            .put("cluster.remote.cluster1.authorization", "apikey")
-            .put("cluster.remote.cluster3.authorization", (String) null)
-            .build();
-        try {
-            REMOTE_CLUSTER_AUTHORIZATION.getAllConcreteSettings(settings).forEach(setting -> setting.get(settings));
-        } catch (Throwable t) {
-            fail("Cluster Settings must be able to accept a null, empty, or non-empty string. Exception: " + t.getMessage());
-        }
     }
 }

@@ -24,7 +24,7 @@ import static org.elasticsearch.core.Strings.format;
 
 abstract class AbstractControlMessagePyTorchAction<T> extends AbstractPyTorchAction<T> {
 
-    private static final Logger logger = LogManager.getLogger(InferencePyTorchAction.class);
+    private static final Logger logger = LogManager.getLogger(AbstractControlMessagePyTorchAction.class);
 
     enum ControlMessageTypes {
         AllocationThreads,

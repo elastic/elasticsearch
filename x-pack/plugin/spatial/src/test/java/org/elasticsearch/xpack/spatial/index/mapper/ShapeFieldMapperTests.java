@@ -317,8 +317,8 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
 
         ParsedDocument document = mapper.parse(sourceToParse);
         assertThat(document.docs(), hasSize(1));
-        IndexableField[] fields = document.docs().get(0).getFields("shape.type");
-        assertThat(fields.length, equalTo(2));
+        List<IndexableField> fields = document.docs().get(0).getFields("shape.type");
+        assertThat(fields.size(), equalTo(2));
     }
 
     public void testMultiFieldsDeprecationWarning() throws Exception {

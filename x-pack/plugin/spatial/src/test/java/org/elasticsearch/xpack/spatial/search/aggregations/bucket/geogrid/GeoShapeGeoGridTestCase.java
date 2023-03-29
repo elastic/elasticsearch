@@ -269,6 +269,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
             FIELD_NAME,
             true,
             true,
+            randomBoolean(),
             Orientation.RIGHT,
             null,
             null,

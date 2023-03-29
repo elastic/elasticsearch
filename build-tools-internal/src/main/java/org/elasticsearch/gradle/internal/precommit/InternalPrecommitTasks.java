@@ -35,7 +35,6 @@ public class InternalPrecommitTasks {
             project.getPluginManager().apply(DependencyLicensesPrecommitPlugin.class);
             project.getPluginManager().apply(SplitPackagesAuditPrecommitPlugin.class);
             project.getPluginManager().apply(JavaModulePrecommitPlugin.class);
-            // project.getPluginManager().apply(TransportTestExistPrecommitPlugin.class);
         }
     }
 }

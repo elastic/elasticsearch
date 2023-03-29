@@ -249,10 +249,7 @@ dependencies {
   api enforcedPlatform(buildLibs.jackson.platform)
   api localGroovy()
   api gradleApi()
-//  implementation ('org.jacoco:jacoco:0.8.9-SNAPSHOT'){
-//      exclude group: 'org.jacoco', module: 'org.jacoco.examples'
-//      exclude group: 'org.jacoco', module: 'org.jacoco.doc'
-//  }
+
   api "org.elasticsearch:build-conventions:$version"
   api "org.elasticsearch.gradle:build-tools:$version"
 

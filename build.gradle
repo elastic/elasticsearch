@@ -234,15 +234,6 @@ allprojects {
     }
   }
 
-//  if (GradleUtils.findByName(it.tasks, 'test') != null) {
-//    apply plugin: 'jacoco'
-//    test {
-//      finalizedBy jacocoTestReport // report is always generated after tests run
-//    }
-//    jacocoTestReport {
-//      dependsOn test // tests are required to run before generating the report
-//    }
-//  }
 
   project.afterEvaluate {
     // Ensure similar tasks in dependent projects run first. The projectsEvaluated here is
@@ -269,7 +260,6 @@ allprojects {
         }
       }
     }
-
   }
 
   apply plugin: 'elasticsearch.transport-coverage'

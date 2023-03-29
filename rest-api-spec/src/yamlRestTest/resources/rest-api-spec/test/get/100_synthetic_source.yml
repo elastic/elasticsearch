@@ -813,7 +813,7 @@ ip with ignore_malformed:
 ---
 flattened field:
   - skip:
-      version: " - 8.7.0"
+      version: " - 8.7.99"
       reason: support for synthetic source on flattened fields added in 8.8.0
 
   - do:
@@ -905,7 +905,7 @@ flattened field:
 ---
 flattened field no doc values:
   - skip:
-      version: " - 8.7.0"
+      version: " - 8.7.99"
       reason: support for synthetic source on flattened fields added in 8.8.0
 
   - do:

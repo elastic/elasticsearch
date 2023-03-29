@@ -17,6 +17,8 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteConnectionManager;
@@ -41,6 +43,7 @@ import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
@@ -54,6 +57,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_CROSS_CLUSTER_ACCESS_REALM;
@@ -73,6 +77,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService;
     private final RemoteClusterCredentialsResolver remoteClusterCredentialsResolver;
     private final Function<Transport.Connection, Optional<String>> remoteClusterAliasResolver;
+    private final XPackLicenseState licenseState;
 
     public SecurityServerTransportInterceptor(
         Settings settings,
@@ -83,7 +88,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
         CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
-        RemoteClusterCredentialsResolver remoteClusterCredentialsResolver
+        RemoteClusterCredentialsResolver remoteClusterCredentialsResolver,
+        XPackLicenseState licenseState
     ) {
         this(
             settings,
@@ -95,6 +101,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             destructiveOperations,
             crossClusterAccessAuthcService,
             remoteClusterCredentialsResolver,
+            licenseState,
             RemoteConnectionManager::resolveRemoteClusterAlias
         );
     }
@@ -109,6 +116,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         DestructiveOperations destructiveOperations,
         CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
         RemoteClusterCredentialsResolver remoteClusterCredentialsResolver,
+        XPackLicenseState licenseState,
         // Inject for simplified testing
         Function<Transport.Connection, Optional<String>> remoteClusterAliasResolver
     ) {
@@ -119,9 +127,10 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.sslService = sslService;
         this.securityContext = securityContext;
         this.crossClusterAccessAuthcService = crossClusterAccessAuthcService;
-        this.profileFilters = initializeProfileFilters(destructiveOperations);
+        this.licenseState = licenseState;
         this.remoteClusterCredentialsResolver = remoteClusterCredentialsResolver;
         this.remoteClusterAliasResolver = remoteClusterAliasResolver;
+        this.profileFilters = initializeProfileFilters(destructiveOperations);
     }
 
     @Override
@@ -289,6 +298,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final TransportRequestOptions options,
                 final TransportResponseHandler<T> handler
             ) {
+                if (false == Security.CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE.check(licenseState)) {
+                    throw LicenseUtils.newComplianceException(Security.CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE.getName());
+                }
                 final String remoteClusterAlias = remoteClusterCredentials.clusterAlias();
 
                 if (connection.getTransportVersion().before(VERSION_CROSS_CLUSTER_ACCESS_REALM)) {
@@ -302,10 +314,12 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 }
 
                 logger.trace(
-                    "Sending [{}] request for [{}] action to [{}] with cross cluster access headers",
-                    request.getClass(),
-                    remoteClusterAlias,
-                    action
+                    () -> format(
+                        "Sending [%s] request for [%s] action to [%s] with cross cluster access headers",
+                        request.getClass(),
+                        action,
+                        remoteClusterAlias
+                    )
                 );
 
                 final Authentication authentication = securityContext.getAuthentication();
@@ -338,15 +352,13 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         authentication.getEffectiveSubject(),
                         ActionListener.wrap(roleDescriptorsIntersection -> {
                             logger.trace(
-                                () -> "Subject ["
-                                    + authentication.getEffectiveSubject()
-                                    + "] has role descriptors intersection ["
-                                    + roleDescriptorsIntersection
-                                    + "] for action ["
-                                    + action
-                                    + "] towards remote cluster ["
-                                    + remoteClusterAlias
-                                    + "]"
+                                () -> format(
+                                    "Subject [%s] has role descriptors intersection [%s] for action [%s] towards remote cluster [%s]",
+                                    authentication.getEffectiveSubject(),
+                                    roleDescriptorsIntersection,
+                                    action,
+                                    remoteClusterAlias
+                                )
                             );
                             if (roleDescriptorsIntersection.isEmpty()) {
                                 throw authzService.remoteActionDenied(authentication, action, remoteClusterAlias);
@@ -452,7 +464,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         threadPool.getThreadContext(),
                         remoteClusterServerSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration),
                         destructiveOperations,
-                        securityContext
+                        securityContext,
+                        licenseState
                     )
                 );
             } else {
@@ -552,18 +565,17 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         public void messageReceived(T request, TransportChannel channel, Task task) {
             try (ThreadContext.StoredContext ctx = threadContext.newStoredContextPreservingResponseHeaders()) {
                 String profile = channel.getProfileName();
-                ServerTransportFilter filter = profileFilters.get(profile);
-
-                if (filter == null) {
-                    if (TransportService.DIRECT_RESPONSE_PROFILE.equals(profile)) {
-                        // apply the default filter to local requests. We never know what the request is or who sent it...
-                        filter = profileFilters.get("default");
-                    } else {
-                        String msg = "transport profile [" + profile + "] is not associated with a transport filter";
-                        throw new IllegalStateException(msg);
-                    }
-                }
+                ServerTransportFilter filter = getServerTransportFilter(profile);
                 assert filter != null;
+                assert request != null;
+                logger.trace(
+                    () -> format(
+                        "Applying transport filter [%s] for transport profile [%s] on request [%s]",
+                        filter.getClass(),
+                        profile,
+                        request.getClass()
+                    )
+                );
 
                 final AbstractRunnable receiveMessage = getReceiveRunnable(request, channel, task);
                 final ActionListener<Void> filterListener;
@@ -600,6 +612,20 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 }
                 filter.inbound(action, request, channel, filterListener);
 
+            }
+        }
+
+        private ServerTransportFilter getServerTransportFilter(String profile) {
+            final ServerTransportFilter filter = profileFilters.get(profile);
+            if (filter != null) {
+                return filter;
+            }
+            if (TransportService.DIRECT_RESPONSE_PROFILE.equals(profile)) {
+                // apply the default filter to local requests. We never know what the request is or who sent it...
+                return profileFilters.get("default");
+            } else {
+                String msg = "transport profile [" + profile + "] is not associated with a transport filter";
+                throw new IllegalStateException(msg);
             }
         }
     }

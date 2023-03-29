@@ -59,18 +59,19 @@ public class RemoteClusterFeatureSetUsageTests extends ESTestCase {
                 Strings.toString(builder),
                 equalTo(
                     XContentHelper.stripWhitespace(
-                        """
-                            {
-                              "size": %s,
-                              "mode": {
-                                "proxy": %s,
-                                "sniff": %s
-                              },
-                              "security": {
-                                 "basic": %s,
-                                 "configurable": %s
-                              }
-                            }""".formatted(
+                        Strings.format(
+                            """
+                                {
+                                  "size": %s,
+                                  "mode": {
+                                    "proxy": %s,
+                                    "sniff": %s
+                                  },
+                                  "security": {
+                                     "basic": %s,
+                                     "configurable": %s
+                                  }
+                                }""",
                             numberOfRemoteClusters,
                             numberOfRemoteClusters - numberOfSniffModes,
                             numberOfSniffModes,

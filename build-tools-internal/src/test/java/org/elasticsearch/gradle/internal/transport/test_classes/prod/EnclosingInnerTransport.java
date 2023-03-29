@@ -6,6 +6,13 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.internal.precommit.transport.test_classes;
+package org.elasticsearch.gradle.internal.transport.test_classes.prod;
 
-public interface Writeable {}
+import org.elasticsearch.gradle.internal.transport.test_classes.Writeable;
+
+public class EnclosingInnerTransport {
+
+    public class Transport implements Writeable {
+
+    }
+}

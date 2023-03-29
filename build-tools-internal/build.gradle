@@ -188,7 +188,7 @@ gradlePlugin {
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin'
     }
     kover {
-      id = 'elasticsearch.kover'
+      id = 'elasticsearch.transport-coverage'
       implementationClass = 'org.elasticsearch.gradle.internal.TransportClassesCoveragePlugin'
     }
   }

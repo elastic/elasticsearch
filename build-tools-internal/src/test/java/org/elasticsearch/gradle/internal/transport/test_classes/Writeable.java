@@ -6,6 +6,6 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.internal.precommit.transport.test_classes;
+package org.elasticsearch.gradle.internal.transport.test_classes;
 
-public abstract class WriteableSubClass implements Writeable {}
+public interface Writeable {}

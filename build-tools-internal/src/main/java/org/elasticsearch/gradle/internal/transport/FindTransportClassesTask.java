@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.internal.precommit.transport;
+package org.elasticsearch.gradle.internal.transport;
 
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTask;
 import org.gradle.api.GradleException;

@@ -8,8 +8,8 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.internal.precommit.transport.FindTransportClassesPlugin;
-import org.elasticsearch.gradle.internal.precommit.transport.FindTransportClassesTask;
+import org.elasticsearch.gradle.internal.transport.FindTransportClassesPlugin;
+import org.elasticsearch.gradle.internal.transport.FindTransportClassesTask;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;

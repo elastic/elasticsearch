@@ -6,17 +6,19 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.internal.precommit.transport
+package org.elasticsearch.gradle.internal.transport
+
 
 import spock.lang.Shared
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.elasticsearch.gradle.fixtures.LocalRepositoryFixture
+import org.elasticsearch.gradle.internal.TransportClassesCoveragePlugin
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.ClassRule
 
 class FindTransportClassesNonJavaFuncTest extends AbstractGradleInternalPluginFuncTest {
-    Class<? extends FindTransportClassesPlugin> pluginClassUnderTest = FindTransportClassesPlugin.class
+    Class<? extends TransportClassesCoveragePlugin> pluginClassUnderTest = TransportClassesCoveragePlugin.class
 
     @Shared
     @ClassRule
@@ -24,20 +26,22 @@ class FindTransportClassesNonJavaFuncTest extends AbstractGradleInternalPluginFu
 
     def setup() {
         buildFile << """
-            apply plugin: 'elasticsearch.build'
             repositories {
                 mavenCentral()
             }
             """
+        configurationCacheCompatible = false
+
     }
 
     def "non java projects will not fail"() {
         given:
         when:
-        def result = gradleRunner(":findTransportClassesTask").build()
+        def result = gradleRunner(":jacocoTestCoverageVerification").buildAndFail()
 
         then:
-        result.task(":findTransportClassesTask").outcome == TaskOutcome.SUCCESS
+        result.getOutput().contains("Cannot locate tasks that match ':jacocoTestCoverageVerification' " +
+            "as task 'jacocoTestCoverageVerification' not found in root project")
     }
 
 }

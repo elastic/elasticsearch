@@ -272,7 +272,7 @@ allprojects {
 
   }
 
-  apply plugin: 'elasticsearch.kover'
+  apply plugin: 'elasticsearch.transport-coverage'
   apply plugin: 'elasticsearch.formatting'
 }
 

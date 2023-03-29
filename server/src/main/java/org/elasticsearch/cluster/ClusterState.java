@@ -769,11 +769,6 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             return this;
         }
 
-        public Builder removeTransportVersion(String type) {
-            transportVersions.remove(type);
-            return this;
-        }
-
         public Builder transportVersions(Map<String, TransportVersion> versions) {
             versions.forEach((key, value) -> Objects.requireNonNull(value, key));
             // remove all versions not present in the new map

@@ -243,7 +243,6 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         }
 
         ClusterState.Builder builder = ClusterState.builder(clusterState).nodes(nodes);
-        new ArrayList<>(builder.transportVersions().keySet()).forEach(builder::removeTransportVersion);
         builder.transportVersions(transports);
         return builder;
     }

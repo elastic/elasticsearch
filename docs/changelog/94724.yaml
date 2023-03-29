@@ -1,0 +1,5 @@
+pr: 94724
+summary: Expose authorization state as an object in transform stats
+area: Transform
+type: enhancement
+issues: []

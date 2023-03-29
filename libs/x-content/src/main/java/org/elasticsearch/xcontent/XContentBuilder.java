@@ -33,7 +33,6 @@ import java.util.EnumSet;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -1319,7 +1318,7 @@ public final class XContentBuilder implements Closeable, Flushable {
             for (Object v : array) {
                 ensureToXContentable(v);
             }
-        } else if (value instanceof Map<?,?> map) {
+        } else if (value instanceof Map<?, ?> map) {
             for (Map.Entry<?, ?> entry : map.entrySet()) {
                 ensureToXContentable(entry.getKey());
                 ensureToXContentable(entry.getValue());

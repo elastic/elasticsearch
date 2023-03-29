@@ -9,12 +9,14 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -57,6 +59,11 @@ public final class ScriptFieldsPhase implements FetchSubPhase {
                     try {
                         value = leafScripts[i].execute();
                         CollectionUtils.ensureNoSelfReferences(value, "ScriptFieldsPhase leaf script " + i);
+                        // Check that the value returned by the script can be serialized to transport and x-content so that
+                        // later sending the value either to the coordinating node or responding to the user request is
+                        // guaranteed to succeed.
+                        StreamOutput.checkWriteable(value);
+                        XContentBuilder.ensureToXContentable(value);
                     } catch (RuntimeException e) {
                         if (scriptFields.get(i).ignoreException()) {
                             continue;

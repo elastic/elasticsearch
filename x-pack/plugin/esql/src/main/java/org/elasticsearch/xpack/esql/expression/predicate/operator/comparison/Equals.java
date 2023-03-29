@@ -31,7 +31,7 @@ public class Equals {
     }
 
     @Evaluator(extraName = "Bools")
-    static boolean processBools(BytesRef lhs, BytesRef rhs) {
-        return lhs.equals(rhs);
+    static boolean processBools(boolean lhs, boolean rhs) {
+        return lhs == rhs;
     }
 }

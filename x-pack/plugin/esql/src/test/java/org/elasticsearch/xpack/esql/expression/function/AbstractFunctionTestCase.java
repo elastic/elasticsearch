@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function;
 
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
@@ -56,7 +57,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "double", "scaled_float" -> randomDouble();
             case "float" -> randomFloat();
             case "half_float" -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat()));
-            case "keyword" -> randomAlphaOfLength(5);
+            case "keyword" -> new BytesRef(randomAlphaOfLength(5));
             case "time_duration" -> Duration.ofMillis(randomNonNegativeLong());
             case "null" -> null;
             default -> throw new IllegalArgumentException("can't make random values for [" + type.typeName() + "]");

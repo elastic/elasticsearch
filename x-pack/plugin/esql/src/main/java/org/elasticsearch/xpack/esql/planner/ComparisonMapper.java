@@ -129,6 +129,9 @@ abstract class ComparisonMapper<T extends BinaryComparison> extends EvalMapper.E
         if (bc.left().dataType() == DataTypes.BOOLEAN) {
             return () -> bools.apply(leftEval.get(), rightEval.get());
         }
+        if (bc.left().dataType() == DataTypes.DATETIME) {
+            return () -> longs.apply(leftEval.get(), rightEval.get());
+        }
         throw new AssertionError("resolved type for [" + bc + "] but didn't implement mapping");
     }
 

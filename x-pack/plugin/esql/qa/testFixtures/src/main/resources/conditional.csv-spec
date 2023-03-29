@@ -115,24 +115,3 @@ Alejandro         |F
 Amabile           |M
 Anneke            |F
 ;
-
-compareIntToInt
-from test
-| where emp_no < 10002
-| project emp_no;
-
-emp_no:integer
-10001
-;
-
-compareIntToLong
-from test
-| where emp_no > languages.long
-| project emp_no
-| sort emp_no
-| limit 1;
-
-emp_no:integer
-10001
-;
-

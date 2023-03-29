@@ -32,6 +32,6 @@ public class NotEquals {
 
     @Evaluator(extraName = "Bools")
     static boolean processBools(boolean lhs, boolean rhs) {
-        return lhs == rhs;
+        return lhs != rhs;
     }
 }

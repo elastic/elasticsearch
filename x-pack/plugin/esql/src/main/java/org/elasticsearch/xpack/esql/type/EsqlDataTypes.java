@@ -127,7 +127,16 @@ public final class EsqlDataTypes {
      * Supported types that can be contained in a block.
      */
     public static boolean isRepresentable(DataType t) {
-        return t != OBJECT && t != NESTED && t != UNSUPPORTED && t != DATE_PERIOD && t != TIME_DURATION;
+        return t != OBJECT
+            && t != NESTED
+            && t != UNSUPPORTED
+            && t != DATE_PERIOD
+            && t != TIME_DURATION
+            && t != BYTE
+            && t != SHORT
+            && t != FLOAT
+            && t != SCALED_FLOAT
+            && t != HALF_FLOAT;
     }
 
     public static boolean areCompatible(DataType left, DataType right) {

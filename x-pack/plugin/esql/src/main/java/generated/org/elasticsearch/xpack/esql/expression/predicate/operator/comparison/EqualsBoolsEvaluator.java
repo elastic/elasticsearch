@@ -8,7 +8,6 @@ import java.lang.Boolean;
 import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -37,7 +36,7 @@ public final class EqualsBoolsEvaluator implements EvalOperator.ExpressionEvalua
     if (rhsVal == null) {
       return null;
     }
-    return Equals.processBools((BytesRef) lhsVal, (BytesRef) rhsVal);
+    return Equals.processBools((boolean) lhsVal, (boolean) rhsVal);
   }
 
   @Override
@@ -50,7 +49,7 @@ public final class EqualsBoolsEvaluator implements EvalOperator.ExpressionEvalua
     if (rhsVal == null) {
       return null;
     }
-    return Equals.processBools((BytesRef) lhsVal, (BytesRef) rhsVal);
+    return Equals.processBools((boolean) lhsVal, (boolean) rhsVal);
   }
 
   @Override

@@ -55,6 +55,15 @@ public abstract class AbstractComparisonTestCase extends AbstractFunctionTestCas
     protected final Matcher<Object> resultMatcher(List<Object> data) {
         Comparable lhs = (Comparable) data.get(0);
         Comparable rhs = (Comparable) data.get(1);
+        if (lhs instanceof Double || rhs instanceof Double) {
+            return (Matcher<Object>) (Matcher<?>) resultMatcher(((Number) lhs).doubleValue(), ((Number) rhs).doubleValue());
+        }
+        if (lhs instanceof Long || rhs instanceof Long) {
+            return (Matcher<Object>) (Matcher<?>) resultMatcher(((Number) lhs).longValue(), ((Number) rhs).longValue());
+        }
+        if (lhs instanceof Integer || rhs instanceof Integer) {
+            return (Matcher<Object>) (Matcher<?>) resultMatcher(((Number) lhs).intValue(), ((Number) rhs).intValue());
+        }
         return (Matcher<Object>) (Matcher<?>) resultMatcher(lhs, rhs);
     }
 
@@ -69,6 +78,34 @@ public abstract class AbstractComparisonTestCase extends AbstractFunctionTestCas
     }
 
     protected abstract boolean isEquality();
+
+    public final void testCompareAllTypes() {
+        for (DataType lhsType : EsqlDataTypes.types()) {
+            if (EsqlDataTypes.isRepresentable(lhsType) == false || lhsType == DataTypes.NULL) {
+                continue;
+            }
+            Literal lhs = randomLiteral(lhsType);
+            for (DataType rhsType : EsqlDataTypes.types()) {
+                if (EsqlDataTypes.isRepresentable(rhsType) == false || rhsType == DataTypes.NULL) {
+                    continue;
+                }
+                if (isEquality() == false && lhsType == DataTypes.BOOLEAN) {
+                    continue;
+                }
+                if (false == (lhsType == rhsType || lhsType.isNumeric() && rhsType.isNumeric())) {
+                    continue;
+                }
+                Literal rhs = randomLiteral(rhsType);
+                BinaryComparison bc = build(
+                    new Source(Location.EMPTY, lhsType.typeName() + " " + rhsType.typeName()),
+                    field("lhs", lhsType),
+                    field("rhs", rhsType)
+                );
+                Object result = evaluator(bc).get().computeRow(row(List.of(lhs.value(), rhs.value())), 0);
+                assertThat(bc.toString(), result, resultMatcher(List.of(lhs.value(), rhs.value())));
+            }
+        }
+    }
 
     public final void testResolveType() {
         for (DataType lhsType : EsqlDataTypes.types()) {

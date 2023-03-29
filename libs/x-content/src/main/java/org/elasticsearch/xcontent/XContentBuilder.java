@@ -1322,7 +1322,7 @@ public final class XContentBuilder implements Closeable, Flushable {
             for (Map.Entry<?, ?> entry : map.entrySet()) {
                 if (entry.getKey() instanceof String == false) {
                     throw new IllegalArgumentException(
-                        "Cannot write non-String map key [" + entry.getKey().getClass().getCanonicalName() + "] to x-content"
+                        "Cannot write non-String map key [" + entry.getKey().getClass().getName() + "] to x-content"
                     );
                 }
                 ensureToXContentable(entry.getValue());

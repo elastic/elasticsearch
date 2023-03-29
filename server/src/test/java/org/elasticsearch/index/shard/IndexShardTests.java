@@ -108,6 +108,8 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.repositories.IndexId;
@@ -4564,9 +4566,11 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94789")
     public void testShardExposesWriteLoadStats() throws Exception {
-        final IndexShard primary = newStartedShard(true);
+        final IndexShard primary = newStartedShard(
+            true,
+            Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING.getKey(), TimeValue.timeValueHours(1)).build()
+        );
         for (int i = 0; i < 10; i++) {
             indexDoc(primary, "_doc", "primary-" + i);
         }
@@ -4626,6 +4630,18 @@ public class IndexShardTests extends IndexShardTestCase {
         });
         indexingThread.start();
 
+        final var recoveryFinishedLatch = new CountDownLatch(1);
+        final var recoveryListener = new PeerRecoveryTargetService.RecoveryListener() {
+            @Override
+            public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
+                recoveryFinishedLatch.countDown();
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                assert false : "Unexpected failure";
+            }
+        };
         recoverReplica(replicaShard, primary, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, null, null, recoveryListener) {
             @Override
             public void indexTranslogOperations(
@@ -4654,6 +4670,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 );
             }
         }, true, true);
+        recoveryFinishedLatch.await();
 
         fakeClock.setSimulatedElapsedRelativeTime(TimeValue.ZERO);
         final IndexingStats indexingStatsBeforeIndexingDocs = replicaShard.indexingStats();

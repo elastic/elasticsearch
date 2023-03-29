@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -1409,13 +1410,16 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     }
 
     private void getLatestStoredStateAfterWinningAnElection(ActionListener<ClusterState> listener, long joiningTerm) {
-        persistedStateSupplier.get().getLatestStoredState(joiningTerm, listener.delegateResponse((delegate, e) -> {
+        // using a SubscribableListener to stay on the current thread if (and only if) nothing async happened
+        final var latestStoredStateListener = new SubscribableListener<ClusterState>();
+        persistedStateSupplier.get().getLatestStoredState(joiningTerm, latestStoredStateListener);
+        latestStoredStateListener.addListener(listener.delegateResponse((delegate, e) -> {
             synchronized (mutex) {
                 // TODO: add test coverage for this branch
                 becomeCandidate("failed fetching latest stored state");
             }
             delegate.onFailure(e);
-        }));
+        }), transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION), null);
     }
 
     @Nullable

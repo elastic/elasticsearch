@@ -8,6 +8,8 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.ClusterName;
@@ -28,8 +30,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -239,6 +241,9 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     }
 
     static class StoreHeartbeatService implements LeaderHeartbeatService {
+
+        private static final Logger logger = LogManager.getLogger(StoreHeartbeatService.class);
+
         private final SharedStore sharedStore;
         private final ThreadPool threadPool;
         private final TimeValue heartbeatFrequency;
@@ -273,27 +278,43 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             heartbeatTask = null;
         }
 
-        private Optional<DiscoveryNode> isLeaderAlive() {
-            var latestHeartBeat = sharedStore.getLatestHeartbeat();
-            if (latestHeartBeat == null) {
-                return Optional.empty();
-            }
+        void runIfNoRecentLeader(Runnable runnable) {
+            sharedStore.readLatestHeartbeat(new ActionListener<>() {
+                @Override
+                public void onResponse(HeartBeat heartBeat) {
+                    if (heartBeat == null
+                        || maxTimeSinceLastHeartbeat.millis() <= heartBeat.timeSinceLastHeartbeatInMillis(
+                            threadPool.absoluteTimeInMillis()
+                        )) {
+                        runnable.run();
+                    } else {
+                        logger.trace("runIfNoRecentLeader: found recent leader");
+                    }
+                }
 
-            if (maxTimeSinceLastHeartbeat.millis() > latestHeartBeat.timeSinceLastHeartbeatInMillis(threadPool.absoluteTimeInMillis())) {
-                return Optional.of(latestHeartBeat.leader());
-            } else {
-                return Optional.empty();
-            }
+                @Override
+                public void onFailure(Exception e) {
+                    logger.trace("runIfNoRecentLeader: readLatestHeartbeat failed", e);
+                }
+            });
         }
 
         private class HeartbeatTask extends ActionRunnable<Long> {
             private final DiscoveryNode currentLeader;
             private final long heartbeatTerm;
+            private final ActionListener<Void> rerunListener;
 
             HeartbeatTask(DiscoveryNode currentLeader, long heartbeatTerm, ActionListener<Long> listener) {
                 super(listener);
                 this.currentLeader = currentLeader;
                 this.heartbeatTerm = heartbeatTerm;
+                this.rerunListener = listener.delegateFailure((l, v) -> {
+                    try {
+                        threadPool.schedule(HeartbeatTask.this, heartbeatFrequency, ThreadPool.Names.GENERIC);
+                    } catch (Exception e) {
+                        l.onFailure(e);
+                    }
+                });
             }
 
             @Override
@@ -305,10 +326,10 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
                 final var registerTerm = register.readCurrentTerm();
                 if (registerTerm == heartbeatTerm) {
-                    ActionListener.run(listener, l -> {
-                        sharedStore.writeHeartBeat(new HeartBeat(currentLeader, heartbeatTerm, threadPool.absoluteTimeInMillis()));
-                        threadPool.schedule(HeartbeatTask.this, heartbeatFrequency, ThreadPool.Names.GENERIC);
-                    });
+                    sharedStore.writeHeartBeat(
+                        new HeartBeat(currentLeader, heartbeatTerm, threadPool.absoluteTimeInMillis()),
+                        rerunListener
+                    );
                 } else {
                     assert heartbeatTerm < registerTerm;
                     listener.onResponse(registerTerm);
@@ -545,22 +566,25 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             );
         }
 
-        PersistentClusterState getClusterStateForTerm(long termGoal) {
-            for (long term = termGoal; term > 0; term--) {
-                var persistedState = clusterStateByTerm.get(term);
-                if (persistedState != null) {
-                    return persistedState;
+        void getClusterStateForTerm(long termGoal, ActionListener<PersistentClusterState> listener) {
+            ActionListener.completeWith(listener, () -> {
+                for (long term = termGoal; term > 0; term--) {
+                    var persistedState = clusterStateByTerm.get(term);
+                    if (persistedState != null) {
+                        return persistedState;
+                    }
                 }
-            }
-            return null;
+                return null;
+            });
         }
 
-        void writeHeartBeat(HeartBeat newHeartBeat) {
+        void writeHeartBeat(HeartBeat newHeartBeat, ActionListener<Void> listener) {
             this.heartBeat = newHeartBeat;
+            listener.onResponse(null);
         }
 
-        HeartBeat getLatestHeartbeat() {
-            return heartBeat;
+        void readLatestHeartbeat(ActionListener<HeartBeat> listener) {
+            listener.onResponse(heartBeat);
         }
     }
 
@@ -591,12 +615,14 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
         @Override
         public Releasable start(ClusterState clusterState, Iterable<DiscoveryNode> broadcastNodes) {
-            var currentLeader = heartbeatService.isLeaderAlive();
-            if (currentLeader.isEmpty()) {
-                startElection.run();
-            }
+            final var shouldRun = new AtomicBoolean(true);
+            heartbeatService.runIfNoRecentLeader(() -> {
+                if (shouldRun.getAndSet(false)) {
+                    startElection.run();
+                }
+            });
 
-            return () -> {};
+            return () -> shouldRun.set(false);
         }
     }
 
@@ -651,8 +677,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
         @Override
         public void getLatestStoredState(long term, ActionListener<ClusterState> listener) {
-            ActionListener.completeWith(listener, () -> {
-                var latestClusterState = sharedStore.getClusterStateForTerm(term - 1);
+            sharedStore.getClusterStateForTerm(term - 1, listener.map(latestClusterState -> {
                 if (latestClusterState == null) {
                     return null;
                 }
@@ -686,7 +711,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                             .build()
                     )
                 );
-            });
+            }));
         }
 
         boolean isLatestAcceptedStateStale(PersistentClusterState latestClusterState) {

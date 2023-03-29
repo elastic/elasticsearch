@@ -114,7 +114,7 @@ public class RRFRankScriptTests extends ESIntegTestCase {
 
     public void testBM25AndKnnWithScriptedMetricAggregation() {
         float[] queryVector = { 500.0f };
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null);
         SearchResponse response = client().prepareSearch("nrd_index")
             .setRankContextBuilder(new RRFRankContextBuilder().windowSize(101).rankConstant(1))
             .setTrackTotalHits(true)
@@ -187,8 +187,8 @@ public class RRFRankScriptTests extends ESIntegTestCase {
     public void testMultipleOnlyKnnWithAggregation() {
         float[] queryVectorAsc = { 500.0f };
         float[] queryVectorDesc = { 500.0f };
-        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001);
-        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001);
+        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null);
+        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null);
         SearchResponse response = client().prepareSearch("nrd_index")
             .setRankContextBuilder(new RRFRankContextBuilder().windowSize(51).rankConstant(1))
             .setTrackTotalHits(false)
@@ -271,8 +271,8 @@ public class RRFRankScriptTests extends ESIntegTestCase {
     public void testBM25AndMultipleKnnWithAggregation() {
         float[] queryVectorAsc = { 500.0f };
         float[] queryVectorDesc = { 500.0f };
-        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001);
-        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001);
+        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null);
+        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null);
         SearchResponse response = client().prepareSearch("nrd_index")
             .setRankContextBuilder(new RRFRankContextBuilder().windowSize(51).rankConstant(1))
             .setTrackTotalHits(true)

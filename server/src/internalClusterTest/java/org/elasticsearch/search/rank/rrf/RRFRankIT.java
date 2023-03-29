@@ -130,7 +130,7 @@ public class RRFRankIT extends ESIntegTestCase {
 
     public void testTotalDocsSmallerThanSize() {
         float[] queryVector = { 0.0f };
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 3, 3);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 3, 3, null);
         SearchResponse response = client().prepareSearch("tiny_index")
             .setRankContextBuilder(new RRFRankContextBuilder().windowSize(100).rankConstant(1))
             .setKnnSearch(List.of(knnSearch))
@@ -161,7 +161,7 @@ public class RRFRankIT extends ESIntegTestCase {
 
     public void testBM25AndKnn() {
         float[] queryVector = { 500.0f };
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null);
         SearchResponse response = client().prepareSearch("nrd_index")
             .setRankContextBuilder(new RRFRankContextBuilder().windowSize(101).rankConstant(1))
             .setTrackTotalHits(false)
@@ -201,8 +201,8 @@ public class RRFRankIT extends ESIntegTestCase {
     public void testMultipleOnlyKnn() {
         float[] queryVectorAsc = { 500.0f };
         float[] queryVectorDesc = { 500.0f };
-        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001);
-        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001);
+        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null);
+        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null);
         SearchResponse response = client().prepareSearch("nrd_index")
             .setRankContextBuilder(new RRFRankContextBuilder().windowSize(51).rankConstant(1))
             .setTrackTotalHits(true)
@@ -252,8 +252,8 @@ public class RRFRankIT extends ESIntegTestCase {
     public void testBM25AndMultipleKnn() {
         float[] queryVectorAsc = { 500.0f };
         float[] queryVectorDesc = { 500.0f };
-        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001);
-        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001);
+        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null);
+        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null);
         SearchResponse response = client().prepareSearch("nrd_index")
             .setRankContextBuilder(new RRFRankContextBuilder().windowSize(51).rankConstant(1))
             .setTrackTotalHits(false)
@@ -323,7 +323,7 @@ public class RRFRankIT extends ESIntegTestCase {
 
     public void testBM25AndKnnWithBucketAggregation() {
         float[] queryVector = { 500.0f };
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null);
         SearchResponse response = client().prepareSearch("nrd_index")
             .setRankContextBuilder(new RRFRankContextBuilder().windowSize(101).rankConstant(1))
             .setTrackTotalHits(true)
@@ -379,8 +379,8 @@ public class RRFRankIT extends ESIntegTestCase {
     public void testMultipleOnlyKnnWithAggregation() {
         float[] queryVectorAsc = { 500.0f };
         float[] queryVectorDesc = { 500.0f };
-        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001);
-        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001);
+        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null);
+        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null);
         SearchResponse response = client().prepareSearch("nrd_index")
             .setRankContextBuilder(new RRFRankContextBuilder().windowSize(51).rankConstant(1))
             .setTrackTotalHits(false)
@@ -446,8 +446,8 @@ public class RRFRankIT extends ESIntegTestCase {
     public void testBM25AndMultipleKnnWithAggregation() {
         float[] queryVectorAsc = { 500.0f };
         float[] queryVectorDesc = { 500.0f };
-        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001);
-        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001);
+        KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null);
+        KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null);
         SearchResponse response = client().prepareSearch("nrd_index")
             .setRankContextBuilder(new RRFRankContextBuilder().windowSize(51).rankConstant(1))
             .setTrackTotalHits(true)

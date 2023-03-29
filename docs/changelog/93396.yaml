@@ -48,4 +48,4 @@ highlight:
     Currently the API does not support multiple BM25 queries, but there is a
     natural extension point using a similar pattern to multiple kNN queries.
 
-notable: true
+  notable: true

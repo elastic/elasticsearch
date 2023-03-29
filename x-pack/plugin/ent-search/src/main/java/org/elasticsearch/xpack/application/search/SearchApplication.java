@@ -44,8 +44,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  *     <li>A name identifier</li>
  *     <li>A list of indices, which will be used for querying</li>
  *     <li>An {@link org.elasticsearch.xpack.application.analytics.AnalyticsCollection} identifier, where analytics will be stored</li>
- *     <li>A {@link SearchApplicationTemplate} that contains the template and default parameters used for querying the Searh Application</li>
- * /ul>
+ *     <li>A {@link SearchApplicationTemplate} that contains the template and default parameters used for querying
+ *     the Search Application</li>
+ * </ul>
  */
 public class SearchApplication implements Writeable, ToXContentObject {
 

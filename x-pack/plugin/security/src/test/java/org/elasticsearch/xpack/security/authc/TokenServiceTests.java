@@ -63,7 +63,6 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.XContentTestUtils;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
@@ -125,8 +124,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@TestLogging(reason = "debug test", value = "org.elasticsearch.xpack.security.authc.TokenService:TRACE")
-public class TokenServiceTests extends ESTestCase {
+ public class TokenServiceTests extends ESTestCase {
 
     private static ThreadPool threadPool;
     private static final Settings settings = Settings.builder()
@@ -912,7 +910,6 @@ public class TokenServiceTests extends ESTestCase {
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
             GetResponse response = mock(GetResponse.class);
 
-            logger.info("handling mock GetRequest [{}], possibly for token id [{}]", request, userToken.getId());
             if (userToken.getId().equals(request.id().replace("token_", ""))) {
                 when(response.isExists()).thenReturn(true);
 
@@ -940,7 +937,6 @@ public class TokenServiceTests extends ESTestCase {
         final TransportVersion transportVersion = refreshToken.version();
         if (transportVersion.onOrAfter(TransportVersion.V_8_8_0)) {
             assertThat(refreshToken.accessTokenId(), equalTo(userToken.getId()));
-            logger.info("Setting up mock user token [{}] for refresh token [{}]", userToken.getId(), refreshToken);
             if (refreshTokenStatus == null) {
                 refreshTokenStatus = newRefreshTokenStatus(
                     false,

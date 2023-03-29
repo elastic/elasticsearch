@@ -89,6 +89,8 @@ public class SearchApplication implements Writeable, ToXContentObject {
 
         Objects.requireNonNull(indices, "Search Application indices cannot be null");
         this.indices = Arrays.copyOf(indices, indices.length);
+        // Indices are sorted for equality between Search Applications with the same indices
+        Arrays.sort(this.indices);
 
         this.analyticsCollectionName = analyticsCollectionName;
         this.updatedAtMillis = updatedAtMillis;

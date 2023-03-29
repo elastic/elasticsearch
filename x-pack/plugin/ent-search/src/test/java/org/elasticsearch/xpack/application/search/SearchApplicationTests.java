@@ -101,7 +101,7 @@ public class SearchApplicationTests extends ESTestCase {
         SearchApplication app = SearchApplication.fromXContentBytes("my_search_app", new BytesArray(content), XContentType.JSON);
         SearchApplication updatedApp = app.merge(new BytesArray(update), XContentType.JSON, BigArrays.NON_RECYCLING_INSTANCE);
         assertNotSame(app, updatedApp);
-        assertThat(updatedApp.indices(), equalTo(new String[] { "my_index_2", "my_index" }));
+        assertThat(updatedApp.indices(), equalTo(new String[] { "my_index", "my_index_2" }));
         assertThat(updatedApp.analyticsCollectionName(), equalTo("my_search_app_analytics"));
         assertThat(updatedApp.updatedAtMillis(), equalTo(12345L));
     }

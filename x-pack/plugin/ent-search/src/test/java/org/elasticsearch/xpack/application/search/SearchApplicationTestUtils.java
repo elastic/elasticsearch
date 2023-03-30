@@ -58,7 +58,22 @@ public final class SearchApplicationTestUtils {
             }
             """, paramName);
         final Script script = new Script(ScriptType.INLINE, "mustache", query, Collections.singletonMap(paramName, paramValue));
-        return new SearchApplicationTemplate(script);
+        String paramValidationSource = String.format(Locale.ROOT, """
+            {
+              "definitions": {},
+              "$schema": "http://json-schema.org/draft-07/schema",
+              "$id": "http://yourdomain.com/schemas/myschema.json",
+              "description": "schema definition for param validation",
+              "additionalProperties": false,
+              "title": "Root",
+              "type": "object",
+              "properties": {
+                "%s": "string"
+               }
+            }
+            """, paramName);
+        final TemplateParamValidator templateParamValidator = new TemplateParamValidator(paramValidationSource);
+        return new SearchApplicationTemplate(script, templateParamValidator);
     }
 
     public static Map<String, Object> randomSearchApplicationQueryParams() {

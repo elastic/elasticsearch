@@ -72,12 +72,17 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
             .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
                 if (API_KEY_MAP_REF.get() == null) {
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey(Strings.format("""
-                        [
-                          {
-                             "names": ["%s"],
-                             "privileges": ["read", "read_cross_cluster"]
+                        {
+                          "role": {
+                            "cluster": ["cross_cluster_access"],
+                            "index": [
+                              {
+                                  "names": ["%s"],
+                                  "privileges": ["read", "read_cross_cluster"]
+                              }
+                            ]
                           }
-                        ]""", REMOTE_INDEX_NAME));
+                        }""", REMOTE_INDEX_NAME));
                     API_KEY_MAP_REF.set(apiKeyMap);
                 }
                 return (String) API_KEY_MAP_REF.get().get("encoded");

@@ -373,8 +373,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             t.onlyIf(t3 -> distribution.getArchitecture() == Architecture.current());
             t.getOutputs().doNotCacheIf("Build cache is disabled for packaging tests", Specs.satisfyAll());
             t.setMaxParallelForks(1);
-            SourceSet testSourceSet = project.getExtensions().getByType(JavaPluginExtension.class)
-                    .getSourceSets().getByName("test");
+            SourceSet testSourceSet = project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets().getByName("test");
             t.setClasspath(testSourceSet.getRuntimeClasspath());
             t.setTestClassesDirs(testSourceSet.getOutput().getClassesDirs());
             t.setWorkingDir(project.getProjectDir());

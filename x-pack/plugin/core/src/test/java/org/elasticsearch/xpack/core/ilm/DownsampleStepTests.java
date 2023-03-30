@@ -39,7 +39,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
-        return new DownsampleStep(stepKey, nextStepKey, client, fixedInterval);
+        return new DownsampleStep(stepKey, nextStepKey, null, client, fixedInterval);
     }
 
     @Override
@@ -55,12 +55,12 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new DownsampleStep(key, nextKey, instance.getClient(), fixedInterval);
+        return new DownsampleStep(key, nextKey, null, instance.getClient(), fixedInterval);
     }
 
     @Override
     public DownsampleStep copyInstance(DownsampleStep instance) {
-        return new DownsampleStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getFixedInterval());
+        return new DownsampleStep(instance.getKey(), instance.getNextStepKey(), null, instance.getClient(), instance.getFixedInterval());
     }
 
     private IndexMetadata getIndexMetadata(String index, String lifecycleName, DownsampleStep step) {

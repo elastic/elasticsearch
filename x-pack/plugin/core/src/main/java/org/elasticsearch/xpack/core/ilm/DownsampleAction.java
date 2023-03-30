@@ -140,7 +140,13 @@ public class DownsampleAction implements LifecycleAction {
         );
 
         // Here is where the actual rollup action takes place
-        DownsampleStep rollupStep = new DownsampleStep(rollupKey, waitForRollupIndexKey, client, fixedInterval);
+        DownsampleStep rollupStep = new DownsampleStep(
+            rollupKey,
+            waitForRollupIndexKey,
+            generateRollupIndexNameStep.getKey(),
+            client,
+            fixedInterval
+        );
 
         // Wait until the downsampled index is recovered. We again wait until the configured threshold is breached and
         // if the downsampled index has not successfully recovered until then, we rewind to the "cleanup-rollup-index"

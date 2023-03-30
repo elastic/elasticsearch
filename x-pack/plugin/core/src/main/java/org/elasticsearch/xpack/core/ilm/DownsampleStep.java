@@ -8,20 +8,26 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
 import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 
 import java.util.Objects;
+
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
 /**
  * ILM step that invokes the downsample action for an index using a {@link DateHistogramInterval}. The downsample
@@ -36,8 +42,11 @@ public class DownsampleStep extends AsyncActionStep {
 
     private final DateHistogramInterval fixedInterval;
 
-    public DownsampleStep(StepKey key, StepKey nextStepKey, Client client, DateHistogramInterval fixedInterval) {
+    private final StepKey failureStep;
+
+    public DownsampleStep(StepKey key, StepKey nextStepKey, StepKey failureStep, Client client, DateHistogramInterval fixedInterval) {
         super(key, nextStepKey, client);
+        this.failureStep = failureStep;
         this.fixedInterval = fixedInterval;
     }
 
@@ -94,6 +103,19 @@ public class DownsampleStep extends AsyncActionStep {
                     policyName,
                     downsampleIndexName
                 );
+
+                // On failure we must rewind ILM so that it executes GenerateUniqueIndexNameStep again
+                // so that a new downsample index will be created. On the other hand, this means that
+                // garbage indices may be left from this process. We will try to cleanup here, but it
+                // is not guaranteed 100%
+                if (failureStep != null) {
+                    LifecycleExecutionState.Builder newLifecycleState = LifecycleExecutionState.builder(lifecycleState);
+                    newLifecycleState.setStep(failureStep.name());
+                    // newLifecycleState.setFailedStep(failureStep.name());
+
+                    IndexMetadata.builder(indexMetadata).putCustom(ILM_CUSTOM_METADATA_KEY, newLifecycleState.build().asMap()).build();
+                }
+
                 // Rollup index has already been created with the generated name but its status is not "success".
                 // So we delete the index and proceed with executing the rollup step.
                 DeleteIndexRequest deleteRequest = new DeleteIndexRequest(downsampleIndexName);
@@ -119,10 +141,9 @@ public class DownsampleStep extends AsyncActionStep {
                     }
                 }, listener::onFailure));
             }
-            return;
+        } else {
+            performDownsampleIndex(indexName, downsampleIndexName, listener);
         }
-
-        performDownsampleIndex(indexName, downsampleIndexName, listener);
     }
 
     private void performDownsampleIndex(String indexName, String rollupIndexName, ActionListener<Void> listener) {

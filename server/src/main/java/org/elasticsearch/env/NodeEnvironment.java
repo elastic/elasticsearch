@@ -1308,7 +1308,7 @@ public final class NodeEnvironment implements Closeable {
             try {
                 Files.deleteIfExists(src);
                 Files.createFile(src);
-                Files.move(src, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                Files.move(src, target, StandardCopyOption.ATOMIC_MOVE);
             } catch (AtomicMoveNotSupportedException ex) {
                 throw new IllegalStateException(
                     "atomic_move is not supported by the filesystem on path ["

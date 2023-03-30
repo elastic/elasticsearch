@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ssl;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
@@ -18,10 +19,8 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.io.IOException;
 import java.net.SocketException;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 
@@ -129,11 +128,7 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
             logger.trace("expected exception", expected);
         }
         // Copy testnode_updated.crt to the placeholder updateable.crt so that the nodes will start trusting it now
-        try {
-            Files.move(certPath, updateableCertPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (AtomicMoveNotSupportedException e) {
-            Files.move(certPath, updateableCertPath, StandardCopyOption.REPLACE_EXISTING);
-        }
+        FileSystemUtils.moveAtomicIfSupported(certPath, updateableCertPath);
         CountDownLatch latch = new CountDownLatch(1);
         assertBusy(() -> {
             try (SSLSocket socket = (SSLSocket) sslSocketFactory.createSocket(address.getAddress(), address.getPort())) {

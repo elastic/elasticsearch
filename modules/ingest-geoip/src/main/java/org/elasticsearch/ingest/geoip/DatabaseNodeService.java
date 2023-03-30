@@ -367,7 +367,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
                 }
 
                 LOGGER.debug("moving database from [{}] to [{}]", databaseTmpFile, databaseFile);
-                Files.move(databaseTmpFile, databaseFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                Files.move(databaseTmpFile, databaseFile, StandardCopyOption.ATOMIC_MOVE);
                 updateDatabase(databaseName, recordedMd5, databaseFile);
                 Files.delete(databaseTmpGzFile);
             },

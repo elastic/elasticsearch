@@ -584,13 +584,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             // restore keystore to revert possible keystore bootstrap
             try {
                 if (Files.exists(keystoreBackupPath)) {
-                    Files.move(
-                        keystoreBackupPath,
-                        keystorePath,
-                        StandardCopyOption.REPLACE_EXISTING,
-                        StandardCopyOption.ATOMIC_MOVE,
-                        StandardCopyOption.COPY_ATTRIBUTES
-                    );
+                    Files.move(keystoreBackupPath, keystorePath, StandardCopyOption.ATOMIC_MOVE);
                 } else {
                     Files.deleteIfExists(keystorePath);
                 }
@@ -631,13 +625,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             // restore keystore to revert possible keystore bootstrap
             try {
                 if (Files.exists(keystoreBackupPath)) {
-                    Files.move(
-                        keystoreBackupPath,
-                        keystorePath,
-                        StandardCopyOption.REPLACE_EXISTING,
-                        StandardCopyOption.ATOMIC_MOVE,
-                        StandardCopyOption.COPY_ATTRIBUTES
-                    );
+                    Files.move(keystoreBackupPath, keystorePath, StandardCopyOption.ATOMIC_MOVE);
                 } else {
                     Files.deleteIfExists(keystorePath);
                 }
@@ -815,7 +803,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         } catch (Throwable t) {
             try {
                 if (Files.exists(keystoreBackupPath)) {
-                    Files.move(keystoreBackupPath, keystorePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+                    Files.move(keystoreBackupPath, keystorePath, StandardCopyOption.ATOMIC_MOVE);
                 } else {
                     // this removes a statically named file, so it is potentially dangerous
                     Files.deleteIfExists(keystorePath);
@@ -1123,12 +1111,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     view.setGroup(groupPrincipal);
                 }
             }
-            if (replace) {
-                Files.move(tmpPath, filePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } else {
-                Files.move(tmpPath, filePath, StandardCopyOption.ATOMIC_MOVE);
-            }
-
+            Files.move(tmpPath, filePath, StandardCopyOption.ATOMIC_MOVE);
         } finally {
             Files.deleteIfExists(tmpPath);
         }

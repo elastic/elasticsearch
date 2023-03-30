@@ -12,6 +12,7 @@ import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;
@@ -34,7 +35,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -44,8 +44,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
-import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.nio.file.StandardOpenOption.WRITE;
@@ -255,12 +253,7 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
             try (OutputStream os = Files.newOutputStream(tempFile, CREATE, TRUNCATE_EXISTING, WRITE)) {
                 Streams.copy(content, os);
             }
-
-            try {
-                Files.move(tempFile, path, REPLACE_EXISTING, ATOMIC_MOVE);
-            } catch (final AtomicMoveNotSupportedException e) {
-                Files.move(tempFile, path, REPLACE_EXISTING);
-            }
+            FileSystemUtils.moveAtomicIfSupported(tempFile, path);
         } catch (final IOException e) {
             throw new UncheckedIOException(Strings.format("could not write file [%s]", path.toAbsolutePath()), e);
         } finally {

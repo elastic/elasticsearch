@@ -172,7 +172,7 @@ public class FsBlobContainerTests extends ESTestCase {
         this.fileSystem = new FilterFileSystemProvider("nooverwritefs://", fileSystem) {
             @Override
             public void move(Path source, Path target, CopyOption... options) throws IOException {
-                if (Set.of(options).contains(StandardCopyOption.ATOMIC_MOVE) && Files.exists(target)) {
+                if (options.length == 1 && options[0] == StandardCopyOption.ATOMIC_MOVE && Files.exists(target)) {
                     // simulate a file system that can't do atomic move + overwrite
                     throw new IOException("no atomic overwrite moves");
                 } else {

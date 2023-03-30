@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ssl;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.ssl.SslConfiguration;
@@ -28,7 +29,6 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.PrivateKey;
@@ -42,8 +42,6 @@ import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 
-import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
-import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.is;
 
@@ -149,11 +147,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     private void writeRestrictions(String trustedPattern) {
         try {
             Files.write(restrictionsTmpPath, Collections.singleton("trust.subject_name: \"" + trustedPattern + "\""));
-            try {
-                Files.move(restrictionsTmpPath, restrictionsPath, REPLACE_EXISTING, ATOMIC_MOVE);
-            } catch (final AtomicMoveNotSupportedException e) {
-                Files.move(restrictionsTmpPath, restrictionsPath, REPLACE_EXISTING);
-            }
+            FileSystemUtils.moveAtomicIfSupported(restrictionsTmpPath, restrictionsPath);
         } catch (IOException e) {
             throw new ElasticsearchException("failed to write restrictions", e);
         }

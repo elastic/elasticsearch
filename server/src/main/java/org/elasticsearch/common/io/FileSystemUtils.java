@@ -17,10 +17,14 @@ import org.elasticsearch.core.SuppressForbidden;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.stream.StreamSupport;
+
+import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 /**
  * Elasticsearch utils to work with {@link java.nio.file.Path}
@@ -163,6 +167,21 @@ public final class FileSystemUtils {
 
     private static Path[] toArray(DirectoryStream<Path> stream) {
         return StreamSupport.stream(stream.spliterator(), false).toArray(length -> new Path[length]);
+    }
+
+    /**
+     * Moves a file from {@code source} to {@code target} using {@link java.nio.file.StandardCopyOption#ATOMIC_MOVE} if supported and falls
+     * back to a non-atomic move with flag {@link java.nio.file.StandardCopyOption#REPLACE_EXISTING} otherwise.
+     * @param source source path
+     * @param target target path
+     * @throws IOException on failure
+     */
+    public static void moveAtomicIfSupported(Path source, Path target) throws IOException {
+        try {
+            Files.move(source, target, ATOMIC_MOVE);
+        } catch (final AtomicMoveNotSupportedException e) {
+            Files.move(source, target, REPLACE_EXISTING);
+        }
     }
 
 }

@@ -25,6 +25,7 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.ManagedHttpClientConnectionFactory;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.ssl.SSLContextBuilder;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
@@ -47,10 +48,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.Socket;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.security.AccessControlException;
 import java.security.AccessController;
@@ -141,7 +140,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
 
             final Runnable modifier = () -> {
                 try {
-                    atomicMoveIfPossible(updatedKeystorePath, keystorePath);
+                    FileSystemUtils.moveAtomicIfSupported(updatedKeystorePath, keystorePath);
                 } catch (Exception e) {
                     throw new RuntimeException("modification failed", e);
                 }
@@ -203,8 +202,8 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             };
             final Runnable modifier = () -> {
                 try {
-                    atomicMoveIfPossible(updatedKeyPath, keyPath);
-                    atomicMoveIfPossible(updatedCertPath, certPath);
+                    FileSystemUtils.moveAtomicIfSupported(updatedKeyPath, keyPath);
+                    FileSystemUtils.moveAtomicIfSupported(updatedCertPath, certPath);
                 } catch (Exception e) {
                     throw new RuntimeException("failed to modify file", e);
                 }
@@ -258,7 +257,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
 
             final Runnable modifier = () -> {
                 try {
-                    atomicMoveIfPossible(updatedTruststorePath, trustStorePath);
+                    FileSystemUtils.moveAtomicIfSupported(updatedTruststorePath, trustStorePath);
                 } catch (Exception e) {
                     throw new RuntimeException("failed to modify file", e);
                 }
@@ -309,7 +308,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
 
             final Runnable modifier = () -> {
                 try {
-                    atomicMoveIfPossible(updatedCertPath, serverCertPath);
+                    FileSystemUtils.moveAtomicIfSupported(updatedCertPath, serverCertPath);
                 } catch (Exception e) {
                     throw new RuntimeException("failed to modify file", e);
                 }
@@ -506,7 +505,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         try (OutputStream os = Files.newOutputStream(updatedCert)) {
             os.write(randomByte());
         }
-        atomicMoveIfPossible(updatedCert, clientCertPath);
+        FileSystemUtils.moveAtomicIfSupported(updatedCert, clientCertPath);
 
         latch.await();
         assertNotNull(exceptionRef.get());
@@ -583,14 +582,6 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         reloadLatch.await();
         // checks after reload
         postChecks.accept(sslService.sslContextHolder(config).sslContext());
-    }
-
-    private static void atomicMoveIfPossible(Path source, Path target) throws IOException {
-        try {
-            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (AtomicMoveNotSupportedException e) {
-            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
-        }
     }
 
     private static MockWebServer getSslServer(Path keyStorePath, String keyStorePass) throws KeyStoreException, CertificateException,

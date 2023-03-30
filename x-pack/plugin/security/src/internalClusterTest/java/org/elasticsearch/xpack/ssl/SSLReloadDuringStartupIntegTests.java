@@ -196,7 +196,7 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
         LOGGER.trace("Created temporary file [{}]", tmp);
         Files.copy(source, tmp, StandardCopyOption.REPLACE_EXISTING);
         try {
-            Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE);
             LOGGER.debug("Atomic move succeeded from [{}] to [{}]", tmp, target);
         } catch (AtomicMoveNotSupportedException e) {
             Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);

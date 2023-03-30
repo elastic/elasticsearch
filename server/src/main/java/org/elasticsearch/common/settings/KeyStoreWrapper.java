@@ -511,7 +511,7 @@ public class KeyStoreWrapper implements SecureSettings {
         }
 
         try {
-            Files.move(keystoreTempFile, keystoreFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            Files.move(keystoreTempFile, keystoreFile, StandardCopyOption.ATOMIC_MOVE);
         } catch (Exception e) {
             try {
                 Files.deleteIfExists(keystoreTempFile);

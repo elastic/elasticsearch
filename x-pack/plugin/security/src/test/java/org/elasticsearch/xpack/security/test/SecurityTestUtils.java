@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySou
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.Index;
@@ -25,13 +26,10 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
 
-import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
-import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.nio.file.StandardOpenOption.WRITE;
@@ -49,11 +47,7 @@ public class SecurityTestUtils {
                 Streams.copy(content, os);
             }
 
-            try {
-                Files.move(tempFile, path, REPLACE_EXISTING, ATOMIC_MOVE);
-            } catch (final AtomicMoveNotSupportedException e) {
-                Files.move(tempFile, path, REPLACE_EXISTING);
-            }
+            FileSystemUtils.moveAtomicIfSupported(tempFile, path);
         } catch (final IOException e) {
             throw new UncheckedIOException(String.format(Locale.ROOT, "could not write file [%s]", path.toAbsolutePath()), e);
         } finally {

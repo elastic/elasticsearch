@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.support;
 
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 
@@ -13,7 +14,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFileAttributeView;
@@ -22,8 +22,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
-import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
-import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.nio.file.StandardOpenOption.WRITE;
@@ -62,12 +60,7 @@ public class SecurityFiles {
                     setPosixAttributesOnTempFile(path, tempFile);
                 }
             }
-
-            try {
-                Files.move(tempFile, path, REPLACE_EXISTING, ATOMIC_MOVE);
-            } catch (final AtomicMoveNotSupportedException e) {
-                Files.move(tempFile, path, REPLACE_EXISTING);
-            }
+            FileSystemUtils.moveAtomicIfSupported(tempFile, path);
         } catch (final IOException e) {
             throw new UncheckedIOException(String.format(Locale.ROOT, "could not write file [%s]", path.toAbsolutePath()), e);
         } finally {

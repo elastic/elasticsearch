@@ -161,7 +161,6 @@ public abstract class AbstractRemoteClusterSecurityWithMultipleRemotesRestIT ext
                 // 403 from other cluster is skipped, so we get a result
                 searchAndAssertIndicesFound(searchPath1, "cluster1_index1");
             } else {
-                // Unauthorized access on either of the remotes fails the whole request
                 searchAndExpect403(searchPath1);
             }
 

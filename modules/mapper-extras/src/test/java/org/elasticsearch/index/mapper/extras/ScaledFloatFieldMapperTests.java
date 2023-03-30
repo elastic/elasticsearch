@@ -37,6 +37,7 @@ import java.util.List;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -93,9 +94,9 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", 123)));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertEquals("LongField <field:1230>", fields[0].toString());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertEquals("LongField <field:1230>", fields.get(0).toString());
     }
 
     public void testMissingScalingFactor() {
@@ -127,9 +128,9 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             )
         );
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        IndexableField dvField = fields[0];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        IndexableField dvField = fields.get(0);
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
         assertEquals(1230, dvField.numericValue().longValue());
     }
@@ -147,9 +148,9 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             )
         );
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        IndexableField pointField = fields[0];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        IndexableField pointField = fields.get(0);
         assertEquals(1, pointField.fieldType().pointDimensionCount());
         assertEquals(1230, pointField.numericValue().longValue());
     }
@@ -167,10 +168,10 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             )
         );
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        assertEquals("LongField <field:1230>", fields[0].toString());
-        IndexableField storedField = fields[1];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertEquals("LongField <field:1230>", fields.get(0).toString());
+        IndexableField storedField = fields.get(1);
         assertTrue(storedField.fieldType().stored());
         assertEquals(1230, storedField.numericValue().longValue());
     }
@@ -184,9 +185,9 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
                 XContentType.JSON
             )
         );
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertEquals("LongField <field:1230>", fields[0].toString());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertEquals("LongField <field:1230>", fields.get(0).toString());
 
         DocumentMapper mapper2 = createDocumentMapper(
             fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", 10.0).field("coerce", false))
@@ -226,7 +227,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
                 XContentType.JSON
             )
         );
-        assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
+        assertThat(doc.rootDoc().getFields("field"), empty());
 
         mapper = createDocumentMapper(
             fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", 10.0).field("null_value", 2.5))
@@ -238,9 +239,9 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
                 XContentType.JSON
             )
         );
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertEquals("LongField <field:25>", fields[0].toString());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertEquals("LongField <field:25>", fields.get(0).toString());
     }
 
     /**

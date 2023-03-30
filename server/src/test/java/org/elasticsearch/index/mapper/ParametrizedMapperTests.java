@@ -30,7 +30,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
@@ -240,7 +239,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
     private static TestMapper fromMapping(String mapping, Version version, boolean fromDynamicTemplate) {
         MapperService mapperService = mock(MapperService.class);
-        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
+        IndexAnalyzers indexAnalyzers = IndexAnalyzers.of(
             Map.of(
                 "_standard",
                 Lucene.STANDARD_ANALYZER,
@@ -248,9 +247,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 Lucene.KEYWORD_ANALYZER,
                 "default",
                 new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())
-            ),
-            Collections.emptyMap(),
-            Collections.emptyMap()
+            )
         );
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         IndexSettings indexSettings = createIndexSettings(version, Settings.EMPTY);

@@ -342,7 +342,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         // Perform a request to invalidate a refresh token, before the tokens index is created
         var version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_7_2_0, TransportVersion.CURRENT);
         var uuid = UUIDs.randomBase64UUID();
-        var refreshToken = version.onOrAfter(TransportVersion.V_8_8_0) ? getTokenService().buildRefreshToken(uuid) : uuid;
+        var refreshToken = getTokenService().buildRefreshToken(uuid, version);
         ResponseException e = expectThrows(
             ResponseException.class,
             () -> invalidateRefreshToken(TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.V_8_7_0, refreshToken))

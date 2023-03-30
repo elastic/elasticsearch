@@ -248,15 +248,19 @@ public final class TokenService {
         final SecurityIndexManager tokensIndex = getTokensIndexForVersion(tokenVersion);
         // the id of the created tokens ought be unguessable
         final String accessToken = UUIDs.randomBase64UUID();
-        final String refreshToken = includeRefreshToken ? buildRefreshToken(accessToken) : null;
+        final String refreshToken = includeRefreshToken ? buildRefreshToken(accessToken, tokenVersion) : null;
         createOAuth2Tokens(accessToken, refreshToken, tokenVersion, tokensIndex, authentication, originatingClientAuth, metadata, listener);
     }
 
-    String buildRefreshToken(String accessToken) {
-        final String accessTokenId = hashTokenString(accessToken);
-        final byte[] randomBytes = new byte[12];
-        secureRandom.nextBytes(randomBytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes) + "." + accessTokenId;
+    String buildRefreshToken(String accessToken, TransportVersion tokenVersion) {
+        if (tokenVersion.before(TransportVersion.V_8_8_0)) {
+            return UUIDs.randomBase64UUID();
+        } else {
+            final String accessTokenId = hashTokenString(accessToken);
+            final byte[] randomBytes = new byte[12];
+            secureRandom.nextBytes(randomBytes);
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes) + "." + accessTokenId;
+        }
     }
 
     /**
@@ -943,7 +947,7 @@ public final class TokenService {
             // bad token format
             listener.onResponse(TokenDocuments.EMPTY);
         } else if (refreshToken.accessTokenId() == null) {
-            findTokenFromRefreshToken(refreshToken.id(), securityMainIndex, backoff, listener);
+            findTokenFromRefreshToken(refreshToken.id(), securityTokensIndex, backoff, listener);
         } else {
             findTokenByAccessTokenId(refreshToken.accessTokenId(), securityTokensIndex, backoff, listener);
         }
@@ -1224,9 +1228,9 @@ public final class TokenService {
             Authentication authentication = parsedTokens.v1().getAuthentication();
             decryptAndReturnSupersedingTokens(refreshToken, refreshTokenStatus, refreshedTokenIndex, authentication, listener);
         } else {
-            final String newAccessTokenString = UUIDs.randomBase64UUID();
-            final String newRefreshTokenString = buildRefreshToken(newAccessTokenString);
             final TransportVersion newTokenVersion = getTokenVersionCompatibility();
+            final String newAccessTokenString = UUIDs.randomBase64UUID();
+            final String newRefreshTokenString = buildRefreshToken(newAccessTokenString, newTokenVersion);
             final Map<String, Object> updateMap = new HashMap<>();
             updateMap.put("refreshed", true);
             if (newTokenVersion.onOrAfter(VERSION_MULTIPLE_CONCURRENT_REFRESHES)) {

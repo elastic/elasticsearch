@@ -352,9 +352,15 @@ public class TokenServiceTests extends ESTestCase {
             PlainActionFuture<TokensInvalidationResult> future = new PlainActionFuture<>();
             tokenService.invalidateRefreshToken(clientRefreshToken, future);
             final TokensInvalidationResult result = future.get();
-            assertThat(result.getInvalidatedTokens(), hasSize(1));
-            assertThat(result.getPreviouslyInvalidatedTokens(), empty());
-            assertThat(result.getErrors(), empty());
+            final String reasonContext = Strings.format(
+                "For refresh token %s (version: %s) with invalidation result %s",
+                clientRefreshToken,
+                tokenService.getTokenVersionCompatibility(),
+                Strings.toString(result)
+            );
+            assertThat(reasonContext, result.getInvalidatedTokens(), hasSize(1));
+            assertThat(reasonContext, result.getPreviouslyInvalidatedTokens(), empty());
+            assertThat(reasonContext, result.getErrors(), empty());
         }
     }
 
@@ -399,12 +405,7 @@ public class TokenServiceTests extends ESTestCase {
 
     private static TokenService.RefreshToken newRefreshToken(TokenService tokenService, String userTokenSecret) {
         TransportVersion version = tokenService.getTokenVersionCompatibility();
-        final String payload;
-        if (version.onOrAfter(TransportVersion.V_8_8_0)) {
-            payload = tokenService.buildRefreshToken(userTokenSecret);
-        } else {
-            payload = UUIDs.randomBase64UUID(random());
-        }
+        String payload = tokenService.buildRefreshToken(userTokenSecret, version);
         return new TokenService.RefreshToken(TokenService.hashTokenString(payload), version, payload, hashTokenString(userTokenSecret));
     }
 

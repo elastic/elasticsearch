@@ -278,7 +278,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             request.setOptions(options);
             Response authenticateResponse = client.performRequest(request);
             assertOK(authenticateResponse);
-            assertEquals("test_user", entityAsMap(authenticateResponse).get("username"));
+            assertEquals("For access token " + token, "test_user", entityAsMap(authenticateResponse).get("username"));
         }
     }
 
@@ -291,7 +291,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             ResponseException e = expectThrows(ResponseException.class, () -> client.performRequest(request));
             assertEquals(401, e.getResponse().getStatusLine().getStatusCode());
             Response response = e.getResponse();
-            assertEquals("""
+            assertEquals("For access token " + token, """
                 Bearer realm="security", error="invalid_token", error_description="The access token expired"\
                 """, response.getHeader("WWW-Authenticate"));
         }
@@ -307,11 +307,11 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 }
                 """, refreshToken));
             ResponseException e = expectThrows(ResponseException.class, () -> client.performRequest(refreshTokenRequest));
-            assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+            assertEquals("For refresh token " + refreshToken, 400, e.getResponse().getStatusLine().getStatusCode());
             Response response = e.getResponse();
             Map<String, Object> responseMap = entityAsMap(response);
-            assertEquals("invalid_grant", responseMap.get("error"));
-            assertEquals("token has been invalidated", responseMap.get("error_description"));
+            assertEquals("For refresh token " + refreshToken, "invalid_grant", responseMap.get("error"));
+            assertEquals("For refresh token " + refreshToken, "token has been invalidated", responseMap.get("error_description"));
         }
     }
 

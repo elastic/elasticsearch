@@ -131,7 +131,7 @@ Service.
 All operations related to managing {transforms}.
 
 `manage_autoscaling`::
-All deployment operations, create or update autoscaling policy API (Need to be reviewed).
+All operations related to managing autoscaling policies.
 
 `manage_data_frame_transforms`::
 Enable you to manage transforms (Need to be reviewed).

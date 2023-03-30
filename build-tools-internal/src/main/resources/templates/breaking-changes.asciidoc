@@ -30,7 +30,7 @@ to mitigate the impact.
 // tag::notable-breaking-changes[]
 There are no notable breaking changes in {es} ${majorDotMinor}.
 // end::notable-breaking-changes[]
-But there are some minor breaking changes.
+But there are some less critical breaking changes.
 <%  }
     [true, false].each { isNotable ->
         def breakingByArea = breakingByNotabilityByArea.getOrDefault(isNotable, [])

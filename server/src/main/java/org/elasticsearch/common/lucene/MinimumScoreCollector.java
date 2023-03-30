@@ -39,8 +39,8 @@ public class MinimumScoreCollector extends SimpleCollector {
 
     @Override
     public final void setWeight(Weight weight) {
-        //no-op: this collector filters documents out hence it must not propagate the weight to its inner collector,
-        //otherwise the total hit count may not reflect the filtering
+        // no-op: this collector filters documents out hence it must not propagate the weight to its inner collector,
+        // otherwise the total hit count may not reflect the filtering
     }
 
     @Override

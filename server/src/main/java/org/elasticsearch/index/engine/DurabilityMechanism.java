@@ -20,7 +20,6 @@ public class DurabilityMechanism {
         this.translog = translog;
     }
 
-
     public void asyncEnsureSynced(Translog.Location location, Consumer<Exception> syncListener) {
 
     }

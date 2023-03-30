@@ -293,7 +293,6 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         GeometrySimplifier.PointError previous = null;
         while (queue.isEmpty() == false) {
             GeometrySimplifier.PointError error = queue.poll();
-            System.out.println(error);
             if (previous != null) {
                 assertThat("Should be sorted", error.error, greaterThanOrEqualTo(previous.error));
             }
@@ -311,7 +310,6 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         previous = null;
         while (queue.isEmpty() == false) {
             GeometrySimplifier.PointError error = queue.poll();
-            System.out.println(error);
             if (previous != null) {
                 assertThat("Should be sorted", error.error, greaterThanOrEqualTo(previous.error));
             }

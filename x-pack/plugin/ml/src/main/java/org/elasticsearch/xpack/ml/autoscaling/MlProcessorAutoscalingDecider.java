@@ -63,7 +63,7 @@ class MlProcessorAutoscalingDecider {
         }
 
         if (MlMemoryAutoscalingDecider.modelAssignmentsRequireMoreThanHalfCpu(
-            trainedModelAssignmentMetadata.modelAssignments().values(),
+            trainedModelAssignmentMetadata.allAssignments().values(),
             mlContext.mlNodes
         )) {
             return MlProcessorAutoscalingCapacity.builder(currentCapacity.nodeProcessors(), currentCapacity.tierProcessors())
@@ -104,7 +104,7 @@ class MlProcessorAutoscalingDecider {
 
     private boolean hasUnsatisfiedDeployments(TrainedModelAssignmentMetadata trainedModelAssignmentMetadata, List<DiscoveryNode> mlNodes) {
         final Set<String> mlNodeIds = mlNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
-        return trainedModelAssignmentMetadata.modelAssignments()
+        return trainedModelAssignmentMetadata.allAssignments()
             .values()
             .stream()
             .filter(deployment -> deployment.getTaskParams().getPriority() == Priority.NORMAL)
@@ -115,7 +115,7 @@ class MlProcessorAutoscalingDecider {
         int maxThreadsPerAllocation = 0;
         double processorCount = 0;
         boolean hasLowPriorityDeployments = false;
-        for (TrainedModelAssignment assignment : trainedModelAssignmentMetadata.modelAssignments().values()) {
+        for (TrainedModelAssignment assignment : trainedModelAssignmentMetadata.allAssignments().values()) {
             if (assignment.getTaskParams().getPriority() == Priority.LOW) {
                 hasLowPriorityDeployments = true;
                 continue;

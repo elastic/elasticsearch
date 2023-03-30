@@ -42,7 +42,7 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     );
 
     static {
-        PARSER.declareString(constructorArg(), InferModelAction.Request.MODEL_ID);
+        PARSER.declareString(constructorArg(), InferModelAction.Request.DEPLOYMENT_ID);
         PARSER.declareString(constructorArg(), MODEL_TEXT);
     }
 
@@ -82,7 +82,7 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(InferModelAction.Request.MODEL_ID.getPreferredName(), modelId);
+        builder.field(InferModelAction.Request.DEPLOYMENT_ID.getPreferredName(), modelId);
         builder.field(MODEL_TEXT.getPreferredName(), modelText);
         builder.endObject();
         return builder;

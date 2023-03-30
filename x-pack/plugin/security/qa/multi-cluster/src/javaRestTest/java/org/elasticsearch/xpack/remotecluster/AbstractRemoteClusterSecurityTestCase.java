@@ -118,8 +118,16 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
               "name": "cross_cluster_access_key",
               "role_descriptors": {
                 "role": {
-                  "cluster": ["cross_cluster_access",
-                              "cluster:monitor/state", "cluster:monitor/xpack/info", "cluster:internal/remote_cluster/proxy/*"],
+                  "cluster": [
+                    "cross_cluster_access",
+                    "cluster:monitor/state",
+                    "cluster:monitor/xpack/info",
+                    "internal:admin/ccr/restore/session/clear",
+                    "internal:transport/proxy/internal:admin/ccr/restore/session/clear",
+                    "internal:admin/ccr/restore/file_chunk/get",
+                    "internal:transport/proxy/internal:admin/ccr/restore/file_chunk/get",
+                    "internal:admin/ccr/restore/session/put"
+                  ],
                   "index": %s
                 }
               }

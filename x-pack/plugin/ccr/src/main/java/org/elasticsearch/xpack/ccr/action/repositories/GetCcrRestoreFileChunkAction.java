@@ -21,7 +21,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterActionProxy;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
@@ -53,7 +52,6 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
         ) {
             super(NAME, transportService, actionFilters, GetCcrRestoreFileChunkRequest::new, ThreadPool.Names.GENERIC);
             TransportActionProxy.registerProxyAction(transportService, NAME, false, GetCcrRestoreFileChunkResponse::new);
-            RemoteClusterActionProxy.registerProxyAction(transportService, NAME, GetCcrRestoreFileChunkResponse::new);
             this.restoreSourceService = restoreSourceService;
             this.bigArrays = bigArrays;
         }

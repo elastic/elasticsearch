@@ -76,10 +76,9 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
                 SearchTransportService.QUERY_CAN_MATCH_NODE_NAME,
                 TransportOpenPointInTimeAction.OPEN_SHARD_READER_CONTEXT_NAME,
                 // CCR actions
-                RetentionLeaseActions.Add.ACTION_NAME,
-                RetentionLeaseActions.Remove.ACTION_NAME,
-                RetentionLeaseActions.Renew.ACTION_NAME,
-                "indices:data/read/xpack/ccr/shard_changes"
+                "indices:data/read/xpack/ccr/shard_changes",
+                "internal:admin/ccr/restore/file_chunk/get",
+                "internal:admin/ccr/restore/session/clear"
             ).flatMap(name -> Stream.of(name, TransportActionProxy.getProxyAction(name))),
             // These actions don't have proxy equivalents
             Stream.of(
@@ -96,9 +95,10 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
                 XPackInfoAction.NAME,
                 HasPrivilegesAction.NAME,
                 IndicesStatsAction.NAME,
-                "cluster:internal/remote_cluster/proxy/internal:admin/ccr/restore/session/put",
-                "cluster:internal/remote_cluster/proxy/internal:admin/ccr/restore/file_chunk/get",
-                "cluster:internal/remote_cluster/proxy/internal:admin/ccr/restore/session/clear"
+                RetentionLeaseActions.Add.ACTION_NAME,
+                RetentionLeaseActions.Remove.ACTION_NAME,
+                RetentionLeaseActions.Renew.ACTION_NAME,
+                "internal:admin/ccr/restore/session/put"
             )
         ).collect(Collectors.toUnmodifiableSet());
     }

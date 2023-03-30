@@ -70,7 +70,7 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
     // Use a RuleChain to ensure that fulfilling cluster is started before query cluster
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
-    public void testRemoteAccessForCrossClusterSearch() throws Exception {
+    public void testFollow() throws Exception {
         configureRemoteClusters();
 
         // Fulfilling cluster

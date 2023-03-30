@@ -12,7 +12,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.Maps;
@@ -23,7 +22,6 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterActionProxy;
 import org.elasticsearch.transport.RemoteConnectionManager;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TcpTransport;
@@ -334,28 +332,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                             authentication.getEffectiveSubject().getRealm().getNodeName()
                         )
                     );
-                    final Transport.Connection effectiveConnection;
-                    final String effectiveAction;
-                    final TransportRequest effectiveRequest;
-                    if (false == TransportService.HANDSHAKE_ACTION_NAME.equals(action) && action.startsWith("internal:")) {
-                        effectiveConnection = TransportService.unwrapConnection(connection);
-                        final boolean isProxyConnection = effectiveConnection != connection;
-                        final DiscoveryNode targetNode = isProxyConnection ? connection.getNode() : null;
-                        effectiveAction = RemoteClusterActionProxy.getProxyAction(action);
-                        effectiveRequest = RemoteClusterActionProxy.wrapRequest(targetNode, request);
-                    } else {
-                        effectiveConnection = connection;
-                        effectiveAction = action;
-                        effectiveRequest = request;
-                    }
-                    sendWithCrossClusterAccessHeaders(
-                        crossClusterAccessHeaders,
-                        effectiveConnection,
-                        effectiveAction,
-                        effectiveRequest,
-                        options,
-                        handler
-                    );
+                    sendWithCrossClusterAccessHeaders(crossClusterAccessHeaders, connection, action, request, options, handler);
                 } else if (User.isInternal(user)) {
                     final String message = "internal user [" + user.principal() + "] should not be used for cross cluster requests";
                     assert false : message;

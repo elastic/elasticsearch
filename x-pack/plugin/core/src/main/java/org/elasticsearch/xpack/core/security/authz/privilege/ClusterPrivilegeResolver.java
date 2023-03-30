@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
 
 import java.util.Collection;
@@ -61,6 +62,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 /**
@@ -98,8 +100,13 @@ public class ClusterPrivilegeResolver {
         "cluster:*",
         "indices:admin/template/*",
         "indices:admin/index_template/*",
-        "indices:admin/data_stream/*"
+        "internal:admin/ccr/restore/session/clear*",
+        "internal:transport/proxy/internal:admin/ccr/restore/session/clear*",
+        "internal:admin/ccr/restore/file_chunk/get*",
+        "internal:transport/proxy/internal:admin/ccr/restore/file_chunk/get*",
+        "internal:admin/ccr/restore/session/put*"
     );
+    private static final Predicate<String> ACTION_MATCHER = Automatons.predicate(ALL_CLUSTER_PATTERN);
     private static final Set<String> MANAGE_ML_PATTERN = Set.of("cluster:admin/xpack/ml/*", "cluster:monitor/xpack/ml/*");
     private static final Set<String> MANAGE_TRANSFORM_PATTERN = Set.of(
         "cluster:admin/data_frame/*",
@@ -149,6 +156,7 @@ public class ClusterPrivilegeResolver {
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
         RemoteClusterNodesAction.NAME
     );
+
     private static final Set<String> MANAGE_ENRICH_AUTOMATON = Set.of("cluster:admin/xpack/enrich/*");
 
     public static final NamedClusterPrivilege NONE = new ActionClusterPrivilege("none", Set.of(), Set.of());
@@ -343,9 +351,7 @@ public class ClusterPrivilegeResolver {
     }
 
     public static boolean isClusterAction(String actionName) {
-        return actionName.startsWith("cluster:")
-            || actionName.startsWith("indices:admin/template/")
-            || actionName.startsWith("indices:admin/index_template/");
+        return ACTION_MATCHER.test(actionName);
     }
 
     private static String actionToPattern(String text) {

@@ -25,7 +25,15 @@ public class CrossClusterAccessUser extends User {
 
     private static final RoleDescriptor ROLE_DESCRIPTOR = new RoleDescriptor(
         UsernamesField.CROSS_CLUSTER_ACCESS_ROLE,
-        new String[] { "cross_cluster_access", ClusterStateAction.NAME, XPackInfoAction.NAME, "cluster:internal/remote_cluster/proxy/*" },
+        new String[] {
+            "cross_cluster_access",
+            ClusterStateAction.NAME,
+            XPackInfoAction.NAME,
+            "internal:admin/ccr/restore/session/clear",
+            "internal:transport/proxy/internal:admin/ccr/restore/session/clear",
+            "internal:admin/ccr/restore/file_chunk/get",
+            "internal:transport/proxy/internal:admin/ccr/restore/file_chunk/get",
+            "internal:admin/ccr/restore/session/put" },
         // Needed for CCR background jobs (with system user)
         new RoleDescriptor.IndicesPrivileges[] {
             RoleDescriptor.IndicesPrivileges.builder()

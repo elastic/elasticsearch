@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterActionProxy;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
@@ -43,7 +42,6 @@ public class ClearCcrRestoreSessionAction extends ActionType<ActionResponse.Empt
         ) {
             super(NAME, transportService, actionFilters, ClearCcrRestoreSessionRequest::new, ThreadPool.Names.GENERIC);
             TransportActionProxy.registerProxyAction(transportService, NAME, false, in -> ActionResponse.Empty.INSTANCE);
-            RemoteClusterActionProxy.registerProxyAction(transportService, NAME, in -> ActionResponse.Empty.INSTANCE);
             this.ccrRestoreService = ccrRestoreService;
         }
 

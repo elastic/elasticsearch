@@ -2126,11 +2126,7 @@ public class MasterServiceTests extends ESTestCase {
                 @Override
                 public void onFailure(Exception e) {
                     assertEquals(expectedHeader, threadPool.getThreadContext().getHeader(testHeader));
-                    if ((e instanceof FailedToCommitClusterStateException
-                        && e.getCause()instanceof EsRejectedExecutionException esre
-                        && esre.isExecutorShutdown()) == false) {
-                        throw new AssertionError("unexpected exception", e);
-                    }
+                    assertShutdownFailureException(e);
                     actionCount.incrementAndGet();
                 }
             }
@@ -2204,7 +2200,7 @@ public class MasterServiceTests extends ESTestCase {
                 }
                 return ClusterState.builder(batchExecutionContext.initialState()).build();
             }).submitTask("executing-during-shutdown", e -> {
-                assertTrue(e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown());
+                assertShutdownFailureException(e);
                 actionCount.incrementAndGet();
             }, null);
 
@@ -2216,11 +2212,7 @@ public class MasterServiceTests extends ESTestCase {
                 @Override
                 public void onFailure(Exception e) {
                     assertEquals(expectedHeader, threadPool.getThreadContext().getHeader(testHeader));
-                    if ((e instanceof FailedToCommitClusterStateException
-                        && e.getCause()instanceof EsRejectedExecutionException esre
-                        && esre.isExecutorShutdown()) == false) {
-                        throw new AssertionError("unexpected exception", e);
-                    }
+                    assertShutdownFailureException(e);
                     actionCount.incrementAndGet();
                 }
             }
@@ -2480,5 +2472,15 @@ public class MasterServiceTests extends ESTestCase {
         public void onFailure(Exception e) {
             throw new AssertionError("should not be called", e);
         }
+    }
+
+    private static void assertShutdownFailureException(Exception e) {
+        final var cause = e.getCause();
+        if (e instanceof FailedToCommitClusterStateException
+            && cause instanceof EsRejectedExecutionException esre
+            && esre.isExecutorShutdown()) {
+            return;
+        }
+        throw new AssertionError("unexpected exception", e);
     }
 }

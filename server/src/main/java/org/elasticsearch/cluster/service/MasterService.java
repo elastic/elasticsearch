@@ -396,8 +396,9 @@ public class MasterService extends AbstractLifecycleComponent {
                             exception
                         );
                         final long notificationStartTime = threadPool.rawRelativeTimeInMillis();
+                        final var batchException = new FailedToCommitClusterStateException("shutting down", esre);
                         for (final var executionResult : executionResults) {
-                            executionResult.onBatchFailure(esre);
+                            executionResult.onBatchFailure(batchException);
                             executionResult.notifyFailure();
                         }
                         final long notificationMillis = threadPool.rawRelativeTimeInMillis() - notificationStartTime;

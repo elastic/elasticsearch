@@ -121,7 +121,7 @@ public class HighlighterTestCase extends MapperServiceTestCase {
     // only be retrieving them from the hit context
     private static class NoStoredFieldsFilterDirectoryReader extends FilterDirectoryReader {
 
-        public NoStoredFieldsFilterDirectoryReader(DirectoryReader in) throws IOException {
+        NoStoredFieldsFilterDirectoryReader(DirectoryReader in) throws IOException {
             super(in, new SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {

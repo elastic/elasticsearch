@@ -23,23 +23,25 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.HashSet;
-import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
-    private final int numShards = randomIntBetween(1, 3);
+public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
 
     @Before
     public void init() {
         startMasterOnlyNode();
-        startIndexNodes(numShards);
     }
 
     public void testRelocatingIndexShards() throws Exception {
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        var numShards = randomIntBetween(1, 3);
+        startIndexNodes(numShards);
+
+        final String indexName = randomIdentifier();
         createIndex(
             indexName,
             Settings.builder()
@@ -84,4 +86,62 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         }
     }
 
+    public void testRecoverIndexingShard() throws Exception {
+
+        var indexingNode1 = startIndexNode();
+
+        var indexName = randomIdentifier();
+        createIndex(
+            indexName,
+            Settings.builder() //
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1) //
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0) //
+                .build()
+        );
+        ensureGreen(indexName);
+
+        int numDocs = randomIntBetween(1, 100);
+        indexDocs(indexName, numDocs);
+        refresh(indexName);
+
+        if (randomBoolean()) {
+            internalCluster().restartNode(indexingNode1);
+        } else {
+            internalCluster().stopNode(indexingNode1);
+            startIndexNode(); // replacement node
+        }
+
+        ensureGreen(indexName);
+    }
+
+    public void testRecoverSearchShard() throws IOException {
+
+        startIndexNode();
+
+        var indexName = randomIdentifier();
+        createIndex(
+            indexName,
+            Settings.builder() //
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1) //
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0) //
+                .build()
+        );
+        ensureGreen(indexName);
+
+        int numDocs = randomIntBetween(1, 100);
+        indexDocs(indexName, numDocs);
+        refresh(indexName);
+
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
+
+        var searchNode1 = startSearchNode();
+        ensureGreen(indexName);
+        assertHitCount(client().prepareSearch(indexName).get(), numDocs);
+        internalCluster().stopNode(searchNode1);
+
+        var searchNode2 = startSearchNode();
+        ensureGreen(indexName);
+        assertHitCount(client().prepareSearch(indexName).get(), numDocs);
+        internalCluster().stopNode(searchNode2);
+    }
 }

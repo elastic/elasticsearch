@@ -7,40 +7,29 @@
  */
 package org.elasticsearch.search.lookup;
 
-import org.apache.lucene.index.StoredFields;
-import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-
-import static java.util.Collections.singletonMap;
 
 @SuppressWarnings({ "unchecked", "rawtypes" })
 public class LeafStoredFieldsLookup implements Map<Object, FieldLookup> {
 
     private final Function<String, MappedFieldType> fieldTypeLookup;
-    private final CheckedSupplier<StoredFields, IOException> storedFieldsSupplier;
+    private final LeafFieldLookupProvider leafFieldLookupProvider;
 
     private int docId = -1;
-    private StoredFields storedFields = null;
 
     private final Map<String, FieldLookup> cachedFieldData = new HashMap<>();
 
-    LeafStoredFieldsLookup(
-        Function<String, MappedFieldType> fieldTypeLookup,
-        CheckedSupplier<StoredFields, IOException> storedFieldsSupplier
-    ) {
+    LeafStoredFieldsLookup(Function<String, MappedFieldType> fieldTypeLookup, LeafFieldLookupProvider leafFieldLookupProvider) {
         this.fieldTypeLookup = fieldTypeLookup;
-        this.storedFieldsSupplier = storedFieldsSupplier;
+        this.leafFieldLookupProvider = leafFieldLookupProvider;
     }
 
     public void setDocument(int docId) {
@@ -121,9 +110,6 @@ public class LeafStoredFieldsLookup implements Map<Object, FieldLookup> {
     }
 
     private FieldLookup loadFieldData(String name) throws IOException {
-        if (storedFields == null) {
-            storedFields = storedFieldsSupplier.get();
-        }
         FieldLookup data = cachedFieldData.get(name);
         if (data == null) {
             MappedFieldType fieldType = fieldTypeLookup.apply(name);
@@ -133,11 +119,8 @@ public class LeafStoredFieldsLookup implements Map<Object, FieldLookup> {
             data = new FieldLookup(fieldType);
             cachedFieldData.put(name, data);
         }
-        if (data.fields() == null) {
-            List<Object> values = new ArrayList<>(2);
-            SingleFieldsVisitor visitor = new SingleFieldsVisitor(data.fieldType(), values);
-            storedFields.document(docId, visitor);
-            data.fields(singletonMap(data.fieldType().name(), values));
+        if (data.isLoaded() == false) {
+            leafFieldLookupProvider.populateFieldLookup(data, docId);
         }
         return data;
     }

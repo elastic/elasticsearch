@@ -307,7 +307,9 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                 @Override
                 public void onFailure(Exception e) {
                     final int currentFailureCount = consecutiveFailureCount.incrementAndGet();
-                    // only warn every 6th failure
+                    // Only warn every 6th failure. We work around this log while stopping integ test clusters in InternalTestCluster#close
+                    // by temporarily raising the log level to ERROR. If the nature of this log changes in the future, that workaround might
+                    // need to be adjusted.
                     final Level level = currentFailureCount % 6 == 1 ? Level.WARN : Level.DEBUG;
                     logger.log(level, () -> format("failed to connect to %s (tried [%s] times)", discoveryNode, currentFailureCount), e);
                     setConnectionRef(null);
@@ -315,7 +317,17 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                 }
             }, () -> {
                 releaseListener();
-                transportService.getThreadPool().generic().execute(this::doConnect);
+                threadPool.generic().execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        ConnectionTarget.this.doConnect();
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "ensure connection to " + discoveryNode;
+                    }
+                });
             }));
         }
 

@@ -10,7 +10,6 @@ package org.elasticsearch.health;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -18,7 +17,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.node.DiskHealthInfo;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.health.node.LocalHealthMonitor;
-import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
@@ -26,7 +24,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -107,25 +104,6 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
         } catch (IOException e) {
             throw new RuntimeException("Failed to close internal cluster: " + e.getMessage(), e);
         }
-    }
-
-    @Nullable
-    private DiscoveryNode waitAndGetHealthNode(InternalTestCluster internalCluster) throws InterruptedException {
-        DiscoveryNode[] healthNode = new DiscoveryNode[1];
-        waitUntil(() -> {
-            ClusterState state = internalCluster.client()
-                .admin()
-                .cluster()
-                .prepareState()
-                .clear()
-                .setMetadata(true)
-                .setNodes(true)
-                .get()
-                .getState();
-            healthNode[0] = HealthNode.findHealthNode(state);
-            return healthNode[0] != null;
-        }, 2, TimeUnit.SECONDS);
-        return healthNode[0];
     }
 
     /**

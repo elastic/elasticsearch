@@ -8,10 +8,9 @@
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
@@ -442,21 +441,13 @@ public class PercolatorFieldMapper extends FieldMapper {
         }
     }
 
-    private static final FieldType INDEXED_KEYWORD = new FieldType();
-    static {
-        INDEXED_KEYWORD.setTokenized(false);
-        INDEXED_KEYWORD.setOmitNorms(true);
-        INDEXED_KEYWORD.setIndexOptions(IndexOptions.DOCS);
-        INDEXED_KEYWORD.freeze();
-    }
-
     void processQuery(Query query, DocumentParserContext context) {
         LuceneDocument doc = context.doc();
         PercolatorFieldType pft = (PercolatorFieldType) this.fieldType();
         QueryAnalyzer.Result result;
         result = QueryAnalyzer.analyze(query);
         if (result == QueryAnalyzer.Result.UNKNOWN) {
-            doc.add(new Field(pft.extractionResultField.name(), EXTRACTION_FAILED, INDEXED_KEYWORD));
+            doc.add(new StringField(pft.extractionResultField.name(), EXTRACTION_FAILED, Field.Store.NO));
             return;
         }
         for (QueryAnalyzer.QueryExtraction extraction : result.extractions) {
@@ -465,7 +456,7 @@ public class PercolatorFieldMapper extends FieldMapper {
                 builder.append(new BytesRef(extraction.field()));
                 builder.append(FIELD_VALUE_SEPARATOR);
                 builder.append(extraction.bytes());
-                doc.add(new Field(queryTermsField.name(), builder.toBytesRef(), INDEXED_KEYWORD));
+                doc.add(new StringField(queryTermsField.name(), builder.toBytesRef(), Field.Store.NO));
             } else if (extraction.range != null) {
                 byte[] min = extraction.range.lowerPoint;
                 byte[] max = extraction.range.upperPoint;
@@ -474,14 +465,14 @@ public class PercolatorFieldMapper extends FieldMapper {
         }
 
         if (result.matchAllDocs) {
-            doc.add(new Field(extractionResultField.name(), EXTRACTION_FAILED, INDEXED_KEYWORD));
+            doc.add(new StringField(extractionResultField.name(), EXTRACTION_FAILED, Field.Store.NO));
             if (result.verified) {
-                doc.add(new Field(extractionResultField.name(), EXTRACTION_COMPLETE, INDEXED_KEYWORD));
+                doc.add(new StringField(extractionResultField.name(), EXTRACTION_COMPLETE, Field.Store.NO));
             }
         } else if (result.verified) {
-            doc.add(new Field(extractionResultField.name(), EXTRACTION_COMPLETE, INDEXED_KEYWORD));
+            doc.add(new StringField(extractionResultField.name(), EXTRACTION_COMPLETE, Field.Store.NO));
         } else {
-            doc.add(new Field(extractionResultField.name(), EXTRACTION_PARTIAL, INDEXED_KEYWORD));
+            doc.add(new StringField(extractionResultField.name(), EXTRACTION_PARTIAL, Field.Store.NO));
         }
 
         context.addToFieldNames(fieldType().name());

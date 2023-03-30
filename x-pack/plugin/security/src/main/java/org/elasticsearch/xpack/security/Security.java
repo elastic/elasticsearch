@@ -55,12 +55,13 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
-import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -80,6 +81,7 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -242,9 +244,9 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
 import org.elasticsearch.xpack.security.authc.Realms;
-import org.elasticsearch.xpack.security.authc.RemoteAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
@@ -370,6 +372,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
@@ -381,7 +384,7 @@ public class Security extends Plugin
         IngestPlugin,
         NetworkPlugin,
         ClusterPlugin,
-        DiscoveryPlugin,
+        ClusterCoordinationPlugin,
         MapperPlugin,
         ExtensiblePlugin,
         SearchPlugin,
@@ -482,6 +485,15 @@ public class Security extends Plugin
         License.OperationMode.STANDARD
     );
 
+    /**
+     * Configurable cross cluster access is Enterprise feature.
+     */
+    public static final LicensedFeature.Momentary CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE = LicensedFeature.momentary(
+        null,
+        "configurable-cross-cluster-access",
+        License.OperationMode.ENTERPRISE
+    );
+
     private static final Logger logger = LogManager.getLogger(Security.class);
 
     private final Settings settings;
@@ -526,6 +538,20 @@ public class Security extends Plugin
             runStartupChecks(settings);
             Automatons.updateConfiguration(settings);
         } else {
+            final List<String> remoteClusterCredentialsSettingKeys = RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getAllConcreteSettings(
+                settings
+            ).map(Setting::getKey).sorted().toList();
+            if (false == remoteClusterCredentialsSettingKeys.isEmpty()) {
+                throw new IllegalArgumentException(
+                    format(
+                        "Found [%s] remote clusters with credentials [%s]. Security [%s] must be enabled to connect to them. "
+                            + "Please either enable security or remove these settings from the keystore.",
+                        remoteClusterCredentialsSettingKeys.size(),
+                        Strings.collectionToCommaDelimitedString(remoteClusterCredentialsSettingKeys),
+                        XPackSettings.SECURITY_ENABLED.getKey()
+                    )
+                );
+            }
             this.bootstrapChecks.set(Collections.emptyList());
         }
         this.securityExtensions.addAll(extensions);
@@ -545,6 +571,10 @@ public class Security extends Plugin
 
     protected SSLService getSslService() {
         return XPackPlugin.getSharedSslService();
+    }
+
+    protected LicenseService getLicenseService() {
+        return XPackPlugin.getSharedLicenseService();
     }
 
     protected XPackLicenseState getLicenseState() {
@@ -611,7 +641,7 @@ public class Security extends Plugin
             Arrays.asList(
                 new TokenSSLBootstrapCheck(),
                 new PkiRealmBootstrapCheck(getSslService()),
-                new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata),
+                new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata, getLicenseService()),
                 new TransportTLSBootstrapCheck()
             )
         );
@@ -905,18 +935,15 @@ public class Security extends Plugin
         ipFilter.set(new IPFilter(settings, auditTrailService, clusterService.getClusterSettings(), getLicenseState()));
         components.add(ipFilter.get());
 
-        final RemoteClusterCredentialsResolver remoteClusterCredentialsResolver = new RemoteClusterCredentialsResolver(
-            settings,
-            clusterService.getClusterSettings()
-        );
+        final RemoteClusterCredentialsResolver remoteClusterCredentialsResolver = new RemoteClusterCredentialsResolver(settings);
 
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
-        final RemoteAccessAuthenticationService remoteAccessAuthcService = new RemoteAccessAuthenticationService(
+        final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService = new CrossClusterAccessAuthenticationService(
             clusterService,
             apiKeyService,
             authcService.get()
         );
-        components.add(remoteAccessAuthcService);
+        components.add(crossClusterAccessAuthcService);
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(
                 settings,
@@ -926,8 +953,9 @@ public class Security extends Plugin
                 getSslService(),
                 securityContext.get(),
                 destructiveOperations,
-                remoteAccessAuthcService,
-                remoteClusterCredentialsResolver
+                crossClusterAccessAuthcService,
+                remoteClusterCredentialsResolver,
+                getLicenseState()
             )
         );
 
@@ -1692,22 +1720,29 @@ public class Security extends Plugin
     @Override
     public BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
         if (enabled) {
-            return new ValidateLicenseForFIPS(XPackSettings.FIPS_MODE_ENABLED.get(settings));
+            return new ValidateLicenseForFIPS(XPackSettings.FIPS_MODE_ENABLED.get(settings), getLicenseService());
         }
         return null;
     }
 
     static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {
         private final boolean inFipsMode;
+        private final LicenseService licenseService;
 
-        ValidateLicenseForFIPS(boolean inFipsMode) {
+        ValidateLicenseForFIPS(boolean inFipsMode, LicenseService licenseService) {
             this.inFipsMode = inFipsMode;
+            this.licenseService = licenseService;
         }
 
         @Override
         public void accept(DiscoveryNode node, ClusterState state) {
             if (inFipsMode) {
-                License license = LicenseService.getLicense(state.metadata());
+                License license;
+                if (licenseService instanceof ClusterStateLicenseService clusterStateLicenseService) {
+                    license = clusterStateLicenseService.getLicense(state.metadata());
+                } else {
+                    license = licenseService.getLicense();
+                }
                 if (license != null && XPackLicenseState.isFipsAllowedForOperationMode(license.operationMode()) == false) {
                     throw new IllegalStateException(
                         "FIPS mode cannot be used with a ["

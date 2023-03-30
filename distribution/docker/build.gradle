@@ -550,5 +550,6 @@ subprojects { Project subProject ->
 
 tasks.named('resolveAllDependencies') {
   // Don't try and resolve filebeat or metricbeat snapshots as they may not always be available
-  configs = configurations.matching { it.name.contains('beat') == false }
+  // Also skip building Elasticsearch distributions
+  configs = configurations.matching { it.name.contains('beat') == false && it.name.toLowerCase().contains('dockersource') == false }
 }

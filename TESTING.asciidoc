@@ -392,7 +392,8 @@ port of `5007`.
 NOTE: In the case of test clusters using multiple nodes, multiple debuggers
 will need to be attached on incrementing ports. For example, for a 3 node
 cluster ports `5007`, `5008`, and `5009` will attempt to attach to a listening
-debugger.
+debugger. You can use the "Debug Elasticsearch (node 2)" and "(node 3)" run
+configurations should you need to debug a multi-node cluster.
 
 You can also use a combination of both flags to debug both tests and server.
 This is only applicable to Java REST tests.

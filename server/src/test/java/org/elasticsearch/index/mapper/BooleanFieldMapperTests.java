@@ -170,16 +170,16 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         }));
 
         LuceneDocument doc = parsedDoc.rootDoc();
-        IndexableField[] fields = doc.getFields("bool1");
-        assertEquals(2, fields.length);
-        assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
-        assertEquals(DocValuesType.SORTED_NUMERIC, fields[1].fieldType().docValuesType());
+        List<IndexableField> fields = doc.getFields("bool1");
+        assertEquals(2, fields.size());
+        assertEquals(DocValuesType.NONE, fields.get(0).fieldType().docValuesType());
+        assertEquals(DocValuesType.SORTED_NUMERIC, fields.get(1).fieldType().docValuesType());
         fields = doc.getFields("bool2");
-        assertEquals(1, fields.length);
-        assertEquals(DocValuesType.SORTED_NUMERIC, fields[0].fieldType().docValuesType());
+        assertEquals(1, fields.size());
+        assertEquals(DocValuesType.SORTED_NUMERIC, fields.get(0).fieldType().docValuesType());
         fields = doc.getFields("bool3");
-        assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
-        assertEquals(DocValuesType.SORTED_NUMERIC, fields[1].fieldType().docValuesType());
+        assertEquals(DocValuesType.NONE, fields.get(0).fieldType().docValuesType());
+        assertEquals(DocValuesType.SORTED_NUMERIC, fields.get(1).fieldType().docValuesType());
     }
 
     @Override

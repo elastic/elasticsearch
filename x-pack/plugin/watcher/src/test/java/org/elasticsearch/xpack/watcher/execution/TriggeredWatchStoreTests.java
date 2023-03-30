@@ -94,9 +94,7 @@ import static org.mockito.Mockito.when;
 
 public class TriggeredWatchStoreTests extends ESTestCase {
 
-    private Settings indexSettings = settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-        .build();
+    private static final Settings indexSettings = indexSettings(Version.CURRENT, 1, 1).build();
 
     private Client client;
     private TriggeredWatch.Parser parser;
@@ -149,9 +147,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
 
         int numShards = 2 + randomInt(2);
         int numStartedShards = 1;
-        Settings settings = settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
+        Settings settings = indexSettings(Version.CURRENT, numShards, 1).build();
         metadataBuilder.put(
             IndexMetadata.builder(TriggeredWatchStoreField.INDEX_NAME).settings(settings).numberOfShards(numShards).numberOfReplicas(1)
         );

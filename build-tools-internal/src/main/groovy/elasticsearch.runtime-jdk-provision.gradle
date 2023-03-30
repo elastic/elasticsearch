@@ -61,6 +61,7 @@ configure(allprojects) {
       project.getTasks().withType(ThirdPartyAuditTask.class).configureEach {
         if (BuildParams.getIsRuntimeJavaHomeSet() == false) {
           javaHome.set(providers.provider(() -> "${project.jdks.provisioned_runtime.javaHomePath}"))
+          targetCompatibility.set(providers.provider(() -> JavaVersion.toVersion(project.jdks.provisioned_runtime.major)))
         }
       }
     }

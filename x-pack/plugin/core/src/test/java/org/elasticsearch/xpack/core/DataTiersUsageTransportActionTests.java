@@ -50,9 +50,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -713,11 +710,10 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
     }
 
     private static IndexMetadata indexMetadata(String indexName, int numberOfShards, int numberOfReplicas, String... dataTierPrefs) {
-        Settings.Builder settingsBuilder = Settings.builder()
-            .put(SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
-            .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
-            .put(SETTING_CREATION_DATE, System.currentTimeMillis());
+        Settings.Builder settingsBuilder = indexSettings(Version.CURRENT, numberOfShards, numberOfReplicas).put(
+            SETTING_CREATION_DATE,
+            System.currentTimeMillis()
+        );
 
         if (dataTierPrefs.length > 1) {
             StringBuilder tierBuilder = new StringBuilder(dataTierPrefs[0]);

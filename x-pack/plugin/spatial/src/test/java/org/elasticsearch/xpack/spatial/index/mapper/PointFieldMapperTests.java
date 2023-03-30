@@ -27,6 +27,7 @@ import java.util.List;
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -103,7 +104,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
 
         // doc values are enabled by default, but in this test we disable them; we should only have 2 points
         assertThat(doc.rootDoc().getFields(FIELD_NAME), notNullValue());
-        assertThat(doc.rootDoc().getFields(FIELD_NAME).length, equalTo(4));
+        assertThat(doc.rootDoc().getFields(FIELD_NAME), hasSize(4));
     }
 
     public void testXYInOneValue() throws Exception {
@@ -134,7 +135,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
 
         // doc values are enabled by default, but in this test we disable them; we should only have 2 points
         assertThat(doc.rootDoc().getFields(FIELD_NAME), notNullValue());
-        assertThat(doc.rootDoc().getFields(FIELD_NAME).length, equalTo(4));
+        assertThat(doc.rootDoc().getFields(FIELD_NAME), hasSize(4));
     }
 
     public void testArray() throws Exception {
@@ -169,7 +170,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
         SourceToParse sourceToParse = source(b -> b.startArray(FIELD_NAME).value(1.3).value(1.2).endArray());
         ParsedDocument doc = mapper.parse(sourceToParse);
         assertThat(doc.rootDoc().getField(FIELD_NAME), notNullValue());
-        assertThat(doc.rootDoc().getFields(FIELD_NAME).length, equalTo(3));
+        assertThat(doc.rootDoc().getFields(FIELD_NAME), hasSize(3));
     }
 
     public void testArrayArrayStored() throws Exception {
@@ -194,7 +195,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
         ParsedDocument doc = mapper.parse(sourceToParse);
 
         assertThat(doc.rootDoc().getFields(FIELD_NAME), notNullValue());
-        assertThat(doc.rootDoc().getFields(FIELD_NAME).length, equalTo(4));
+        assertThat(doc.rootDoc().getFields(FIELD_NAME), hasSize(4));
     }
 
     public void testNullValue() throws Exception {

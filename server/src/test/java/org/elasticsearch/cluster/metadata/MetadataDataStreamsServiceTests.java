@@ -383,13 +383,13 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), equalTo("index [" + indexToRemove + "] not found"));
     }
 
-    public void testModifyingLifecycle() {
+    public void testUpdateLifecycle() {
         String dataStream = randomAlphaOfLength(5);
         DataLifecycle dataLifecycle = new DataLifecycle(randomMillisUpToYear9999());
         ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>(dataStream, 2)), List.of());
         {
             // Remove lifecycle
-            ClusterState after = MetadataDataStreamsService.modifyDataLifecycle(before, List.of(dataStream), null);
+            ClusterState after = MetadataDataStreamsService.updateDataLifecycle(before, List.of(dataStream), null);
             DataStream updatedDataStream = after.metadata().dataStreams().get(dataStream);
             assertNotNull(updatedDataStream);
             assertThat(updatedDataStream.getLifecycle(), nullValue());
@@ -398,7 +398,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
 
         {
             // Set lifecycle
-            ClusterState after = MetadataDataStreamsService.modifyDataLifecycle(before, List.of(dataStream), dataLifecycle);
+            ClusterState after = MetadataDataStreamsService.updateDataLifecycle(before, List.of(dataStream), dataLifecycle);
             DataStream updatedDataStream = after.metadata().dataStreams().get(dataStream);
             assertNotNull(updatedDataStream);
             assertThat(updatedDataStream.getLifecycle(), equalTo(dataLifecycle));

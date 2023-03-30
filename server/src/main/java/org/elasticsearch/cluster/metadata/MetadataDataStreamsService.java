@@ -41,20 +41,20 @@ public class MetadataDataStreamsService {
 
     private final ClusterService clusterService;
     private final IndicesService indicesService;
-    private final MasterServiceTaskQueue<ModifyLifecycleTask> taskQueue;
+    private final MasterServiceTaskQueue<UpdateLifecycleTask> taskQueue;
 
     public MetadataDataStreamsService(ClusterService clusterService, IndicesService indicesService) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        ClusterStateTaskExecutor<ModifyLifecycleTask> executor = new SimpleBatchedAckListenerTaskExecutor<>() {
+        ClusterStateTaskExecutor<UpdateLifecycleTask> executor = new SimpleBatchedAckListenerTaskExecutor<>() {
 
             @Override
             public Tuple<ClusterState, ClusterStateAckListener> executeTask(
-                ModifyLifecycleTask modifyLifecycleTask,
+                UpdateLifecycleTask modifyLifecycleTask,
                 ClusterState clusterState
             ) {
                 return new Tuple<>(
-                    modifyDataLifecycle(clusterState, modifyLifecycleTask.getDataStreamNames(), modifyLifecycleTask.getDataLifecycle()),
+                    updateDataLifecycle(clusterState, modifyLifecycleTask.getDataStreamNames(), modifyLifecycleTask.getDataLifecycle()),
                     modifyLifecycleTask
                 );
             }
@@ -93,7 +93,7 @@ public class MetadataDataStreamsService {
         TimeValue masterTimeout,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        taskQueue.submitTask("set-lifecycle", new ModifyLifecycleTask(dataStreamNames, lifecycle, ackTimeout, listener), masterTimeout);
+        taskQueue.submitTask("set-lifecycle", new UpdateLifecycleTask(dataStreamNames, lifecycle, ackTimeout, listener), masterTimeout);
     }
 
     /**
@@ -105,7 +105,7 @@ public class MetadataDataStreamsService {
         TimeValue masterTimeout,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        taskQueue.submitTask("delete-lifecycle", new ModifyLifecycleTask(dataStreamNames, null, ackTimeout, listener), masterTimeout);
+        taskQueue.submitTask("delete-lifecycle", new UpdateLifecycleTask(dataStreamNames, null, ackTimeout, listener), masterTimeout);
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
@@ -146,15 +146,15 @@ public class MetadataDataStreamsService {
      * Creates an updated cluster state in which the requested data streams have the data lifecycle provided.
      * Visible for testing.
      */
-    static ClusterState modifyDataLifecycle(
+    static ClusterState updateDataLifecycle(
         ClusterState currentState,
         List<String> dataStreamNames,
         @Nullable DataLifecycle dataLifecycle
     ) {
-        Metadata updatedMetadata = currentState.metadata();
-        Metadata.Builder builder = Metadata.builder(updatedMetadata);
+        Metadata metadata = currentState.metadata();
+        Metadata.Builder builder = Metadata.builder(metadata);
         for (var dataStreamName : dataStreamNames) {
-            var dataStream = validateDataStream(updatedMetadata, dataStreamName);
+            var dataStream = validateDataStream(metadata, dataStreamName);
             builder.put(
                 new DataStream(
                     dataStream.getName(),
@@ -170,8 +170,7 @@ public class MetadataDataStreamsService {
                 )
             );
         }
-        updatedMetadata = builder.build();
-        return ClusterState.builder(currentState).metadata(updatedMetadata).build();
+        return ClusterState.builder(currentState).metadata(builder.build()).build();
     }
 
     private static void addBackingIndex(
@@ -245,12 +244,12 @@ public class MetadataDataStreamsService {
     /**
      * A cluster state update task that consists of the cluster state request and the listeners that need to be notified upon completion.
      */
-    static class ModifyLifecycleTask extends AckedBatchedClusterStateUpdateTask {
+    static class UpdateLifecycleTask extends AckedBatchedClusterStateUpdateTask {
 
         private final List<String> dataStreamNames;
         private final DataLifecycle dataLifecycle;
 
-        ModifyLifecycleTask(
+        UpdateLifecycleTask(
             List<String> dataStreamNames,
             @Nullable DataLifecycle dataLifecycle,
             TimeValue ackTimeout,

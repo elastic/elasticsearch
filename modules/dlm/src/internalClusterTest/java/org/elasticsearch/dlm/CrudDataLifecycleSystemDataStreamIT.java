@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class ModifyDataLifecycleSystemDataStreamIT extends ESIntegTestCase {
+public class CrudDataLifecycleSystemDataStreamIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -226,7 +226,7 @@ public class ModifyDataLifecycleSystemDataStreamIT extends ESIntegTestCase {
 
         @Override
         public String getFeatureName() {
-            return ModifyDataLifecycleSystemDataStreamIT.class.getSimpleName();
+            return CrudDataLifecycleSystemDataStreamIT.class.getSimpleName();
         }
 
         @Override

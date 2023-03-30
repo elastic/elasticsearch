@@ -382,24 +382,30 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 handlingSettings.maxChunkSize()
             );
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
-            ch.pipeline().addLast("decoder", decoder);
+            ch.pipeline().addLast("decoder", decoder); // parses the HTTP bytes request into HTTP message pieces
             if (headerValidator != null) {
+                // runs a validation function on the first HTTP message piece which contains all the headers
+                // if validation passes, the pieces of that particular request are forwarded, otherwise they are discarded
                 ch.pipeline().addLast("header_validator", new Netty4HttpHeaderValidator(headerValidator));
             }
+            // combines the HTTP message pieces into a single full HTTP request (with headers and body)
             final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.maxContentLength());
             aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
-            ch.pipeline().addLast("decoder_compress", new HttpContentDecompressor()).addLast("encoder", new HttpResponseEncoder() {
-                @Override
-                protected boolean isContentAlwaysEmpty(HttpResponse msg) {
-                    // non-chunked responses (Netty4HttpResponse extends Netty's DefaultFullHttpResponse) with chunked transfer
-                    // encoding are only sent by us in response to HEAD requests and must always have an empty body
-                    if (msg instanceof Netty4HttpResponse netty4HttpResponse && HttpUtil.isTransferEncodingChunked(msg)) {
-                        assert netty4HttpResponse.content().isReadable() == false;
-                        return true;
+            ch.pipeline()
+                .addLast("decoder_compress", new HttpContentDecompressor()) // this handles request body decompression
+                .addLast("encoder", new HttpResponseEncoder() {
+                    @Override
+                    protected boolean isContentAlwaysEmpty(HttpResponse msg) {
+                        // non-chunked responses (Netty4HttpResponse extends Netty's DefaultFullHttpResponse) with chunked transfer
+                        // encoding are only sent by us in response to HEAD requests and must always have an empty body
+                        if (msg instanceof Netty4HttpResponse netty4HttpResponse && HttpUtil.isTransferEncodingChunked(msg)) {
+                            assert netty4HttpResponse.content().isReadable() == false;
+                            return true;
+                        }
+                        return super.isContentAlwaysEmpty(msg);
                     }
-                    return super.isContentAlwaysEmpty(msg);
-                }
-            }).addLast("aggregator", aggregator);
+                })
+                .addLast("aggregator", aggregator);
             if (handlingSettings.compression()) {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.compressionLevel()));
             }

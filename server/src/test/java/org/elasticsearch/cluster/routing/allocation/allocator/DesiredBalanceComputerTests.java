@@ -603,7 +603,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             var replicas = randomIntBetween(1, nodes - 1);
             totalShards += shards * (replicas + 1);
             var inSyncIds = randomList(shards * (replicas + 1), shards * (replicas + 1), () -> UUIDs.randomBase64UUID(random()));
-            var shardSize = randomLongBetween(1_000L, 1_000_000L);
+            var shardSize = randomLongBetween(1_000_000L, 1_000_000_000L);
 
             var indexMetadataBuilder = IndexMetadata.builder(indexName)
                 .settings(
@@ -614,7 +614,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
                         .build()
                 );
             if (randomBoolean()) {
-                indexMetadataBuilder.shardSizeInBytesForecast(shardSize + (randomLongBetween(0, 500) - 1_000));
+                indexMetadataBuilder.shardSizeInBytesForecast(smallShardSizeDeviation(shardSize));
             }
 
             for (int shard = 0; shard < shards; shard++) {
@@ -632,7 +632,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
                 var remainingNodeIds = new ArrayList<>(nodeIds);
                 remainingNodeIds.add(null);// disconnected node
                 var shardId = new ShardId(indexId, shard);
-                var thisShardSize = shardSize + (randomLongBetween(0, 500) - 1_000);
+                var thisShardSize = smallShardSizeDeviation(shardSize);
 
                 var primaryNodeId = pickAndRemoveRandomValueFrom(remainingNodeIds);
                 shardSizes.put(ClusterInfo.shardIdentifierFromRouting(shardId, true), thisShardSize);
@@ -674,6 +674,8 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             }
             routingTableBuilder.add(indexRoutingTableBuilder);
         }
+
+        logger.info("Simulating cluster with [{}] nodes and [{}] shards", nodes, totalShards);
 
         var clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodesBuilder)
@@ -720,6 +722,11 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             );
             throw e;
         }
+    }
+
+    private static long smallShardSizeDeviation(long originalSize) {
+        var deviation = randomIntBetween(0, 50) - 100L;
+        return originalSize * (1000 + deviation) / 1000;
     }
 
     private String pickAndRemoveRandomValueFrom(List<String> values) {

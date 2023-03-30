@@ -1,0 +1,15 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+
+esplugin {
+  name 'x-pack-rank-rrf'
+  description 'Reciprocal rank fusion in search.'
+  classname 'org.elasticsearch.xpack.rank.rrf.RankRRFPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+}

@@ -82,7 +82,7 @@ public abstract class AbstractRemoteClusterSecurityCcsWithMultipleRemotesRestIT 
             indexDocRequest.setJsonEntity("{\"name\": \"doc1\"}");
             assertOK(client().performRequest(indexDocRequest));
 
-            // Can search across local cluster and both remotes
+            // Search across local cluster and both remotes
             searchAndAssertIndicesFound(
                 String.format(
                     Locale.ROOT,
@@ -96,7 +96,7 @@ public abstract class AbstractRemoteClusterSecurityCcsWithMultipleRemotesRestIT 
                 "local_index"
             );
 
-            // Can search across both remotes using cluster alias wildcard
+            // Search across both remotes using cluster alias wildcard
             searchAndAssertIndicesFound(
                 String.format(
                     Locale.ROOT,
@@ -109,7 +109,7 @@ public abstract class AbstractRemoteClusterSecurityCcsWithMultipleRemotesRestIT 
                 "cluster2_index1"
             );
 
-            // Can search across both remotes using explicit cluster aliases
+            // Search across both remotes using explicit cluster aliases
             searchAndAssertIndicesFound(
                 String.format(
                     Locale.ROOT,
@@ -122,7 +122,7 @@ public abstract class AbstractRemoteClusterSecurityCcsWithMultipleRemotesRestIT 
                 "cluster2_index1"
             );
 
-            // Can search single remote
+            // Search single remote
             boolean searchFirstCluster = randomBoolean();
             String expectedIndex = searchFirstCluster ? "cluster1_index1" : "cluster2_index1";
             searchAndAssertIndicesFound(
@@ -136,6 +136,7 @@ public abstract class AbstractRemoteClusterSecurityCcsWithMultipleRemotesRestIT 
                 expectedIndex
             );
 
+            // Unauthorized access on either of the remotes fails the whole request
             final ResponseException exception = expectThrows(
                 ResponseException.class,
                 () -> performRequestWithRemoteSearchUser(

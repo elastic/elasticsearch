@@ -15,15 +15,9 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreCachingWrappingScorer;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.SimpleCollector;
-import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
 
-/**
- * Collector that wraps another collector and collects only documents that have a score that's greater or equal than the
- * provided minimum score. Given that this collector filters documents out, it does and should not override {@link #setWeight(Weight)},
- * as that may lead to exposing total hit count that does not reflect the filtering.
- */
 public class MinimumScoreCollector extends SimpleCollector {
 
     private final Collector collector;

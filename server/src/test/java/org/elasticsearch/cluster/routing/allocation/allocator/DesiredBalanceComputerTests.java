@@ -603,7 +603,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             var replicas = randomIntBetween(1, nodes - 1);
             totalShards += shards * (replicas + 1);
             var inSyncIds = randomList(shards * (replicas + 1), shards * (replicas + 1), () -> UUIDs.randomBase64UUID(random()));
-            var shardSize = randomLongBetween(1_000_000L, 1_000_000_000L);
+            var shardSize = randomLongBetween(10_000_000L, 10_000_000_000L);
 
             var indexMetadataBuilder = IndexMetadata.builder(indexName)
                 .settings(

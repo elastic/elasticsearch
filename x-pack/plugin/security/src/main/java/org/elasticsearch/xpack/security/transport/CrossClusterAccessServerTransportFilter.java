@@ -12,18 +12,22 @@ import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
@@ -70,7 +74,12 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
                 SearchTransportService.FETCH_ID_ACTION_NAME,
                 SearchTransportService.QUERY_CAN_MATCH_NAME,
                 SearchTransportService.QUERY_CAN_MATCH_NODE_NAME,
-                TransportOpenPointInTimeAction.OPEN_SHARD_READER_CONTEXT_NAME
+                TransportOpenPointInTimeAction.OPEN_SHARD_READER_CONTEXT_NAME,
+                // CCR actions
+                RetentionLeaseActions.Add.ACTION_NAME,
+                RetentionLeaseActions.Remove.ACTION_NAME,
+                RetentionLeaseActions.Renew.ACTION_NAME,
+                "indices:data/read/xpack/ccr/shard_changes"
             ).flatMap(name -> Stream.of(name, TransportActionProxy.getProxyAction(name))),
             // These actions don't have proxy equivalents
             Stream.of(
@@ -82,7 +91,14 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
                 ResolveIndexAction.NAME,
                 FieldCapabilitiesAction.NAME,
                 FieldCapabilitiesAction.NAME + "[n]",
-                "indices:data/read/eql"
+                "indices:data/read/eql",
+                // CCR actions
+                XPackInfoAction.NAME,
+                HasPrivilegesAction.NAME,
+                IndicesStatsAction.NAME,
+                "cluster:internal/remote_cluster/proxy/internal:admin/ccr/restore/session/put",
+                "cluster:internal/remote_cluster/proxy/internal:admin/ccr/restore/file_chunk/get",
+                "cluster:internal/remote_cluster/proxy/internal:admin/ccr/restore/session/clear"
             )
         ).collect(Collectors.toUnmodifiableSet());
     }

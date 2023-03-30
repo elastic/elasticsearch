@@ -61,11 +61,6 @@ public final class CsvTestUtils {
                     String[] arrayOfValues = delimitedListToStringArray(stringValue, ",");
                     List<Object> convertedValues = new ArrayList<>(arrayOfValues.length);
                     for (String value : arrayOfValues) {
-                        if (value.length() == 0) {// this means there shouldn't be any null value in a multi-value field ie [a,,b,c]
-                            throw new IllegalArgumentException(
-                                format("Unexpected missing value in a multi-value column; found value [{}]", stringValue)
-                            );
-                        }
                         convertedValues.add(type.convert(value));
                     }
                     convertedValues.stream().sorted().forEach(v -> builderWrapper().append().accept(v));
@@ -168,20 +163,14 @@ public final class CsvTestUtils {
 
         int pos = 0;          // current position in the csv String
         int commaPos;         // current "," character position
-        while ((commaPos = csvLine.indexOf(",", pos)) != -1 || pos < csvLine.length()) {
+        while ((commaPos = csvLine.indexOf(",", pos)) != -1 || pos <= csvLine.length()) {
             boolean isLastElement = commaPos == -1;
             String entry = csvLine.substring(pos, isLastElement ? csvLine.length() : commaPos).trim();
-            pos = isLastElement ? csvLine.length() : commaPos + 1;// break out of the loop if it reached its last element
             if (entry.startsWith("[")) {
-                if (previousMvValue != null) {
-                    throw new IllegalArgumentException(
-                        format(
-                            "Error line [{}]: Unexpected start of a multi-value field value; current token [{}], previous token [{}]",
-                            lineNumber,
-                            entry,
-                            previousMvValue
-                        )
-                    );
+                if (previousMvValue != null || (isLastElement && entry.endsWith("]") == false)) {
+                    String message = "Error line [{}:{}]: Unexpected start of a multi-value field value; current token [{}], "
+                        + (isLastElement ? "no closing point" : "previous token [{}]");
+                    throw new IllegalArgumentException(format(message, lineNumber, pos, entry, previousMvValue));
                 }
                 if (entry.endsWith("]")) {
                     if (entry.length() > 2) {// single-valued multivalue field :shrug:
@@ -198,8 +187,9 @@ public final class CsvTestUtils {
                 if (previousMvValue == null) {
                     throw new IllegalArgumentException(
                         format(
-                            "Error line [{}]: Unexpected end of a multi-value field value (no previous starting point); found [{}]",
+                            "Error line [{}:{}]: Unexpected end of a multi-value field value (no previous starting point); found [{}]",
                             lineNumber,
+                            pos,
                             entry
                         )
                     );
@@ -210,11 +200,22 @@ public final class CsvTestUtils {
                 previousMvValue = null;
             } else {
                 if (mvValue != null) {// mid-MV value
+                    if (entry.length() == 0) {// this means there shouldn't be any null value in a multi-value field ie [a,,b,c]
+                        throw new IllegalArgumentException(
+                            format(
+                                "Error line [{}:{}]: Unexpected missing value in a multi-value column; found [{}]",
+                                lineNumber,
+                                pos,
+                                csvLine.substring(pos - 1)
+                            )
+                        );
+                    }
                     mvValue.append("," + entry);
                 } else {
                     mvCompressedEntries.add(entry);// regular comma separated value
                 }
             }
+            pos = 1 + (isLastElement ? csvLine.length() : commaPos);// break out of the loop if it reached its last element
         }
         return mvCompressedEntries.toArray(String[]::new);
     }

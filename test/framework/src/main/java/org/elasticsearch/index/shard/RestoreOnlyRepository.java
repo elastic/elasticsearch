@@ -10,7 +10,6 @@ package org.elasticsearch.index.shard;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -28,12 +27,11 @@ import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotShardContext;
+import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.function.Consumer;
-import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
@@ -103,9 +101,9 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
         Collection<SnapshotId> snapshotIds,
         long repositoryStateId,
         Version repositoryMetaVersion,
-        ActionListener<RepositoryData> listener
+        SnapshotDeleteListener listener
     ) {
-        listener.onResponse(null);
+        listener.onFailure(new UnsupportedOperationException());
     }
 
     @Override
@@ -147,15 +145,6 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
 
     @Override
     public void awaitIdle() {}
-
-    @Override
-    public void executeConsistentStateUpdate(
-        Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
-        String source,
-        Consumer<Exception> onFailure
-    ) {
-        throw new UnsupportedOperationException("Unsupported for restore-only repository");
-    }
 
     @Override
     public void cloneShardSnapshot(

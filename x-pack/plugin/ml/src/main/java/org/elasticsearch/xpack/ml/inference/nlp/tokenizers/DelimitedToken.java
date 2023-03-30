@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class DelimitedToken {
 
@@ -59,5 +62,56 @@ public class DelimitedToken {
     @Override
     public int hashCode() {
         return Objects.hash(charSequence, startOffset, endOffset);
+    }
+
+    @Override
+    public String toString() {
+        return this.charSequence.toString();
+    }
+
+    public static class Encoded extends DelimitedToken {
+        static DelimitedToken.Encoded mergeEncodedTokens(List<DelimitedToken.Encoded> tokens) {
+            if (tokens.size() == 1) {
+                return tokens.get(0);
+            }
+            int startOffSet = tokens.get(0).startOffset();
+            int endOffset = tokens.get(tokens.size() - 1).endOffset();
+            final int encoding = tokens.get(0).encoding;
+            List<CharSequence> sequences = new ArrayList<>(tokens.size());
+            for (var t : tokens) {
+                if (t.encoding != encoding) {
+                    throw new IllegalArgumentException(
+                        format("all merged tokens must have the same encoding, expected [%s]; found [%s]", encoding, t.encoding)
+                    );
+                }
+                sequences.add(t.charSequence());
+            }
+            return new DelimitedToken.Encoded(new MultiCharSequence(sequences), tokens.get(0).encoding, startOffSet, endOffset);
+        }
+
+        private final int encoding;
+
+        public Encoded(CharSequence charSequence, int encoding, int startOffset, int endOffset) {
+            super(charSequence, startOffset, endOffset);
+            this.encoding = encoding;
+        }
+
+        public int getEncoding() {
+            return encoding;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            if (super.equals(o) == false) return false;
+            Encoded encoded = (Encoded) o;
+            return encoding == encoded.encoding;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), encoding);
+        }
     }
 }

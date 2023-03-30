@@ -43,8 +43,7 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
     private final double medianAbsoluteDeviation;
 
     InternalMedianAbsoluteDeviation(String name, Map<String, Object> metadata, DocValueFormat format, TDigestState valuesSketch) {
-        super(name, metadata);
-        this.format = Objects.requireNonNull(format);
+        super(name, Objects.requireNonNull(format), metadata);
         this.valuesSketch = Objects.requireNonNull(valuesSketch);
 
         this.medianAbsoluteDeviation = computeMedianAbsoluteDeviation(this.valuesSketch);
@@ -52,7 +51,6 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
 
     public InternalMedianAbsoluteDeviation(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         valuesSketch = TDigestState.read(in);
         medianAbsoluteDeviation = in.readDouble();
     }

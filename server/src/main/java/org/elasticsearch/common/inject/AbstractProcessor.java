@@ -19,15 +19,9 @@ package org.elasticsearch.common.inject;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.spi.Element;
 import org.elasticsearch.common.inject.spi.ElementVisitor;
-import org.elasticsearch.common.inject.spi.InjectionRequest;
-import org.elasticsearch.common.inject.spi.MembersInjectorLookup;
 import org.elasticsearch.common.inject.spi.Message;
-import org.elasticsearch.common.inject.spi.PrivateElements;
 import org.elasticsearch.common.inject.spi.ProviderLookup;
 import org.elasticsearch.common.inject.spi.ScopeBinding;
-import org.elasticsearch.common.inject.spi.StaticInjectionRequest;
-import org.elasticsearch.common.inject.spi.TypeConverterBinding;
-import org.elasticsearch.common.inject.spi.TypeListenerBinding;
 
 import java.util.Iterator;
 import java.util.List;
@@ -85,42 +79,12 @@ abstract class AbstractProcessor implements ElementVisitor<Boolean> {
     }
 
     @Override
-    public Boolean visit(InjectionRequest<?> injectionRequest) {
-        return false;
-    }
-
-    @Override
-    public Boolean visit(StaticInjectionRequest staticInjectionRequest) {
-        return false;
-    }
-
-    @Override
-    public Boolean visit(TypeConverterBinding typeConverterBinding) {
-        return false;
-    }
-
-    @Override
     public <T> Boolean visit(Binding<T> binding) {
         return false;
     }
 
     @Override
     public <T> Boolean visit(ProviderLookup<T> providerLookup) {
-        return false;
-    }
-
-    @Override
-    public Boolean visit(PrivateElements privateElements) {
-        return false;
-    }
-
-    @Override
-    public <T> Boolean visit(MembersInjectorLookup<T> lookup) {
-        return false;
-    }
-
-    @Override
-    public Boolean visit(TypeListenerBinding binding) {
         return false;
     }
 }

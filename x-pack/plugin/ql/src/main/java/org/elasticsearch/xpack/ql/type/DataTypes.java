@@ -16,7 +16,6 @@ import java.util.Locale;
 import java.util.Map;
 
 import static java.util.stream.Collectors.toMap;
-import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 
 public final class DataTypes {
@@ -45,6 +44,8 @@ public final class DataTypes {
     public static final DataType DATETIME         = new DataType("DATETIME", "date",        Long.BYTES,  false, false, true);
     // ip
     public static final DataType IP               = new DataType("ip",                45,                false, false, true);
+    // version
+    public static final DataType VERSION          = new DataType("version",           Integer.MAX_VALUE, false, false, true);
     // binary
     public static final DataType BINARY           = new DataType("binary",            Integer.MAX_VALUE, false, false, true);
     // complex types
@@ -69,10 +70,11 @@ public final class DataTypes {
         TEXT,
         DATETIME,
         IP,
+        VERSION,
         BINARY,
         OBJECT,
         NESTED
-    ).stream().sorted(Comparator.comparing(DataType::typeName)).collect(toUnmodifiableList());
+    ).stream().sorted(Comparator.comparing(DataType::typeName)).toList();
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
 

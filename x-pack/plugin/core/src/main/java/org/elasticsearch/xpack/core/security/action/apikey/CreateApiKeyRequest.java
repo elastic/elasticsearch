@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
@@ -74,20 +74,20 @@ public final class CreateApiKeyRequest extends ActionRequest {
 
     public CreateApiKeyRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             this.id = in.readString();
         } else {
             this.id = UUIDs.base64UUID();
         }
-        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
             this.name = in.readOptionalString();
         } else {
             this.name = in.readString();
         }
         this.expiration = in.readOptionalTimeValue();
-        this.roleDescriptors = List.copyOf(in.readList(RoleDescriptor::new));
+        this.roleDescriptors = in.readImmutableList(RoleDescriptor::new);
         this.refreshPolicy = WriteRequest.RefreshPolicy.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             this.metadata = in.readMap();
         } else {
             this.metadata = null;
@@ -173,10 +173,10 @@ public final class CreateApiKeyRequest extends ActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             out.writeString(id);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
             out.writeOptionalString(name);
         } else {
             out.writeString(name);
@@ -184,8 +184,8 @@ public final class CreateApiKeyRequest extends ActionRequest {
         out.writeOptionalTimeValue(expiration);
         out.writeList(roleDescriptors);
         refreshPolicy.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-            out.writeMap(metadata);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
+            out.writeGenericMap(metadata);
         }
     }
 }

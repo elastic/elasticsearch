@@ -28,7 +28,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
@@ -48,8 +47,8 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         StepKey nextKey = instance.getNextStepKey();
 
         switch (between(0, 1)) {
-            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
@@ -76,7 +75,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         assertEquals(rolloverTarget, request.indices()[0]);
         assertEquals(rolloverTarget, request.getRolloverTarget());
         assertFalse(request.isDryRun());
-        assertEquals(0, request.getConditions().size());
+        assertEquals(0, request.getConditions().getConditions().size());
     }
 
     public void testPerformAction() throws Exception {
@@ -108,11 +107,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         mockClientRolloverCall(dataStreamName);
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(
-                Metadata.builder()
-                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), List.of(indexMetadata.getIndex())))
-                    .put(indexMetadata, true)
-            )
+            .metadata(Metadata.builder().put(newInstance(dataStreamName, List.of(indexMetadata.getIndex()))).put(indexMetadata, true))
             .build();
         PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
 
@@ -141,13 +136,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
                 Metadata.builder()
                     .put(firstGenerationIndex, true)
                     .put(writeIndex, true)
-                    .put(
-                        newInstance(
-                            dataStreamName,
-                            createTimestampField("@timestamp"),
-                            List.of(firstGenerationIndex.getIndex(), writeIndex.getIndex())
-                        )
-                    )
+                    .put(newInstance(dataStreamName, List.of(firstGenerationIndex.getIndex(), writeIndex.getIndex())))
             )
             .build();
         PlainActionFuture.<Void, Exception>get(f -> step.performAction(firstGenerationIndex, clusterState, null, f));
@@ -194,7 +183,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
             .putRolloverInfo(
                 new RolloverInfo(
                     rolloverAlias,
-                    Collections.singletonList(new MaxSizeCondition(new ByteSizeValue(2L))),
+                    Collections.singletonList(new MaxSizeCondition(ByteSizeValue.ofBytes(2L))),
                     System.currentTimeMillis()
                 )
             )

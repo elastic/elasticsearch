@@ -478,6 +478,25 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Rewriteable.rewriteAndFetch(original, searchService.getRewriteContext(timeProvider::absoluteStartMillis), rewriteListener);
     }
 
+    static void adjustSearchType(SearchRequest searchRequest, boolean singleShard) {
+        // optimize search type for cases where there is only one shard group to search on
+        if (singleShard) {
+            // if we only have one group, then we always want Q_T_F, no need for DFS, and no need to do THEN since we hit one shard
+            searchRequest.searchType(QUERY_THEN_FETCH);
+        }
+
+        // if there's only suggest, disable request cache and always use QUERY_THEN_FETCH
+        if (searchRequest.isSuggestOnly()) {
+            searchRequest.requestCache(false);
+            searchRequest.searchType(QUERY_THEN_FETCH);
+        }
+
+        // if there's a kNN search, always use DFS_QUERY_THEN_FETCH
+        if (searchRequest.hasKnnSearch()) {
+            searchRequest.searchType(DFS_QUERY_THEN_FETCH);
+        }
+    }
+
     static boolean shouldMinimizeRoundtrips(SearchRequest searchRequest) {
         if (searchRequest.isCcsMinimizeRoundtrips() == false) {
             return false;
@@ -489,6 +508,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return false;
         }
         if (searchRequest.searchType() == DFS_QUERY_THEN_FETCH) {
+            return false;
+        }
+        if (searchRequest.hasKnnSearch()) {
             return false;
         }
         SearchSourceBuilder source = searchRequest.source();
@@ -969,7 +991,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 OriginalIndices finalIndices = finalIndicesMap.get(it.shardId().getIndex().getUUID());
                 assert finalIndices != null;
                 return new SearchShardIterator(searchRequest.getLocalClusterAlias(), it.shardId(), it.getShardRoutings(), finalIndices);
-            }).collect(Collectors.toList());
+            }).toList();
         }
         final GroupShardsIterator<SearchShardIterator> shardIterators = mergeShardsIterators(localShardIterators, remoteShardIterators);
 
@@ -985,20 +1007,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         Map<String, Float> concreteIndexBoosts = resolveIndexBoosts(searchRequest, clusterState);
 
-        // optimize search type for cases where there is only one shard group to search on
-        if (shardIterators.size() == 1) {
-            // if we only have one group, then we always want Q_T_F, no need for DFS, and no need to do THEN since we hit one shard
-            searchRequest.searchType(QUERY_THEN_FETCH);
-        }
-        if (searchRequest.isSuggestOnly()) {
-            // disable request cache if we have only suggest
-            searchRequest.requestCache(false);
-            switch (searchRequest.searchType()) {
-                case DFS_QUERY_THEN_FETCH ->
-                    // convert to Q_T_F if we have only suggest
-                    searchRequest.searchType(QUERY_THEN_FETCH);
-            }
-        }
+        adjustSearchType(searchRequest, shardIterators.size() == 1);
+
         final DiscoveryNodes nodes = clusterState.nodes();
         BiFunction<String, String, Transport.Connection> connectionLookup = buildConnectionLookup(
             searchRequest.getLocalClusterAlias(),
@@ -1032,9 +1042,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     Executor asyncSearchExecutor(final String[] indices) {
-        final List<String> executorsForIndices = Arrays.stream(indices)
-            .map(executorSelector::executorForSearch)
-            .collect(Collectors.toList());
+        final List<String> executorsForIndices = Arrays.stream(indices).map(executorSelector::executorForSearch).toList();
         if (executorsForIndices.size() == 1) { // all indices have same executor
             return threadPool.executor(executorsForIndices.get(0));
         }
@@ -1193,7 +1201,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     connectionLookup,
                     aliasFilter,
                     concreteIndexBoosts,
-                    searchPhaseController,
                     executor,
                     queryResultConsumer,
                     searchRequest,
@@ -1210,7 +1217,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     connectionLookup,
                     aliasFilter,
                     concreteIndexBoosts,
-                    searchPhaseController,
                     executor,
                     queryResultConsumer,
                     searchRequest,

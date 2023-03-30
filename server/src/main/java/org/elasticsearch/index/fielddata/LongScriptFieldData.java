@@ -14,8 +14,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.index.fielddata.plain.LeafLongFieldData;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.LongFieldScript;
-import org.elasticsearch.script.field.DocValuesField;
-import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -26,32 +26,36 @@ public final class LongScriptFieldData extends IndexNumericFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final LongFieldScript.LeafFactory leafFactory;
-        protected final ToScriptField<SortedNumericDocValues> toScriptField;
+        protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
 
-        public Builder(String name, LongFieldScript.LeafFactory leafFactory, ToScriptField<SortedNumericDocValues> toScriptField) {
+        public Builder(
+            String name,
+            LongFieldScript.LeafFactory leafFactory,
+            ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
+        ) {
             this.name = name;
             this.leafFactory = leafFactory;
-            this.toScriptField = toScriptField;
+            this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         @Override
         public LongScriptFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new LongScriptFieldData(name, leafFactory, toScriptField);
+            return new LongScriptFieldData(name, leafFactory, toScriptFieldFactory);
         }
     }
 
     private final String fieldName;
     private final LongFieldScript.LeafFactory leafFactory;
-    protected final ToScriptField<SortedNumericDocValues> toScriptField;
+    protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
 
     private LongScriptFieldData(
         String fieldName,
         LongFieldScript.LeafFactory leafFactory,
-        ToScriptField<SortedNumericDocValues> toScriptField
+        ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
     ) {
         this.fieldName = fieldName;
         this.leafFactory = leafFactory;
-        this.toScriptField = toScriptField;
+        this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
     @Override
@@ -75,7 +79,7 @@ public final class LongScriptFieldData extends IndexNumericFieldData {
 
     @Override
     public LongScriptLeafFieldData loadDirect(LeafReaderContext context) throws IOException {
-        return new LongScriptLeafFieldData(new LongScriptDocValues(leafFactory.newInstance(context)), toScriptField);
+        return new LongScriptLeafFieldData(new LongScriptDocValues(leafFactory.newInstance(context)), toScriptFieldFactory);
     }
 
     @Override
@@ -90,12 +94,15 @@ public final class LongScriptFieldData extends IndexNumericFieldData {
 
     public static class LongScriptLeafFieldData extends LeafLongFieldData {
         private final LongScriptDocValues longScriptDocValues;
-        protected final ToScriptField<SortedNumericDocValues> toScriptField;
+        protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
 
-        LongScriptLeafFieldData(LongScriptDocValues longScriptDocValues, ToScriptField<SortedNumericDocValues> toScriptField) {
+        LongScriptLeafFieldData(
+            LongScriptDocValues longScriptDocValues,
+            ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
+        ) {
             super(0);
             this.longScriptDocValues = longScriptDocValues;
-            this.toScriptField = toScriptField;
+            this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         @Override
@@ -104,8 +111,8 @@ public final class LongScriptFieldData extends IndexNumericFieldData {
         }
 
         @Override
-        public DocValuesField<?> getScriptField(String name) {
-            return toScriptField.getScriptField(getLongValues(), name);
+        public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+            return toScriptFieldFactory.getScriptFieldFactory(getLongValues(), name);
         }
     }
 }

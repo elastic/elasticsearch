@@ -70,6 +70,8 @@ without requiring basic authentication:
 * <<security-api-clear-api-key-cache,Clear API key cache>>
 * <<security-api-grant-api-key,Grant API key>>
 * <<security-api-query-api-key,Query API key>>
+* <<security-api-update-api-key,Update API key>>
+* <<security-api-bulk-update-api-keys,Bulk update API keys>>
 
 [discrete]
 [[security-user-apis]]
@@ -138,12 +140,14 @@ communicate with a secured {es} cluster.
 
 Use the following APIs to retrieve and manage user profiles.
 
-* <<security-api-activiate-user-profile, Activate user profile>>
+* <<security-api-activate-user-profile, Activate user profile>>
 * <<security-api-get-user-profile, Get user profile>>
 * <<security-api-update-user-profile-data, Update user profile data>>
+* <<security-api-enable-user-profile, Enable user profile>>
+* <<security-api-disable-user-profile, Disable user profile>>
+* <<security-api-suggest-user-profile, Suggest user profile>>
+* <<security-api-has-privileges-user-profile, Has Privileges user profile>>
 
-
-include::security/activate-user-profile.asciidoc[]
 include::security/authenticate.asciidoc[]
 include::security/change-password.asciidoc[]
 include::security/clear-cache.asciidoc[]
@@ -176,7 +180,7 @@ include::security/get-service-accounts.asciidoc[]
 include::security/get-service-credentials.asciidoc[]
 include::security/get-tokens.asciidoc[]
 include::security/get-user-privileges.asciidoc[]
-include::security/get-user-profile.asciidoc[]
+
 include::security/get-users.asciidoc[]
 include::security/grant-api-keys.asciidoc[]
 include::security/has-privileges.asciidoc[]
@@ -186,6 +190,8 @@ include::security/oidc-prepare-authentication-api.asciidoc[]
 include::security/oidc-authenticate-api.asciidoc[]
 include::security/oidc-logout-api.asciidoc[]
 include::security/query-api-key.asciidoc[]
+include::security/update-api-key.asciidoc[]
+include::security/bulk-update-api-keys.asciidoc[]
 include::security/saml-prepare-authentication-api.asciidoc[]
 include::security/saml-authenticate-api.asciidoc[]
 include::security/saml-logout-api.asciidoc[]
@@ -193,4 +199,10 @@ include::security/saml-invalidate-api.asciidoc[]
 include::security/saml-complete-logout-api.asciidoc[]
 include::security/saml-sp-metadata.asciidoc[]
 include::security/ssl.asciidoc[]
+include::security/activate-user-profile.asciidoc[]
+include::security/disable-user-profile.asciidoc[]
+include::security/enable-user-profile.asciidoc[]
+include::security/get-user-profile.asciidoc[]
+include::security/suggest-user-profile.asciidoc[]
 include::security/update-user-profile-data.asciidoc[]
+include::security/has-privileges-user-profile.asciidoc[]

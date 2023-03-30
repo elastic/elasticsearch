@@ -27,8 +27,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -42,8 +42,8 @@ import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.DataInputStream;
@@ -114,7 +114,7 @@ public final class BlobStoreTestUtil {
                 try (
                     InputStream blob = blobContainer.readBlob(BlobStoreRepository.INDEX_FILE_PREFIX + latestGen);
                     XContentParser parser = XContentType.JSON.xContent()
-                        .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, blob)
+                        .createParser(XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE), blob)
                 ) {
                     repositoryData = RepositoryData.snapshotsFromXContent(parser, latestGen, false);
                 }
@@ -423,6 +423,7 @@ public final class BlobStoreTestUtil {
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         when(threadPool.executor(ThreadPool.Names.SNAPSHOT)).thenReturn(new SameThreadExecutorService());
+        when(threadPool.executor(ThreadPool.Names.SNAPSHOT_META)).thenReturn(new SameThreadExecutorService());
         when(threadPool.generic()).thenReturn(new SameThreadExecutorService());
         when(threadPool.info(ThreadPool.Names.SNAPSHOT)).thenReturn(
             new ThreadPool.Info(ThreadPool.Names.SNAPSHOT, ThreadPool.ThreadPoolType.FIXED, randomIntBetween(1, 10))
@@ -450,7 +451,7 @@ public final class BlobStoreTestUtil {
             );
             task.clusterStateProcessed(current, next);
             return null;
-        }).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class), any());
+        }).when(clusterService).submitUnbatchedStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
         doAnswer(invocation -> {
             appliers.add((ClusterStateApplier) invocation.getArguments()[0]);
             return null;

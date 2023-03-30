@@ -18,9 +18,9 @@ process.
 [[feature-migration-api-request]]
 ==== {api-request-title}
 
-`GET /migration/system_features`
+`GET /_migration/system_features`
 
-`POST /migration/system_features`
+`POST /_migration/system_features`
 
 [[feature-migration-api-prereqs]]
 ==== {api-prereq-title}

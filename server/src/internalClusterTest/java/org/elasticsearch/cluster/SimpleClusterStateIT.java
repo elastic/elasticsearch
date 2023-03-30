@@ -8,22 +8,22 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,10 +38,11 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.hamcrest.CollectionAssertions;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
@@ -50,7 +51,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
@@ -60,6 +63,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertInde
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -217,14 +221,14 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             .setIndices(indices)
             .get();
 
-        ImmutableOpenMap<String, IndexMetadata> metadata = clusterState.getState().getMetadata().indices();
+        Map<String, IndexMetadata> metadata = clusterState.getState().getMetadata().indices();
         assertThat(metadata.size(), is(expected.length));
 
         RoutingTable routingTable = clusterState.getState().getRoutingTable();
         assertThat(routingTable.indicesRouting().size(), is(expected.length));
 
         for (String expectedIndex : expected) {
-            assertThat(metadata, CollectionAssertions.hasKey(expectedIndex));
+            assertThat(metadata, hasKey(expectedIndex));
             assertThat(routingTable.hasIndex(expectedIndex), is(true));
         }
     }
@@ -291,7 +295,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         ensureGreen("fuu");
 
         // close one index
-        assertAcked(client().admin().indices().close(Requests.closeIndexRequest("fuu")).get());
+        assertAcked(client().admin().indices().close(new CloseIndexRequest("fuu")).get());
         clusterStateResponse = client().admin().cluster().prepareState().clear().setMetadata(true).setIndices("f*").get();
         assertThat(clusterStateResponse.getState().metadata().indices().size(), is(1));
         assertThat(clusterStateResponse.getState().metadata().index("foo").getState(), equalTo(IndexMetadata.State.OPEN));
@@ -389,8 +393,8 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.CURRENT;
         }
 
         @Override
@@ -399,8 +403,8 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder;
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+            return Collections.emptyIterator();
         }
 
         static NamedDiff<ClusterState.Custom> readDiffFrom(StreamInput in) throws IOException {
@@ -439,7 +443,9 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             final NodeEnvironment nodeEnvironment,
             final NamedWriteableRegistry namedWriteableRegistry,
             final IndexNameExpressionResolver expressionResolver,
-            final Supplier<RepositoriesService> repositoriesServiceSupplier
+            final Supplier<RepositoriesService> repositoriesServiceSupplier,
+            Tracer tracer,
+            AllocationService allocationService
         ) {
             clusterService.addListener(event -> {
                 final ClusterState state = event.state();
@@ -450,25 +456,28 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
                 if (state.nodes().isLocalNodeElectedMaster()) {
                     if (state.custom("test") == null) {
                         if (installed.compareAndSet(false, true)) {
-                            clusterService.submitStateUpdateTask("install-metadata-custom", new ClusterStateUpdateTask(Priority.URGENT) {
+                            clusterService.submitUnbatchedStateUpdateTask(
+                                "install-metadata-custom",
+                                new ClusterStateUpdateTask(Priority.URGENT) {
 
-                                @Override
-                                public ClusterState execute(ClusterState currentState) {
-                                    if (currentState.custom("test") == null) {
-                                        final ClusterState.Builder builder = ClusterState.builder(currentState);
-                                        builder.putCustom("test", new TestCustom(42));
-                                        return builder.build();
-                                    } else {
-                                        return currentState;
+                                    @Override
+                                    public ClusterState execute(ClusterState currentState) {
+                                        if (currentState.custom("test") == null) {
+                                            final ClusterState.Builder builder = ClusterState.builder(currentState);
+                                            builder.putCustom("test", new TestCustom(42));
+                                            return builder.build();
+                                        } else {
+                                            return currentState;
+                                        }
                                     }
-                                }
 
-                                @Override
-                                public void onFailure(Exception e) {
-                                    throw new AssertionError(e);
-                                }
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        throw new AssertionError(e);
+                                    }
 
-                            }, ClusterStateTaskExecutor.unbatched());
+                                }
+                            );
                         }
                     }
                 }

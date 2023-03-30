@@ -10,11 +10,11 @@ package org.elasticsearch.legacygeo.builders;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.legacygeo.GeoShapeType;
 import org.elasticsearch.legacygeo.parsers.GeoWKTParser;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -107,10 +107,7 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(coordinates.size());
-        for (Coordinate point : coordinates) {
-            writeCoordinateTo(point, out);
-        }
+        out.writeCollection(coordinates, (o, p) -> writeCoordinateTo(p, o));
     }
 
     protected static void writeCoordinateTo(Coordinate coordinate, StreamOutput out) throws IOException {

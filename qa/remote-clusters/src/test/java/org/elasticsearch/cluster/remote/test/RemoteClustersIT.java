@@ -7,13 +7,11 @@
  */
 package org.elasticsearch.cluster.remote.test;
 
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.After;
@@ -30,28 +28,17 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
 
     @Before
     public void setupIndices() throws IOException {
-        assertTrue(
-            cluster1Client().indices()
-                .create(
-                    new CreateIndexRequest("test1").settings(Settings.builder().put("index.number_of_replicas", 0).build()),
-                    RequestOptions.DEFAULT
-                )
-                .isAcknowledged()
-        );
+        RestClient cluster1Client = cluster1Client().getLowLevelClient();
+        assertTrue(createIndex(cluster1Client, "test1", Settings.builder().put("index.number_of_replicas", 0).build()).isAcknowledged());
         cluster1Client().index(
             new IndexRequest("test1").id("id1")
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .source(XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject()),
             RequestOptions.DEFAULT
         );
-        assertTrue(
-            cluster2Client().indices()
-                .create(
-                    new CreateIndexRequest("test2").settings(Settings.builder().put("index.number_of_replicas", 0).build()),
-                    RequestOptions.DEFAULT
-                )
-                .isAcknowledged()
-        );
+
+        RestClient cluster2Client = cluster2Client().getLowLevelClient();
+        assertTrue(createIndex(cluster2Client, "test2", Settings.builder().put("index.number_of_replicas", 0).build()).isAcknowledged());
         cluster2Client().index(
             new IndexRequest("test2").id("id1").source(XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject()),
             RequestOptions.DEFAULT
@@ -68,8 +55,10 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
 
     @After
     public void clearIndices() throws IOException {
-        assertTrue(cluster1Client().indices().delete(new DeleteIndexRequest("*"), RequestOptions.DEFAULT).isAcknowledged());
-        assertTrue(cluster2Client().indices().delete(new DeleteIndexRequest("*"), RequestOptions.DEFAULT).isAcknowledged());
+        RestClient cluster1Client = cluster1Client().getLowLevelClient();
+        assertTrue(deleteIndex(cluster1Client, "*").isAcknowledged());
+        RestClient cluster2Client = cluster2Client().getLowLevelClient();
+        assertTrue(deleteIndex(cluster2Client, "*").isAcknowledged());
     }
 
     @After

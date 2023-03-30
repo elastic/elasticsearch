@@ -25,7 +25,7 @@ public class StemmerOverrideTokenFilterFactory extends AbstractTokenFilterFactor
     private final StemmerOverrideMap overrideMap;
 
     StemmerOverrideTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) throws IOException {
-        super(indexSettings, name, settings);
+        super(name, settings);
 
         List<String> rules = Analysis.getWordList(env, settings, "rules");
         if (rules == null) {

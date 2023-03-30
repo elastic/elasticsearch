@@ -119,7 +119,7 @@ public final class AutoCreateIndex {
         this.autoCreate = autoCreate;
     }
 
-    private ComposableIndexTemplate findTemplate(String indexName, Metadata metadata) {
+    private static ComposableIndexTemplate findTemplate(String indexName, Metadata metadata) {
         final String templateName = MetadataIndexTemplateService.findV2Template(metadata, indexName, false);
         return metadata.templatesV2().get(templateName);
     }

@@ -69,11 +69,23 @@ public final class TrackingResultProcessor implements Processor {
             IngestDocument ingestDocumentCopy = new IngestDocument(ingestDocument);
             Pipeline pipelineToCall = pipelineProcessor.getPipeline(ingestDocument);
             if (pipelineToCall == null) {
-                throw new IllegalArgumentException(
+                IllegalArgumentException e = new IllegalArgumentException(
                     "Pipeline processor configured for non-existent pipeline ["
                         + pipelineProcessor.getPipelineToCallName(ingestDocument)
                         + ']'
                 );
+                // Add error as processor result, otherwise this gets lost in SimulateExecutionService#execute(...) and
+                // an empty response gets returned by the ingest simulate api.
+                processorResultList.add(
+                    new SimulateProcessorResult(
+                        pipelineProcessor.getType(),
+                        pipelineProcessor.getTag(),
+                        pipelineProcessor.getDescription(),
+                        e,
+                        conditionalWithResult
+                    )
+                );
+                throw e;
             }
             ingestDocumentCopy.executePipeline(pipelineToCall, (result, e) -> {
                 // special handling for pipeline cycle errors
@@ -128,7 +140,7 @@ public final class TrackingResultProcessor implements Processor {
             return;
         }
 
-        actualProcessor.execute(ingestDocument, (result, e) -> {
+        executeProcessor(actualProcessor, ingestDocument, (result, e) -> {
             if (e != null) {
                 if (ignoreFailure) {
                     processorResultList.add(
@@ -180,9 +192,17 @@ public final class TrackingResultProcessor implements Processor {
         });
     }
 
-    @Override
-    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        throw new UnsupportedOperationException();
+    private static void executeProcessor(Processor p, IngestDocument doc, BiConsumer<IngestDocument, Exception> handler) {
+        if (p.isAsync()) {
+            p.execute(doc, handler);
+        } else {
+            try {
+                IngestDocument result = p.execute(doc);
+                handler.accept(result, null);
+            } catch (Exception e) {
+                handler.accept(null, e);
+            }
+        }
     }
 
     @Override
@@ -198,6 +218,11 @@ public final class TrackingResultProcessor implements Processor {
     @Override
     public String getDescription() {
         return actualProcessor.getDescription();
+    }
+
+    @Override
+    public boolean isAsync() {
+        return true;
     }
 
     public static CompoundProcessor decorate(

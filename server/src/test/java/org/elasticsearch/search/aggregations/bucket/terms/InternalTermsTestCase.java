@@ -34,6 +34,11 @@ public abstract class InternalTermsTestCase extends InternalMultiBucketAggregati
     }
 
     @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected InternalTerms<?, ?> createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
         return createTestInstance(name, metadata, aggregations, showDocCount, docCountError);
     }

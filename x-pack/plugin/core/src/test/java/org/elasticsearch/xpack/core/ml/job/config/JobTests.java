@@ -17,18 +17,17 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
@@ -54,7 +53,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class JobTests extends AbstractSerializingTestCase<Job> {
+public class JobTests extends AbstractXContentSerializingTestCase<Job> {
 
     private static final String FUTURE_JOB = """
         {
@@ -75,6 +74,11 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     @Override
     protected Job createTestInstance() {
         return createRandomizedJob(new DatafeedConfig.Builder().setIndices(Arrays.asList("airline_data")));
+    }
+
+    @Override
+    protected Job mutateInstance(Job instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -105,7 +109,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
 
         BytesReference serializedJob = XContentHelper.toXContent(config, XContentType.JSON, params, false);
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, serializedJob.streamInput());
+            .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), serializedJob.streamInput());
 
         Job parsedConfig = Job.LENIENT_PARSER.apply(parser, null).build();
         // When we are writing for internal storage, we do not include the datafeed config
@@ -113,15 +117,13 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     }
 
     public void testFutureConfigParse() throws IOException {
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, FUTURE_JOB);
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, FUTURE_JOB);
         XContentParseException e = expectThrows(XContentParseException.class, () -> Job.STRICT_PARSER.apply(parser, null).build());
         assertEquals("[4:5] [job_details] unknown field [tomorrows_technology_today]", e.getMessage());
     }
 
     public void testFutureMetadataParse() throws IOException {
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, FUTURE_JOB);
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, FUTURE_JOB);
         // Unlike the config version of this test, the metadata parser should tolerate the unknown future field
         assertNotNull(Job.LENIENT_PARSER.apply(parser, null).build());
     }
@@ -155,7 +157,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     public void testEnsureModelMemoryLimitSet() {
         Job.Builder builder = buildJobBuilder("foo");
         builder.setAnalysisLimits(new AnalysisLimits(null, null));
-        builder.validateAnalysisLimitsAndSetDefaults(new ByteSizeValue(0L));
+        builder.validateAnalysisLimitsAndSetDefaults(ByteSizeValue.ZERO);
         Job job = builder.build();
         assertEquals("foo", job.getId());
         assertNotNull(job.getAnalysisLimits());
@@ -666,13 +668,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
                 "deleting": true
             }""";
 
-        try (
-            XContentParser parser = JsonXContent.jsonXContent.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.IGNORE_DEPRECATIONS,
-                jobWithDeleting
-            )
-        ) {
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, jobWithDeleting)) {
             Job job = doParseInstance(parser);
             assertThat(job.getBlocked().getReason(), equalTo(Blocked.Reason.DELETE));
         }

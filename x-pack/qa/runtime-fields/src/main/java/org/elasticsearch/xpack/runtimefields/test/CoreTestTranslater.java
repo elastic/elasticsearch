@@ -168,6 +168,7 @@ public abstract class CoreTestTranslater {
             modified = new ClientYamlTestSuite(
                 candidate.getApi(),
                 candidate.getName(),
+                candidate.getRestTestSuite().getFile(),
                 new SetupSection(candidate.getSetupSection().getSkipSection(), setup),
                 candidate.getTeardownSection(),
                 List.of()

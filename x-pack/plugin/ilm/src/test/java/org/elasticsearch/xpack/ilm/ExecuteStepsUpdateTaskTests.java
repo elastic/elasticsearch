@@ -296,14 +296,14 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         ClusterState newState = task.execute(clusterState);
         LifecycleExecutionState lifecycleState = newState.getMetadata().index(index).getLifecycleExecutionState();
         StepKey currentStepKey = Step.getCurrentStepKey(lifecycleState);
-        assertThat(currentStepKey, equalTo(new StepKey(firstStepKey.getPhase(), firstStepKey.getAction(), ErrorStep.NAME)));
+        assertThat(currentStepKey, equalTo(new StepKey(firstStepKey.phase(), firstStepKey.action(), ErrorStep.NAME)));
         assertThat(firstStep.getExecuteCount(), equalTo(1L));
         assertThat(secondStep.getExecuteCount(), equalTo(0L));
         assertNull(task.getNextStepKey());
         assertThat(lifecycleState.phaseTime(), nullValue());
         assertThat(lifecycleState.actionTime(), nullValue());
         assertThat(lifecycleState.stepInfo(), containsString("""
-            {"type":"runtime_exception","reason":"error","stack_trace":\""""));
+            {"type":"runtime_exception","reason":"error\""""));
     }
 
     public void testClusterWaitStepThrowsException() throws Exception {
@@ -316,22 +316,22 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         ClusterState newState = task.execute(clusterState);
         LifecycleExecutionState lifecycleState = newState.getMetadata().index(index).getLifecycleExecutionState();
         StepKey currentStepKey = Step.getCurrentStepKey(lifecycleState);
-        assertThat(currentStepKey, equalTo(new StepKey(firstStepKey.getPhase(), firstStepKey.getAction(), ErrorStep.NAME)));
+        assertThat(currentStepKey, equalTo(new StepKey(firstStepKey.phase(), firstStepKey.action(), ErrorStep.NAME)));
         assertThat(firstStep.getExecuteCount(), equalTo(1L));
         assertThat(secondStep.getExecuteCount(), equalTo(1L));
         assertThat(lifecycleState.phaseTime(), nullValue());
         assertThat(lifecycleState.actionTime(), nullValue());
         assertThat(lifecycleState.stepInfo(), containsString("""
-            {"type":"runtime_exception","reason":"error","stack_trace":\""""));
+            {"type":"runtime_exception","reason":"error\""""));
     }
 
     private void setStateToKey(StepKey stepKey) throws IOException {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder(
             clusterState.getMetadata().index(index).getLifecycleExecutionState()
         );
-        lifecycleState.setPhase(stepKey.getPhase());
-        lifecycleState.setAction(stepKey.getAction());
-        lifecycleState.setStep(stepKey.getName());
+        lifecycleState.setPhase(stepKey.phase());
+        lifecycleState.setAction(stepKey.action());
+        lifecycleState.setStep(stepKey.name());
         clusterState = ClusterState.builder(clusterState)
             .metadata(
                 Metadata.builder(clusterState.getMetadata())

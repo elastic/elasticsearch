@@ -57,9 +57,11 @@ public class GeoPointScriptFieldGeoShapeQueryTests extends AbstractGeoPointScrip
 
     @Override
     public void testMatches() {
-        assertTrue(createTestInstance().matches(new long[] { 1L }, randomIntBetween(1, Integer.MAX_VALUE)));
-        assertFalse(createTestInstance().matches(new long[0], 0));
-        assertFalse(createTestInstance().matches(new long[1], 0));
+        // TODO this should actually reject some points
+        assertTrue(createTestInstance().matches(new double[] { 1 }, new double[] { 2 }, randomIntBetween(1, Integer.MAX_VALUE)));
+        assertFalse(createTestInstance().matches(new double[0], new double[0], 0));
+        assertFalse(createTestInstance().matches(new double[1], new double[0], 0));
+        assertFalse(createTestInstance().matches(new double[0], new double[1], 0));
     }
 
     @Override

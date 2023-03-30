@@ -119,7 +119,7 @@ public class FieldTypeLookupTests extends ESTestCase {
     public void testSourcePathWithMultiFields() {
         MockFieldMapper field = new MockFieldMapper.Builder("field").addMultiField(new MockFieldMapper.Builder("field.subfield1"))
             .addMultiField(new MockFieldMapper.Builder("field.subfield2"))
-            .build(MapperBuilderContext.ROOT);
+            .build(MapperBuilderContext.root(false));
 
         FieldTypeLookup lookup = new FieldTypeLookup(singletonList(field), emptyList(), emptyList());
 
@@ -130,9 +130,9 @@ public class FieldTypeLookupTests extends ESTestCase {
 
     public void testSourcePathsWithCopyTo() {
         MockFieldMapper field = new MockFieldMapper.Builder("field").addMultiField(new MockFieldMapper.Builder("field.subfield1"))
-            .build(MapperBuilderContext.ROOT);
+            .build(MapperBuilderContext.root(false));
 
-        MockFieldMapper otherField = new MockFieldMapper.Builder("other_field").copyTo("field").build(MapperBuilderContext.ROOT);
+        MockFieldMapper otherField = new MockFieldMapper.Builder("other_field").copyTo("field").build(MapperBuilderContext.root(false));
 
         FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(field, otherField), emptyList(), emptyList());
 
@@ -402,6 +402,6 @@ public class FieldTypeLookupTests extends ESTestCase {
     }
 
     private static FlattenedFieldMapper createFlattenedMapper(String fieldName) {
-        return new FlattenedFieldMapper.Builder(fieldName).build(MapperBuilderContext.ROOT);
+        return new FlattenedFieldMapper.Builder(fieldName).build(MapperBuilderContext.root(false));
     }
 }

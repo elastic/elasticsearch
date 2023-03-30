@@ -15,7 +15,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Holds information about nested mappings
@@ -71,7 +70,7 @@ public interface NestedLookup {
         if (mappers == null || mappers.isEmpty()) {
             return NestedLookup.EMPTY;
         }
-        mappers = mappers.stream().sorted(Comparator.comparing(ObjectMapper::name)).collect(Collectors.toList());
+        mappers = mappers.stream().sorted(Comparator.comparing(ObjectMapper::name)).toList();
         Map<String, Query> parentFilters = new HashMap<>();
         Map<String, NestedObjectMapper> mappersByName = new HashMap<>();
         NestedObjectMapper previous = null;
@@ -84,7 +83,7 @@ public interface NestedLookup {
             }
             previous = mapper;
         }
-        List<String> nestedPathNames = mappers.stream().map(NestedObjectMapper::name).collect(Collectors.toList());
+        List<String> nestedPathNames = mappers.stream().map(NestedObjectMapper::name).toList();
         return new NestedLookup() {
 
             @Override

@@ -1,5 +1,0 @@
-pr: 82410
-summary: Add an aggregator for IPv4 and IPv6 subnets
-area: Aggregations
-type: enhancement
-issues: []

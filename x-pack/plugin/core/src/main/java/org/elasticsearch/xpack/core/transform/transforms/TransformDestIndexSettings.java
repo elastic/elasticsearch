@@ -117,8 +117,8 @@ public class TransformDestIndexSettings implements SimpleDiffable<TransformDestI
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(mappings);
-        Settings.writeSettingsToStream(settings, out);
+        out.writeGenericMap(mappings);
+        settings.writeTo(out);
         out.writeCollection(aliases);
     }
 

@@ -10,9 +10,9 @@ package org.elasticsearch.search.rescore;
 
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.index.query.ParsedQuery;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -37,7 +37,7 @@ public final class QueryRescorer implements Rescorer {
 
         final QueryRescoreContext rescore = (QueryRescoreContext) rescoreContext;
 
-        org.apache.lucene.search.Rescorer rescorer = new org.apache.lucene.search.QueryRescorer(rescore.query()) {
+        org.apache.lucene.search.Rescorer rescorer = new org.apache.lucene.search.QueryRescorer(rescore.parsedQuery().query()) {
 
             @Override
             protected float combine(float firstPassScore, boolean secondPassMatches, float secondPassScore) {
@@ -90,7 +90,7 @@ public final class QueryRescorer implements Rescorer {
             prim = Explanation.noMatch("First pass did not match", sourceExplanation);
         }
         if (rescoreContext.isRescored(topLevelDocId)) {
-            Explanation rescoreExplain = searcher.explain(rescore.query(), topLevelDocId);
+            Explanation rescoreExplain = searcher.explain(rescore.parsedQuery().query(), topLevelDocId);
             // NOTE: we don't use Lucene's Rescorer.explain because we want to insert our own description with which ScoreMode was used.
             // Maybe we should add QueryRescorer.explainCombine to Lucene?
             if (rescoreExplain != null && rescoreExplain.isMatch()) {
@@ -113,17 +113,14 @@ public final class QueryRescorer implements Rescorer {
         return prim;
     }
 
-    private static final Comparator<ScoreDoc> SCORE_DOC_COMPARATOR = new Comparator<ScoreDoc>() {
-        @Override
-        public int compare(ScoreDoc o1, ScoreDoc o2) {
-            int cmp = Float.compare(o2.score, o1.score);
-            return cmp == 0 ? Integer.compare(o1.doc, o2.doc) : cmp;
-        }
+    private static final Comparator<ScoreDoc> SCORE_DOC_COMPARATOR = (o1, o2) -> {
+        int cmp = Float.compare(o2.score, o1.score);
+        return cmp == 0 ? Integer.compare(o1.doc, o2.doc) : cmp;
     };
 
     /** Returns a new {@link TopDocs} with the topN from the incoming one, or the same TopDocs if the number of hits is already &lt;=
      *  topN. */
-    private TopDocs topN(TopDocs in, int topN) {
+    private static TopDocs topN(TopDocs in, int topN) {
         if (in.scoreDocs.length < topN) {
             return in;
         }
@@ -135,7 +132,7 @@ public final class QueryRescorer implements Rescorer {
     }
 
     /** Modifies incoming TopDocs (in) by replacing the top hits with resorted's hits, and then resorting all hits. */
-    private TopDocs combine(TopDocs in, TopDocs resorted, QueryRescoreContext ctx) {
+    private static TopDocs combine(TopDocs in, TopDocs resorted, QueryRescoreContext ctx) {
 
         System.arraycopy(resorted.scoreDocs, 0, in.scoreDocs, 0, resorted.scoreDocs.length);
         if (in.scoreDocs.length > resorted.scoreDocs.length) {
@@ -155,7 +152,7 @@ public final class QueryRescorer implements Rescorer {
     }
 
     public static class QueryRescoreContext extends RescoreContext {
-        private Query query;
+        private ParsedQuery query;
         private float queryWeight = 1.0f;
         private float rescoreQueryWeight = 1.0f;
         private QueryRescoreMode scoreMode;
@@ -165,16 +162,16 @@ public final class QueryRescorer implements Rescorer {
             this.scoreMode = QueryRescoreMode.Total;
         }
 
-        public void setQuery(Query query) {
+        public void setQuery(ParsedQuery query) {
             this.query = query;
         }
 
         @Override
-        public List<Query> getQueries() {
+        public List<ParsedQuery> getParsedQueries() {
             return Collections.singletonList(query);
         }
 
-        public Query query() {
+        public ParsedQuery parsedQuery() {
             return query;
         }
 

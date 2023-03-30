@@ -11,6 +11,9 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.blobcache.BlobCacheTestUtils;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -35,11 +38,9 @@ import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.NoopBlobStoreCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedBytes;
 import org.elasticsearch.xpack.searchablesnapshots.recovery.SearchableSnapshotRecoveryState;
 
 import java.io.IOException;
@@ -49,10 +50,10 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.assertCounter;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.singleBlobContainer;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService.resolveSnapshotCache;
@@ -113,7 +114,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
     public void testCachedBytesReadsAndWrites() throws Exception {
         // a cache service with a low range size but enough space to not evict the cache file
-        final ByteSizeValue rangeSize = new ByteSizeValue(SharedBytes.PAGE_SIZE * randomLongBetween(3, 6), ByteSizeUnit.BYTES);
+        final ByteSizeValue rangeSize = ByteSizeValue.ofBytes(SharedBytes.PAGE_SIZE * randomLongBetween(3, 6));
         final ByteSizeValue cacheSize = new ByteSizeValue(10, ByteSizeUnit.MB);
 
         executeTestCaseWithCache(cacheSize, rangeSize, (fileName, fileContent, directory) -> {
@@ -126,7 +127,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                 final byte[] result = randomReadAndSlice(input, toIntBytes(length));
                 assertArrayEquals(fileContent, result);
 
-                final long cachedBytesWriteCount = TestUtils.numberOfRanges(length, rangeSize.getBytes());
+                final long cachedBytesWriteCount = BlobCacheTestUtils.numberOfRanges(length, rangeSize.getBytes());
 
                 // cache writes are executed in a different thread pool and can take some time to be processed
                 assertBusy(() -> {
@@ -167,7 +168,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
     }
 
     public void testCachedBytesReadsAndWritesNoCache() throws Exception {
-        final ByteSizeValue uncachedChunkSize = new ByteSizeValue(randomIntBetween(512, MAX_FILE_LENGTH), ByteSizeUnit.BYTES);
+        final ByteSizeValue uncachedChunkSize = ByteSizeValue.ofBytes(randomIntBetween(512, MAX_FILE_LENGTH));
         executeTestCaseWithoutCache(uncachedChunkSize, (fileName, fileContent, directory) -> {
             try (IndexInput input = directory.openInput(fileName, randomIOContext())) {
                 final long length = input.length();
@@ -578,10 +579,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
     private void executeTestCaseWithDefaultCache(final TriConsumer<String, byte[], SearchableSnapshotDirectory> test) throws Exception {
         executeTestCase(
             defaultCacheService(),
-            createFrozenCacheService(
-                ByteSizeValue.ofMb(10),
-                new ByteSizeValue(SharedBytes.PAGE_SIZE * randomLongBetween(3, 6), ByteSizeUnit.BYTES)
-            ),
+            createFrozenCacheService(ByteSizeValue.ofMb(10), ByteSizeValue.ofBytes(SharedBytes.PAGE_SIZE * randomLongBetween(3, 6))),
             Settings.builder()
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
                 .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats
@@ -610,7 +608,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
     private void executeTestCase(
         final CacheService cacheService,
-        final FrozenCacheService frozenCacheService,
+        final SharedBlobCacheService<CacheKey> sharedBlobCacheService,
         final Settings indexSettings,
         final TriConsumer<String, byte[], SearchableSnapshotDirectory> test
     ) throws Exception {
@@ -644,7 +642,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
             fileChecksum,
             Version.CURRENT.luceneVersion.toString()
         );
-        final List<FileInfo> files = List.of(new FileInfo(blobName, metadata, new ByteSizeValue(fileContent.length)));
+        final List<FileInfo> files = List.of(new FileInfo(blobName, metadata, ByteSizeValue.ofBytes(fileContent.length)));
         final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(), 0L, files, 0L, 0L, 0, 0L);
         final Path shardDir = randomShardPath(shardId);
         final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
@@ -652,11 +650,11 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
         try (
             CacheService ignored = cacheService;
-            FrozenCacheService ignored2 = frozenCacheService;
+            var ignored2 = sharedBlobCacheService;
             SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(
                 () -> blobContainer,
                 () -> snapshot,
-                new NoopBlobStoreCacheService(),
+                new TestUtils.NoopBlobStoreCacheService(),
                 "_repo",
                 snapshotId,
                 indexId,
@@ -667,7 +665,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                 cacheDir,
                 shardPath,
                 threadPool,
-                frozenCacheService
+                sharedBlobCacheService
             ) {
                 @Override
                 protected IndexInputStats createIndexInputStats(long numFiles, long totalSize, long minSize, long maxSize) {

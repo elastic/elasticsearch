@@ -186,6 +186,13 @@ public class TypesTests extends ESTestCase {
         assertThat(dt.getDataType().typeName(), is("ip"));
     }
 
+    public void testVersionField() {
+        Map<String, EsField> mapping = loadMapping("mapping-version.json");
+        assertThat(mapping.size(), is(1));
+        EsField dt = mapping.get("version_number");
+        assertThat(dt.getDataType().typeName(), is("version"));
+    }
+
     public void testConstantKeywordField() {
         Map<String, EsField> mapping = loadMapping("mapping-constant-keyword.json");
         assertThat(mapping.size(), is(1));

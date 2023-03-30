@@ -5,8 +5,6 @@
 <titleabbrev>Bucket count K-S test</titleabbrev>
 ++++
 
-experimental::[]
-
 A sibling pipeline aggregation which executes a two sample Kolmogorov–Smirnov test
 (referred to as a "K-S test" from now on) against a provided distribution, and the
 distribution implied by the documents counts in the configured sibling aggregation.

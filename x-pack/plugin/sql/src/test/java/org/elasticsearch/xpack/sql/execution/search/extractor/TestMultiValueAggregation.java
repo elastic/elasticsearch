@@ -23,7 +23,7 @@ class TestMultiValueAggregation extends InternalNumericMetricsAggregation.MultiV
     private final Map<String, Double> values;
 
     TestMultiValueAggregation(String name, Map<String, Double> values) {
-        super(name, emptyMap());
+        super(name, null, emptyMap());
         this.values = values;
     }
 

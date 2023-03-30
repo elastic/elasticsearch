@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -59,7 +58,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -164,7 +162,7 @@ public class WatcherService {
                 || (watcherIndexMetadata.getState() == IndexMetadata.State.OPEN
                     && state.routingTable().index(watcherIndexMetadata.getIndex()).allPrimaryShardsActive());
         } catch (IllegalStateException e) {
-            logger.debug("error validating to start watcher", e);
+            logger.warn("Validation error: cannot start watcher", e);
             return false;
         }
     }
@@ -209,7 +207,7 @@ public class WatcherService {
             logger.warn("missing watcher index templates");
         }
         // this method contains the only async code block, being called by the cluster state listener
-        // the reason for this is, that loading he watches is done in a sync manner and thus cannot be done on the cluster state listener
+        // the reason for this is that loading the watches is done in a sync manner and thus cannot be done on the cluster state listener
         // thread
         //
         // this method itself is called by the cluster state listener, so will never be called in parallel
@@ -232,14 +230,17 @@ public class WatcherService {
      * @param state                     the current cluster state
      * @param postWatchesLoadedCallback the callback to be triggered, when watches where loaded successfully
      */
-    public void start(ClusterState state, Runnable postWatchesLoadedCallback) {
+    public void start(ClusterState state, Runnable postWatchesLoadedCallback, Consumer<Exception> exceptionConsumer) {
         executionService.unPause();
         processedClusterStateVersion.set(state.getVersion());
         executor.execute(wrapWatcherService(() -> {
             if (reloadInner(state, "starting", true)) {
                 postWatchesLoadedCallback.run();
             }
-        }, e -> logger.error("error starting watcher", e)));
+        }, e -> {
+            logger.error("error starting watcher", e);
+            exceptionConsumer.accept(e);
+        }));
     }
 
     /**
@@ -313,13 +314,7 @@ public class WatcherService {
         SearchResponse response = null;
         List<Watch> watches = new ArrayList<>();
         try {
-            RefreshResponse refreshResponse = client.admin()
-                .indices()
-                .refresh(new RefreshRequest(INDEX))
-                .actionGet(TimeValue.timeValueSeconds(5));
-            if (refreshResponse.getSuccessfulShards() < indexMetadata.getNumberOfShards()) {
-                throw illegalState("not all required shards have been refreshed");
-            }
+            refreshWatches(indexMetadata);
 
             // find out local shards
             String watchIndexName = indexMetadata.getIndex().getName();
@@ -328,7 +323,7 @@ public class WatcherService {
             if (routingNode == null) {
                 return Collections.emptyList();
             }
-            List<ShardRouting> localShards = routingNode.shardsWithState(watchIndexName, RELOCATING, STARTED);
+            List<ShardRouting> localShards = routingNode.shardsWithState(watchIndexName, RELOCATING, STARTED).toList();
 
             // find out all allocation ids
             List<ShardRouting> watchIndexShardRoutings = clusterState.getRoutingTable().allShards(watchIndexName);
@@ -355,7 +350,7 @@ public class WatcherService {
                     .map(AllocationId::getId)
                     .filter(Objects::nonNull)
                     .sorted()
-                    .collect(Collectors.toList());
+                    .toList();
 
                 sortedShards.put(localShardRouting.getId(), sortedAllocationIds);
             }
@@ -385,7 +380,7 @@ public class WatcherService {
                             watches.add(watch);
                         }
                     } catch (Exception e) {
-                        logger.error(new ParameterizedMessage("couldn't load watch [{}], ignoring it...", id), e);
+                        logger.error(() -> "couldn't load watch [" + id + "], ignoring it...", e);
                     }
                 }
                 SearchScrollRequest request = new SearchScrollRequest(response.getScrollId());
@@ -403,6 +398,17 @@ public class WatcherService {
         logger.debug("Loaded [{}] watches for execution", watches.size());
 
         return watches;
+    }
+
+    // Non private for unit testing purposes
+    void refreshWatches(IndexMetadata indexMetadata) {
+        RefreshResponse refreshResponse = client.admin()
+            .indices()
+            .refresh(new RefreshRequest(INDEX))
+            .actionGet(TimeValue.timeValueSeconds(5));
+        if (refreshResponse.getSuccessfulShards() < indexMetadata.getNumberOfShards()) {
+            throw illegalState("not all required shards have been refreshed");
+        }
     }
 
     /**

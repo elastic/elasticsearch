@@ -35,7 +35,7 @@ final class IdStoredFieldLoader {
 
     private static CheckedBiConsumer<Integer, StoredFieldVisitor, IOException> getStoredFieldsReader(LeafReader in) {
         if (in instanceof SequentialStoredFieldsLeafReader) {
-            return (((SequentialStoredFieldsLeafReader) in).getSequentialStoredFieldsReader())::visitDocument;
+            return (((SequentialStoredFieldsLeafReader) in).getSequentialStoredFieldsReader())::document;
         }
         throw new IllegalArgumentException("Requires a SequentialStoredFieldsReader, got " + in.getClass());
     }

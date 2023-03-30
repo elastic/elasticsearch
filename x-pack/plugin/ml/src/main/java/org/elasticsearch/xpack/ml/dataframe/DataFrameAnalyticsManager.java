@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.dataframe;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -49,6 +48,7 @@ import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 public class DataFrameAnalyticsManager {
@@ -182,7 +182,7 @@ public class DataFrameAnalyticsManager {
     private void determineProgressAndResume(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {
         DataFrameAnalyticsTask.StartingState startingState = task.determineStartingState();
 
-        LOGGER.debug(() -> new ParameterizedMessage("[{}] Starting job from state [{}]", config.getId(), startingState));
+        LOGGER.debug(() -> format("[%s] Starting job from state [%s]", config.getId(), startingState));
         switch (startingState) {
             case FIRST_TIME -> executeStep(task, config, new ReindexingStep(clusterService, client, task, auditor, config));
             case RESUMING_REINDEXING -> executeJobInMiddleOfReindexing(task, config);

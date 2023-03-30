@@ -222,7 +222,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         return new ShardValidateQueryResponse(request.shardId(), valid, explanation, error);
     }
 
-    private String explain(SearchContext context, boolean rewritten) {
+    private static String explain(SearchContext context, boolean rewritten) {
         Query query = rewritten ? context.rewrittenQuery() : context.query();
         if (rewritten && query instanceof MatchNoDocsQuery) {
             return context.parsedQuery().query().toString();

@@ -13,8 +13,10 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -25,7 +27,6 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.InternalDateRange;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -40,6 +41,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.junit.Before;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -453,6 +455,48 @@ public class SearchResponseMergerTests extends ESTestCase {
         }
     }
 
+    /** Test merging results where one result has a raw format, for instance if
+     * searching over multiple indexes where the field isn't mapped in all indexes.
+     */
+    public void testMergeEmptyFormat() throws InterruptedException {
+        DateFormatter dateFormatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+        Max max1 = Max.createEmptyMax("field1", DocValueFormat.RAW, Collections.emptyMap());
+        Max max2 = new Max(
+            "field1",
+            dateFormatter.parseMillis("2021-05-01T00:00:00.000Z"),
+            new DocValueFormat.DateTime(dateFormatter, ZoneId.of("UTC"), DateFieldMapper.Resolution.MILLISECONDS),
+            Collections.emptyMap()
+        );
+
+        SearchHits searchHits = new SearchHits(new SearchHit[0], null, Float.NaN);
+        SearchResponseMerger searchResponseMerger = new SearchResponseMerger(
+            0,
+            0,
+            0,
+            new SearchTimeProvider(0, 0, () -> 0),
+            emptyReduceContextBuilder(new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder("field1")))
+        );
+        for (Max max : Arrays.asList(max1, max2)) {
+            InternalAggregations aggs = InternalAggregations.from(Arrays.asList(max));
+            InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits, aggs, null, null, false, null, 1);
+            SearchResponse searchResponse = new SearchResponse(
+                internalSearchResponse,
+                null,
+                1,
+                1,
+                0,
+                randomLong(),
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY
+            );
+            searchResponseMerger.add(searchResponse);
+        }
+        SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
+        SearchResponse searchResponse = searchResponseMerger.getMergedResponse(clusters);
+        Max mergedMax = searchResponse.getAggregations().get("field1");
+        assertEquals(mergedMax.getValueAsString(), "2021-05-01T00:00:00.000Z");
+    }
+
     public void testMergeAggs() throws InterruptedException {
         String maxAggName = randomAlphaOfLengthBetween(5, 8);
         String rangeAggName = randomAlphaOfLengthBetween(5, 8);
@@ -471,7 +515,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         for (int i = 0; i < numResponses; i++) {
             double value = randomDouble();
             maxValue = Math.max(value, maxValue);
-            InternalMax max = new InternalMax(maxAggName, value, DocValueFormat.RAW, Collections.emptyMap());
+            Max max = new Max(maxAggName, value, DocValueFormat.RAW, Collections.emptyMap());
             InternalDateRange.Factory factory = new InternalDateRange.Factory();
             int count = randomIntBetween(1, 1000);
             totalCount += count;
@@ -513,7 +557,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         assertEquals(0, mergedResponse.getHits().getHits().length);
         assertEquals(2, mergedResponse.getAggregations().asList().size());
         Max max = mergedResponse.getAggregations().get(maxAggName);
-        assertEquals(maxValue, max.getValue(), 0d);
+        assertEquals(maxValue, max.value(), 0d);
         Range range = mergedResponse.getAggregations().get(rangeAggName);
         assertEquals(1, range.getBuckets().size());
         Range.Bucket bucket = range.getBuckets().get(0);

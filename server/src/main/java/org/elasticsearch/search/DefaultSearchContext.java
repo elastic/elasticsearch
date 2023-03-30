@@ -15,6 +15,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -25,6 +26,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.NestedLookup;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -69,13 +71,13 @@ final class DefaultSearchContext extends SearchContext {
     private final ShardSearchRequest request;
     private final SearchShardTarget shardTarget;
     private final LongSupplier relativeTimeSupplier;
-    private SearchType searchType;
+    private final SearchType searchType;
     private final IndexShard indexShard;
     private final IndexService indexService;
     private final ContextIndexSearcher searcher;
-    private final DfsSearchResult dfsResult;
-    private final QuerySearchResult queryResult;
-    private final FetchSearchResult fetchResult;
+    private DfsSearchResult dfsResult;
+    private QuerySearchResult queryResult;
+    private FetchSearchResult fetchResult;
     private final float queryBoost;
     private final boolean lowLevelCancellation;
     private TimeValue timeout;
@@ -116,7 +118,6 @@ final class DefaultSearchContext extends SearchContext {
     private ParsedQuery postFilter;
     private Query aliasFilter;
     private int[] docIdsToLoad;
-    private int docsIdsToLoadSize;
     private SearchContextAggregations aggregations;
     private SearchHighlightContext highlight;
     private SuggestionSearchContext suggest;
@@ -124,7 +125,7 @@ final class DefaultSearchContext extends SearchContext {
     private Profilers profilers;
 
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
-    private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
+    private Collector aggCollector;
     private final SearchExecutionContext searchExecutionContext;
     private final FetchPhase fetchPhase;
 
@@ -142,9 +143,6 @@ final class DefaultSearchContext extends SearchContext {
         this.fetchPhase = fetchPhase;
         this.searchType = request.searchType();
         this.shardTarget = shardTarget;
-        this.dfsResult = new DfsSearchResult(readerContext.id(), shardTarget, request);
-        this.queryResult = new QuerySearchResult(readerContext.id(), shardTarget, request);
-        this.fetchResult = new FetchSearchResult(readerContext.id(), shardTarget);
         this.indexService = readerContext.indexService();
         this.indexShard = readerContext.indexShard();
 
@@ -170,6 +168,21 @@ final class DefaultSearchContext extends SearchContext {
         );
         queryBoost = request.indexBoost();
         this.lowLevelCancellation = lowLevelCancellation;
+    }
+
+    @Override
+    public void addFetchResult() {
+        this.fetchResult = new FetchSearchResult(this.readerContext.id(), this.shardTarget);
+    }
+
+    @Override
+    public void addQueryResult() {
+        this.queryResult = new QuerySearchResult(this.readerContext.id(), this.shardTarget, this.request);
+    }
+
+    @Override
+    public void addDfsResult() {
+        this.dfsResult = new DfsSearchResult(this.readerContext.id(), this.shardTarget, this.request);
     }
 
     /**
@@ -280,7 +293,7 @@ final class DefaultSearchContext extends SearchContext {
         if (nestedLookup != NestedLookup.EMPTY
             && nestedHelper.mightMatchNestedDocs(query)
             && (aliasFilter == null || nestedHelper.mightMatchNestedDocs(aliasFilter))) {
-            filters.add(Queries.newNonNestedFilter());
+            filters.add(Queries.newNonNestedFilter(searchExecutionContext.indexVersionCreated()));
         }
 
         if (aliasFilter != null) {
@@ -404,7 +417,7 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public boolean hasScriptFields() {
-        return scriptFields != null;
+        return scriptFields != null && scriptFields.fields().isEmpty() == false;
     }
 
     @Override
@@ -685,14 +698,8 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public int docIdsToLoadSize() {
-        return docsIdsToLoadSize;
-    }
-
-    @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadSize) {
+    public SearchContext docIdsToLoad(int[] docIdsToLoad) {
         this.docIdsToLoad = docIdsToLoad;
-        this.docsIdsToLoadSize = docsIdsToLoadSize;
         return this;
     }
 
@@ -704,6 +711,22 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public QuerySearchResult queryResult() {
         return queryResult;
+    }
+
+    @Override
+    public TotalHits getTotalHits() {
+        if (queryResult != null) {
+            return queryResult.getTotalHits();
+        }
+        return null;
+    }
+
+    @Override
+    public float getMaxScore() {
+        if (queryResult != null) {
+            return queryResult.getMaxScore();
+        }
+        return Float.NaN;
     }
 
     @Override
@@ -722,8 +745,13 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public Map<Class<?>, Collector> queryCollectors() {
-        return queryCollectors;
+    public Collector getAggsCollector() {
+        return aggCollector;
+    }
+
+    @Override
+    public void registerAggsCollector(Collector collector) {
+        this.aggCollector = collector;
     }
 
     @Override
@@ -758,5 +786,10 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public ReaderContext readerContext() {
         return readerContext;
+    }
+
+    @Override
+    public SourceLoader newSourceLoader() {
+        return searchExecutionContext.newSourceLoader(request.isForceSyntheticSource());
     }
 }

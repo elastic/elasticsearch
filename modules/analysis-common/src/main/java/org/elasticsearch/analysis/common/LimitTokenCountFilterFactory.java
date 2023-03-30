@@ -24,7 +24,7 @@ public class LimitTokenCountFilterFactory extends AbstractTokenFilterFactory {
     private final boolean consumeAllTokens;
 
     LimitTokenCountFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         this.maxTokenCount = settings.getAsInt("max_token_count", DEFAULT_MAX_TOKEN_COUNT);
         this.consumeAllTokens = settings.getAsBoolean("consume_all_tokens", DEFAULT_CONSUME_ALL_TOKENS);
     }

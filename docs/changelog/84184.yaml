@@ -1,5 +1,0 @@
-pr: 84184
-summary: Do not deserialise the document when not needed in the fields fetch phase
-area: Search
-type: bug
-issues: []

@@ -10,20 +10,45 @@ package org.elasticsearch.search.geo;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.index.query.GeoShapeQueryBuilder;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
-public class GeoPointShapeQueryTests extends GeoPointShapeQueryTestCase {
+public class GeoPointShapeQueryTests extends BasePointShapeQueryTestCase<GeoShapeQueryBuilder> {
+
+    private final SpatialQueryBuilders<GeoShapeQueryBuilder> geoShapeQueryBuilder = SpatialQueryBuilders.GEO;
+
+    @Override
+    protected SpatialQueryBuilders<GeoShapeQueryBuilder> queryBuilder() {
+        return geoShapeQueryBuilder;
+    }
+
+    @Override
+    protected String fieldTypeName() {
+        return "geo_shape";
+    }
+
+    @SuppressWarnings("deprecation")
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Collections.singleton(TestGeoShapeFieldMapperPlugin.class);
+    }
 
     @Override
     protected void createMapping(String indexName, String fieldName, Settings settings) throws Exception {
@@ -43,12 +68,12 @@ public class GeoPointShapeQueryTests extends GeoPointShapeQueryTestCase {
             XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("properties")
-                .startObject(defaultGeoFieldName)
+                .startObject(defaultFieldName)
                 .field("type", "geo_point")
                 .endObject()
                 .startObject("alias")
                 .field("type", "alias")
-                .field("path", defaultGeoFieldName)
+                .field("path", defaultFieldName)
                 .endObject()
                 .endObject()
                 .endObject()
@@ -60,11 +85,41 @@ public class GeoPointShapeQueryTests extends GeoPointShapeQueryTestCase {
         Point point = GeometryTestUtils.randomPoint(false);
         client().prepareIndex(defaultIndexName)
             .setId("1")
-            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, WellKnownText.toWKT(point)).endObject())
+            .setSource(jsonBuilder().startObject().field(defaultFieldName, WellKnownText.toWKT(point)).endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
         SearchResponse response = client().prepareSearch(defaultIndexName).setQuery(geoShapeQuery("alias", point)).get();
         assertEquals(1, response.getHits().getTotalHits().value);
+    }
+
+    private final DatelinePointShapeQueryTestCase dateline = new DatelinePointShapeQueryTestCase();
+
+    public void testRectangleSpanningDateline() throws Exception {
+        dateline.testRectangleSpanningDateline(this);
+    }
+
+    public void testPolygonSpanningDateline() throws Exception {
+        dateline.testPolygonSpanningDateline(this);
+    }
+
+    public void testMultiPolygonSpanningDateline() throws Exception {
+        dateline.testMultiPolygonSpanningDateline(this);
+    }
+
+    /**
+     * Produce an array of objects each representing a single point in a variety of
+     * supported point formats. For `geo_shape` we only support GeoJSON and WKT,
+     * while for `geo_point` we support a variety of additional special case formats.
+     * Therefor we define here sample data for <code>double[]{lon,lat}</code> as well as
+     * a string "lat,lon".
+     */
+    @Override
+    protected Object[] samplePointDataMultiFormat(Point pointA, Point pointB, Point pointC, Point pointD) {
+        String str = "" + pointA.getLat() + ", " + pointA.getLon();
+        String wkt = WellKnownText.toWKT(pointB);
+        double[] pointDoubles = new double[] { pointC.getLon(), pointC.getLat() };
+        Map<String, Object> geojson = GeoJson.toMap(pointD);
+        return new Object[] { str, wkt, pointDoubles, geojson };
     }
 }

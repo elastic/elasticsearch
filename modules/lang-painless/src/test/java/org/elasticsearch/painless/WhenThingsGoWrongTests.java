@@ -15,6 +15,8 @@ import org.elasticsearch.script.ScriptException;
 
 import java.lang.invoke.WrongMethodTypeException;
 import java.util.Collections;
+import java.util.Map;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -207,6 +209,13 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
 
     public void testBadBoxingCast() {
         expectScriptThrows(ClassCastException.class, () -> { exec("BitSet bs = new BitSet(); bs.and(2);"); });
+    }
+
+    public void testSecurityException() {
+        expectThrows(
+            SecurityException.class,
+            () -> { exec("params.v.get();", Map.of("v", (Supplier<String>) () -> { throw new SecurityException(); }), true); }
+        );
     }
 
     public void testOutOfMemoryError() {
@@ -830,5 +839,13 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         assertEquals(iae.getMessage(), "Unknown call [doesNotExist] with [0] arguments.");
         iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("doesNotExist(1, 'string', false)"));
         assertEquals(iae.getMessage(), "Unknown call [doesNotExist] with [3] arguments.");
+    }
+
+    public void testArrayToArrayException() {
+        IllegalArgumentException iae = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> exec("return new String[] {'a'}.noMethod()")
+        );
+        assertTrue(iae.getMessage().contains("member method") && iae.getMessage().contains("not found"));
     }
 }

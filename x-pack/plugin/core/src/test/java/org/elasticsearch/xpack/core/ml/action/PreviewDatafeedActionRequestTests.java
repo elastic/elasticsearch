@@ -28,11 +28,18 @@ public class PreviewDatafeedActionRequestTests extends AbstractWireSerializingTe
     @Override
     protected Request createTestInstance() {
         String jobId = randomAlphaOfLength(10);
+        long start = randomLongBetween(0, Long.MAX_VALUE / 4);
         return switch (randomInt(2)) {
-            case 0 -> new Request(randomAlphaOfLength(10));
+            case 0 -> new Request(
+                randomAlphaOfLength(10),
+                randomBoolean() ? null : start,
+                randomBoolean() ? null : randomLongBetween(start + 1, Long.MAX_VALUE)
+            );
             case 1 -> new Request(
                 DatafeedConfigTests.createRandomizedDatafeedConfig(jobId),
-                randomBoolean() ? JobTests.buildJobBuilder(jobId) : null
+                randomBoolean() ? JobTests.buildJobBuilder(jobId) : null,
+                randomBoolean() ? null : start,
+                randomBoolean() ? null : randomLongBetween(start + 1, Long.MAX_VALUE)
             );
             case 2 -> new Request.Builder().setJobBuilder(
                 JobTests.buildJobBuilder(jobId)
@@ -43,12 +50,17 @@ public class PreviewDatafeedActionRequestTests extends AbstractWireSerializingTe
     }
 
     @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<Request> instanceReader() {
         return Request::new;
     }
 
     public void testCtor() {
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new Request((String) null));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new Request(null, randomLong(), null));
         assertThat(ex.getMessage(), equalTo("[datafeed_id] must not be null."));
     }
 

@@ -171,7 +171,7 @@ public class SliceBuilderTests extends ESTestCase {
         when(context.getIndexSettings()).thenReturn(indexSettings);
         if (dvType != null) {
             IndexNumericFieldData fd = mock(IndexNumericFieldData.class);
-            when(context.getForField(fieldType)).thenReturn(fd);
+            when(context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH)).thenReturn(fd);
         }
         return context;
 

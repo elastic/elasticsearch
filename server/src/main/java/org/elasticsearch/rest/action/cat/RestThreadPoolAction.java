@@ -25,6 +25,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -39,9 +41,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
+import static org.elasticsearch.common.util.set.Sets.addToCopy;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestThreadPoolAction extends AbstractCatAction {
+
+    private static final Set<String> RESPONSE_PARAMS = addToCopy(AbstractCatAction.RESPONSE_PARAMS, "thread_pool_patterns");
 
     @Override
     public List<Route> routes() {
@@ -90,14 +96,6 @@ public class RestThreadPoolAction extends AbstractCatAction {
                 });
             }
         });
-    }
-
-    private static final Set<String> RESPONSE_PARAMS;
-
-    static {
-        final Set<String> responseParams = new HashSet<>(AbstractCatAction.RESPONSE_PARAMS);
-        responseParams.add("thread_pool_patterns");
-        RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
 
     @Override

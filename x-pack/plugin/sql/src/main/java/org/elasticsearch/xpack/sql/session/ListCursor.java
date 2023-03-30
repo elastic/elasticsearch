@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.ql.type.Schema;
@@ -82,12 +81,12 @@ public class ListCursor implements Cursor {
     }
 
     @Override
-    public void nextPage(SqlConfiguration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
+    public void nextPage(SqlConfiguration cfg, Client client, ActionListener<Page> listener) {
         listener.onResponse(of(Schema.EMPTY, data, pageSize, columnCount));
     }
 
     @Override
-    public void clear(Client client, NamedWriteableRegistry registry, ActionListener<Boolean> listener) {
+    public void clear(Client client, ActionListener<Boolean> listener) {
         listener.onResponse(true);
     }
 

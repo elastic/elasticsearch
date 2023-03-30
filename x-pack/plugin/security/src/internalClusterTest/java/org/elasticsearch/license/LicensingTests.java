@@ -55,7 +55,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
-import static org.elasticsearch.license.LicenseService.LICENSE_EXPIRATION_WARNING_PERIOD;
+import static org.elasticsearch.license.LicenseSettings.LICENSE_EXPIRATION_WARNING_PERIOD;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -71,7 +71,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
     private static final SecureString HASH_PASSWD = new SecureString(Hasher.BCRYPT4.hash(new SecureString("passwd".toCharArray())));
 
-    private static final String ROLES = """
+    private static final String ROLES = Strings.format("""
         %s:
           cluster: [ all ]
           indices:
@@ -96,7 +96,7 @@ public class LicensingTests extends SecurityIntegTestCase {
           indices:
             - names: 'b'
               privileges: [all]
-        """.formatted(SecuritySettingsSource.TEST_ROLE) + '\n' + SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_YML;
+        """, SecuritySettingsSource.TEST_ROLE) + '\n' + SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_YML;
 
     private static final String USERS_ROLES = """
         superuser:test_superuser

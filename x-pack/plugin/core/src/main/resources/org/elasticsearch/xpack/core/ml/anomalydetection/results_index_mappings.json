@@ -240,6 +240,49 @@
         }
       }
     },
+    "anomaly_score_explanation": {
+      "properties": {
+        "anomaly_type": {
+          "type": "keyword"
+        },
+        "anomaly_length": {
+          "type": "integer"
+        },
+        "single_bucket_impact": {
+          "type": "integer"
+        },
+        "multi_bucket_impact": {
+          "type": "integer"
+        },
+        "anomaly_characteristics_impact": {
+          "type": "integer"
+        },
+        "lower_confidence_bound": {
+          "type": "double"
+        },
+        "typical_value": {
+          "type": "double"
+        },
+        "upper_confidence_bound": {
+          "type": "double"
+        },
+        "high_variance_penalty": {
+          "type": "boolean"
+        },
+        "incomplete_bucket_penalty": {
+          "type": "boolean"
+        },
+        "multimodal_distribution": {
+          "type": "boolean"
+        },
+        "by_field_first_occurrence": {
+          "type": "boolean"
+        },
+        "by_field_relative_rarity": {
+          "type": "double"
+        }
+      }
+    },
     "influencer_field_name" : {
       "type" : "keyword"
     },
@@ -474,6 +517,10 @@
     },
     "timestamp" : {
       "type" : "date"
+    },
+    "@timestamp" : {
+      "type" : "alias",
+      "path" : "timestamp"
     },
     "total_by_field_count" : {
       "type" : "long"

@@ -40,7 +40,7 @@ import java.util.function.Predicate;
 
 public class TransportClusterStateAction extends TransportMasterNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(TransportClusterStateAction.class);
 
     @Inject
     public TransportClusterStateAction(
@@ -60,7 +60,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             ClusterStateRequest::new,
             indexNameExpressionResolver,
             ClusterStateResponse::new,
-            ThreadPool.Names.SAME
+            ThreadPool.Names.MANAGEMENT
         );
     }
 
@@ -123,13 +123,11 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
-                        try {
-                            if (cancellableTask.notifyIfCancelled(listener) == false) {
-                                listener.onResponse(new ClusterStateResponse(state.getClusterName(), null, true));
+                        ActionListener.run(listener, l -> {
+                            if (cancellableTask.notifyIfCancelled(l) == false) {
+                                l.onResponse(new ClusterStateResponse(state.getClusterName(), null, true));
                             }
-                        } catch (Exception e) {
-                            listener.onFailure(e);
-                        }
+                        });
                     }
                 }, clusterState -> cancellableTask.isCancelled() || acceptableClusterStateOrFailedPredicate.test(clusterState));
         }
@@ -174,13 +172,13 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                     // If the requested index is part of a data stream then that data stream should also be included:
                     IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(filteredIndex);
                     if (indexAbstraction.getParentDataStream() != null) {
-                        DataStream dataStream = indexAbstraction.getParentDataStream().getDataStream();
-                        mdBuilder.put(dataStream);
+                        DataStream dataStream = indexAbstraction.getParentDataStream();
                         // Also the IMD of other backing indices need to be included, otherwise the cluster state api
                         // can't create a valid cluster state instance:
                         for (Index backingIndex : dataStream.getIndices()) {
                             mdBuilder.put(currentState.metadata().index(backingIndex), false);
                         }
+                        mdBuilder.put(dataStream);
                     } else {
                         IndexMetadata indexMetadata = currentState.metadata().index(filteredIndex);
                         if (indexMetadata != null) {

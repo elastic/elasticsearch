@@ -24,9 +24,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
@@ -37,8 +37,8 @@ import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.ilm.IndexLifecycleService;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_ORIGINATION_DATE;
 
@@ -79,7 +79,7 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         ClusterState state,
         ActionListener<ExplainLifecycleResponse> listener
     ) {
-        Map<String, IndexLifecycleExplainResponse> indexResponses = new HashMap<>();
+        Map<String, IndexLifecycleExplainResponse> indexResponses = new TreeMap<>();
         for (String index : concreteIndices) {
             IndexMetadata idxMetadata = state.metadata().index(index);
             final IndexLifecycleExplainResponse indexResponse;
@@ -129,8 +129,7 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         if (Strings.isNullOrEmpty(phaseDef) == false) {
             try (
                 XContentParser parser = JsonXContent.jsonXContent.createParser(
-                    xContentRegistry,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry),
                     phaseDef
                 )
             ) {

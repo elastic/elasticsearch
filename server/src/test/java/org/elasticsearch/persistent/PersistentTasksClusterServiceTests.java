@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
@@ -44,13 +45,13 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -528,7 +529,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         assertFalse(service.getPeriodicRechecker().isScheduled());
     }
 
-    public void testUnassignTask() {
+    public void testUnassignTask() throws InterruptedException {
         ClusterState clusterState = initialState();
         ClusterState.Builder builder = ClusterState.builder(clusterState);
         PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder(
@@ -546,14 +547,18 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         clusterState = builder.metadata(metadata).nodes(nodes).build();
         setState(clusterService, clusterState);
         PersistentTasksClusterService service = createService((params, candidateNodes, currentState) -> new Assignment("_node_2", "test"));
+        final var countDownLatch = new CountDownLatch(1);
         service.unassignPersistentTask(unassignedId, tasks.getLastAllocationId(), "unassignment test", ActionListener.wrap(task -> {
             assertThat(task.getAssignment().getExecutorNode(), is(nullValue()));
             assertThat(task.getId(), equalTo(unassignedId));
             assertThat(task.getAssignment().getExplanation(), equalTo("unassignment test"));
+            countDownLatch.countDown();
         }, e -> fail()));
+
+        assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
     }
 
-    public void testUnassignNonExistentTask() {
+    public void testUnassignNonExistentTask() throws InterruptedException {
         ClusterState clusterState = initialState();
         ClusterState.Builder builder = ClusterState.builder(clusterState);
         PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder(
@@ -569,39 +574,18 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         clusterState = builder.metadata(metadata).nodes(nodes).build();
         setState(clusterService, clusterState);
         PersistentTasksClusterService service = createService((params, candidateNodes, currentState) -> new Assignment("_node_2", "test"));
+        final var countDownLatch = new CountDownLatch(1);
         service.unassignPersistentTask(
             "missing-task",
             tasks.getLastAllocationId(),
             "unassignment test",
-            ActionListener.wrap(task -> fail(), e -> assertThat(e, instanceOf(ResourceNotFoundException.class)))
+            ActionListener.wrap(task -> fail(), e -> {
+                assertThat(e, instanceOf(ResourceNotFoundException.class));
+                countDownLatch.countDown();
+            })
         );
-    }
 
-    public void testIsNodeShuttingDown() {
-        NodesShutdownMetadata nodesShutdownMetadata = new NodesShutdownMetadata(
-            Collections.singletonMap(
-                "this_node",
-                SingleNodeShutdownMetadata.builder()
-                    .setNodeId("this_node")
-                    .setReason("shutdown for a unit test")
-                    .setType(randomBoolean() ? SingleNodeShutdownMetadata.Type.REMOVE : SingleNodeShutdownMetadata.Type.RESTART)
-                    .setStartedAtMillis(randomNonNegativeLong())
-                    .build()
-            )
-        );
-        ClusterState state = initialState();
-
-        state = ClusterState.builder(state)
-            .metadata(Metadata.builder(state.metadata()).putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata).build())
-            .nodes(
-                DiscoveryNodes.builder(state.nodes())
-                    .add(new DiscoveryNode("_node_1", buildNewFakeTransportAddress(), Version.CURRENT))
-                    .build()
-            )
-            .build();
-
-        assertThat(PersistentTasksClusterService.isNodeShuttingDown(state, "this_node"), equalTo(true));
-        assertThat(PersistentTasksClusterService.isNodeShuttingDown(state, "_node_1"), equalTo(false));
+        assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
     }
 
     public void testTasksNotAssignedToShuttingDownNodes() {
@@ -698,7 +682,10 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             t1.start();
             // Make sure we have at least one reassign check before we count down the latch
             assertBusy(
-                () -> verify(recheckTestClusterService, atLeastOnce()).submitStateUpdateTask(eq("reassign persistent tasks"), any(), any())
+                () -> verify(recheckTestClusterService, atLeastOnce()).submitUnbatchedStateUpdateTask(
+                    eq("reassign persistent tasks"),
+                    any()
+                )
             );
             t2.start();
         } finally {
@@ -709,7 +696,9 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         }
         // verify that our reassignment is possible again, here we have once from the previous reassignment in the `try` block
         // And one from the line above once the other threads have joined
-        assertBusy(() -> verify(recheckTestClusterService, times(2)).submitStateUpdateTask(eq("reassign persistent tasks"), any(), any()));
+        assertBusy(
+            () -> verify(recheckTestClusterService, times(2)).submitUnbatchedStateUpdateTask(eq("reassign persistent tasks"), any())
+        );
         verifyNoMoreInteractions(recheckTestClusterService);
     }
 
@@ -739,7 +728,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                 task.clusterStateProcessed(before, after);
             }
             return null;
-        }).when(recheckTestClusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class), any());
+        }).when(recheckTestClusterService).submitUnbatchedStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
 
         return recheckTestClusterService;
     }
@@ -793,7 +782,9 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         PersistentTasksCustomMetadata tasksInProgress = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         if (tasksInProgress.findTasks(
             TestPersistentTasksExecutor.NAME,
-            task -> "assign_one".equals(((TestParams) task.getParams()).getTestParam()) && nodes.nodeExists(task.getExecutorNode())
+            task -> "assign_one".equals(((TestParams) task.getParams()).getTestParam())
+                && task.getExecutorNode() != null
+                && nodes.nodeExists(task.getExecutorNode())
         ).isEmpty()) {
             return randomNodeAssignment(candidateNodes);
         } else {
@@ -872,7 +863,10 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             // change routing table to simulate a change
             logger.info("changed routing table");
             Metadata.Builder metadata = Metadata.builder(clusterState.metadata());
-            RoutingTable.Builder routingTable = RoutingTable.builder(clusterState.routingTable());
+            RoutingTable.Builder routingTable = RoutingTable.builder(
+                TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+                clusterState.routingTable()
+            );
             changeRoutingTable(metadata, routingTable);
             builder.metadata(metadata).routingTable(routingTable.build());
         }
@@ -920,7 +914,10 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                 logger.info("changed routing table");
                 Metadata.Builder metadata = Metadata.builder(clusterState.metadata());
                 metadata.putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build());
-                RoutingTable.Builder routingTable = RoutingTable.builder(clusterState.routingTable());
+                RoutingTable.Builder routingTable = RoutingTable.builder(
+                    TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+                    clusterState.routingTable()
+                );
                 changeRoutingTable(metadata, routingTable);
                 builder.metadata(metadata).routingTable(routingTable.build());
                 return builder.build();
@@ -1027,7 +1024,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
 
     private ClusterState initialState() {
         Metadata.Builder metadata = Metadata.builder();
-        RoutingTable.Builder routingTable = RoutingTable.builder();
+        RoutingTable.Builder routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         int randomIndices = randomIntBetween(0, 5);
         for (int i = 0; i < randomIndices; i++) {
             changeRoutingTable(metadata, routingTable);

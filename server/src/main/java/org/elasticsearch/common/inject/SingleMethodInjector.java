@@ -24,7 +24,6 @@ import org.elasticsearch.common.inject.spi.InjectionPoint;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 
 /**
  * Invokes an injectable method.
@@ -37,28 +36,8 @@ class SingleMethodInjector implements SingleMemberInjector {
     SingleMethodInjector(InjectorImpl injector, InjectionPoint injectionPoint, Errors errors) throws ErrorsException {
         this.injectionPoint = injectionPoint;
         final Method method = (Method) injectionPoint.getMember();
-        methodInvoker = createMethodInvoker(method);
+        methodInvoker = method::invoke;
         parameterInjectors = injector.getParametersInjectors(injectionPoint.getDependencies(), errors);
-    }
-
-    private MethodInvoker createMethodInvoker(final Method method) {
-
-        // We can't use FastMethod if the method is private.
-        int modifiers = method.getModifiers();
-        if (Modifier.isPrivate(modifiers) == false && Modifier.isProtected(modifiers) == false) {
-        }
-
-        return new MethodInvoker() {
-            @Override
-            public Object invoke(Object target, Object... parameters) throws IllegalAccessException, InvocationTargetException {
-                return method.invoke(target, parameters);
-            }
-        };
-    }
-
-    @Override
-    public InjectionPoint getInjectionPoint() {
-        return injectionPoint;
     }
 
     @Override

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.transform;
 
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.transform.transforms.NullRetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.RetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfig;
@@ -23,7 +24,12 @@ public class TransformNamedXContentProvider implements NamedXContentProvider {
     public List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
         return Arrays.asList(
             new NamedXContentRegistry.Entry(SyncConfig.class, TransformField.TIME, TimeSyncConfig::parse),
-            new NamedXContentRegistry.Entry(RetentionPolicyConfig.class, TransformField.TIME, TimeRetentionPolicyConfig::parse)
+            new NamedXContentRegistry.Entry(RetentionPolicyConfig.class, TransformField.TIME, TimeRetentionPolicyConfig::parse),
+            new NamedXContentRegistry.Entry(
+                RetentionPolicyConfig.class,
+                NullRetentionPolicyConfig.NAME,
+                (p, c) -> NullRetentionPolicyConfig.INSTANCE
+            )
         );
     }
 }

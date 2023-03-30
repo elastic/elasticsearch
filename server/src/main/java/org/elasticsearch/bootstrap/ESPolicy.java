@@ -20,10 +20,9 @@ import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.security.Policy;
 import java.security.ProtectionDomain;
-import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Predicate;
 
 /** custom policy for union of static and dynamic permissions */
@@ -46,10 +45,18 @@ final class ESPolicy extends Policy {
         PermissionCollection dynamic,
         Map<String, Policy> plugins,
         boolean filterBadDefaults,
-        PermissionCollection dataPathPermission
+        List<FilePermission> dataPathPermissions
     ) {
         this.template = PolicyUtil.readPolicy(getClass().getResource(POLICY_RESOURCE), codebases);
-        this.dataPathPermission = dataPathPermission;
+        PermissionCollection dpPermissions = null;
+        for (FilePermission permission : dataPathPermissions) {
+            if (dpPermissions == null) {
+                dpPermissions = permission.newPermissionCollection();
+            }
+            dpPermissions.add(permission);
+        }
+        this.dataPathPermission = dpPermissions == null ? new Permissions() : dpPermissions;
+        this.dataPathPermission.setReadOnly();
         this.untrusted = PolicyUtil.readPolicy(getClass().getResource(UNTRUSTED_RESOURCE), Collections.emptyMap());
         if (filterBadDefaults) {
             this.system = new SystemPolicy(Policy.getPolicy());
@@ -58,25 +65,6 @@ final class ESPolicy extends Policy {
         }
         this.dynamic = dynamic;
         this.plugins = plugins;
-    }
-
-    private static final Predicate<StackTraceElement> JDK_BOOT = f -> f.getClassLoaderName() == null;
-    private static final Predicate<StackTraceElement> ES_BOOTSTRAP = f -> f.getClassName().startsWith("org.elasticsearch.bootstrap");
-    private static final Predicate<StackTraceElement> IS_LOG4J = f -> "org.apache.logging.log4j.util.LoaderUtil".equals(f.getClassName())
-        && "getClassLoaders".equals(f.getMethodName());
-
-    /**
-     *  Returns true if the top of the call stack has:
-     *   1) Only frames belonging from the JDK's boot loader or org.elasticsearch.bootstrap, followed directly by
-     *   2) org.apache.logging.log4j.util.LoaderUtil.getClassLoaders
-     */
-    private static boolean isLoaderUtilGetClassLoaders() {
-        Optional<StackTraceElement> frame = Arrays.stream(Thread.currentThread().getStackTrace())
-            .dropWhile(JDK_BOOT.or(ES_BOOTSTRAP))
-            .limit(1)
-            .findFirst()
-            .filter(IS_LOG4J);
-        return frame.isPresent();
     }
 
     @Override
@@ -104,30 +92,31 @@ final class ESPolicy extends Policy {
             }
         }
 
-        // Special handling for broken Hadoop code: "let me execute or my classes will not load"
-        // yeah right, REMOVE THIS when hadoop is fixed
-        if (permission instanceof FilePermission && "<<ALL FILES>>".equals(permission.getName())) {
-            for (StackTraceElement element : Thread.currentThread().getStackTrace()) {
-                if ("org.apache.hadoop.util.Shell".equals(element.getClassName()) && "runCommand".equals(element.getMethodName())) {
-                    // we found the horrible method: the hack begins!
-                    // force the hadoop code to back down, by throwing an exception that it catches.
-                    rethrow(new IOException("no hadoop, you cannot do this."));
-                }
+        if (permission instanceof FilePermission) {
+            // The FilePermission to check access to the path.data is the hottest permission check in
+            // Elasticsearch, so we check it first.
+            if (dataPathPermission.implies(permission)) {
+                return true;
             }
-        }
-
-        // The FilePermission to check access to the path.data is the hottest permission check in
-        // Elasticsearch, so we check it first.
-        if (permission instanceof FilePermission && dataPathPermission.implies(permission)) {
-            return true;
-        }
-
-        if (permission instanceof RuntimePermission && "getClassLoader".equals(permission.getName()) && isLoaderUtilGetClassLoaders()) {
-            return true;
+            // Special handling for broken Hadoop code: "let me execute or my classes will not load"
+            // yeah right, REMOVE THIS when hadoop is fixed
+            if ("<<ALL FILES>>".equals(permission.getName())) {
+                hadoopHack();
+            }
         }
 
         // otherwise defer to template + dynamic file permissions
         return template.implies(domain, permission) || dynamic.implies(permission) || system.implies(domain, permission);
+    }
+
+    private static void hadoopHack() {
+        for (StackTraceElement element : Thread.currentThread().getStackTrace()) {
+            if ("org.apache.hadoop.util.Shell".equals(element.getClassName()) && "runCommand".equals(element.getMethodName())) {
+                // we found the horrible method: the hack begins!
+                // force the hadoop code to back down, by throwing an exception that it catches.
+                rethrow(new IOException("no hadoop, you cannot do this."));
+            }
+        }
     }
 
     /**
@@ -143,7 +132,7 @@ final class ESPolicy extends Policy {
     /**
      * Rethrows <code>t</code> (identical object).
      */
-    private void rethrow(Throwable t) {
+    private static void rethrow(Throwable t) {
         new Rethrower<Error>().rethrow(t);
     }
 

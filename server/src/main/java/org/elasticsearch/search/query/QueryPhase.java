@@ -43,10 +43,10 @@ import java.io.IOException;
 import java.util.LinkedList;
 import java.util.concurrent.ExecutorService;
 
+import static org.elasticsearch.search.query.QueryCollectorContext.createAggsCollectorContext;
 import static org.elasticsearch.search.query.QueryCollectorContext.createEarlyTerminationCollectorContext;
 import static org.elasticsearch.search.query.QueryCollectorContext.createFilteredCollectorContext;
 import static org.elasticsearch.search.query.QueryCollectorContext.createMinScoreCollectorContext;
-import static org.elasticsearch.search.query.QueryCollectorContext.createMultiCollectorContext;
 import static org.elasticsearch.search.query.TopDocsCollectorContext.createTopDocsCollectorContext;
 
 /**
@@ -56,19 +56,11 @@ import static org.elasticsearch.search.query.TopDocsCollectorContext.createTopDo
 public class QueryPhase {
     private static final Logger LOGGER = LogManager.getLogger(QueryPhase.class);
 
-    private final AggregationPhase aggregationPhase;
-    private final SuggestPhase suggestPhase;
-    private final RescorePhase rescorePhase;
+    public QueryPhase() {}
 
-    public QueryPhase() {
-        this.aggregationPhase = new AggregationPhase();
-        this.suggestPhase = new SuggestPhase();
-        this.rescorePhase = new RescorePhase();
-    }
-
-    public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
+    public static void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
         if (searchContext.hasOnlySuggest()) {
-            suggestPhase.execute(searchContext);
+            SuggestPhase.execute(searchContext);
             searchContext.queryResult()
                 .topDocs(
                     new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
@@ -84,14 +76,12 @@ public class QueryPhase {
         // Pre-process aggregations as late as possible. In the case of a DFS_Q_T_F
         // request, preProcess is called on the DFS phase, this is why we pre-process them
         // here to make sure it happens during the QUERY phase
-        aggregationPhase.preProcess(searchContext);
-        boolean rescore = executeInternal(searchContext);
+        AggregationPhase.preProcess(searchContext);
+        executeInternal(searchContext);
 
-        if (rescore) { // only if we do a regular search
-            rescorePhase.execute(searchContext);
-        }
-        suggestPhase.execute(searchContext);
-        aggregationPhase.execute(searchContext);
+        RescorePhase.execute(searchContext);
+        SuggestPhase.execute(searchContext);
+        AggregationPhase.execute(searchContext);
 
         if (searchContext.getProfilers() != null) {
             searchContext.queryResult().profileResults(searchContext.getProfilers().buildQueryPhaseResults());
@@ -101,9 +91,8 @@ public class QueryPhase {
     /**
      * In a package-private method so that it can be tested without having to
      * wire everything (mapperService, etc.)
-     * @return whether the rescoring phase should be executed
      */
-    static boolean executeInternal(SearchContext searchContext) throws QueryPhaseExecutionException {
+    static void executeInternal(SearchContext searchContext) throws QueryPhaseExecutionException {
         final ContextIndexSearcher searcher = searchContext.searcher();
         final IndexReader reader = searcher.getIndexReader();
         QuerySearchResult queryResult = searchContext.queryResult();
@@ -143,8 +132,6 @@ public class QueryPhase {
                 // add terminate_after before the filter collectors
                 // it will only be applied on documents accepted by these filter collectors
                 collectors.add(createEarlyTerminationCollectorContext(searchContext.terminateAfter()));
-                // this collector can filter documents during the collection
-                hasFilterCollector = true;
             }
             if (searchContext.parsedPostFilter() != null) {
                 // add post filters before aggregations
@@ -153,9 +140,9 @@ public class QueryPhase {
                 // this collector can filter documents during the collection
                 hasFilterCollector = true;
             }
-            if (searchContext.queryCollectors().isEmpty() == false) {
+            if (searchContext.getAggsCollector() != null) {
                 // plug in additional collectors, like aggregations
-                collectors.add(createMultiCollectorContext(searchContext.queryCollectors().values()));
+                collectors.add(createAggsCollectorContext(searchContext.getAggsCollector()));
             }
             if (searchContext.minimumScore() != null) {
                 // apply the minimum score after multi collector so we filter aggs as well
@@ -184,7 +171,7 @@ public class QueryPhase {
             }
 
             try {
-                boolean shouldRescore = searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, timeoutSet);
+                searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, timeoutSet);
                 ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
                 assert executor instanceof EWMATrackingEsThreadPoolExecutor
                     || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)
@@ -193,7 +180,6 @@ public class QueryPhase {
                     queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
                     queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
                 }
-                return shouldRescore;
             } finally {
                 // Search phase has finished, no longer need to check for timeout
                 // otherwise aggregation phase might get cancelled.
@@ -206,7 +192,7 @@ public class QueryPhase {
         }
     }
 
-    private static boolean searchWithCollector(
+    private static void searchWithCollector(
         SearchContext searchContext,
         ContextIndexSearcher searcher,
         Query query,
@@ -246,7 +232,6 @@ public class QueryPhase {
         for (QueryCollectorContext ctx : collectors) {
             ctx.postProcess(queryResult);
         }
-        return topDocsFactory.shouldRescore();
     }
 
     /**

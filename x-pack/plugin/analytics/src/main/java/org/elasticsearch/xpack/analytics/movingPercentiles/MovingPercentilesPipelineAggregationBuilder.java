@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.analytics.movingPercentiles;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
@@ -132,7 +132,7 @@ public class MovingPercentilesPipelineAggregationBuilder extends AbstractPipelin
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_9_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_9_0;
     }
 }

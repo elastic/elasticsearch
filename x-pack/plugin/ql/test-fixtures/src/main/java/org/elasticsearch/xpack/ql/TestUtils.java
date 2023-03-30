@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ql;
 
 import org.apache.http.HttpHost;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -18,7 +19,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -59,7 +60,6 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -83,7 +83,7 @@ import static org.junit.Assert.assertEquals;
 public final class TestUtils {
 
     public static final ZoneId UTC = ZoneId.of("Z");
-    public static final Configuration TEST_CFG = new Configuration(UTC, null, null, x -> Collections.emptySet());
+    public static final Configuration TEST_CFG = new Configuration(UTC, null, null);
 
     private static final String MATCHER_TYPE_CONTAINS = "CONTAINS";
     private static final String MATCHER_TYPE_REGEX = "REGEX";
@@ -91,11 +91,11 @@ public final class TestUtils {
     private TestUtils() {}
 
     public static Configuration randomConfiguration() {
-        return new Configuration(randomZone(), randomAlphaOfLength(10), randomAlphaOfLength(10), x -> Collections.emptySet());
+        return new Configuration(randomZone(), randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
     public static Configuration randomConfiguration(ZoneId zoneId) {
-        return new Configuration(zoneId, randomAlphaOfLength(10), randomAlphaOfLength(10), x -> Collections.emptySet());
+        return new Configuration(zoneId, randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
     public static Literal of(Object value) {
@@ -289,10 +289,23 @@ public final class TestUtils {
         Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
         TestNodes nodes = new TestNodes();
         for (String id : nodesAsMap.keySet()) {
+            Version nodeVersion = Version.fromString(objectPath.evaluate("nodes." + id + ".version"));
+
+            Object tvField;
+            TransportVersion transportVersion = null;
+            if (nodeVersion.before(Version.V_8_8_0)) {
+                transportVersion = TransportVersion.fromId(nodeVersion.id);   // no transport_version field
+            } else if ((tvField = objectPath.evaluate("nodes." + id + ".transport_version")) != null) {
+                // this json might be from a node <8.8.0, but about a node >=8.8.0
+                // in which case the transport_version field won't exist. Just ignore it for now.
+                transportVersion = TransportVersion.fromString(tvField.toString());
+            }
+
             nodes.add(
                 new TestNode(
                     id,
-                    Version.fromString(objectPath.evaluate("nodes." + id + ".version")),
+                    nodeVersion,
+                    transportVersion,
                     HttpHost.create(objectPath.evaluate("nodes." + id + ".http.publish_address"))
                 )
             );

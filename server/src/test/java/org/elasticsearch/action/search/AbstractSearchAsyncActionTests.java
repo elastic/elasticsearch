@@ -77,7 +77,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             logger,
             null,
             nodeIdToConnection,
-            Collections.singletonMap("foo", new AliasFilter(new MatchAllQueryBuilder())),
+            Collections.singletonMap("foo", AliasFilter.of(new MatchAllQueryBuilder())),
             Collections.singletonMap("foo", 2.0f),
             null,
             request,
@@ -243,8 +243,6 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         SearchShardIterator skipIterator = new SearchShardIterator(null, null, Collections.emptyList(), null);
         skipIterator.resetAndSkip();
         action.skipShard(skipIterator);
-        // expect at least 2 shards, so onPhaseDone should report failure.
-        action.onPhaseDone();
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertEquals("Partial shards failure (" + (numShards - 1) + " shards unavailable)", searchPhaseExecutionException.getMessage());

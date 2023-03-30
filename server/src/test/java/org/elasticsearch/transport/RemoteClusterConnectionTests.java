@@ -9,8 +9,10 @@ package org.elasticsearch.transport;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
@@ -30,12 +32,13 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.search.SearchHit;
@@ -75,6 +78,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class RemoteClusterConnectionTests extends ESTestCase {
@@ -87,25 +91,37 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
-    private MockTransportService startTransport(String id, List<DiscoveryNode> knownNodes, Version version) {
-        return startTransport(id, knownNodes, version, threadPool);
+    private MockTransportService startTransport(
+        String id,
+        List<DiscoveryNode> knownNodes,
+        Version version,
+        TransportVersion transportVersion
+    ) {
+        return startTransport(id, knownNodes, version, transportVersion, threadPool);
     }
 
-    public static MockTransportService startTransport(String id, List<DiscoveryNode> knownNodes, Version version, ThreadPool threadPool) {
-        return startTransport(id, knownNodes, version, threadPool, Settings.EMPTY);
+    public static MockTransportService startTransport(
+        String id,
+        List<DiscoveryNode> knownNodes,
+        Version version,
+        TransportVersion transportVersion,
+        ThreadPool threadPool
+    ) {
+        return startTransport(id, knownNodes, version, transportVersion, threadPool, Settings.EMPTY);
     }
 
     public static MockTransportService startTransport(
         final String id,
         final List<DiscoveryNode> knownNodes,
         final Version version,
+        final TransportVersion transportVersion,
         final ThreadPool threadPool,
         final Settings settings
     ) {
         boolean success = false;
         final Settings s = Settings.builder().put(settings).put("node.name", id).build();
         ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(s);
-        MockTransportService newService = MockTransportService.createNewService(s, version, threadPool, null);
+        MockTransportService newService = MockTransportService.createNewService(s, version, transportVersion, threadPool, null);
         try {
             newService.registerRequestHandler(
                 ClusterSearchShardsAction.NAME,
@@ -170,6 +186,14 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     channel.sendResponse(new ClusterStateResponse(clusterName, build, false));
                 }
             );
+            if (RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.get(s)) {
+                newService.registerRequestHandler(
+                    RemoteClusterNodesAction.NAME,
+                    ThreadPool.Names.SAME,
+                    RemoteClusterNodesAction.Request::new,
+                    (request, channel, task) -> channel.sendResponse(new RemoteClusterNodesAction.Response(knownNodes))
+                );
+            }
             newService.start();
             newService.acceptIncomingRequests();
             success = true;
@@ -210,14 +234,22 @@ public class RemoteClusterConnectionTests extends ESTestCase {
             };
             t.start();
 
-            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+            try (
+                MockTransportService service = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    TransportVersion.CURRENT,
+                    threadPool,
+                    null
+                )
+            ) {
                 service.start();
                 service.acceptIncomingRequests();
                 CountDownLatch listenerCalled = new CountDownLatch(1);
                 AtomicReference<Exception> exceptionReference = new AtomicReference<>();
                 String clusterAlias = "test-cluster";
                 Settings settings = buildRandomSettings(clusterAlias, addresses(seedNode));
-                try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service)) {
+                try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service, randomBoolean())) {
                     ActionListener<Void> listener = ActionListener.wrap(x -> {
                         listenerCalled.countDown();
                         fail("expected exception");
@@ -240,15 +272,20 @@ public class RemoteClusterConnectionTests extends ESTestCase {
     }
 
     private static List<String> addresses(final DiscoveryNode... seedNodes) {
-        return Arrays.stream(seedNodes).map(s -> s.getAddress().toString()).collect(Collectors.toList());
+        return Arrays.stream(seedNodes).map(s -> s.getAddress().toString()).collect(Collectors.toCollection(ArrayList::new));
     }
 
     public void testCloseWhileConcurrentlyConnecting() throws IOException, InterruptedException, BrokenBarrierException {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (
-            MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
-            MockTransportService seedTransport1 = startTransport("seed_node_1", knownNodes, Version.CURRENT);
-            MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)
+            MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT, TransportVersion.CURRENT);
+            MockTransportService seedTransport1 = startTransport("seed_node_1", knownNodes, Version.CURRENT, TransportVersion.CURRENT);
+            MockTransportService discoverableTransport = startTransport(
+                "discoverable_node",
+                knownNodes,
+                Version.CURRENT,
+                TransportVersion.CURRENT
+            )
         ) {
             DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
             DiscoveryNode seedNode1 = seedTransport1.getLocalDiscoNode();
@@ -259,12 +296,20 @@ public class RemoteClusterConnectionTests extends ESTestCase {
             List<String> seedNodes = addresses(seedNode1, seedNode);
             Collections.shuffle(seedNodes, random());
 
-            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+            try (
+                MockTransportService service = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    TransportVersion.CURRENT,
+                    threadPool,
+                    null
+                )
+            ) {
                 service.start();
                 service.acceptIncomingRequests();
                 String clusterAlias = "test-cluster";
                 Settings settings = buildRandomSettings(clusterAlias, seedNodes);
-                try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service)) {
+                try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service, randomBoolean())) {
                     int numThreads = randomIntBetween(4, 10);
                     Thread[] threads = new Thread[numThreads];
                     CyclicBarrier barrier = new CyclicBarrier(numThreads + 1);
@@ -330,23 +375,71 @@ public class RemoteClusterConnectionTests extends ESTestCase {
     }
 
     public void testGetConnectionInfo() throws Exception {
+        doTestGetConnectionInfo(false);
+        doTestGetConnectionInfo(true);
+    }
+
+    private void doTestGetConnectionInfo(boolean hasClusterCredentials) throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        final Settings seedTransportSettings;
+        if (hasClusterCredentials) {
+            seedTransportSettings = Settings.builder()
+                .put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), "true")
+                .put(RemoteClusterPortSettings.PORT.getKey(), "0")
+                .build();
+        } else {
+            seedTransportSettings = Settings.EMPTY;
+        }
         try (
-            MockTransportService transport1 = startTransport("seed_node", knownNodes, Version.CURRENT);
-            MockTransportService transport2 = startTransport("seed_node_1", knownNodes, Version.CURRENT);
-            MockTransportService transport3 = startTransport("discoverable_node", knownNodes, Version.CURRENT)
+            MockTransportService transport1 = startTransport(
+                "seed_node",
+                knownNodes,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                threadPool,
+                seedTransportSettings
+            );
+            MockTransportService transport2 = startTransport(
+                "seed_node_1",
+                knownNodes,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                threadPool,
+                seedTransportSettings
+            );
+            MockTransportService transport3 = startTransport(
+                "discoverable_node",
+                knownNodes,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                threadPool,
+                seedTransportSettings
+            )
         ) {
             DiscoveryNode node1 = transport1.getLocalDiscoNode();
             DiscoveryNode node2 = transport3.getLocalDiscoNode();
             DiscoveryNode node3 = transport2.getLocalDiscoNode();
-            knownNodes.add(transport1.getLocalDiscoNode());
-            knownNodes.add(transport3.getLocalDiscoNode());
-            knownNodes.add(transport2.getLocalDiscoNode());
+            if (hasClusterCredentials) {
+                node1 = node1.withTransportAddress(transport1.boundRemoteAccessAddress().publishAddress());
+                node2 = node2.withTransportAddress(transport3.boundRemoteAccessAddress().publishAddress());
+                node3 = node3.withTransportAddress(transport2.boundRemoteAccessAddress().publishAddress());
+            }
+            knownNodes.add(node1);
+            knownNodes.add(node2);
+            knownNodes.add(node3);
             Collections.shuffle(knownNodes, random());
             List<String> seedNodes = addresses(node3, node1, node2);
             Collections.shuffle(seedNodes, random());
 
-            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+            try (
+                MockTransportService service = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    TransportVersion.CURRENT,
+                    threadPool,
+                    null
+                )
+            ) {
                 service.start();
                 service.acceptIncomingRequests();
                 int maxNumConnections = randomIntBetween(1, 5);
@@ -355,7 +448,17 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     .put(buildSniffSettings(clusterAlias, seedNodes))
                     .put(SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER.getKey(), maxNumConnections)
                     .build();
-                try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service)) {
+                if (hasClusterCredentials) {
+                    final MockSecureSettings secureSettings = new MockSecureSettings();
+                    secureSettings.setString(
+                        RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(clusterAlias).getKey(),
+                        randomAlphaOfLength(20)
+                    );
+                    settings = Settings.builder().put(settings).setSecureSettings(secureSettings).build();
+                }
+                try (
+                    RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service, hasClusterCredentials)
+                ) {
                     // test no nodes connected
                     RemoteConnectionInfo remoteConnectionInfo = assertSerialization(connection.getConnectionInfo());
                     assertNotNull(remoteConnectionInfo);
@@ -364,6 +467,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     assertEquals(3, sniffInfo.seedNodes.size());
                     assertEquals(maxNumConnections, sniffInfo.maxConnectionsPerCluster);
                     assertEquals(clusterAlias, remoteConnectionInfo.clusterAlias);
+                    assertEquals(hasClusterCredentials, remoteConnectionInfo.hasClusterCredentials);
                 }
             }
         }
@@ -384,32 +488,36 @@ public class RemoteClusterConnectionTests extends ESTestCase {
             modeInfo2 = new ProxyConnectionStrategy.ProxyModeInfo(remoteAddresses.get(0), serverName, 18, 17);
         }
 
-        RemoteConnectionInfo stats = new RemoteConnectionInfo("test_cluster", modeInfo1, TimeValue.timeValueMinutes(30), false);
+        RemoteConnectionInfo stats = new RemoteConnectionInfo("test_cluster", modeInfo1, TimeValue.timeValueMinutes(30), false, false);
         assertSerialization(stats);
 
-        RemoteConnectionInfo stats1 = new RemoteConnectionInfo("test_cluster", modeInfo1, TimeValue.timeValueMinutes(30), true);
+        RemoteConnectionInfo stats1 = new RemoteConnectionInfo("test_cluster", modeInfo1, TimeValue.timeValueMinutes(30), true, false);
         assertSerialization(stats1);
         assertNotEquals(stats, stats1);
 
-        stats1 = new RemoteConnectionInfo("test_cluster_1", modeInfo1, TimeValue.timeValueMinutes(30), false);
+        stats1 = new RemoteConnectionInfo("test_cluster_1", modeInfo1, TimeValue.timeValueMinutes(30), false, false);
         assertSerialization(stats1);
         assertNotEquals(stats, stats1);
 
-        stats1 = new RemoteConnectionInfo("test_cluster", modeInfo1, TimeValue.timeValueMinutes(325), false);
+        stats1 = new RemoteConnectionInfo("test_cluster", modeInfo1, TimeValue.timeValueMinutes(325), false, false);
         assertSerialization(stats1);
         assertNotEquals(stats, stats1);
 
-        stats1 = new RemoteConnectionInfo("test_cluster", modeInfo2, TimeValue.timeValueMinutes(30), false);
+        stats1 = new RemoteConnectionInfo("test_cluster", modeInfo2, TimeValue.timeValueMinutes(30), false, false);
+        assertSerialization(stats1);
+        assertNotEquals(stats, stats1);
+
+        stats1 = new RemoteConnectionInfo("test_cluster", modeInfo1, TimeValue.timeValueMinutes(30), false, true);
         assertSerialization(stats1);
         assertNotEquals(stats, stats1);
     }
 
     private static RemoteConnectionInfo assertSerialization(RemoteConnectionInfo info) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setVersion(Version.CURRENT);
+            out.setTransportVersion(TransportVersion.CURRENT);
             info.writeTo(out);
             StreamInput in = out.bytes().streamInput();
-            in.setVersion(Version.CURRENT);
+            in.setTransportVersion(TransportVersion.CURRENT);
             RemoteConnectionInfo remoteConnectionInfo = new RemoteConnectionInfo(in);
             assertEquals(info, remoteConnectionInfo);
             assertEquals(info.hashCode(), remoteConnectionInfo.hashCode());
@@ -429,8 +537,15 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         } else {
             modeInfo = new ProxyConnectionStrategy.ProxyModeInfo(remoteAddresses.get(0), serverName, 18, 16);
         }
+        final boolean hasClusterCredentials = randomBoolean();
 
-        RemoteConnectionInfo stats = new RemoteConnectionInfo("test_cluster", modeInfo, TimeValue.timeValueMinutes(30), true);
+        RemoteConnectionInfo stats = new RemoteConnectionInfo(
+            "test_cluster",
+            modeInfo,
+            TimeValue.timeValueMinutes(30),
+            true,
+            hasClusterCredentials
+        );
         stats = assertSerialization(stats);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
@@ -438,7 +553,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         builder.endObject();
 
         if (sniff) {
-            assertEquals(XContentHelper.stripWhitespace("""
+            assertEquals(XContentHelper.stripWhitespace(Strings.format("""
                 {
                   "test_cluster": {
                     "connected": true,
@@ -447,11 +562,11 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     "num_nodes_connected": 2,
                     "max_connections_per_cluster": 3,
                     "initial_connect_timeout": "30m",
-                    "skip_unavailable": true
+                    "skip_unavailable": true%s
                   }
-                }"""), Strings.toString(builder));
+                }""", hasClusterCredentials ? ",\"cluster_credentials\":\"::es_redacted::\"" : "")), Strings.toString(builder));
         } else {
-            assertEquals(XContentHelper.stripWhitespace("""
+            assertEquals(XContentHelper.stripWhitespace(Strings.format("""
                 {
                   "test_cluster": {
                     "connected": true,
@@ -461,24 +576,78 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     "num_proxy_sockets_connected": 16,
                     "max_proxy_socket_connections": 18,
                     "initial_connect_timeout": "30m",
-                    "skip_unavailable": true
+                    "skip_unavailable": true%s
                   }
-                }"""), Strings.toString(builder));
+                }""", hasClusterCredentials ? ",\"cluster_credentials\":\"::es_redacted::\"" : "")), Strings.toString(builder));
         }
     }
 
     public void testCollectNodes() throws Exception {
+        doTestCollectNodes(false);
+        doTestCollectNodes(true);
+    }
+
+    private void doTestCollectNodes(boolean hasClusterCredentials) throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT)) {
+        final Settings seedTransportSettings;
+        if (hasClusterCredentials) {
+            seedTransportSettings = Settings.builder()
+                .put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), "true")
+                .put(RemoteClusterPortSettings.PORT.getKey(), "0")
+                .build();
+        } else {
+            seedTransportSettings = Settings.EMPTY;
+        }
+
+        try (
+            MockTransportService seedTransport = startTransport(
+                "seed_node",
+                knownNodes,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                threadPool,
+                seedTransportSettings
+            )
+        ) {
             DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
-            knownNodes.add(seedTransport.getLocalDiscoNode());
-            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+            if (hasClusterCredentials) {
+                seedNode = seedNode.withTransportAddress(seedTransport.boundRemoteAccessAddress().publishAddress());
+            }
+            knownNodes.add(seedNode);
+            try (
+                MockTransportService service = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    TransportVersion.CURRENT,
+                    threadPool,
+                    null
+                )
+            ) {
                 service.start();
                 service.acceptIncomingRequests();
+                service.addSendBehavior((connection, requestId, action, request, options) -> {
+                    if (hasClusterCredentials) {
+                        assertThat(action, oneOf(RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME, RemoteClusterNodesAction.NAME));
+                    } else {
+                        assertThat(action, oneOf(TransportService.HANDSHAKE_ACTION_NAME, ClusterStateAction.NAME));
+                    }
+                    connection.sendRequest(requestId, action, request, options);
+                });
                 String clusterAlias = "test-cluster";
                 Settings settings = buildRandomSettings(clusterAlias, addresses(seedNode));
 
-                try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service)) {
+                if (hasClusterCredentials) {
+                    final MockSecureSettings secureSettings = new MockSecureSettings();
+                    secureSettings.setString(
+                        RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(clusterAlias).getKey(),
+                        randomAlphaOfLength(20)
+                    );
+                    settings = Settings.builder().put(settings).setSecureSettings(secureSettings).build();
+                }
+
+                try (
+                    RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service, hasClusterCredentials)
+                ) {
                     CountDownLatch responseLatch = new CountDownLatch(1);
                     AtomicReference<Function<String, DiscoveryNode>> reference = new AtomicReference<>();
                     AtomicReference<Exception> failReference = new AtomicReference<>();
@@ -504,16 +673,24 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 
     public void testNoChannelsExceptREG() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT)) {
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT, TransportVersion.CURRENT)) {
             DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
             knownNodes.add(seedTransport.getLocalDiscoNode());
-            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+            try (
+                MockTransportService service = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    TransportVersion.CURRENT,
+                    threadPool,
+                    null
+                )
+            ) {
                 service.start();
                 service.acceptIncomingRequests();
                 String clusterAlias = "test-cluster";
                 Settings settings = buildRandomSettings(clusterAlias, addresses(seedNode));
 
-                try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service)) {
+                try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service, false)) {
                     PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
                     connection.ensureConnected(plainActionFuture);
                     plainActionFuture.get(10, TimeUnit.SECONDS);
@@ -547,7 +724,12 @@ public class RemoteClusterConnectionTests extends ESTestCase {
             final int numDiscoverableNodes = randomIntBetween(5, 20);
             List<DiscoveryNode> discoverableNodes = new ArrayList<>(numDiscoverableNodes);
             for (int i = 0; i < numDiscoverableNodes; i++) {
-                MockTransportService transportService = startTransport("discoverable_node" + i, knownNodes, Version.CURRENT);
+                MockTransportService transportService = startTransport(
+                    "discoverable_node" + i,
+                    knownNodes,
+                    Version.CURRENT,
+                    TransportVersion.CURRENT
+                );
                 discoverableNodes.add(transportService.getLocalNode());
                 discoverableTransports.add(transportService);
             }
@@ -555,18 +737,26 @@ public class RemoteClusterConnectionTests extends ESTestCase {
             List<String> seedNodes = new CopyOnWriteArrayList<>(
                 randomSubsetOf(
                     randomIntBetween(1, discoverableNodes.size()),
-                    discoverableNodes.stream().map(d -> d.getAddress().toString()).collect(Collectors.toList())
+                    discoverableNodes.stream().map(d -> d.getAddress().toString()).toList()
                 )
             );
             Collections.shuffle(seedNodes, random());
 
-            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+            try (
+                MockTransportService service = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    TransportVersion.CURRENT,
+                    threadPool,
+                    null
+                )
+            ) {
                 service.start();
                 service.acceptIncomingRequests();
 
                 String clusterAlias = "test-cluster";
                 Settings settings = buildRandomSettings(clusterAlias, seedNodes);
-                try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service)) {
+                try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service, randomBoolean())) {
                     final int numGetThreads = randomIntBetween(4, 10);
                     final Thread[] getThreads = new Thread[numGetThreads];
                     final int numModifyingThreads = randomIntBetween(4, 10);
@@ -628,8 +818,13 @@ public class RemoteClusterConnectionTests extends ESTestCase {
     public void testGetConnection() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (
-            MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
-            MockTransportService disconnectedTransport = startTransport("disconnected_node", knownNodes, Version.CURRENT)
+            MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT, TransportVersion.CURRENT);
+            MockTransportService disconnectedTransport = startTransport(
+                "disconnected_node",
+                knownNodes,
+                Version.CURRENT,
+                TransportVersion.CURRENT
+            )
         ) {
 
             DiscoveryNode seedNode = seedTransport.getLocalNode();
@@ -637,12 +832,20 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 
             DiscoveryNode disconnectedNode = disconnectedTransport.getLocalNode();
 
-            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+            try (
+                MockTransportService service = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    TransportVersion.CURRENT,
+                    threadPool,
+                    null
+                )
+            ) {
                 service.start();
                 service.acceptIncomingRequests();
                 String clusterAlias = "test-cluster";
                 Settings settings = buildRandomSettings(clusterAlias, addresses(seedNode));
-                try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service)) {
+                try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service, false)) {
                     PlainActionFuture.get(fut -> connection.ensureConnected(fut.map(x -> null)));
                     for (int i = 0; i < 10; i++) {
                         // always a direct connection as the remote node is already connected

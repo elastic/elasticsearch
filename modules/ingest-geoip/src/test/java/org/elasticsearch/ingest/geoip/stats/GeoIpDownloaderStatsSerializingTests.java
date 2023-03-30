@@ -9,12 +9,12 @@
 package org.elasticsearch.ingest.geoip.stats;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class GeoIpDownloaderStatsSerializingTests extends AbstractSerializingTestCase<GeoIpDownloaderStats> {
+public class GeoIpDownloaderStatsSerializingTests extends AbstractXContentSerializingTestCase<GeoIpDownloaderStats> {
 
     @Override
     protected GeoIpDownloaderStats doParseInstance(XContentParser parser) throws IOException {
@@ -29,6 +29,11 @@ public class GeoIpDownloaderStatsSerializingTests extends AbstractSerializingTes
     @Override
     protected GeoIpDownloaderStats createTestInstance() {
         return createRandomInstance();
+    }
+
+    @Override
+    protected GeoIpDownloaderStats mutateInstance(GeoIpDownloaderStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     static GeoIpDownloaderStats createRandomInstance() {

@@ -6,9 +6,10 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ConstantExtractorTests;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
@@ -29,10 +30,11 @@ public class SearchHitCursorTests extends AbstractSqlWireSerializingTestCase<Sea
             extractors.add(randomHitExtractor(0));
         }
         return new SearchHitCursor(
-            new byte[randomInt(256)],
+            new SearchSourceBuilder().size(randomInt(1000)),
             extractors,
             CompositeAggregationCursorTests.randomBitSet(extractorsSize),
             randomIntBetween(10, 1024),
+            randomBoolean(),
             randomBoolean()
         );
     }
@@ -47,13 +49,14 @@ public class SearchHitCursorTests extends AbstractSqlWireSerializingTestCase<Sea
     }
 
     @Override
-    protected SearchHitCursor mutateInstance(SearchHitCursor instance) throws IOException {
+    protected SearchHitCursor mutateInstance(SearchHitCursor instance) {
         return new SearchHitCursor(
             instance.next(),
             instance.extractors(),
             randomValueOtherThan(instance.mask(), () -> CompositeAggregationCursorTests.randomBitSet(instance.extractors().size())),
             randomValueOtherThan(instance.limit(), () -> randomIntBetween(1, 1024)),
-            instance.includeFrozen() == false
+            instance.includeFrozen() == false,
+            instance.allowPartialSearchResults() == false
         );
     }
 
@@ -73,7 +76,7 @@ public class SearchHitCursorTests extends AbstractSqlWireSerializingTestCase<Sea
     }
 
     @Override
-    protected SearchHitCursor copyInstance(SearchHitCursor instance, Version version) throws IOException {
+    protected SearchHitCursor copyInstance(SearchHitCursor instance, TransportVersion version) throws IOException {
         /* Randomly choose between internal protocol round trip and String based
          * round trips used to toXContent. */
         if (randomBoolean()) {

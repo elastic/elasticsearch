@@ -16,7 +16,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.contains;
@@ -76,7 +75,7 @@ public class RetentionLeasesTests extends ESTestCase {
             () -> new RetentionLeases(
                 retentionLeases.primaryTerm(),
                 retentionLeases.version(),
-                Stream.concat(retentionLeases.leases().stream(), Stream.of(retentionLease)).collect(Collectors.toList())
+                Stream.concat(retentionLeases.leases().stream(), Stream.of(retentionLease)).toList()
             )
         );
         assertThat(e, hasToString(containsString("duplicate retention lease ID [" + retentionLease.id() + "]")));

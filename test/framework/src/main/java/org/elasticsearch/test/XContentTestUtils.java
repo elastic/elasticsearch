@@ -9,8 +9,9 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -39,6 +40,10 @@ import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 public final class XContentTestUtils {
     private XContentTestUtils() {
 
+    }
+
+    public static Map<String, Object> convertToMap(ChunkedToXContent chunkedToXContent) throws IOException {
+        return convertToMap(ChunkedToXContent.wrapAsToXContent(chunkedToXContent));
     }
 
     public static Map<String, Object> convertToMap(ToXContent part) throws IOException {
@@ -342,7 +347,7 @@ public final class XContentTestUtils {
                 } else if (context instanceof List) {
                     context = ((List<Object>) context).get(Integer.parseInt(key));
                 } else {
-                    throw new IllegalStateException("neither list nor map");
+                    return null; // node does not exist
                 }
             }
             return (T) context;

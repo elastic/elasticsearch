@@ -122,6 +122,28 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     }
 
     @Override
+    public void writeWithSizePrefix(Writeable writeable) throws IOException {
+        // TODO: do this without copying the bytes from tmp by calling writeBytes and just use the pages in tmp directly through
+        // manipulation of the offsets on the pages after writing to tmp. This will require adjustments to the places in this class
+        // that make assumptions about the page size
+        try (RecyclerBytesStreamOutput tmp = new RecyclerBytesStreamOutput(recycler)) {
+            tmp.setTransportVersion(getTransportVersion());
+            writeable.writeTo(tmp);
+            int size = tmp.size();
+            writeVInt(size);
+            int tmpPage = 0;
+            while (size > 0) {
+                final Recycler.V<BytesRef> p = tmp.pages.get(tmpPage);
+                final BytesRef b = p.v();
+                final int writeSize = Math.min(size, b.length);
+                writeBytes(b.bytes, b.offset, writeSize);
+                tmp.pages.set(tmpPage, null).close();
+                size -= writeSize;
+                tmpPage++;
+            }
+        }
+    }
+
     public void reset() {
         Releasables.close(pages);
         pages.clear();
@@ -134,7 +156,6 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         // nothing to do
     }
 
-    @Override
     public void seek(long position) {
         ensureCapacityFromPosition(position);
         this.pageIndex = (int) position / pageSize;
@@ -204,10 +225,12 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     }
 
     private void ensureCapacityFromPosition(long newPosition) {
+        // Integer.MAX_VALUE is not a multiple of the page size so we can only allocate the largest multiple of the pagesize that is less
+        // than Integer.MAX_VALUE
+        if (newPosition > Integer.MAX_VALUE - (Integer.MAX_VALUE % pageSize)) {
+            throw new IllegalArgumentException(getClass().getSimpleName() + " cannot hold more than 2GB of data");
+        }
         while (newPosition > currentCapacity) {
-            if (newPosition > Integer.MAX_VALUE) {
-                throw new IllegalArgumentException(getClass().getSimpleName() + " cannot hold more than 2GB of data");
-            }
             Recycler.V<BytesRef> newPage = recycler.obtain();
             assert pageSize == newPage.v().length;
             pages.add(newPage);

@@ -10,7 +10,7 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -20,6 +20,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -79,7 +80,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             formats.add(in.readNamedWriteable(DocValueFormat.class));
         }
         this.reverseMuls = in.readIntArray();
-        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
             this.missingOrders = in.readArray(MissingOrder::readFromStream, MissingOrder[]::new);
         } else {
             this.missingOrders = new MissingOrder[reverseMuls.length];
@@ -87,7 +88,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         }
         this.buckets = in.readList((input) -> new InternalBucket(input, sourceNames, formats, reverseMuls, missingOrders));
         this.afterKey = in.readOptionalWriteable(CompositeKey::new);
-        this.earlyTerminated = in.getVersion().onOrAfter(Version.V_7_6_0) ? in.readBoolean() : false;
+        this.earlyTerminated = in.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0) ? in.readBoolean() : false;
     }
 
     @Override
@@ -98,12 +99,12 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             out.writeNamedWriteable(format);
         }
         out.writeIntArray(reverseMuls);
-        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
             out.writeArray((o, order) -> order.writeTo(o), missingOrders);
         }
         out.writeList(buckets);
         out.writeOptionalWriteable(afterKey);
-        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {
             out.writeBoolean(earlyTerminated);
         }
     }
@@ -246,6 +247,22 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             reducedFormats,
             result,
             lastKey,
+            reverseMuls,
+            missingOrders,
+            earlyTerminated,
+            metadata
+        );
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalComposite(
+            name,
+            size,
+            sourceNames,
+            buckets.isEmpty() ? formats : buckets.get(buckets.size() - 1).formats,
+            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
+            buckets.isEmpty() ? afterKey : buckets.get(buckets.size() - 1).getRawKey(),
             reverseMuls,
             missingOrders,
             earlyTerminated,
@@ -450,6 +467,18 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
              * See {@link CompositeAggregation#bucketToXContent}
              */
             throw new UnsupportedOperationException("not implemented");
+        }
+
+        InternalBucket finalizeSampling(SamplingContext samplingContext) {
+            return new InternalBucket(
+                sourceNames,
+                formats,
+                key,
+                reverseMuls,
+                missingOrders,
+                samplingContext.scaleUp(docCount),
+                InternalAggregations.finalizeSampling(aggregations, samplingContext)
+            );
         }
     }
 

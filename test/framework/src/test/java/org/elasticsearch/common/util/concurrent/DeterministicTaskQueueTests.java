@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
@@ -20,7 +19,6 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -61,10 +59,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     private List<String> getResultsOfRunningRandomly(Random random) {
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(
-            Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build(),
-            random
-        );
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(random);
         final List<String> strings = new ArrayList<>(4);
 
         taskQueue.scheduleNow(() -> strings.add("foo"));
@@ -315,6 +310,20 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         taskQueue.runAllTasks();
 
         assertThat(strings, containsInAnyOrder("runnable", "also runnable", "deferred", "not quite so deferred", "further deferred"));
+    }
+
+    public void testPrioritizedEsThreadPoolExecutorRunsWrapperAndCommand() {
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final AtomicInteger wrapperCallCount = new AtomicInteger();
+        final PrioritizedEsThreadPoolExecutor executor = taskQueue.getPrioritizedEsThreadPoolExecutor(runnable -> () -> {
+            assertThat(wrapperCallCount.incrementAndGet(), lessThanOrEqualTo(2));
+            runnable.run();
+        });
+        final AtomicBoolean commandCalled = new AtomicBoolean();
+        executor.execute(() -> assertTrue(commandCalled.compareAndSet(false, true)));
+        taskQueue.runAllRunnableTasks();
+        assertThat(wrapperCallCount.get(), equalTo(2));
+        assertTrue(commandCalled.get());
     }
 
     public void testDelayVariabilityAppliesToImmediateTasks() {

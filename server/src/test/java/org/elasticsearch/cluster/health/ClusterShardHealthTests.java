@@ -8,15 +8,14 @@
 package org.elasticsearch.cluster.health;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
-public class ClusterShardHealthTests extends AbstractSerializingTestCase<ClusterShardHealth> {
+public class ClusterShardHealthTests extends AbstractXContentSerializingTestCase<ClusterShardHealth> {
 
     @Override
     protected ClusterShardHealth doParseInstance(XContentParser parser) throws IOException {
@@ -80,9 +79,7 @@ public class ClusterShardHealthTests extends AbstractSerializingTestCase<Cluster
                 );
             case "status":
                 ClusterHealthStatus status = randomFrom(
-                    Arrays.stream(ClusterHealthStatus.values())
-                        .filter(value -> value.equals(instance.getStatus()) == false)
-                        .collect(Collectors.toList())
+                    Arrays.stream(ClusterHealthStatus.values()).filter(value -> value.equals(instance.getStatus()) == false).toList()
                 );
                 return new ClusterShardHealth(
                     instance.getShardId(),

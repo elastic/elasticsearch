@@ -1076,11 +1076,6 @@ class java.lang.RuntimeException {
   (String)
 }
 
-class java.lang.SecurityException {
-  ()
-  (String)
-}
-
 class java.lang.StringIndexOutOfBoundsException {
   ()
   (String)

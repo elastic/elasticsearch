@@ -18,7 +18,6 @@ import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 
 public final class RepositoriesStatsArchive {
     private static final Logger logger = LogManager.getLogger(RepositoriesStatsArchive.class);
@@ -56,7 +55,7 @@ public final class RepositoriesStatsArchive {
 
     synchronized List<RepositoryStatsSnapshot> getArchivedStats() {
         evict();
-        return archive.stream().map(e -> e.repositoryStatsSnapshot).collect(Collectors.toList());
+        return archive.stream().map(e -> e.repositoryStatsSnapshot).toList();
     }
 
     /**

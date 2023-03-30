@@ -66,12 +66,13 @@ import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalAvg;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.InternalAggregationTestCase;
@@ -314,7 +315,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
     public void testMissingFilter() {
         SearchResponse protoResponse = mock(SearchResponse.class);
         List<InternalAggregation> protoAggTree = new ArrayList<>(1);
-        InternalMax protoMax = mock(InternalMax.class);
+        Max protoMax = mock(Max.class);
         when(protoMax.getName()).thenReturn("foo");
         protoAggTree.add(protoMax);
         Aggregations protoMockAggs = InternalAggregations.from(protoAggTree);
@@ -323,7 +324,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         SearchResponse responseWithout = mock(SearchResponse.class);
         List<InternalAggregation> aggTreeWithoutFilter = new ArrayList<>(1);
-        InternalMax max = mock(InternalMax.class);
+        Max max = mock(Max.class);
         when(max.getName()).thenReturn("bizzbuzz");
         aggTreeWithoutFilter.add(max);
         Aggregations mockAggsWithout = InternalAggregations.from(aggTreeWithoutFilter);
@@ -342,7 +343,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
     public void testMatchingNameNotFilter() {
         SearchResponse protoResponse = mock(SearchResponse.class);
         List<InternalAggregation> protoAggTree = new ArrayList<>(1);
-        InternalMax protoMax = mock(InternalMax.class);
+        Max protoMax = mock(Max.class);
         when(protoMax.getName()).thenReturn("foo");
         protoAggTree.add(protoMax);
         Aggregations protoMockAggs = InternalAggregations.from(protoAggTree);
@@ -351,7 +352,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         SearchResponse responseWithout = mock(SearchResponse.class);
         List<InternalAggregation> aggTreeWithoutFilter = new ArrayList<>(1);
-        InternalMax max = new InternalMax("filter_foo", 0, DocValueFormat.RAW, null);
+        Max max = new Max("filter_foo", 0, DocValueFormat.RAW, null);
         aggTreeWithoutFilter.add(max);
         Aggregations mockAggsWithout = InternalAggregations.from(aggTreeWithoutFilter);
         when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);
@@ -363,7 +364,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
             RuntimeException.class,
             () -> RollupResponseTranslator.combineResponses(msearch, InternalAggregationTestCase.emptyReduceContextBuilder())
         );
-        assertThat(e.getMessage(), equalTo("Expected [filter_foo] to be a FilterAggregation, but was [InternalMax]"));
+        assertThat(e.getMessage(), equalTo("Expected [filter_foo] to be a FilterAggregation, but was [Max]"));
     }
 
     public void testSimpleReduction() throws Exception {
@@ -1255,14 +1256,12 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
     private Document stringValueDoc(String stringValue) {
         Document doc = new Document();
         BytesRef bytes = new BytesRef(stringValue);
-        doc.add(new SortedSetDocValuesField("stringField", bytes));
         doc.add(new KeywordField("stringField", bytes, KeywordFieldMapper.Defaults.FIELD_TYPE));
         return doc;
     }
 
     private Document stringValueRollupDoc(String stringValue, long docCount) {
         Document doc = new Document();
-        doc.add(new SortedSetDocValuesField("stringfield.terms." + RollupField.VALUE, new BytesRef(stringValue)));
         doc.add(new Field("stringfield.terms." + RollupField.VALUE, new BytesRef(stringValue), KeywordFieldMapper.Defaults.FIELD_TYPE));
         doc.add(new SortedNumericDocValuesField("stringfield.terms." + RollupField.COUNT_FIELD, docCount));
         return doc;
@@ -1313,10 +1312,10 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-        Aggregator aggregator = createAggregator(aggBuilder, indexSearcher, fieldType);
-        try {
+        try (AggregationContext context = createAggregationContext(indexSearcher, query, fieldType)) {
+            Aggregator aggregator = createAggregator(aggBuilder, context);
             aggregator.preCollection();
-            indexSearcher.search(query, aggregator);
+            indexSearcher.search(query, aggregator.asCollector());
             aggregator.postCollection();
             return aggregator.buildTopLevel();
         } finally {

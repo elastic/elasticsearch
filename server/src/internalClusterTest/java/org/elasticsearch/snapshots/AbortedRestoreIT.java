@@ -32,10 +32,11 @@ public class AbortedRestoreIT extends AbstractSnapshotIntegTestCase {
 
     public void testAbortedRestoreAlsoAbortFileRestores() throws Exception {
         internalCluster().startMasterOnlyNode();
-        final String dataNode = internalCluster().startDataOnlyNode();
+        // small pool so we are able to fully block all of its threads later
+        final String dataNode = internalCluster().startDataOnlyNode(SMALL_SNAPSHOT_POOL_SETTINGS);
 
         final String indexName = "test-abort-restore";
-        createIndex(indexName, indexSettingsNoReplicas(1).build());
+        createIndex(indexName, 1, 0);
         indexRandomDocs(indexName, scaledRandomIntBetween(10, 1_000));
         ensureGreen();
         forceMerge();

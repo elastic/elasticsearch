@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 public abstract class OpenIdConnectBaseRestHandler extends SecurityBaseRestHandler {
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(OpenIdConnectBaseRestHandler.class);
 
     private static final String OIDC_REALM_TYPE = OpenIdConnectRealmSettings.TYPE;
 

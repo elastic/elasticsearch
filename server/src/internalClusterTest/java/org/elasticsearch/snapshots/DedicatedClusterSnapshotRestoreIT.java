@@ -8,9 +8,6 @@
 
 package org.elasticsearch.snapshots;
 
-import com.carrotsearch.hppc.IntHashSet;
-import com.carrotsearch.hppc.IntSet;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -54,6 +51,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestResponseUtils;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterStateAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -79,8 +77,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -440,7 +440,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         ensureGreen("test-idx");
 
-        IntSet reusedShards = new IntHashSet();
+        Set<Integer> reusedShards = new HashSet<>();
         List<RecoveryState> recoveryStates = client().admin()
             .indices()
             .prepareRecoveries("test-idx")
@@ -526,8 +526,9 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             @Override
             public void sendResponse(RestResponse response) {
                 try {
-                    assertThat(response.content().utf8ToString(), containsString("notsecretusername"));
-                    assertThat(response.content().utf8ToString(), not(containsString("verysecretpassword")));
+                    final var responseBody = RestResponseUtils.getBodyContent(response).utf8ToString();
+                    assertThat(responseBody, containsString("notsecretusername"));
+                    assertThat(responseBody, not(containsString("verysecretpassword")));
                 } catch (AssertionError ex) {
                     clusterStateError.set(ex);
                 } finally {
@@ -646,13 +647,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         indexRandomDocs(sourceIdx, randomIntBetween(10, 100));
 
         logger.info("--> shrink the index");
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(sourceIdx)
-                .setSettings(Settings.builder().put("index.blocks.write", true))
-                .get()
-        );
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIdx);
         assertAcked(client().admin().indices().prepareResizeIndex(sourceIdx, shrunkIdx).get());
 
         logger.info("--> snapshot the shrunk index");
@@ -868,7 +863,13 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             .get();
         disruption.startDisrupting();
         logger.info("-->  restarting data node, which should cause primary shards to be failed");
-        internalCluster().restartNode(dataNode, InternalTestCluster.EMPTY_CALLBACK);
+        internalCluster().restartNode(dataNode, new InternalTestCluster.RestartCallback() {
+            @Override
+            public boolean validateClusterForming() {
+                // skip this step since BusyMasterServiceDisruption prevents the master queue from ever emptying
+                return false;
+            }
+        });
 
         logger.info("-->  wait for shard snapshots to show as failed");
         assertBusy(
@@ -962,7 +963,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         final String indexName = "index-retention-leases";
         final int shardCount = randomIntBetween(1, 5);
-        assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(indexSettingsNoReplicas(shardCount)));
+        createIndex(indexName, shardCount, 0);
         final ShardId shardId = new ShardId(resolveIndex(indexName), randomIntBetween(0, shardCount - 1));
 
         final int snapshotDocCount = iterations(10, 1000);
@@ -1187,7 +1188,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertAcked(admin().indices().prepareDelete(indexName));
 
         for (Future<Void> future : futures) {
-            future.get();
+            future.get(30, TimeUnit.SECONDS);
         }
 
         logger.info("--> restore snapshot 1");

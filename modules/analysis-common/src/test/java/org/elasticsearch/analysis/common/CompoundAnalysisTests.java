@@ -23,6 +23,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.MatcherAssert;
@@ -85,7 +86,7 @@ public class CompoundAnalysisTests extends ESTestCase {
             public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
                 return singletonMap("myfilter", MyFilterTokenFilterFactory::new);
             }
-        }));
+        }), new StablePluginsRegistry());
     }
 
     private Settings getJsonSettings() throws IOException {

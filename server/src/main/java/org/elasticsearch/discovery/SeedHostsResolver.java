@@ -38,7 +38,6 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 public class SeedHostsResolver extends AbstractLifecycleComponent implements ConfiguredHostsResolver, SeedHostsProvider.HostsResolver {
     public static final Setting<Integer> DISCOVERY_SEED_RESOLVER_MAX_CONCURRENT_RESOLVERS_SETTING = Setting.intSetting(
@@ -91,7 +90,7 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
         // create tasks to submit to the executor service; we will wait up to resolveTimeout for these tasks to complete
         final List<Callable<TransportAddress[]>> callables = hosts.stream()
             .map(hn -> (Callable<TransportAddress[]>) () -> transportService.addressesFromString(hn))
-            .collect(Collectors.toList());
+            .toList();
         final SetOnce<List<Future<TransportAddress[]>>> futures = new SetOnce<>();
         final long startTimeNanos = transportService.getThreadPool().relativeTimeInNanos();
         try {

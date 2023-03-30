@@ -113,7 +113,7 @@ public final class IteratingActionListener<T, U> implements ActionListener<T>, R
         } else if (position < 0 || position >= consumables.size()) {
             onFailure(new IllegalStateException("invalid position [" + position + "]. List size [" + consumables.size() + "]"));
         } else {
-            try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(false)) {
+            try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
                 consumer.accept(consumables.get(position++), this);
             } catch (Exception e) {
                 onFailure(e);
@@ -125,7 +125,7 @@ public final class IteratingActionListener<T, U> implements ActionListener<T>, R
     public void onResponse(T response) {
         // we need to store the context here as there is a chance that this method is called from a thread outside of the ThreadPool
         // like a LDAP connection reader thread and we can pollute the context in certain cases
-        try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(false)) {
+        try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
             final boolean continueIteration = iterationPredicate.test(response);
             if (continueIteration) {
                 if (position == consumables.size()) {
@@ -147,7 +147,7 @@ public final class IteratingActionListener<T, U> implements ActionListener<T>, R
     public void onFailure(Exception e) {
         // we need to store the context here as there is a chance that this method is called from a thread outside of the ThreadPool
         // like a LDAP connection reader thread and we can pollute the context in certain cases
-        try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(false)) {
+        try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
             delegate.onFailure(e);
         }
     }

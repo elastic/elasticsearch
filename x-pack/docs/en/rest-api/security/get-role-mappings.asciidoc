@@ -12,17 +12,17 @@ Retrieves role mappings.
 
 `GET /_security/role_mapping` +
 
-`GET /_security/role_mapping/<name>` 
+`GET /_security/role_mapping/<name>`
 
 [[security-api-get-role-mapping-prereqs]]
 ==== {api-prereq-title}
 
-* To use this API, you must have at least the `manage_security` cluster privilege.
+* To use this API, you must have at least the `read_security` cluster privilege.
 
 [[security-api-get-role-mapping-desc]]
 ==== {api-description-title}
 
-Role mappings define which roles are assigned to each user. For more information, 
+Role mappings define which roles are assigned to each user. For more information,
 see <<mapping-roles>>.
 
 The role mapping APIs are generally the preferred way to manage role mappings
@@ -36,16 +36,16 @@ in role mapping files.
 `name`::
   (Optional, string) The distinct name that identifies the role mapping. The name
   is used solely as an identifier to facilitate interaction via the API; it does
-  not affect the behavior of the mapping in any way. You can specify multiple 
+  not affect the behavior of the mapping in any way. You can specify multiple
   mapping names as a comma-separated list. If you do not specify this
-  parameter, the API returns information about all role mappings. 
+  parameter, the API returns information about all role mappings.
 
 [[security-api-get-role-mapping-response-body]]
 ==== {api-response-body-title}
 
 A successful call retrieves an object, where the keys are the
-names of the request mappings, and the values are the JSON representation of 
-those mappings. For more information, see 
+names of the request mappings, and the values are the JSON representation of
+those mappings. For more information, see
 <<role-mapping-resources>>.
 
 [[security-api-get-role-mapping-response-codes]]

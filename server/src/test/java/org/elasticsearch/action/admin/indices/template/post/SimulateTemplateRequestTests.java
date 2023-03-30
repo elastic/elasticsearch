@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.List;
 
 import static org.hamcrest.Matchers.is;
@@ -41,7 +40,7 @@ public class SimulateTemplateRequestTests extends AbstractWireSerializingTestCas
     }
 
     @Override
-    protected SimulateTemplateAction.Request mutateInstance(SimulateTemplateAction.Request instance) throws IOException {
+    protected SimulateTemplateAction.Request mutateInstance(SimulateTemplateAction.Request instance) {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 

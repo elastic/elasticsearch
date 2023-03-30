@@ -43,7 +43,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -78,7 +78,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -240,7 +239,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         boolean profile = randomBoolean();
         for (int trackTotalHits : new int[] { SearchContext.TRACK_TOTAL_HITS_DISABLED, SearchContext.TRACK_TOTAL_HITS_ACCURATE }) {
             AtomicArray<SearchPhaseResult> queryResults = generateQueryResults(nShards, suggestions, queryResultSize, false, profile);
-            SearchPhaseController.ReducedQueryPhase reducedQueryPhase = searchPhaseController.reducedQueryPhase(
+            SearchPhaseController.ReducedQueryPhase reducedQueryPhase = SearchPhaseController.reducedQueryPhase(
                 queryResults.asList(),
                 new ArrayList<>(),
                 new ArrayList<>(),
@@ -257,7 +256,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 reducedQueryPhase.suggest(),
                 profile
             );
-            InternalSearchResponse mergedResponse = searchPhaseController.merge(
+            InternalSearchResponse mergedResponse = SearchPhaseController.merge(
                 false,
                 reducedQueryPhase,
                 fetchResults.asList(),
@@ -406,7 +405,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             }
         }
         CompletionSuggestion completionSuggestion = new CompletionSuggestion(null, -1, randomBoolean());
-        return groupedSuggestion.values().stream().map(completionSuggestion::reduce).collect(Collectors.toList());
+        return groupedSuggestion.values().stream().map(completionSuggestion::reduce).toList();
     }
 
     private static AtomicArray<SearchPhaseResult> generateFetchResults(
@@ -423,7 +422,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             List<SearchHit> searchHits = new ArrayList<>();
             for (ScoreDoc scoreDoc : mergedSearchDocs) {
                 if (scoreDoc.shardIndex == shardIndex) {
-                    searchHits.add(new SearchHit(scoreDoc.doc, "", Collections.emptyMap(), Collections.emptyMap()));
+                    searchHits.add(new SearchHit(scoreDoc.doc, ""));
                     if (scoreDoc.score > maxScore) {
                         maxScore = scoreDoc.score;
                     }
@@ -434,7 +433,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     for (CompletionSuggestion.Entry.Option option : ((CompletionSuggestion) suggestion).getOptions()) {
                         ScoreDoc doc = option.getDoc();
                         if (doc.shardIndex == shardIndex) {
-                            searchHits.add(new SearchHit(doc.doc, "", Collections.emptyMap(), Collections.emptyMap()));
+                            searchHits.add(new SearchHit(doc.doc, ""));
                             if (doc.score > maxScore) {
                                 maxScore = doc.score;
                             }
@@ -503,7 +502,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
             new DocValueFormat[0]
         );
-        InternalAggregations aggs = InternalAggregations.from(singletonList(new InternalMax("test", 1.0D, DocValueFormat.RAW, emptyMap())));
+        InternalAggregations aggs = InternalAggregations.from(singletonList(new Max("test", 1.0D, DocValueFormat.RAW, emptyMap())));
         result.aggregations(aggs);
         result.setShardIndex(0);
         consumer.consumeResult(result, latch::countDown);
@@ -517,7 +516,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
             new DocValueFormat[0]
         );
-        aggs = InternalAggregations.from(singletonList(new InternalMax("test", 3.0D, DocValueFormat.RAW, emptyMap())));
+        aggs = InternalAggregations.from(singletonList(new Max("test", 3.0D, DocValueFormat.RAW, emptyMap())));
         result.aggregations(aggs);
         result.setShardIndex(2);
         consumer.consumeResult(result, latch::countDown);
@@ -531,7 +530,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
             new DocValueFormat[0]
         );
-        aggs = InternalAggregations.from(singletonList(new InternalMax("test", 2.0D, DocValueFormat.RAW, emptyMap())));
+        aggs = InternalAggregations.from(singletonList(new Max("test", 2.0D, DocValueFormat.RAW, emptyMap())));
         result.aggregations(aggs);
         result.setShardIndex(1);
         consumer.consumeResult(result, latch::countDown);
@@ -567,8 +566,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
         assertEquals(numTotalReducePhases, reduce.numReducePhases());
         assertEquals(numTotalReducePhases, reductions.size());
         assertAggReduction(request);
-        InternalMax max = (InternalMax) reduce.aggregations().asList().get(0);
-        assertEquals(3.0D, max.getValue(), 0.0D);
+        Max max = (Max) reduce.aggregations().asList().get(0);
+        assertEquals(3.0D, max.value(), 0.0D);
         assertFalse(reduce.sortedTopDocs().isSortedByField());
         assertNull(reduce.sortedTopDocs().sortFields());
         assertNull(reduce.sortedTopDocs().collapseField());
@@ -612,7 +611,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     new DocValueFormat[0]
                 );
                 InternalAggregations aggs = InternalAggregations.from(
-                    Collections.singletonList(new InternalMax("test", (double) number, DocValueFormat.RAW, Collections.emptyMap()))
+                    Collections.singletonList(new Max("test", (double) number, DocValueFormat.RAW, Collections.emptyMap()))
                 );
                 result.aggregations(aggs);
                 result.setShardIndex(id);
@@ -629,8 +628,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
 
         SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
         assertAggReduction(request);
-        InternalMax internalMax = (InternalMax) reduce.aggregations().asList().get(0);
-        assertEquals(max.get(), internalMax.getValue(), 0.0D);
+        Max internalMax = (Max) reduce.aggregations().asList().get(0);
+        assertEquals(max.get(), internalMax.value(), 0.0D);
         assertEquals(1, reduce.sortedTopDocs().scoreDocs().length);
         assertEquals(max.get(), reduce.maxScore(), 0.0f);
         assertEquals(expectedNumResults, reduce.totalHits().value);
@@ -671,7 +670,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 new DocValueFormat[0]
             );
             InternalAggregations aggs = InternalAggregations.from(
-                Collections.singletonList(new InternalMax("test", (double) number, DocValueFormat.RAW, Collections.emptyMap()))
+                Collections.singletonList(new Max("test", (double) number, DocValueFormat.RAW, Collections.emptyMap()))
             );
             result.aggregations(aggs);
             result.setShardIndex(i);
@@ -682,8 +681,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
 
         SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
         assertAggReduction(request);
-        InternalMax internalMax = (InternalMax) reduce.aggregations().asList().get(0);
-        assertEquals(max.get(), internalMax.getValue(), 0.0D);
+        Max internalMax = (Max) reduce.aggregations().asList().get(0);
+        assertEquals(max.get(), internalMax.value(), 0.0D);
         assertEquals(0, reduce.sortedTopDocs().scoreDocs().length);
         assertEquals(max.get(), reduce.maxScore(), 0.0f);
         assertEquals(expectedNumResults, reduce.totalHits().value);
@@ -1078,7 +1077,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                         new DocValueFormat[0]
                     );
                     InternalAggregations aggs = InternalAggregations.from(
-                        Collections.singletonList(new InternalMax("test", (double) number, DocValueFormat.RAW, Collections.emptyMap()))
+                        Collections.singletonList(new Max("test", (double) number, DocValueFormat.RAW, Collections.emptyMap()))
                     );
                     result.aggregations(aggs);
                     result.setShardIndex(id);
@@ -1093,8 +1092,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
             latch.await();
             SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
             assertAggReduction(request);
-            InternalMax internalMax = (InternalMax) reduce.aggregations().asList().get(0);
-            assertEquals(max.get(), internalMax.getValue(), 0.0D);
+            Max internalMax = (Max) reduce.aggregations().asList().get(0);
+            assertEquals(max.get(), internalMax.value(), 0.0D);
             assertEquals(1, reduce.sortedTopDocs().scoreDocs().length);
             assertEquals(max.get(), reduce.maxScore(), 0.0f);
             assertEquals(expectedNumResults, reduce.totalHits().value);
@@ -1155,7 +1154,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     new DocValueFormat[0]
                 );
                 InternalAggregations aggs = InternalAggregations.from(
-                    Collections.singletonList(new InternalMax("test", 0d, DocValueFormat.RAW, Collections.emptyMap()))
+                    Collections.singletonList(new Max("test", 0d, DocValueFormat.RAW, Collections.emptyMap()))
                 );
                 result.aggregations(aggs);
                 result.setShardIndex(index);

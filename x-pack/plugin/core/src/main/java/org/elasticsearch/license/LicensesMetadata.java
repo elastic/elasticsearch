@@ -6,29 +6,27 @@
  */
 package org.elasticsearch.license;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
-import org.elasticsearch.cluster.MergableCustomMetadata;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.license.License.OperationMode;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.Objects;
 
 /**
  * Contains metadata about registered licenses
  */
-public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom>
-    implements
-        Metadata.Custom,
-        MergableCustomMetadata<LicensesMetadata> {
+public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
 
     public static final String TYPE = "licenses";
 
@@ -108,8 +106,8 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom>
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.MINIMUM_COMPATIBLE;
     }
 
     @Override
@@ -143,18 +141,20 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom>
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (license == LICENSE_TOMBSTONE) {
-            builder.nullField(Fields.LICENSE);
-        } else {
-            builder.startObject(Fields.LICENSE);
-            license.toInnerXContent(builder, params);
-            builder.endObject();
-        }
-        if (trialVersion != null) {
-            builder.field(Fields.TRIAL_LICENSE, trialVersion.toString());
-        }
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return Iterators.single(((builder, params) -> {
+            if (license == LICENSE_TOMBSTONE) {
+                builder.nullField(Fields.LICENSE);
+            } else {
+                builder.startObject(Fields.LICENSE);
+                license.toInnerXContent(builder, params);
+                builder.endObject();
+            }
+            if (trialVersion != null) {
+                builder.field(Fields.TRIAL_LICENSE, trialVersion.toString());
+            }
+            return builder;
+        }));
     }
 
     @Override
@@ -199,16 +199,6 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom>
             }
         }
         return null;
-    }
-
-    @Override
-    public LicensesMetadata merge(LicensesMetadata other) {
-        if (other.license == null) {
-            return this;
-        } else if (license == null || OperationMode.compare(other.license.operationMode(), license.operationMode()) > 0) {
-            return other;
-        }
-        return this;
     }
 
     private static final class Fields {

@@ -22,7 +22,7 @@ import java.util.Objects;
 
 /**
  * Filter that has one or multiple associated keys associated with.
- * Used inside Join or Sequence.
+ * Used inside Join, Sequence and Sample.
  */
 public class KeyedFilter extends UnaryPlan {
 
@@ -62,7 +62,11 @@ public class KeyedFilter extends UnaryPlan {
     public List<? extends NamedExpression> extractionAttributes() {
         List<NamedExpression> out = new ArrayList<>();
 
-        out.add(timestamp);
+        // samples ignore the timestamp, so even though it's passed with the request (a required parameter),
+        // it's discarded by the execution planner
+        if (Expressions.isPresent(timestamp)) {
+            out.add(timestamp);
+        }
         if (Expressions.isPresent(tiebreaker)) {
             out.add(tiebreaker);
         }

@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
@@ -44,12 +46,25 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
 
     @Override
     public DataExtractor newExtractor(long start, long end) {
+        return buildExtractor(start, end, datafeedConfig.getParsedQuery(xContentRegistry));
+    }
+
+    @Override
+    public DataExtractor newExtractor(long start, long end, QueryBuilder queryBuilder) {
+        return buildExtractor(
+            start,
+            end,
+            QueryBuilders.boolQuery().filter(datafeedConfig.getParsedQuery(xContentRegistry)).filter(queryBuilder)
+        );
+    }
+
+    private DataExtractor buildExtractor(long start, long end, QueryBuilder queryBuilder) {
         ChunkedDataExtractorContext.TimeAligner timeAligner = newTimeAligner();
         ChunkedDataExtractorContext dataExtractorContext = new ChunkedDataExtractorContext(
             job.getId(),
             job.getDataDescription().getTimeField(),
             datafeedConfig.getIndices(),
-            datafeedConfig.getParsedQuery(xContentRegistry),
+            queryBuilder,
             datafeedConfig.getScrollSize(),
             timeAligner.alignToCeil(start),
             timeAligner.alignToFloor(end),

@@ -13,10 +13,12 @@ import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
 
@@ -40,23 +42,24 @@ public class MetadataDataStreamsService {
         if (request.getActions().size() == 0) {
             listener.onResponse(AcknowledgedResponse.TRUE);
         } else {
-            clusterService.submitStateUpdateTask(
-                "update-backing-indices",
-                new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        return modifyDataStream(currentState, request.getActions(), indexMetadata -> {
-                            try {
-                                return indicesService.createIndexMapperService(indexMetadata);
-                            } catch (IOException e) {
-                                throw new IllegalStateException(e);
-                            }
-                        });
-                    }
-                },
-                ClusterStateTaskExecutor.unbatched()
-            );
+            submitUnbatchedTask("update-backing-indices", new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return modifyDataStream(currentState, request.getActions(), indexMetadata -> {
+                        try {
+                            return indicesService.createIndexMapperServiceForValidation(indexMetadata);
+                        } catch (IOException e) {
+                            throw new IllegalStateException(e);
+                        }
+                    });
+                }
+            });
         }
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     /**
@@ -111,29 +114,41 @@ public class MetadataDataStreamsService {
         }
 
         // add index to data stream
-        builder.put(dataStream.getDataStream().addBackingIndex(metadata, index.getWriteIndex()));
+        builder.put(dataStream.addBackingIndex(metadata, index.getWriteIndex()));
     }
 
     private static void removeBackingIndex(Metadata metadata, Metadata.Builder builder, String dataStreamName, String indexName) {
-        var dataStream = validateDataStream(metadata, dataStreamName);
-        var index = validateIndex(metadata, indexName);
-        var writeIndex = metadata.index(index.getWriteIndex());
-        builder.put(dataStream.getDataStream().removeBackingIndex(writeIndex.getIndex()));
+        boolean indexNotRemoved = true;
+        DataStream dataStream = validateDataStream(metadata, dataStreamName);
+        for (Index backingIndex : dataStream.getIndices()) {
+            if (backingIndex.getName().equals(indexName)) {
+                builder.put(dataStream.removeBackingIndex(backingIndex));
+                indexNotRemoved = false;
+                break;
+            }
+        }
+
+        if (indexNotRemoved) {
+            throw new IllegalArgumentException("index [" + indexName + "] not found");
+        }
 
         // un-hide index
-        builder.put(
-            IndexMetadata.builder(writeIndex)
-                .settings(Settings.builder().put(writeIndex.getSettings()).put("index.hidden", "false").build())
-                .settingsVersion(writeIndex.getSettingsVersion() + 1)
-        );
+        var indexMetadata = builder.get(indexName);
+        if (indexMetadata != null) {
+            builder.put(
+                IndexMetadata.builder(indexMetadata)
+                    .settings(Settings.builder().put(indexMetadata.getSettings()).put("index.hidden", "false").build())
+                    .settingsVersion(indexMetadata.getSettingsVersion() + 1)
+            );
+        }
     }
 
-    private static IndexAbstraction.DataStream validateDataStream(Metadata metadata, String dataStreamName) {
+    private static DataStream validateDataStream(Metadata metadata, String dataStreamName) {
         IndexAbstraction dataStream = metadata.getIndicesLookup().get(dataStreamName);
         if (dataStream == null || dataStream.getType() != IndexAbstraction.Type.DATA_STREAM) {
             throw new IllegalArgumentException("data stream [" + dataStreamName + "] not found");
         }
-        return (IndexAbstraction.DataStream) dataStream;
+        return (DataStream) dataStream;
     }
 
     private static IndexAbstraction validateIndex(Metadata metadata, String indexName) {

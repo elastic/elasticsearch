@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -33,7 +32,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * Generates an oAuth 2.0 authentication request as a URL string and returns it to the REST client.
  */
 public class RestOpenIdConnectPrepareAuthenticationAction extends OpenIdConnectBaseRestHandler {
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(RestOpenIdConnectPrepareAuthenticationAction.class);
 
     static final ObjectParser<OpenIdConnectPrepareAuthenticationRequest, Void> PARSER = new ObjectParser<>(
         "oidc_prepare_authentication",
@@ -70,7 +69,7 @@ public class RestOpenIdConnectPrepareAuthenticationAction extends OpenIdConnectB
                     public RestResponse buildResponse(OpenIdConnectPrepareAuthenticationResponse response, XContentBuilder builder)
                         throws Exception {
                         logger.trace("OIDC Prepare Authentication Response: " + response);
-                        return new BytesRestResponse(RestStatus.OK, response.toXContent(builder, request));
+                        return new RestResponse(RestStatus.OK, response.toXContent(builder, request));
                     }
                 }
             );

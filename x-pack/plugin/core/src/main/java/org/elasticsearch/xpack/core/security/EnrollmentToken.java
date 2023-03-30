@@ -9,11 +9,10 @@ package org.elasticsearch.xpack.core.security;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -111,8 +110,7 @@ public class EnrollmentToken {
             throw new IOException("Cannot decode enrollment token from an empty string");
         }
         final XContentParser jsonParser = JsonXContent.jsonXContent.createParser(
-            NamedXContentRegistry.EMPTY,
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            XContentParserConfiguration.EMPTY,
             Base64.getDecoder().decode(encoded)
         );
         return EnrollmentToken.PARSER.parse(jsonParser, null);

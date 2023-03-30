@@ -19,6 +19,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
@@ -36,9 +37,11 @@ public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
             .put("index.analysis.analyzer.my_analyzer.tokenizer", tokenizer)
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
-        return new AnalysisModule(TestEnvironment.newEnvironment(settings), Collections.singletonList(new CommonAnalysisPlugin()))
-            .getAnalysisRegistry()
-            .build(idxSettings);
+        return new AnalysisModule(
+            TestEnvironment.newEnvironment(settings),
+            Collections.singletonList(new CommonAnalysisPlugin()),
+            new StablePluginsRegistry()
+        ).getAnalysisRegistry().build(idxSettings);
     }
 
     public void testPreConfiguredTokenizer() throws IOException {

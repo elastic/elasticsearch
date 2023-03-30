@@ -15,7 +15,6 @@ import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.h3.CellBoundary;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -27,6 +26,7 @@ import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
+import org.elasticsearch.xpack.spatial.common.H3SphericalUtil;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.io.IOException;
@@ -42,6 +42,7 @@ public class GeoHexAggregatorTests extends GeoGridAggregatorTestCase<InternalGeo
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
+        // TODO: why is shape here already, it is not supported yet
         return List.of(GeoShapeValuesSourceType.instance(), CoreValuesSourceType.GEOPOINT);
     }
 
@@ -94,24 +95,9 @@ public class GeoHexAggregatorTests extends GeoGridAggregatorTestCase<InternalGeo
 
     @Override
     protected Rectangle getTile(double lng, double lat, int precision) {
-        CellBoundary boundary = H3.h3ToGeoBoundary(hashAsString(lng, lat, precision));
-        double minLat = Double.POSITIVE_INFINITY;
-        double minLon = Double.POSITIVE_INFINITY;
-        double maxLat = Double.NEGATIVE_INFINITY;
-        double maxLon = Double.NEGATIVE_INFINITY;
-        for (int i = 0; i < boundary.numPoints(); i++) {
-            double boundaryLat = boundary.getLatLon(i).getLatDeg();
-            double boundaryLon = boundary.getLatLon(i).getLonDeg();
-            minLon = Math.min(minLon, boundaryLon);
-            maxLon = Math.max(maxLon, boundaryLon);
-            minLat = Math.min(minLat, boundaryLat);
-            maxLat = Math.max(maxLat, boundaryLat);
-        }
-        if (maxLon - minLon > 180) {
-            return new Rectangle(maxLon, minLon, maxLat, minLat);
-        } else {
-            return new Rectangle(minLon, maxLon, maxLat, minLat);
-        }
+        final GeoBoundingBox boundingBox = new GeoBoundingBox(new GeoPoint(), new GeoPoint());
+        H3SphericalUtil.computeGeoBounds(H3.stringToH3(hashAsString(lng, lat, precision)), boundingBox);
+        return new Rectangle(boundingBox.left(), boundingBox.right(), boundingBox.top(), boundingBox.bottom());
     }
 
     @Override
@@ -132,5 +118,27 @@ public class GeoHexAggregatorTests extends GeoGridAggregatorTestCase<InternalGeo
             geoGrid -> assertTrue(AggregationInspectionHelper.hasValue(geoGrid)),
             iw -> iw.addDocument(Collections.singletonList(field))
         );
+    }
+
+    public void testHexContainsNorthPole() throws IOException {
+        GeoBoundingBox bbox = new GeoBoundingBox(new GeoPoint(90, 0), new GeoPoint(89, 10));
+        LatLonDocValuesField fieldNorth = new LatLonDocValuesField("bar", 90, -5);
+        LatLonDocValuesField fieldSouth = new LatLonDocValuesField("bar", -90, -5);
+        testCase(new MatchAllDocsQuery(), "bar", 0, bbox, geoGrid -> {
+            assertTrue(AggregationInspectionHelper.hasValue(geoGrid));
+            assertEquals(1, geoGrid.getBuckets().size());
+            assertEquals(1, geoGrid.getBuckets().get(0).getDocCount());
+        }, iw -> iw.addDocument(List.of(fieldNorth, fieldSouth)));
+    }
+
+    public void testHexContainsSouthPole() throws IOException {
+        GeoBoundingBox bbox = new GeoBoundingBox(new GeoPoint(-89, 0), new GeoPoint(-90, 10));
+        LatLonDocValuesField fieldNorth = new LatLonDocValuesField("bar", 90, -5);
+        LatLonDocValuesField fieldSouth = new LatLonDocValuesField("bar", -90, -5);
+        testCase(new MatchAllDocsQuery(), "bar", 0, bbox, geoGrid -> {
+            assertTrue(AggregationInspectionHelper.hasValue(geoGrid));
+            assertEquals(1, geoGrid.getBuckets().size());
+            assertEquals(1, geoGrid.getBuckets().get(0).getDocCount());
+        }, iw -> iw.addDocument(List.of(fieldNorth, fieldSouth)));
     }
 }

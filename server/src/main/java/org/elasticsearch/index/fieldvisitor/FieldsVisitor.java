@@ -29,14 +29,12 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.unmodifiableSet;
-import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
 /**
  * Base {@link StoredFieldVisitor} that retrieves all non-redundant metadata.
  */
 public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
-    private static final Set<String> BASE_REQUIRED_FIELDS = unmodifiableSet(newHashSet(IdFieldMapper.NAME, RoutingFieldMapper.NAME));
+    private static final Set<String> BASE_REQUIRED_FIELDS = Set.of(IdFieldMapper.NAME, RoutingFieldMapper.NAME);
 
     private final boolean loadSource;
     private final String sourceFieldName;
@@ -86,6 +84,9 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
     public final void postProcess(Function<String, MappedFieldType> fieldTypeLookup) {
         for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
             MappedFieldType fieldType = fieldTypeLookup.apply(entry.getKey());
+            if (fieldType == null) {
+                continue; // TODO this is lame
+            }
             List<Object> fieldValues = entry.getValue();
             for (int i = 0; i < fieldValues.size(); i++) {
                 fieldValues.set(i, fieldType.valueForDisplay(fieldValues.get(i)));

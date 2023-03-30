@@ -18,6 +18,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -77,12 +78,12 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
             randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10)
         );
-        String contentString = """
+        String contentString = Strings.format("""
             {
                 "match_phrase" : {
                     "%s" : "%s"
                 }
-            }""".formatted(matchPhraseQuery.fieldName(), matchPhraseQuery.value());
+            }""", matchPhraseQuery.fieldName(), matchPhraseQuery.value());
         alternateVersions.put(contentString, matchPhraseQuery);
         return alternateVersions;
     }
@@ -134,10 +135,7 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
             {
               "match_phrase" : {
                 "message" : {
-                  "query" : "this is a test",
-                  "slop" : 0,
-                  "zero_terms_query" : "NONE",
-                  "boost" : 1.0
+                  "query" : "this is a test"
                 }
               }
             }""";
@@ -153,7 +151,7 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
                   "query" : "this is a test",
                   "slop" : 2,
                   "zero_terms_query" : "ALL",
-                  "boost" : 1.0
+                  "boost" : 2.0
                 }
               }
             }""";

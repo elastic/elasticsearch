@@ -53,4 +53,9 @@ public class TrainedModelCacheInfoResponseTests extends AbstractWireSerializingT
         }
         return new TrainedModelCacheInfoAction.Response(ClusterName.DEFAULT, nodes, failures);
     }
+
+    @Override
+    protected TrainedModelCacheInfoAction.Response mutateInstance(TrainedModelCacheInfoAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

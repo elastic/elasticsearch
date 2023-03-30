@@ -1,5 +1,0 @@
-pr: 82294
-summary: Add half float mapping to the scripting fields API
-area: Infra/Scripting
-type: enhancement
-issues: []

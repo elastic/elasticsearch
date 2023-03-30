@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
@@ -22,7 +23,6 @@ import org.elasticsearch.indices.EmptySystemIndices;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateMapping;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -300,13 +300,14 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
                 TimeValue.ZERO,
                 TimeValue.ZERO
             ),
-            getMetadataCreateIndexService()
+            getMetadataCreateIndexService(),
+            ActionListener.noop()
         );
         IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
         assertThat(ds, notNullValue());
         assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
         assertThat(ds.getIndices().size(), equalTo(2));
-        List<String> backingIndexNames = ds.getIndices().stream().map(Index::getName).collect(Collectors.toList());
+        List<String> backingIndexNames = ds.getIndices().stream().map(Index::getName).toList();
         assertThat(backingIndexNames, containsInAnyOrder("foo1", "foo2"));
         assertThat(ds.getWriteIndex().getName(), equalTo("foo1"));
         for (Index index : ds.getIndices()) {
@@ -361,13 +362,14 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
                 TimeValue.ZERO,
                 TimeValue.ZERO
             ),
-            getMetadataCreateIndexService()
+            getMetadataCreateIndexService(),
+            ActionListener.noop()
         );
         IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
         assertThat(ds, notNullValue());
         assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
         assertThat(ds.getIndices().size(), equalTo(2));
-        List<String> backingIndexNames = ds.getIndices().stream().map(Index::getName).collect(Collectors.toList());
+        List<String> backingIndexNames = ds.getIndices().stream().map(Index::getName).toList();
         assertThat(backingIndexNames, containsInAnyOrder("foo1", "foo2"));
         assertThat(ds.getWriteIndex().getName(), equalTo("foo1"));
         for (Index index : ds.getIndices()) {
@@ -377,7 +379,7 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
         }
     }
 
-    public void testCreateDataStreamWithoutSuppliedWriteIndex() throws Exception {
+    public void testCreateDataStreamWithoutSuppliedWriteIndex() {
         String dataStreamName = "foo";
         AliasMetadata alias = AliasMetadata.builder(dataStreamName).build();
         IndexMetadata foo1 = IndexMetadata.builder("foo1")
@@ -424,7 +426,8 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
                     TimeValue.ZERO,
                     TimeValue.ZERO
                 ),
-                getMetadataCreateIndexService()
+                getMetadataCreateIndexService(),
+                ActionListener.noop()
             )
         );
         assertThat(e.getMessage(), containsString("alias [" + dataStreamName + "] must specify a write index"));

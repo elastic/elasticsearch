@@ -15,10 +15,13 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.tracing.Tracer;
 
 import java.io.IOException;
 
-public class RequestHandlerRegistry<Request extends TransportRequest> {
+import static org.elasticsearch.core.Releasables.assertOnce;
+
+public class RequestHandlerRegistry<Request extends TransportRequest> implements ResponseStatsConsumer {
 
     private final String action;
     private final TransportRequestHandler<Request> handler;
@@ -26,7 +29,9 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
     private final boolean canTripCircuitBreaker;
     private final String executor;
     private final TaskManager taskManager;
+    private final Tracer tracer;
     private final Writeable.Reader<Request> requestReader;
+    private final TransportActionStatsTracker statsTracker = new TransportActionStatsTracker();
 
     public RequestHandlerRegistry(
         String action,
@@ -35,7 +40,8 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
         TransportRequestHandler<Request> handler,
         String executor,
         boolean forceExecution,
-        boolean canTripCircuitBreaker
+        boolean canTripCircuitBreaker,
+        Tracer tracer
     ) {
         this.action = action;
         this.requestReader = requestReader;
@@ -44,6 +50,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
         this.canTripCircuitBreaker = canTripCircuitBreaker;
         this.executor = executor;
         this.taskManager = taskManager;
+        this.tracer = tracer;
     }
 
     public String getAction() {
@@ -58,12 +65,12 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
         final Task task = taskManager.register(channel.getChannelType(), action, request);
         Releasable unregisterTask = () -> taskManager.unregister(task);
         try {
-            if (channel instanceof TcpTransportChannel && task instanceof CancellableTask) {
-                final TcpChannel tcpChannel = ((TcpTransportChannel) channel).getChannel();
-                final Releasable stopTracking = taskManager.startTrackingCancellableChannelTask(tcpChannel, (CancellableTask) task);
+            if (channel instanceof TcpTransportChannel tcpTransportChannel && task instanceof CancellableTask cancellableTask) {
+                final TcpChannel tcpChannel = tcpTransportChannel.getChannel();
+                final Releasable stopTracking = taskManager.startTrackingCancellableChannelTask(tcpChannel, cancellableTask);
                 unregisterTask = Releasables.wrap(unregisterTask, stopTracking);
             }
-            final TaskTransportChannel taskTransportChannel = new TaskTransportChannel(channel, unregisterTask);
+            final TaskTransportChannel taskTransportChannel = new TaskTransportChannel(task.getId(), channel, assertOnce(unregisterTask));
             handler.messageReceived(request, taskTransportChannel, task);
             unregisterTask = null;
         } finally {
@@ -103,7 +110,21 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
             handler,
             registry.executor,
             registry.forceExecution,
-            registry.canTripCircuitBreaker
+            registry.canTripCircuitBreaker,
+            registry.tracer
         );
+    }
+
+    public void addRequestStats(int messageSize) {
+        statsTracker.addRequestStats(messageSize);
+    }
+
+    @Override
+    public void addResponseStats(int messageSize) {
+        statsTracker.addResponseStats(messageSize);
+    }
+
+    public TransportActionStats getStats() {
+        return statsTracker.getStats();
     }
 }

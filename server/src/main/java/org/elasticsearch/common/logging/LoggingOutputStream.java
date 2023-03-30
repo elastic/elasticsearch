@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * A stream whose output is sent to the configured logger, line by line.
@@ -26,7 +27,7 @@ class LoggingOutputStream extends OutputStream {
     // limit a single log message to 64k
     static final int MAX_BUFFER_LENGTH = DEFAULT_BUFFER_LENGTH * 64;
 
-    class Buffer {
+    static class Buffer {
 
         /** The buffer of bytes sent to the stream */
         byte[] bytes = new byte[DEFAULT_BUFFER_LENGTH];
@@ -42,9 +43,12 @@ class LoggingOutputStream extends OutputStream {
 
     private final Level level;
 
-    LoggingOutputStream(Logger logger, Level level) {
+    private final List<String> messageFilters;
+
+    LoggingOutputStream(Logger logger, Level level, List<String> messageFilters) {
         this.logger = logger;
         this.level = level;
+        this.messageFilters = messageFilters;
     }
 
     @Override
@@ -103,8 +107,17 @@ class LoggingOutputStream extends OutputStream {
         threadLocal = null;
     }
 
+    private void log(String msg) {
+        for (String filter : messageFilters) {
+            if (msg.contains(filter)) {
+                return;
+            }
+        }
+        this.log0(msg);
+    }
+
     // pkg private for testing
-    void log(String msg) {
+    protected void log0(String msg) {
         logger.log(level, msg);
     }
 }

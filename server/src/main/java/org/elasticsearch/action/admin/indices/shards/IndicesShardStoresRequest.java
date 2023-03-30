@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.admin.indices.shards;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -15,18 +16,25 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.Map;
 
 /**
  * Request for {@link IndicesShardStoresAction}
  */
 public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShardStoresRequest> implements IndicesRequest.Replaceable {
 
+    static final int DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS = 100;
+
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpand();
     private EnumSet<ClusterHealthStatus> statuses = EnumSet.of(ClusterHealthStatus.YELLOW, ClusterHealthStatus.RED);
+    private int maxConcurrentShardRequests = DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS;
 
     /**
      * Create a request for shard stores info for <code>indices</code>
@@ -46,17 +54,31 @@ public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShar
             statuses.add(ClusterHealthStatus.readFrom(in));
         }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            maxConcurrentShardRequests = in.readVInt();
+        } else {
+            // earlier versions had unlimited concurrency
+            maxConcurrentShardRequests = Integer.MAX_VALUE;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
-        out.writeVInt(statuses.size());
-        for (ClusterHealthStatus status : statuses) {
-            out.writeByte(status.value());
-        }
+        out.writeCollection(statuses, (o, v) -> o.writeByte(v.value()));
         indicesOptions.writeIndicesOptions(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            out.writeVInt(maxConcurrentShardRequests);
+        } else if (maxConcurrentShardRequests != DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS) {
+            throw new IllegalArgumentException(
+                "support for maxConcurrentShardRequests=["
+                    + maxConcurrentShardRequests
+                    + "] was added in version [8.8.0], cannot send this request using transport version ["
+                    + out.getTransportVersion()
+                    + "]"
+            );
+        } // else just drop the value and use the default behaviour
     }
 
     /**
@@ -117,8 +139,21 @@ public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShar
         return indicesOptions;
     }
 
+    public void maxConcurrentShardRequests(int maxConcurrentShardRequests) {
+        this.maxConcurrentShardRequests = maxConcurrentShardRequests;
+    }
+
+    public int maxConcurrentShardRequests() {
+        return maxConcurrentShardRequests;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         return null;
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, "", parentTaskId, headers);
     }
 }

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import com.carrotsearch.hppc.cursors.ObjectLongCursor;
-
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -18,6 +16,8 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.List;
@@ -27,6 +27,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  * Cat API class to display information about the size of fielddata fields per node
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestFielddataAction extends AbstractCatAction {
 
     @Override
@@ -80,14 +81,14 @@ public class RestFielddataAction extends AbstractCatAction {
 
         for (NodeStats nodeStats : nodeStatses.getNodes()) {
             if (nodeStats.getIndices().getFieldData().getFields() != null) {
-                for (ObjectLongCursor<String> cursor : nodeStats.getIndices().getFieldData().getFields()) {
+                for (var field : nodeStats.getIndices().getFieldData().getFields()) {
                     table.startRow();
                     table.addCell(nodeStats.getNode().getId());
                     table.addCell(nodeStats.getNode().getHostName());
                     table.addCell(nodeStats.getNode().getHostAddress());
                     table.addCell(nodeStats.getNode().getName());
-                    table.addCell(cursor.key);
-                    table.addCell(new ByteSizeValue(cursor.value));
+                    table.addCell(field.getKey());
+                    table.addCell(ByteSizeValue.ofBytes(field.getValue()));
                     table.endRow();
                 }
             }

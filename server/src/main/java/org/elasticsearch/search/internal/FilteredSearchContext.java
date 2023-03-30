@@ -11,10 +11,12 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -37,7 +39,6 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.List;
-import java.util.Map;
 
 public abstract class FilteredSearchContext extends SearchContext {
 
@@ -358,8 +359,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadSize) {
-        return in.docIdsToLoad(docIdsToLoad, docsIdsToLoadSize);
+    public SearchContext docIdsToLoad(int[] docIdsToLoad) {
+        return in.docIdsToLoad(docIdsToLoad);
     }
 
     @Override
@@ -368,13 +369,38 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
+    public void addDfsResult() {
+        in.addDfsResult();
+    }
+
+    @Override
     public QuerySearchResult queryResult() {
         return in.queryResult();
     }
 
     @Override
+    public void addQueryResult() {
+        in.addQueryResult();
+    }
+
+    @Override
+    public TotalHits getTotalHits() {
+        return in.getTotalHits();
+    }
+
+    @Override
+    public float getMaxScore() {
+        return in.getMaxScore();
+    }
+
+    @Override
     public FetchSearchResult fetchResult() {
         return in.fetchResult();
+    }
+
+    @Override
+    public void addFetchResult() {
+        in.addFetchResult();
     }
 
     @Override
@@ -403,8 +429,13 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public Map<Class<?>, Collector> queryCollectors() {
-        return in.queryCollectors();
+    public Collector getAggsCollector() {
+        return in.getAggsCollector();
+    }
+
+    @Override
+    public void registerAggsCollector(Collector collector) {
+        in.registerAggsCollector(collector);
     }
 
     @Override
@@ -445,5 +476,10 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public ReaderContext readerContext() {
         return in.readerContext();
+    }
+
+    @Override
+    public SourceLoader newSourceLoader() {
+        return in.newSourceLoader();
     }
 }

@@ -9,10 +9,9 @@
 package org.elasticsearch.ingest.useragent;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -50,7 +49,7 @@ final class UserAgentParser {
     private void init(InputStream regexStream) throws IOException {
         // EMPTY is safe here because we don't use namedObject
         XContentParser yamlParser = XContentFactory.xContent(XContentType.YAML)
-            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, regexStream);
+            .createParser(XContentParserConfiguration.EMPTY, regexStream);
 
         XContentParser.Token token = yamlParser.nextToken();
 

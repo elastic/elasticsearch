@@ -11,7 +11,6 @@ package org.elasticsearch.repositories;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -21,16 +20,15 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.function.Consumer;
-import java.util.function.Function;
 
 /**
  * This class represents a repository that could not be initialized due to unknown type.
- * This could happen whe a user creates a snapshot repository using a type from a plugin and then removes the plugin.
+ * This could happen when a user creates a snapshot repository using a type from a plugin and then removes the plugin.
  */
 public class UnknownTypeRepository extends AbstractLifecycleComponent implements Repository {
 
@@ -82,7 +80,7 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
         Collection<SnapshotId> snapshotIds,
         long repositoryStateId,
         Version repositoryMetaVersion,
-        ActionListener<RepositoryData> listener
+        SnapshotDeleteListener listener
     ) {
         listener.onFailure(createUnknownTypeException());
     }
@@ -143,15 +141,6 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
     @Override
     public void updateState(ClusterState state) {
 
-    }
-
-    @Override
-    public void executeConsistentStateUpdate(
-        Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
-        String source,
-        Consumer<Exception> onFailure
-    ) {
-        onFailure.accept(createUnknownTypeException());
     }
 
     @Override

@@ -37,6 +37,10 @@
 
 ---
 "Test painless exceptions are returned when logging a broken response":
+  - skip:
+      version: " - 8.6.99"
+      reason:  "self-referencing objects were fixed to be in Painless instead of Mustache in 8.7"
+
   - do:
       cluster.health:
           wait_for_status: green
@@ -75,36 +79,5 @@
   - match: { watch_record.trigger_event.type: "manual" }
   - match: { watch_record.state: "executed" }
   - match: { watch_record.result.actions.0.status: "failure" }
-  - match: { watch_record.result.actions.0.error.caused_by.caused_by.type: "illegal_argument_exception" }
-  - match: { watch_record.result.actions.0.error.caused_by.caused_by.reason: "Iterable object is self-referencing itself (CustomReflectionObjectHandler stringify)" }
-
-  - do:
-      catch: bad_request
-      watcher.execute_watch:
-        body: >
-          {
-            "watch": {
-              "trigger": {
-                "schedule": {
-                  "interval": "10s"
-                }
-              },
-              "input": {
-                "simple": {
-                  "foo": "bar"
-                }
-              },
-              "actions": {
-                "my-logging": {
-                  "transform": {
-                    "script": {
-                      "source": "def x = [:] ; def y = [:] ; x.a = y ; y.a = x ; return x"
-                    }
-                  },
-                  "logging": {
-                    "text": "{{#join}}ctx.payload{{/join}}"
-                  }
-                }
-              }
-            }
-          }
+  - match: { watch_record.result.actions.0.reason: "Failed to transform payload" }
+  - match: { watch_record.result.actions.0.transform.error.reason: "Iterable object is self-referencing itself (watcher action payload)" }

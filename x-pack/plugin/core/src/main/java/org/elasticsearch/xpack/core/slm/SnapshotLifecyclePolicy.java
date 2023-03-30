@@ -278,7 +278,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         out.writeString(this.name);
         out.writeString(this.schedule);
         out.writeString(this.repository);
-        out.writeMap(this.configuration);
+        out.writeGenericMap(this.configuration);
         out.writeOptionalWriteable(this.retentionPolicy);
     }
 

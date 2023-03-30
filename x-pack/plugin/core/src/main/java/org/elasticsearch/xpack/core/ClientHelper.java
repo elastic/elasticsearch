@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -17,7 +17,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -42,13 +42,13 @@ import java.util.stream.Collectors;
  */
 public final class ClientHelper {
 
-    private static Pattern authorizationHeaderPattern = Pattern.compile(
+    private static final Pattern authorizationHeaderPattern = Pattern.compile(
         "\\s*" + Pattern.quote("Authorization") + "\\s*",
         Pattern.CASE_INSENSITIVE
     );
 
     public static void assertNoAuthorizationHeader(Map<String, String> headers) {
-        if (org.elasticsearch.Assertions.ENABLED) {
+        if (Assertions.ENABLED) {
             for (String header : headers.keySet()) {
                 if (authorizationHeaderPattern.matcher(header).find()) {
                     assert false : "headers contain \"Authorization\"";
@@ -60,7 +60,7 @@ public final class ClientHelper {
     /**
      * List of headers that are related to security
      */
-    public static final Set<String> SECURITY_HEADER_FILTERS = Sets.newHashSet(
+    public static final Set<String> SECURITY_HEADER_FILTERS = Set.of(
         AuthenticationServiceField.RUN_AS_USER_HEADER,
         AuthenticationField.AUTHENTICATION_KEY,
         SecondaryAuthentication.THREAD_CTX_KEY
@@ -94,7 +94,7 @@ public final class ClientHelper {
         return maybeRewriteAuthenticationHeadersForVersion(
             filterSecurityHeaders(threadContext.getHeaders()),
             key -> new AuthenticationContextSerializer(key).readFromContext(threadContext),
-            clusterState.nodes().getMinNodeVersion()
+            clusterState.nodes().getMinNodeVersion().transportVersion // TODO revisit this once node's version is refactored
         );
     }
 
@@ -110,14 +110,14 @@ public final class ClientHelper {
         return maybeRewriteAuthenticationHeadersForVersion(
             filterSecurityHeaders(headers),
             authenticationReader,
-            clusterState.nodes().getMinNodeVersion()
+            clusterState.nodes().getMinNodeVersion().transportVersion // TODO revisit this once node's version is refactored
         );
     }
 
     private static Map<String, String> maybeRewriteAuthenticationHeadersForVersion(
         Map<String, String> filteredHeaders,
         CheckedFunction<String, Authentication, IOException> authenticationReader,
-        Version minNodeVersion
+        TransportVersion minNodeVersion
     ) {
         Map<String, String> newHeaders = null;
 
@@ -155,11 +155,11 @@ public final class ClientHelper {
     private static String maybeRewriteSingleAuthenticationHeaderForVersion(
         CheckedFunction<String, Authentication, IOException> authenticationReader,
         String authenticationHeaderKey,
-        Version minNodeVersion
+        TransportVersion minNodeVersion
     ) {
         try {
             final Authentication authentication = authenticationReader.apply(authenticationHeaderKey);
-            if (authentication != null && authentication.getVersion().after(minNodeVersion)) {
+            if (authentication != null && authentication.getEffectiveSubject().getTransportVersion().after(minNodeVersion)) {
                 return authentication.maybeRewriteForOlderVersion(minNodeVersion).encode();
             }
         } catch (IOException e) {
@@ -175,6 +175,7 @@ public final class ClientHelper {
     @Deprecated
     public static final String ACTION_ORIGIN_TRANSIENT_NAME = ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME;
     public static final String SECURITY_ORIGIN = "security";
+    public static final String SECURITY_PROFILE_ORIGIN = "security_profile";
     public static final String WATCHER_ORIGIN = "watcher";
     public static final String ML_ORIGIN = "ml";
     public static final String INDEX_LIFECYCLE_ORIGIN = "index_lifecycle";

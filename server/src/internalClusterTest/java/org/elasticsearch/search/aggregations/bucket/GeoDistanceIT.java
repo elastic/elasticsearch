@@ -18,6 +18,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.search.aggregations.bucket.range.GeoDistanceAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -28,9 +29,11 @@ import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.geoDistance;
@@ -128,15 +131,18 @@ public class GeoDistanceIT extends ESIntegTestCase {
     }
 
     public void testSimple() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894)).field("location")
-                    .unit(DistanceUnit.KILOMETERS)
-                    .addUnboundedTo(500)
-                    .addRange(500, 1000)
-                    .addUnboundedFrom(1000)
-            )
-            .get();
+        List<Consumer<GeoDistanceAggregationBuilder>> ranges = new ArrayList<>();
+        ranges.add(b -> b.addUnboundedTo(500));
+        ranges.add(b -> b.addRange(500, 1000));
+        ranges.add(b -> b.addUnboundedFrom(1000));
+        // add ranges in any order
+        Collections.shuffle(ranges, random());
+        GeoDistanceAggregationBuilder builder = geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894)).field("location")
+            .unit(DistanceUnit.KILOMETERS);
+        for (Consumer<GeoDistanceAggregationBuilder> range : ranges) {
+            range.accept(builder);
+        }
+        SearchResponse response = client().prepareSearch("idx").addAggregation(builder).get();
 
         assertSearchResponse(response);
 

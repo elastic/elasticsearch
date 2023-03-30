@@ -84,10 +84,7 @@ public record Manifest(long currentTerm, long clusterStateVersion, long globalGe
     }
 
     private List<IndexEntry> indexEntryList() {
-        return indexGenerations.entrySet()
-            .stream()
-            .map(entry -> new IndexEntry(entry.getKey(), entry.getValue()))
-            .collect(Collectors.toList());
+        return indexGenerations.entrySet().stream().map(entry -> new IndexEntry(entry.getKey(), entry.getValue())).toList();
     }
 
     private static long currentTerm(Object[] manifestFields) {

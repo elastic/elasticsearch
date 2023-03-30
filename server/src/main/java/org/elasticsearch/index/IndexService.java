@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
@@ -16,7 +15,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -31,13 +29,13 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
-import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -46,13 +44,16 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.NodeMappingStats;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchIndexNameMatcher;
+import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -97,7 +98,7 @@ import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.core.Strings.format;
 
 public class IndexService extends AbstractIndexComponent implements IndicesClusterStateService.AllocatedIndex<IndexShard> {
 
@@ -111,6 +112,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory;
     private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
     private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;
+    private final Engine.IndexCommitListener indexCommitListener;
     private final IndexCache indexCache;
     private final MapperService mapperService;
     private final XContentParserConfiguration parserConfiguration;
@@ -118,10 +120,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final SimilarityService similarityService;
     private final EngineFactory engineFactory;
     private final IndexWarmer warmer;
-    private volatile Map<Integer, IndexShard> shards = emptyMap();
+    private volatile Map<Integer, IndexShard> shards = Map.of();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicBoolean deleted = new AtomicBoolean(false);
     private final IndexSettings indexSettings;
+    private final IndexAnalyzers indexAnalyzers;
     private final List<SearchOperationListener> searchOperationListeners;
     private final List<IndexingOperationListener> indexingOperationListeners;
     private final BooleanSupplier allowExpensiveQueries;
@@ -143,6 +146,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexNameExpressionResolver expressionResolver;
     private final Supplier<Sort> indexSortSupplier;
     private final ValuesSourceRegistry valuesSourceRegistry;
+
+    private final ReplicationTracker.Factory replicationTrackerFactory;
 
     public IndexService(
         IndexSettings indexSettings,
@@ -174,7 +179,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         ValuesSourceRegistry valuesSourceRegistry,
         IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
         IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
-        IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier
+        IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
+        Engine.IndexCommitListener indexCommitListener,
+        ReplicationTracker.Factory replicationTrackerFactory
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -186,6 +193,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.expressionResolver = expressionResolver;
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.snapshotCommitSupplier = snapshotCommitSupplier;
+        this.indexAnalyzers = indexAnalyzers;
         if (needsMapperService(indexSettings, indexCreationContext)) {
             assert indexAnalyzers != null;
             this.mapperService = new MapperService(
@@ -206,7 +214,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSortSupplier = () -> indexSettings.getIndexSortConfig()
                     .buildIndexSort(
                         mapperService::fieldType,
-                        (fieldType, searchLookup) -> indexFieldData.getForField(fieldType, indexFieldData.index().getName(), searchLookup)
+                        (fieldType, searchLookup) -> indexFieldData.getForField(fieldType, FieldDataContext.noRuntimeFields("index sort"))
                     );
             } else {
                 this.indexSortSupplier = () -> null;
@@ -214,7 +222,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             indexFieldData.setListener(new FieldDataCacheListener(this));
             this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
             this.warmer = new IndexWarmer(threadPool, indexFieldData, bitsetFilterCache.createListener(threadPool));
-            this.indexCache = new IndexCache(indexSettings, queryCache, bitsetFilterCache);
+            this.indexCache = new IndexCache(queryCache, bitsetFilterCache);
         } else {
             assert indexAnalyzers == null;
             this.mapperService = null;
@@ -241,11 +249,15 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.readerWrapper = wrapperFactory.apply(this);
         this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
         this.indexingOperationListeners = Collections.unmodifiableList(indexingOperationListeners);
-        // kick off async ops for the first shard in this index
-        this.refreshTask = new AsyncRefreshTask(this);
-        this.trimTranslogTask = new AsyncTrimTranslogTask(this);
-        this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
-        this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
+        this.indexCommitListener = indexCommitListener;
+        try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+            // kick off async ops for the first shard in this index
+            this.refreshTask = new AsyncRefreshTask(this);
+            this.trimTranslogTask = new AsyncTrimTranslogTask(this);
+            this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
+            this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
+        }
+        this.replicationTrackerFactory = replicationTrackerFactory;
         updateFsyncTaskIfNecessary();
     }
 
@@ -296,6 +308,16 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return indexShard;
     }
 
+    public NodeMappingStats getNodeMappingStats() {
+        if (mapperService == null) {
+            return null;
+        }
+        long totalCount = mapperService().mappingLookup().getTotalFieldsCount();
+        long totalEstimatedOverhead = totalCount * 1024L; // 1KiB estimated per mapping
+        NodeMappingStats indexNodeMappingStats = new NodeMappingStats(totalCount, totalEstimatedOverhead);
+        return indexNodeMappingStats;
+    }
+
     public Set<Integer> shardIds() {
         return shards.keySet();
     }
@@ -337,7 +359,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     bitsetFilterCache,
                     indexCache,
                     indexFieldData,
-                    mapperService,
+                    indexAnalyzers,
                     refreshTask,
                     fsyncTask,
                     trimTranslogTask,
@@ -356,7 +378,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         try {
             IndexMetadata.FORMAT.writeAndCleanup(getMetadata(), nodeEnv.indexPaths(index()));
         } catch (WriteStateException e) {
-            logger.warn(() -> new ParameterizedMessage("failed to write dangling indices state for index {}", index()), e);
+            logger.warn(() -> format("failed to write dangling indices state for index %s", index()), e);
         }
     }
 
@@ -368,7 +390,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         try {
             MetadataStateFormat.deleteMetaState(nodeEnv.indexPaths(index()));
         } catch (IOException e) {
-            logger.warn(() -> new ParameterizedMessage("failed to delete dangling indices state for index {}", index()), e);
+            logger.warn(() -> format("failed to delete dangling indices state for index %s", index()), e);
         }
     }
 
@@ -413,7 +435,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         ShardLock lock = null;
         eventListener.beforeIndexShardCreated(routing, indexSettings);
         try {
-            lock = nodeEnv.shardLock(shardId, "starting shard", TimeUnit.SECONDS.toMillis(5));
+            // Try and acquire the shard lock, but we are on the cluster applier thread so we do not wait if it is unavailable; in that
+            // case, the IndicesClusterStateService will try again (in the background)
+            lock = nodeEnv.shardLock(shardId, "starting shard");
             ShardPath path;
             try {
                 path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings.customDataPath());
@@ -473,7 +497,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     warmer.warm(reader, shard, IndexService.this.indexSettings);
                 }
             };
-            Directory directory = directoryFactory.newDirectory(this.indexSettings, path);
+            final Directory directory = directoryFactory.newDirectory(this.indexSettings, path, routing);
             store = new Store(
                 shardId,
                 this.indexSettings,
@@ -502,15 +526,16 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 () -> globalCheckpointSyncer.accept(shardId),
                 retentionLeaseSyncer,
                 circuitBreakerService,
-                snapshotCommitSupplier
+                snapshotCommitSupplier,
+                System::nanoTime,
+                indexCommitListener,
+                replicationTrackerFactory
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
             shards = Maps.copyMapWithAddedEntry(shards, shardId.id(), indexShard);
             success = true;
             return indexShard;
-        } catch (ShardLockObtainFailedException e) {
-            throw new IOException("failed to obtain in-memory shard lock", e);
         } finally {
             if (success == false) {
                 if (lock != null) {
@@ -523,16 +548,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     @Override
     public synchronized void removeShard(int shardId, String reason) {
-        final ShardId sId = new ShardId(index(), shardId);
-        final IndexShard indexShard;
-        if (shards.containsKey(shardId) == false) {
+        final IndexShard indexShard = shards.get(shardId);
+        if (indexShard == null) {
             return;
         }
         logger.debug("[{}] closing... (reason: [{}])", shardId, reason);
-        HashMap<Integer, IndexShard> newShards = new HashMap<>(shards);
-        indexShard = newShards.remove(shardId);
-        shards = unmodifiableMap(newShards);
-        closeShard(reason, sId, indexShard, indexShard.store(), indexShard.getIndexEventListener());
+        shards = Maps.copyMapWithRemovedEntry(shards, shardId);
+        closeShard(reason, indexShard.shardId(), indexShard, indexShard.store(), indexShard.getIndexEventListener());
         logger.debug("[{}] closed (reason: [{}])", shardId, reason);
     }
 
@@ -554,7 +576,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         final boolean flushEngine = deleted.get() == false && closed.get();
                         indexShard.close(reason, flushEngine);
                     } catch (Exception e) {
-                        logger.debug(() -> new ParameterizedMessage("[{}] failed to close index shard", shardId), e);
+                        logger.debug(() -> "[" + shardId + "] failed to close index shard", e);
                         // ignore
                     }
                 }
@@ -569,10 +591,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     logger.trace("[{}] store not initialized prior to closing shard, nothing to close", shardId);
                 }
             } catch (Exception e) {
-                logger.warn(
-                    () -> new ParameterizedMessage("[{}] failed to close store on shard removal (reason: [{}])", shardId, reason),
-                    e
-                );
+                logger.warn(() -> format("[%s] failed to close store on shard removal (reason: [%s])", shardId, reason), e);
             }
         }
     }
@@ -588,10 +607,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
             } catch (IOException e) {
                 shardStoreDeleter.addPendingDelete(lock.getShardId(), indexSettings);
-                logger.debug(
-                    () -> new ParameterizedMessage("[{}] failed to delete shard content - scheduled a retry", lock.getShardId().id()),
-                    e
-                );
+                logger.debug(() -> "[" + lock.getShardId().id() + "] failed to delete shard content - scheduled a retry", e);
             }
         }
     }
@@ -784,9 +800,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             final long currentSettingsVersion = currentIndexMetadata.getSettingsVersion();
             final long newSettingsVersion = newIndexMetadata.getSettingsVersion();
             if (currentSettingsVersion == newSettingsVersion) {
-                assert updateIndexSettings == false;
+                assert updateIndexSettings == false : "No index updates are expected as index settings version has not changed";
             } else {
-                assert updateIndexSettings;
+                assert updateIndexSettings : "Index updates are expected as index settings version has changed";
                 assert currentSettingsVersion < newSettingsVersion
                     : "expected current settings version ["
                         + currentSettingsVersion
@@ -802,10 +818,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 try {
                     shard.onSettingsChanged();
                 } catch (Exception e) {
-                    logger.warn(
-                        () -> new ParameterizedMessage("[{}] failed to notify shard about setting change", shard.shardId().id()),
-                        e
-                    );
+                    logger.warn(() -> "[" + shard.shardId().id() + "] failed to notify shard about setting change", e);
                 }
             }
             if (refreshTask.getInterval().equals(indexSettings.getRefreshInterval()) == false) {
@@ -862,11 +875,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
-    public Function<String, String> dateMathExpressionResolverAt() {
+    public static Function<String, String> dateMathExpressionResolverAt() {
         return expression -> IndexNameExpressionResolver.resolveDateMathExpression(expression, System.currentTimeMillis());
     }
 
-    public Function<String, String> dateMathExpressionResolverAt(long instant) {
+    public static Function<String, String> dateMathExpressionResolverAt(long instant) {
         return expression -> IndexNameExpressionResolver.resolveDateMathExpression(expression, instant);
     }
 
@@ -962,7 +975,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                                 if (e instanceof AlreadyClosedException == false
                                     && e instanceof IndexShardClosedException == false
                                     && e instanceof ShardNotInPrimaryModeException == false) {
-                                    logger.warn(new ParameterizedMessage("{} failed to execute {} sync", shard.shardId(), source), e);
+                                    logger.warn(() -> format("%s failed to execute %s sync", shard.shardId(), source), e);
                                 }
                             }, ThreadPool.Names.SAME, source + " sync");
                         } catch (final AlreadyClosedException | IndexShardClosedException e) {

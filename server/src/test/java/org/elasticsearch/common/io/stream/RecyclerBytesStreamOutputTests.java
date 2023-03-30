@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -17,6 +16,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.TimeValue;
@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -46,11 +47,11 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Tests for {@link StreamOutput}.
@@ -426,8 +427,8 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
             byte[] bytes = BytesReference.toBytes(out.bytes());
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(bytes), namedWriteableRegistry)) {
                 assertEquals(in.available(), bytes.length);
-                IOException e = expectThrows(IOException.class, () -> in.readNamedWriteable(BaseNamedWriteable.class));
-                assertThat(e.getMessage(), endsWith("] returned null which is not allowed and probably means it screwed up the stream."));
+                AssertionError e = expectThrows(AssertionError.class, () -> in.readNamedWriteable(BaseNamedWriteable.class));
+                assertThat(e.getCause().getMessage(), endsWith("] returned null which is not allowed."));
             }
         }
     }
@@ -436,8 +437,8 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler)) {
             out.writeOptionalWriteable(new TestNamedWriteable(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
             StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
-            IOException e = expectThrows(IOException.class, () -> in.readOptionalWriteable((StreamInput ignored) -> null));
-            assertThat(e.getMessage(), endsWith("] returned null which is not allowed and probably means it screwed up the stream."));
+            AssertionError e = expectThrows(AssertionError.class, () -> in.readOptionalWriteable((StreamInput ignored) -> null));
+            assertThat(e.getCause().getMessage(), endsWith("] returned null which is not allowed."));
         }
     }
 
@@ -503,7 +504,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
 
     public void testWriteMap() throws IOException {
         final int size = randomIntBetween(0, 100);
-        final Map<String, String> expected = Maps.newMapWithExpectedSize(randomIntBetween(0, 100));
+        final Map<String, String> expected = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; ++i) {
             expected.put(randomAlphaOfLength(2), randomAlphaOfLength(5));
         }
@@ -528,7 +529,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         final RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
         out.writeMap(expected, StreamOutput::writeString, StreamOutput::writeString);
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
-        final ImmutableOpenMap<String, String> loaded = in.readImmutableMap(StreamInput::readString, StreamInput::readString);
+        final ImmutableOpenMap<String, String> loaded = in.readImmutableOpenMap(StreamInput::readString, StreamInput::readString);
 
         assertThat(expected, equalTo(loaded));
     }
@@ -544,7 +545,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         final RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
         out.writeMap(expected);
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
-        final ImmutableOpenMap<TestWriteable, TestWriteable> loaded = in.readImmutableMap(TestWriteable::new, TestWriteable::new);
+        final ImmutableOpenMap<TestWriteable, TestWriteable> loaded = in.readImmutableOpenMap(TestWriteable::new, TestWriteable::new);
 
         assertThat(expected, equalTo(loaded));
     }
@@ -589,6 +590,23 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
 
         in.close();
         out.close();
+    }
+
+    public void testWriteMapAsList() throws IOException {
+        final int size = randomIntBetween(0, 100);
+        final Map<String, String> expected = Maps.newMapWithExpectedSize(size);
+        for (int i = 0; i < size; ++i) {
+            final String value = randomAlphaOfLength(5);
+            expected.put("key_" + value, value);
+        }
+
+        final RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+        out.writeMapValues(expected, StreamOutput::writeString);
+        final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
+        final Map<String, String> loaded = in.readMapValues(StreamInput::readString, value -> "key_" + value);
+
+        assertThat(loaded.size(), equalTo(expected.size()));
+        assertThat(expected, equalTo(loaded));
     }
 
     private abstract static class BaseNamedWriteable implements NamedWriteable {
@@ -701,8 +719,8 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         Map<String, Object> reverseMap = new TreeMap<>(Collections.reverseOrder());
         reverseMap.putAll(map);
 
-        List<String> mapKeys = map.entrySet().stream().map(Map.Entry::getKey).collect(Collectors.toList());
-        List<String> reverseMapKeys = reverseMap.entrySet().stream().map(Map.Entry::getKey).collect(Collectors.toList());
+        List<String> mapKeys = map.entrySet().stream().map(Map.Entry::getKey).toList();
+        List<String> reverseMapKeys = reverseMap.entrySet().stream().map(Map.Entry::getKey).toList();
 
         assertNotEquals(mapKeys, reverseMapKeys);
 
@@ -937,28 +955,51 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         assertEqualityAfterSerialize(timeValue, 1 + out.bytes().length());
     }
 
-    public void testWriteCircularReferenceException() throws IOException {
-        IOException rootEx = new IOException("disk broken");
-        AlreadyClosedException ace = new AlreadyClosedException("closed", rootEx);
-        rootEx.addSuppressed(ace); // circular reference
+    public void testOverflow() {
+        final var pageSize = randomFrom(ByteSizeUnit.MB.toIntBytes(1L), ByteSizeUnit.KB.toIntBytes(16)) + between(-1024, 1024);
+        final var pagesAllocated = new AtomicLong();
 
-        RecyclerBytesStreamOutput testOut = new RecyclerBytesStreamOutput(recycler);
-        AssertionError error = expectThrows(AssertionError.class, () -> testOut.writeException(rootEx));
-        assertThat(error.getMessage(), containsString("too many nested exceptions"));
-        assertThat(error.getCause(), equalTo(rootEx));
+        try (RecyclerBytesStreamOutput output = new RecyclerBytesStreamOutput(new Recycler<>() {
+            private final V<BytesRef> page = new V<>() {
+                private final BytesRef bytesRef = new BytesRef(new byte[pageSize]);
 
-        RecyclerBytesStreamOutput prodOut = new RecyclerBytesStreamOutput(recycler) {
+                @Override
+                public BytesRef v() {
+                    return bytesRef;
+                }
+
+                @Override
+                public boolean isRecycled() {
+                    return false;
+                }
+
+                @Override
+                public void close() {
+                    pagesAllocated.decrementAndGet();
+                }
+            };
+
             @Override
-            boolean failOnTooManyNestedExceptions(Throwable throwable) {
-                assertThat(throwable, sameInstance(rootEx));
-                return true;
+            public V<BytesRef> obtain() {
+                pagesAllocated.incrementAndGet();
+                return page;
             }
-        };
-        prodOut.writeException(rootEx);
-        StreamInput in = prodOut.bytes().streamInput();
-        Exception newEx = in.readException();
-        assertThat(newEx, instanceOf(IOException.class));
-        assertThat(newEx.getMessage(), equalTo("disk broken"));
-        assertArrayEquals(newEx.getStackTrace(), rootEx.getStackTrace());
+        })) {
+            var bytesAllocated = 0;
+            while (bytesAllocated < Integer.MAX_VALUE) {
+                var thisAllocation = between(1, Integer.MAX_VALUE - bytesAllocated);
+                bytesAllocated += thisAllocation;
+                final var expectedPages = ((long) bytesAllocated + pageSize - 1) / pageSize;
+                try {
+                    output.skip(thisAllocation);
+                    assertThat(pagesAllocated.get(), equalTo(expectedPages));
+                } catch (IllegalArgumentException e) {
+                    assertThat(expectedPages * pageSize, greaterThan((long) Integer.MAX_VALUE));
+                    return;
+                }
+            }
+        } finally {
+            assertThat(pagesAllocated.get(), equalTo(0L));
+        }
     }
 }

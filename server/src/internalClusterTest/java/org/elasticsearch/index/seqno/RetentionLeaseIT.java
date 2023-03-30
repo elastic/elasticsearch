@@ -10,7 +10,6 @@ package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -45,7 +44,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING;
@@ -72,7 +70,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
         return Stream.concat(
             super.nodePlugins().stream(),
             Stream.of(RetentionLeaseSyncIntervalSettingPlugin.class, MockTransportService.TestPlugin.class)
-        ).collect(Collectors.toList());
+        ).toList();
     }
 
     public void testRetentionLeasesSyncedOnAdd() throws Exception {
@@ -133,11 +131,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
     public void testRetentionLeaseSyncedOnRemove() throws Exception {
         final int numberOfReplicas = 2 - scaledRandomIntBetween(0, 2);
         internalCluster().ensureAtLeastNumDataNodes(1 + numberOfReplicas);
-        final Settings settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", numberOfReplicas)
-            .build();
-        createIndex("index", settings);
+        createIndex("index", 1, numberOfReplicas);
         ensureGreen("index");
         final String primaryShardNodeId = clusterService().state().routingTable().index("index").shard(0).primaryShard().currentNodeId();
         final String primaryShardNodeName = clusterService().state().nodes().get(primaryShardNodeId).getName();
@@ -216,12 +210,10 @@ public class RetentionLeaseIT extends ESIntegTestCase {
         final int length = randomIntBetween(1, 8);
         for (int i = 0; i < length; i++) {
             // update the index for retention leases to live a long time
-            final AcknowledgedResponse longTtlResponse = client().admin()
-                .indices()
-                .prepareUpdateSettings("index")
-                .setSettings(Settings.builder().putNull(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey()).build())
-                .get();
-            assertTrue(longTtlResponse.isAcknowledged());
+            updateIndexSettings(
+                Settings.builder().putNull(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey()),
+                "index"
+            );
 
             final String id = randomAlphaOfLength(8);
             final long retainingSequenceNumber = randomLongBetween(0, Long.MAX_VALUE);
@@ -245,17 +237,10 @@ public class RetentionLeaseIT extends ESIntegTestCase {
             }
 
             // update the index for retention leases to short a long time, to force expiration
-            final AcknowledgedResponse shortTtlResponse = client().admin()
-                .indices()
-                .prepareUpdateSettings("index")
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(), retentionLeaseTimeToLive)
-                        .build()
-                )
-                .get();
-            assertTrue(shortTtlResponse.isAcknowledged());
-
+            updateIndexSettings(
+                Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(), retentionLeaseTimeToLive),
+                "index"
+            );
             // sleep long enough that the current retention lease has expired
             final long later = System.nanoTime();
             Thread.sleep(Math.max(0, retentionLeaseTimeToLive.millis() - TimeUnit.NANOSECONDS.toMillis(later - now)));
@@ -309,7 +294,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
             // put a new lease
             currentRetentionLeases.put(
                 id,
-                primary.addRetentionLease(id, retainingSequenceNumber, source, ActionListener.wrap(latch::countDown))
+                primary.addRetentionLease(id, retainingSequenceNumber, source, ActionListener.running(latch::countDown))
             );
             latch.await();
             // now renew all existing leases; we expect to see these synced to the replicas
@@ -351,12 +336,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
         // when we increase the number of replicas below we want to exclude the replicas from being allocated so that they do not recover
         assertAcked(prepareCreate("index", 1, settings));
         ensureYellow("index");
-        final AcknowledgedResponse response = client().admin()
-            .indices()
-            .prepareUpdateSettings("index")
-            .setSettings(Settings.builder().put("index.number_of_replicas", numberOfReplicas).build())
-            .get();
-        assertTrue(response.isAcknowledged());
+        setReplicaCount(numberOfReplicas, "index");
         final String primaryShardNodeId = clusterService().state().routingTable().index("index").shard(0).primaryShard().currentNodeId();
         final String primaryShardNodeName = clusterService().state().nodes().get(primaryShardNodeId).getName();
         final IndexShard primary = internalCluster().getInstance(IndicesService.class, primaryShardNodeName)
@@ -376,13 +356,8 @@ public class RetentionLeaseIT extends ESIntegTestCase {
         logger.info("finished adding [{}] retention leases", length);
 
         // cause some recoveries to fail to ensure that retention leases are handled properly when retrying a recovery
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), TimeValue.timeValueMillis(100))
-                )
+        updateClusterSettings(
+            Settings.builder().put(INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), TimeValue.timeValueMillis(100))
         );
         final Semaphore recoveriesToDisrupt = new Semaphore(scaledRandomIntBetween(0, 4));
         final MockTransportService primaryTransportService = (MockTransportService) internalCluster().getInstance(
@@ -508,12 +483,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
         latch.await();
 
         final String block = randomFrom("read_only", "read_only_allow_delete", "read", "write", "metadata");
-
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("index")
-            .setSettings(Settings.builder().put("index.blocks." + block, true).build())
-            .get();
+        updateIndexSettings(Settings.builder().put("index.blocks." + block, true), "index");
 
         try {
             final CountDownLatch actionLatch = new CountDownLatch(1);
@@ -537,11 +507,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
             assertTrue(success.get());
             afterSync.accept(primary);
         } finally {
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("index")
-                .setSettings(Settings.builder().putNull("index.blocks." + block).build())
-                .get();
+            updateIndexSettings(Settings.builder().putNull("index.blocks." + block), "index");
         }
     }
 
@@ -623,12 +589,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
         latch.await();
 
         final String waitForActiveValue = randomBoolean() ? "all" : Integer.toString(numDataNodes + 1);
-
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("index")
-            .setSettings(Settings.builder().put("index.write.wait_for_active_shards", waitForActiveValue).build())
-            .get();
+        updateIndexSettings(Settings.builder().put("index.write.wait_for_active_shards", waitForActiveValue), "index");
 
         final CountDownLatch actionLatch = new CountDownLatch(1);
         final AtomicBoolean success = new AtomicBoolean();

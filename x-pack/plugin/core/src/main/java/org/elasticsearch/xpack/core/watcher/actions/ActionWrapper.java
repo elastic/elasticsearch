@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.core.watcher.actions;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
@@ -43,6 +41,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 
 public class ActionWrapper implements ToXContentObject {
@@ -141,14 +140,7 @@ public class ActionWrapper implements ToXContentObject {
                 }
             } catch (RuntimeException e) {
                 action.logger()
-                    .error(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "failed to execute action [{}/{}]. failed to execute condition",
-                            ctx.watch().id(),
-                            id
-                        ),
-                        e
-                    );
+                    .error(() -> format("failed to execute action [%s/%s]. failed to execute condition", ctx.watch().id(), id), e);
                 return new ActionWrapperResult(
                     id,
                     new Action.Result.ConditionFailed(action.type(), "condition failed. skipping: {}", e.getMessage())
@@ -174,14 +166,7 @@ public class ActionWrapper implements ToXContentObject {
                 payload = transformResult.payload();
             } catch (Exception e) {
                 action.logger()
-                    .error(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "failed to execute action [{}/{}]. failed to transform payload.",
-                            ctx.watch().id(),
-                            id
-                        ),
-                        e
-                    );
+                    .error(() -> format("failed to execute action [%s/%s]. failed to transform payload.", ctx.watch().id(), id), e);
                 return new ActionWrapperResult(id, conditionResult, null, new Action.Result.FailureWithException(action.type(), e));
             }
         }
@@ -190,8 +175,7 @@ public class ActionWrapper implements ToXContentObject {
                 Action.Result actionResult = action.execute(id, ctx, payload);
                 return new ActionWrapperResult(id, conditionResult, transformResult, actionResult);
             } catch (Exception e) {
-                action.logger()
-                    .error((Supplier<?>) () -> new ParameterizedMessage("failed to execute action [{}/{}]", ctx.watch().id(), id), e);
+                action.logger().error(() -> format("failed to execute action [%s/%s]", ctx.watch().id(), id), e);
                 return new ActionWrapperResult(id, new Action.Result.FailureWithException(action.type(), e));
             }
         } else {
@@ -247,8 +231,7 @@ public class ActionWrapper implements ToXContentObject {
                     }
                 });
             } catch (Exception e) {
-                action.logger()
-                    .error((Supplier<?>) () -> new ParameterizedMessage("failed to execute action [{}/{}]", ctx.watch().id(), id), e);
+                action.logger().error(() -> format("failed to execute action [%s/%s]", ctx.watch().id(), id), e);
                 return new ActionWrapperResult(id, new Action.Result.FailureWithException(action.type(), e));
             }
         }

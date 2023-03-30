@@ -36,6 +36,11 @@ public class AnalyticsStatsActionNodeResponseTests extends AbstractWireSerializi
         return new AnalyticsStatsAction.NodeResponse(node, counters);
     }
 
+    @Override
+    protected AnalyticsStatsAction.NodeResponse mutateInstance(AnalyticsStatsAction.NodeResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testItemEnum() {
         int i = 0;
         // We rely on the ordinals for serialization, so they shouldn't change between version

@@ -32,7 +32,6 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -107,14 +106,13 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
             List.of(new Tuple<>(start.minus(4, ChronoUnit.HOURS), start), new Tuple<>(start, end))
         ).getMetadata();
         metadata = Metadata.builder(metadata)
-            .updateSettings(Settings.builder().put(IndexSettings.LOOK_AHEAD_TIME.getKey(), lookAHeadTimeMinutes + "m").build())
+            .updateSettings(Settings.builder().put(DataStreamsPlugin.LOOK_AHEAD_TIME.getKey(), lookAHeadTimeMinutes + "m").build())
             .build();
 
         var in = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
         Instant previousStartTime1 = getStartTime(in, dataStreamName, 0);
         Instant previousEndTime1 = getEndTime(in, dataStreamName, 0);
         Instant previousStartTime2 = getStartTime(in, dataStreamName, 1);
-        Instant previousEndTime2 = getEndTime(in, dataStreamName, 1);
 
         now = now.plus(1, ChronoUnit.HOURS);
         var result = instance.updateTimeSeriesTemporalRange(in, now);
@@ -139,7 +137,6 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
             .put(
                 new DataStream(
                     d.getName(),
-                    d.getTimeStampField(),
                     d.getIndices(),
                     d.getGeneration(),
                     d.getMetadata(),
@@ -147,7 +144,8 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
                     true,
                     d.isSystem(),
                     d.isAllowCustomRouting(),
-                    d.getIndexMode()
+                    d.getIndexMode(),
+                    d.getLifecycle()
                 )
             )
             .build();

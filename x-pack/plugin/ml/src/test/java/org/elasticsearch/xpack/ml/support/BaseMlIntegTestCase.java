@@ -30,10 +30,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
@@ -89,6 +90,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -114,6 +116,10 @@ import static org.mockito.Mockito.when;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, supportsDedicatedMasters = false)
 public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
+    // The ML jobs can trigger many tasks that are not easily tracked. For this reason, here we list
+    // all the tasks that should be excluded from the cleanup jobs because they are not related to the tests.
+    private static final Set<String> UNRELATED_TASKS = Set.of(ListTasksAction.NAME, HealthNode.TASK_NAME);
+
     @Override
     protected boolean ignoreExternalCluster() {
         return true;
@@ -125,7 +131,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         settings.put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false);
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
         settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
-        settings.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
+        settings.put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
         settings.put(MonitoringService.ENABLED.getKey(), false);
@@ -289,8 +295,12 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     public static void indexDocs(Logger logger, String index, long numDocs, long start, long end) {
+        indexDocs(client(), logger, index, numDocs, start, end);
+    }
+
+    public static void indexDocs(Client client, Logger logger, String index, long numDocs, long start, long end) {
         int maxDelta = (int) (end - start - 1);
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
         for (int i = 0; i < numDocs; i++) {
             IndexRequest indexRequest = new IndexRequest(index);
             long timestamp = start + randomIntBetween(0, maxDelta);
@@ -446,7 +456,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             ListTasksResponse response = client.execute(ListTasksAction.INSTANCE, request).get();
             List<String> activeTasks = response.getTasks()
                 .stream()
-                .filter(t -> t.action().startsWith(ListTasksAction.NAME) == false)
+                .filter(t -> UNRELATED_TASKS.stream().noneMatch(name -> t.action().startsWith(name)))
                 .map(TaskInfo::toString)
                 .collect(Collectors.toList());
             assertThat(activeTasks, empty());
@@ -513,6 +523,10 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             .actionGet();
     }
 
+    protected void ensureStableCluster() {
+        ensureStableCluster(internalCluster().getNodeNames().length, TimeValue.timeValueSeconds(60));
+    }
+
     public static class MockPainlessScriptEngine extends MockScriptEngine {
 
         public static final String NAME = "painless";
@@ -540,9 +554,9 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
                 return context.factoryClazz.cast(new MockScoreScript(MockDeterministicScript.asDeterministic(p -> 0.0)));
             }
             if (context.name.equals("ingest")) {
-                IngestScript.Factory factory = vars -> new IngestScript(vars) {
+                IngestScript.Factory factory = (vars, ctx) -> new IngestScript(vars, ctx) {
                     @Override
-                    public void execute(Map<String, Object> ctx) {}
+                    public void execute() {}
                 };
                 return context.factoryClazz.cast(factory);
             }

@@ -8,13 +8,9 @@
 
 package org.elasticsearch.index.translog;
 
-import com.carrotsearch.hppc.LongArrayList;
-import com.carrotsearch.hppc.procedures.LongProcedure;
-
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -24,10 +20,11 @@ import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -37,7 +34,9 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -68,6 +67,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     // callback that's called whenever an operation with a given sequence number is successfully persisted.
     private final LongConsumer persistedSequenceNumberConsumer;
+    private final OperationListener operationListener;
 
     protected final AtomicBoolean closed = new AtomicBoolean(false);
     // lock order try(Releasable lock = writeLock.acquire()) -> synchronized(this)
@@ -75,7 +75,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     // lock order synchronized(syncLock) -> try(Releasable lock = writeLock.acquire()) -> synchronized(this)
     private final Object syncLock = new Object();
 
-    private LongArrayList nonFsyncedSequenceNumbers = new LongArrayList(64);
+    private List<Long> nonFsyncedSequenceNumbers = new ArrayList<>(64);
     private final int forceWriteThreshold;
     private volatile long bufferedBytes;
     private ReleasableBytesStreamOutput buffer;
@@ -98,7 +98,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         final TragicExceptionHolder tragedy,
         final LongConsumer persistedSequenceNumberConsumer,
         final BigArrays bigArrays,
-        final DiskIoBufferPool diskIoBufferPool
+        final DiskIoBufferPool diskIoBufferPool,
+        final OperationListener operationListener
     ) throws IOException {
         super(initialCheckpoint.generation, channel, path, header);
         assert initialCheckpoint.offset == channel.position()
@@ -125,6 +126,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.diskIoBufferPool = diskIoBufferPool;
         this.seenSequenceNumbers = Assertions.ENABLED ? new HashMap<>() : null;
         this.tragedy = tragedy;
+        this.operationListener = operationListener;
     }
 
     public static TranslogWriter create(
@@ -142,7 +144,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         TragicExceptionHolder tragedy,
         final LongConsumer persistedSequenceNumberConsumer,
         final BigArrays bigArrays,
-        DiskIoBufferPool diskIoBufferPool
+        DiskIoBufferPool diskIoBufferPool,
+        final OperationListener operationListener
+
     ) throws IOException {
         final Path checkpointFile = file.getParent().resolve(Translog.CHECKPOINT_FILE_NAME);
 
@@ -184,7 +188,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 tragedy,
                 persistedSequenceNumberConsumer,
                 bigArrays,
-                diskIoBufferPool
+                diskIoBufferPool,
+                operationListener
             );
         } catch (Exception exception) {
             // if we fail to bake the file-generation into the checkpoint we stick with the file and once we recover and that
@@ -242,6 +247,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             assert assertNoSeqNumberConflict(seqNo, data);
 
             location = new Translog.Location(generation, offset, data.length());
+            operationListener.operationAdded(data, seqNo, location);
             bufferedBytes = buffer.size();
         }
 
@@ -456,7 +462,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     // double checked locking - we don't want to fsync unless we have to and now that we have
                     // the lock we should check again since if this code is busy we might have fsynced enough already
                     final Checkpoint checkpointToSync;
-                    final LongArrayList flushedSequenceNumbers;
+                    final List<Long> flushedSequenceNumbers;
                     final ReleasableBytesReference toWrite;
                     try (ReleasableLock toClose = writeLock.acquire()) {
                         synchronized (this) {
@@ -467,7 +473,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                                 flushedSequenceNumbers = null;
                             } else {
                                 flushedSequenceNumbers = nonFsyncedSequenceNumbers;
-                                nonFsyncedSequenceNumbers = new LongArrayList(64);
+                                nonFsyncedSequenceNumbers = new ArrayList<>(64);
                             }
                         }
 
@@ -493,7 +499,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                         throw ex;
                     }
                     if (flushedSequenceNumbers != null) {
-                        flushedSequenceNumbers.forEach((LongProcedure) persistedSequenceNumberConsumer::accept);
+                        flushedSequenceNumbers.forEach(persistedSequenceNumberConsumer::accept);
                     }
                     assert lastSyncedCheckpoint.offset <= checkpointToSync.offset
                         : "illegal state: " + lastSyncedCheckpoint.offset + " <= " + checkpointToSync.offset;

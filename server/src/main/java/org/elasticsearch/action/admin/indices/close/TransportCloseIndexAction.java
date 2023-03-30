@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.indices.close;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -31,6 +30,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Arrays;
 import java.util.Collections;
 
 /**
@@ -119,7 +119,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
             request.timeout()
         ).masterNodeTimeout(request.masterNodeTimeout()).waitForActiveShards(request.waitForActiveShards()).indices(concreteIndices);
         indexStateService.closeIndices(closeRequest, listener.delegateResponse((delegatedListener, t) -> {
-            logger.debug(() -> new ParameterizedMessage("failed to close indices [{}]", (Object) concreteIndices), t);
+            logger.debug(() -> "failed to close indices [" + Arrays.toString(concreteIndices) + "]", t);
             delegatedListener.onFailure(t);
         }));
     }

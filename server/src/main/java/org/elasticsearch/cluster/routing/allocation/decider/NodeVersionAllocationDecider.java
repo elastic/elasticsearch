@@ -58,7 +58,7 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
         return canAllocate(shardRouting, node, allocation);
     }
 
-    private Decision isVersionCompatibleRelocatePrimary(
+    private static Decision isVersionCompatibleRelocatePrimary(
         final RoutingNodes routingNodes,
         final String sourceNodeId,
         final RoutingNode target,
@@ -84,7 +84,7 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
         }
     }
 
-    private Decision isVersionCompatibleAllocatingReplica(
+    private static Decision isVersionCompatibleAllocatingReplica(
         final RoutingNodes routingNodes,
         final String sourceNodeId,
         final RoutingNode target,
@@ -113,7 +113,7 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
         }
     }
 
-    private Decision isVersionCompatible(
+    private static Decision isVersionCompatible(
         SnapshotRecoverySource recoverySource,
         final RoutingNode target,
         final RoutingAllocation allocation

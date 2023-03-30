@@ -74,7 +74,7 @@ public class ApplicationPrivilegeDescriptor implements ToXContentObject, Writeab
         out.writeString(application);
         out.writeString(name);
         out.writeCollection(actions, StreamOutput::writeString);
-        out.writeMap(metadata);
+        out.writeGenericMap(metadata);
     }
 
     public String getApplication() {

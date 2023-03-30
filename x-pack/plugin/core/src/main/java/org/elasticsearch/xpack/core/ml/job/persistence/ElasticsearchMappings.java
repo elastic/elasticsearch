@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.core.ml.job.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.internal.Client;
@@ -20,10 +20,11 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -64,6 +65,7 @@ public class ElasticsearchMappings {
     public static final String WHITESPACE = "whitespace";
     public static final String NESTED = "nested";
     public static final String COPY_TO = "copy_to";
+    public static final String PATH = "path";
     public static final String PROPERTIES = "properties";
     public static final String TYPE = "type";
     public static final String DYNAMIC = "dynamic";
@@ -101,7 +103,7 @@ public class ElasticsearchMappings {
     static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, Version minVersion) {
         List<String> indicesToUpdate = new ArrayList<>();
 
-        ImmutableOpenMap<String, MappingMetadata> currentMapping = state.metadata()
+        Map<String, MappingMetadata> currentMapping = state.metadata()
             .findMappings(concreteIndices, MapperPlugin.NOOP_FIELD_FILTER, Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
 
         for (String index : concreteIndices) {
@@ -133,7 +135,7 @@ public class ElasticsearchMappings {
                         continue;
                     }
                 } catch (Exception e) {
-                    logger.error(new ParameterizedMessage("Failed to retrieve mapping version for [{}], recreating", index), e);
+                    logger.error(() -> "Failed to retrieve mapping version for [" + index + "], recreating", e);
                     indicesToUpdate.add(index);
                     continue;
                 }
@@ -159,35 +161,50 @@ public class ElasticsearchMappings {
             listener.onResponse(true);
             return;
         }
-        String[] concreteIndices = indexAbstraction.getIndices().stream().map(Index::getName).toArray(String[]::new);
 
-        final String[] indicesThatRequireAnUpdate = mappingRequiresUpdate(state, concreteIndices, Version.CURRENT);
-        if (indicesThatRequireAnUpdate.length > 0) {
-            try {
-                String mapping = mappingSupplier.get();
-                PutMappingRequest putMappingRequest = new PutMappingRequest(indicesThatRequireAnUpdate);
-                putMappingRequest.source(mapping, XContentType.JSON);
-                putMappingRequest.origin(ML_ORIGIN);
-                putMappingRequest.masterNodeTimeout(masterNodeTimeout);
-                executeAsyncWithOrigin(client, ML_ORIGIN, PutMappingAction.INSTANCE, putMappingRequest, ActionListener.wrap(response -> {
-                    if (response.isAcknowledged()) {
-                        listener.onResponse(true);
-                    } else {
-                        listener.onFailure(
-                            new ElasticsearchException(
-                                "Attempt to put missing mapping in indices "
-                                    + Arrays.toString(indicesThatRequireAnUpdate)
-                                    + " was not acknowledged"
-                            )
-                        );
-                    }
-                }, listener::onFailure));
-            } catch (IOException e) {
-                listener.onFailure(e);
+        final var mappingCheck = new ActionRunnable<>(listener) {
+            @Override
+            protected void doRun() throws Exception {
+                String[] concreteIndices = indexAbstraction.getIndices().stream().map(Index::getName).toArray(String[]::new);
+
+                final String[] indicesThatRequireAnUpdate = mappingRequiresUpdate(state, concreteIndices, Version.CURRENT);
+                if (indicesThatRequireAnUpdate.length > 0) {
+                    String mapping = mappingSupplier.get();
+                    PutMappingRequest putMappingRequest = new PutMappingRequest(indicesThatRequireAnUpdate);
+                    putMappingRequest.source(mapping, XContentType.JSON);
+                    putMappingRequest.origin(ML_ORIGIN);
+                    putMappingRequest.masterNodeTimeout(masterNodeTimeout);
+                    executeAsyncWithOrigin(
+                        client,
+                        ML_ORIGIN,
+                        PutMappingAction.INSTANCE,
+                        putMappingRequest,
+                        ActionListener.wrap(response -> {
+                            if (response.isAcknowledged()) {
+                                listener.onResponse(true);
+                            } else {
+                                listener.onFailure(
+                                    new ElasticsearchException(
+                                        "Attempt to put missing mapping in indices "
+                                            + Arrays.toString(indicesThatRequireAnUpdate)
+                                            + " was not acknowledged"
+                                    )
+                                );
+                            }
+                        }, listener::onFailure)
+                    );
+                } else {
+                    logger.trace("Mappings are up to date.");
+                    listener.onResponse(true);
+                }
             }
+        };
+
+        if (Transports.isTransportThread(Thread.currentThread())) {
+            // TODO make it the caller's responsibility to fork to an appropriate thread before even calling this method - see #87911
+            client.threadPool().executor(ThreadPool.Names.MANAGEMENT).execute(mappingCheck);
         } else {
-            logger.trace("Mappings are up to date.");
-            listener.onResponse(true);
+            mappingCheck.run();
         }
     }
 }

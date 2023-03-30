@@ -14,9 +14,6 @@ import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
-import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.xcontent.ToXContentFragment;
 
@@ -127,6 +124,15 @@ public abstract class PipelineAggregationBuilder
 
             @Override
             public void validateParentAggSequentiallyOrdered(String type, String name) {
+                noParentCantBeOrdered(type, name);
+            }
+
+            @Override
+            public void validateParentAggSequentiallyOrderedWithoutSkips(String type, String name) {
+                noParentCantBeOrdered(type, name);
+            }
+
+            private void noParentCantBeOrdered(String type, String name) {
                 addValidationError(
                     type
                         + " aggregation ["
@@ -161,21 +167,12 @@ public abstract class PipelineAggregationBuilder
 
             @Override
             public void validateParentAggSequentiallyOrdered(String type, String name) {
-                if (parent instanceof HistogramAggregationBuilder histoParent) {
-                    if (histoParent.minDocCount() != 0) {
-                        addValidationError("parent histogram of " + type + " aggregation [" + name + "] must have min_doc_count of 0");
-                    }
-                } else if (parent instanceof DateHistogramAggregationBuilder histoParent) {
-                    if (histoParent.minDocCount() != 0) {
-                        addValidationError("parent histogram of " + type + " aggregation [" + name + "] must have min_doc_count of 0");
-                    }
-                } else if (parent instanceof AutoDateHistogramAggregationBuilder) {
-                    // Nothing to check
-                } else {
-                    addValidationError(
-                        type + " aggregation [" + name + "] must have a histogram, date_histogram or auto_date_histogram as parent"
-                    );
-                }
+                parent.validateSequentiallyOrdered(type, name, this::addValidationError);
+            }
+
+            @Override
+            public void validateParentAggSequentiallyOrderedWithoutSkips(String type, String name) {
+                parent.validateSequentiallyOrderedWithoutGaps(type, name, this::addValidationError);
             }
         }
 
@@ -215,6 +212,11 @@ public abstract class PipelineAggregationBuilder
          * Validates that the parent is sequentially ordered.
          */
         public abstract void validateParentAggSequentiallyOrdered(String type, String name);
+
+        /**
+         * Validates that the parent is sequentially ordered and doesn't have any gps.
+         */
+        public abstract void validateParentAggSequentiallyOrderedWithoutSkips(String type, String name);
 
         /**
          * The validation exception, if there is one. It'll be {@code null}

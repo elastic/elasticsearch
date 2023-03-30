@@ -11,11 +11,13 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.BaseTermsEnum;
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexOptions;
@@ -30,10 +32,12 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.ByteBuffersDirectory;
@@ -41,9 +45,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.fieldvisitor.FieldNamesProvidingStoredFieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -156,6 +159,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             0,
             0,
             0,
+            VectorEncoding.FLOAT32,
             VectorSimilarityFunction.EUCLIDEAN,
             false
         );
@@ -173,6 +177,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             0,
             0,
             0,
+            VectorEncoding.FLOAT32,
             VectorSimilarityFunction.EUCLIDEAN,
             false
         );
@@ -190,14 +195,11 @@ final class TranslogDirectoryReader extends DirectoryReader {
             0,
             0,
             0,
+            VectorEncoding.FLOAT32,
             VectorSimilarityFunction.EUCLIDEAN,
             false
         );
-        private static final Set<String> TRANSLOG_FIELD_NAMES = Sets.newHashSet(
-            SourceFieldMapper.NAME,
-            RoutingFieldMapper.NAME,
-            IdFieldMapper.NAME
-        );
+        private static final Set<String> TRANSLOG_FIELD_NAMES = Set.of(SourceFieldMapper.NAME, RoutingFieldMapper.NAME, IdFieldMapper.NAME);
 
         private final ShardId shardId;
         private final Translog.Index operation;
@@ -346,13 +348,23 @@ final class TranslogDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public VectorValues getVectorValues(String field) throws IOException {
-            return getDelegate().getVectorValues(field);
+        public FloatVectorValues getFloatVectorValues(String field) throws IOException {
+            return getDelegate().getFloatVectorValues(field);
         }
 
         @Override
-        public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs) throws IOException {
-            return getDelegate().searchNearestVectors(field, target, k, acceptDocs);
+        public ByteVectorValues getByteVectorValues(String field) throws IOException {
+            return getDelegate().getByteVectorValues(field);
+        }
+
+        @Override
+        public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
+            return getDelegate().searchNearestVectors(field, target, k, acceptDocs, visitedLimit);
+        }
+
+        @Override
+        public TopDocs searchNearestVectors(String field, byte[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
+            return getDelegate().searchNearestVectors(field, target, k, acceptDocs, visitedLimit);
         }
 
         @Override
@@ -384,6 +396,31 @@ final class TranslogDirectoryReader extends DirectoryReader {
         }
 
         @Override
+        public TermVectors termVectors() throws IOException {
+            return getDelegate().termVectors();
+        }
+
+        @Override
+        public StoredFields storedFields() throws IOException {
+            return new StoredFields() {
+                @Override
+                public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+                    assert docID == 0;
+                    if (delegate.get() == null) {
+                        if (visitor instanceof FieldNamesProvidingStoredFieldsVisitor) {
+                            // override this for ShardGetService
+                            if (TRANSLOG_FIELD_NAMES.containsAll(((FieldNamesProvidingStoredFieldsVisitor) visitor).getFieldNames())) {
+                                readStoredFieldsDirectly(visitor);
+                                return;
+                            }
+                        }
+                    }
+                    getDelegate().storedFields().document(docID, visitor);
+                }
+            };
+        }
+
+        @Override
         public int numDocs() {
             return 1;
         }
@@ -395,21 +432,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
 
         @Override
         public void document(int docID, StoredFieldVisitor visitor) throws IOException {
-            assert docID == 0;
-            if (docID != 0) {
-                throw new IllegalArgumentException("no such doc ID " + docID);
-            }
-            if (delegate.get() == null) {
-                if (visitor instanceof FieldNamesProvidingStoredFieldsVisitor) {
-                    // override this for ShardGetService
-                    if (TRANSLOG_FIELD_NAMES.containsAll(((FieldNamesProvidingStoredFieldsVisitor) visitor).getFieldNames())) {
-                        readStoredFieldsDirectly(visitor);
-                        return;
-                    }
-                }
-            }
-
-            getDelegate().document(docID, visitor);
+            storedFields().document(docID, visitor);
         }
 
         private void readStoredFieldsDirectly(StoredFieldVisitor visitor) throws IOException {

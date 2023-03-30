@@ -20,7 +20,7 @@ public class TruncateTokenFilterFactory extends AbstractTokenFilterFactory {
     private final int length;
 
     TruncateTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         this.length = settings.getAsInt("length", -1);
         if (length <= 0) {
             throw new IllegalArgumentException("length parameter must be provided");

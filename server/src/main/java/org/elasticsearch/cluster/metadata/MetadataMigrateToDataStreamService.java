@@ -16,15 +16,17 @@ import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
@@ -38,7 +40,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.createDataStream;
 
@@ -59,7 +60,6 @@ public class MetadataMigrateToDataStreamService {
     }
 
     private final ClusterService clusterService;
-    private final ActiveShardsObserver activeShardsObserver;
     private final IndicesService indexServices;
     private final ThreadContext threadContext;
     private final MetadataCreateIndexService metadataCreateIndexService;
@@ -72,7 +72,6 @@ public class MetadataMigrateToDataStreamService {
     ) {
         this.clusterService = clusterService;
         this.indexServices = indexServices;
-        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.threadContext = threadPool.getThreadContext();
         this.metadataCreateIndexService = metadataCreateIndexService;
     }
@@ -87,43 +86,49 @@ public class MetadataMigrateToDataStreamService {
             if (response.isAcknowledged()) {
                 String writeIndexName = writeIndexRef.get();
                 assert writeIndexName != null;
-                activeShardsObserver.waitForActiveShards(
+                ActiveShardsObserver.waitForActiveShards(
+                    clusterService,
                     new String[] { writeIndexName },
                     ActiveShardCount.DEFAULT,
                     request.masterNodeTimeout(),
-                    shardsAcked -> { finalListener.onResponse(AcknowledgedResponse.TRUE); },
-                    finalListener::onFailure
+                    finalListener.map(shardsAcknowledged -> AcknowledgedResponse.TRUE)
                 );
             } else {
                 finalListener.onResponse(AcknowledgedResponse.FALSE);
             }
         }, finalListener::onFailure);
-        clusterService.submitStateUpdateTask(
+        var delegate = new AllocationActionListener<>(listener, threadContext);
+        submitUnbatchedTask(
             "migrate-to-data-stream [" + request.aliasName + "]",
-            new AckedClusterStateUpdateTask(Priority.HIGH, request, listener) {
+            new AckedClusterStateUpdateTask(Priority.HIGH, request, delegate.clusterStateUpdate()) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     ClusterState clusterState = migrateToDataStream(currentState, indexMetadata -> {
                         try {
-                            return indexServices.createIndexMapperService(indexMetadata);
+                            return indexServices.createIndexMapperServiceForValidation(indexMetadata);
                         } catch (IOException e) {
                             throw new IllegalStateException(e);
                         }
-                    }, request, metadataCreateIndexService);
+                    }, request, metadataCreateIndexService, delegate.reroute());
                     writeIndexRef.set(clusterState.metadata().dataStreams().get(request.aliasName).getWriteIndex().getName());
                     return clusterState;
                 }
-            },
-            ClusterStateTaskExecutor.unbatched()
+            }
         );
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     static ClusterState migrateToDataStream(
         ClusterState currentState,
         Function<IndexMetadata, MapperService> mapperSupplier,
         MigrateToDataStreamClusterStateUpdateRequest request,
-        MetadataCreateIndexService metadataCreateIndexService
+        MetadataCreateIndexService metadataCreateIndexService,
+        ActionListener<Void> listener
     ) throws Exception {
         validateRequest(currentState, request);
         IndexAbstraction.Alias alias = (IndexAbstraction.Alias) currentState.metadata().getIndicesLookup().get(request.aliasName);
@@ -143,11 +148,18 @@ public class MetadataMigrateToDataStreamService {
             .stream()
             .filter(x -> writeIndex == null || x.equals(writeIndex) == false)
             .map(x -> finalCurrentState.metadata().index(x))
-            .collect(Collectors.toList());
+            .toList();
 
         logger.info("submitting request to migrate alias [{}] to a data stream", request.aliasName);
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(request.aliasName);
-        return createDataStream(metadataCreateIndexService, currentState, req, backingIndices, currentState.metadata().index(writeIndex));
+        return createDataStream(
+            metadataCreateIndexService,
+            currentState,
+            req,
+            backingIndices,
+            currentState.metadata().index(writeIndex),
+            listener
+        );
     }
 
     // package-visible for testing

@@ -16,7 +16,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -24,12 +24,15 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
 
+import java.util.Optional;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
@@ -66,17 +69,29 @@ public class TransportDeleteAutoscalingPolicyAction extends AcknowledgedTranspor
     ) {
         // no license check, we will allow deleting policies even if the license is out of compliance, for cleanup purposes
 
-        clusterService.submitStateUpdateTask("delete-autoscaling-policy", new AckedClusterStateUpdateTask(request, listener) {
+        submitUnbatchedTask("delete-autoscaling-policy", new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(final ClusterState currentState) {
                 return deleteAutoscalingPolicy(currentState, request.name(), LOGGER);
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     @Override
     protected ClusterBlockException checkBlock(final DeleteAutoscalingPolicyAction.Request request, final ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    /**
+     * Used by the reserved cluster state action handler for autoscaling policy
+     */
+    static ClusterState deleteAutoscalingPolicy(final ClusterState currentState, final String name) {
+        return deleteAutoscalingPolicy(currentState, name, LOGGER);
     }
 
     static ClusterState deleteAutoscalingPolicy(final ClusterState currentState, final String name, final Logger logger) {
@@ -107,4 +122,13 @@ public class TransportDeleteAutoscalingPolicyAction extends AcknowledgedTranspor
         return builder.build();
     }
 
+    @Override
+    public Optional<String> reservedStateHandlerName() {
+        return Optional.of(ReservedAutoscalingPolicyAction.NAME);
+    }
+
+    @Override
+    public Set<String> modifiedKeys(DeleteAutoscalingPolicyAction.Request request) {
+        return Set.of(request.name());
+    }
 }

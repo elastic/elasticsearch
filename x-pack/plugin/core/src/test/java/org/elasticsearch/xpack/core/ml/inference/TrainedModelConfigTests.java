@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.inference;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -28,10 +29,13 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfigTest
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocationTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigTests;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -75,7 +79,9 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
                 PassThroughConfigTests.createRandom(),
                 TextClassificationConfigTests.createRandom(),
                 FillMaskConfigTests.createRandom(),
-                TextEmbeddingConfigTests.createRandom() }
+                TextEmbeddingConfigTests.createRandom(),
+                QuestionAnsweringConfigTests.createRandom(),
+                TextSimilarityConfigTests.createRandom() }
             : new InferenceConfig[] {
                 ClassificationConfigTests.randomClassificationConfig(),
                 RegressionConfigTests.randomRegressionConfig() };
@@ -120,6 +126,11 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
     @Override
     protected TrainedModelConfig createTestInstance() {
         return createTestInstance(randomAlphaOfLength(10), lenient).build();
+    }
+
+    @Override
+    protected TrainedModelConfig mutateInstance(TrainedModelConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -384,11 +395,14 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
     }
 
     @Override
-    protected TrainedModelConfig mutateInstanceForVersion(TrainedModelConfig instance, Version version) {
+    protected TrainedModelConfig mutateInstanceForVersion(TrainedModelConfig instance, TransportVersion version) {
         TrainedModelConfig.Builder builder = new TrainedModelConfig.Builder(instance);
         if (version.before(TrainedModelConfig.VERSION_3RD_PARTY_CONFIG_ADDED)) {
             builder.setModelType(null);
             builder.setLocation(null);
+        }
+        if (instance.getInferenceConfig()instanceof NlpConfig nlpConfig) {
+            builder.setInferenceConfig(InferenceConfigItemTestCase.mutateForVersion(nlpConfig, version));
         }
         return builder.build();
     }

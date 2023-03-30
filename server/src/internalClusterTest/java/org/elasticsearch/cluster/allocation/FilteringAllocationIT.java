@@ -69,20 +69,16 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         }
 
         logger.info("--> decommission the second node");
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", node_1))
-            .execute()
-            .actionGet();
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", node_1));
         ensureGreen("test");
 
         logger.info("--> verify all are allocated on node1 now");
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    assertThat(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), equalTo(node_0));
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+                for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                    assertThat(clusterState.nodes().get(indexShardRoutingTable.shard(copy).currentNodeId()).getName(), equalTo(node_0));
                 }
             }
         }
@@ -119,19 +115,9 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
         logger.info("--> filter out the second node");
         if (randomBoolean()) {
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", node_1))
-                .execute()
-                .actionGet();
+            updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", node_1));
         } else {
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", node_1))
-                .execute()
-                .actionGet();
+            updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", node_1), "test");
         }
         ensureGreen("test");
 
@@ -139,9 +125,10 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(clusterState.metadata().index("test").getNumberOfReplicas(), equalTo(0));
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    assertThat(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), equalTo(node_0));
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+                for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                    assertThat(clusterState.nodes().get(indexShardRoutingTable.shard(copy).currentNodeId()).getName(), equalTo(node_0));
                 }
             }
         }
@@ -155,10 +142,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         assertThat(cluster().size(), equalTo(2));
 
         logger.info("--> creating an index with no replicas");
-        createIndex(
-            "test",
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
-        );
+        createIndex("test", 2, 0);
         ensureGreen("test");
 
         logger.info("--> index some data");
@@ -186,50 +170,37 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         IndexRoutingTable indexRoutingTable = clusterState.routingTable().index("test");
         int numShardsOnNode1 = 0;
-        for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-            for (ShardRouting shardRouting : indexShardRoutingTable) {
-                if ("node1".equals(clusterState.nodes().get(shardRouting.currentNodeId()).getName())) {
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+            for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                if ("node1".equals(clusterState.nodes().get(indexShardRoutingTable.shard(copy).currentNodeId()).getName())) {
                     numShardsOnNode1++;
                 }
             }
         }
 
         if (numShardsOnNode1 > ThrottlingAllocationDecider.DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES) {
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", numShardsOnNode1))
-                .execute()
-                .actionGet();
+            updateClusterSettings(Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", numShardsOnNode1));
             // make sure we can recover all the nodes at once otherwise we might run into a state where
             // one of the shards has not yet started relocating but we already fired up the request to wait for 0 relocating shards.
         }
         logger.info("--> remove index from the first node");
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test")
-            .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", node_0))
-            .execute()
-            .actionGet();
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", node_0), "test");
         client().admin().cluster().prepareReroute().get();
         ensureGreen("test");
 
         logger.info("--> verify all shards are allocated on node_1 now");
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         indexRoutingTable = clusterState.routingTable().index("test");
-        for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-            for (ShardRouting shardRouting : indexShardRoutingTable) {
-                assertThat(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), equalTo(node_1));
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+            for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                assertThat(clusterState.nodes().get(indexShardRoutingTable.shard(copy).currentNodeId()).getName(), equalTo(node_1));
             }
         }
 
         logger.info("--> disable allocation filtering ");
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test")
-            .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", ""))
-            .execute()
-            .actionGet();
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", ""), "test");
         client().admin().cluster().prepareReroute().get();
         ensureGreen("test");
 

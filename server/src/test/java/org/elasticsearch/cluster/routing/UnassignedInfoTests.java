@@ -11,12 +11,15 @@ package org.elasticsearch.cluster.routing;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
@@ -35,20 +38,24 @@ import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Collections;
+import java.time.Instant;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -72,7 +79,8 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY,
             UnassignedInfo.Reason.MANUAL_ALLOCATION,
             UnassignedInfo.Reason.INDEX_CLOSED,
-            UnassignedInfo.Reason.NODE_RESTARTING };
+            UnassignedInfo.Reason.NODE_RESTARTING,
+            UnassignedInfo.Reason.UNPROMOTABLE_REPLICA };
         for (int i = 0; i < order.length; i++) {
             assertThat(order[i].ordinal(), equalTo(i));
         }
@@ -115,7 +123,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 System.currentTimeMillis(),
                 false,
                 AllocationStatus.NO_ATTEMPT,
-                Collections.emptySet(),
+                Set.of(),
                 lastAssignedNodeId
             );
         } else {
@@ -146,7 +154,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
-            .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build())
+            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.index("test")).build())
             .build();
         for (ShardRouting shard : shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED)) {
             assertThat(shard.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.INDEX_CREATED));
@@ -164,11 +172,147 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
-            .routingTable(RoutingTable.builder().addAsRecovery(metadata.index("test")).build())
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsRecovery(metadata.index("test")).build()
+            )
             .build();
         for (ShardRouting shard : shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED)) {
             assertThat(shard.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.CLUSTER_RECOVERED));
         }
+    }
+
+    public void testIndexClosedAndReopened() {
+        final var allocationService = createAllocationService();
+
+        // cluster state 0: index fully assigned and ready to close
+        final var metadata0 = Metadata.builder()
+            .put(
+                IndexMetadata.builder("test")
+                    .settings(settings(Version.CURRENT).put(VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true))
+                    .numberOfShards(randomIntBetween(1, 3))
+                    .numberOfReplicas(randomIntBetween(0, 3))
+            )
+            .build();
+        final var clusterState0 = applyStartedShardsUntilNoChange(
+            ClusterState.builder(ClusterState.EMPTY_STATE)
+                .nodes(
+                    DiscoveryNodes.builder()
+                        .add(newNode("node-1"))
+                        .add(newNode("node-2"))
+                        .add(newNode("node-3"))
+                        .add(newNode("node-4"))
+                        .add(newNode("node-5"))
+                )
+                .metadata(metadata0)
+                .routingTable(
+                    RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata0.index("test")).build()
+                )
+                .build(),
+            allocationService
+        );
+        assertTrue(clusterState0.routingTable().index("test").allShardsActive());
+
+        // cluster state 1: perhaps start one of the shards relocating
+        final var clusterState1 = randomBoolean()
+            ? clusterState0
+            : allocationService.executeWithRoutingAllocation(clusterState0, "test", routingAllocation -> {
+                final var indexShardRoutingTable = routingAllocation.routingTable().index("test").shard(0);
+                for (DiscoveryNode node : routingAllocation.nodes()) {
+                    if (routingAllocation.routingNodes().node(node.getId()).getByShardId(indexShardRoutingTable.shardId()) == null) {
+                        routingAllocation.routingNodes()
+                            .relocateShard(indexShardRoutingTable.shard(0), node.getId(), 0L, routingAllocation.changes());
+                        return;
+                    }
+                }
+                throw new AssertionError("no suitable target found");
+            });
+
+        // cluster state 2: index closed and fully unassigned
+        final var metadata1 = Metadata.builder(metadata0)
+            .put(IndexMetadata.builder(metadata0.index("test")).state(IndexMetadata.State.CLOSE))
+            .build();
+        final var clusterState2 = ClusterState.builder(clusterState1)
+            .metadata(metadata1)
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, clusterState1.routingTable())
+                    .addAsFromOpenToClose(metadata1.index("test"))
+            )
+            .build();
+
+        assertLastAllocatedNodeIdsAssigned(
+            UnassignedInfo.Reason.INDEX_CLOSED,
+            clusterState1.routingTable().index("test"),
+            clusterState2.routingTable().index("test")
+        );
+
+        // cluster state 3: closed index has been fully assigned
+        final var clusterState3 = applyStartedShardsUntilNoChange(clusterState2, allocationService);
+        assertTrue(clusterState3.routingTable().index("test").allShardsActive());
+
+        // cluster state 4: index reopened, fully unassigned again
+        final var metadata4 = Metadata.builder(metadata0)
+            .put(IndexMetadata.builder(metadata1.index("test")).state(IndexMetadata.State.OPEN))
+            .build();
+        final var clusterState4 = ClusterState.builder(clusterState3)
+            .metadata(metadata4)
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, clusterState3.routingTable())
+                    .addAsFromCloseToOpen(metadata4.index("test"))
+            )
+            .build();
+
+        assertLastAllocatedNodeIdsAssigned(
+            UnassignedInfo.Reason.INDEX_REOPENED,
+            clusterState3.routingTable().index("test"),
+            clusterState4.routingTable().index("test")
+        );
+    }
+
+    private void assertLastAllocatedNodeIdsAssigned(
+        UnassignedInfo.Reason expectedUnassignedReason,
+        IndexRoutingTable originalRoutingTable,
+        IndexRoutingTable finalRoutingTable
+    ) {
+        final var shardCountChanged = originalRoutingTable.size() != finalRoutingTable.size()
+            || originalRoutingTable.shard(0).size() != finalRoutingTable.shard(0).size();
+        if (shardCountChanged) {
+            assertThat(expectedUnassignedReason, equalTo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED));
+        }
+
+        boolean foundAnyNodeIds = false;
+        for (int shardId = 0; shardId < finalRoutingTable.size(); shardId++) {
+            final var previousShardRoutingTable = originalRoutingTable.shard(shardId);
+            final var previousNodes = previousShardRoutingTable == null
+                ? Set.<String>of()
+                : IntStream.range(0, previousShardRoutingTable.size()).mapToObj(previousShardRoutingTable::shard).map(shard -> {
+                    assertTrue(shard.started() || shard.relocating());
+                    return shard.currentNodeId();
+                }).collect(Collectors.toSet());
+            final var shardRoutingTable = finalRoutingTable.shard(shardId);
+            for (int shardCopy = 0; shardCopy < shardRoutingTable.size(); shardCopy++) {
+                final var shard = shardRoutingTable.shard(shardCopy);
+                assertTrue(shard.unassigned());
+                assertThat(shard.unassignedInfo().getReason(), equalTo(expectedUnassignedReason));
+                final var lastAllocatedNodeId = shard.unassignedInfo().getLastAllocatedNodeId();
+                if (lastAllocatedNodeId == null) {
+                    // restoring an index may change the number of shards/replicas so no guarantee that lastAllocatedNodeId is populated
+                    assertTrue(shardCountChanged);
+                } else {
+                    foundAnyNodeIds = true;
+                    assertThat(previousNodes, hasItem(lastAllocatedNodeId));
+                }
+            }
+            if (shardCountChanged == false) {
+                assertNotNull(previousShardRoutingTable);
+                assertThat(
+                    shardRoutingTable.primaryShard().unassignedInfo().getLastAllocatedNodeId(),
+                    equalTo(previousShardRoutingTable.primaryShard().currentNodeId())
+                );
+            }
+        }
+
+        // both original and restored index must have at least one shard tho
+        assertTrue(foundAnyNodeIds);
     }
 
     public void testIndexReopened() {
@@ -182,7 +326,9 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
-            .routingTable(RoutingTable.builder().addAsFromCloseToOpen(metadata.index("test")).build())
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsFromCloseToOpen(metadata.index("test")).build()
+            )
             .build();
         for (ShardRouting shard : shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED)) {
             assertThat(shard.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.INDEX_REOPENED));
@@ -201,7 +347,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
             .routingTable(
-                RoutingTable.builder()
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
                     .addAsNewRestore(
                         metadata.index("test"),
                         new SnapshotRecoverySource(
@@ -221,7 +367,60 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     }
 
     public void testExistingIndexRestored() {
-        Metadata metadata = Metadata.builder()
+        final var allocationService = createAllocationService();
+
+        // cluster state 0: index fully assigned and ready to close
+        final var metadata0 = Metadata.builder()
+            .put(
+                IndexMetadata.builder("test")
+                    .settings(settings(Version.CURRENT).put(VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true))
+                    .numberOfShards(randomIntBetween(1, 3))
+                    .numberOfReplicas(randomIntBetween(0, 3))
+            )
+            .build();
+        final var clusterState0 = applyStartedShardsUntilNoChange(
+            ClusterState.builder(ClusterState.EMPTY_STATE)
+                .nodes(
+                    DiscoveryNodes.builder()
+                        .add(newNode("node-1"))
+                        .add(newNode("node-2"))
+                        .add(newNode("node-3"))
+                        .add(newNode("node-4"))
+                        .add(newNode("node-5"))
+                )
+                .metadata(metadata0)
+                .routingTable(
+                    RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata0.index("test")).build()
+                )
+                .build(),
+            allocationService
+        );
+        assertTrue(clusterState0.routingTable().index("test").allShardsActive());
+
+        // cluster state 1: index closed and reassigned
+        final var metadata1 = Metadata.builder(metadata0)
+            .put(IndexMetadata.builder(metadata0.index("test")).state(IndexMetadata.State.CLOSE))
+            .build();
+        final var clusterState1 = ClusterState.builder(clusterState0)
+            .metadata(metadata1)
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, clusterState0.routingTable())
+                    .addAsFromOpenToClose(metadata1.index("test"))
+            )
+            .build();
+
+        assertLastAllocatedNodeIdsAssigned(
+            UnassignedInfo.Reason.INDEX_CLOSED,
+            clusterState0.routingTable().index("test"),
+            clusterState1.routingTable().index("test")
+        );
+
+        // cluster state 2: closed index has been fully assigned
+        final var clusterState2 = applyStartedShardsUntilNoChange(clusterState1, allocationService);
+        assertTrue(clusterState2.routingTable().index("test").allShardsActive());
+
+        // cluster state 3: restore started, fully unassigned again (NB may have different number of shards/replicas)
+        final var metadata3 = Metadata.builder()
             .put(
                 IndexMetadata.builder("test")
                     .settings(settings(Version.CURRENT))
@@ -229,12 +428,12 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                     .numberOfReplicas(randomIntBetween(0, 3))
             )
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
+        final var clusterState3 = ClusterState.builder(clusterState2)
+            .metadata(metadata3)
             .routingTable(
-                RoutingTable.builder()
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, clusterState2.routingTable())
                     .addAsRestore(
-                        metadata.index("test"),
+                        metadata3.index("test"),
                         new SnapshotRecoverySource(
                             UUIDs.randomBase64UUID(),
                             new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
@@ -242,12 +441,14 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                             new IndexId("test", UUIDs.randomBase64UUID(random()))
                         )
                     )
-                    .build()
             )
             .build();
-        for (ShardRouting shard : shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED)) {
-            assertThat(shard.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED));
-        }
+
+        assertLastAllocatedNodeIdsAssigned(
+            UnassignedInfo.Reason.EXISTING_INDEX_RESTORED,
+            clusterState2.routingTable().index("test"),
+            clusterState3.routingTable().index("test")
+        );
     }
 
     public void testDanglingIndexImported() {
@@ -261,7 +462,9 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
-            .routingTable(RoutingTable.builder().addAsFromDangling(metadata.index("test")).build())
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsFromDangling(metadata.index("test")).build()
+            )
             .build();
         for (ShardRouting shard : shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED)) {
             assertThat(shard.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.DANGLING_INDEX_IMPORTED));
@@ -276,17 +479,18 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         final Index index = metadata.index("test").getIndex();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
-            .routingTable(RoutingTable.builder().addAsNew(metadata.index(index)).build())
+            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.index(index)).build())
             .build();
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
-        clusterState = allocation.reroute(clusterState, "reroute");
+        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
         // starting primaries
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(index);
-        for (IndexShardRoutingTable indexShardRoutingTable : clusterState.routingTable().index(index)) {
-            builder.addIndexShard(indexShardRoutingTable);
+        final IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
+        for (int i = 0; i < indexRoutingTable.size(); i++) {
+            builder.addIndexShard(new IndexShardRoutingTable.Builder(indexRoutingTable.shard(i)));
         }
-        builder.addReplica();
+        builder.addReplica(ShardRouting.Role.DEFAULT);
         clusterState = ClusterState.builder(clusterState)
             .routingTable(RoutingTable.builder(clusterState.routingTable()).add(builder).build())
             .build();
@@ -315,7 +519,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         shard = shard.initialize("test_node", null, -1);
         assertThat(shard.state(), equalTo(ShardRoutingState.INITIALIZING));
         assertThat(shard.unassignedInfo(), notNullValue());
-        shard = shard.moveToStarted();
+        shard = shard.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         assertThat(shard.state(), equalTo(ShardRoutingState.STARTED));
         assertThat(shard.unassignedInfo(), nullValue());
     }
@@ -330,12 +534,12 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
-            .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build())
+            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.index("test")).build())
             .build();
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
-        clusterState = allocation.reroute(clusterState, "reroute");
+        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
         // starting primaries
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         // starting replicas
@@ -368,12 +572,12 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
-            .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build())
+            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.index("test")).build())
             .build();
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
-        clusterState = allocation.reroute(clusterState, "reroute");
+        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
         // starting primaries
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         // starting replicas
@@ -383,7 +587,8 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         ShardRouting shardToFail = shardsWithState(clusterState.getRoutingNodes(), STARTED).get(0);
         clusterState = allocation.applyFailedShards(
             clusterState,
-            Collections.singletonList(new FailedShard(shardToFail, "test fail", null, randomBoolean()))
+            List.of(new FailedShard(shardToFail, "test fail", null, randomBoolean())),
+            List.of()
         );
         // verify the reason and details
         assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(true));
@@ -411,13 +616,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
      * Verifies that delayed allocation calculation are correct when there are no registered node shutdowns.
      */
     public void testRemainingDelayCalculationWithNoShutdowns() throws Exception {
-        checkRemainingDelayCalculation(
-            "bogusNodeId",
-            TimeValue.timeValueNanos(10),
-            Collections.emptyMap(),
-            TimeValue.timeValueNanos(10),
-            false
-        );
+        checkRemainingDelayCalculation("bogusNodeId", TimeValue.timeValueNanos(10), Map.of(), TimeValue.timeValueNanos(10), false);
     }
 
     /**
@@ -552,7 +751,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             System.currentTimeMillis(),
             randomBoolean(),
             AllocationStatus.NO_ATTEMPT,
-            Collections.emptySet(),
+            Set.of(),
             lastNodeId
         );
         final long totalDelayNanos = expectedTotalDelay.nanos();
@@ -578,12 +777,17 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
-            .routingTable(RoutingTable.builder().addAsNew(metadata.index("test1")).addAsNew(metadata.index("test2")).build())
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+                    .addAsNew(metadata.index("test1"))
+                    .addAsNew(metadata.index("test2"))
+                    .build()
+            )
             .build();
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
-        clusterState = allocation.reroute(clusterState, "reroute");
+        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), equalTo(0));
         // starting primaries
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
@@ -619,12 +823,17 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
-            .routingTable(RoutingTable.builder().addAsNew(metadata.index("test1")).addAsNew(metadata.index("test2")).build())
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+                    .addAsNew(metadata.index("test1"))
+                    .addAsNew(metadata.index("test2"))
+                    .build()
+            )
             .build();
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
-        clusterState = allocation.reroute(clusterState, "reroute");
+        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), equalTo(0));
         // starting primaries
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
@@ -641,7 +850,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
 
         if (delta > 0) {
             allocation.setNanoTimeOverride(baseTime + delta);
-            clusterState = allocation.reroute(clusterState, "time moved");
+            clusterState = allocation.reroute(clusterState, "time moved", ActionListener.noop());
         }
 
         assertThat(UnassignedInfo.findNextDelayedAllocation(baseTime + delta, clusterState), equalTo(expectMinDelaySettingsNanos - delta));
@@ -675,20 +884,45 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             if (randomBoolean() && delayed == null) {
                 delayedFlag = true;
             }
-            lastAllocatedNodeId = randomAlphaOfLength(10);
+            lastAllocatedNodeId = randomIdentifier();
         }
-        int failedAllocations = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? 1 : 0;
         return new UnassignedInfo(
             reason,
             message,
             null,
-            failedAllocations,
+            reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? 1 : 0,
             System.nanoTime(),
             System.currentTimeMillis(),
             delayedFlag,
             UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-            Collections.emptySet(),
+            reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? Set.of(randomIdentifier()) : Set.of(),
             lastAllocatedNodeId
         );
+    }
+
+    public void testSummaryContainsImportantFields() {
+        var info = randomUnassignedInfo(randomBoolean() ? randomIdentifier() : null);
+        var summary = info.shortSummary();
+
+        assertThat("reason", summary, containsString("[reason=" + info.getReason() + ']'));
+        assertThat(
+            "delay",
+            summary,
+            containsString("at[" + UnassignedInfo.DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(info.getUnassignedTimeInMillis())) + ']')
+        );
+        if (info.getNumFailedAllocations() > 0) {
+            assertThat("failed_allocations", summary, containsString("failed_attempts[" + info.getNumFailedAllocations() + ']'));
+        }
+        if (info.getFailedNodeIds().isEmpty() == false) {
+            assertThat("failed_nodes", summary, containsString("failed_nodes[" + info.getFailedNodeIds() + ']'));
+        }
+        assertThat("delayed", summary, containsString("delayed=" + info.isDelayed()));
+        if (info.getLastAllocatedNodeId() != null) {
+            assertThat("last_node", summary, containsString("last_node[" + info.getLastAllocatedNodeId() + ']'));
+        }
+        if (info.getMessage() != null) {
+            assertThat("details", summary, containsString("details[" + info.getMessage() + ']'));
+        }
+        assertThat("allocation_status", summary, containsString("allocation_status[" + info.getLastAllocationStatus().value() + ']'));
     }
 }

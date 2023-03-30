@@ -6,5 +6,8 @@
       <option name="m_ignoreExpressionsContainingConstants" value="true" />
     </inspection_tool>
     <inspection_tool class="jol" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="IllegalDependencyOnInternalPackage" enabled="true" level="ERROR" enabled_by_default="false">
+      <scope name="Production" level="ERROR" enabled="true" />
+    </inspection_tool>
   </profile>
 </component>

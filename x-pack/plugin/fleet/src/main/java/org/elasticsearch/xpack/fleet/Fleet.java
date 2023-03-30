@@ -23,6 +23,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -43,10 +44,11 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.fleet.action.GetGlobalCheckpointsAction;
@@ -91,7 +93,9 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer,
+        AllocationService allocationService
     ) {
         FleetTemplateRegistry registry = new FleetTemplateRegistry(
             environment.settings(),
@@ -260,10 +264,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
 
     private SystemDataStreamDescriptor fleetActionsResultsDescriptor() {
         final String source = loadTemplateSource("/fleet-actions-results.json");
-        try (
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source)
-        ) {
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, source)) {
             ComposableIndexTemplate composableIndexTemplate = ComposableIndexTemplate.parse(parser);
             return new SystemDataStreamDescriptor(
                 ".fleet-actions-results",
@@ -342,6 +343,10 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return Arrays.asList(new RestGetGlobalCheckpointsAction(), new RestFleetSearchAction(), new RestFleetMultiSearchAction(settings));
+        return Arrays.asList(
+            new RestGetGlobalCheckpointsAction(),
+            new RestFleetSearchAction(restController.getSearchUsageHolder()),
+            new RestFleetMultiSearchAction(settings, restController.getSearchUsageHolder())
+        );
     }
 }

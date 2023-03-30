@@ -16,9 +16,9 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.sandbox.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
@@ -27,7 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
@@ -39,6 +39,7 @@ import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DateNanosDocValuesField;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -363,6 +364,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         SortedNumericIndexFieldData fieldData = new SortedNumericIndexFieldData(
             "my_date",
             IndexNumericFieldData.NumericType.DATE_NANOSECONDS,
+            CoreValuesSourceType.DATE,
             DateNanosDocValuesField::new
         );
         // Read index and check the doc values

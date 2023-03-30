@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
@@ -20,9 +17,12 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
+import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.test.XContentTestUtils.JsonMapView;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersResponse;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
@@ -130,17 +130,18 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         );
 
         // wait for the index to advance to the warm phase
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).getPhase(), equalTo("warm")), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).phase(), equalTo("warm")), 30, TimeUnit.SECONDS);
         // let's wait for this index to have received the `require.data` configuration from the warm phase/allocate action
-        assertBusy(
-            () -> assertThat(getStepKeyForIndex(client(), index).getName(), equalTo(AllocationRoutedStep.NAME)),
-            30,
-            TimeUnit.SECONDS
-        );
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).name(), equalTo(AllocationRoutedStep.NAME)), 30, TimeUnit.SECONDS);
 
         // let's also have a policy that doesn't need migrating
         String rolloverOnlyPolicyName = "rollover-policy";
-        createNewSingletonPolicy(client(), rolloverOnlyPolicyName, "hot", new RolloverAction(null, null, null, 1L, null));
+        createNewSingletonPolicy(
+            client(),
+            rolloverOnlyPolicyName,
+            "hot",
+            new RolloverAction(null, null, null, 1L, null, null, null, null, null, null)
+        );
 
         String rolloverIndexPrefix = "rolloverpolicytest_index";
         for (int i = 1; i <= 2; i++) {
@@ -181,11 +182,14 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         updateIndexSettings(indexWithDataWarmRouting, Settings.builder().putNull(DataTier.TIER_PREFERENCE));
 
         Request migrateRequest = new Request("POST", "_ilm/migrate_to_data_tiers");
-        migrateRequest.setJsonEntity("""
+        migrateRequest.setJsonEntity(Strings.format("""
             {"legacy_template_to_delete": "%s", "node_attribute": "data"}
-            """.formatted(templateName));
+            """, templateName));
         Response migrateDeploymentResponse = client().performRequest(migrateRequest);
         assertOK(migrateDeploymentResponse);
+
+        // the index was assigned after the migration
+        ensureGreen("indexwithdatawarmrouting");
 
         Map<String, Object> migrateResponseAsMap = responseAsMap(migrateDeploymentResponse);
         assertThat(
@@ -248,10 +252,9 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         // ENFORCE_DEFAULT_TIER_PREFERENCE is not mentioned (and defaults to true)
         Request getSettingsRequest = new Request("GET", "_cluster/settings?include_defaults");
         Response getSettingsResponse = client().performRequest(getSettingsRequest);
-        ObjectMapper mapper = new ObjectMapper();
-        JsonNode json = mapper.readTree(getSettingsResponse.getEntity().getContent());
-        assertTrue(json.at("/persistent/cluster/routing/allocation/enforce_default_tier_preference").isMissingNode());
-        assertTrue(json.at("/defaults/cluster/routing/allocation/enforce_default_tier_preference").asBoolean());
+        JsonMapView json = XContentTestUtils.createJsonMapView(getSettingsResponse.getEntity().getContent());
+        assertThat(json.get("persistent.cluster.routing.allocation.enforce_default_tier_preference"), nullValue());
+        assertTrue(Booleans.parseBoolean(json.get("defaults.cluster.routing.allocation.enforce_default_tier_preference")));
     }
 
     @SuppressWarnings("unchecked")
@@ -403,13 +406,9 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         );
 
         // wait for the index to advance to the warm phase
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).getPhase(), equalTo("warm")), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).phase(), equalTo("warm")), 30, TimeUnit.SECONDS);
         // let's wait for this index to have received the `require.data` configuration from the warm phase/allocate action
-        assertBusy(
-            () -> assertThat(getStepKeyForIndex(client(), index).getName(), equalTo(AllocationRoutedStep.NAME)),
-            30,
-            TimeUnit.SECONDS
-        );
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).name(), equalTo(AllocationRoutedStep.NAME)), 30, TimeUnit.SECONDS);
 
         String indexWithDataWarmRouting = "indexwithdatawarmrouting";
         Settings.Builder settings = Settings.builder()
@@ -474,7 +473,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
 
     private void createLegacyTemplate(String templateName) throws IOException {
         String indexPrefix = randomAlphaOfLengthBetween(5, 15).toLowerCase(Locale.ROOT);
-        final StringEntity template = new StringEntity("""
+        final StringEntity template = new StringEntity(Strings.format("""
             {
               "index_patterns": "%s*",
               "settings": {
@@ -485,7 +484,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
                   }
                 }
               }
-            }""".formatted(indexPrefix), ContentType.APPLICATION_JSON);
+            }""", indexPrefix), ContentType.APPLICATION_JSON);
         Request templateRequest = new Request("PUT", "_template/" + templateName);
         templateRequest.setEntity(template);
         templateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));

@@ -36,6 +36,11 @@ public class PersistentTasksExecutorResponseTests extends AbstractWireSerializin
     }
 
     @Override
+    protected PersistentTaskResponse mutateInstance(PersistentTaskResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<PersistentTaskResponse> instanceReader() {
         return PersistentTaskResponse::new;
     }

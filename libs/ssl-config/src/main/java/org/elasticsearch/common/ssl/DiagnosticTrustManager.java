@@ -24,8 +24,6 @@ import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.X509ExtendedTrustManager;
 
-import static org.elasticsearch.common.ssl.SslDiagnostics.getTrustDiagnosticFailure;
-
 public final class DiagnosticTrustManager extends X509ExtendedTrustManager {
 
     /**
@@ -132,11 +130,17 @@ public final class DiagnosticTrustManager extends X509ExtendedTrustManager {
     }
 
     private void diagnose(CertificateException cause, X509Certificate[] chain, SslDiagnostics.PeerType peerType, SSLSession session) {
-        final String diagnostic = getTrustDiagnosticFailure(chain, peerType, session, this.contextName.get(), this.issuers);
+        final String diagnostic = SslDiagnostics.INSTANCE.getTrustDiagnosticFailure(
+            chain,
+            peerType,
+            session,
+            this.contextName.get(),
+            this.issuers
+        );
         logger.warning(diagnostic, cause);
     }
 
-    private SSLSession session(Socket socket) {
+    private static SSLSession session(Socket socket) {
         if (socket instanceof final SSLSocket ssl) {
             final SSLSession handshakeSession = ssl.getHandshakeSession();
             if (handshakeSession == null) {
@@ -149,7 +153,7 @@ public final class DiagnosticTrustManager extends X509ExtendedTrustManager {
         }
     }
 
-    private SSLSession session(SSLEngine engine) {
+    private static SSLSession session(SSLEngine engine) {
         return engine.getHandshakeSession();
     }
 }

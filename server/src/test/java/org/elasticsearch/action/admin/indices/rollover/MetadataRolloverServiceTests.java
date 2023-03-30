@@ -23,20 +23,18 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.EmptySystemIndices;
-import org.elasticsearch.indices.InvalidIndexNameException;
-import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -48,7 +46,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -60,13 +57,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.same;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class MetadataRolloverServiceTests extends ESTestCase {
 
@@ -279,14 +270,13 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
     public void testGenerateRolloverIndexName() {
         String invalidIndexName = randomAlphaOfLength(10) + "A";
-        IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
         expectThrows(IllegalArgumentException.class, () -> MetadataRolloverService.generateRolloverIndexName(invalidIndexName));
         int num = randomIntBetween(0, 100);
         final String indexPrefix = randomAlphaOfLength(10);
         String indexEndingInNumbers = indexPrefix + "-" + num;
         assertThat(
             MetadataRolloverService.generateRolloverIndexName(indexEndingInNumbers),
-            equalTo(indexPrefix + "-" + String.format(Locale.ROOT, "%06d", num + 1))
+            equalTo(indexPrefix + "-" + Strings.format("%06d", num + 1))
         );
         assertThat(MetadataRolloverService.generateRolloverIndexName("index-name-1"), equalTo("index-name-000002"));
         assertThat(MetadataRolloverService.generateRolloverIndexName("index-name-2"), equalTo("index-name-000003"));
@@ -557,7 +547,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 metConditions,
                 Instant.now(),
                 randomBoolean(),
-                false
+                false,
+                null
             );
             long after = testThreadPool.absoluteTimeInMillis();
 
@@ -623,7 +614,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 metConditions,
                 Instant.now(),
                 randomBoolean(),
-                false
+                false,
+                null
             );
             long after = testThreadPool.absoluteTimeInMillis();
 
@@ -693,7 +685,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             null,
             createIndexService,
             metadataIndexAliasesService,
-            EmptySystemIndices.INSTANCE
+            EmptySystemIndices.INSTANCE,
+            WriteLoadForecaster.DEFAULT
         );
 
         String newIndexName = useDataStream == false && randomBoolean() ? "logs-index-9" : null;
@@ -706,38 +699,14 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             null,
             Instant.now(),
             randomBoolean(),
-            true
+            true,
+            null
         );
 
         newIndexName = newIndexName == null ? defaultRolloverIndexName : newIndexName;
         assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
         assertEquals(newIndexName, rolloverResult.rolloverIndexName());
         assertSame(rolloverResult.clusterState(), clusterState);
-
-        verify(createIndexService).validateIndexName(any(), same(clusterState));
-        verifyNoMoreInteractions(createIndexService);
-        verifyNoMoreInteractions(metadataIndexAliasesService);
-
-        reset(createIndexService);
-        doThrow(new InvalidIndexNameException("test", "invalid")).when(createIndexService).validateIndexName(any(), any());
-
-        expectThrows(
-            InvalidIndexNameException.class,
-            () -> rolloverService.rolloverClusterState(
-                clusterState,
-                rolloverTarget,
-                null,
-                new CreateIndexRequest("_na_"),
-                null,
-                Instant.now(),
-                randomBoolean(),
-                randomBoolean()
-            )
-        );
-
-        verify(createIndexService).validateIndexName(any(), same(clusterState));
-        verifyNoMoreInteractions(createIndexService);
-        verifyNoMoreInteractions(metadataIndexAliasesService);
     }
 
     public void testRolloverClusterStateForDataStreamNoTemplate() throws Exception {
@@ -771,7 +740,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 metConditions,
                 Instant.now(),
                 false,
-                randomBoolean()
+                randomBoolean(),
+                null
             )
         );
         assertThat(e.getMessage(), equalTo("no matching index template found for data stream [" + dataStream.getName() + "]"));

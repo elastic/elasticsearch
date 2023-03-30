@@ -75,7 +75,7 @@ GET my-index-000001/_search
 <5> Note that the `sort` values that are returned are all in
 nanoseconds-since-the-epoch.
 <6> Use `.nano` in scripts to return the nanosecond component of the date.
-<7> You can specify the format when fetching data using the <<search-fields-param,`fields` parameter>>.  
+<7> You can specify the format when fetching data using the <<search-fields-param,`fields` parameter>>.
 Use <<strict-date-time-nanos,`strict_date_optional_time_nanos`>> or you'll get a rounded result.
 
 ////
@@ -137,3 +137,49 @@ include::date.asciidoc[tag=decimal-warning]
 
 Aggregations are still on millisecond resolution, even when using a `date_nanos`
 field. This limitation also affects <<transforms,{transforms}>>.
+
+---
+
+[[date-nanos-synthetic-source]]
+==== Synthetic `_source`
+
+IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
+(indices that have `index.mode` set to `time_series`). For other indices
+synthetic `_source` is in technical preview. Features in technical preview may
+be changed or removed in a future release. Elastic will apply best effort to fix
+any issues, but features in technical preview are not subject to the support SLA
+of official GA features.
+
+`date_nanos` fields support <<synthetic-source,synthetic `_source`>> in their
+default configuration. Synthetic `_source` cannot be used together with
+<<copy-to,`copy_to`>>, <<ignore-malformed,`ignore_malformed`>> set to true
+or with <<doc-values,`doc_values`>> disabled.
+
+Synthetic source always sorts `date_nanos` fields. For example:
+[source,console,id=synthetic-source-date-nanos-example]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "mode": "synthetic" },
+    "properties": {
+      "date": { "type": "date_nanos" }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "date": ["2015-01-01T12:10:30.000Z", "2014-01-01T12:10:30.000Z"]
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+[source,console-result]
+----
+{
+  "date": ["2014-01-01T12:10:30.000Z", "2015-01-01T12:10:30.000Z"]
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]
+

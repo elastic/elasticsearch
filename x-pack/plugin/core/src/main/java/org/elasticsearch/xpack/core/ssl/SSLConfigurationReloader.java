@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.core.ssl;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ssl.SslConfiguration;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -25,8 +27,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.function.Consumer;
 
 import javax.net.ssl.SSLContext;
@@ -39,7 +41,12 @@ public final class SSLConfigurationReloader {
 
     private static final Logger logger = LogManager.getLogger(SSLConfigurationReloader.class);
 
-    private final CompletableFuture<SSLService> sslServiceFuture = new CompletableFuture<>();
+    private final PlainActionFuture<SSLService> sslServiceFuture = new PlainActionFuture<>() {
+        @Override
+        protected boolean blockingAllowed() {
+            return true; // waits on the scheduler thread, once, and not for long
+        }
+    };
 
     public SSLConfigurationReloader(ResourceWatcherService resourceWatcherService, Collection<SslConfiguration> sslConfigurations) {
         startWatching(reloadConsumer(sslServiceFuture), resourceWatcherService, sslConfigurations);
@@ -55,13 +62,11 @@ public final class SSLConfigurationReloader {
     }
 
     public void setSSLService(SSLService sslService) {
-        final boolean completed = sslServiceFuture.complete(sslService);
-        if (completed == false) {
-            throw new IllegalStateException("ssl service future was already completed!");
-        }
+        assert sslServiceFuture.isDone() == false : "ssl service future was already completed!";
+        sslServiceFuture.onResponse(sslService);
     }
 
-    private static Consumer<SslConfiguration> reloadConsumer(CompletableFuture<SSLService> future) {
+    private static Consumer<SslConfiguration> reloadConsumer(Future<SSLService> future) {
         return sslConfiguration -> {
             try {
                 final SSLService sslService = future.get();
@@ -143,16 +148,22 @@ public final class SSLConfigurationReloader {
 
         @Override
         public void onFileChanged(Path file) {
-            boolean reloaded = false;
+            final long reloadedNanos = System.nanoTime();
+            final List<String> settingPrefixes = new ArrayList<>(sslConfigurations.size());
             for (SslConfiguration sslConfiguration : sslConfigurations) {
                 if (sslConfiguration.getDependentFiles().contains(file)) {
                     reloadConsumer.accept(sslConfiguration);
-                    reloaded = true;
+                    settingPrefixes.add(sslConfiguration.settingPrefix());
                 }
             }
-
-            if (reloaded) {
-                logger.info("reloaded [{}] and updated ssl contexts using this file", file);
+            if (settingPrefixes.isEmpty() == false) {
+                logger.info(
+                    "updated {} ssl contexts in {}ms for prefix names {} using file [{}]",
+                    settingPrefixes.size(),
+                    TimeValue.timeValueNanos(System.nanoTime() - reloadedNanos).millisFrac(),
+                    settingPrefixes,
+                    file
+                );
             }
         }
     }

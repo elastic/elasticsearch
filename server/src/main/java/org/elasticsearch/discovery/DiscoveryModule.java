@@ -15,6 +15,9 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
+import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
+import org.elasticsearch.cluster.coordination.Reconfigurator;
+import org.elasticsearch.cluster.coordination.StatefulPreVoteCollector;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -31,7 +34,9 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.gateway.GatewayMetaState;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
+import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.transport.TransportService;
 
@@ -48,7 +53,6 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 
@@ -97,12 +101,14 @@ public class DiscoveryModule {
         MasterService masterService,
         ClusterApplier clusterApplier,
         ClusterSettings clusterSettings,
-        List<DiscoveryPlugin> plugins,
+        List<DiscoveryPlugin> discoveryPlugins,
+        List<ClusterCoordinationPlugin> clusterCoordinationPlugins,
         AllocationService allocationService,
         Path configFile,
         GatewayMetaState gatewayMetaState,
         RerouteService rerouteService,
-        NodeHealthService nodeHealthService
+        NodeHealthService nodeHealthService,
+        CircuitBreakerService circuitBreakerService
     ) {
         final Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators = new ArrayList<>();
         final Map<String, Supplier<SeedHostsProvider>> hostProviders = new HashMap<>();
@@ -110,12 +116,15 @@ public class DiscoveryModule {
         hostProviders.put("file", () -> new FileBasedSeedHostsProvider(configFile));
         final Map<String, ElectionStrategy> electionStrategies = new HashMap<>();
         electionStrategies.put(DEFAULT_ELECTION_STRATEGY, ElectionStrategy.DEFAULT_INSTANCE);
-        for (DiscoveryPlugin plugin : plugins) {
+        for (DiscoveryPlugin plugin : discoveryPlugins) {
             plugin.getSeedHostProviders(transportService, networkService).forEach((key, value) -> {
                 if (hostProviders.put(key, value) != null) {
                     throw new IllegalArgumentException("Cannot register seed provider [" + key + "] twice");
                 }
             });
+        }
+
+        for (ClusterCoordinationPlugin plugin : clusterCoordinationPlugins) {
             BiConsumer<DiscoveryNode, ClusterState> joinValidator = plugin.getJoinValidator();
             if (joinValidator != null) {
                 joinValidators.add(joinValidator);
@@ -142,10 +151,7 @@ public class DiscoveryModule {
             throw new IllegalArgumentException("Unknown seed providers " + missingProviderNames);
         }
 
-        List<SeedHostsProvider> filteredSeedProviders = seedProviderNames.stream()
-            .map(hostProviders::get)
-            .map(Supplier::get)
-            .collect(Collectors.toList());
+        List<SeedHostsProvider> filteredSeedProviders = seedProviderNames.stream().map(hostProviders::get).map(Supplier::get).toList();
 
         String discoveryType = DISCOVERY_TYPE_SETTING.get(settings);
 
@@ -195,7 +201,11 @@ public class DiscoveryModule {
                 new Random(Randomness.get().nextLong()),
                 rerouteService,
                 electionStrategy,
-                nodeHealthService
+                nodeHealthService,
+                circuitBreakerService,
+                new Reconfigurator(settings, clusterSettings),
+                LeaderHeartbeatService.NO_OP,
+                StatefulPreVoteCollector::new
             );
         } else {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");

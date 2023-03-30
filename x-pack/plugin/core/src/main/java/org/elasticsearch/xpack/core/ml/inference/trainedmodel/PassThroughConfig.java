@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -74,6 +75,13 @@ public class PassThroughConfig implements NlpConfig {
             .orElse(new VocabularyConfig(InferenceIndexConstants.nativeDefinitionStore()));
         this.tokenization = tokenization == null ? Tokenization.createDefault() : tokenization;
         this.resultsField = resultsField;
+        if (this.tokenization.span != -1) {
+            throw ExceptionsHelper.badRequestException(
+                "[{}] does not support windowing long text sequences; configured span [{}]",
+                NAME,
+                this.tokenization.span
+            );
+        }
     }
 
     public PassThroughConfig(StreamInput in) throws IOException {
@@ -112,8 +120,13 @@ public class PassThroughConfig implements NlpConfig {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
+    public Version getMinimalSupportedNodeVersion() {
         return Version.V_8_0_0;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedTransportVersion() {
+        return TransportVersion.V_8_0_0;
     }
 
     @Override

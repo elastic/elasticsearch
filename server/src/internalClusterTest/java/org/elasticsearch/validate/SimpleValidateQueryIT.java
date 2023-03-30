@@ -183,7 +183,11 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
             .actionGet();
 
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test").setSource("foo", "text", "bar", i, "baz", "blort").execute().actionGet();
+            client().prepareIndex("test")
+                .setSource("foo", "text", "bar", i, "baz", "blort")
+                .setId(Integer.toString(i))
+                .execute()
+                .actionGet();
         }
         refresh();
 
@@ -256,7 +260,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
             client().admin().indices().prepareValidateQuery().get();
             fail("Expected IndexNotFoundException");
         } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index [null] and no indices exist"));
+            assertThat(e.getMessage(), is("no such index [_all] and no indices exist"));
         }
     }
 

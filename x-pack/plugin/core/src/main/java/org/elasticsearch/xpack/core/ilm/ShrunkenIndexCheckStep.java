@@ -44,7 +44,7 @@ public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
     public Result isConditionMet(Index index, ClusterState clusterState) {
         IndexMetadata idxMeta = clusterState.getMetadata().index(index);
         if (idxMeta == null) {
-            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
             // Index must have been since deleted, ignore it
             return new Result(false, null);
         }

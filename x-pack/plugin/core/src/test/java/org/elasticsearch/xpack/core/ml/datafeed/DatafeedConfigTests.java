@@ -10,9 +10,11 @@ import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.aggregations.AggregationsPlugin;
+import org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -21,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -31,7 +32,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
@@ -41,18 +41,17 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig.Mode;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
@@ -82,7 +81,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedConfig> {
+public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<DatafeedConfig> {
 
     @Override
     protected DatafeedConfig createTestInstance() {
@@ -103,13 +102,13 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of(new AggregationsPlugin()));
         return new NamedWriteableRegistry(searchModule.getNamedWriteables());
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of(new AggregationsPlugin()));
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
@@ -240,8 +239,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         }""";
 
     public void testFutureConfigParse() throws IOException {
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, FUTURE_DATAFEED);
+        XContentParser parser = parser(FUTURE_DATAFEED);
         XContentParseException e = expectThrows(
             XContentParseException.class,
             () -> DatafeedConfig.STRICT_PARSER.apply(parser, null).build()
@@ -250,10 +248,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     }
 
     public void testPastQueryConfigParse() throws IOException {
-        try (
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, ANACHRONISTIC_QUERY_DATAFEED)
-        ) {
+        try (XContentParser parser = parser(ANACHRONISTIC_QUERY_DATAFEED)) {
 
             DatafeedConfig config = DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
             assertThat(
@@ -262,10 +257,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             );
         }
 
-        try (
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, ANACHRONISTIC_QUERY_DATAFEED)
-        ) {
+        try (XContentParser parser = parser(ANACHRONISTIC_QUERY_DATAFEED)) {
 
             XContentParseException e = expectThrows(
                 XContentParseException.class,
@@ -276,10 +268,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     }
 
     public void testPastAggConfigParse() throws IOException {
-        try (
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, ANACHRONISTIC_AGG_DATAFEED)
-        ) {
+        try (XContentParser parser = parser(ANACHRONISTIC_AGG_DATAFEED)) {
 
             DatafeedConfig datafeedConfig = DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
             assertThat(
@@ -288,10 +277,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             );
         }
 
-        try (
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, ANACHRONISTIC_AGG_DATAFEED)
-        ) {
+        try (XContentParser parser = parser(ANACHRONISTIC_AGG_DATAFEED)) {
 
             XContentParseException e = expectThrows(
                 XContentParseException.class,
@@ -302,19 +288,13 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     }
 
     public void testPastAggConfigOldDateHistogramParse() throws IOException {
-        try (
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, AGG_WITH_OLD_DATE_HISTOGRAM_INTERVAL)
-        ) {
+        try (XContentParser parser = parser(AGG_WITH_OLD_DATE_HISTOGRAM_INTERVAL)) {
 
             DatafeedConfig datafeedConfig = DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
             assertThat(datafeedConfig.getParsedAggregations(xContentRegistry()), is(not(nullValue())));
         }
 
-        try (
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, ANACHRONISTIC_AGG_DATAFEED)
-        ) {
+        try (XContentParser parser = parser(ANACHRONISTIC_AGG_DATAFEED)) {
 
             XContentParseException e = expectThrows(
                 XContentParseException.class,
@@ -325,26 +305,19 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     }
 
     public void testFutureMetadataParse() throws IOException {
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, FUTURE_DATAFEED);
+        XContentParser parser = parser(FUTURE_DATAFEED);
         // Unlike the config version of this test, the metadata parser should tolerate the unknown future field
         assertNotNull(DatafeedConfig.LENIENT_PARSER.apply(parser, null).build());
     }
 
     public void testMultipleDefinedAggParse() throws IOException {
-        try (
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, MULTIPLE_AGG_DEF_DATAFEED)
-        ) {
+        try (XContentParser parser = parser(MULTIPLE_AGG_DEF_DATAFEED)) {
             XContentParseException ex = expectThrows(XContentParseException.class, () -> DatafeedConfig.LENIENT_PARSER.apply(parser, null));
             assertThat(ex.getMessage(), equalTo("[32:3] [datafeed_config] failed to parse field [aggs]"));
             assertNotNull(ex.getCause());
             assertThat(ex.getCause().getMessage(), equalTo("Found two aggregation definitions: [aggs] and [aggregations]"));
         }
-        try (
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, MULTIPLE_AGG_DEF_DATAFEED)
-        ) {
+        try (XContentParser parser = parser(MULTIPLE_AGG_DEF_DATAFEED)) {
             XContentParseException ex = expectThrows(XContentParseException.class, () -> DatafeedConfig.STRICT_PARSER.apply(parser, null));
             assertThat(ex.getMessage(), equalTo("[32:3] [datafeed_config] failed to parse field [aggs]"));
             assertNotNull(ex.getCause());
@@ -364,16 +337,14 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
 
         BytesReference forClusterstateXContent = XContentHelper.toXContent(config, XContentType.JSON, params, false);
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, forClusterstateXContent.streamInput());
+        XContentParser parser = parser(forClusterstateXContent);
 
         DatafeedConfig parsedConfig = DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
         assertThat(parsedConfig.getHeaders(), hasEntry("header-name", "header-value"));
 
         // headers are not written without the FOR_INTERNAL_STORAGE param
         BytesReference nonClusterstateXContent = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
-        parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, nonClusterstateXContent.streamInput());
+        parser = parser(nonClusterstateXContent);
 
         parsedConfig = DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
         assertThat(parsedConfig.getHeaders().entrySet(), hasSize(0));
@@ -445,16 +416,6 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         conf.setIndices(Collections.emptyList());
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, conf::build);
         assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE, "indices", "[]"), e.getMessage());
-    }
-
-    public void testCheckValid_GivenIndicesContainsOnlyNulls() {
-        List<String> indices = new ArrayList<>();
-        indices.add(null);
-        indices.add(null);
-        DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
-        conf.setIndices(indices);
-        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, conf::build);
-        assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE, "indices", "[null, null]"), e.getMessage());
     }
 
     public void testCheckValid_GivenIndicesContainsOnlyEmptyStrings() {
@@ -813,19 +774,18 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     }
 
     public void testSerializationOfComplexAggs() throws IOException {
-        MaxAggregationBuilder maxTime = AggregationBuilders.max("timestamp").field("timestamp");
-        AvgAggregationBuilder avgAggregationBuilder = AggregationBuilders.avg("bytes_in_avg").field("system.network.in.bytes");
-        DerivativePipelineAggregationBuilder derivativePipelineAggregationBuilder = PipelineAggregatorBuilders.derivative(
+        MaxAggregationBuilder maxTime = new MaxAggregationBuilder("timestamp").field("timestamp");
+        AvgAggregationBuilder avgAggregationBuilder = new AvgAggregationBuilder("bytes_in_avg").field("system.network.in.bytes");
+        DerivativePipelineAggregationBuilder derivativePipelineAggregationBuilder = new DerivativePipelineAggregationBuilder(
             "bytes_in_derivative",
             "bytes_in_avg"
         );
-        BucketScriptPipelineAggregationBuilder bucketScriptPipelineAggregationBuilder = PipelineAggregatorBuilders.bucketScript(
+        BucketScriptPipelineAggregationBuilder bucketScriptPipelineAggregationBuilder = new BucketScriptPipelineAggregationBuilder(
             "non_negative_bytes",
             Collections.singletonMap("bytes", "bytes_in_derivative"),
             new Script("params.bytes > 0 ? params.bytes : null")
         );
-        DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("histogram_buckets")
-            .field("timestamp")
+        DateHistogramAggregationBuilder dateHistogram = new DateHistogramAggregationBuilder("histogram_buckets").field("timestamp")
             .fixedInterval(new DateHistogramInterval("300000ms"))
             .timeZone(ZoneOffset.UTC)
             .subAggregation(maxTime)
@@ -842,8 +802,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         XContentType xContentType = XContentType.JSON;
         BytesReference bytes = XContentHelper.toXContent(datafeedConfig, xContentType, false);
         XContentParser parser = XContentHelper.createParser(
-            xContentRegistry(),
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()),
             bytes,
             xContentType
         );
@@ -855,11 +814,9 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         assertEquals(aggBuilder, parsedDatafeedConfig.getParsedAggregations(xContentRegistry()));
         assertEquals(datafeedConfig.getQuery(), parsedDatafeedConfig.getQuery());
 
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             datafeedConfig.writeTo(output);
-            try (StreamInput streamInput = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+            try (StreamInput streamInput = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
                 DatafeedConfig streamedDatafeedConfig = new DatafeedConfig(streamInput);
                 assertEquals(datafeedConfig, streamedDatafeedConfig);
 
@@ -871,19 +828,18 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     }
 
     public void testSerializationOfComplexAggsBetweenVersions() throws IOException {
-        MaxAggregationBuilder maxTime = AggregationBuilders.max("timestamp").field("timestamp");
-        AvgAggregationBuilder avgAggregationBuilder = AggregationBuilders.avg("bytes_in_avg").field("system.network.in.bytes");
-        DerivativePipelineAggregationBuilder derivativePipelineAggregationBuilder = PipelineAggregatorBuilders.derivative(
+        MaxAggregationBuilder maxTime = new MaxAggregationBuilder("timestamp").field("timestamp");
+        AvgAggregationBuilder avgAggregationBuilder = new AvgAggregationBuilder("bytes_in_avg").field("system.network.in.bytes");
+        DerivativePipelineAggregationBuilder derivativePipelineAggregationBuilder = new DerivativePipelineAggregationBuilder(
             "bytes_in_derivative",
             "bytes_in_avg"
         );
-        BucketScriptPipelineAggregationBuilder bucketScriptPipelineAggregationBuilder = PipelineAggregatorBuilders.bucketScript(
+        BucketScriptPipelineAggregationBuilder bucketScriptPipelineAggregationBuilder = new BucketScriptPipelineAggregationBuilder(
             "non_negative_bytes",
             Collections.singletonMap("bytes", "bytes_in_derivative"),
             new Script("params.bytes > 0 ? params.bytes : null")
         );
-        DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("histogram_buckets")
-            .field("timestamp")
+        DateHistogramAggregationBuilder dateHistogram = new DateHistogramAggregationBuilder("histogram_buckets").field("timestamp")
             .fixedInterval(new DateHistogramInterval("30000ms"))
             .timeZone(ZoneOffset.UTC)
             .subAggregation(maxTime)
@@ -902,14 +858,11 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         );
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
 
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
-
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.CURRENT);
+            output.setTransportVersion(TransportVersion.CURRENT);
             datafeedConfig.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                in.setVersion(Version.CURRENT);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(TransportVersion.CURRENT);
                 DatafeedConfig streamedDatafeedConfig = new DatafeedConfig(in);
                 assertEquals(datafeedConfig, streamedDatafeedConfig);
 
@@ -1000,7 +953,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     }
 
     @Override
-    protected DatafeedConfig mutateInstance(DatafeedConfig instance) throws IOException {
+    protected DatafeedConfig mutateInstance(DatafeedConfig instance) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(instance);
         switch (between(0, 12)) {
             case 0:
@@ -1105,5 +1058,16 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
                 throw new AssertionError("Illegal randomisation branch");
         }
         return builder.build();
+    }
+
+    private XContentParser parser(String json) throws IOException {
+        return JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), json);
+    }
+
+    private XContentParser parser(BytesReference json) throws IOException {
+        return JsonXContent.jsonXContent.createParser(
+            XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()),
+            json.streamInput()
+        );
     }
 }

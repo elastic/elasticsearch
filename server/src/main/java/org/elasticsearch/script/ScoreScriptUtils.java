@@ -23,7 +23,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
-import static com.carrotsearch.hppc.BitMixer.mix32;
+import static org.apache.lucene.util.hppc.BitMixer.mix32;
 
 public final class ScoreScriptUtils {
 

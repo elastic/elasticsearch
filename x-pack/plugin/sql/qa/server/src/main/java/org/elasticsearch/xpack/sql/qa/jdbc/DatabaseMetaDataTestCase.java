@@ -8,12 +8,15 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import org.elasticsearch.common.CheckedSupplier;
 
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcAssert.assertResultSets;
+import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.createDataStream;
+import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.deleteDataStream;
 
 /**
  * Tests for our implementation of {@link DatabaseMetaData}.
@@ -113,6 +116,28 @@ public class DatabaseMetaDataTestCase extends JdbcIntegrationTestCase {
                 h2.createStatement().executeQuery("SELECT '" + clusterName() + "' AS TABLE_CAT, * FROM mock WHERE TABLE_NAME = 'test1'"),
                 es.getMetaData().getTables("%", "%", "test1", new String[] { "TABLE" })
             );
+        }
+    }
+
+    public void testGetDataStreamViewByType() throws IOException, SQLException {
+        expectDataStreamTable("test-datastream", "%", new String[] { "VIEW" });
+    }
+
+    public void testGetDataStreamViewByName() throws IOException, SQLException {
+        expectDataStreamTable("test-datastream", "test-datastream", null);
+    }
+
+    private void expectDataStreamTable(String dataStreamName, String tableNamePattern, String[] types) throws SQLException, IOException {
+        try {
+            createDataStream(dataStreamName);
+            try (Connection es = esJdbc(); ResultSet rs = es.getMetaData().getTables("%", "%", tableNamePattern, types)) {
+                assertTrue(rs.next());
+                assertEquals(dataStreamName, rs.getString(3));
+                assertEquals("VIEW", rs.getString(4));
+                assertFalse(rs.next());
+            }
+        } finally {
+            deleteDataStream(dataStreamName);
         }
     }
 

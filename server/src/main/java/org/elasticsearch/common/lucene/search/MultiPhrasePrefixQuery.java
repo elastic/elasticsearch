@@ -8,15 +8,12 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import com.carrotsearch.hppc.ObjectHashSet;
-
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
@@ -27,16 +24,18 @@ import org.apache.lucene.util.StringHelper;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Objects;
+import java.util.Set;
 
 public class MultiPhrasePrefixQuery extends Query {
 
     private final String field;
-    private ArrayList<Term[]> termArrays = new ArrayList<>();
-    private ArrayList<Integer> positions = new ArrayList<>();
+    private final ArrayList<Term[]> termArrays = new ArrayList<>();
+    private final ArrayList<Integer> positions = new ArrayList<>();
     private int maxExpansions = Integer.MAX_VALUE;
 
     private int slop = 0;
@@ -146,7 +145,7 @@ public class MultiPhrasePrefixQuery extends Query {
         }
         Term[] suffixTerms = termArrays.get(sizeMinus1);
         int position = positions.get(sizeMinus1);
-        ObjectHashSet<Term> terms = new ObjectHashSet<>();
+        Set<Term> terms = new HashSet<>();
         for (Term term : suffixTerms) {
             getPrefixTerms(terms, term, reader);
             if (terms.size() > maxExpansions) {
@@ -154,25 +153,13 @@ public class MultiPhrasePrefixQuery extends Query {
             }
         }
         if (terms.isEmpty()) {
-            if (sizeMinus1 == 0) {
-                // no prefix and the phrase query is empty
-                return Queries.newMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName());
-            }
-
-            // if the terms does not exist we could return a MatchNoDocsQuery but this would break the unified highlighter
-            // which rewrites query with an empty reader.
-            return new BooleanQuery.Builder().add(query.build(), BooleanClause.Occur.MUST)
-                .add(
-                    Queries.newMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName()),
-                    BooleanClause.Occur.MUST
-                )
-                .build();
+            return Queries.newMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName());
         }
-        query.add(terms.toArray(Term.class), position);
+        query.add(terms.toArray(new Term[0]), position);
         return query.build();
     }
 
-    private void getPrefixTerms(ObjectHashSet<Term> terms, final Term prefix, final IndexReader reader) throws IOException {
+    private void getPrefixTerms(Set<Term> terms, final Term prefix, final IndexReader reader) throws IOException {
         // SlowCompositeReaderWrapper could be used... but this would merge all terms from each segment into one terms
         // instance, which is very expensive. Therefore I think it is better to iterate over each leaf individually.
         List<LeafReaderContext> leaves = reader.leaves();
@@ -279,7 +266,7 @@ public class MultiPhrasePrefixQuery extends Query {
     }
 
     // Breakout calculation of the termArrays equals
-    private boolean termArraysEquals(List<Term[]> termArrays1, List<Term[]> termArrays2) {
+    private static boolean termArraysEquals(List<Term[]> termArrays1, List<Term[]> termArrays2) {
         if (termArrays1.size() != termArrays2.size()) {
             return false;
         }
@@ -295,14 +282,32 @@ public class MultiPhrasePrefixQuery extends Query {
         return true;
     }
 
-    public String getField() {
-        return field;
-    }
-
     @Override
     public void visit(QueryVisitor visitor) {
         if (visitor.acceptField(field)) {
-            visitor.visitLeaf(this);    // TODO implement term visiting
+            visitor = visitor.getSubVisitor(BooleanClause.Occur.MUST, this);
+            for (int i = 0; i < termArrays.size() - 1; i++) {
+                if (termArrays.get(i).length == 1) {
+                    visitor.consumeTerms(this, termArrays.get(i)[0]);
+                } else {
+                    QueryVisitor shouldVisitor = visitor.getSubVisitor(BooleanClause.Occur.SHOULD, this);
+                    shouldVisitor.consumeTerms(this, termArrays.get(i));
+                }
+            }
+            /* We don't report automata here because this breaks the unified highlighter,
+               which extracts automata separately from phrases. MPPQ gets rewritten to a
+               SpanMTQQuery by the PhraseHelper in any case, so highlighting is taken
+               care of there instead.  If we extract automata here then the trailing prefix
+               word will be highlighted wherever it appears in the document, instead of only
+               as part of a phrase. This can be re-instated once we switch to using Matches
+               to highlight.
+            for (Term prefixTerm : termArrays.get(termArrays.size() - 1)) {
+                visitor.consumeTermsMatching(this, field, () -> {
+                    CompiledAutomaton ca = new CompiledAutomaton(PrefixQuery.toAutomaton(prefixTerm.bytes()));
+                    return ca.runAutomaton;
+                });
+            }
+            */
         }
     }
 }

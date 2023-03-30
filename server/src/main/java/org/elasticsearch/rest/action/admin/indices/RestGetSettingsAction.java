@@ -15,7 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -53,6 +53,6 @@ public class RestGetSettingsAction extends BaseRestHandler {
             .names(names);
         getSettingsRequest.local(request.paramAsBoolean("local", getSettingsRequest.local()));
         getSettingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSettingsRequest.masterNodeTimeout()));
-        return channel -> client.admin().indices().getSettings(getSettingsRequest, new RestToXContentListener<>(channel));
+        return channel -> client.admin().indices().getSettings(getSettingsRequest, new RestChunkedToXContentListener<>(channel));
     }
 }

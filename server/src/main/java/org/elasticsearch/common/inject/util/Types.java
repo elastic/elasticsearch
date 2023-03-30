@@ -26,7 +26,6 @@ import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.lang.reflect.WildcardType;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -86,16 +85,6 @@ public final class Types {
      */
     public static WildcardType supertypeOf(Type bound) {
         return new WildcardTypeImpl(new Type[] { Object.class }, new Type[] { bound });
-    }
-
-    /**
-     * Returns a type modelling a {@link List} whose elements are of type
-     * {@code elementType}.
-     *
-     * @return a parameterized type.
-     */
-    public static ParameterizedType listOf(Type elementType) {
-        return newParameterizedType(List.class, elementType);
     }
 
     /**

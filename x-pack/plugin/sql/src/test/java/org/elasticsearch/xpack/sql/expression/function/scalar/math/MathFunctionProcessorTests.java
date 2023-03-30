@@ -11,7 +11,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 
-import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Arrays;
 
@@ -31,7 +30,7 @@ public class MathFunctionProcessorTests extends AbstractWireSerializingTestCase<
     }
 
     @Override
-    protected MathProcessor mutateInstance(MathProcessor instance) throws IOException {
+    protected MathProcessor mutateInstance(MathProcessor instance) {
         return new MathProcessor(randomValueOtherThan(instance.processor(), () -> randomFrom(MathOperation.values())));
     }
 
@@ -55,7 +54,7 @@ public class MathFunctionProcessorTests extends AbstractWireSerializingTestCase<
 
     public void testRandom() {
         MathProcessor proc = new MathProcessor(MathOperation.RANDOM);
-        assertNotNull(proc.process(null));
+        assertNull(proc.process(null));
         assertNotNull(proc.process(randomLong()));
     }
 

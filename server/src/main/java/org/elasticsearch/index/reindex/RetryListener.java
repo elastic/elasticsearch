@@ -9,8 +9,8 @@
 package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -18,7 +18,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Iterator;
 import java.util.function.Consumer;
 
-class RetryListener extends ActionListener.Delegating<ScrollableHitSource.Response, ScrollableHitSource.Response>
+class RetryListener extends DelegatingActionListener<ScrollableHitSource.Response, ScrollableHitSource.Response>
     implements
         RejectAwareActionListener<ScrollableHitSource.Response> {
     private final Logger logger;
@@ -51,10 +51,10 @@ class RetryListener extends ActionListener.Delegating<ScrollableHitSource.Respon
         if (retries.hasNext()) {
             retryCount += 1;
             TimeValue delay = retries.next();
-            logger.trace(() -> new ParameterizedMessage("retrying rejected search after [{}]", delay), e);
+            logger.trace(() -> "retrying rejected search after [" + delay + "]", e);
             schedule(() -> retryScrollHandler.accept(this), delay);
         } else {
-            logger.warn(() -> new ParameterizedMessage("giving up on search because we retried [{}] times without success", retryCount), e);
+            logger.warn(() -> "giving up on search because we retried [" + retryCount + "] times without success", e);
             delegate.onFailure(e);
         }
     }

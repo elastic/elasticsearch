@@ -283,7 +283,7 @@ public class SSLServiceTests extends ESTestCase {
             .build();
         SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
 
-        assertTrue(sslService.isConfigurationValidForServerUsage(sslService.getSSLConfiguration("xpack.security.transport.ssl")));
+        assertTrue(SSLService.isConfigurationValidForServerUsage(sslService.getSSLConfiguration("xpack.security.transport.ssl")));
     }
 
     public void testTransportWithKeystoreAndNoTruststore() throws Exception {
@@ -333,7 +333,7 @@ public class SSLServiceTests extends ESTestCase {
         SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
         // Technically, we don't care whether xpack.http.ssl is valid for server - it's a client context, but we validate both of the
         // server contexts (http & transport) during construction, so this is the only way to make a non-server-valid context.
-        assertFalse(sslService.isConfigurationValidForServerUsage(sslService.getSSLConfiguration("xpack.http.ssl")));
+        assertFalse(SSLService.isConfigurationValidForServerUsage(sslService.getSSLConfiguration("xpack.http.ssl")));
 
         secureSettings.setString("xpack.http.ssl.keystore.secure_password", "testnode");
         settings = Settings.builder()
@@ -344,7 +344,7 @@ public class SSLServiceTests extends ESTestCase {
             .put("xpack.http.ssl.keystore.type", testnodeStoreType)
             .build();
         sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
-        assertTrue(sslService.isConfigurationValidForServerUsage(sslService.getSSLConfiguration("xpack.http.ssl")));
+        assertTrue(SSLService.isConfigurationValidForServerUsage(sslService.getSSLConfiguration("xpack.http.ssl")));
     }
 
     public void testGetVerificationMode() throws Exception {
@@ -378,8 +378,8 @@ public class SSLServiceTests extends ESTestCase {
             .put("transport.profiles.foo.port", "9400-9410")
             .build();
         sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
-        assertTrue(sslService.isSSLClientAuthEnabled(sslService.getSSLConfiguration("xpack.security.transport.ssl")));
-        assertTrue(sslService.isSSLClientAuthEnabled(sslService.getSSLConfiguration("transport.profiles.foo.xpack.security.ssl")));
+        assertTrue(SSLService.isSSLClientAuthEnabled(sslService.getSSLConfiguration("xpack.security.transport.ssl")));
+        assertTrue(SSLService.isSSLClientAuthEnabled(sslService.getSSLConfiguration("transport.profiles.foo.xpack.security.ssl")));
     }
 
     public void testThatHttpClientAuthDefaultsToNone() throws Exception {

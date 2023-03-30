@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.IndexSettings.NODE_DEFAULT_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_END_TIME;
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_START_TIME;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -345,6 +346,38 @@ public class IndexSettingsTests extends ESTestCase {
         );
     }
 
+    public void testNodeDefaultRefreshInterval() {
+        String defaultRefreshInterval = getRandomTimeString();
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
+        );
+        IndexSettings settings = new IndexSettings(
+            metadata,
+            Settings.builder().put(NODE_DEFAULT_REFRESH_INTERVAL_SETTING.getKey(), defaultRefreshInterval).build()
+        );
+        assertEquals(
+            TimeValue.parseTimeValue(
+                defaultRefreshInterval,
+                new TimeValue(1, TimeUnit.DAYS),
+                IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
+            ),
+            settings.getRefreshInterval()
+        );
+        String newRefreshInterval = getRandomTimeString();
+        settings.updateIndexMetadata(
+            newIndexMeta("index", Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), newRefreshInterval).build())
+        );
+        assertEquals(
+            TimeValue.parseTimeValue(
+                newRefreshInterval,
+                new TimeValue(1, TimeUnit.DAYS),
+                IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
+            ),
+            settings.getRefreshInterval()
+        );
+    }
+
     private String getRandomTimeString() {
         int refreshIntervalInt = randomFrom(-1, Math.abs(randomInt()));
         String refreshInterval = Integer.toString(refreshIntervalInt);
@@ -512,7 +545,7 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testTranslogFlushSizeThreshold() {
-        ByteSizeValue translogFlushThresholdSize = new ByteSizeValue(Math.abs(randomInt()));
+        ByteSizeValue translogFlushThresholdSize = ByteSizeValue.ofBytes(Math.abs(randomInt()));
         ByteSizeValue actualValue = ByteSizeValue.parseBytesSizeValue(
             translogFlushThresholdSize.getBytes() + "B",
             IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey()
@@ -525,8 +558,8 @@ public class IndexSettingsTests extends ESTestCase {
                 .build()
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertEquals(actualValue, settings.getFlushThresholdSize());
-        ByteSizeValue newTranslogFlushThresholdSize = new ByteSizeValue(Math.abs(randomInt()));
+        assertEquals(actualValue, settings.getFlushThresholdSize(ByteSizeValue.ofTb(1)));
+        ByteSizeValue newTranslogFlushThresholdSize = ByteSizeValue.ofBytes(Math.abs(randomInt()));
         ByteSizeValue actualNewTranslogFlushThresholdSize = ByteSizeValue.parseBytesSizeValue(
             newTranslogFlushThresholdSize.getBytes() + "B",
             IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey()
@@ -539,11 +572,11 @@ public class IndexSettingsTests extends ESTestCase {
                     .build()
             )
         );
-        assertEquals(actualNewTranslogFlushThresholdSize, settings.getFlushThresholdSize());
+        assertEquals(actualNewTranslogFlushThresholdSize, settings.getFlushThresholdSize(ByteSizeValue.ofTb(1)));
     }
 
     public void testTranslogGenerationSizeThreshold() {
-        final ByteSizeValue size = new ByteSizeValue(Math.abs(randomInt()));
+        final ByteSizeValue size = ByteSizeValue.ofBytes(Math.abs(randomInt()));
         final String key = IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING.getKey();
         final ByteSizeValue actualValue = ByteSizeValue.parseBytesSizeValue(size.getBytes() + "B", key);
         final IndexMetadata metadata = newIndexMeta(
@@ -552,7 +585,7 @@ public class IndexSettingsTests extends ESTestCase {
         );
         final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         assertEquals(actualValue, settings.getGenerationThresholdSize());
-        final ByteSizeValue newSize = new ByteSizeValue(Math.abs(randomInt()));
+        final ByteSizeValue newSize = ByteSizeValue.ofBytes(Math.abs(randomInt()));
         final ByteSizeValue actual = ByteSizeValue.parseBytesSizeValue(newSize.getBytes() + "B", key);
         settings.updateIndexMetadata(newIndexMeta("index", Settings.builder().put(key, newSize.getBytes() + "B").build()));
         assertEquals(actual, settings.getGenerationThresholdSize());
@@ -744,9 +777,51 @@ public class IndexSettingsTests extends ESTestCase {
             .put(TIME_SERIES_START_TIME.getKey(), startTime)
             .put(TIME_SERIES_END_TIME.getKey(), endTime)
             .build();
-        IndexMetadata metadata = newIndexMeta("test", settings);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> newIndexMeta("test", settings));
         assertThat(e.getMessage(), Matchers.containsString("index.time_series.end_time must be larger than index.time_series.start_time"));
+    }
+
+    public void testSame() {
+        final var indexSettingKey = "index.example.setting";
+        final var archivedSettingKey = "archived.example.setting";
+        final var otherSettingKey = "other.example.setting";
+
+        final var builder = Settings.builder();
+        if (randomBoolean()) {
+            builder.put(indexSettingKey, randomAlphaOfLength(10));
+        }
+        if (randomBoolean()) {
+            builder.put(archivedSettingKey, randomAlphaOfLength(10));
+        }
+        if (randomBoolean()) {
+            builder.put(otherSettingKey, randomAlphaOfLength(10));
+        }
+        final var settings = builder.build();
+        assertTrue(IndexSettings.same(settings, Settings.builder().put(settings).build()));
+
+        final var differentIndexSettingBuilder = Settings.builder().put(settings);
+        if (settings.hasValue(indexSettingKey) && randomBoolean()) {
+            differentIndexSettingBuilder.putNull(indexSettingKey);
+        } else {
+            differentIndexSettingBuilder.put(indexSettingKey, randomAlphaOfLength(11));
+        }
+        assertFalse(IndexSettings.same(settings, differentIndexSettingBuilder.build()));
+
+        final var differentArchivedSettingBuilder = Settings.builder().put(settings);
+        if (settings.hasValue(archivedSettingKey) && randomBoolean()) {
+            differentArchivedSettingBuilder.putNull(archivedSettingKey);
+        } else {
+            differentArchivedSettingBuilder.put(archivedSettingKey, randomAlphaOfLength(11));
+        }
+        assertFalse(IndexSettings.same(settings, differentArchivedSettingBuilder.build()));
+
+        final var differentOtherSettingBuilder = Settings.builder().put(settings);
+        if (settings.hasValue(otherSettingKey) && randomBoolean()) {
+            differentOtherSettingBuilder.putNull(otherSettingKey);
+        } else {
+            differentOtherSettingBuilder.put(otherSettingKey, randomAlphaOfLength(11));
+        }
+        assertTrue(IndexSettings.same(settings, differentOtherSettingBuilder.build()));
     }
 }

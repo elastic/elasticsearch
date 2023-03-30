@@ -11,7 +11,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -106,9 +106,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     private final String queryText;
     /**
      * Fields to query against. If left empty will query default field,
-     * currently _ALL. Uses a TreeMap to hold the fields so boolean clauses are
-     * always sorted in same order for generated Lucene query for easier
-     * testing.
+     * currently _ALL.
      */
     private Map<String, Float> fieldsAndWeights = new HashMap<>();
     /** If specified, analyzer to use to parse the query text, defaults to registered default in toQuery. */
@@ -433,12 +431,18 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
             builder.field(ANALYZER_FIELD.getPreferredName(), analyzer);
         }
 
-        builder.field(FLAGS_FIELD.getPreferredName(), flags);
-        builder.field(DEFAULT_OPERATOR_FIELD.getPreferredName(), defaultOperator.name().toLowerCase(Locale.ROOT));
+        if (flags != DEFAULT_FLAGS) {
+            builder.field(FLAGS_FIELD.getPreferredName(), flags);
+        }
+        if (defaultOperator != DEFAULT_OPERATOR) {
+            builder.field(DEFAULT_OPERATOR_FIELD.getPreferredName(), defaultOperator.name().toLowerCase(Locale.ROOT));
+        }
         if (lenientSet) {
             builder.field(LENIENT_FIELD.getPreferredName(), settings.lenient());
         }
-        builder.field(ANALYZE_WILDCARD_FIELD.getPreferredName(), settings.analyzeWildcard());
+        if (settings.analyzeWildcard() != DEFAULT_ANALYZE_WILDCARD) {
+            builder.field(ANALYZE_WILDCARD_FIELD.getPreferredName(), settings.analyzeWildcard());
+        }
         if (settings.quoteFieldSuffix() != null) {
             builder.field(QUOTE_FIELD_SUFFIX_FIELD.getPreferredName(), settings.quoteFieldSuffix());
         }
@@ -446,11 +450,19 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         if (minimumShouldMatch != null) {
             builder.field(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), minimumShouldMatch);
         }
-        builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), settings.autoGenerateSynonymsPhraseQuery());
-        builder.field(FUZZY_PREFIX_LENGTH_FIELD.getPreferredName(), settings.fuzzyPrefixLength());
-        builder.field(FUZZY_MAX_EXPANSIONS_FIELD.getPreferredName(), settings.fuzzyMaxExpansions());
-        builder.field(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), settings.fuzzyTranspositions());
-        printBoostAndQueryName(builder);
+        if (settings.autoGenerateSynonymsPhraseQuery() != true) {
+            builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), settings.autoGenerateSynonymsPhraseQuery());
+        }
+        if (settings.fuzzyPrefixLength() != DEFAULT_FUZZY_PREFIX_LENGTH) {
+            builder.field(FUZZY_PREFIX_LENGTH_FIELD.getPreferredName(), settings.fuzzyPrefixLength());
+        }
+        if (settings.fuzzyMaxExpansions() != DEFAULT_FUZZY_MAX_EXPANSIONS) {
+            builder.field(FUZZY_MAX_EXPANSIONS_FIELD.getPreferredName(), settings.fuzzyMaxExpansions());
+        }
+        if (settings.fuzzyTranspositions() != DEFAULT_FUZZY_TRANSPOSITIONS) {
+            builder.field(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), settings.fuzzyTranspositions());
+        }
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 
@@ -585,7 +597,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 }

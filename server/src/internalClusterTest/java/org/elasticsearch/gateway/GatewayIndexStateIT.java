@@ -12,12 +12,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
@@ -33,7 +33,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -134,7 +134,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
-        assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(test.numPrimaries));
+        assertThat(stateResponse.getState().routingTable().index("test").size(), equalTo(test.numPrimaries));
         assertThat(
             stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(),
             equalTo(test.totalNumShards)
@@ -174,7 +174,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         stateResponse = client().admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
-        assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(test.numPrimaries));
+        assertThat(stateResponse.getState().routingTable().index("test").size(), equalTo(test.numPrimaries));
         assertThat(
             stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(),
             equalTo(test.totalNumShards)
@@ -215,7 +215,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         stateResponse = client().admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
-        assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(test.numPrimaries));
+        assertThat(stateResponse.getState().routingTable().index("test").size(), equalTo(test.numPrimaries));
         assertThat(
             stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(),
             equalTo(test.totalNumShards)
@@ -368,7 +368,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         logger.info("--> wait until all nodes are back online");
         client().admin()
             .cluster()
-            .health(Requests.clusterHealthRequest().waitForEvents(Priority.LANGUID).waitForNodes(Integer.toString(numNodes)))
+            .health(new ClusterHealthRequest(new String[] {}).waitForEvents(Priority.LANGUID).waitForNodes(Integer.toString(numNodes)))
             .actionGet();
 
         logger.info("--> waiting for green status");
@@ -405,8 +405,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             client().admin()
                 .cluster()
                 .health(
-                    Requests.clusterHealthRequest()
-                        .waitForGreenStatus()
+                    new ClusterHealthRequest(new String[] {}).waitForGreenStatus()
                         .waitForEvents(Priority.LANGUID)
                         .waitForNoRelocatingShards(true)
                         .waitForNodes("2")
@@ -433,7 +432,8 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             final RoutingTable routingTable = client().admin().cluster().prepareState().get().getState().routingTable();
             final IndexRoutingTable indexRoutingTable = routingTable.index("test");
             assertNotNull(indexRoutingTable);
-            for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
                 assertTrue(shardRoutingTable.primaryShard().unassigned());
                 assertEquals(
                     UnassignedInfo.AllocationStatus.DECIDERS_NO,
@@ -485,8 +485,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             client().admin()
                 .cluster()
                 .health(
-                    Requests.clusterHealthRequest()
-                        .waitForGreenStatus()
+                    new ClusterHealthRequest(new String[] {}).waitForGreenStatus()
                         .waitForEvents(Priority.LANGUID)
                         .waitForNoRelocatingShards(true)
                         .waitForNodes("2")
@@ -505,7 +504,8 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             final RoutingTable routingTable = client().admin().cluster().prepareState().get().getState().routingTable();
             final IndexRoutingTable indexRoutingTable = routingTable.index("test");
             assertNotNull(indexRoutingTable);
-            for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
                 assertTrue(shardRoutingTable.primaryShard().unassigned());
                 assertEquals(
                     UnassignedInfo.AllocationStatus.DECIDERS_NO,
@@ -536,8 +536,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             client().admin()
                 .cluster()
                 .health(
-                    Requests.clusterHealthRequest()
-                        .waitForGreenStatus()
+                    new ClusterHealthRequest(new String[] {}).waitForGreenStatus()
                         .waitForEvents(Priority.LANGUID)
                         .waitForNoRelocatingShards(true)
                         .waitForNodes("2")
@@ -567,7 +566,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         );
 
         // delete these settings
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().putNull("archived.*")).get();
+        updateClusterSettings(Settings.builder().putNull("archived.*"));
 
         state = client().admin().cluster().prepareState().get().getState();
         assertNull(state.metadata().persistentSettings().get("archived.this.is.unknown"));
@@ -583,10 +582,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         // node won't start.
 
         final String nodeName = internalCluster().startNode();
-        createIndex(
-            "test",
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
-        );
+        createIndex("test", 1, 0);
         ensureGreen("test");
 
         final Metadata metadata = internalCluster().getInstance(ClusterService.class).state().metadata();

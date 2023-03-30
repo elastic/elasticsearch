@@ -11,7 +11,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoBoundingBox;
@@ -76,7 +76,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         super(in);
         fieldName = in.readString();
         geoBoundingBox = new GeoBoundingBox(in);
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             in.readVInt(); // ignore value
         }
         validationMethod = GeoValidationMethod.readFromStream(in);
@@ -87,7 +87,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         geoBoundingBox.writeTo(out);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             out.writeVInt(0);
         }
         validationMethod.writeTo(out);
@@ -119,10 +119,6 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             // all corners are valid after above checks - make sure they are in the right relation
             if (top < bottom) {
                 throw new IllegalArgumentException("top is below bottom corner: " + top + " vs. " + bottom);
-            } else if (top == bottom) {
-                throw new IllegalArgumentException("top cannot be the same as bottom: " + top + " == " + bottom);
-            } else if (left == right) {
-                throw new IllegalArgumentException("left cannot be the same as right: " + left + " == " + right);
             }
 
             // we do not check longitudes as the query generation code can deal with flipped left/right values
@@ -303,7 +299,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             luceneTopLeft.getLat(),
             luceneBottomRight.getLat()
         );
-        return geoShapeQueryable.geoShapeQuery(rectangle, fieldType.name(), SpatialStrategy.RECURSIVE, ShapeRelation.INTERSECTS, context);
+        return geoShapeQueryable.geoShapeQuery(context, fieldType.name(), SpatialStrategy.RECURSIVE, ShapeRelation.INTERSECTS, rectangle);
     }
 
     @Override
@@ -311,7 +307,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         builder.startObject(NAME);
 
         builder.startObject(fieldName);
-        geoBoundingBox.toXContentFragment(builder, false);
+        geoBoundingBox.toXContentFragmentWithArray(builder);
         builder.endObject();
         builder.field(VALIDATION_METHOD_FIELD.getPreferredName(), validationMethod);
         builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
@@ -399,7 +395,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 }

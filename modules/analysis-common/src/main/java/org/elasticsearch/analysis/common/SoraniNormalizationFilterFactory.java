@@ -21,7 +21,7 @@ import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 public class SoraniNormalizationFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
     public SoraniNormalizationFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
     }
 
     @Override

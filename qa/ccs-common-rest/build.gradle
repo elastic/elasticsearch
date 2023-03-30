@@ -1,0 +1,46 @@
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+
+// This subproject copies a subset of the rest-api-spec rest tests and runs them in a slightly
+// modified way on two clusters connected via CCS. All operations except searches and a few other
+// APIs that support CCS are run against the remote "write" cluster where all indexed data will live.
+// All search requests however are run against the local cluster connected via CCS to the remote
+// cluster. The test runner modifies index names on these API calls to route to the remote cluster
+// and also modifies certain "match" sections to expect index names with the remote cluster prefix
+// on the fly while running these tests.
+
+restResources {
+  restApi {
+    include '_common', 'bulk', 'count', 'cluster', 'field_caps', 'knn_search', 'index', 'indices', 'msearch',
+      'search', 'async_search', 'graph', '*_point_in_time', 'info', 'scroll', 'clear_scroll', 'search_mvt', 'eql', 'sql'
+  }
+  restTests {
+    includeCore 'field_caps', 'msearch', 'search', 'suggest', 'scroll', "indices.resolve_index"
+    includeXpack 'async_search', 'vector-tile', 'sql'
+  }
+}
+
+dependencies {
+  clusterModules project(':x-pack:plugin:async-search')
+  clusterModules project(':modules:mapper-extras')
+  clusterModules project(':modules:aggregations')
+  clusterModules project(':modules:analysis-common')
+  clusterModules project(':x-pack:plugin:analytics')
+  clusterModules project(':x-pack:plugin:vector-tile')
+  clusterModules project(':modules:legacy-geo')
+  clusterModules project(':x-pack:plugin:eql')
+  clusterModules project(':x-pack:plugin:sql')
+}
+
+tasks.named("yamlRestTest") {
+  systemProperty 'tests.rest.blacklist',
+    [
+      'search/150_rewrite_on_coordinator/Ensure that we fetch the document only once', // terms lookup query with index
+      'search/170_terms_query/Terms Query with No.of terms exceeding index.max_terms_count should FAIL', // terms lookup query with index
+      'search.aggregation/220_filters_bucket/cache busting', // node_selector?
+      'search.aggregation/220_filters_bucket/cache hits', // node_selector?
+      'search.aggregation/50_filter/Standard queries get cached',
+      'search.aggregation/50_filter/Terms lookup gets cached', // terms lookup by "index" doesn't seem to work correctly
+      'search.aggregation/70_adjacency_matrix/Terms lookup', // terms lookup by "index" doesn't seem to work correctly
+    ].join(',')
+}
+

@@ -21,13 +21,14 @@ import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Optional;
 import java.util.function.Function;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 
 /**
  * Validator for an alias, to be used before adding an alias to the index metadata
@@ -115,7 +116,11 @@ public class AliasValidator {
         assert searchExecutionContext != null;
         try (
             XContentParser parser = XContentFactory.xContent(filter)
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, filter)
+                .createParser(
+                    XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
+                        .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                    filter
+                )
         ) {
             validateAliasFilter(parser, searchExecutionContext);
         } catch (Exception e) {
@@ -140,7 +145,11 @@ public class AliasValidator {
             InputStream inputStream = filter.streamInput();
             XContentParser parser = XContentFactory.xContentType(inputStream)
                 .xContent()
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, filter.streamInput())
+                .createParser(
+                    XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
+                        .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                    filter.streamInput()
+                )
         ) {
             validateAliasFilter(parser, searchExecutionContext);
         } catch (Exception e) {
@@ -149,7 +158,7 @@ public class AliasValidator {
     }
 
     private static void validateAliasFilter(XContentParser parser, SearchExecutionContext searchExecutionContext) throws IOException {
-        QueryBuilder parseInnerQueryBuilder = parseInnerQueryBuilder(parser);
+        QueryBuilder parseInnerQueryBuilder = parseTopLevelQuery(parser);
         QueryBuilder queryBuilder = Rewriteable.rewrite(parseInnerQueryBuilder, searchExecutionContext, true);
         queryBuilder.toQuery(searchExecutionContext);
     }

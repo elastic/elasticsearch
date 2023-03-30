@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import com.sun.net.httpserver.HttpsServer;
-
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
@@ -15,7 +13,6 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.http.MockWebServer;
@@ -31,9 +28,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.util.List;
 import java.util.Locale;
 
 import javax.net.ssl.SSLContext;
@@ -104,7 +98,7 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
             .put("xpack.transport.security.ssl.certificate", cert)
             .put("xpack.transport.security.ssl.key", key)
             .put("xpack.transport.security.ssl.key_passphrase", "testnode")
-            .putList("xpack.transport.security.ssl.supported_protocols", getProtocols())
+            .putList("xpack.transport.security.ssl.supported_protocols", XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS)
             .put(globalSettings)
             .build();
 
@@ -145,18 +139,14 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
         Path truststore = getDataPath("/org/elasticsearch/xpack/monitoring/exporter/http/testnode.jks");
         assertThat(Files.exists(truststore), CoreMatchers.is(true));
 
-        final ClusterUpdateSettingsRequest updateSettings = new ClusterUpdateSettingsRequest();
-        final Settings settings = Settings.builder()
-            .put("xpack.monitoring.exporters._new.type", "http")
-            .put("xpack.monitoring.exporters._new.host", "https://" + webServer.getHostName() + ":" + webServer.getPort())
-            .put("xpack.monitoring.exporters._new.ssl.truststore.path", truststore)
-            .put("xpack.monitoring.exporters._new.ssl.truststore.password", "testnode")
-            .put("xpack.monitoring.exporters._new.ssl.verification_mode", SslVerificationMode.CERTIFICATE.name())
-            .build();
-        updateSettings.persistentSettings(settings);
-        final ActionFuture<ClusterUpdateSettingsResponse> future = client().admin().cluster().updateSettings(updateSettings);
-        final ClusterUpdateSettingsResponse response = future.actionGet();
-        assertThat(response, notNullValue());
+        updateClusterSettings(
+            Settings.builder()
+                .put("xpack.monitoring.exporters._new.type", "http")
+                .put("xpack.monitoring.exporters._new.host", "https://" + webServer.getHostName() + ":" + webServer.getPort())
+                .put("xpack.monitoring.exporters._new.ssl.truststore.path", truststore)
+                .put("xpack.monitoring.exporters._new.ssl.truststore.password", "testnode")
+                .put("xpack.monitoring.exporters._new.ssl.verification_mode", SslVerificationMode.CERTIFICATE.name())
+        );
 
         assertExporterExists("_new");
         clearPersistentSettings("_new");
@@ -187,30 +177,10 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
     }
 
     private void clearPersistentSettings(String... names) {
-        final ClusterUpdateSettingsRequest updateSettings = new ClusterUpdateSettingsRequest();
         final Settings.Builder builder = Settings.builder();
         for (String name : names) {
             builder.put("xpack.monitoring.exporters." + name + ".*", (String) null);
         }
-        updateSettings.persistentSettings(builder.build());
-        client().admin().cluster().updateSettings(updateSettings).actionGet();
-    }
-
-    /**
-     * The {@link HttpsServer} in the JDK has issues with TLSv1.3 when running in a JDK prior to
-     * 12.0.1 so we pin to TLSv1.2 when running on an earlier JDK
-     */
-    private static List<String> getProtocols() {
-        if (JavaVersion.current().compareTo(JavaVersion.parse("12")) < 0) {
-            return List.of("TLSv1.2");
-        } else {
-            JavaVersion full = AccessController.doPrivileged(
-                (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version"))
-            );
-            if (full.compareTo(JavaVersion.parse("12.0.1")) < 0) {
-                return List.of("TLSv1.2");
-            }
-        }
-        return XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS;
+        updateClusterSettings(builder);
     }
 }

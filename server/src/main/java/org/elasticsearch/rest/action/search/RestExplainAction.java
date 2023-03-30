@@ -29,7 +29,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * Rest action for computing a score explanation for specific documents.
  */
 public class RestExplainAction extends BaseRestHandler {
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " + "Specifying a type in explain requests is deprecated.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying a type in explain requests is deprecated.";
 
     @Override
     public List<Route> routes() {
@@ -68,7 +68,7 @@ public class RestExplainAction extends BaseRestHandler {
 
         if (request.param("fields") != null) {
             throw new IllegalArgumentException(
-                "The parameter [fields] is no longer supported, " + "please use [stored_fields] to retrieve stored fields"
+                "The parameter [fields] is no longer supported, please use [stored_fields] to retrieve stored fields"
             );
         }
         String sField = request.param("stored_fields");

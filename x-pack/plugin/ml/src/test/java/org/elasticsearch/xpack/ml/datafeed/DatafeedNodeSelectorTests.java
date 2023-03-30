@@ -50,7 +50,6 @@ import java.util.Date;
 import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests.addJobTask;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeed;
@@ -671,9 +670,10 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
 
         clusterState = ClusterState.builder(new ClusterName("cluster_name"))
             .metadata(
-                new Metadata.Builder().put(
-                    DataStreamTestHelper.newInstance(dataStreamName, createTimestampField("@timestamp"), Collections.singletonList(index))
-                ).putCustom(PersistentTasksCustomMetadata.TYPE, tasks).putCustom(MlMetadata.TYPE, mlMetadata).put(indexMetadata, false)
+                new Metadata.Builder().put(DataStreamTestHelper.newInstance(dataStreamName, Collections.singletonList(index)))
+                    .putCustom(PersistentTasksCustomMetadata.TYPE, tasks)
+                    .putCustom(MlMetadata.TYPE, mlMetadata)
+                    .put(indexMetadata, false)
             )
             .nodes(nodes)
             .routingTable(generateRoutingTable(indexMetadata, states))
@@ -722,12 +722,13 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
                     shardId,
                     true,
                     RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
+                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
+                    ShardRouting.Role.DEFAULT
                 );
             }
 
             shardRTBuilder.addShard(shardRouting);
-            rtBuilder.addIndexShard(shardRTBuilder.build());
+            rtBuilder.addIndexShard(shardRTBuilder);
             counter += 1;
         }
 

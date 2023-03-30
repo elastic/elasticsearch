@@ -92,7 +92,6 @@ public class BytesStreamOutput extends BytesStream {
         count += length;
     }
 
-    @Override
     public void reset() {
         // shrink list of pages
         if (bytes != null && bytes.size() > PageCacheRecycler.PAGE_SIZE_IN_BYTES) {
@@ -108,7 +107,6 @@ public class BytesStreamOutput extends BytesStream {
         // nothing to do
     }
 
-    @Override
     public void seek(long position) {
         ensureCapacity(position);
         count = (int) position;
@@ -148,27 +146,28 @@ public class BytesStreamOutput extends BytesStream {
      * @return copy of the bytes in this instances
      */
     public BytesReference copyBytes() {
-        final byte[] keyBytes = new byte[count];
+        final BytesReference bytesReference = bytes();
+        final byte[] arr = new byte[count];
+        if (bytesReference.hasArray()) {
+            System.arraycopy(bytesReference.array(), bytesReference.arrayOffset(), arr, 0, bytesReference.length());
+        } else {
+            copyToArray(bytesReference, arr);
+        }
+        return new BytesArray(arr);
+    }
+
+    private static void copyToArray(BytesReference bytesReference, byte[] arr) {
         int offset = 0;
-        final BytesRefIterator iterator = bytes().iterator();
+        final BytesRefIterator iterator = bytesReference.iterator();
         try {
             BytesRef slice;
             while ((slice = iterator.next()) != null) {
-                System.arraycopy(slice.bytes, slice.offset, keyBytes, offset, slice.length);
+                System.arraycopy(slice.bytes, slice.offset, arr, offset, slice.length);
                 offset += slice.length;
             }
         } catch (IOException e) {
             throw new AssertionError(e);
         }
-        return new BytesArray(keyBytes);
-    }
-
-    /**
-     * Returns the number of bytes used by the underlying {@link org.elasticsearch.common.util.ByteArray}
-     * @see org.elasticsearch.common.util.ByteArray#ramBytesUsed()
-     */
-    public long ramBytesUsed() {
-        return bytes.ramBytesUsed();
     }
 
     protected void ensureCapacity(long offset) {

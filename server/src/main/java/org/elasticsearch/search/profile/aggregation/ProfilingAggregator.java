@@ -8,8 +8,8 @@
 
 package org.elasticsearch.search.profile.aggregation;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -87,11 +87,11 @@ public class ProfilingAggregator extends Aggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
         Timer timer = profileBreakdown.getTimer(AggregationTimingType.BUILD_LEAF_COLLECTOR);
         timer.start();
         try {
-            return new ProfilingLeafBucketCollector(delegate.getLeafCollector(ctx), profileBreakdown);
+            return new ProfilingLeafBucketCollector(delegate.getLeafCollector(aggCtx), profileBreakdown);
         } finally {
             timer.stop();
         }

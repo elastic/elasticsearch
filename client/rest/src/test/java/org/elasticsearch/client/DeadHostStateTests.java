@@ -79,7 +79,7 @@ public class DeadHostStateTests extends RestClientTestCase {
             fail("expected failure");
         } catch (IllegalArgumentException e) {
             assertEquals(
-                "can't compare DeadHostStates holding different time suppliers as they may " + "be based on different clocks",
+                "can't compare DeadHostStates holding different time suppliers as they may be based on different clocks",
                 e.getMessage()
             );
         }

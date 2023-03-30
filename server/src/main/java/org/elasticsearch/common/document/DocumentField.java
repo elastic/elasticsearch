@@ -8,14 +8,14 @@
 
 package org.elasticsearch.common.document;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.subphase.LookupField;
 import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -38,15 +38,21 @@ public class DocumentField implements Writeable, Iterable<Object> {
 
     private final String name;
     private final List<Object> values;
-    private List<Object> ignoredValues;
+    private final List<Object> ignoredValues;
+    private final List<LookupField> lookupFields;
 
     public DocumentField(StreamInput in) throws IOException {
         name = in.readString();
         values = in.readList(StreamInput::readGenericValue);
-        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
             ignoredValues = in.readList(StreamInput::readGenericValue);
         } else {
             ignoredValues = Collections.emptyList();
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
+            lookupFields = in.readList(LookupField::new);
+        } else {
+            lookupFields = List.of();
         }
     }
 
@@ -55,9 +61,16 @@ public class DocumentField implements Writeable, Iterable<Object> {
     }
 
     public DocumentField(String name, List<Object> values, List<Object> ignoredValues) {
+        this(name, values, ignoredValues, Collections.emptyList());
+    }
+
+    public DocumentField(String name, List<Object> values, List<Object> ignoredValues, List<LookupField> lookupFields) {
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.values = Objects.requireNonNull(values, "values must not be null");
         this.ignoredValues = Objects.requireNonNull(ignoredValues, "ignoredValues must not be null");
+        this.lookupFields = Objects.requireNonNull(lookupFields, "lookupFields must not be null");
+        assert lookupFields.isEmpty() || (values.isEmpty() && ignoredValues.isEmpty())
+            : "DocumentField can't have both lookup fields and values";
     }
 
     /**
@@ -101,42 +114,45 @@ public class DocumentField implements Writeable, Iterable<Object> {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeCollection(values, StreamOutput::writeGenericValue);
-        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
             out.writeCollection(ignoredValues, StreamOutput::writeGenericValue);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
+            out.writeList(lookupFields);
+        } else {
+            if (lookupFields.isEmpty() == false) {
+                assert false : "Lookup fields require all nodes be on 8.2 or later";
+                throw new IllegalStateException("Lookup fields require all nodes be on 8.2 or later");
+            }
+        }
+    }
 
+    public List<LookupField> getLookupFields() {
+        return lookupFields;
     }
 
     public ToXContentFragment getValidValuesWriter() {
-        return new ToXContentFragment() {
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.startArray(name);
-                for (Object value : values) {
-                    // This call doesn't really need to support writing any kind of object, since the values
-                    // here are always serializable to xContent. Each value could be a leaf types like a string,
-                    // number, or boolean, a list of such values, or a map of such values with string keys.
-                    builder.value(value);
-                }
-                builder.endArray();
-                return builder;
+        return (builder, params) -> {
+            builder.startArray(name);
+            for (Object value : values) {
+                // This call doesn't really need to support writing any kind of object, since the values
+                // here are always serializable to xContent. Each value could be a leaf types like a string,
+                // number, or boolean, a list of such values, or a map of such values with string keys.
+                builder.value(value);
             }
+            builder.endArray();
+            return builder;
         };
     }
 
     public ToXContentFragment getIgnoredValuesWriter() {
-        return new ToXContentFragment() {
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.startArray(name);
-                for (Object value : ignoredValues) {
-                    builder.value(value);
-                }
-                builder.endArray();
-                return builder;
+        return (builder, params) -> {
+            builder.startArray(name);
+            for (Object value : ignoredValues) {
+                builder.value(value);
             }
+            builder.endArray();
+            return builder;
         };
     }
 
@@ -163,17 +179,28 @@ public class DocumentField implements Writeable, Iterable<Object> {
         DocumentField objects = (DocumentField) o;
         return Objects.equals(name, objects.name)
             && Objects.equals(values, objects.values)
-            && Objects.equals(ignoredValues, objects.ignoredValues);
+            && Objects.equals(ignoredValues, objects.ignoredValues)
+            && Objects.equals(lookupFields, objects.lookupFields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, values, ignoredValues);
+        return Objects.hash(name, values, ignoredValues, lookupFields);
     }
 
     @Override
     public String toString() {
-        return "DocumentField{" + "name='" + name + '\'' + ", values=" + values + ", ignoredValues=" + ignoredValues + '}';
+        return "DocumentField{"
+            + "name='"
+            + name
+            + '\''
+            + ", values="
+            + values
+            + ", ignoredValues="
+            + ignoredValues
+            + ", lookupFields="
+            + lookupFields
+            + '}';
     }
 
 }

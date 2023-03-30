@@ -7,8 +7,13 @@
 
 package org.elasticsearch.xpack.security.operator;
 
+import org.elasticsearch.action.admin.cluster.allocation.GetDesiredBalanceAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.desirednodes.DeleteDesiredNodesAction;
+import org.elasticsearch.action.admin.cluster.desirednodes.GetDesiredNodesAction;
+import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesAction;
+import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateNodeRemovalAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.common.Strings;
@@ -20,7 +25,6 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class OperatorOnlyRegistry {
@@ -37,10 +41,18 @@ public class OperatorOnlyRegistry {
         "cluster:admin/repository/analyze",
         "cluster:admin/repository/analyze/blob",
         "cluster:admin/repository/analyze/blob/read",
+        "cluster:admin/repository/analyze/register",
         // Node shutdown APIs are operator only
         "cluster:admin/shutdown/create",
         "cluster:admin/shutdown/get",
-        "cluster:admin/shutdown/delete"
+        "cluster:admin/shutdown/delete",
+        // Node removal prevalidation API
+        PrevalidateNodeRemovalAction.NAME,
+        // Desired Nodes API
+        DeleteDesiredNodesAction.NAME,
+        GetDesiredNodesAction.NAME,
+        UpdateDesiredNodesAction.NAME,
+        GetDesiredBalanceAction.NAME
     );
 
     private final ClusterSettings clusterSettings;
@@ -72,7 +84,7 @@ public class OperatorOnlyRegistry {
         ).filter(k -> {
             final Setting<?> setting = clusterSettings.get(k);
             return setting != null && setting.isOperatorOnly();
-        }).collect(Collectors.toList());
+        }).toList();
         if (false == operatorOnlySettingKeys.isEmpty()) {
             return () -> (operatorOnlySettingKeys.size() == 1 ? "setting" : "settings")
                 + " ["

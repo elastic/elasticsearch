@@ -93,12 +93,15 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         final MockSecureSettings secureSettings = new MockSecureSettings();
         String accountName = DEFAULT_ACCOUNT_NAME;
         secureSettings.setString(AzureStorageSettings.ACCOUNT_SETTING.getConcreteSettingForNamespace("test").getKey(), accountName);
-        secureSettings.setString(
-            (randomBoolean() ? AzureStorageSettings.KEY_SETTING : AzureStorageSettings.SAS_TOKEN_SETTING).getConcreteSettingForNamespace(
-                "test"
-            ).getKey(),
-            key
-        );
+        if (randomBoolean()) {
+            secureSettings.setString(AzureStorageSettings.KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), key);
+        } else {
+            // The SDK expects a valid SAS TOKEN
+            secureSettings.setString(
+                AzureStorageSettings.SAS_TOKEN_SETTING.getConcreteSettingForNamespace("test").getKey(),
+                "se=2021-07-20T13%3A21Z&sp=rwdl&sv=2018-11-09&sr=c&sig=random"
+            );
+        }
 
         // see com.azure.storage.blob.BlobUrlParts.parseIpUrl
         final String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + httpServerUrl() + "/" + accountName;
@@ -128,8 +131,8 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                         RetryPolicyType.EXPONENTIAL,
                         azureStorageSettings.getMaxRetries() + 1,
                         60,
-                        50L,
-                        100L,
+                        5L,
+                        10L,
                         null
                     );
                 }

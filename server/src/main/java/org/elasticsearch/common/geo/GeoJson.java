@@ -311,7 +311,7 @@ public final class GeoJson {
                 return null;
             }
 
-            private List<Object> coordinatesToList(double lat, double lon, double alt) {
+            private static List<Object> coordinatesToList(double lat, double lon, double alt) {
                 List<Object> coords = new ArrayList<>(3);
                 coords.add(lon);
                 coords.add(lat);
@@ -321,7 +321,7 @@ public final class GeoJson {
                 return coords;
             }
 
-            private List<Object> coordinatesToList(Line line) {
+            private static List<Object> coordinatesToList(Line line) {
                 List<Object> lines = new ArrayList<>(line.length());
                 for (int i = 0; i < line.length(); i++) {
                     List<Object> coords = new ArrayList<>(3);
@@ -335,7 +335,7 @@ public final class GeoJson {
                 return lines;
             }
 
-            private List<Object> coordinatesToList(Polygon polygon) {
+            private static List<Object> coordinatesToList(Polygon polygon) {
                 List<Object> coords = new ArrayList<>(polygon.getNumberOfHoles() + 1);
                 coords.add(coordinatesToList(polygon.getPolygon()));
                 for (int i = 0; i < polygon.getNumberOfHoles(); i++) {

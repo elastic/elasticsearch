@@ -8,15 +8,7 @@
 
 package org.elasticsearch.common.util;
 
-import com.carrotsearch.hppc.ObjectArrayList;
-
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefArray;
-import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.InPlaceMergeSorter;
-import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Iterators;
 
 import java.nio.file.Path;
 import java.util.AbstractList;
@@ -27,7 +19,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Locale;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.RandomAccess;
@@ -45,6 +37,33 @@ public class CollectionUtils {
      */
     public static boolean isEmpty(Object[] array) {
         return array == null || array.length == 0;
+    }
+
+    /**
+     * Eliminate duplicates from a sorted list in-place.
+     *
+     * @param list A sorted list, which will be modified in place.
+     * @param cmp A comparator the list is already sorted by.
+     */
+    public static <T> void uniquify(List<T> list, Comparator<T> cmp) {
+        if (list.size() <= 1) {
+            return;
+        }
+
+        ListIterator<T> uniqueItr = list.listIterator();
+        ListIterator<T> existingItr = list.listIterator();
+        T uniqueValue = uniqueItr.next(); // get first element to compare with
+        existingItr.next(); // advance the existing iterator to the second element, where we will begin comparing
+        do {
+            T existingValue = existingItr.next();
+            if (cmp.compare(existingValue, uniqueValue) != 0 && (uniqueValue = uniqueItr.next()) != existingValue) {
+                uniqueItr.set(existingValue);
+            }
+        } while (existingItr.hasNext());
+
+        // Lop off the rest of the list. Note with LinkedList this requires advancing back to this index,
+        // but Java provides no way to efficiently remove from the end of a non random-access list.
+        list.subList(uniqueItr.nextIndex(), list.size()).clear();
     }
 
     /**
@@ -67,61 +86,6 @@ public class CollectionUtils {
         return new RotatedList<>(list, d);
     }
 
-    public static void sortAndDedup(final ObjectArrayList<byte[]> array) {
-        int len = array.size();
-        if (len > 1) {
-            sort(array);
-            int uniqueCount = 1;
-            for (int i = 1; i < len; ++i) {
-                if (Arrays.equals(array.get(i), array.get(i - 1)) == false) {
-                    array.set(uniqueCount++, array.get(i));
-                }
-            }
-            array.elementsCount = uniqueCount;
-        }
-    }
-
-    public static void sort(final ObjectArrayList<byte[]> array) {
-        new IntroSorter() {
-
-            byte[] pivot;
-
-            @Override
-            protected void swap(int i, int j) {
-                final byte[] tmp = array.get(i);
-                array.set(i, array.get(j));
-                array.set(j, tmp);
-            }
-
-            @Override
-            protected int compare(int i, int j) {
-                return compare(array.get(i), array.get(j));
-            }
-
-            @Override
-            protected void setPivot(int i) {
-                pivot = array.get(i);
-            }
-
-            @Override
-            protected int comparePivot(int j) {
-                return compare(pivot, array.get(j));
-            }
-
-            private int compare(byte[] left, byte[] right) {
-                for (int i = 0, j = 0; i < left.length && j < right.length; i++, j++) {
-                    int a = left[i] & 0xFF;
-                    int b = right[j] & 0xFF;
-                    if (a != b) {
-                        return a - b;
-                    }
-                }
-                return left.length - right.length;
-            }
-
-        }.sort(0, array.size());
-    }
-
     public static int[] toArray(Collection<Integer> ints) {
         Objects.requireNonNull(ints);
         return ints.stream().mapToInt(s -> s).toArray();
@@ -134,44 +98,56 @@ public class CollectionUtils {
      * @param messageHint A string to be included in the exception message if the call fails, to provide
      *                    more context to the handler of the exception
      */
-    public static void ensureNoSelfReferences(Object value, String messageHint) {
-        Iterable<?> it = convert(value);
-        if (it != null) {
-            ensureNoSelfReferences(it, value, Collections.newSetFromMap(new IdentityHashMap<>()), messageHint);
+    public static void ensureNoSelfReferences(final Object value, final String messageHint) {
+        ensureNoSelfReferences(value, Collections.newSetFromMap(new IdentityHashMap<>()), messageHint);
+    }
+
+    private static void ensureNoSelfReferences(final Object value, final Set<Object> ancestors, final String messageHint) {
+        // these instanceof checks are a bit on the ugly side, but it's important for performance that we have
+        // a separate dispatch point for Maps versus for Iterables. a polymorphic version of this code would
+        // be prettier, but it would also likely be quite a bit slower. this is a hot path for ingest pipelines,
+        // and performance here is important.
+        if (value == null || value instanceof String || value instanceof Number || value instanceof Boolean) {
+            // noop
+        } else if (value instanceof Map<?, ?> m && m.isEmpty() == false) {
+            ensureNoSelfReferences(m, ancestors, messageHint);
+        } else if ((value instanceof Iterable<?> i) && (value instanceof Path == false)) {
+            ensureNoSelfReferences(i, i, ancestors, messageHint);
+        } else if (value instanceof Object[]) {
+            // note: the iterable and reference arguments are different
+            ensureNoSelfReferences(Arrays.asList((Object[]) value), value, ancestors, messageHint);
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private static Iterable<?> convert(Object value) {
-        if (value == null) {
-            return null;
+    private static void ensureNoSelfReferences(final Map<?, ?> reference, final Set<Object> ancestors, final String messageHint) {
+        addToAncestorsOrThrow(reference, ancestors, messageHint);
+        for (Map.Entry<?, ?> e : reference.entrySet()) {
+            ensureNoSelfReferences(e.getKey(), ancestors, messageHint);
+            ensureNoSelfReferences(e.getValue(), ancestors, messageHint);
         }
-        if (value instanceof Map<?, ?> map) {
-            return () -> Iterators.concat(map.keySet().iterator(), map.values().iterator());
-        } else if ((value instanceof Iterable) && (value instanceof Path == false)) {
-            return (Iterable<?>) value;
-        } else if (value instanceof Object[]) {
-            return Arrays.asList((Object[]) value);
-        } else {
-            return null;
-        }
+        ancestors.remove(reference);
     }
 
     private static void ensureNoSelfReferences(
-        final Iterable<?> value,
-        Object originalReference,
+        final Iterable<?> iterable,
+        final Object reference,
         final Set<Object> ancestors,
-        String messageHint
+        final String messageHint
     ) {
-        if (value != null) {
-            if (ancestors.add(originalReference) == false) {
-                String suffix = Strings.isNullOrEmpty(messageHint) ? "" : String.format(Locale.ROOT, " (%s)", messageHint);
-                throw new IllegalArgumentException("Iterable object is self-referencing itself" + suffix);
+        addToAncestorsOrThrow(reference, ancestors, messageHint);
+        for (Object o : iterable) {
+            ensureNoSelfReferences(o, ancestors, messageHint);
+        }
+        ancestors.remove(reference);
+    }
+
+    private static void addToAncestorsOrThrow(Object reference, Set<Object> ancestors, String messageHint) {
+        if (ancestors.add(reference) == false) {
+            StringBuilder sb = new StringBuilder("Iterable object is self-referencing itself");
+            if (Strings.hasLength(messageHint)) {
+                sb.append(" (").append(messageHint).append(")");
             }
-            for (Object o : value) {
-                ensureNoSelfReferences(convert(o), o, ancestors, messageHint);
-            }
-            ancestors.remove(originalReference);
+            throw new IllegalArgumentException(sb.toString());
         }
     }
 
@@ -206,72 +182,13 @@ public class CollectionUtils {
         }
     }
 
-    public static void sort(final BytesRefArray bytes, final int[] indices) {
-        sort(new BytesRefBuilder(), new BytesRefBuilder(), bytes, indices);
-    }
-
-    private static void sort(
-        final BytesRefBuilder scratch,
-        final BytesRefBuilder scratch1,
-        final BytesRefArray bytes,
-        final int[] indices
-    ) {
-
-        final int numValues = bytes.size();
-        assert indices.length >= numValues;
-        if (numValues > 1) {
-            new InPlaceMergeSorter() {
-                final Comparator<BytesRef> comparator = Comparator.naturalOrder();
-
-                @Override
-                protected int compare(int i, int j) {
-                    return comparator.compare(bytes.get(scratch, indices[i]), bytes.get(scratch1, indices[j]));
-                }
-
-                @Override
-                protected void swap(int i, int j) {
-                    int value_i = indices[i];
-                    indices[i] = indices[j];
-                    indices[j] = value_i;
-                }
-            }.sort(0, numValues);
-        }
-
-    }
-
-    public static int sortAndDedup(final BytesRefArray bytes, final int[] indices) {
-        final BytesRefBuilder scratch = new BytesRefBuilder();
-        final BytesRefBuilder scratch1 = new BytesRefBuilder();
-        final int numValues = bytes.size();
-        assert indices.length >= numValues;
-        if (numValues <= 1) {
-            return numValues;
-        }
-        sort(scratch, scratch1, bytes, indices);
-        int uniqueCount = 1;
-        BytesRefBuilder previous = scratch;
-        BytesRefBuilder current = scratch1;
-        bytes.get(previous, indices[0]);
-        for (int i = 1; i < numValues; ++i) {
-            bytes.get(current, indices[i]);
-            if (previous.get().equals(current.get()) == false) {
-                indices[uniqueCount++] = indices[i];
-            }
-            BytesRefBuilder tmp = previous;
-            previous = current;
-            current = tmp;
-        }
-        return uniqueCount;
-
-    }
-
     @SuppressWarnings("unchecked")
     public static <E> ArrayList<E> iterableAsArrayList(Iterable<? extends E> elements) {
         if (elements == null) {
             throw new NullPointerException("elements");
         }
         if (elements instanceof Collection) {
-            return new ArrayList<>((Collection) elements);
+            return new ArrayList<>((Collection<E>) elements);
         } else {
             ArrayList<E> list = new ArrayList<>();
             for (E element : elements) {
@@ -302,6 +219,41 @@ public class CollectionUtils {
         final E[] array = collection.toArray((E[]) new Object[size]);
         array[size - 1] = element;
         return Collections.unmodifiableList(Arrays.asList(array));
+    }
+
+    /**
+     * Same as {@link #appendToCopy(Collection, Object)} but faster by assuming that all elements in the collection and the given element
+     * are non-null.
+     * @param collection collection to copy
+     * @param element    element to append
+     * @return           list with appended element
+     */
+    @SuppressWarnings("unchecked")
+    public static <E> List<E> appendToCopyNoNullElements(Collection<E> collection, E element) {
+        final int existingSize = collection.size();
+        if (existingSize == 0) {
+            return List.of(element);
+        }
+        final int size = existingSize + 1;
+        final E[] array = collection.toArray((E[]) new Object[size]);
+        array[size - 1] = element;
+        return List.of(array);
+    }
+
+    /**
+     * Same as {@link #appendToCopyNoNullElements(Collection, Object)} but for multiple elements to append.
+     */
+    @SuppressWarnings("unchecked")
+    public static <E> List<E> appendToCopyNoNullElements(Collection<E> collection, E... elements) {
+        final int existingSize = collection.size();
+        if (existingSize == 0) {
+            return List.of(elements);
+        }
+        final int addedSize = elements.length;
+        final int size = existingSize + addedSize;
+        final E[] array = collection.toArray((E[]) new Object[size]);
+        System.arraycopy(elements, 0, array, size - 1, addedSize);
+        return List.of(array);
     }
 
     public static <E> ArrayList<E> newSingletonArrayList(E element) {
@@ -335,7 +287,7 @@ public class CollectionUtils {
         return result;
     }
 
-    public static <E> List<E> concatLists(List<E> listA, List<E> listB) {
+    public static <E> List<E> concatLists(List<E> listA, Collection<E> listB) {
         List<E> concatList = new ArrayList<>(listA.size() + listB.size());
         concatList.addAll(listA);
         concatList.addAll(listB);

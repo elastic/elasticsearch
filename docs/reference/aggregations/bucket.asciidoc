@@ -36,6 +36,8 @@ include::bucket/filter-aggregation.asciidoc[]
 
 include::bucket/filters-aggregation.asciidoc[]
 
+include::bucket/frequent-item-sets-aggregation.asciidoc[]
+
 include::bucket/geodistance-aggregation.asciidoc[]
 
 include::bucket/geohashgrid-aggregation.asciidoc[]
@@ -59,6 +61,8 @@ include::bucket/multi-terms-aggregation.asciidoc[]
 include::bucket/nested-aggregation.asciidoc[]
 
 include::bucket/parent-aggregation.asciidoc[]
+
+include::bucket/random-sampler-aggregation.asciidoc[]
 
 include::bucket/range-aggregation.asciidoc[]
 

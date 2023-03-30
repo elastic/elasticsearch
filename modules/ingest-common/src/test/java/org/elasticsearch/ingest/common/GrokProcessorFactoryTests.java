@@ -12,8 +12,8 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -27,7 +27,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        config.put("patterns", Collections.singletonList("(?<foo>\\w+)"));
+        config.put("patterns", List.of("(?<foo>\\w+)"));
         String processorTag = randomAlphaOfLength(10);
         GrokProcessor processor = factory.create(null, processorTag, null, config);
         assertThat(processor.getTag(), equalTo(processorTag));
@@ -41,7 +41,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        config.put("patterns", Collections.singletonList("(?<foo>\\w+)"));
+        config.put("patterns", List.of("(?<foo>\\w+)"));
         config.put("ignore_missing", true);
         String processorTag = randomAlphaOfLength(10);
         GrokProcessor processor = factory.create(null, processorTag, null, config);
@@ -54,7 +54,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
     public void testBuildMissingField() throws Exception {
         GrokProcessor.Factory factory = new GrokProcessor.Factory(MatcherWatchdog.noop());
         Map<String, Object> config = new HashMap<>();
-        config.put("patterns", Collections.singletonList("(?<foo>\\w+)"));
+        config.put("patterns", List.of("(?<foo>\\w+)"));
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
         assertThat(e.getMessage(), equalTo("[field] required property is missing"));
     }
@@ -71,7 +71,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         GrokProcessor.Factory factory = new GrokProcessor.Factory(MatcherWatchdog.noop());
         Map<String, Object> config = new HashMap<>();
         config.put("field", "foo");
-        config.put("patterns", Collections.emptyList());
+        config.put("patterns", List.of());
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
         assertThat(e.getMessage(), equalTo("[patterns] List of patterns must not be empty"));
     }
@@ -81,8 +81,8 @@ public class GrokProcessorFactoryTests extends ESTestCase {
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        config.put("patterns", Collections.singletonList("%{MY_PATTERN:name}!"));
-        config.put("pattern_definitions", Collections.singletonMap("MY_PATTERN", "foo"));
+        config.put("patterns", List.of("%{MY_PATTERN:name}!"));
+        config.put("pattern_definitions", Map.of("MY_PATTERN", "foo"));
         GrokProcessor processor = factory.create(null, null, null, config);
         assertThat(processor.getMatchField(), equalTo("_field"));
         assertThat(processor.getGrok(), notNullValue());
@@ -93,7 +93,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         GrokProcessor.Factory factory = new GrokProcessor.Factory(MatcherWatchdog.noop());
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        config.put("patterns", Collections.singletonList("["));
+        config.put("patterns", List.of("["));
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
         assertThat(e.getMessage(), equalTo("[patterns] Invalid regex pattern found in: [[]. premature end of char-class"));
     }
@@ -102,8 +102,8 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         GrokProcessor.Factory factory = new GrokProcessor.Factory(MatcherWatchdog.noop());
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        config.put("patterns", Collections.singletonList("%{MY_PATTERN:name}!"));
-        config.put("pattern_definitions", Collections.singletonMap("MY_PATTERN", "["));
+        config.put("patterns", List.of("%{MY_PATTERN:name}!"));
+        config.put("pattern_definitions", Map.of("MY_PATTERN", "["));
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
         assertThat(
             e.getMessage(),
@@ -115,7 +115,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         GrokProcessor.Factory factory = new GrokProcessor.Factory(MatcherWatchdog.noop());
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        config.put("patterns", Collections.singletonList("(?<foo>\\w+)"));
+        config.put("patterns", List.of("(?<foo>\\w+)"));
         String invalidEcsMode = randomAlphaOfLength(3);
         config.put("ecs_compatibility", invalidEcsMode);
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));

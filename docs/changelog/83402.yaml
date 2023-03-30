@@ -1,5 +1,0 @@
-pr: 83402
-summary: Update vector tiles google protobuf to 3.16.1
-area: Geo
-type: upgrade
-issues: []

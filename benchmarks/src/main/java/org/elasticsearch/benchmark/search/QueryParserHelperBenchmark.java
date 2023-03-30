@@ -9,7 +9,6 @@
 package org.elasticsearch.benchmark.search;
 
 import org.apache.logging.log4j.util.Strings;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -23,18 +22,16 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.QueryParserHelper;
@@ -141,8 +138,7 @@ public class QueryParserHelperBenchmark {
             0,
             mapperService.getIndexSettings(),
             null,
-            (ft, idxName, lookup) -> ft.fielddataBuilder(idxName, lookup)
-                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
+            (ft, fdc) -> ft.fielddataBuilder(fdc).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
             mapperService,
             mapperService.mappingLookup(),
             similarityService,
@@ -174,17 +170,13 @@ public class QueryParserHelperBenchmark {
         SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
         MapperService mapperService = new MapperService(
             indexSettings,
-            new IndexAnalyzers(
-                Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
-                Map.of(),
-                Map.of()
-            ),
+            (type, name) -> Lucene.STANDARD_ANALYZER,
             XContentParserConfiguration.EMPTY.withRegistry(new NamedXContentRegistry(ClusterModule.getNamedXWriteables()))
                 .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
             similarityService,
             mapperRegistry,
             () -> { throw new UnsupportedOperationException(); },
-            new IdFieldMapper(() -> true),
+            new ProvidedIdFieldMapper(() -> true),
             new ScriptCompiler() {
                 @Override
                 public <T> T compile(Script script, ScriptContext<T> scriptContext) {

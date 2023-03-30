@@ -11,7 +11,9 @@ import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 
 import org.bouncycastle.asn1.DERIA5String;
+import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
 import org.bouncycastle.asn1.x509.GeneralNames;
+import org.bouncycastle.asn1.x509.KeyPurposeId;
 import org.bouncycastle.cert.CertIOException;
 import org.bouncycastle.openssl.jcajce.JcaMiscPEMGenerator;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
@@ -22,7 +24,7 @@ import org.bouncycastle.util.io.pem.PemObjectGenerator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.SuppressForbidden;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
@@ -33,6 +35,7 @@ import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 
@@ -68,6 +71,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -146,7 +150,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         printHeader("Elasticsearch HTTP Certificate Utility", terminal);
 
         terminal.println("The 'http' command guides you through the process of generating certificates");
@@ -331,7 +335,12 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
             // (i.e. show them the certutil cert command that they would need).
             if (ca == null) {
                 // No local CA, generate a CSR instead
-                final PKCS10CertificationRequest csr = CertGenUtils.generateCSR(keyPair, cert.subject, sanList);
+                final PKCS10CertificationRequest csr = CertGenUtils.generateCSR(
+                    keyPair,
+                    cert.subject,
+                    sanList,
+                    Set.of(new ExtendedKeyUsage(KeyPurposeId.id_kp_serverAuth))
+                );
                 final String csrFile = "http-" + cert.name + ".csr";
                 final String keyFile = "http-" + cert.name + ".key";
                 final String certName = "http-" + cert.name + ".crt";
@@ -362,7 +371,8 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                     false,
                     notBefore,
                     notAfter,
-                    null
+                    null,
+                    Set.of(new ExtendedKeyUsage(KeyPurposeId.id_kp_serverAuth))
                 );
 
                 final String p12Name = "http.p12";

@@ -9,7 +9,6 @@
 package org.elasticsearch.rest.action;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -32,7 +31,7 @@ public class RestBuilderListenerTests extends ESTestCase {
             public RestResponse buildResponse(Empty empty, XContentBuilder builder) throws Exception {
                 builderAtomicReference.set(builder);
                 builder.close();
-                return new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
+                return new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
             }
         };
 
@@ -49,7 +48,7 @@ public class RestBuilderListenerTests extends ESTestCase {
             @Override
             public RestResponse buildResponse(Empty empty, XContentBuilder builder) throws Exception {
                 builderAtomicReference.set(builder);
-                return new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
+                return new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
             }
 
             @Override
@@ -72,7 +71,7 @@ public class RestBuilderListenerTests extends ESTestCase {
         ) {
             @Override
             public RestResponse buildResponse(Empty empty, XContentBuilder builder) throws Exception {
-                return new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
+                return new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
             }
         };
 

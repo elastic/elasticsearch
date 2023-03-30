@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 
@@ -37,5 +38,15 @@ public class DoubleRangeFieldMapperTests extends RangeFieldMapperTests {
     @Override
     protected boolean supportsDecimalCoerce() {
         return false;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

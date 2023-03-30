@@ -85,8 +85,8 @@ public class TransportGetShardSnapshotAction extends TransportMasterNodeAction<G
         }
 
         GroupedActionListener<Tuple<Optional<ShardSnapshotInfo>, RepositoryException>> groupedActionListener = new GroupedActionListener<>(
-            listener.map(this::transformToResponse),
-            repositories.size()
+            repositories.size(),
+            listener.map(TransportGetShardSnapshotAction::transformToResponse)
         );
 
         BlockingQueue<String> repositoriesQueue = new LinkedBlockingQueue<>(repositories);
@@ -124,7 +124,7 @@ public class TransportGetShardSnapshotAction extends TransportMasterNodeAction<G
         );
     }
 
-    private GetShardSnapshotResponse transformToResponse(
+    private static GetShardSnapshotResponse transformToResponse(
         Collection<Tuple<Optional<ShardSnapshotInfo>, RepositoryException>> shardSnapshots
     ) {
         final Optional<ShardSnapshotInfo> latestSnapshot = shardSnapshots.stream()
@@ -142,7 +142,7 @@ public class TransportGetShardSnapshotAction extends TransportMasterNodeAction<G
         return new GetShardSnapshotResponse(latestSnapshot.orElse(null), failures);
     }
 
-    private Set<String> getRequestedRepositories(GetShardSnapshotRequest request, ClusterState state) {
+    private static Set<String> getRequestedRepositories(GetShardSnapshotRequest request, ClusterState state) {
         RepositoriesMetadata repositories = state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
         if (request.getFromAllRepositories()) {
             return repositories.repositories().stream().map(RepositoryMetadata::name).collect(Collectors.toUnmodifiableSet());

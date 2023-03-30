@@ -6,20 +6,18 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
-import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -51,13 +49,13 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
         IndexMetadata idxMeta = clusterState.metadata().index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
-            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
             return new Result(false, null);
         }
         if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName()) == false) {
             logger.debug(
                 "[{}] lifecycle action for index [{}] cannot make progress because not all shards are active",
-                getKey().getAction(),
+                getKey().action(),
                 index.getName()
             );
             return new Result(false, waitingForActiveShardsAllocationInfo(idxMeta.getNumberOfReplicas()));
@@ -77,12 +75,12 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
             logger.debug(
                 "{} lifecycle action [{}] waiting for [{}] shards to be allocated to nodes matching the given filters",
                 index,
-                getKey().getAction(),
+                getKey().action(),
                 allocationPendingAllShards
             );
             return new Result(false, allShardsActiveAllocationInfo(idxMeta.getNumberOfReplicas(), allocationPendingAllShards));
         } else {
-            logger.debug("{} lifecycle action for [{}] complete", index, getKey().getAction());
+            logger.debug("{} lifecycle action for [{}] complete", index, getKey().action());
             return new Result(true, null);
         }
     }
@@ -94,9 +92,11 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
 
         int allocationPendingAllShards = 0;
 
-        ImmutableOpenIntMap<IndexShardRoutingTable> allShards = clusterState.getRoutingTable().index(index).getShards();
-        for (ObjectCursor<IndexShardRoutingTable> shardRoutingTable : allShards.values()) {
-            for (ShardRouting shardRouting : shardRoutingTable.value.shards()) {
+        final IndexRoutingTable indexRoutingTable = clusterState.getRoutingTable().index(index);
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+            for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                ShardRouting shardRouting = indexShardRoutingTable.shard(copy);
                 String currentNodeId = shardRouting.currentNodeId();
                 boolean canRemainOnCurrentNode = allocationDeciders.canRemain(
                     shardRouting,

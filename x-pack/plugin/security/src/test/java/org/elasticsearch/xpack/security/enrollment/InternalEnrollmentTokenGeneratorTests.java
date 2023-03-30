@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.enrollment;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.TestsSSLService;
@@ -81,9 +83,11 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
             settings,
             new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000, "xpack.security.enrollment.thread_pool", false)
         );
-        new Authentication(new User("foo"), new Authentication.RealmRef("realm", "type", "node"), null).writeToContext(
-            threadPool.getThreadContext()
-        );
+        AuthenticationTestHelper.builder()
+            .user(new User("foo"))
+            .realmRef(new Authentication.RealmRef("realm", "type", "node"))
+            .build(false)
+            .writeToContext(threadPool.getThreadContext());
     }
 
     @AfterClass
@@ -219,8 +223,10 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                 List.of(
                     new NodeInfo(
                         Version.CURRENT,
+                        TransportVersion.CURRENT,
                         null,
                         new DiscoveryNode("node-name", "1", buildNewFakeTransportAddress(), Map.of(), Set.of(), Version.CURRENT),
+                        null,
                         null,
                         null,
                         null,
@@ -250,6 +256,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                 List.of(
                     new NodeInfo(
                         Version.CURRENT,
+                        TransportVersion.CURRENT,
                         null,
                         new DiscoveryNode("node-name", "1", buildNewFakeTransportAddress(), Map.of(), Set.of(), Version.CURRENT),
                         null,
@@ -265,6 +272,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                             ),
                             0L
                         ),
+                        null,
                         null,
                         null,
                         null,

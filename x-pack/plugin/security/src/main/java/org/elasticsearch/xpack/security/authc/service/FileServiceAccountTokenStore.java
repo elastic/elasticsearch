@@ -39,7 +39,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.stream.Collectors;
 
 public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStore {
 
@@ -103,7 +102,7 @@ public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStor
                     List.of(clusterService.localNode().getName())
                 )
             )
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
     }
 
     public void addListener(Runnable listener) {

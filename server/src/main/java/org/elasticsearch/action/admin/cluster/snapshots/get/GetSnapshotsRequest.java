@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
@@ -40,17 +40,19 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     public static final String NO_POLICY_PATTERN = "_none";
     public static final boolean DEFAULT_VERBOSE_MODE = true;
 
-    public static final Version SLM_POLICY_FILTERING_VERSION = Version.V_7_16_0;
+    public static final TransportVersion SLM_POLICY_FILTERING_VERSION = TransportVersion.V_7_16_0;
 
-    public static final Version FROM_SORT_VALUE_VERSION = Version.V_7_16_0;
+    public static final TransportVersion FROM_SORT_VALUE_VERSION = TransportVersion.V_7_16_0;
 
-    public static final Version MULTIPLE_REPOSITORIES_SUPPORT_ADDED = Version.V_7_14_0;
+    public static final TransportVersion MULTIPLE_REPOSITORIES_SUPPORT_ADDED = TransportVersion.V_7_14_0;
 
-    public static final Version PAGINATED_GET_SNAPSHOTS_VERSION = Version.V_7_14_0;
+    public static final TransportVersion PAGINATED_GET_SNAPSHOTS_VERSION = TransportVersion.V_7_14_0;
 
-    public static final Version NUMERIC_PAGINATION_VERSION = Version.V_7_15_0;
+    public static final TransportVersion NUMERIC_PAGINATION_VERSION = TransportVersion.V_7_15_0;
 
-    private static final Version SORT_BY_SHARDS_OR_REPO_VERSION = Version.V_7_16_0;
+    private static final TransportVersion SORT_BY_SHARDS_OR_REPO_VERSION = TransportVersion.V_7_16_0;
+
+    private static final TransportVersion INDICES_FLAG_VERSION = TransportVersion.V_8_3_0;
 
     public static final int NO_LIMIT = -1;
 
@@ -84,6 +86,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     private boolean verbose = DEFAULT_VERBOSE_MODE;
 
+    private boolean includeIndexNames = true;
+
     public GetSnapshotsRequest() {}
 
     /**
@@ -108,7 +112,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     public GetSnapshotsRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
             repositories = in.readStringArray();
         } else {
             repositories = new String[] { in.readString() };
@@ -116,19 +120,22 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         snapshots = in.readStringArray();
         ignoreUnavailable = in.readBoolean();
         verbose = in.readBoolean();
-        if (in.getVersion().onOrAfter(PAGINATED_GET_SNAPSHOTS_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(PAGINATED_GET_SNAPSHOTS_VERSION)) {
             after = in.readOptionalWriteable(After::new);
             sort = in.readEnum(SortBy.class);
             size = in.readVInt();
             order = SortOrder.readFromStream(in);
-            if (in.getVersion().onOrAfter(NUMERIC_PAGINATION_VERSION)) {
+            if (in.getTransportVersion().onOrAfter(NUMERIC_PAGINATION_VERSION)) {
                 offset = in.readVInt();
             }
-            if (in.getVersion().onOrAfter(SLM_POLICY_FILTERING_VERSION)) {
+            if (in.getTransportVersion().onOrAfter(SLM_POLICY_FILTERING_VERSION)) {
                 policies = in.readStringArray();
             }
-            if (in.getVersion().onOrAfter(FROM_SORT_VALUE_VERSION)) {
+            if (in.getTransportVersion().onOrAfter(FROM_SORT_VALUE_VERSION)) {
                 fromSortValue = in.readOptionalString();
+            }
+            if (in.getTransportVersion().onOrAfter(INDICES_FLAG_VERSION)) {
+                includeIndexNames = in.readBoolean();
             }
         }
     }
@@ -136,7 +143,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
             out.writeStringArray(repositories);
         } else {
             if (repositories.length != 1) {
@@ -151,38 +158,45 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         out.writeStringArray(snapshots);
         out.writeBoolean(ignoreUnavailable);
         out.writeBoolean(verbose);
-        if (out.getVersion().onOrAfter(PAGINATED_GET_SNAPSHOTS_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(PAGINATED_GET_SNAPSHOTS_VERSION)) {
             out.writeOptionalWriteable(after);
             if ((sort == SortBy.SHARDS || sort == SortBy.FAILED_SHARDS || sort == SortBy.REPOSITORY)
-                && out.getVersion().before(SORT_BY_SHARDS_OR_REPO_VERSION)) {
+                && out.getTransportVersion().before(SORT_BY_SHARDS_OR_REPO_VERSION)) {
                 throw new IllegalArgumentException(
-                    "can't use sort by shard count or repository name with node version [" + out.getVersion() + "]"
+                    "can't use sort by shard count or repository name in transport version [" + out.getTransportVersion() + "]"
                 );
             }
             out.writeEnum(sort);
             out.writeVInt(size);
             order.writeTo(out);
-            if (out.getVersion().onOrAfter(NUMERIC_PAGINATION_VERSION)) {
+            if (out.getTransportVersion().onOrAfter(NUMERIC_PAGINATION_VERSION)) {
                 out.writeVInt(offset);
             } else if (offset != 0) {
                 throw new IllegalArgumentException(
-                    "can't use numeric offset in get snapshots request with node version [" + out.getVersion() + "]"
+                    "can't use numeric offset in get snapshots request in transport version [" + out.getTransportVersion() + "]"
                 );
             }
         } else if (sort != SortBy.START_TIME || size != NO_LIMIT || after != null || order != SortOrder.ASC) {
-            throw new IllegalArgumentException("can't use paginated get snapshots request with node version [" + out.getVersion() + "]");
+            throw new IllegalArgumentException(
+                "can't use paginated get snapshots request in transport version [" + out.getTransportVersion() + "]"
+            );
         }
-        if (out.getVersion().onOrAfter(SLM_POLICY_FILTERING_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(SLM_POLICY_FILTERING_VERSION)) {
             out.writeStringArray(policies);
         } else if (policies.length > 0) {
             throw new IllegalArgumentException(
-                "can't use slm policy filter in snapshots request with node version [" + out.getVersion() + "]"
+                "can't use slm policy filter in snapshots request in transport version [" + out.getTransportVersion() + "]"
             );
         }
-        if (out.getVersion().onOrAfter(FROM_SORT_VALUE_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(FROM_SORT_VALUE_VERSION)) {
             out.writeOptionalString(fromSortValue);
         } else if (fromSortValue != null) {
-            throw new IllegalArgumentException("can't use after-value in snapshot request with node version [" + out.getVersion() + "]");
+            throw new IllegalArgumentException(
+                "can't use after-value in snapshot request in transport version [" + out.getTransportVersion() + "]"
+            );
+        }
+        if (out.getTransportVersion().onOrAfter(INDICES_FLAG_VERSION)) {
+            out.writeBoolean(includeIndexNames);
         }
     }
 
@@ -322,6 +336,15 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     public GetSnapshotsRequest verbose(boolean verbose) {
         this.verbose = verbose;
         return this;
+    }
+
+    public GetSnapshotsRequest includeIndexNames(boolean indices) {
+        this.includeIndexNames = indices;
+        return this;
+    }
+
+    public boolean includeIndexNames() {
+        return includeIndexNames;
     }
 
     public After after() {

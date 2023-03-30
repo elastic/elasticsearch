@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 
 public class FiltersAggregationBuilder extends AbstractAggregationBuilder<FiltersAggregationBuilder> {
     public static final String NAME = "filters";
@@ -99,6 +99,11 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         return new FiltersAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
+    @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
     /**
      * Read from a stream.
      */
@@ -123,16 +128,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeBoolean(keyed);
-        out.writeVInt(filters.size());
-        if (keyed) {
-            for (KeyedFilter keyedFilter : filters) {
-                keyedFilter.writeTo(out);
-            }
-        } else {
-            for (KeyedFilter keyedFilter : filters) {
-                out.writeNamedWriteable(keyedFilter.filter());
-            }
-        }
+        out.writeCollection(filters, keyed ? (o, v) -> v.writeTo(o) : (o, v) -> o.writeNamedWriteable(v.filter()));
         out.writeBoolean(otherBucket);
         out.writeString(otherBucketKey);
     }
@@ -287,7 +283,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
                         if (token == XContentParser.Token.FIELD_NAME) {
                             key = parser.currentName();
                         } else {
-                            QueryBuilder filter = parseInnerQueryBuilder(parser);
+                            QueryBuilder filter = parseTopLevelQuery(parser);
                             filters.add(new FiltersAggregator.KeyedFilter(key, filter));
                         }
                     }
@@ -302,7 +298,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
                 if (FILTERS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     List<QueryBuilder> builders = new ArrayList<>();
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                        QueryBuilder filter = parseInnerQueryBuilder(parser);
+                        QueryBuilder filter = parseTopLevelQuery(parser);
                         builders.add(filter);
                     }
                     for (int i = 0; i < builders.size(); i++) {
@@ -364,7 +360,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 }

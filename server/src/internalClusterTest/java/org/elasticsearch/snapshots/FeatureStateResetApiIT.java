@@ -28,7 +28,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
@@ -129,7 +128,7 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
                     assertThat(status.getException(), notNullValue());
                     return status.getFeatureName();
                 })
-                .collect(Collectors.toList());
+                .toList();
             assertThat(failedFeatures, contains("EvilSystemIndexTestPlugin"));
         } finally {
             EvilSystemIndexTestPlugin.setBeEvil(false);

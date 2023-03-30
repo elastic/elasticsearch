@@ -100,6 +100,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
         when(state.getMetadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(state.metadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(clusterService.state()).thenReturn(state);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
 
         DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
         when(state.getNodes()).thenReturn(discoveryNodes);
@@ -147,7 +148,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
             }
 
             @Override
-            void createIndex(String index, TimeValue timeout, Version minNodeVersion, ActionListener<CreateIndexResponse> listener) {
+            void createIndex(String index, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
                 try {
                     simulateAutoCreate.accept(index);
                     // If we try to create an index just immediately assume it worked

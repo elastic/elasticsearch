@@ -15,7 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
+import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.time.Instant;
@@ -27,8 +27,8 @@ import static org.mockito.Mockito.when;
 public class NativeRealmTests extends ESTestCase {
 
     private final String concreteSecurityIndexName = randomFrom(
-        RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6,
-        RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7
+        TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
+        TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
     );
 
     private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {

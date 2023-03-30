@@ -8,9 +8,7 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -20,19 +18,18 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.DispatchingRestToXContentListener;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.LongSupplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestGetMappingAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetMappingAction.class);
     public static final String INCLUDE_TYPE_DEPRECATION_MSG = "[types removal] Using include_type_name in get"
@@ -40,11 +37,7 @@ public class RestGetMappingAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in get mapping request is deprecated. "
         + "Use typeless api instead";
 
-    private final ThreadPool threadPool;
-
-    public RestGetMappingAction(ThreadPool threadPool) {
-        this.threadPool = threadPool;
-    }
+    public RestGetMappingAction() {}
 
     @Override
     public List<Route> routes() {
@@ -76,7 +69,7 @@ public class RestGetMappingAction extends BaseRestHandler {
             final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
             if (request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY) == false && types.length > 0) {
                 throw new IllegalArgumentException(
-                    "Types cannot be provided in get mapping requests, unless" + " include_type_name is set to true."
+                    "Types cannot be provided in get mapping requests, unless include_type_name is set to true."
                 );
             }
             if (request.method().equals(HEAD)) {
@@ -97,37 +90,6 @@ public class RestGetMappingAction extends BaseRestHandler {
         final HttpChannel httpChannel = request.getHttpChannel();
         return channel -> new RestCancellableNodeClient(client, httpChannel).admin()
             .indices()
-            .getMappings(
-                getMappingsRequest,
-                new DispatchingRestToXContentListener<>(threadPool.executor(ThreadPool.Names.MANAGEMENT), channel, request).map(
-                    getMappingsResponse -> new RestGetMappingsResponse(getMappingsResponse, threadPool::relativeTimeInMillis, timeout)
-                )
-            );
-    }
-
-    private static final class RestGetMappingsResponse implements ToXContentObject {
-        private final GetMappingsResponse response;
-        private final LongSupplier relativeTimeSupplierMillis;
-        private final TimeValue timeout;
-        private final long startTimeMs;
-
-        private RestGetMappingsResponse(GetMappingsResponse response, LongSupplier relativeTimeSupplierMillis, TimeValue timeout) {
-            this.response = response;
-            this.relativeTimeSupplierMillis = relativeTimeSupplierMillis;
-            this.timeout = timeout;
-            this.startTimeMs = relativeTimeSupplierMillis.getAsLong();
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (relativeTimeSupplierMillis.getAsLong() - startTimeMs > timeout.millis()) {
-                throw new ElasticsearchTimeoutException("Timed out getting mappings");
-            }
-
-            builder.startObject();
-            response.toXContent(builder, params);
-            builder.endObject();
-            return builder;
-        }
+            .getMappings(getMappingsRequest, new RestChunkedToXContentListener<>(channel));
     }
 }

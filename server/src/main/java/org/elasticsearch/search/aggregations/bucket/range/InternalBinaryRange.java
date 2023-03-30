@@ -9,7 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -18,6 +18,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -26,7 +27,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -72,8 +72,8 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
         private static Bucket createFromStream(StreamInput in, DocValueFormat format, boolean keyed) throws IOException {
             // NOTE: the key is required in version == 8.0.0 and version <= 7.17.0,
             // while it is optional for all subsequent versions.
-            String key = in.getVersion().equals(Version.V_8_0_0) ? in.readString()
-                : in.getVersion().onOrAfter(Version.V_7_17_1) ? in.readOptionalString()
+            String key = in.getTransportVersion().equals(TransportVersion.V_8_0_0) ? in.readString()
+                : in.getTransportVersion().onOrAfter(TransportVersion.V_7_17_1) ? in.readOptionalString()
                 : in.readString();
             BytesRef from = in.readBoolean() ? in.readBytesRef() : null;
             BytesRef to = in.readBoolean() ? in.readBytesRef() : null;
@@ -85,9 +85,9 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().equals(Version.V_8_0_0)) {
+            if (out.getTransportVersion().equals(TransportVersion.V_8_0_0)) {
                 out.writeString(key == null ? generateKey(from, to, format) : key);
-            } else if (out.getVersion().onOrAfter(Version.V_7_17_1)) {
+            } else if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_17_1)) {
                 out.writeOptionalString(key);
             } else {
                 out.writeString(key == null ? generateKey(from, to, format) : key);
@@ -184,6 +184,18 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
         public int hashCode() {
             return Objects.hash(getClass(), docCount, key, from, to, aggregations);
         }
+
+        Bucket finalizeSampling(SamplingContext samplingContext) {
+            return new Bucket(
+                format,
+                keyed,
+                key,
+                from,
+                to,
+                samplingContext.scaleUp(docCount),
+                InternalAggregations.finalizeSampling(aggregations, samplingContext)
+            );
+        }
     }
 
     protected final DocValueFormat format;
@@ -272,9 +284,20 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
     }
 
     @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalBinaryRange(
+            name,
+            format,
+            keyed,
+            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
+            metadata
+        );
+    }
+
+    @Override
     protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
         assert buckets.size() > 0;
-        List<InternalAggregations> aggregationsList = buckets.stream().map(bucket -> bucket.aggregations).collect(Collectors.toList());
+        List<InternalAggregations> aggregationsList = buckets.stream().map(bucket -> bucket.aggregations).toList();
         final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
         return createBucket(aggs, buckets.get(0));
     }

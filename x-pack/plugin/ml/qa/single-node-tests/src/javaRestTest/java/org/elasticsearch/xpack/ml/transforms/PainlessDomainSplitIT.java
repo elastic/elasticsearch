@@ -205,7 +205,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
             logger.info("params={}", mapAsJson);
 
             Request searchRequest = new Request("GET", "/painless/_search");
-            searchRequest.setJsonEntity("""
+            searchRequest.setJsonEntity(Strings.format("""
                 {
                     "query" : {
                         "match_all": {}
@@ -219,7 +219,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                             }
                         }
                     }
-                }""".formatted(mapAsJson));
+                }""", mapAsJson));
             String responseBody = EntityUtils.toString(client().performRequest(searchRequest).getEntity());
             Matcher m = pattern.matcher(responseBody);
 
@@ -305,17 +305,17 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 // Anomaly has 100 docs, but we don't care about the value
                 for (int j = 0; j < 100; j++) {
                     Request createDocRequest = new Request("POST", "/painless/_doc");
-                    createDocRequest.setJsonEntity("""
+                    createDocRequest.setJsonEntity(Strings.format("""
                         {"domain": "bar.bar.com", "time": "%s"}
-                        """.formatted(formattedTime));
+                        """, formattedTime));
                     client().performRequest(createDocRequest);
                 }
             } else {
                 // Non-anomalous values will be what's seen when the anomaly is reported
                 Request createDocRequest = new Request("PUT", "/painless/_doc/" + formattedTime);
-                createDocRequest.setJsonEntity("""
+                createDocRequest.setJsonEntity(Strings.format("""
                     {"domain": "%s", "time": "%s"}
-                    """.formatted(test.hostName, formattedTime));
+                    """, test.hostName, formattedTime));
                 client().performRequest(createDocRequest);
             }
         }

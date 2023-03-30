@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -19,10 +18,10 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -42,6 +41,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sampler;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantText;
@@ -68,7 +70,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
      * Uses the significant text aggregation to find the keywords in text fields
      */
     public void testSignificance() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text");
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean());
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
         indexWriterConfig.setMaxBufferedDocs(100);
@@ -87,7 +89,10 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
                 // Search "odd" which should have no duplication
-                InternalSampler sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), aggBuilder, textFieldType);
+                InternalSampler sampler = searchAndReduce(
+                    searcher,
+                    new AggTestConfig(aggBuilder, textFieldType).withQuery(new TermQuery(new Term("text", "odd")))
+                );
                 SignificantTerms terms = sampler.getAggregations().get("sig_text");
 
                 assertNull(terms.getBucketByKey("even"));
@@ -96,7 +101,10 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 assertNotNull(terms.getBucketByKey("odd"));
 
                 // Search "even" which will have duplication
-                sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "even")), aggBuilder, textFieldType);
+                sampler = searchAndReduce(
+                    searcher,
+                    new AggTestConfig(aggBuilder, textFieldType).withQuery(new TermQuery(new Term("text", "even")))
+                );
                 terms = sampler.getAggregations().get("sig_text");
 
                 assertNull(terms.getBucketByKey("odd"));
@@ -117,7 +125,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
      * Uses the significant text aggregation to find the keywords in text fields and include/exclude selected terms
      */
     public void testIncludeExcludes() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text");
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean());
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
         indexWriterConfig.setMaxBufferedDocs(100);
@@ -125,7 +133,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
             indexDocuments(w);
 
-            String[] incExcValues = { "duplicate" };
+            SortedSet<BytesRef> incExcValues = new TreeSet<>(Set.of(new BytesRef("duplicate")));
 
             try (IndexReader reader = DirectoryReader.open(w)) {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
@@ -134,14 +142,17 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 // Inclusive of values
                 {
                     SignificantTextAggregationBuilder sigAgg = new SignificantTextAggregationBuilder("sig_text", "text").includeExclude(
-                        new IncludeExclude(incExcValues, null)
+                        new IncludeExclude(null, null, incExcValues, null)
                     );
                     SamplerAggregationBuilder aggBuilder = new SamplerAggregationBuilder("sampler").subAggregation(sigAgg);
                     if (randomBoolean()) {
                         sigAgg.sourceFieldNames(Arrays.asList(new String[] { "json_only_field" }));
                     }
                     // Search "even" which should have duplication
-                    InternalSampler sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "even")), aggBuilder, textFieldType);
+                    InternalSampler sampler = searchAndReduce(
+                        searcher,
+                        new AggTestConfig(aggBuilder, textFieldType).withQuery(new TermQuery(new Term("text", "even")))
+                    );
                     SignificantTerms terms = sampler.getAggregations().get("sig_text");
 
                     assertNull(terms.getBucketByKey("even"));
@@ -152,14 +163,17 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 // Exclusive of values
                 {
                     SignificantTextAggregationBuilder sigAgg = new SignificantTextAggregationBuilder("sig_text", "text").includeExclude(
-                        new IncludeExclude(null, incExcValues)
+                        new IncludeExclude(null, null, null, incExcValues)
                     );
                     SamplerAggregationBuilder aggBuilder = new SamplerAggregationBuilder("sampler").subAggregation(sigAgg);
                     if (randomBoolean()) {
                         sigAgg.sourceFieldNames(Arrays.asList(new String[] { "json_only_field" }));
                     }
                     // Search "even" which should have duplication
-                    InternalSampler sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "even")), aggBuilder, textFieldType);
+                    InternalSampler sampler = searchAndReduce(
+                        searcher,
+                        new AggTestConfig(aggBuilder, textFieldType).withQuery(new TermQuery(new Term("text", "even")))
+                    );
                     SignificantTerms terms = sampler.getAggregations().get("sig_text");
 
                     assertNotNull(terms.getBucketByKey("even"));
@@ -172,7 +186,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMissingField() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text");
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean());
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
         indexWriterConfig.setMaxBufferedDocs(100);
@@ -189,7 +203,10 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader reader = DirectoryReader.open(w)) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalSampler sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), aggBuilder, textFieldType);
+                InternalSampler sampler = searchAndReduce(
+                    searcher,
+                    new AggTestConfig(aggBuilder, textFieldType).withQuery(new TermQuery(new Term("text", "odd")))
+                );
                 SignificantTerms terms = sampler.getAggregations().get("sig_text");
                 assertTrue(terms.getBuckets().isEmpty());
             }
@@ -197,7 +214,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
     }
 
     public void testFieldAlias() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text");
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean());
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
         indexWriterConfig.setMaxBufferedDocs(100);
@@ -221,12 +238,13 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 SamplerAggregationBuilder samplerAgg = sampler("sampler").subAggregation(agg);
                 SamplerAggregationBuilder aliasSamplerAgg = sampler("sampler").subAggregation(aliasAgg);
 
-                InternalSampler sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), samplerAgg, textFieldType);
+                InternalSampler sampler = searchAndReduce(
+                    searcher,
+                    new AggTestConfig(samplerAgg, textFieldType).withQuery(new TermQuery(new Term("text", "odd")))
+                );
                 InternalSampler aliasSampler = searchAndReduce(
                     searcher,
-                    new TermQuery(new Term("text", "odd")),
-                    aliasSamplerAgg,
-                    textFieldType
+                    new AggTestConfig(aliasSamplerAgg, textFieldType).withQuery(new TermQuery(new Term("text", "odd")))
                 );
 
                 SignificantTerms terms = sampler.getAggregations().get("sig_text");
@@ -234,8 +252,14 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 assertFalse(terms.getBuckets().isEmpty());
                 assertEquals(terms, aliasTerms);
 
-                sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "even")), samplerAgg, textFieldType);
-                aliasSampler = searchAndReduce(searcher, new TermQuery(new Term("text", "even")), aliasSamplerAgg, textFieldType);
+                sampler = searchAndReduce(
+                    searcher,
+                    new AggTestConfig(samplerAgg, textFieldType).withQuery(new TermQuery(new Term("text", "even")))
+                );
+                aliasSampler = searchAndReduce(
+                    searcher,
+                    new AggTestConfig(aliasSamplerAgg, textFieldType).withQuery(new TermQuery(new Term("text", "even")))
+                );
 
                 terms = sampler.getAggregations().get("sig_text");
                 aliasTerms = aliasSampler.getAggregations().get("sig_text");
@@ -249,7 +273,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
     }
 
     public void testInsideTermsAgg() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text");
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean());
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
         indexWriterConfig.setMaxBufferedDocs(100);
@@ -264,7 +288,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
                 IndexSearcher searcher = new IndexSearcher(reader);
 
-                StringTerms terms = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, textFieldType, keywordField("kwd"));
+                StringTerms terms = searchAndReduce(searcher, new AggTestConfig(aggBuilder, textFieldType, keywordField("kwd")));
                 SignificantTerms sigOdd = terms.getBucketByKey("odd").getAggregations().get("sig_text");
                 assertNull(sigOdd.getBucketByKey("even"));
                 assertNull(sigOdd.getBucketByKey("duplicate"));
@@ -296,7 +320,6 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
             doc.add(new Field("text", text.toString(), TextFieldMapper.Defaults.FIELD_TYPE));
             String json = "{ \"text\" : \"" + text.toString() + "\"," + " \"json_only_field\" : \"" + text.toString() + "\"" + " }";
             doc.add(new StoredField("_source", new BytesRef(json)));
-            doc.add(new SortedSetDocValuesField("kwd", i % 2 == 0 ? new BytesRef("even") : new BytesRef("odd")));
             doc.add(new Field("kwd", i % 2 == 0 ? new BytesRef("even") : new BytesRef("odd"), KeywordFieldMapper.Defaults.FIELD_TYPE));
             writer.addDocument(doc);
         }
@@ -306,7 +329,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
      * Test documents with arrays of text
      */
     public void testSignificanceOnTextArrays() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text");
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean());
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
         indexWriterConfig.setMaxBufferedDocs(100);
@@ -326,7 +349,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
             try (IndexReader reader = DirectoryReader.open(w)) {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
                 IndexSearcher searcher = new IndexSearcher(reader);
-                searchAndReduce(searcher, new TermQuery(new Term("text", "foo")), sigAgg, textFieldType);
+                searchAndReduce(searcher, new AggTestConfig(sigAgg, textFieldType).withQuery(new TermQuery(new Term("text", "foo"))));
                 // No significant results to be found in this test - only checking we don't end up
                 // with the internal exception discovered in issue https://github.com/elastic/elasticsearch/issues/25029
             }
@@ -335,6 +358,11 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected FieldMapper buildMockFieldMapper(MappedFieldType ft) {
-        return new MockFieldMapper(ft, Map.of(ft.name(), ft.getTextSearchInfo().getSearchAnalyzer()));
+        return new MockFieldMapper(ft) {
+            @Override
+            public Map<String, NamedAnalyzer> indexAnalyzers() {
+                return Map.of(ft.name(), ft.getTextSearchInfo().searchAnalyzer());
+            }
+        };
     }
 }

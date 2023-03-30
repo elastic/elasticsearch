@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.plugin.BasicFormatter;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter.FormatOption;

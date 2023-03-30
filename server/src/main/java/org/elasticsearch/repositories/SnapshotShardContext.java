@@ -11,6 +11,7 @@ package org.elasticsearch.repositories;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService;
@@ -18,14 +19,12 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.snapshots.SnapshotId;
 
-import java.util.Map;
-
 /**
  * Context holding the state for creating a shard snapshot via {@link Repository#snapshotShard(SnapshotShardContext)}.
  * Wraps a {@link org.elasticsearch.index.engine.Engine.IndexCommitRef} that is released once this instances is completed by invoking
  * either its {@link #onResponse(ShardSnapshotResult)} or {@link #onFailure(Exception)} callback.
  */
-public final class SnapshotShardContext extends ActionListener.Delegating<ShardSnapshotResult, ShardSnapshotResult> {
+public final class SnapshotShardContext extends DelegatingActionListener<ShardSnapshotResult, ShardSnapshotResult> {
 
     private final Store store;
     private final MapperService mapperService;
@@ -36,7 +35,7 @@ public final class SnapshotShardContext extends ActionListener.Delegating<ShardS
     private final String shardStateIdentifier;
     private final IndexShardSnapshotStatus snapshotStatus;
     private final Version repositoryMetaVersion;
-    private final Map<String, Object> userMetadata;
+    private final long snapshotStartTime;
 
     /**
      * @param store                 store to be snapshotted
@@ -49,8 +48,8 @@ public final class SnapshotShardContext extends ActionListener.Delegating<ShardS
      *                              snapshotting will be done by inspecting the physical files referenced by {@code snapshotIndexCommit}
      * @param snapshotStatus        snapshot status
      * @param repositoryMetaVersion version of the updated repository metadata to write
-     * @param userMetadata          user metadata of the snapshot found in
-     *                              {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry#userMetadata()}
+     * @param snapshotStartTime     start time of the snapshot found in
+     *                              {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry#startTime()}
      * @param listener              listener invoked on completion
      */
     public SnapshotShardContext(
@@ -62,7 +61,7 @@ public final class SnapshotShardContext extends ActionListener.Delegating<ShardS
         @Nullable String shardStateIdentifier,
         IndexShardSnapshotStatus snapshotStatus,
         Version repositoryMetaVersion,
-        Map<String, Object> userMetadata,
+        final long snapshotStartTime,
         ActionListener<ShardSnapshotResult> listener
     ) {
         super(ActionListener.runBefore(listener, commitRef::close));
@@ -74,7 +73,7 @@ public final class SnapshotShardContext extends ActionListener.Delegating<ShardS
         this.shardStateIdentifier = shardStateIdentifier;
         this.snapshotStatus = snapshotStatus;
         this.repositoryMetaVersion = repositoryMetaVersion;
-        this.userMetadata = userMetadata;
+        this.snapshotStartTime = snapshotStartTime;
     }
 
     public Store store() {
@@ -110,8 +109,8 @@ public final class SnapshotShardContext extends ActionListener.Delegating<ShardS
         return repositoryMetaVersion;
     }
 
-    public Map<String, Object> userMetadata() {
-        return userMetadata;
+    public long snapshotStartTime() {
+        return snapshotStartTime;
     }
 
     @Override

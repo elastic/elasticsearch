@@ -10,7 +10,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.After;
 
 import java.io.IOException;
@@ -42,28 +42,6 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
         );
         adminClient().performRequest(cleanupSettingsRequest);
         deleteAllWatcherData();
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/59132")
-    public void testThatLocalExporterAddsWatches() throws Exception {
-        String watchId = createMonitoringWatch();
-
-        Request request = new Request("PUT", "/_cluster/settings");
-        request.setJsonEntity(
-            Strings.toString(
-                jsonBuilder().startObject()
-                    .startObject("persistent")
-                    .field("xpack.monitoring.exporters.my_local_exporter.type", "local")
-                    .field("xpack.monitoring.exporters.my_local_exporter.cluster_alerts.management.enabled", true)
-                    .endObject()
-                    .endObject()
-            )
-        );
-        adminClient().performRequest(request);
-
-        assertTotalWatchCount(WATCH_IDS.length);
-
-        assertMonitoringWatchHasBeenOverWritten(watchId);
     }
 
     private void assertMonitoringWatchHasBeenOverWritten(String watchId) throws Exception {

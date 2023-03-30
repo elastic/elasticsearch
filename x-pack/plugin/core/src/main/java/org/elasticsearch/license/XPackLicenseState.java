@@ -106,14 +106,14 @@ public class XPackLicenseState {
             case BASIC:
                 switch (currentMode) {
                     case STANDARD:
-                        return Strings.EMPTY_ARRAY;
+                        return new String[] { "Security tokens will not be supported." };
                     case TRIAL:
                     case GOLD:
                     case PLATINUM:
                     case ENTERPRISE:
                         return new String[] {
                             "Authentication will be limited to the native and file realms.",
-                            "Security tokens and API keys will not be supported.",
+                            "Security tokens will not be supported.",
                             "IP filtering and auditing will be disabled.",
                             "Field and document level access control will be disabled.",
                             "Custom realms will be ignored.",
@@ -360,7 +360,7 @@ public class XPackLicenseState {
      * @param active True if the current license exists and is within its allowed usage period; false if it is expired or missing.
      * @param expiryWarning Warning to emit on license checks about the license expiring soon.
      */
-    protected void update(OperationMode mode, boolean active, String expiryWarning) {
+    void update(OperationMode mode, boolean active, String expiryWarning) {
         status = new Status(mode, active, expiryWarning);
         listeners.forEach(LicenseStateListener::licenseStateChanged);
     }

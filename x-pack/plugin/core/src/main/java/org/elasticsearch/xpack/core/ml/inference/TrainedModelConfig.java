@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.inference;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
@@ -57,6 +57,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper.writeNamedObject;
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 
@@ -96,7 +97,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
     public static final ParseField LOCATION = new ParseField("location");
 
-    public static final Version VERSION_3RD_PARTY_CONFIG_ADDED = Version.V_8_0_0;
+    public static final TransportVersion VERSION_3RD_PARTY_CONFIG_ADDED = TransportVersion.V_8_0_0;
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<TrainedModelConfig.Builder, Void> LENIENT_PARSER = createParser(true);
@@ -237,18 +238,16 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         description = in.readOptionalString();
         createTime = in.readInstant();
         definition = in.readOptionalWriteable(LazyModelDefinition::fromStreamInput);
-        tags = Collections.unmodifiableList(in.readList(StreamInput::readString));
+        tags = in.readImmutableList(StreamInput::readString);
         metadata = in.readMap();
         input = new TrainedModelInput(in);
         modelSize = in.readVLong();
         estimatedOperations = in.readVLong();
         licenseLevel = License.OperationMode.parse(in.readString());
-        this.defaultFieldMap = in.readBoolean()
-            ? Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString))
-            : null;
+        this.defaultFieldMap = in.readBoolean() ? in.readImmutableMap(StreamInput::readString, StreamInput::readString) : null;
 
         this.inferenceConfig = in.readOptionalNamedWriteable(InferenceConfig.class);
-        if (in.getVersion().onOrAfter(VERSION_3RD_PARTY_CONFIG_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(VERSION_3RD_PARTY_CONFIG_ADDED)) {
             this.modelType = in.readOptionalEnum(TrainedModelType.class);
             this.location = in.readOptionalNamedWriteable(TrainedModelLocation.class);
         } else {
@@ -382,7 +381,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         out.writeInstant(createTime);
         out.writeOptionalWriteable(definition);
         out.writeCollection(tags, StreamOutput::writeString);
-        out.writeMap(metadata);
+        out.writeGenericMap(metadata);
         input.writeTo(out);
         out.writeVLong(modelSize);
         out.writeVLong(estimatedOperations);
@@ -394,7 +393,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             out.writeBoolean(false);
         }
         out.writeOptionalNamedWriteable(inferenceConfig);
-        if (out.getVersion().onOrAfter(VERSION_3RD_PARTY_CONFIG_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(VERSION_3RD_PARTY_CONFIG_ADDED)) {
             out.writeOptionalEnum(modelType);
             out.writeOptionalNamedWriteable(location);
         }
@@ -675,11 +674,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
             if (this.definition != null) {
                 throw new IllegalArgumentException(
-                    new ParameterizedMessage(
-                        "both [{}] and [{}] cannot be set.",
-                        COMPRESSED_DEFINITION.getPreferredName(),
-                        DEFINITION.getPreferredName()
-                    ).getFormattedMessage()
+                    format("both [%s] and [%s] cannot be set.", COMPRESSED_DEFINITION.getPreferredName(), DEFINITION.getPreferredName())
                 );
             }
             this.definition = LazyModelDefinition.fromParsedDefinition(parsedTrainedModel.build());
@@ -693,11 +688,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
             if (this.definition != null) {
                 throw new IllegalArgumentException(
-                    new ParameterizedMessage(
-                        "both [{}] and [{}] cannot be set.",
-                        COMPRESSED_DEFINITION.getPreferredName(),
-                        DEFINITION.getPreferredName()
-                    ).getFormattedMessage()
+                    format("both [%s] and [%s] cannot be set.", COMPRESSED_DEFINITION.getPreferredName(), DEFINITION.getPreferredName())
                 );
             }
             this.definition = LazyModelDefinition.fromBase64String(compressedString);
@@ -904,7 +895,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         }
 
         public static LazyModelDefinition fromStreamInput(StreamInput input) throws IOException {
-            if (input.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (input.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
                 return new LazyModelDefinition(input.readBytesReference(), null);
             } else {
                 return fromBase64String(input.readString());
@@ -968,7 +959,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
                 out.writeBytesReference(getCompressedDefinition());
             } else {
                 out.writeString(getBase64CompressedDefinition());

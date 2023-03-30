@@ -6,22 +6,18 @@
  */
 package org.elasticsearch.xpack.ml.dataframe;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -56,7 +52,7 @@ public final class MappingsMerger {
         Map<String, Object> mappings = new HashMap<>();
         mappings.put("dynamic", false);
 
-        ImmutableOpenMap<String, MappingMetadata> indexToMappings = getMappingsResponse.getMappings();
+        Map<String, MappingMetadata> indexToMappings = getMappingsResponse.getMappings();
         for (MappingsType mappingsType : MappingsType.values()) {
             Map<String, IndexAndMapping> mergedMappingsForType = mergeAcrossIndices(source, indexToMappings, mappingsType);
             if (mergedMappingsForType.isEmpty() == false) {
@@ -72,15 +68,13 @@ public final class MappingsMerger {
 
     private static Map<String, IndexAndMapping> mergeAcrossIndices(
         DataFrameAnalyticsSource source,
-        ImmutableOpenMap<String, MappingMetadata> indexToMappings,
+        Map<String, MappingMetadata> indexToMappings,
         MappingsType mappingsType
     ) {
         Map<String, IndexAndMapping> mergedMappings = new HashMap<>();
 
-        Iterator<ObjectObjectCursor<String, MappingMetadata>> iterator = indexToMappings.iterator();
-        while (iterator.hasNext()) {
-            ObjectObjectCursor<String, MappingMetadata> indexMappings = iterator.next();
-            MappingMetadata mapping = indexMappings.value;
+        for (var indexMappings : indexToMappings.entrySet()) {
+            MappingMetadata mapping = indexMappings.getValue();
             if (mapping != null) {
                 Map<String, Object> currentMappings = mapping.getSourceAsMap();
                 if (currentMappings.containsKey(mappingsType.type)) {
@@ -100,14 +94,14 @@ public final class MappingsMerger {
                                         mappingsType.type,
                                         field,
                                         fieldMapping.getValue(),
-                                        indexMappings.key,
+                                        indexMappings.getKey(),
                                         existingIndexAndMapping.mapping,
                                         existingIndexAndMapping.index
                                     );
 
                                 }
                             } else {
-                                mergedMappings.put(field, new IndexAndMapping(indexMappings.key, fieldMapping.getValue()));
+                                mergedMappings.put(field, new IndexAndMapping(indexMappings.getKey(), fieldMapping.getValue()));
                             }
                         }
                     }

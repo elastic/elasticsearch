@@ -179,6 +179,14 @@ The following parameters are accepted by `boolean` fields:
     enabled can still be queried using term or range-based queries,
     albeit slower.
 
+<<ignore-malformed, `ignore_malformed`>>::
+
+    Trying to index the wrong data type into a field throws an exception by
+    default, and rejects the whole document. If this parameter is set to true,
+    it allows the exception to be ignored. The malformed field is not indexed,
+    but other fields in the document are processed normally. Accepts `true` or `false`.
+    Note that this cannot be set if the `script` parameter is used.
+
 <<null-value,`null_value`>>::
 
     Accepts any of the true or false values listed above. The value is
@@ -214,3 +222,45 @@ The following parameters are accepted by `boolean` fields:
 <<mapping-field-meta,`meta`>>::
 
     Metadata about the field.
+
+[[boolean-synthetic-source]]
+==== Synthetic `_source`
+
+IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
+(indices that have `index.mode` set to `time_series`). For other indices
+synthetic `_source` is in technical preview. Features in technical preview may
+be changed or removed in a future release. Elastic will apply best effort to fix
+any issues, but features in technical preview are not subject to the support SLA
+of official GA features.
+
+`boolean` fields support <<synthetic-source,synthetic `_source`>> in their
+default configuration. Synthetic `_source` cannot be used together with
+<<copy-to,`copy_to`>> or with <<doc-values,`doc_values`>> disabled.
+
+Synthetic source always sorts `boolean` fields. For example:
+[source,console,id=synthetic-source-boolean-example]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "mode": "synthetic" },
+    "properties": {
+      "bool": { "type": "boolean" }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "bool": [true, false, true, false]
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+[source,console-result]
+----
+{
+  "bool": [false, false, true, true]
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]

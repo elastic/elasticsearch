@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.termvectors;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
@@ -26,6 +25,8 @@ import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class TransportShardMultiTermsVectorAction extends TransportSingleShardAction<
     MultiTermVectorsShardRequest,
@@ -75,8 +76,9 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
 
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
-        return clusterService.operationRouting()
+        ShardIterator shards = clusterService.operationRouting()
             .getShards(state, request.concreteIndex(), request.request().shardId(), request.request().preference());
+        return clusterService.operationRouting().useOnlyPromotableShardsForStateless(shards);
     }
 
     @Override
@@ -93,14 +95,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
                 if (TransportActions.isShardNotAvailableException(e)) {
                     throw e;
                 } else {
-                    logger.debug(
-                        () -> new ParameterizedMessage(
-                            "{} failed to execute multi term vectors for [{}]",
-                            shardId,
-                            termVectorsRequest.id()
-                        ),
-                        e
-                    );
+                    logger.debug(() -> format("%s failed to execute multi term vectors for [%s]", shardId, termVectorsRequest.id()), e);
                     response.add(
                         request.locations.get(i),
                         new MultiTermVectorsResponse.Failure(request.index(), termVectorsRequest.id(), e)

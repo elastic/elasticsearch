@@ -34,7 +34,7 @@ the `read_ccr` cluster privilege, and `monitor` and `read` privileges on the
 leader index.
 
 NOTE: If requests will be issued <<run-as-privilege,on behalf of other users>>,
-then the the authenticating user must have the `run_as` privilege on the remote 
+then the authenticating user must have the `run_as` privilege on the remote 
 cluster.
 
 The following request creates a `remote-replication` role on the remote cluster:
@@ -134,7 +134,7 @@ On the remote cluster, the {ccs} role requires the `read` and
 `read_cross_cluster` privileges for the target indices.
 
 NOTE: If requests will be issued <<run-as-privilege,on behalf of other users>>,
-then the the authenticating user must have the `run_as` privilege on the remote 
+then the authenticating user must have the `run_as` privilege on the remote 
 cluster.
 
 The following request creates a `remote-search` role on the remote cluster:

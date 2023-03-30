@@ -1,0 +1,1612 @@
+"_default_" : {
+  "_all" : {
+    "enabled" : true,
+    "norms" : false
+  },
+  "dynamic_templates" : [
+    {
+      "message_field" : {
+        "path_match" : "*message*",
+        "match_mapping_type" : "string",
+        "mapping" : {
+          "fields" : {
+            "raw" : {
+              "ignore_above" : 512,
+              "type" : "keyword"
+            }
+          },
+          "norms" : false,
+          "type" : "text"
+        }
+      }
+    },
+    {
+      "tags_field" : {
+        "path_match" : "*tags*",
+        "match_mapping_type" : "string",
+        "mapping" : {
+          "fields" : {
+            "raw" : {
+              "ignore_above" : 512,
+              "type" : "keyword"
+            }
+          },
+          "norms" : false,
+          "type" : "text"
+        }
+      }
+    },
+    {
+      "string_fields" : {
+        "match" : "*",
+        "match_mapping_type" : "string",
+        "mapping" : {
+          "norms" : false,
+          "type" : "keyword"
+        }
+      }
+    }
+  ],
+  "properties" : {
+    "@timestamp" : {
+      "type" : "date",
+      "include_in_all" : false
+    },
+    "@version" : {
+      "type" : "keyword",
+      "include_in_all" : false
+    },
+    "hostIP" : {
+      "type" : "ip"
+    },
+    "hostIP_geo" : {
+      "dynamic" : "true",
+      "properties" : {
+        "location" : {
+          "type" : "geo_point"
+        },
+        "postal_code" : {
+          "type" : "keyword"
+        }
+      }
+    },
+    "hostname" : {
+      "type" : "keyword"
+    },
+    "meta" : {
+      "include_in_all" : false,
+      "properties" : {
+        "processed_at_indexer" : {
+          "type" : "keyword"
+        },
+        "processed_at_shipper" : {
+          "type" : "keyword"
+        },
+        "received_from" : {
+          "type" : "keyword"
+        }
+      }
+    },
+    "net" : {
+      "properties" : {
+        "dst_ip" : {
+          "type" : "ip"
+        },
+        "dst_ip_geo" : {
+          "properties" : {
+            "location" : {
+              "type" : "geo_point"
+            }
+          }
+        },
+        "dst_nat_ip" : {
+          "type" : "ip"
+        },
+        "dst_nat_port" : {
+          "type" : "long"
+        },
+        "dst_port" : {
+          "type" : "long"
+        },
+        "src_ip" : {
+          "type" : "ip"
+        },
+        "src_ip_geo" : {
+          "properties" : {
+            "location" : {
+              "type" : "geo_point"
+            }
+          }
+        },
+        "src_nat_ip" : {
+          "type" : "ip"
+        },
+        "src_nat_port" : {
+          "type" : "long"
+        },
+        "src_port" : {
+          "type" : "long"
+        }
+      }
+    },
+    "type" : {
+      "type" : "keyword"
+    }
+  }
+},
+"wineventlog" : {
+  "_all" : {
+    "enabled" : true,
+    "norms" : false
+  },
+  "dynamic_templates" : [
+    {
+      "message_field" : {
+        "path_match" : "*message*",
+        "match_mapping_type" : "string",
+        "mapping" : {
+          "fields" : {
+            "raw" : {
+              "ignore_above" : 512,
+              "type" : "keyword"
+            }
+          },
+          "norms" : false,
+          "type" : "text"
+        }
+      }
+    },
+    {
+      "tags_field" : {
+        "path_match" : "*tags*",
+        "match_mapping_type" : "string",
+        "mapping" : {
+          "fields" : {
+            "raw" : {
+              "ignore_above" : 512,
+              "type" : "keyword"
+            }
+          },
+          "norms" : false,
+          "type" : "text"
+        }
+      }
+    },
+    {
+      "string_fields" : {
+        "match" : "*",
+        "match_mapping_type" : "string",
+        "mapping" : {
+          "norms" : false,
+          "type" : "keyword"
+        }
+      }
+    }
+  ],
+  "properties" : {
+    "@timestamp" : {
+      "type" : "date",
+      "include_in_all" : false
+    },
+    "@version" : {
+      "type" : "keyword",
+      "include_in_all" : false
+    },
+    "beat" : {
+      "type" : "object"
+    },
+    "eventdata" : {
+      "properties" : {
+        "AccessGranted" : {
+          "type" : "keyword"
+        },
+        "AccessList" : {
+          "type" : "keyword"
+        },
+        "AccessMask" : {
+          "type" : "keyword"
+        },
+        "AccessReason" : {
+          "type" : "keyword"
+        },
+        "AccessRemoved" : {
+          "type" : "keyword"
+        },
+        "AccountDomain" : {
+          "type" : "keyword"
+        },
+        "AccountExpires" : {
+          "type" : "keyword"
+        },
+        "AccountName" : {
+          "type" : "keyword"
+        },
+        "AccountSessionIdentifier" : {
+          "type" : "keyword"
+        },
+        "Action" : {
+          "type" : "keyword"
+        },
+        "ActiveProfile" : {
+          "type" : "keyword"
+        },
+        "AdditionalInfo" : {
+          "type" : "keyword"
+        },
+        "AdditionalInfo2" : {
+          "type" : "keyword"
+        },
+        "AdvancedOptions" : {
+          "type" : "keyword"
+        },
+        "AhAuthType" : {
+          "type" : "keyword"
+        },
+        "AlgorithmName" : {
+          "type" : "keyword"
+        },
+        "AllowedToDelegateTo" : {
+          "type" : "keyword"
+        },
+        "AppCorrelationID" : {
+          "type" : "keyword"
+        },
+        "AppInstance" : {
+          "type" : "keyword"
+        },
+        "AppName" : {
+          "type" : "keyword"
+        },
+        "Application" : {
+          "type" : "keyword"
+        },
+        "AttributeLDAPDisplayName" : {
+          "type" : "keyword"
+        },
+        "AttributeSyntaxOID" : {
+          "type" : "keyword"
+        },
+        "AttributeValue" : {
+          "type" : "keyword"
+        },
+        "Attributes" : {
+          "type" : "keyword"
+        },
+        "AuditPolicyChanges" : {
+          "type" : "keyword"
+        },
+        "AuditSourceName" : {
+          "type" : "keyword"
+        },
+        "AuditsDiscarded" : {
+          "type" : "keyword"
+        },
+        "AuthenticationPackage" : {
+          "type" : "keyword"
+        },
+        "AuthenticationPackageName" : {
+          "type" : "keyword"
+        },
+        "AuthenticationProvider" : {
+          "type" : "keyword"
+        },
+        "AuthenticationServer" : {
+          "type" : "keyword"
+        },
+        "AuthenticationType" : {
+          "type" : "keyword"
+        },
+        "BackupPath" : {
+          "type" : "keyword"
+        },
+        "BackupType" : {
+          "type" : "keyword"
+        },
+        "CalledStationID" : {
+          "type" : "keyword"
+        },
+        "CallerProcessId" : {
+          "type" : "keyword"
+        },
+        "CallerProcessName" : {
+          "type" : "keyword"
+        },
+        "CallingStationID" : {
+          "type" : "keyword"
+        },
+        "CalloutId" : {
+          "type" : "keyword"
+        },
+        "CalloutKey" : {
+          "type" : "keyword"
+        },
+        "CalloutName" : {
+          "type" : "keyword"
+        },
+        "CalloutType" : {
+          "type" : "keyword"
+        },
+        "Categories" : {
+          "type" : "keyword"
+        },
+        "CategoryId" : {
+          "type" : "keyword"
+        },
+        "ChangeType" : {
+          "type" : "keyword"
+        },
+        "Channel" : {
+          "type" : "keyword"
+        },
+        "CipherType" : {
+          "type" : "keyword"
+        },
+        "ClientAddress" : {
+          "type" : "keyword"
+        },
+        "ClientDomain" : {
+          "type" : "keyword"
+        },
+        "ClientIPAddress" : {
+          "type" : "keyword"
+        },
+        "ClientLogonId" : {
+          "type" : "keyword"
+        },
+        "ClientName" : {
+          "type" : "keyword"
+        },
+        "ClientUserName" : {
+          "type" : "keyword"
+        },
+        "ComputerAccountChange" : {
+          "type" : "keyword"
+        },
+        "Conditions" : {
+          "type" : "keyword"
+        },
+        "ConfigAccessPolicy" : {
+          "type" : "keyword"
+        },
+        "DCDNSName" : {
+          "type" : "keyword"
+        },
+        "DHGroup" : {
+          "type" : "keyword"
+        },
+        "DSName" : {
+          "type" : "keyword"
+        },
+        "DSType" : {
+          "type" : "keyword"
+        },
+        "DestAddress" : {
+          "type" : "keyword"
+        },
+        "DestPort" : {
+          "type" : "keyword"
+        },
+        "DestinationDRA" : {
+          "type" : "keyword"
+        },
+        "Direction" : {
+          "type" : "keyword"
+        },
+        "DisableIntegrityChecks" : {
+          "type" : "keyword"
+        },
+        "DisabledPrivilegeList" : {
+          "type" : "keyword"
+        },
+        "DisplayName" : {
+          "type" : "keyword"
+        },
+        "Disposition" : {
+          "type" : "keyword"
+        },
+        "DnsHostName" : {
+          "type" : "keyword"
+        },
+        "DomainBehaviorVersion" : {
+          "type" : "keyword"
+        },
+        "DomainName" : {
+          "type" : "keyword"
+        },
+        "DomainPolicyChanged" : {
+          "type" : "keyword"
+        },
+        "DomainSid" : {
+          "type" : "keyword"
+        },
+        "Dummy" : {
+          "type" : "keyword"
+        },
+        "EAPErrorCode" : {
+          "type" : "keyword"
+        },
+        "EAPReasonCode" : {
+          "type" : "keyword"
+        },
+        "EAPType" : {
+          "type" : "keyword"
+        },
+        "ElevatedToken" : {
+          "type" : "keyword"
+        },
+        "EnabledPrivilegeList" : {
+          "type" : "keyword"
+        },
+        "EndUSN" : {
+          "type" : "keyword"
+        },
+        "ErrorCode" : {
+          "type" : "keyword"
+        },
+        "EspAuthType" : {
+          "type" : "keyword"
+        },
+        "EventCountTotal" : {
+          "type" : "keyword"
+        },
+        "EventID" : {
+          "type" : "keyword"
+        },
+        "EventIdx" : {
+          "type" : "keyword"
+        },
+        "EventSourceId" : {
+          "type" : "keyword"
+        },
+        "ExtendedQuarantineState" : {
+          "type" : "keyword"
+        },
+        "FailureDescription" : {
+          "type" : "keyword"
+        },
+        "FailureId" : {
+          "type" : "keyword"
+        },
+        "FailurePoint" : {
+          "type" : "keyword"
+        },
+        "FailureReason" : {
+          "type" : "keyword"
+        },
+        "FileName" : {
+          "type" : "keyword"
+        },
+        "FilterId" : {
+          "type" : "keyword"
+        },
+        "FilterKey" : {
+          "type" : "keyword"
+        },
+        "FilterName" : {
+          "type" : "keyword"
+        },
+        "FilterRTID" : {
+          "type" : "keyword"
+        },
+        "FilterType" : {
+          "type" : "keyword"
+        },
+        "FlightSigning" : {
+          "type" : "keyword"
+        },
+        "ForceLogoff" : {
+          "type" : "keyword"
+        },
+        "FullyQualifiedSubjectMachineName" : {
+          "type" : "keyword"
+        },
+        "FullyQualifiedSubjectUserName" : {
+          "type" : "keyword"
+        },
+        "GPOList" : {
+          "type" : "keyword"
+        },
+        "Group" : {
+          "type" : "keyword"
+        },
+        "GroupMembership" : {
+          "type" : "keyword"
+        },
+        "GroupPolicyApplied" : {
+          "type" : "keyword"
+        },
+        "HandleId" : {
+          "type" : "keyword"
+        },
+        "HomeDirectory" : {
+          "type" : "keyword"
+        },
+        "HomePath" : {
+          "type" : "keyword"
+        },
+        "HypervisorDebug" : {
+          "type" : "keyword"
+        },
+        "HypervisorLaunchType" : {
+          "type" : "keyword"
+        },
+        "HypervisorLoadOptions" : {
+          "type" : "keyword"
+        },
+        "Identity" : {
+          "type" : "keyword"
+        },
+        "ImpersonationLevel" : {
+          "type" : "keyword"
+        },
+        "InboundSpi" : {
+          "type" : "keyword"
+        },
+        "InitiatorCookie" : {
+          "type" : "keyword"
+        },
+        "InterfaceName" : {
+          "type" : "keyword"
+        },
+        "IntfGuid" : {
+          "type" : "keyword"
+        },
+        "IpAddress" : {
+          "type" : "keyword"
+        },
+        "IpPort" : {
+          "type" : "keyword"
+        },
+        "IpProtocol" : {
+          "type" : "keyword"
+        },
+        "KernelDebug" : {
+          "type" : "keyword"
+        },
+        "KeyFilePath" : {
+          "type" : "keyword"
+        },
+        "KeyLength" : {
+          "type" : "keyword"
+        },
+        "KeyModName" : {
+          "type" : "keyword"
+        },
+        "KeyName" : {
+          "type" : "keyword"
+        },
+        "KeyType" : {
+          "type" : "keyword"
+        },
+        "KeyingModuleName" : {
+          "type" : "keyword"
+        },
+        "LayerId" : {
+          "type" : "keyword"
+        },
+        "LayerKey" : {
+          "type" : "keyword"
+        },
+        "LayerName" : {
+          "type" : "keyword"
+        },
+        "LayerRTID" : {
+          "type" : "keyword"
+        },
+        "LifetimeKilobytes" : {
+          "type" : "keyword"
+        },
+        "LifetimePackets" : {
+          "type" : "keyword"
+        },
+        "LifetimeSeconds" : {
+          "type" : "keyword"
+        },
+        "LinkName" : {
+          "type" : "keyword"
+        },
+        "LmPackageName" : {
+          "type" : "keyword"
+        },
+        "LoadOptions" : {
+          "type" : "keyword"
+        },
+        "LocalAddress" : {
+          "type" : "keyword"
+        },
+        "LocalAddressMask" : {
+          "type" : "keyword"
+        },
+        "LocalKeyModPort" : {
+          "type" : "keyword"
+        },
+        "LocalMMPrincipalName" : {
+          "type" : "keyword"
+        },
+        "LocalMac" : {
+          "type" : "keyword"
+        },
+        "LocalPort" : {
+          "type" : "keyword"
+        },
+        "LocalTunnelEndpoint" : {
+          "type" : "keyword"
+        },
+        "LockoutDuration" : {
+          "type" : "keyword"
+        },
+        "LockoutObservationWindow" : {
+          "type" : "keyword"
+        },
+        "LockoutThreshold" : {
+          "type" : "keyword"
+        },
+        "LogDroppedPacketsEnabled" : {
+          "type" : "keyword"
+        },
+        "LogSuccessfulConnectionsEnabled" : {
+          "type" : "keyword"
+        },
+        "LoggingResult" : {
+          "type" : "keyword"
+        },
+        "LogonGuid" : {
+          "type" : "keyword"
+        },
+        "LogonHours" : {
+          "type" : "keyword"
+        },
+        "LogonID" : {
+          "type" : "keyword"
+        },
+        "LogonProcessName" : {
+          "type" : "keyword"
+        },
+        "LogonType" : {
+          "type" : "keyword"
+        },
+        "LogonType_Description" : {
+          "type" : "keyword"
+        },
+        "MMAuthMethod" : {
+          "type" : "keyword"
+        },
+        "MMCipherAlg" : {
+          "type" : "keyword"
+        },
+        "MMFilterID" : {
+          "type" : "keyword"
+        },
+        "MMImpersonationState" : {
+          "type" : "keyword"
+        },
+        "MMIntegrityAlg" : {
+          "type" : "keyword"
+        },
+        "MMLifetime" : {
+          "type" : "keyword"
+        },
+        "MMSAID" : {
+          "type" : "keyword"
+        },
+        "MachineAccountQuota" : {
+          "type" : "keyword"
+        },
+        "MachineInventory" : {
+          "type" : "keyword"
+        },
+        "MainModeSaId" : {
+          "type" : "keyword"
+        },
+        "MandatoryLabel" : {
+          "type" : "keyword"
+        },
+        "MappedName" : {
+          "type" : "keyword"
+        },
+        "MappingBy" : {
+          "type" : "keyword"
+        },
+        "MasterKeyId" : {
+          "type" : "keyword"
+        },
+        "MaxPasswordAge" : {
+          "type" : "keyword"
+        },
+        "MemberName" : {
+          "type" : "keyword"
+        },
+        "MemberSid" : {
+          "type" : "keyword"
+        },
+        "Message" : {
+          "type" : "keyword"
+        },
+        "MessageID" : {
+          "type" : "keyword"
+        },
+        "MinPasswordAge" : {
+          "type" : "keyword"
+        },
+        "MinPasswordLength" : {
+          "type" : "keyword"
+        },
+        "MixedDomainMode" : {
+          "type" : "keyword"
+        },
+        "Mode" : {
+          "type" : "keyword"
+        },
+        "ModifiedObjectProperties" : {
+          "type" : "keyword"
+        },
+        "Module" : {
+          "type" : "keyword"
+        },
+        "MulticastFlowsEnabled" : {
+          "type" : "keyword"
+        },
+        "NASIPv4Address" : {
+          "type" : "keyword"
+        },
+        "NASIPv6Address" : {
+          "type" : "keyword"
+        },
+        "NASIdentifier" : {
+          "type" : "keyword"
+        },
+        "NASPort" : {
+          "type" : "keyword"
+        },
+        "NASPortType" : {
+          "type" : "keyword"
+        },
+        "NamingContext" : {
+          "type" : "keyword"
+        },
+        "NetworkPolicyName" : {
+          "type" : "keyword"
+        },
+        "NewMaxUsers" : {
+          "type" : "keyword"
+        },
+        "NewProcessId" : {
+          "type" : "keyword"
+        },
+        "NewProcessName" : {
+          "type" : "keyword"
+        },
+        "NewRemark" : {
+          "type" : "keyword"
+        },
+        "NewSD" : {
+          "type" : "keyword"
+        },
+        "NewSd" : {
+          "type" : "keyword"
+        },
+        "NewShareFlags" : {
+          "type" : "keyword"
+        },
+        "NewState" : {
+          "type" : "keyword"
+        },
+        "NewTargetUserName" : {
+          "type" : "keyword"
+        },
+        "NewTime" : {
+          "type" : "date"
+        },
+        "NewUacValue" : {
+          "type" : "keyword"
+        },
+        "NewValue" : {
+          "type" : "keyword"
+        },
+        "NewValueType" : {
+          "type" : "keyword"
+        },
+        "NotificationPackageName" : {
+          "type" : "keyword"
+        },
+        "ObjectClass" : {
+          "type" : "keyword"
+        },
+        "ObjectCollectionName" : {
+          "type" : "keyword"
+        },
+        "ObjectDN" : {
+          "type" : "keyword"
+        },
+        "ObjectGUID" : {
+          "type" : "keyword"
+        },
+        "ObjectIdentifyingProperties" : {
+          "type" : "keyword"
+        },
+        "ObjectName" : {
+          "type" : "keyword"
+        },
+        "ObjectProperties" : {
+          "type" : "keyword"
+        },
+        "ObjectServer" : {
+          "type" : "keyword"
+        },
+        "ObjectType" : {
+          "type" : "keyword"
+        },
+        "ObjectValueName" : {
+          "type" : "keyword"
+        },
+        "OemInformation" : {
+          "type" : "keyword"
+        },
+        "OldMaxUsers" : {
+          "type" : "keyword"
+        },
+        "OldRemark" : {
+          "type" : "keyword"
+        },
+        "OldSD" : {
+          "type" : "keyword"
+        },
+        "OldSd" : {
+          "type" : "keyword"
+        },
+        "OldShareFlags" : {
+          "type" : "keyword"
+        },
+        "OldTargetUserName" : {
+          "type" : "keyword"
+        },
+        "OldUacValue" : {
+          "type" : "keyword"
+        },
+        "OldValue" : {
+          "type" : "keyword"
+        },
+        "OldValueType" : {
+          "type" : "keyword"
+        },
+        "OpCorrelationID" : {
+          "type" : "keyword"
+        },
+        "Operation" : {
+          "type" : "keyword"
+        },
+        "OperationId" : {
+          "type" : "keyword"
+        },
+        "OperationMode" : {
+          "type" : "keyword"
+        },
+        "OperationName" : {
+          "type" : "keyword"
+        },
+        "OperationType" : {
+          "type" : "keyword"
+        },
+        "Options" : {
+          "type" : "keyword"
+        },
+        "OutboundSpi" : {
+          "type" : "keyword"
+        },
+        "PackageName" : {
+          "type" : "keyword"
+        },
+        "ParentProcessName" : {
+          "type" : "keyword"
+        },
+        "PasswordHistoryLength" : {
+          "type" : "keyword"
+        },
+        "PasswordLastSet" : {
+          "type" : "keyword"
+        },
+        "PasswordProperties" : {
+          "type" : "keyword"
+        },
+        "PeerMac" : {
+          "type" : "keyword"
+        },
+        "PeerPrivateAddress" : {
+          "type" : "keyword"
+        },
+        "Policy" : {
+          "type" : "keyword"
+        },
+        "PreAuthType" : {
+          "type" : "keyword"
+        },
+        "PreviousTime" : {
+          "type" : "date"
+        },
+        "PrimaryGroupId" : {
+          "type" : "keyword"
+        },
+        "PrivilegeList" : {
+          "type" : "keyword"
+        },
+        "ProcessID" : {
+          "type" : "keyword"
+        },
+        "ProcessId" : {
+          "type" : "keyword"
+        },
+        "ProcessName" : {
+          "type" : "keyword"
+        },
+        "ProductName" : {
+          "type" : "keyword"
+        },
+        "Profile" : {
+          "type" : "keyword"
+        },
+        "ProfileChanged" : {
+          "type" : "keyword"
+        },
+        "ProfilePath" : {
+          "type" : "keyword"
+        },
+        "ProfileUsed" : {
+          "type" : "keyword"
+        },
+        "Profiles" : {
+          "type" : "keyword"
+        },
+        "Properties" : {
+          "type" : "keyword"
+        },
+        "Protocol" : {
+          "type" : "keyword"
+        },
+        "ProviderContextKey" : {
+          "type" : "keyword"
+        },
+        "ProviderContextName" : {
+          "type" : "keyword"
+        },
+        "ProviderContextType" : {
+          "type" : "keyword"
+        },
+        "ProviderKey" : {
+          "type" : "keyword"
+        },
+        "ProviderName" : {
+          "type" : "keyword"
+        },
+        "ProviderType" : {
+          "type" : "keyword"
+        },
+        "ProxyPolicyName" : {
+          "type" : "keyword"
+        },
+        "PuaCount" : {
+          "type" : "keyword"
+        },
+        "PuaPolicyId" : {
+          "type" : "keyword"
+        },
+        "PublisherGuid" : {
+          "type" : "keyword"
+        },
+        "PublisherID" : {
+          "type" : "keyword"
+        },
+        "PublisherName" : {
+          "type" : "keyword"
+        },
+        "QMFilterID" : {
+          "type" : "keyword"
+        },
+        "QMLimit" : {
+          "type" : "keyword"
+        },
+        "QuarantineHelpURL" : {
+          "type" : "keyword"
+        },
+        "QuarantineSessionID" : {
+          "type" : "keyword"
+        },
+        "QuarantineSessionIdentifier" : {
+          "type" : "keyword"
+        },
+        "QuarantineState" : {
+          "type" : "keyword"
+        },
+        "QuarantineSystemHealthResult" : {
+          "type" : "keyword"
+        },
+        "QuickModeSaId" : {
+          "type" : "keyword"
+        },
+        "Reason" : {
+          "type" : "keyword"
+        },
+        "ReasonCode" : {
+          "type" : "keyword"
+        },
+        "ReasonForRejection" : {
+          "type" : "keyword"
+        },
+        "ReasonText" : {
+          "type" : "keyword"
+        },
+        "RecoveryKeyId" : {
+          "type" : "keyword"
+        },
+        "RecoveryReason" : {
+          "type" : "keyword"
+        },
+        "RecoveryServer" : {
+          "type" : "keyword"
+        },
+        "RelativeTargetName" : {
+          "type" : "keyword"
+        },
+        "RemoteAddress" : {
+          "type" : "keyword"
+        },
+        "RemoteAddressMask" : {
+          "type" : "keyword"
+        },
+        "RemoteAdminEnabled" : {
+          "type" : "keyword"
+        },
+        "RemoteEventLogging" : {
+          "type" : "keyword"
+        },
+        "RemoteKeyModPort" : {
+          "type" : "keyword"
+        },
+        "RemoteMMPrincipalName" : {
+          "type" : "keyword"
+        },
+        "RemoteMachineID" : {
+          "type" : "keyword"
+        },
+        "RemotePort" : {
+          "type" : "keyword"
+        },
+        "RemotePrivateAddress" : {
+          "type" : "keyword"
+        },
+        "RemoteTunnelEndpoint" : {
+          "type" : "keyword"
+        },
+        "RemoteUserID" : {
+          "type" : "keyword"
+        },
+        "RequestId" : {
+          "type" : "keyword"
+        },
+        "RequestType" : {
+          "type" : "keyword"
+        },
+        "Requester" : {
+          "type" : "keyword"
+        },
+        "ResourceAttributes" : {
+          "type" : "keyword"
+        },
+        "ResourceManager" : {
+          "type" : "keyword"
+        },
+        "ResponderCookie" : {
+          "type" : "keyword"
+        },
+        "RestrictedAdminMode" : {
+          "type" : "keyword"
+        },
+        "RestrictedSidCount" : {
+          "type" : "keyword"
+        },
+        "ReturnCode" : {
+          "type" : "keyword"
+        },
+        "Role" : {
+          "type" : "keyword"
+        },
+        "RuleAttr" : {
+          "type" : "keyword"
+        },
+        "RuleId" : {
+          "type" : "keyword"
+        },
+        "RuleName" : {
+          "type" : "keyword"
+        },
+        "SPI" : {
+          "type" : "keyword"
+        },
+        "SSID" : {
+          "type" : "keyword"
+        },
+        "SamAccountName" : {
+          "type" : "keyword"
+        },
+        "ScopeName" : {
+          "type" : "keyword"
+        },
+        "ScriptPath" : {
+          "type" : "keyword"
+        },
+        "SecurityDescriptor" : {
+          "type" : "keyword"
+        },
+        "SecurityPackageName" : {
+          "type" : "keyword"
+        },
+        "Service" : {
+          "type" : "keyword"
+        },
+        "ServiceAccount" : {
+          "type" : "keyword"
+        },
+        "ServiceFileName" : {
+          "type" : "keyword"
+        },
+        "ServiceName" : {
+          "type" : "keyword"
+        },
+        "ServicePrincipalNames" : {
+          "type" : "keyword"
+        },
+        "ServiceSid" : {
+          "type" : "keyword"
+        },
+        "ServiceStartType" : {
+          "type" : "keyword"
+        },
+        "ServiceType" : {
+          "type" : "keyword"
+        },
+        "SessionID" : {
+          "type" : "keyword"
+        },
+        "SessionId" : {
+          "type" : "keyword"
+        },
+        "SessionName" : {
+          "type" : "keyword"
+        },
+        "SettingType" : {
+          "type" : "keyword"
+        },
+        "SettingValue" : {
+          "type" : "keyword"
+        },
+        "ShareLocalPath" : {
+          "type" : "keyword"
+        },
+        "ShareName" : {
+          "type" : "keyword"
+        },
+        "SidHistory" : {
+          "type" : "keyword"
+        },
+        "SourceAddr" : {
+          "type" : "keyword"
+        },
+        "SourceAddress" : {
+          "type" : "keyword"
+        },
+        "SourceDRA" : {
+          "type" : "keyword"
+        },
+        "SourceHandleId" : {
+          "type" : "keyword"
+        },
+        "SourcePort" : {
+          "type" : "keyword"
+        },
+        "SourceProcessId" : {
+          "type" : "keyword"
+        },
+        "StartUSN" : {
+          "type" : "keyword"
+        },
+        "State" : {
+          "type" : "keyword"
+        },
+        "Status" : {
+          "type" : "keyword"
+        },
+        "StatusCode" : {
+          "type" : "keyword"
+        },
+        "StoreUrl" : {
+          "type" : "keyword"
+        },
+        "SubLayerKey" : {
+          "type" : "keyword"
+        },
+        "SubLayerName" : {
+          "type" : "keyword"
+        },
+        "SubLayerType" : {
+          "type" : "keyword"
+        },
+        "SubStatus" : {
+          "type" : "keyword"
+        },
+        "SubcategoryGuid" : {
+          "type" : "keyword"
+        },
+        "SubcategoryId" : {
+          "type" : "keyword"
+        },
+        "Subject" : {
+          "type" : "keyword"
+        },
+        "SubjectDomainName" : {
+          "type" : "keyword"
+        },
+        "SubjectKeyIdentifier" : {
+          "type" : "keyword"
+        },
+        "SubjectLogonId" : {
+          "type" : "keyword"
+        },
+        "SubjectMachineName" : {
+          "type" : "keyword"
+        },
+        "SubjectMachineSID" : {
+          "type" : "keyword"
+        },
+        "SubjectUserDomainName" : {
+          "type" : "keyword"
+        },
+        "SubjectUserName" : {
+          "type" : "keyword"
+        },
+        "SubjectUserSid" : {
+          "type" : "keyword"
+        },
+        "TargetDomainName" : {
+          "type" : "keyword"
+        },
+        "TargetHandleId" : {
+          "type" : "keyword"
+        },
+        "TargetInfo" : {
+          "type" : "keyword"
+        },
+        "TargetLinkedLogonId" : {
+          "type" : "keyword"
+        },
+        "TargetLogonGuid" : {
+          "type" : "keyword"
+        },
+        "TargetLogonId" : {
+          "type" : "keyword"
+        },
+        "TargetOutboundDomainName" : {
+          "type" : "keyword"
+        },
+        "TargetOutboundUserName" : {
+          "type" : "keyword"
+        },
+        "TargetProcessId" : {
+          "type" : "keyword"
+        },
+        "TargetServerName" : {
+          "type" : "keyword"
+        },
+        "TargetSid" : {
+          "type" : "keyword"
+        },
+        "TargetUserName" : {
+          "type" : "keyword"
+        },
+        "TargetUserSid" : {
+          "type" : "keyword"
+        },
+        "TaskContent" : {
+          "type" : "keyword"
+        },
+        "TaskContentNew" : {
+          "type" : "keyword"
+        },
+        "TaskName" : {
+          "type" : "keyword"
+        },
+        "TemplateContent" : {
+          "type" : "keyword"
+        },
+        "TemplateDSObjectFQDN" : {
+          "type" : "keyword"
+        },
+        "TemplateInternalName" : {
+          "type" : "keyword"
+        },
+        "TemplateOID" : {
+          "type" : "keyword"
+        },
+        "TemplateSchemaVersion" : {
+          "type" : "keyword"
+        },
+        "TemplateVersion" : {
+          "type" : "keyword"
+        },
+        "TestSigning" : {
+          "type" : "keyword"
+        },
+        "TicketEncryptionType" : {
+          "type" : "keyword"
+        },
+        "TicketOptions" : {
+          "type" : "keyword"
+        },
+        "TokenElevationType" : {
+          "type" : "keyword"
+        },
+        "TrafficSelectorId" : {
+          "type" : "keyword"
+        },
+        "TransactionId" : {
+          "type" : "keyword"
+        },
+        "TransmittedServices" : {
+          "type" : "keyword"
+        },
+        "TransportFilterId" : {
+          "type" : "keyword"
+        },
+        "TreeDelete" : {
+          "type" : "keyword"
+        },
+        "TunnelId" : {
+          "type" : "keyword"
+        },
+        "UserAccountControl" : {
+          "type" : "keyword"
+        },
+        "UserName" : {
+          "type" : "keyword"
+        },
+        "UserParameters" : {
+          "type" : "keyword"
+        },
+        "UserPrincipalName" : {
+          "type" : "keyword"
+        },
+        "UserSid" : {
+          "type" : "keyword"
+        },
+        "UserWorkstations" : {
+          "type" : "keyword"
+        },
+        "VirtualAccount" : {
+          "type" : "keyword"
+        },
+        "VsmLaunchType" : {
+          "type" : "keyword"
+        },
+        "Weight" : {
+          "type" : "keyword"
+        },
+        "Workstation" : {
+          "type" : "keyword"
+        },
+        "WorkstationName" : {
+          "type" : "keyword"
+        },
+        "param1" : {
+          "type" : "keyword"
+        },
+        "param2" : {
+          "type" : "keyword"
+        },
+        "param3" : {
+          "type" : "keyword"
+        },
+        "param4" : {
+          "type" : "keyword"
+        },
+        "param5" : {
+          "type" : "keyword"
+        },
+        "param6" : {
+          "type" : "keyword"
+        },
+        "param7" : {
+          "type" : "keyword"
+        },
+        "param8" : {
+          "type" : "keyword"
+        },
+        "param9" : {
+          "type" : "keyword"
+        },
+        "xml_name" : {
+          "type" : "keyword"
+        }
+      }
+    },
+    "eventlog" : {
+      "properties" : {
+        "computer" : {
+          "type" : "keyword"
+        },
+        "eventID" : {
+          "type" : "long"
+        },
+        "event_recordID" : {
+          "type" : "long"
+        },
+        "keywords" : {
+          "type" : "keyword"
+        },
+        "log_name" : {
+          "type" : "keyword"
+        },
+        "processID" : {
+          "type" : "long"
+        },
+        "source" : {
+          "type" : "keyword"
+        },
+        "task_category" : {
+          "type" : "keyword"
+        },
+        "threadID" : {
+          "type" : "long"
+        }
+      }
+    },
+    "hostIP" : {
+      "type" : "ip"
+    },
+    "hostIP_geo" : {
+      "dynamic" : "true",
+      "properties" : {
+        "location" : {
+          "type" : "geo_point"
+        },
+        "postal_code" : {
+          "type" : "keyword"
+        }
+      }
+    },
+    "hostname" : {
+      "type" : "keyword"
+    },
+    "message" : {
+      "type" : "text",
+      "norms" : false,
+      "fields" : {
+        "raw" : {
+          "type" : "keyword",
+          "ignore_above" : 512
+        }
+      }
+    },
+    "message_error" : {
+      "type" : "text",
+      "norms" : false,
+      "fields" : {
+        "raw" : {
+          "type" : "keyword",
+          "ignore_above" : 512
+        }
+      }
+    },
+    "meta" : {
+      "include_in_all" : false,
+      "properties" : {
+        "beat_type" : {
+          "type" : "keyword"
+        },
+        "beat_version" : {
+          "type" : "keyword"
+        },
+        "diff_indexer_shipper_ms" : {
+          "type" : "long"
+        },
+        "diff_shipper_timestamp_ms" : {
+          "type" : "long"
+        },
+        "kafka_topic" : {
+          "type" : "keyword"
+        },
+        "processed_at_indexer" : {
+          "type" : "keyword"
+        },
+        "processed_at_shipper" : {
+          "type" : "keyword"
+        },
+        "received_at_indexer" : {
+          "type" : "date"
+        },
+        "received_at_shipper" : {
+          "type" : "date"
+        },
+        "received_from" : {
+          "type" : "keyword"
+        }
+      }
+    },
+    "net" : {
+      "properties" : {
+        "dst_ip" : {
+          "type" : "ip"
+        },
+        "dst_ip_geo" : {
+          "properties" : {
+            "location" : {
+              "type" : "geo_point"
+            }
+          }
+        },
+        "dst_nat_ip" : {
+          "type" : "ip"
+        },
+        "dst_nat_port" : {
+          "type" : "long"
+        },
+        "dst_port" : {
+          "type" : "long"
+        },
+        "src_domain" : {
+          "type" : "keyword"
+        },
+        "src_ip" : {
+          "type" : "ip"
+        },
+        "src_ip_geo" : {
+          "properties" : {
+            "location" : {
+              "type" : "geo_point"
+            }
+          }
+        },
+        "src_nat_ip" : {
+          "type" : "ip"
+        },
+        "src_nat_port" : {
+          "type" : "long"
+        },
+        "src_port" : {
+          "type" : "long"
+        },
+        "src_user" : {
+          "type" : "keyword"
+        },
+        "src_user_department" : {
+          "type" : "keyword"
+        },
+        "src_user_department_number" : {
+          "type" : "keyword"
+        },
+        "src_user_display_name" : {
+          "type" : "keyword"
+        },
+        "src_user_title" : {
+          "type" : "keyword"
+        }
+      }
+    },
+    "severity" : {
+      "type" : "keyword"
+    },
+    "tags" : {
+      "type" : "text",
+      "norms" : false,
+      "fields" : {
+        "raw" : {
+          "type" : "keyword",
+          "ignore_above" : 512
+        }
+      }
+    },
+    "type" : {
+      "type" : "keyword"
+    },
+    "user" : {
+      "type" : "object"
+    }
+  }
+}

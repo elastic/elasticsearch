@@ -7,33 +7,17 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.xcontent.XContent;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 
-import java.io.IOException;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
-
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * An index abstraction is a reference to one or more concrete indices.
- * An index abstraction has a unique name and encapsulates all the  {@link IndexMetadata} instances it is pointing to.
+ * An index abstraction has a unique name and encapsulates all the {@link Index} instances it is pointing to.
  * Also depending on type it may refer to a single or many concrete indices and may or may not have a write index.
  */
 public interface IndexAbstraction {
@@ -49,7 +33,7 @@ public interface IndexAbstraction {
     String getName();
 
     /**
-     * @return All {@link IndexMetadata} of all concrete indices this index abstraction is referring to.
+     * @return All {@link Index} of all concrete indices this index abstraction is referring to.
      */
     List<Index> getIndices();
 
@@ -94,13 +78,6 @@ public interface IndexAbstraction {
     }
 
     /**
-     * @return the names of aliases referring to this instance.
-     *         Returns <code>null</code> if aliases can't point to this instance.
-     */
-    @Nullable
-    List<String> getAliases();
-
-    /**
      * An index abstraction type.
      */
     enum Type {
@@ -141,17 +118,16 @@ public interface IndexAbstraction {
      */
     class ConcreteIndex implements IndexAbstraction {
 
-        private final Index concreteIndexName;
+        private final Index concreteIndex;
         private final boolean isHidden;
         private final boolean isSystem;
-        private final List<String> aliases;
         private final DataStream dataStream;
 
         public ConcreteIndex(IndexMetadata indexMetadata, DataStream dataStream) {
-            this.concreteIndexName = indexMetadata.getIndex();
+            // note: don't capture a reference to the indexMetadata here
+            this.concreteIndex = indexMetadata.getIndex();
             this.isHidden = indexMetadata.isHidden();
             this.isSystem = indexMetadata.isSystem();
-            this.aliases = indexMetadata.getAliases() != null ? List.of(indexMetadata.getAliases().keys().toArray(String.class)) : null;
             this.dataStream = dataStream;
         }
 
@@ -161,7 +137,7 @@ public interface IndexAbstraction {
 
         @Override
         public String getName() {
-            return concreteIndexName.getName();
+            return concreteIndex.getName();
         }
 
         @Override
@@ -171,12 +147,12 @@ public interface IndexAbstraction {
 
         @Override
         public List<Index> getIndices() {
-            return List.of(concreteIndexName);
+            return List.of(concreteIndex);
         }
 
         @Override
         public Index getWriteIndex() {
-            return concreteIndexName;
+            return concreteIndex;
         }
 
         @Override
@@ -195,25 +171,19 @@ public interface IndexAbstraction {
         }
 
         @Override
-        public List<String> getAliases() {
-            return aliases;
-        }
-
-        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ConcreteIndex that = (ConcreteIndex) o;
             return isHidden == that.isHidden
                 && isSystem == that.isSystem
-                && concreteIndexName.equals(that.concreteIndexName)
-                && Objects.equals(aliases, that.aliases)
+                && concreteIndex.equals(that.concreteIndex)
                 && Objects.equals(dataStream, that.dataStream);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(concreteIndexName, isHidden, isSystem, aliases, dataStream);
+            return Objects.hash(concreteIndex, isHidden, isSystem, dataStream);
         }
     }
 
@@ -223,43 +193,43 @@ public interface IndexAbstraction {
     class Alias implements IndexAbstraction {
 
         private final String aliasName;
-        private final List<Index> referenceIndexMetadatas;
+        private final List<Index> referenceIndices;
         private final Index writeIndex;
         private final boolean isHidden;
         private final boolean isSystem;
         private final boolean dataStreamAlias;
 
-        public Alias(AliasMetadata aliasMetadata, List<IndexMetadata> indices) {
+        public Alias(AliasMetadata aliasMetadata, List<IndexMetadata> indexMetadatas) {
+            // note: don't capture a reference to any of these indexMetadatas here
             this.aliasName = aliasMetadata.getAlias();
-            this.referenceIndexMetadatas = new ArrayList<>(indices.size());
-            for (IndexMetadata imd : indices) {
-                this.referenceIndexMetadatas.add(imd.getIndex());
+            this.referenceIndices = new ArrayList<>(indexMetadatas.size());
+            boolean isSystem = true;
+            Index widx = null;
+            for (IndexMetadata imd : indexMetadatas) {
+                this.referenceIndices.add(imd.getIndex());
+                if (Boolean.TRUE.equals(imd.getAliases().get(aliasName).writeIndex())) {
+                    if (widx != null) {
+                        throw new IllegalStateException("write indices size can only be 0 or 1, but is at least 2");
+                    }
+                    widx = imd.getIndex();
+                }
+                isSystem = isSystem && imd.isSystem();
             }
+            this.referenceIndices.sort(Index.COMPARE_BY_NAME);
 
-            List<IndexMetadata> writeIndices = indices.stream()
-                .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
-                .collect(Collectors.toList());
-
-            if (writeIndices.isEmpty() && indices.size() == 1 && indices.get(0).getAliases().get(aliasName).writeIndex() == null) {
-                writeIndices.add(indices.get(0));
+            if (widx == null && indexMetadatas.size() == 1 && indexMetadatas.get(0).getAliases().get(aliasName).writeIndex() == null) {
+                widx = indexMetadatas.get(0).getIndex();
             }
-
-            if (writeIndices.size() == 0) {
-                this.writeIndex = null;
-            } else if (writeIndices.size() == 1) {
-                this.writeIndex = writeIndices.get(0).getIndex();
-            } else {
-                throw new IllegalStateException("write indices size can only be 0 or 1, but is [" + writeIndices.size() + "]");
-            }
+            this.writeIndex = widx;
 
             this.isHidden = aliasMetadata.isHidden() == null ? false : aliasMetadata.isHidden();
-            this.isSystem = indices.stream().allMatch(IndexMetadata::isSystem);
+            this.isSystem = isSystem;
             dataStreamAlias = false;
         }
 
         public Alias(DataStreamAlias dataStreamAlias, List<Index> indicesOfAllDataStreams, Index writeIndexOfWriteDataStream) {
             this.aliasName = dataStreamAlias.getName();
-            this.referenceIndexMetadatas = indicesOfAllDataStreams;
+            this.referenceIndices = indicesOfAllDataStreams;
             this.writeIndex = writeIndexOfWriteDataStream;
             this.isHidden = false;
             this.isSystem = false;
@@ -277,7 +247,7 @@ public interface IndexAbstraction {
 
         @Override
         public List<Index> getIndices() {
-            return referenceIndexMetadatas;
+            return referenceIndices;
         }
 
         @Nullable
@@ -307,11 +277,6 @@ public interface IndexAbstraction {
         }
 
         @Override
-        public List<String> getAliases() {
-            return null;
-        }
-
-        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
@@ -320,160 +285,13 @@ public interface IndexAbstraction {
                 && isSystem == alias.isSystem
                 && dataStreamAlias == alias.dataStreamAlias
                 && aliasName.equals(alias.aliasName)
-                && referenceIndexMetadatas.equals(alias.referenceIndexMetadatas)
+                && referenceIndices.equals(alias.referenceIndices)
                 && Objects.equals(writeIndex, alias.writeIndex);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(aliasName, referenceIndexMetadatas, writeIndex, isHidden, isSystem, dataStreamAlias);
+            return Objects.hash(aliasName, referenceIndices, writeIndex, isHidden, isSystem, dataStreamAlias);
         }
     }
-
-    class DataStream implements IndexAbstraction {
-
-        public static final XContentParserConfiguration TS_EXTRACT_CONFIG = XContentParserConfiguration.EMPTY.withFiltering(
-            Set.of("@timestamp"),
-            null,
-            false
-        );
-
-        private final org.elasticsearch.cluster.metadata.DataStream dataStream;
-        private final List<String> referencedByDataStreamAliases;
-
-        public DataStream(org.elasticsearch.cluster.metadata.DataStream dataStream, List<String> aliases) {
-            this.dataStream = dataStream;
-            this.referencedByDataStreamAliases = aliases;
-        }
-
-        @Override
-        public String getName() {
-            return dataStream.getName();
-        }
-
-        @Override
-        public Type getType() {
-            return Type.DATA_STREAM;
-        }
-
-        @Override
-        public List<Index> getIndices() {
-            return dataStream.getIndices();
-        }
-
-        public Index getWriteIndex() {
-            return dataStream.getWriteIndex();
-        }
-
-        @Override
-        public Index getWriteIndex(IndexRequest request, Metadata metadata) {
-            if (request.opType() != DocWriteRequest.OpType.CREATE) {
-                return getWriteIndex();
-            }
-
-            if (dataStream.getIndexMode() != IndexMode.TIME_SERIES) {
-                return getWriteIndex();
-            }
-
-            Instant timestamp;
-            final var formatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
-            XContent xContent = request.getContentType().xContent();
-            try (XContentParser parser = xContent.createParser(TS_EXTRACT_CONFIG, request.source().streamInput())) {
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-                ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
-                switch (parser.nextToken()) {
-                    case VALUE_STRING:
-                        // TODO: deal with nanos too here.
-                        // (the index hasn't been resolved yet, keep track of timestamp field metadata at data stream level,
-                        // so we can use it here)
-                        timestamp = DateFormatters.from(formatter.parse(parser.text()), formatter.locale()).toInstant();
-                        break;
-                    case VALUE_NUMBER:
-                        timestamp = Instant.ofEpochMilli(parser.longValue());
-                        break;
-                    default:
-                        throw new ParsingException(
-                            parser.getTokenLocation(),
-                            String.format(
-                                Locale.ROOT,
-                                "Failed to parse object: expecting token of type [%s] or [%s] but found [%s]",
-                                XContentParser.Token.VALUE_STRING,
-                                XContentParser.Token.VALUE_NUMBER,
-                                parser.currentToken()
-                            )
-                        );
-                }
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Error extracting timestamp: " + e.getMessage(), e);
-            }
-            Index result = dataStream.selectTimeSeriesWriteIndex(timestamp, metadata);
-            if (result == null) {
-                String timestampAsString = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(timestamp);
-                String writeableIndicesString = dataStream.getIndices()
-                    .stream()
-                    .map(metadata::index)
-                    .map(IndexMetadata::getSettings)
-                    .map(
-                        settings -> "["
-                            + settings.get(IndexSettings.TIME_SERIES_START_TIME.getKey())
-                            + ","
-                            + settings.get(IndexSettings.TIME_SERIES_END_TIME.getKey())
-                            + "]"
-                    )
-                    .collect(Collectors.joining());
-                throw new IllegalArgumentException(
-                    "the document timestamp ["
-                        + timestampAsString
-                        + "] is outside of ranges of currently writable indices ["
-                        + writeableIndicesString
-                        + "]"
-                );
-            }
-            return result;
-        }
-
-        @Override
-        public DataStream getParentDataStream() {
-            // a data stream cannot have a parent data stream
-            return null;
-        }
-
-        @Override
-        public boolean isHidden() {
-            return dataStream.isHidden();
-        }
-
-        @Override
-        public boolean isSystem() {
-            return dataStream.isSystem();
-        }
-
-        @Override
-        public boolean isDataStreamRelated() {
-            return true;
-        }
-
-        @Override
-        public List<String> getAliases() {
-            return referencedByDataStreamAliases;
-        }
-
-        public org.elasticsearch.cluster.metadata.DataStream getDataStream() {
-            return dataStream;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            DataStream that = (DataStream) o;
-            return dataStream.equals(that.dataStream) && Objects.equals(referencedByDataStreamAliases, that.referencedByDataStreamAliases);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(dataStream, referencedByDataStreamAliases);
-        }
-    }
-
 }

@@ -11,7 +11,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.queries.spans.SpanFirstQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -87,7 +87,7 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
         builder.field(MATCH_FIELD.getPreferredName());
         matchBuilder.toXContent(builder, params);
         builder.field(END_FIELD.getPreferredName(), end);
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 
@@ -160,7 +160,7 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 }

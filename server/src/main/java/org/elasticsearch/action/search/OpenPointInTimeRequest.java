@@ -35,7 +35,7 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
     @Nullable
     private String preference;
 
-    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = SearchRequest.DEFAULT_INDICES_OPTIONS;
 
     public OpenPointInTimeRequest(String... indices) {
         this.indices = Objects.requireNonNull(indices, "[index] is not specified");
@@ -101,7 +101,7 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
      * Set keep alive for the point in time
      */
     public OpenPointInTimeRequest keepAlive(TimeValue keepAlive) {
-        this.keepAlive = Objects.requireNonNull(keepAlive, "[keep_alive] parameter must be non null");
+        this.keepAlive = keepAlive;
         return this;
     }
 

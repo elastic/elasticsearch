@@ -40,7 +40,7 @@ public class SumTests extends InternalAggregationTestCase<Sum> {
     }
 
     protected void assertSampled(Sum sampled, Sum reduced, SamplingContext samplingContext) {
-        assertEquals(sampled.value(), samplingContext.inverseScale(reduced.value()), 1e-7);
+        assertEquals(sampled.value(), samplingContext.scaleUp(reduced.value()), 1e-7);
     }
 
     public void testSummationAccuracy() {

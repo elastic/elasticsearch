@@ -8,8 +8,8 @@
 
 package org.elasticsearch.common.blobstore.support;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -21,6 +21,7 @@ import java.io.OutputStream;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalLong;
 import java.util.stream.Collectors;
 
 public abstract class FilterBlobContainer implements BlobContainer {
@@ -64,9 +65,13 @@ public abstract class FilterBlobContainer implements BlobContainer {
     }
 
     @Override
-    public void writeBlob(String blobName, boolean failIfAlreadyExists, boolean atomic, CheckedConsumer<OutputStream, IOException> writer)
-        throws IOException {
-        delegate.writeBlob(blobName, failIfAlreadyExists, atomic, writer);
+    public void writeMetadataBlob(
+        String blobName,
+        boolean failIfAlreadyExists,
+        boolean atomic,
+        CheckedConsumer<OutputStream, IOException> writer
+    ) throws IOException {
+        delegate.writeMetadataBlob(blobName, failIfAlreadyExists, atomic, writer);
     }
 
     @Override
@@ -97,5 +102,20 @@ public abstract class FilterBlobContainer implements BlobContainer {
     @Override
     public Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException {
         return delegate.listBlobsByPrefix(blobNamePrefix);
+    }
+
+    @Override
+    public void compareAndExchangeRegister(String key, long expected, long updated, ActionListener<OptionalLong> listener) {
+        delegate.compareAndExchangeRegister(key, expected, updated, listener);
+    }
+
+    @Override
+    public void compareAndSetRegister(String key, long expected, long updated, ActionListener<Boolean> listener) {
+        delegate.compareAndSetRegister(key, expected, updated, listener);
+    }
+
+    @Override
+    public void getRegister(String key, ActionListener<OptionalLong> listener) {
+        delegate.getRegister(key, listener);
     }
 }

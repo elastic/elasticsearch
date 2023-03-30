@@ -17,9 +17,11 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchHit;
@@ -29,9 +31,9 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
@@ -63,6 +65,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.contains;
@@ -91,7 +94,7 @@ public class PivotTests extends ESTestCase {
     @Before
     public void registerAggregationNamedObjects() throws Exception {
         // register aggregations as NamedWriteable
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of(new TestSpatialPlugin()));
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of(new TestSpatialPlugin(), new AggregationsPlugin()));
         namedXContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
@@ -418,19 +421,19 @@ public class PivotTests extends ESTestCase {
                 {"pivot_global": {"global": {}}}""");
         }
 
-        return parseAggregations("""
+        return parseAggregations(Strings.format("""
             {
               "pivot_%s": {
                 "%s": {
                   "field": "values"
                 }
               }
-            }""".formatted(agg, agg));
+            }""", agg, agg));
     }
 
     private AggregationConfig parseAggregations(String json) throws IOException {
         final XContentParser parser = XContentType.JSON.xContent()
-            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+            .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), json);
         // parseAggregators expects to be already inside the xcontent object
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
         return AggregationConfig.fromXContent(parser, false);
@@ -447,7 +450,7 @@ public class PivotTests extends ESTestCase {
     private static void validate(Client client, SourceConfig source, Function pivot, boolean expectValid) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-        pivot.validateQuery(client, source, ActionListener.wrap(validity -> {
+        pivot.validateQuery(client, emptyMap(), source, null, ActionListener.wrap(validity -> {
             assertEquals(expectValid, validity);
             latch.countDown();
         }, e -> {

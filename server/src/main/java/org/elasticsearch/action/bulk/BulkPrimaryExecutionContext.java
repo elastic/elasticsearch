@@ -41,11 +41,6 @@ class BulkPrimaryExecutionContext {
          * submitted
          */
         WAIT_FOR_MAPPING_UPDATE,
-        /**
-         * The request should be executed again, but there is no need to wait for an external event.
-         * This is needed to support retry on conflicts during updates.
-         */
-        IMMEDIATE_RETRY,
         /** The request has been executed on the primary shard (successfully or not) */
         EXECUTED,
         /**
@@ -115,27 +110,9 @@ class BulkPrimaryExecutionContext {
         return retryCounter;
     }
 
-    /** returns true if the current request has been executed on the primary */
-    public boolean isOperationExecuted() {
-        return currentItemState == ItemProcessingState.EXECUTED;
-    }
-
     /** returns true if the request needs to wait for a mapping update to arrive from the master */
     public boolean requiresWaitingForMappingUpdate() {
         return currentItemState == ItemProcessingState.WAIT_FOR_MAPPING_UPDATE;
-    }
-
-    /** returns true if the current request should be retried without waiting for an external event */
-    public boolean requiresImmediateRetry() {
-        return currentItemState == ItemProcessingState.IMMEDIATE_RETRY;
-    }
-
-    /**
-     * returns true if the current request has been completed and it's result translated to a user
-     * facing response
-     */
-    public boolean isCompleted() {
-        return currentItemState == ItemProcessingState.COMPLETED;
     }
 
     /**
@@ -203,19 +180,19 @@ class BulkPrimaryExecutionContext {
 
     /** resets the current item state, prepare for a new execution */
     public void resetForExecutionForRetry() {
-        assertInvariants(ItemProcessingState.WAIT_FOR_MAPPING_UPDATE, ItemProcessingState.EXECUTED);
+        assert assertInvariants(ItemProcessingState.WAIT_FOR_MAPPING_UPDATE, ItemProcessingState.EXECUTED);
         currentItemState = ItemProcessingState.INITIAL;
         requestToExecute = null;
         executionResult = null;
-        assertInvariants(ItemProcessingState.INITIAL);
+        assert assertInvariants(ItemProcessingState.INITIAL);
     }
 
     /** completes the operation without doing anything on the primary */
     public void markOperationAsNoOp(DocWriteResponse response) {
-        assertInvariants(ItemProcessingState.INITIAL);
+        assert assertInvariants(ItemProcessingState.INITIAL);
         executionResult = BulkItemResponse.success(getCurrentItem().id(), getCurrentItem().request().opType(), response);
         currentItemState = ItemProcessingState.EXECUTED;
-        assertInvariants(ItemProcessingState.EXECUTED);
+        assert assertInvariants(ItemProcessingState.EXECUTED);
     }
 
     /** indicates that the operation needs to be failed as the required mapping didn't arrive in time */
@@ -235,7 +212,7 @@ class BulkPrimaryExecutionContext {
 
     /** the current operation has been executed on the primary with the specified result */
     public void markOperationAsExecuted(Engine.Result result) {
-        assertInvariants(ItemProcessingState.TRANSLATED);
+        assert assertInvariants(ItemProcessingState.TRANSLATED);
         final BulkItemRequest current = getCurrentItem();
         DocWriteRequest<?> docWriteRequest = getRequestToExecute();
         switch (result.getResultType()) {
@@ -245,7 +222,7 @@ class BulkPrimaryExecutionContext {
                     Engine.IndexResult indexResult = (Engine.IndexResult) result;
                     response = new IndexResponse(
                         primary.shardId(),
-                        requestToExecute.id(),
+                        indexResult.getId(),
                         result.getSeqNo(),
                         result.getTerm(),
                         indexResult.getVersion(),
@@ -270,20 +247,19 @@ class BulkPrimaryExecutionContext {
                 executionResult.getResponse().setShardInfo(new ReplicationResponse.ShardInfo());
                 locationToSync = TransportWriteAction.locationToSync(locationToSync, result.getTranslogLocation());
             }
-            case FAILURE -> executionResult = BulkItemResponse.failure(
-                current.id(),
-                docWriteRequest.opType(),
-                // Make sure to use request.index() here, if you
-                // use docWriteRequest.index() it will use the
-                // concrete index instead of an alias if used!
-                new BulkItemResponse.Failure(
-                    request.index(),
-                    docWriteRequest.id(),
-                    result.getFailure(),
-                    result.getSeqNo(),
-                    result.getTerm()
-                )
-            );
+            case FAILURE -> {
+                /*
+                 * Make sure to use request.index() here, if you
+                 * use docWriteRequest.index() it will use the
+                 * concrete index instead of an alias if used!
+                 */
+                String index = request.index();
+                executionResult = BulkItemResponse.failure(
+                    current.id(),
+                    docWriteRequest.opType(),
+                    new BulkItemResponse.Failure(index, result.getId(), result.getFailure(), result.getSeqNo(), result.getTerm())
+                );
+            }
             default -> throw new AssertionError("unknown result type for " + getCurrentItem() + ": " + result.getResultType());
         }
         currentItemState = ItemProcessingState.EXECUTED;
@@ -291,7 +267,7 @@ class BulkPrimaryExecutionContext {
 
     /** finishes the execution of the current request, with the response that should be returned to the user */
     public void markAsCompleted(BulkItemResponse translatedResponse) {
-        assertInvariants(ItemProcessingState.EXECUTED);
+        assert assertInvariants(ItemProcessingState.EXECUTED);
         assert executionResult != null && translatedResponse.getItemId() == executionResult.getItemId();
         assert translatedResponse.getItemId() == getCurrentItem().id();
 
@@ -328,10 +304,6 @@ class BulkPrimaryExecutionContext {
                 break;
             case WAIT_FOR_MAPPING_UPDATE:
                 assert requestToExecute == null;
-                assert executionResult == null : executionResult;
-                break;
-            case IMMEDIATE_RETRY:
-                assert requestToExecute != null;
                 assert executionResult == null : executionResult;
                 break;
             case EXECUTED:

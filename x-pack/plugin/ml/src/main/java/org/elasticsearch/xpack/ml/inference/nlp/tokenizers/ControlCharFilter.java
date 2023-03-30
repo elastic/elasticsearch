@@ -7,13 +7,14 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
-import com.carrotsearch.hppc.CharArrayList;
-
 import org.apache.lucene.analysis.charfilter.BaseCharFilter;
 
 import java.io.CharArrayReader;
 import java.io.IOException;
 import java.io.Reader;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Char filter for removing control chars from a stream
@@ -47,7 +48,7 @@ public class ControlCharFilter extends BaseCharFilter {
     }
 
     private void fill() throws IOException {
-        CharArrayList charArrayList = new CharArrayList(1024);
+        List<char[]> charArrays = new ArrayList<>();
         char[] temp = new char[1024];
         int totalRead = 0;
         int diff = 0;
@@ -74,12 +75,18 @@ public class ControlCharFilter extends BaseCharFilter {
                         break;
                     }
                 }
-                charArrayList.add(temp, start, size);
+                charArrays.add(Arrays.copyOfRange(temp, start, start + size));
                 pos = start + size;
             }
             totalRead += cnt;
         }
-        transformedInput = new CharArrayReader(charArrayList.toArray());
+        char[] wholeArray = new char[charArrays.stream().mapToInt(cs -> cs.length).sum()];
+        int currIndex = 0;
+        for (char[] elements : charArrays) {
+            System.arraycopy(elements, 0, wholeArray, currIndex, elements.length);
+            currIndex += elements.length;
+        }
+        transformedInput = new CharArrayReader(wholeArray);
     }
 
     private static boolean isControlChar(char c) {

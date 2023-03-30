@@ -16,8 +16,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.AfterClass;
@@ -113,7 +113,7 @@ public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
         provisioningClient().performRequest(request);
     }
 
-    protected static void deleteIndex(String name) throws IOException {
+    protected static void deleteIndexWithProvisioningClient(String name) throws IOException {
         deleteIndex(provisioningClient(), name);
     }
 

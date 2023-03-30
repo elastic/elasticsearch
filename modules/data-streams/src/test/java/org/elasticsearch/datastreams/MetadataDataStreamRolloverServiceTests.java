@@ -20,15 +20,19 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadataStats;
+import org.elasticsearch.cluster.metadata.IndexWriteLoad;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -45,6 +49,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
 
@@ -53,7 +58,6 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         String dataStreamName = "logs-my-app";
         final DataStream dataStream = new DataStream(
             dataStreamName,
-            new DataStream.TimestampField("@timestamp"),
             List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid")),
             1,
             null,
@@ -64,8 +68,10 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             IndexMode.TIME_SERIES
         );
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
-            .template(new Template(Settings.builder().put("index.routing_path", "uid").build(), null, null))
-            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, IndexMode.TIME_SERIES))
+            .template(
+                new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
+            )
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
             .build();
         Metadata.Builder builder = Metadata.builder();
         builder.put("template", template);
@@ -91,12 +97,13 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             MetadataRolloverService rolloverService = DataStreamTestHelper.getMetadataRolloverService(
                 dataStream,
                 testThreadPool,
-                Set.of(new DataStreamIndexSettingsProvider()),
+                Set.of(createSettingsProvider(xContentRegistry())),
                 xContentRegistry()
             );
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
             List<Condition<?>> metConditions = Collections.singletonList(condition);
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
+            IndexMetadataStats indexStats = new IndexMetadataStats(IndexWriteLoad.builder(1).build(), 10, 10);
 
             long before = testThreadPool.absoluteTimeInMillis();
             MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
@@ -107,7 +114,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 metConditions,
                 now,
                 randomBoolean(),
-                false
+                false,
+                indexStats
             );
             long after = testThreadPool.absoluteTimeInMillis();
 
@@ -135,24 +143,27 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             IndexMetadata im = rolloverMetadata.index(rolloverMetadata.dataStreams().get(dataStreamName).getIndices().get(0));
             Instant startTime1 = IndexSettings.TIME_SERIES_START_TIME.get(im.getSettings());
             Instant endTime1 = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
+            IndexMetadataStats indexStats1 = im.getStats();
             im = rolloverMetadata.index(rolloverMetadata.dataStreams().get(dataStreamName).getIndices().get(1));
             Instant startTime2 = IndexSettings.TIME_SERIES_START_TIME.get(im.getSettings());
             Instant endTime2 = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
+            IndexMetadataStats indexStats2 = im.getStats();
             assertThat(startTime1.isBefore(endTime1), is(true));
             assertThat(endTime1, equalTo(startTime2));
             assertThat(endTime2.isAfter(endTime1), is(true));
+            assertThat(indexStats1, is(equalTo(indexStats)));
+            assertThat(indexStats2, is(nullValue()));
         } finally {
             testThreadPool.shutdown();
         }
     }
 
     public void testRolloverAndMigrateDataStream() throws Exception {
-        Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         String dataStreamName = "logs-my-app";
         IndexMode dsIndexMode = randomBoolean() ? null : IndexMode.STANDARD;
         final DataStream dataStream = new DataStream(
             dataStreamName,
-            new DataStream.TimestampField("@timestamp"),
             List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid")),
             1,
             null,
@@ -163,8 +174,10 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             dsIndexMode
         );
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
-            .template(new Template(Settings.builder().put("index.routing_path", "uid").build(), null, null))
-            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, IndexMode.TIME_SERIES))
+            .template(
+                new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
+            )
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
             .build();
         Metadata.Builder builder = Metadata.builder();
         builder.put("template", template);
@@ -185,7 +198,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             MetadataRolloverService rolloverService = DataStreamTestHelper.getMetadataRolloverService(
                 dataStream,
                 testThreadPool,
-                Set.of(new DataStreamIndexSettingsProvider()),
+                Set.of(createSettingsProvider(xContentRegistry())),
                 xContentRegistry()
             );
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
@@ -200,7 +213,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 metConditions,
                 now,
                 randomBoolean(),
-                false
+                false,
+                null
             );
 
             String sourceIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration());
@@ -233,11 +247,10 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
     }
 
     public void testChangingIndexModeFromTimeSeriesToSomethingElseNoEffectOnExistingDataStreams() throws Exception {
-        Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         String dataStreamName = "logs-my-app";
         final DataStream dataStream = new DataStream(
             dataStreamName,
-            new DataStream.TimestampField("@timestamp"),
             List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid")),
             1,
             null,
@@ -248,8 +261,10 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             IndexMode.TIME_SERIES
         );
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
-            .template(new Template(Settings.builder().put("index.routing_path", "uid").build(), null, null))
-            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, randomBoolean() ? IndexMode.STANDARD : null))
+            .template(
+                new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
+            )
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
             .build();
         Metadata.Builder builder = Metadata.builder();
         builder.put("template", template);
@@ -275,7 +290,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             MetadataRolloverService rolloverService = DataStreamTestHelper.getMetadataRolloverService(
                 dataStream,
                 testThreadPool,
-                Set.of(new DataStreamIndexSettingsProvider()),
+                Set.of(createSettingsProvider(xContentRegistry())),
                 xContentRegistry()
             );
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
@@ -290,7 +305,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 metConditions,
                 now,
                 randomBoolean(),
-                false
+                false,
+                null
             );
 
             String sourceIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration());
@@ -323,6 +339,12 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         } finally {
             testThreadPool.shutdown();
         }
+    }
+
+    static DataStreamIndexSettingsProvider createSettingsProvider(NamedXContentRegistry xContentRegistry) {
+        return new DataStreamIndexSettingsProvider(
+            im -> MapperTestUtils.newMapperService(xContentRegistry, createTempDir(), im.getSettings(), im.getIndex().getName())
+        );
     }
 
 }

@@ -13,14 +13,13 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -59,10 +58,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         if (allocationStatus == AllocationStatus.FETCHING_SHARD_DATA) {
             assertEquals(Explanations.Allocation.AWAITING_INFO, noDecision.getExplanation());
         } else if (allocationStatus == AllocationStatus.DELAYED_ALLOCATION) {
-            assertThat(
-                noDecision.getExplanation(),
-                equalTo(String.format(Locale.ROOT, Explanations.Allocation.DELAYED_WITHOUT_ALTERNATIVE, "0s"))
-            );
+            assertThat(noDecision.getExplanation(), equalTo(Strings.format(Explanations.Allocation.DELAYED_WITHOUT_ALTERNATIVE, "0s")));
         } else {
             assertThat(noDecision.getExplanation(), equalTo(Explanations.Allocation.NO_COPIES));
         }
@@ -83,7 +79,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         } else {
             assertEquals(Explanations.Allocation.ALL_NODES_FORBIDDEN, noDecision.getExplanation());
         }
-        assertEquals(nodeDecisions.stream().sorted().collect(Collectors.toList()), noDecision.getNodeDecisions());
+        assertEquals(nodeDecisions.stream().sorted().toList(), noDecision.getNodeDecisions());
         // node1 should be sorted first b/c of better weight ranking
         assertEquals("node1", noDecision.getNodeDecisions().iterator().next().getNode().getId());
         assertNull(noDecision.getTargetNode());
@@ -102,7 +98,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         assertEquals(AllocationDecision.THROTTLED, throttleDecision.getAllocationDecision());
         assertEquals(AllocationStatus.DECIDERS_THROTTLED, throttleDecision.getAllocationStatus());
         assertThat(throttleDecision.getExplanation(), equalTo(Explanations.Allocation.THROTTLED));
-        assertEquals(nodeDecisions.stream().sorted().collect(Collectors.toList()), throttleDecision.getNodeDecisions());
+        assertEquals(nodeDecisions.stream().sorted().toList(), throttleDecision.getNodeDecisions());
         // node2 should be sorted first b/c a THROTTLE is higher than a NO decision
         assertEquals("node2", throttleDecision.getNodeDecisions().iterator().next().getNode().getId());
         assertNull(throttleDecision.getTargetNode());
@@ -119,7 +115,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         assertEquals(AllocationDecision.YES, yesDecision.getAllocationDecision());
         assertNull(yesDecision.getAllocationStatus());
         assertEquals(Explanations.Allocation.YES, yesDecision.getExplanation());
-        assertEquals(nodeDecisions.stream().sorted().collect(Collectors.toList()), yesDecision.getNodeDecisions());
+        assertEquals(nodeDecisions.stream().sorted().toList(), yesDecision.getNodeDecisions());
         assertEquals("node2", yesDecision.getTargetNode().getId());
         assertEquals(allocId, yesDecision.getAllocationId());
         // node1 should be sorted first b/c YES decisions are the highest

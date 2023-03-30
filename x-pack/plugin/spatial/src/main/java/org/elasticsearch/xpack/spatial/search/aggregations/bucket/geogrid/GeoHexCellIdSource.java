@@ -6,136 +6,116 @@
  */
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
-import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.geo.GeoBoundingBox;
-import org.elasticsearch.h3.CellBoundary;
 import org.elasticsearch.h3.H3;
+import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.search.aggregations.bucket.geogrid.CellValues;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.bucket.geogrid.CellIdSource;
+import org.elasticsearch.xpack.spatial.common.H3SphericalUtil;
+
+import java.util.function.LongConsumer;
 
 /**
- * Class to help convert {@link MultiGeoPointValues}
- * to GeoHex bucketing.
+ * {@link CellIdSource} implementation for GeoHex aggregation
  */
-public class GeoHexCellIdSource extends ValuesSource.Numeric {
-    private final GeoPoint valuesSource;
-    private final int precision;
-    private final GeoBoundingBox geoBoundingBox;
+public class GeoHexCellIdSource extends CellIdSource {
 
-    public GeoHexCellIdSource(GeoPoint valuesSource, int precision, GeoBoundingBox geoBoundingBox) {
-        this.valuesSource = valuesSource;
-        this.precision = precision;
-        this.geoBoundingBox = geoBoundingBox;
-    }
-
-    public int precision() {
-        return precision;
+    public GeoHexCellIdSource(GeoPoint valuesSource, int precision, GeoBoundingBox geoBoundingBox, LongConsumer circuitBreakerConsumer) {
+        super(valuesSource, precision, geoBoundingBox, circuitBreakerConsumer);
     }
 
     @Override
-    public boolean isFloatingPoint() {
-        return false;
+    protected NumericDocValues unboundedCellSingleValue(GeoPointValues values) {
+        return new CellSingleValue(values, precision()) {
+            @Override
+            protected boolean advance(org.elasticsearch.common.geo.GeoPoint target) {
+                value = H3.geoToH3(target.getLat(), target.getLon(), precision);
+                return true;
+            }
+        };
     }
 
     @Override
-    public SortedNumericDocValues longValues(LeafReaderContext ctx) {
-        return geoBoundingBox.isUnbounded()
-            ? new UnboundedCellValues(valuesSource.geoPointValues(ctx), precision)
-            : new BoundedCellValues(valuesSource.geoPointValues(ctx), precision, geoBoundingBox);
+    protected NumericDocValues boundedCellSingleValue(GeoPointValues values, GeoBoundingBox boundingBox) {
+        final GeoHexPredicate predicate = new GeoHexPredicate(boundingBox);
+        return new CellSingleValue(values, precision()) {
+            @Override
+            protected boolean advance(org.elasticsearch.common.geo.GeoPoint target) {
+                final double lat = target.getLat();
+                final double lon = target.getLon();
+                final long hex = H3.geoToH3(lat, lon, precision);
+                // pointInBounds is a fast check, validHex is slow
+                if (pointInBounds(lon, lat) || predicate.validHex(hex)) {
+                    assert predicate.validHex(hex) : H3.h3ToString(hex) + " should be valid but it is not";
+                    value = hex;
+                    return true;
+                }
+                return false;
+            }
+        };
     }
 
     @Override
-    public SortedNumericDoubleValues doubleValues(LeafReaderContext ctx) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public SortedBinaryDocValues bytesValues(LeafReaderContext ctx) {
-        throw new UnsupportedOperationException();
-    }
-
-    private static class UnboundedCellValues extends CellValues {
-
-        UnboundedCellValues(MultiGeoPointValues geoValues, int precision) {
-            super(geoValues, precision);
-        }
-
-        @Override
-        protected int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
-            values[valuesIdx] = H3.geoToH3(target.getLat(), target.getLon(), precision);
-            return valuesIdx + 1;
-        }
-    }
-
-    private static class BoundedCellValues extends CellValues {
-
-        private final boolean crossesDateline;
-        private final GeoBoundingBox bbox;
-
-        protected BoundedCellValues(MultiGeoPointValues geoValues, int precision, GeoBoundingBox bbox) {
-            super(geoValues, precision);
-            this.crossesDateline = bbox.right() < bbox.left();
-            this.bbox = bbox;
-        }
-
-        @Override
-        public int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
-            final double lat = target.getLat();
-            final double lon = target.getLon();
-            final long hex = H3.geoToH3(lat, lon, precision);
-            // validPoint is a fast check, validHex is slow
-            if (validPoint(lat, lon) || validHex(hex)) {
-                values[valuesIdx] = hex;
+    protected SortedNumericDocValues unboundedCellMultiValues(MultiGeoPointValues values) {
+        return new CellMultiValues(values, precision(), circuitBreakerConsumer) {
+            @Override
+            protected int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
+                values[valuesIdx] = H3.geoToH3(target.getLat(), target.getLon(), precision);
                 return valuesIdx + 1;
             }
-            return valuesIdx;
+        };
+    }
+
+    @Override
+    protected SortedNumericDocValues boundedCellMultiValues(MultiGeoPointValues values, GeoBoundingBox boundingBox) {
+        final GeoHexPredicate predicate = new GeoHexPredicate(boundingBox);
+        return new CellMultiValues(values, precision(), circuitBreakerConsumer) {
+            @Override
+            protected int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
+                final double lat = target.getLat();
+                final double lon = target.getLon();
+                final long hex = H3.geoToH3(lat, lon, precision);
+                // validPoint is a fast check, validHex is slow
+                if (pointInBounds(lon, lat) || predicate.validHex(hex)) {
+                    values[valuesIdx] = hex;
+                    return valuesIdx + 1;
+                }
+                return valuesIdx;
+            }
+        };
+    }
+
+    private static class GeoHexPredicate {
+
+        private final boolean crossesDateline;
+        private final GeoBoundingBox bbox, scratch;
+
+        GeoHexPredicate(GeoBoundingBox bbox) {
+            this.crossesDateline = bbox.right() < bbox.left();
+            this.bbox = bbox;
+            scratch = new GeoBoundingBox(new org.elasticsearch.common.geo.GeoPoint(), new org.elasticsearch.common.geo.GeoPoint());
         }
 
-        private boolean validPoint(double lat, double lon) {
-            if (bbox.top() > lat && bbox.bottom() < lat) {
-                if (crossesDateline) {
-                    return bbox.left() < lon || bbox.right() > lon;
+        public boolean validHex(long hex) {
+            H3SphericalUtil.computeGeoBounds(hex, scratch);
+            if (bbox.top() > scratch.bottom() && bbox.bottom() < scratch.top()) {
+                if (scratch.left() > scratch.right()) {
+                    return intersects(-180, scratch.right()) || intersects(scratch.left(), 180);
                 } else {
-                    return bbox.left() < lon && bbox.right() > lon;
+                    return intersects(scratch.left(), scratch.right());
                 }
             }
             return false;
         }
 
-        private boolean validHex(long hex) {
-            CellBoundary boundary = H3.h3ToGeoBoundary(hex);
-            double minLat = Double.POSITIVE_INFINITY;
-            double minLon = Double.POSITIVE_INFINITY;
-            double maxLat = Double.NEGATIVE_INFINITY;
-            double maxLon = Double.NEGATIVE_INFINITY;
-            for (int i = 0; i < boundary.numPoints(); i++) {
-                double boundaryLat = boundary.getLatLon(i).getLatDeg();
-                double boundaryLon = boundary.getLatLon(i).getLonDeg();
-                minLon = Math.min(minLon, boundaryLon);
-                maxLon = Math.max(maxLon, boundaryLon);
-                minLat = Math.min(minLat, boundaryLat);
-                maxLat = Math.max(maxLat, boundaryLat);
-            }
-            if (maxLon - minLon > 180) {
-                return intersects(-180, minLon, minLat, maxLat) || intersects(maxLon, 180, minLat, maxLat);
+        private boolean intersects(double minLon, double maxLon) {
+            if (crossesDateline) {
+                return bbox.left() < maxLon || bbox.right() > minLon;
             } else {
-                return intersects(minLon, maxLon, minLat, maxLat);
+                return bbox.left() < maxLon && bbox.right() > minLon;
             }
-        }
-
-        private boolean intersects(double minLon, double maxLon, double minLat, double maxLat) {
-            if (bbox.top() > minLat && bbox.bottom() < maxLat) {
-                if (crossesDateline) {
-                    return bbox.left() < maxLon || bbox.right() > minLon;
-                } else {
-                    return bbox.left() < maxLon && bbox.right() > minLon;
-                }
-            }
-            return false;
         }
     }
 }

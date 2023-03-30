@@ -147,10 +147,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(maxConcurrentSearchRequests);
-        out.writeVInt(requests.size());
-        for (SearchRequest request : requests) {
-            request.writeTo(out);
-        }
+        out.writeCollection(requests);
     }
 
     @Override
@@ -382,7 +379,10 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         return new CancellableTask(id, type, action, "", parentTaskId, headers) {
             @Override
             public String getDescription() {
-                return requests.stream().map(SearchRequest::buildDescription).collect(Collectors.joining(action + "[", ",", "]"));
+                return "requests["
+                    + requests.size()
+                    + "]: "
+                    + requests.stream().map(SearchRequest::buildDescription).collect(Collectors.joining(" | "));
             }
         };
     }

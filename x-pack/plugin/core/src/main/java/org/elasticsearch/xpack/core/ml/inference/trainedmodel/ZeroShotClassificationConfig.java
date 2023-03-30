@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -138,6 +139,13 @@ public class ZeroShotClassificationConfig implements NlpConfig {
             throw ExceptionsHelper.badRequestException("[{}] must not be empty", LABELS.getPreferredName());
         }
         this.resultsField = resultsField;
+        if (this.tokenization.span != -1) {
+            throw ExceptionsHelper.badRequestException(
+                "[{}] does not support windowing long text sequences; configured span [{}]",
+                NAME,
+                this.tokenization.span
+            );
+        }
     }
 
     public ZeroShotClassificationConfig(StreamInput in) throws IOException {
@@ -190,8 +198,13 @@ public class ZeroShotClassificationConfig implements NlpConfig {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
+    public Version getMinimalSupportedNodeVersion() {
         return Version.V_8_0_0;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedTransportVersion() {
+        return TransportVersion.V_8_0_0;
     }
 
     @Override
@@ -241,8 +254,8 @@ public class ZeroShotClassificationConfig implements NlpConfig {
         return hypothesisTemplate;
     }
 
-    public List<String> getLabels() {
-        return Optional.ofNullable(labels).orElse(List.of());
+    public Optional<List<String>> getLabels() {
+        return Optional.ofNullable(labels);
     }
 
     @Override

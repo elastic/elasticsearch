@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -20,13 +19,13 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.junit.Before;
 
 import java.util.Collections;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
@@ -857,7 +856,7 @@ public class CoordinationStateTests extends ESTestCase {
         new CoordinationStateTestCluster(
             IntStream.range(0, randomIntBetween(1, 5))
                 .mapToObj(i -> new DiscoveryNode("node_" + i, buildNewFakeTransportAddress(), Version.CURRENT))
-                .collect(Collectors.toList()),
+                .toList(),
             ElectionStrategy.DEFAULT_INSTANCE
         ).runRandomly();
     }

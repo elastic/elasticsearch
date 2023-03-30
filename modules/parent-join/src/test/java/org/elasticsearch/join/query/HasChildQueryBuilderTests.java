@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
@@ -22,6 +21,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -45,8 +45,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -77,7 +76,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(ParentJoinPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(ParentJoinPlugin.class);
     }
 
     @Override
@@ -156,6 +155,11 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     }
 
     @Override
+    protected HasChildQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        return new HasChildQueryBuilder("type", queryBuilder, ScoreMode.None);
+    }
+
+    @Override
     protected void doAssertLuceneQuery(HasChildQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         assertThat(query, instanceOf(LateParsingQuery.class));
         LateParsingQuery lpq = (LateParsingQuery) query;
@@ -178,7 +182,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
      * Test (de)serialization on all previous released versions
      */
     public void testSerializationBWC() throws IOException {
-        for (Version version : VersionUtils.allReleasedVersions()) {
+        for (TransportVersion version : TransportVersionUtils.allReleasedVersions()) {
             HasChildQueryBuilder testQuery = createTestQueryBuilder();
             assertSerialization(testQuery, version);
         }
@@ -229,13 +233,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 "_name" : "WNzYMJKRwePuRBh",
                 "inner_hits" : {
                   "name" : "inner_hits_name",
-                  "ignore_unmapped" : false,
-                  "from" : 0,
                   "size" : 100,
-                  "version" : false,
-                  "seq_no_primary_term" : false,
-                  "explain" : false,
-                  "track_scores" : false,
                   "sort" : [ {
                     "mapped_string" : {
                       "order" : "asc"
@@ -250,7 +248,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
              * Ignoring unmapped is the default and we don't dump it and can't
              * change it if we're going to use inner_hits.
              */
-            query.replaceFirst("\"ignore_unmapped\" : false,", ""),
+            query.replaceAll("\"ignore_unmapped\" : false,", ""),
             queryBuilder
         );
         assertEquals(query, queryBuilder.maxChildren(), 1217235442);
@@ -317,13 +315,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 "type" : "child",
                 "inner_hits" : {
                   "name" : "inner_hits_name",
-                  "ignore_unmapped" : false,
-                  "from" : 0,
                   "size" : 100,
-                  "version" : false,
-                  "seq_no_primary_term" : false,
-                  "explain" : false,
-                  "track_scores" : false,
                   "sort" : [ {
                     "mapped_string" : {
                       "order" : "asc"
@@ -351,17 +343,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         assertThat(booleanQuery.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.MUST));
         assertThat(booleanQuery.clauses().get(0).getQuery(), instanceOf(TermInSetQuery.class));
         TermInSetQuery termsQuery = (TermInSetQuery) booleanQuery.clauses().get(0).getQuery();
-        Query rewrittenTermsQuery = termsQuery.rewrite(null);
-        assertThat(rewrittenTermsQuery, instanceOf(ConstantScoreQuery.class));
-        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) rewrittenTermsQuery;
-        assertThat(constantScoreQuery.getQuery(), instanceOf(BooleanQuery.class));
-        BooleanQuery booleanTermsQuery = (BooleanQuery) constantScoreQuery.getQuery();
-        assertThat(booleanTermsQuery.clauses().toString(), booleanTermsQuery.clauses().size(), equalTo(1));
-        assertThat(booleanTermsQuery.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.SHOULD));
-        assertThat(booleanTermsQuery.clauses().get(0).getQuery(), instanceOf(TermQuery.class));
-        TermQuery termQuery = (TermQuery) booleanTermsQuery.clauses().get(0).getQuery();
-        assertThat(termQuery.getTerm().field(), equalTo(IdFieldMapper.NAME));
-        assertThat(termQuery.getTerm().bytes(), equalTo(Uid.encodeId(id)));
+        assertEquals(new TermInSetQuery(IdFieldMapper.NAME, Uid.encodeId(id)), termsQuery);
         // check the type filter
         assertThat(booleanQuery.clauses().get(1).getOccur(), equalTo(BooleanClause.Occur.FILTER));
         assertEquals(new TermQuery(new Term("join_field", type)), booleanQuery.clauses().get(1).getQuery());

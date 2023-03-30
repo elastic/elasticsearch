@@ -6,11 +6,13 @@
  * Side Public License, v 1.
  */
 
+import org.elasticsearch.gradle.util.GradleUtils
+
 import java.nio.file.Files
 
-String buildNumber = System.getenv('BUILD_NUMBER')
+String buildNumber = System.getenv('BUILD_NUMBER') ?: System.getenv('BUILDKITE_BUILD_NUMBER')
 String performanceTest = System.getenv('BUILD_PERFORMANCE_TEST')
-if (buildNumber && performanceTest == null) {
+if (buildNumber && performanceTest == null && GradleUtils.isIncludedBuild(project) == false) {
   File uploadFile = file("build/${buildNumber}.tar.bz2")
   project.gradle.buildFinished { result ->
     println "build complete, generating: $uploadFile"
@@ -23,13 +25,19 @@ if (buildNumber && performanceTest == null) {
         fileset(dir: projectDir) {
           Set<File> fileSet = fileTree(projectDir) {
             include("**/*.hprof")
-            include("**/reaper.log")
             include("**/build/test-results/**/*.xml")
             include("**/build/testclusters/**")
+            include("**/build/testrun/*/temp/**")
             exclude("**/build/testclusters/**/data/**")
             exclude("**/build/testclusters/**/distro/**")
             exclude("**/build/testclusters/**/repo/**")
             exclude("**/build/testclusters/**/extract/**")
+            exclude("**/build/testclusters/**/tmp/**")
+            exclude("**/build/testrun/*/temp/**/data/**")
+            exclude("**/build/testrun/*/temp/**/distro/**")
+            exclude("**/build/testrun/*/temp/**/repo/**")
+            exclude("**/build/testrun/*/temp/**/extract/**")
+            exclude("**/build/testrun/*/temp/**/tmp/**")
           }
             .files
             .findAll { Files.isRegularFile(it.toPath()) }
@@ -49,6 +57,8 @@ if (buildNumber && performanceTest == null) {
         }
 
         fileset(dir: "${gradle.gradleUserHomeDir}/workers", followsymlinks: false)
+
+        fileset(dir: "${project.projectDir}/.gradle/reaper", followsymlinks: false, erroronmissingdir: false)
       }
     } catch (Exception e) {
       logger.lifecycle("Failed to archive additional logs", e)

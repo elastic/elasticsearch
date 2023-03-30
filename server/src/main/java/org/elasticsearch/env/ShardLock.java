@@ -53,7 +53,7 @@ public abstract class ShardLock implements Closeable {
 
     @Override
     public String toString() {
-        return "ShardLock{" + "shardId=" + shardId + '}';
+        return "ShardLock{shardId=" + shardId + '}';
     }
 
 }

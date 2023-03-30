@@ -49,7 +49,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
     private DirectoryReader reader;
     private IndexSearcher searcher;
     private LeafReaderContext leafReaderContext;
-    private final SearchLookup lookup = new SearchLookup(null, null);
+    private final SearchLookup lookup = new SearchLookup(null, null, (ctx, doc) -> null);
 
     @Before
     public void initSearcher() throws IOException {
@@ -178,7 +178,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
             }
 
             @Override
-            public ScoreScript newInstance(DocReader docReader) throws IOException {
+            public ScoreScript newInstance(DocReader docReader) {
                 return new ScoreScript(script.getParams(), lookup, docReader) {
                     @Override
                     public double execute(ExplanationHolder explanation) {

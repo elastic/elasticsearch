@@ -24,3 +24,4 @@
               order: asc
               missing: _last
               unmapped_type: long
+        track_total_hits: -1

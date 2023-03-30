@@ -13,14 +13,13 @@ import java.security.KeyPairGenerator
 
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 final Project fixture = project(':test:fixtures:gcs-fixture')
 
 dependencies {
-  testImplementation testArtifact(project(xpackModule('snapshot-repo-test-kit')))
+  javaRestTestImplementation testArtifact(project(xpackModule('snapshot-repo-test-kit')))
 }
 
 restResources {
@@ -83,7 +82,7 @@ if (useFixture) {
   testFixtures.useFixture(fixture.path, 'gcs-fixture-repository-test-kit')
 }
 
-tasks.named("integTest").configure {
+tasks.named("javaRestTest").configure {
   systemProperty 'test.gcs.bucket', gcsBucket
   nonInputProperties.systemProperty 'test.gcs.base_path', gcsBasePath + "_repository_test_kit_tests" + BuildParams.testSeed
 
@@ -92,7 +91,7 @@ tasks.named("integTest").configure {
   }
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
 
   keystore 'gcs.client.repository_test_kit.credentials_file', serviceAccountFile, IGNORE_VALUE
@@ -100,6 +99,7 @@ testClusters.matching { it.name == "integTest" }.configureEach {
     /* Use a closure on the string to delay evaluation until tests are executed */
     setting 'gcs.client.repository_test_kit.endpoint', { "${-> fixtureAddress('gcs-fixture-repository-test-kit')}" }, IGNORE_VALUE
     setting 'gcs.client.repository_test_kit.token_uri', { "${-> fixtureAddress('gcs-fixture-repository-test-kit')}/o/oauth2/token" }, IGNORE_VALUE
+    systemProperty 'test.repository_test_kit.skip_cas', 'true' // test fixture does not support CAS yet; TODO fix this
   } else {
     println "Using an external service to test " + project.name
   }
@@ -107,5 +107,5 @@ testClusters.matching { it.name == "integTest" }.configureEach {
 }
 
 tasks.register("gcsThirdPartyTest")  {
-  dependsOn "integTest"
+  dependsOn "javaRestTest"
 }

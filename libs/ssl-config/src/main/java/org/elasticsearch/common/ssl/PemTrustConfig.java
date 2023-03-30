@@ -21,7 +21,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedTrustManager;
@@ -87,7 +86,7 @@ public final class PemTrustConfig implements SslTrustConfig {
     }
 
     private List<Path> resolveFiles() {
-        return this.certificateAuthorities.stream().map(this::resolveFile).collect(Collectors.toUnmodifiableList());
+        return this.certificateAuthorities.stream().map(this::resolveFile).toList();
     }
 
     private Path resolveFile(String other) {

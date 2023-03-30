@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Scope;
 
 import java.lang.annotation.Annotation;
@@ -62,8 +61,4 @@ public final class ScopeBinding implements Element {
         return visitor.visit(this);
     }
 
-    @Override
-    public void applyTo(Binder binder) {
-        binder.withSource(getSource()).bindScope(annotationType, scope);
-    }
 }

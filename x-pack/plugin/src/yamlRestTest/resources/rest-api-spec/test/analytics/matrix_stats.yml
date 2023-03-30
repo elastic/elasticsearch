@@ -1,0 +1,208 @@
+setup:
+  - do:
+      indices.create:
+        index: test1
+        body:
+          mappings:
+            properties:
+              value1:
+                type: double
+              value2:
+                type: double
+              value3:
+                type: double
+
+  - do:
+      indices.create:
+        index: test2
+        body:
+          mappings:
+            properties:
+              value1:
+                type: double
+              value2:
+                type: double
+              value4:
+                type: double
+
+
+  - do:
+      bulk:
+        index: test1
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "value1": 1.0d, "value2": 10.0d, "value3": 100.0d }
+          - { "index": { } }
+          - { "value1": 2.0d, "value2": 20.0d, "value3": 200.0d }
+          - { "index": { } }
+          - { "value1": 3.0d, "value2": 10.0d, "value3": 300.0d }
+
+  - do:
+      bulk:
+        index: test2
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "value1": 1.0d, "value2": 10.0d, "value4": 100.0d }
+          - { "index": { } }
+          - { "value1": 2.0d, "value2": 20.0d, "value4": 200.0d }
+          - { "index": { } }
+          - { "value1": 3.0d, "value2": 10.0d, "value4": 300.0d }
+
+
+---
+"matrix stats all fields available with two fields":
+  - skip:
+      version: " - 8.2.99"
+      reason: bug fixed in 8.3.0
+      features: close_to
+
+  - do:
+      search:
+        index: test1,test2
+        body:
+          size: 0
+          aggs:
+            stats:
+              matrix_stats:
+                fields: ["value1", "value2"]
+
+  - match: { hits.total.value: 6 }
+  - match: { hits.total.relation: "eq" }
+
+  - match: { aggregations.stats.fields.0.name: "value2" }
+  - match: { aggregations.stats.fields.0.count: 6 }
+  - close_to: { aggregations.stats.fields.0.mean: { value: 13.3333, error: 0.0001 } }
+  - close_to: { aggregations.stats.fields.0.variance: { value: 26.6666, error: 0.0001 } }
+  - close_to: { aggregations.stats.fields.0.skewness: { value: 0.7071, error: 0.0001 } }
+  - close_to: { aggregations.stats.fields.0.kurtosis: { value: 1.4999, error: 0.0001 } }
+  - close_to: { aggregations.stats.fields.0.covariance.value1: { value: 0.0, error: 0.0001 } }
+  - close_to: { aggregations.stats.fields.0.covariance.value2: { value: 26.6666, error: 0.0001 } }
+  - close_to: { aggregations.stats.fields.0.correlation.value1: { value: 0.0, error: 0.0001 } }
+  - close_to: { aggregations.stats.fields.0.correlation.value2: { value: 1.0, error: 0.0001 } }
+
+  - match: { aggregations.stats.fields.1.name: "value1" }
+  - match: { aggregations.stats.fields.1.count: 6 }
+  - close_to: { aggregations.stats.fields.1.mean: { value: 2.0, error: 0.0001 } }
+  - close_to: { aggregations.stats.fields.1.variance: { value: 0.8, error: 0.0001 } }
+  - close_to: { aggregations.stats.fields.1.skewness: { value: 0.0, error: 0.0001 } }
+  - close_to: { aggregations.stats.fields.1.kurtosis: { value: 1.5, error: 0.0001 } }
+  - close_to: { aggregations.stats.fields.1.covariance.value1: { value: 0.8, error: 0.0001 } }
+  - close_to: { aggregations.stats.fields.1.covariance.value2: { value: 0.0, error: 0.0001 } }
+  - close_to: { aggregations.stats.fields.1.correlation.value1: { value: 1.0, error: 0.0001 } }
+  - close_to: { aggregations.stats.fields.1.correlation.value2: { value: 0.0, error: 0.0001 } }
+
+---
+"matrix stats all fields available with one field":
+  - skip:
+      version: " - 8.2.99"
+      reason: bug fixed in 8.3.0
+      features: close_to
+
+  - do:
+      search:
+        index: test1,test2
+        body:
+          size: 0
+          aggs:
+            stats:
+              matrix_stats:
+                fields: ["value1"]
+
+  - match: { hits.total.value: 6 }
+  - match: { hits.total.relation: "eq" }
+
+  - match: { aggregations.stats.fields.0.name: "value1" }
+  - match: { aggregations.stats.fields.0.count: 6 }
+  - close_to: { aggregations.stats.fields.0.mean: { value: 2.0, error: 0.0001 } }
+  - close_to: { aggregations.stats.fields.0.variance: { value: 0.8, error: 0.0001 } }
+  - close_to: { aggregations.stats.fields.0.skewness: { value: 0.0, error: 0.0001 } }
+  - close_to: { aggregations.stats.fields.0.kurtosis: { value: 1.5, error: 0.0001 } }
+  - close_to: { aggregations.stats.fields.0.covariance.value1: { value: 0.8, error: 0.0001 } }
+  - close_to: { aggregations.stats.fields.0.correlation.value1: { value: 1.0, error: 0.0001 } }
+
+---
+"matrix stats field not in all indices bad request":
+  - skip:
+      version: " - 8.2.99"
+      reason: bug fixed in 8.3.0
+      features: close_to
+
+  - do:
+      catch: bad_request
+      search:
+        index: test1,test2
+        body:
+          size: 0
+          aggs:
+            stats:
+              matrix_stats:
+                fields: ["value3", "value4"]
+
+  - match: { status: 400 }
+  - match: { error.type: search_phase_execution_exception }
+  - match: { error.caused_by.type: illegal_argument_exception }
+  - match: { error.caused_by.reason: "Aggregation [stats] all fields must exist in all indices, but some indices are missing these fields [value3, value4]" }
+
+---
+"matrix stats with bucket_selector":
+  - skip:
+      version: " - 8.3.99"
+      reason: bug fixed in 8.4.0
+      features: close_to
+
+  - do:
+      search:
+        index: test1,test2
+        body:
+          size: 0
+          aggs:
+            matrix:
+              filters:
+                filters:
+                  - match_all: {}
+              aggs:
+                stats:
+                  matrix_stats:
+                    fields: ["value1", "value2"]
+                selector:
+                  bucket_selector:
+                    buckets_path:
+                      count: "stats[value1].counts"
+                      mean: "stats['value2'].means"
+                      variance: "stats['value1'].variances"
+                      skewness: "stats[value2].skewness"
+                      kurtosis: "stats[value1].kurtosis"
+                      covariance: "stats['value2'].covariance"
+                      correlation: "stats[value1].correlation"
+                    script:
+                      source: "params.count + params.mean + params.variance + params.skewness + params.kurtosis + params.covariance + params.correlation > params.threshold"
+                      lang: painless
+                      params:
+                        threshold: 1.0
+
+  - match: { hits.total.value: 6 }
+  - match: { hits.total.relation: "eq" }
+
+  - match: { aggregations.matrix.buckets.0.stats.fields.0.name: "value2" }
+  - match: { aggregations.matrix.buckets.0.stats.fields.0.count: 6 }
+  - close_to: { aggregations.matrix.buckets.0.stats.fields.0.mean: { value: 13.3333, error: 0.0001 } }
+  - close_to: { aggregations.matrix.buckets.0.stats.fields.0.variance: { value: 26.6666, error: 0.0001 } }
+  - close_to: { aggregations.matrix.buckets.0.stats.fields.0.skewness: { value: 0.7071, error: 0.0001 } }
+  - close_to: { aggregations.matrix.buckets.0.stats.fields.0.kurtosis: { value: 1.4999, error: 0.0001 } }
+  - close_to: { aggregations.matrix.buckets.0.stats.fields.0.covariance.value1: { value: 0.0, error: 0.0001 } }
+  - close_to: { aggregations.matrix.buckets.0.stats.fields.0.covariance.value2: { value: 26.6666, error: 0.0001 } }
+  - close_to: { aggregations.matrix.buckets.0.stats.fields.0.correlation.value1: { value: 0.0, error: 0.0001 } }
+  - close_to: { aggregations.matrix.buckets.0.stats.fields.0.correlation.value2: { value: 1.0, error: 0.0001 } }
+
+  - match: { aggregations.matrix.buckets.0.stats.fields.1.name: "value1" }
+  - match: { aggregations.matrix.buckets.0.stats.fields.1.count: 6 }
+  - close_to: { aggregations.matrix.buckets.0.stats.fields.1.mean: { value: 2.0, error: 0.0001 } }
+  - close_to: { aggregations.matrix.buckets.0.stats.fields.1.variance: { value: 0.8, error: 0.0001 } }
+  - close_to: { aggregations.matrix.buckets.0.stats.fields.1.skewness: { value: 0.0, error: 0.0001 } }
+  - close_to: { aggregations.matrix.buckets.0.stats.fields.1.kurtosis: { value: 1.5, error: 0.0001 } }
+  - close_to: { aggregations.matrix.buckets.0.stats.fields.1.covariance.value1: { value: 0.8, error: 0.0001 } }
+  - close_to: { aggregations.matrix.buckets.0.stats.fields.1.covariance.value2: { value: 0.0, error: 0.0001 } }
+  - close_to: { aggregations.matrix.buckets.0.stats.fields.1.correlation.value1: { value: 1.0, error: 0.0001 } }
+  - close_to: { aggregations.matrix.buckets.0.stats.fields.1.correlation.value2: { value: 0.0, error: 0.0001 } }

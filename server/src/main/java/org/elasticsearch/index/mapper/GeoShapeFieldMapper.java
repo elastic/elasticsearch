@@ -9,11 +9,9 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.geo.LatLonGeometry;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.Orientation;
@@ -25,7 +23,6 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -83,8 +80,8 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(indexed, ignoreMalformed, ignoreZValue, coerce, orientation, meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { indexed, ignoreMalformed, ignoreZValue, coerce, orientation, meta };
         }
 
         @Override
@@ -133,7 +130,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         }
 
         @Override
-        public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
+        public Query geoShapeQuery(SearchExecutionContext context, String fieldName, ShapeRelation relation, LatLonGeometry... geometries) {
             // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0)
             if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(Version.V_7_5_0)) {
                 throw new QueryShardException(
@@ -141,11 +138,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
                     ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "]."
                 );
             }
-            final LatLonGeometry[] luceneGeometries = GeoShapeUtils.toLuceneGeometry(fieldName, context, shape, relation);
-            if (luceneGeometries.length == 0) {
-                return new MatchNoDocsQuery();
-            }
-            return LatLonShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), luceneGeometries);
+            return LatLonShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), geometries);
         }
 
         @Override

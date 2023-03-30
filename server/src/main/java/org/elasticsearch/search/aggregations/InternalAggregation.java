@@ -16,6 +16,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.search.sort.SortValue;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -137,10 +138,10 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     protected abstract boolean mustReduceOnSingleInternalAgg();
 
     /**
-     * Return true if this aggregation is mapped, and can lead a reduction.  If this agg returns
-     * false, it should return itself if asked to lead a reduction
+     * Return true if this aggregation can lead a reduction (ie, is not unmapped or empty).  If this agg returns
+     * false, it should return itself if asked to lead a reduction.
      */
-    public boolean isMapped() {
+    public boolean canLeadReduction() {
         return true;
     }
 
@@ -231,7 +232,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     /**
      * Get value to use when sorting by this aggregation.
      */
-    public double sortValue(String key) {
+    public SortValue sortValue(String key) {
         // subclasses will override this with a real implementation if they can be sorted
         throw new IllegalArgumentException("Can't sort a [" + getType() + "] aggregation [" + getName() + "]");
     }
@@ -239,7 +240,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     /**
      * Get value to use when sorting by a descendant of this aggregation.
      */
-    public double sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
+    public SortValue sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
         // subclasses will override this with a real implementation if you can sort on a descendant
         throw new IllegalArgumentException("Can't sort by a descendant of a [" + getType() + "] aggregation [" + head + "]");
     }

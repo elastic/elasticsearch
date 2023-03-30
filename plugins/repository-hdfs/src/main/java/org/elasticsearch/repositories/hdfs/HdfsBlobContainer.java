@@ -15,13 +15,13 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Options;
 import org.apache.hadoop.fs.Options.CreateOpts;
 import org.apache.hadoop.fs.Path;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
-import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.CheckedConsumer;
@@ -40,6 +40,7 @@ import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.OptionalLong;
 
 final class HdfsBlobContainer extends AbstractBlobContainer {
     private final HdfsBlobStore store;
@@ -161,14 +162,23 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlob(String blobName, boolean failIfAlreadyExists, boolean atomic, CheckedConsumer<OutputStream, IOException> writer)
-        throws IOException {
+    public void writeMetadataBlob(
+        String blobName,
+        boolean failIfAlreadyExists,
+        boolean atomic,
+        CheckedConsumer<OutputStream, IOException> writer
+    ) throws IOException {
         Path blob = new Path(path, blobName);
         if (atomic) {
             final Path tempBlobPath = new Path(path, FsBlobContainer.tempBlobName(blobName));
             store.execute((Operation<Void>) fileContext -> {
-                try (FSDataOutputStream stream = fileContext.create(tempBlobPath, EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK))) {
-                    writer.accept(stream);
+                try {
+                    try (
+                        FSDataOutputStream stream = fileContext.create(tempBlobPath, EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK))
+                    ) {
+                        writer.accept(stream);
+                    }
+                    // Ensure that the stream is closed before renaming so all pending writes are flushed
                     fileContext.rename(tempBlobPath, blob, failIfAlreadyExists ? Options.Rename.NONE : Options.Rename.OVERWRITE);
                 } catch (org.apache.hadoop.fs.FileAlreadyExistsException faee) {
                     throw new FileAlreadyExistsException(blob.toString(), null, faee.getMessage());
@@ -243,7 +253,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         Map<String, BlobMetadata> map = new LinkedHashMap<>();
         for (FileStatus file : files) {
             if (file.isFile()) {
-                map.put(file.getPath().getName(), new PlainBlobMetadata(file.getPath().getName(), file.getLen()));
+                map.put(file.getPath().getName(), new BlobMetadata(file.getPath().getName(), file.getLen()));
             }
         }
         return Collections.unmodifiableMap(map);
@@ -307,5 +317,10 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
                 return null;
             });
         }
+    }
+
+    @Override
+    public void compareAndExchangeRegister(String key, long expected, long updated, ActionListener<OptionalLong> listener) {
+        listener.onFailure(new UnsupportedOperationException("HDFS repositories do not support this operation"));
     }
 }

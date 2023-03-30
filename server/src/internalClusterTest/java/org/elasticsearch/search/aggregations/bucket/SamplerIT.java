@@ -113,7 +113,7 @@ public class SamplerIT extends ESIntegTestCase {
         for (Terms.Bucket genreBucket : genres.getBuckets()) {
             Sampler sample = genreBucket.getAggregations().get("sample");
             Max maxPriceInGenre = sample.getAggregations().get("max_price");
-            double price = maxPriceInGenre.getValue();
+            double price = maxPriceInGenre.value();
             if (asc) {
                 assertThat(price, greaterThanOrEqualTo(lastMaxPrice));
             } else {

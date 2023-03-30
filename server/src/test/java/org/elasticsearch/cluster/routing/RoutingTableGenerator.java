@@ -26,7 +26,7 @@ public class RoutingTableGenerator {
         int stateRandomizer = RandomizedContext.current().getRandom().nextInt(40);
         if (stateRandomizer > 5) {
             state = ShardRoutingState.STARTED;
-        } else if (stateRandomizer > 3) {
+        } else if (stateRandomizer > 3 || primary) {
             state = ShardRoutingState.RELOCATING;
         } else {
             state = ShardRoutingState.INITIALIZING;
@@ -36,7 +36,7 @@ public class RoutingTableGenerator {
             case STARTED -> TestShardRouting.newShardRouting(
                 index,
                 shardId,
-                "node_" + Integer.toString(node_id++),
+                "node_" + (node_id++),
                 null,
                 primary,
                 ShardRoutingState.STARTED
@@ -44,7 +44,7 @@ public class RoutingTableGenerator {
             case INITIALIZING -> TestShardRouting.newShardRouting(
                 index,
                 shardId,
-                "node_" + Integer.toString(node_id++),
+                "node_" + (node_id++),
                 null,
                 primary,
                 ShardRoutingState.INITIALIZING
@@ -52,8 +52,8 @@ public class RoutingTableGenerator {
             case RELOCATING -> TestShardRouting.newShardRouting(
                 index,
                 shardId,
-                "node_" + Integer.toString(node_id++),
-                "node_" + Integer.toString(node_id++),
+                "node_" + (node_id++),
+                "node_" + (node_id++),
                 primary,
                 ShardRoutingState.RELOCATING
             );
@@ -62,19 +62,19 @@ public class RoutingTableGenerator {
 
     }
 
-    public IndexShardRoutingTable genShardRoutingTable(IndexMetadata indexMetadata, int shardId, ShardCounter counter) {
+    public IndexShardRoutingTable.Builder genShardRoutingTable(IndexMetadata indexMetadata, int shardId, ShardCounter counter) {
         final String index = indexMetadata.getIndex().getName();
         IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(new ShardId(index, "_na_", shardId));
-        ShardRouting shardRouting = genShardRouting(index, shardId, true);
-        counter.update(shardRouting);
-        builder.addShard(shardRouting);
+        final ShardRouting primary = genShardRouting(index, shardId, true);
+        counter.update(primary);
+        builder.addShard(primary);
         for (int replicas = indexMetadata.getNumberOfReplicas(); replicas > 0; replicas--) {
-            shardRouting = genShardRouting(index, shardId, false);
-            counter.update(shardRouting);
-            builder.addShard(shardRouting);
+            final ShardRouting replica = genShardRouting(index, shardId, false);
+            counter.update(replica);
+            builder.addShard(replica);
         }
 
-        return builder.build();
+        return builder;
     }
 
     public IndexRoutingTable genIndexRoutingTable(IndexMetadata indexMetadata, ShardCounter counter) {

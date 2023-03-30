@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.seqno;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -32,7 +33,6 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -42,7 +42,7 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Stream.concat(super.nodePlugins().stream(), Stream.of(InternalSettingsPlugin.class, MockTransportService.TestPlugin.class))
-            .collect(Collectors.toList());
+            .toList();
     }
 
     public void testGlobalCheckpointSyncWithAsyncDurability() throws Exception {
@@ -195,12 +195,21 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
                 for (IndexService indexService : indicesService) {
                     for (IndexShard shard : indexService) {
                         if (shard.routingEntry().primary()) {
-                            final SeqNoStats seqNoStats = shard.seqNoStats();
-                            assertThat(
-                                "shard " + shard.routingEntry() + " seq_no [" + seqNoStats + "]",
-                                seqNoStats.getGlobalCheckpoint(),
-                                equalTo(seqNoStats.getMaxSeqNo())
-                            );
+                            try {
+                                final SeqNoStats seqNoStats = shard.seqNoStats();
+                                assertThat(
+                                    "shard " + shard.routingEntry() + " seq_no [" + seqNoStats + "]",
+                                    seqNoStats.getGlobalCheckpoint(),
+                                    equalTo(seqNoStats.getMaxSeqNo())
+                                );
+                            } catch (AlreadyClosedException e) {
+                                logger.error(
+                                    "received unexpected AlreadyClosedException when fetching stats for shard: {}, shard state: {}",
+                                    shard.shardId(),
+                                    shard.state()
+                                );
+                                throw e;
+                            }
                         }
                     }
                 }

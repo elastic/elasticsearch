@@ -1,5 +1,0 @@
-pr: 82833
-summary: Adjust ILM policy for deprecation logs
-area: "Infra/Logging"
-type: enhancement
-issues: []

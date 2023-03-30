@@ -8,7 +8,7 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -16,9 +16,10 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -26,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -49,10 +51,6 @@ public final class IngestMetadata implements Metadata.Custom {
     // IngestMetadata is registered as custom metadata.
     private final Map<String, PipelineConfiguration> pipelines;
 
-    private IngestMetadata() {
-        this.pipelines = Collections.emptyMap();
-    }
-
     public IngestMetadata(Map<String, PipelineConfiguration> pipelines) {
         this.pipelines = Collections.unmodifiableMap(pipelines);
     }
@@ -63,8 +61,8 @@ public final class IngestMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.MINIMUM_COMPATIBLE;
     }
 
     public Map<String, PipelineConfiguration> getPipelines() {
@@ -99,13 +97,8 @@ public final class IngestMetadata implements Metadata.Custom {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray(PIPELINES_FIELD.getPreferredName());
-        for (PipelineConfiguration pipeline : pipelines.values()) {
-            pipeline.toXContent(builder, params);
-        }
-        builder.endArray();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return ChunkedToXContentHelper.array(PIPELINES_FIELD.getPreferredName(), pipelines.values().iterator());
     }
 
     @Override
@@ -155,8 +148,8 @@ public final class IngestMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT.minimumCompatibilityVersion();
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.MINIMUM_COMPATIBLE;
         }
     }
 

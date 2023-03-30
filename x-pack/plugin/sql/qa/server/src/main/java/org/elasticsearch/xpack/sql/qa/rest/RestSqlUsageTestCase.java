@@ -12,6 +12,7 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.proto.Mode;
@@ -30,7 +31,6 @@ import java.util.Map;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.SQL_QUERY_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.SQL_STATS_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.SQL_TRANSLATE_REST_ENDPOINT;
-import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.toMap;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.query;
 
 public abstract class RestSqlUsageTestCase extends ESRestTestCase {
@@ -301,10 +301,10 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (IndexDocument doc : docs) {
-            bulk.append("""
+            bulk.append(Strings.format("""
                 {"index":{}}
                 {"condition":"%s","name":"%s","page_count":%s}
-                """.formatted(doc.condition, doc.name, doc.pageCount));
+                """, doc.condition, doc.name, doc.pageCount));
         }
         request.setJsonEntity(bulk.toString());
         client().performRequest(request);
@@ -345,7 +345,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         request.setEntity(
             new StringEntity(RestSqlTestCase.cursor(cursor).mode(mode).clientId(clientType).toString(), ContentType.APPLICATION_JSON)
         );
-        return (String) toMap(client().performRequest(request), mode).get("cursor");
+        return (String) BaseRestSqlTestCase.toMap(client().performRequest(request), mode).get("cursor");
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -380,7 +380,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
                 ContentType.APPLICATION_JSON
             )
         );
-        return (String) toMap(client().performRequest(request), mode).get("cursor");
+        return (String) BaseRestSqlTestCase.toMap(client().performRequest(request), mode).get("cursor");
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })

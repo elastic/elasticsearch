@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authc.support.mapper;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -21,12 +21,12 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -407,9 +407,9 @@ public class ExpressionRoleMappingTests extends ESTestCase {
     public void testSerialization() throws Exception {
         final ExpressionRoleMapping original = randomRoleMapping(true);
 
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_2_0, null);
+        TransportVersion version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_7_2_0, null);
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(version);
+        output.setTransportVersion(version);
         original.writeTo(output);
 
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
@@ -417,7 +417,7 @@ public class ExpressionRoleMappingTests extends ESTestCase {
             ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
             registry
         );
-        streamInput.setVersion(version);
+        streamInput.setTransportVersion(version);
         final ExpressionRoleMapping serialized = new ExpressionRoleMapping(streamInput);
         assertEquals(original, serialized);
     }
@@ -425,9 +425,9 @@ public class ExpressionRoleMappingTests extends ESTestCase {
     public void testSerializationPreV71() throws Exception {
         final ExpressionRoleMapping original = randomRoleMapping(false);
 
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_0_1);
+        TransportVersion version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_7_0_0, TransportVersion.V_7_0_1);
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(version);
+        output.setTransportVersion(version);
         original.writeTo(output);
 
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
@@ -435,7 +435,7 @@ public class ExpressionRoleMappingTests extends ESTestCase {
             ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
             registry
         );
-        streamInput.setVersion(version);
+        streamInput.setTransportVersion(version);
         final ExpressionRoleMapping serialized = new ExpressionRoleMapping(streamInput);
         assertEquals(original, serialized);
     }
@@ -447,7 +447,7 @@ public class ExpressionRoleMappingTests extends ESTestCase {
     private ExpressionRoleMapping parse(String json, String name, boolean fromIndex) throws IOException {
         final NamedXContentRegistry registry = NamedXContentRegistry.EMPTY;
         final XContentParser parser = XContentType.JSON.xContent()
-            .createParser(registry, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+            .createParser(XContentParserConfiguration.EMPTY.withRegistry(registry), json);
         final ExpressionRoleMapping mapping = ExpressionRoleMapping.parse(name, parser);
         assertThat(mapping, notNullValue());
         assertThat(mapping.getName(), equalTo(name));

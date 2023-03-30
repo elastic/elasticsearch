@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.protocol.xpack.graph;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -177,7 +175,7 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
         }
         builder.endArray();
 
-        ObjectIntHashMap<Vertex> vertexNumbers = new ObjectIntHashMap<>(vertices.size());
+        Map<Vertex, Integer> vertexNumbers = new HashMap<>(vertices.size());
 
         Map<String, String> extraParams = new HashMap<>();
         extraParams.put(RETURN_DETAILED_INFO_PARAM, Boolean.toString(returnDetailedInfo));

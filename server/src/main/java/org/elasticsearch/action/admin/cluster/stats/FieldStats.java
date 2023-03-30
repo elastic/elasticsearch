@@ -20,7 +20,7 @@ import java.util.Set;
 /**
  * Holds stats about a mapped field.
  */
-public final class FieldStats extends IndexFeatureStats {
+public class FieldStats extends IndexFeatureStats {
     int scriptCount = 0;
     final Set<String> scriptLangs;
     final FieldScriptStats fieldScriptStats;

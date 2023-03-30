@@ -13,7 +13,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
@@ -33,13 +33,18 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
-public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
+public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdate> {
 
     private boolean useInternalParser = randomBoolean();
 
     @Override
     protected JobUpdate createTestInstance() {
         return createRandom(randomAlphaOfLength(4), null);
+    }
+
+    @Override
+    protected JobUpdate mutateInstance(JobUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     /**
@@ -305,7 +310,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         jobBuilder.setCreateTime(new Date());
         Job job = jobBuilder.build();
 
-        Job updatedJob = update.mergeWithJob(job, new ByteSizeValue(0L));
+        Job updatedJob = update.mergeWithJob(job, ByteSizeValue.ZERO);
 
         assertEquals(update.getGroups(), updatedJob.getGroups());
         assertEquals(update.getDescription(), updatedJob.getDescription());
@@ -342,7 +347,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
                 update = createRandom(job.getId(), job);
             } while (update.isNoop(job));
 
-            Job updatedJob = update.mergeWithJob(job, new ByteSizeValue(0L));
+            Job updatedJob = update.mergeWithJob(job, ByteSizeValue.ZERO);
             assertThat(job, not(equalTo(updatedJob)));
         }
     }
@@ -395,7 +400,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         jobBuilder.validateAnalysisLimitsAndSetDefaults(null);
 
         JobUpdate update = new JobUpdate.Builder("foo").setAnalysisLimits(new AnalysisLimits(2048L, 5L)).build();
-        Job updated = update.mergeWithJob(jobBuilder.build(), new ByteSizeValue(0L));
+        Job updated = update.mergeWithJob(jobBuilder.build(), ByteSizeValue.ZERO);
         assertThat(updated.getAnalysisLimits().getModelMemoryLimit(), equalTo(2048L));
         assertThat(updated.getAnalysisLimits().getCategorizationExamplesLimit(), equalTo(5L));
 

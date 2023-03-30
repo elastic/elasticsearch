@@ -7,14 +7,17 @@
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
+import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
-import org.elasticsearch.search.aggregations.matrix.MatrixAggregationPlugin;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
@@ -26,6 +29,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class TransformAggregationsTests extends ESTestCase {
     public void testResolveTargetMapping() {
@@ -49,19 +55,28 @@ public class TransformAggregationsTests extends ESTestCase {
         // max
         assertEquals("int", TransformAggregations.resolveTargetMapping("max", "int"));
         assertEquals("double", TransformAggregations.resolveTargetMapping("max", "double"));
+        assertEquals("double", TransformAggregations.resolveTargetMapping("max", "aggregate_metric_double"));
         assertEquals("half_float", TransformAggregations.resolveTargetMapping("max", "half_float"));
         assertEquals("float", TransformAggregations.resolveTargetMapping("max", "scaled_float"));
 
         // min
         assertEquals("int", TransformAggregations.resolveTargetMapping("min", "int"));
         assertEquals("double", TransformAggregations.resolveTargetMapping("min", "double"));
+        assertEquals("double", TransformAggregations.resolveTargetMapping("min", "aggregate_metric_double"));
         assertEquals("half_float", TransformAggregations.resolveTargetMapping("min", "half_float"));
         assertEquals("float", TransformAggregations.resolveTargetMapping("min", "scaled_float"));
 
         // sum
         assertEquals("double", TransformAggregations.resolveTargetMapping("sum", "double"));
+        assertEquals("double", TransformAggregations.resolveTargetMapping("sum", "aggregate_metric_double"));
         assertEquals("double", TransformAggregations.resolveTargetMapping("sum", "half_float"));
         assertEquals("double", TransformAggregations.resolveTargetMapping("sum", null));
+
+        // range
+        assertEquals("long", TransformAggregations.resolveTargetMapping("range", "int"));
+        assertEquals("long", TransformAggregations.resolveTargetMapping("range", "double"));
+        assertEquals("long", TransformAggregations.resolveTargetMapping("range", "half_float"));
+        assertEquals("long", TransformAggregations.resolveTargetMapping("range", "scaled_float"));
 
         // geo_centroid
         assertEquals("geo_point", TransformAggregations.resolveTargetMapping("geo_centroid", "geo_point"));
@@ -127,7 +142,7 @@ public class TransformAggregationsTests extends ESTestCase {
 
     public void testAggregationsVsTransforms() {
         // Note: if a new plugin is added, it must be added here
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Arrays.asList((new AnalyticsPlugin()), new MatrixAggregationPlugin()));
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Arrays.asList((new AnalyticsPlugin()), new AggregationsPlugin()));
         List<NamedWriteableRegistry.Entry> namedWriteables = searchModule.getNamedWriteables();
 
         List<String> aggregationNames = namedWriteables.stream()
@@ -136,11 +151,11 @@ public class TransformAggregationsTests extends ESTestCase {
             .collect(Collectors.toList());
 
         for (String aggregationName : aggregationNames) {
-            String message = """
+            String message = Strings.format("""
                 The following aggregation is unknown to transform: [%s]. If this is a newly added aggregation, \
                 please open an issue to add transform support for it. Afterwards add "%s" to the list in %s. \
                 Thanks!\
-                """.formatted(aggregationName, aggregationName, TransformAggregations.class.getName());
+                """, aggregationName, aggregationName, TransformAggregations.class.getName());
             assertTrue(
                 message,
                 TransformAggregations.isSupportedByTransform(aggregationName)
@@ -173,6 +188,17 @@ public class TransformAggregationsTests extends ESTestCase {
         assertEquals("percentiles", outputTypes.get("percentiles.1"));
         assertEquals("percentiles", outputTypes.get("percentiles.5"));
         assertEquals("percentiles", outputTypes.get("percentiles.10"));
+
+        percentialAggregationBuilder = new PercentilesAggregationBuilder("percentiles", new double[] { 1.2, 5.5, 10.7 }, null);
+
+        inputAndOutputTypes = TransformAggregations.getAggregationInputAndOutputTypes(percentialAggregationBuilder);
+        assertTrue(inputAndOutputTypes.v1().isEmpty());
+        outputTypes = inputAndOutputTypes.v2();
+
+        assertEquals(3, outputTypes.size());
+        assertEquals("percentiles", outputTypes.get("percentiles.1_2"));
+        assertEquals("percentiles", outputTypes.get("percentiles.5_5"));
+        assertEquals("percentiles", outputTypes.get("percentiles.10_7"));
     }
 
     public void testGetAggregationOutputTypesStats() {
@@ -188,6 +214,84 @@ public class TransformAggregationsTests extends ESTestCase {
         assertEquals("stats", outputTypes.get("stats.avg"));
         assertEquals("stats", outputTypes.get("stats.count"));
         assertEquals("stats", outputTypes.get("stats.sum"));
+    }
+
+    public void testGetAggregationOutputTypesRange() {
+        {
+            AggregationBuilder rangeAggregationBuilder = new RangeAggregationBuilder("range_agg_name").addUnboundedTo(100)
+                .addRange(100, 200)
+                .addUnboundedFrom(200);
+            var inputAndOutputTypes = TransformAggregations.getAggregationInputAndOutputTypes(rangeAggregationBuilder);
+            assertThat(
+                inputAndOutputTypes,
+                is(
+                    equalTo(
+                        Tuple.tuple(
+                            Map.of(),
+                            Map.of("range_agg_name.*-100", "range", "range_agg_name.100-200", "range", "range_agg_name.200-*", "range")
+                        )
+                    )
+                )
+            );
+        }
+
+        {
+            AggregationBuilder rangeAggregationBuilder = new RangeAggregationBuilder("range_agg_name").addUnboundedTo(100.5)
+                .addRange(100.5, 200.7)
+                .addUnboundedFrom(200.7);
+            var inputAndOutputTypes = TransformAggregations.getAggregationInputAndOutputTypes(rangeAggregationBuilder);
+            assertThat(
+                inputAndOutputTypes,
+                is(
+                    equalTo(
+                        Tuple.tuple(
+                            Map.of(),
+                            Map.of(
+                                "range_agg_name.*-100_5",
+                                "range",
+                                "range_agg_name.100_5-200_7",
+                                "range",
+                                "range_agg_name.200_7-*",
+                                "range"
+                            )
+                        )
+                    )
+                )
+            );
+        }
+
+        {
+            AggregationBuilder rangeAggregationBuilder = new RangeAggregationBuilder("range_agg_name").addUnboundedTo(100.5)
+                .addRange(100.5, 200.7)
+                .addUnboundedFrom(200.7)
+                .subAggregation(AggregationBuilders.avg("my-avg").field("my-field"));
+            var inputAndOutputTypes = TransformAggregations.getAggregationInputAndOutputTypes(rangeAggregationBuilder);
+            assertThat(
+                inputAndOutputTypes,
+                is(
+                    equalTo(
+                        Tuple.tuple(
+                            Map.of(
+                                "range_agg_name.*-100_5.my-avg",
+                                "my-field",
+                                "range_agg_name.100_5-200_7.my-avg",
+                                "my-field",
+                                "range_agg_name.200_7-*.my-avg",
+                                "my-field"
+                            ),
+                            Map.of(
+                                "range_agg_name.*-100_5.my-avg",
+                                "avg",
+                                "range_agg_name.100_5-200_7.my-avg",
+                                "avg",
+                                "range_agg_name.200_7-*.my-avg",
+                                "avg"
+                            )
+                        )
+                    )
+                )
+            );
+        }
     }
 
     public void testGetAggregationOutputTypesSubAggregations() {
@@ -259,5 +363,16 @@ public class TransformAggregationsTests extends ESTestCase {
         assertEquals("percentiles", outputTypes.get("filter_1.filter_2.percentiles.44_4"));
         assertEquals("percentiles", outputTypes.get("filter_1.filter_2.percentiles.88_8"));
         assertEquals("percentiles", outputTypes.get("filter_1.filter_2.percentiles.99_5"));
+    }
+
+    public void testGenerateKeyForRange() {
+        assertThat(TransformAggregations.generateKeyForRange(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY), is(equalTo("*-*")));
+        assertThat(TransformAggregations.generateKeyForRange(Double.NEGATIVE_INFINITY, 0.0), is(equalTo("*-0")));
+        assertThat(TransformAggregations.generateKeyForRange(0.0, 0.0), is(equalTo("0-0")));
+        assertThat(TransformAggregations.generateKeyForRange(10.0, 10.0), is(equalTo("10-10")));
+        assertThat(TransformAggregations.generateKeyForRange(10.5, 10.5), is(equalTo("10_5-10_5")));
+        assertThat(TransformAggregations.generateKeyForRange(10.5, 19.5), is(equalTo("10_5-19_5")));
+        assertThat(TransformAggregations.generateKeyForRange(19.5, 20), is(equalTo("19_5-20")));
+        assertThat(TransformAggregations.generateKeyForRange(20, Double.POSITIVE_INFINITY), is(equalTo("20-*")));
     }
 }

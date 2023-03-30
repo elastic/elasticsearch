@@ -1,5 +1,5 @@
 [[mapper-annotated-text]]
-=== Mapper Annotated Text Plugin
+=== Mapper annotated text plugin
 
 experimental[]
 

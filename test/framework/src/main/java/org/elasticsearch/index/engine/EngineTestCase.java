@@ -15,6 +15,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterCodecReader;
@@ -23,13 +24,13 @@ import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LazySoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -64,9 +65,9 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -198,7 +199,7 @@ public abstract class EngineTestCase extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         primaryTerm.set(randomLongBetween(1, Long.MAX_VALUE));
-        CodecService codecService = new CodecService(null);
+        CodecService codecService = newCodecService();
         String name = Codec.getDefault().getName();
         if (Arrays.asList(codecService.availableCodecs()).contains(name)) {
             // some codecs are read only so we only take the ones that we have in the service and randomly
@@ -234,7 +235,7 @@ public abstract class EngineTestCase extends ESTestCase {
         }
     }
 
-    public EngineConfig copy(EngineConfig config, LongSupplier globalCheckpointSupplier) {
+    public static EngineConfig copy(EngineConfig config, LongSupplier globalCheckpointSupplier) {
         return new EngineConfig(
             config.getShardId(),
             config.getThreadPool(),
@@ -244,7 +245,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getMergePolicy(),
             config.getAnalyzer(),
             config.getSimilarity(),
-            new CodecService(null),
+            config.getCodecService(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -258,7 +259,10 @@ public abstract class EngineTestCase extends ESTestCase {
             config.retentionLeasesSupplier(),
             config.getPrimaryTermSupplier(),
             config.getSnapshotCommitSupplier(),
-            config.getLeafSorter()
+            config.getLeafSorter(),
+            config.getRelativeTimeInNanosSupplier(),
+            config.getIndexCommitListener(),
+            config.isPromotableToPrimary()
         );
     }
 
@@ -272,7 +276,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getMergePolicy(),
             analyzer,
             config.getSimilarity(),
-            new CodecService(null),
+            config.getCodecService(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -286,7 +290,10 @@ public abstract class EngineTestCase extends ESTestCase {
             config.retentionLeasesSupplier(),
             config.getPrimaryTermSupplier(),
             config.getSnapshotCommitSupplier(),
-            config.getLeafSorter()
+            config.getLeafSorter(),
+            config.getRelativeTimeInNanosSupplier(),
+            config.getIndexCommitListener(),
+            config.isPromotableToPrimary()
         );
     }
 
@@ -300,7 +307,7 @@ public abstract class EngineTestCase extends ESTestCase {
             mergePolicy,
             config.getAnalyzer(),
             config.getSimilarity(),
-            new CodecService(null),
+            config.getCodecService(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -314,7 +321,10 @@ public abstract class EngineTestCase extends ESTestCase {
             config.retentionLeasesSupplier(),
             config.getPrimaryTermSupplier(),
             config.getSnapshotCommitSupplier(),
-            config.getLeafSorter()
+            config.getLeafSorter(),
+            config.getRelativeTimeInNanosSupplier(),
+            config.getIndexCommitListener(),
+            config.isPromotableToPrimary()
         );
     }
 
@@ -357,7 +367,7 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public static ParsedDocument createParsedDoc(String id, String routing) {
-        return testParsedDocument(id, routing, testDocumentWithTextField(), new BytesArray("{ \"value\" : \"test\" }"), null);
+        return testParsedDocument(id, routing, testDocumentWithTextField(), new BytesArray("{ \"value\" : \"test\" }"), null, false);
     }
 
     public static ParsedDocument createParsedDoc(String id, String routing, boolean recoverySource) {
@@ -371,7 +381,7 @@ public abstract class EngineTestCase extends ESTestCase {
         );
     }
 
-    protected static ParsedDocument testParsedDocument(
+    protected ParsedDocument testParsedDocument(
         String id,
         String routing,
         LuceneDocument document,
@@ -389,14 +399,12 @@ public abstract class EngineTestCase extends ESTestCase {
         Mapping mappingUpdate,
         boolean recoverySource
     ) {
-        Field uidField = new Field("_id", Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE);
+        Field idField = new StringField("_id", Uid.encodeId(id), Field.Store.YES);
         Field versionField = new NumericDocValuesField("_version", 0);
         SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
-        document.add(uidField);
+        document.add(idField);
         document.add(versionField);
-        document.add(seqID.seqNo);
-        document.add(seqID.seqNoDocValue);
-        document.add(seqID.primaryTerm);
+        seqID.addFields(document);
         BytesRef ref = source.toBytesRef();
         if (recoverySource) {
             document.add(new StoredField(SourceFieldMapper.RECOVERY_SOURCE_NAME, ref.bytes, ref.offset, ref.length));
@@ -728,7 +736,8 @@ public abstract class EngineTestCase extends ESTestCase {
             indexSort,
             globalCheckpointSupplier,
             retentionLeasesSupplier,
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            null
         );
     }
 
@@ -753,7 +762,8 @@ public abstract class EngineTestCase extends ESTestCase {
             indexSort,
             maybeGlobalCheckpointSupplier,
             maybeGlobalCheckpointSupplier == null ? null : () -> RetentionLeases.EMPTY,
-            breakerService
+            breakerService,
+            null
         );
     }
 
@@ -767,7 +777,8 @@ public abstract class EngineTestCase extends ESTestCase {
         final Sort indexSort,
         final @Nullable LongSupplier maybeGlobalCheckpointSupplier,
         final @Nullable Supplier<RetentionLeases> maybeRetentionLeasesSupplier,
-        final CircuitBreakerService breakerService
+        final CircuitBreakerService breakerService,
+        final @Nullable Engine.IndexCommitListener indexCommitListener
     ) {
         final IndexWriterConfig iwc = newIndexWriterConfig();
         final TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
@@ -810,7 +821,7 @@ public abstract class EngineTestCase extends ESTestCase {
             mergePolicy,
             iwc.getAnalyzer(),
             iwc.getSimilarity(),
-            new CodecService(null),
+            newCodecService(),
             eventListener,
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
@@ -824,7 +835,10 @@ public abstract class EngineTestCase extends ESTestCase {
             retentionLeasesSupplier,
             primaryTerm,
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-            null
+            null,
+            this::relativeTimeInNanos,
+            indexCommitListener,
+            true
         );
     }
 
@@ -846,7 +860,7 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getMergePolicy(),
             config.getAnalyzer(),
             config.getSimilarity(),
-            new CodecService(null),
+            newCodecService(),
             config.getEventListener(),
             config.getQueryCache(),
             config.getQueryCachingPolicy(),
@@ -860,7 +874,10 @@ public abstract class EngineTestCase extends ESTestCase {
             config.retentionLeasesSupplier(),
             config.getPrimaryTermSupplier(),
             config.getSnapshotCommitSupplier(),
-            config.getLeafSorter()
+            config.getLeafSorter(),
+            config.getRelativeTimeInNanosSupplier(),
+            config.getIndexCommitListener(),
+            config.isPromotableToPrimary()
         );
     }
 
@@ -968,7 +985,7 @@ public abstract class EngineTestCase extends ESTestCase {
             if (randomBoolean()) {
                 op = new Engine.Index(
                     id,
-                    testParsedDocument(docId, null, testDocumentWithTextField(valuePrefix + i), SOURCE, null),
+                    testParsedDocument(docId, null, testDocumentWithTextField(valuePrefix + i), SOURCE, null, false),
                     forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
                     forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
                     version,
@@ -1108,22 +1125,18 @@ public abstract class EngineTestCase extends ESTestCase {
             );
             if (op instanceof Engine.Index) {
                 Engine.IndexResult result = replicaEngine.index((Engine.Index) op);
-                // replicas don't really care to about creation status of documents
-                // this allows to ignore the case where a document was found in the live version maps in
-                // a delete state and return false for the created flag in favor of code simplicity
-                // as deleted or not. This check is just signal regression so a decision can be made if it's
-                // intentional
+                // Replicas don't really care about the creation status of documents. This allows us to ignore the case where a document was
+                // found in the live version maps in a delete state and return false for the created flag in favor of code simplicity as
+                // deleted or not. This check is just to signal a regression so a decision can be made if it's intentional.
                 assertThat(result.isCreated(), equalTo(firstOp));
                 assertThat(result.getVersion(), equalTo(op.version()));
                 assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
 
             } else {
                 Engine.DeleteResult result = replicaEngine.delete((Engine.Delete) op);
-                // Replicas don't really care to about found status of documents
-                // this allows to ignore the case where a document was found in the live version maps in
-                // a delete state and return true for the found flag in favor of code simplicity
-                // his check is just signal regression so a decision can be made if it's
-                // intentional
+                // Replicas don't really care about the "found" status of documents. This allows us to ignore the case where a document was
+                // found in the live version maps in a delete state and return true for the found flag in favor of code simplicity. This
+                // check is just to signal a regression so a decision can be made if it's intentional.
                 assertThat(result.isFound(), equalTo(firstOp == false));
                 assertThat(result.getVersion(), equalTo(op.version()));
                 assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
@@ -1218,6 +1231,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 NumericDocValues primaryTermDocValues = reader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
                 NumericDocValues versionDocValues = reader.getNumericDocValues(VersionFieldMapper.NAME);
                 Bits liveDocs = reader.getLiveDocs();
+                StoredFields storedFields = reader.storedFields();
                 for (int i = 0; i < reader.maxDoc(); i++) {
                     if (liveDocs == null || liveDocs.get(i)) {
                         if (primaryTermDocValues.advanceExact(i) == false) {
@@ -1225,7 +1239,7 @@ public abstract class EngineTestCase extends ESTestCase {
                             continue;
                         }
                         final long primaryTerm = primaryTermDocValues.longValue();
-                        Document doc = reader.document(i, Set.of(IdFieldMapper.NAME, SourceFieldMapper.NAME));
+                        Document doc = storedFields.document(i, Set.of(IdFieldMapper.NAME, SourceFieldMapper.NAME));
                         BytesRef binaryID = doc.getBinaryValue(IdFieldMapper.NAME);
                         String id = Uid.decodeId(Arrays.copyOfRange(binaryID.bytes, binaryID.offset, binaryID.offset + binaryID.length));
                         final BytesRef source = doc.getBinaryValue(SourceFieldMapper.NAME);
@@ -1327,7 +1341,7 @@ public abstract class EngineTestCase extends ESTestCase {
             assertThat(luceneOp.toString(), luceneOp.primaryTerm(), equalTo(translogOp.primaryTerm()));
             assertThat(luceneOp.opType(), equalTo(translogOp.opType()));
             if (luceneOp.opType() == Translog.Operation.Type.INDEX) {
-                assertThat(luceneOp.getSource().source, equalTo(translogOp.getSource().source));
+                assertThat(luceneOp.source(), equalTo(translogOp.source()));
             }
         }
     }
@@ -1590,5 +1604,17 @@ public abstract class EngineTestCase extends ESTestCase {
         }
         // hard fail - we can't get the lazybits
         throw new IllegalStateException("Can not extract lazy bits from given index reader [" + reader + "]");
+    }
+
+    protected static CodecService newCodecService() {
+        return new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE);
+    }
+
+    /**
+     * Supplier of relative timestamps for the engine. Override this method to control how time passes as seen by the engine. The default
+     * implementation returns {@link System#nanoTime()}.
+     */
+    protected long relativeTimeInNanos() {
+        return System.nanoTime();
     }
 }

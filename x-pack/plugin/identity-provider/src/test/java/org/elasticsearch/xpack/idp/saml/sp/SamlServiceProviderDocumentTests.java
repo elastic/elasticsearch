@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.idp.saml.sp;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -29,7 +29,6 @@ import java.security.cert.X509Certificate;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.emptyIterable;
@@ -92,9 +91,7 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
 
     private SamlServiceProviderDocument createFullDocument() throws GeneralSecurityException, IOException {
         final List<X509Credential> credentials = readCredentials();
-        final List<X509Certificate> certificates = credentials.stream()
-            .map(X509Credential::getEntityCertificate)
-            .collect(Collectors.toUnmodifiableList());
+        final List<X509Certificate> certificates = credentials.stream().map(X509Credential::getEntityCertificate).toList();
         final List<X509Certificate> spCertificates = randomSubsetOf(certificates);
         final List<X509Certificate> idpCertificates = randomSubsetOf(certificates);
         final List<X509Certificate> idpMetadataCertificates = randomSubsetOf(certificates);
@@ -162,7 +159,11 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
     }
 
     private SamlServiceProviderDocument assertSerializationRoundTrip(SamlServiceProviderDocument doc) throws IOException {
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_7_0, Version.CURRENT);
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.V_7_7_0,
+            TransportVersion.CURRENT
+        );
         final SamlServiceProviderDocument read = copyWriteable(
             doc,
             new NamedWriteableRegistry(List.of()),

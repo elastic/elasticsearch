@@ -49,6 +49,9 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
     }
 
     public void add(FieldDataStats stats) {
+        if (stats == null) {
+            return;
+        }
         this.memorySize += stats.memorySize;
         this.evictions += stats.evictions;
         if (stats.fields != null) {
@@ -65,7 +68,7 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
     }
 
     public ByteSizeValue getMemorySize() {
-        return new ByteSizeValue(memorySize);
+        return ByteSizeValue.ofBytes(memorySize);
     }
 
     public long getEvictions() {

@@ -38,6 +38,11 @@ public class ShardChangesResponseTests extends AbstractWireSerializingTestCase<S
     }
 
     @Override
+    protected ShardChangesAction.Response mutateInstance(ShardChangesAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<ShardChangesAction.Response> instanceReader() {
         return ShardChangesAction.Response::new;
     }

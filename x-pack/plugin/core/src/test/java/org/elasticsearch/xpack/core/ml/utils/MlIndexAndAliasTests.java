@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -411,13 +410,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
                     .add(new DiscoveryNode("bar", new TransportAddress(inetAddress2, 9202), minNodeVersion))
                     .build()
             )
-            .metadata(
-                Metadata.builder()
-                    .indices(ImmutableOpenMap.<String, IndexMetadata>builder().putAll(indices).build())
-                    .templates(ImmutableOpenMap.<String, IndexTemplateMetadata>builder().putAll(legacyTemplates).build())
-                    .indexTemplates(composableTemplates)
-                    .build()
-            )
+            .metadata(Metadata.builder().indices(indices).templates(legacyTemplates).indexTemplates(composableTemplates).build())
             .build();
     }
 
@@ -438,12 +431,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
     }
 
     private static IndexMetadata createIndexMetadata(String indexName, boolean withAlias) {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .build();
-        IndexMetadata.Builder builder = IndexMetadata.builder(indexName).settings(settings);
+        IndexMetadata.Builder builder = IndexMetadata.builder(indexName).settings(indexSettings(Version.CURRENT, 1, 0));
         if (withAlias) {
             builder.putAlias(AliasMetadata.builder(TEST_INDEX_ALIAS).build());
         }

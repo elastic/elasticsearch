@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.core.Nullable;
@@ -37,6 +36,8 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * A runnable class that reads the autodetect process output in the
@@ -68,7 +69,7 @@ public class JobSnapshotUpgraderResultProcessor {
         this.snapshotId = Objects.requireNonNull(snapshotId);
         this.persister = Objects.requireNonNull(persister);
         this.process = Objects.requireNonNull(autodetectProcess);
-        this.bulkResultsPersister = persister.bulkPersisterBuilder(jobId).shouldRetry(this::isAlive);
+        this.bulkResultsPersister = persister.bulkPersisterBuilder(jobId, this::isAlive);
         this.flushListener = new FlushListener();
     }
 
@@ -84,7 +85,7 @@ public class JobSnapshotUpgraderResultProcessor {
                     bulkResultsPersister.executeRequest();
                 }
             } catch (Exception e) {
-                LOGGER.warn(new ParameterizedMessage("[{}] [{}] Error persisting model snapshot upgrade results", jobId, snapshotId), e);
+                LOGGER.warn(() -> format("[%s] [%s] Error persisting model snapshot upgrade results", jobId, snapshotId), e);
             }
         } catch (Exception e) {
             failed = true;
@@ -109,7 +110,7 @@ public class JobSnapshotUpgraderResultProcessor {
             } else {
                 // We should only get here if the iterator throws in which
                 // case parsing the autodetect output has failed.
-                LOGGER.error(new ParameterizedMessage("[{}] [{}] error parsing model snapshot upgrade output", jobId, snapshotId), e);
+                LOGGER.error(() -> format("[%s] [%s] error parsing model snapshot upgrade output", jobId, snapshotId), e);
             }
         } finally {
             completionLatch.countDown();
@@ -127,7 +128,7 @@ public class JobSnapshotUpgraderResultProcessor {
                     if (isAlive() == false) {
                         throw e;
                     }
-                    LOGGER.warn(new ParameterizedMessage("[{}] [{}] Error processing model snapshot upgrade result", jobId, snapshotId), e);
+                    LOGGER.warn(() -> format("[%s] [%s] Error processing model snapshot upgrade result", jobId, snapshotId), e);
                 }
             }
         } finally {
@@ -207,8 +208,8 @@ public class JobSnapshotUpgraderResultProcessor {
         FlushAcknowledgement flushAcknowledgement = result.getFlushAcknowledgement();
         if (flushAcknowledgement != null) {
             LOGGER.debug(
-                () -> new ParameterizedMessage(
-                    "[{}] [{}] Flush acknowledgement parsed from output for ID {}",
+                () -> format(
+                    "[%s] [%s] Flush acknowledgement parsed from output for ID %s",
                     jobId,
                     snapshotId,
                     flushAcknowledgement.getId()
@@ -248,7 +249,7 @@ public class JobSnapshotUpgraderResultProcessor {
             }
 
             // These lines ensure that the "completion" we're awaiting includes making the results searchable
-            persister.commitStateWrites(jobId);
+            persister.commitWrites(jobId, JobResultsPersister.CommitType.STATE);
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

@@ -120,8 +120,6 @@ teardown:
 "Test empty request while single authorized closed index":
 
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/47875"
       features: ["allowed_warnings"]
 
   - do:

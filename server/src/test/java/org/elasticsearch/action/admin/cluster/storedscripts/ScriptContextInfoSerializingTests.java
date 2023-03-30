@@ -9,8 +9,9 @@
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.script.ScriptContextInfo;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -21,7 +22,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class ScriptContextInfoSerializingTests extends AbstractSerializingTestCase<ScriptContextInfo> {
+public class ScriptContextInfoSerializingTests extends AbstractXContentSerializingTestCase<ScriptContextInfo> {
     private static final int MIN_LENGTH = 1;
     private static final int MAX_LENGTH = 16;
 
@@ -41,7 +42,7 @@ public class ScriptContextInfoSerializingTests extends AbstractSerializingTestCa
     }
 
     @Override
-    protected ScriptContextInfo mutateInstance(ScriptContextInfo instance) throws IOException {
+    protected ScriptContextInfo mutateInstance(ScriptContextInfo instance) {
         return mutate(instance, null);
     }
 
@@ -86,7 +87,7 @@ public class ScriptContextInfoSerializingTests extends AbstractSerializingTestCa
     static Set<ScriptContextInfo> randomInstances() {
         Set<String> names = new HashSet<>();
         int size = randomIntBetween(0, MAX_LENGTH);
-        HashSet<ScriptContextInfo> instances = new HashSet<>(size);
+        Set<ScriptContextInfo> instances = Sets.newHashSetWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             String name = randomValueOtherThanMany(names::contains, () -> randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH));
             names.add(name);

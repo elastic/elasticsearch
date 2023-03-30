@@ -31,8 +31,8 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -66,8 +66,8 @@ import org.elasticsearch.indices.recovery.RecoverySourceHandler;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.indices.recovery.StartRecoveryRequest;
+import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
-import org.elasticsearch.indices.recovery.plan.SourceOnlyRecoveryPlannerService;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.ShardGeneration;
@@ -93,6 +93,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
@@ -125,7 +126,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }
 
         @Override
-        public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
+        public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
             throw new AssertionError(e);
         }
     };
@@ -374,8 +375,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
     ) throws IOException {
         // add node id as name to settings for proper logging
         final ShardId shardId = routing.shardId();
-        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
-        ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
+        final NodeEnvironment.DataPath dataPath = new NodeEnvironment.DataPath(createTempDir());
+        ShardPath shardPath = new ShardPath(false, dataPath.resolve(shardId), dataPath.resolve(shardId), shardId);
         return newShard(
             routing,
             shardPath,
@@ -413,6 +414,46 @@ public abstract class IndexShardTestCase extends ESTestCase {
         IndexEventListener indexEventListener,
         IndexingOperationListener... listeners
     ) throws IOException {
+        return newShard(
+            routing,
+            shardPath,
+            indexMetadata,
+            storeProvider,
+            indexReaderWrapper,
+            engineFactory,
+            globalCheckpointSyncer,
+            retentionLeaseSyncer,
+            indexEventListener,
+            System::nanoTime,
+            listeners
+        );
+    }
+
+    /**
+     * creates a new initializing shard.
+     * @param routing                       shard routing to use
+     * @param shardPath                     path to use for shard data
+     * @param indexMetadata                 indexMetadata for the shard, including any mapping
+     * @param storeProvider                 an optional custom store provider to use. If null a default file based store will be created
+     * @param indexReaderWrapper            an optional wrapper to be used during search
+     * @param globalCheckpointSyncer        callback for syncing global checkpoints
+     * @param indexEventListener            index event listener
+     * @param relativeTimeSupplier          the clock used to measure relative time
+     * @param listeners                     an optional set of listeners to add to the shard
+     */
+    protected IndexShard newShard(
+        ShardRouting routing,
+        ShardPath shardPath,
+        IndexMetadata indexMetadata,
+        @Nullable CheckedFunction<IndexSettings, Store, IOException> storeProvider,
+        @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
+        @Nullable EngineFactory engineFactory,
+        Runnable globalCheckpointSyncer,
+        RetentionLeaseSyncer retentionLeaseSyncer,
+        IndexEventListener indexEventListener,
+        LongSupplier relativeTimeSupplier,
+        IndexingOperationListener... listeners
+    ) throws IOException {
         final Settings nodeSettings = Settings.builder().put("node.name", routing.currentNodeId()).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, nodeSettings);
         final IndexShard indexShard;
@@ -425,7 +466,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }
         boolean success = false;
         try {
-            IndexCache indexCache = new IndexCache(indexSettings, new DisabledQueryCache(indexSettings), null);
+            IndexCache indexCache = new IndexCache(DisabledQueryCache.INSTANCE, null);
             MapperService mapperService = MapperTestUtils.newMapperService(
                 xContentRegistry(),
                 createTempDir(),
@@ -461,7 +502,10 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 globalCheckpointSyncer,
                 retentionLeaseSyncer,
                 breakerService,
-                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER
+                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
+                relativeTimeSupplier,
+                null,
+                ReplicationTracker.DEFAULT_FACTORY
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;
@@ -633,7 +677,11 @@ public abstract class IndexShardTestCase extends ESTestCase {
 
     public static void updateRoutingEntry(IndexShard shard, ShardRouting shardRouting) throws IOException {
         Set<String> inSyncIds = shardRouting.active() ? Collections.singleton(shardRouting.allocationId().getId()) : Collections.emptySet();
-        IndexShardRoutingTable newRoutingTable = new IndexShardRoutingTable.Builder(shardRouting.shardId()).addShard(shardRouting).build();
+        final var builder = new IndexShardRoutingTable.Builder(shardRouting.shardId());
+        if (shardRouting.primary() == false) {
+            builder.addShard(TestShardRouting.newShardRouting(shardRouting.shardId(), "ignored", true, ShardRoutingState.STARTED));
+        }
+        IndexShardRoutingTable newRoutingTable = builder.addShard(shardRouting).build();
         shard.updateShardState(
             shardRouting,
             shard.getPendingPrimaryTerm(),
@@ -735,7 +783,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         int fileChunkSizeInBytes = Math.toIntExact(
             randomBoolean() ? RecoverySettings.DEFAULT_CHUNK_SIZE.getBytes() : randomIntBetween(1, 10 * 1024 * 1024)
         );
-        final RecoveryPlannerService recoveryPlannerService = SourceOnlyRecoveryPlannerService.INSTANCE;
+        final RecoveryPlannerService recoveryPlannerService = PeerOnlyRecoveryPlannerService.INSTANCE;
         final RecoverySourceHandler recovery = new RecoverySourceHandler(
             primary,
             new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()),
@@ -791,7 +839,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             newRoutingTable
         );
         replica.updateShardState(
-            replica.routingEntry().moveToStarted(),
+            replica.routingEntry().moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
             replica.getPendingPrimaryTerm(),
             null,
             currentClusterStateVersion.get(),
@@ -814,9 +862,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
             replica.routingEntry().allocationId()
         );
 
-        final IndexShardRoutingTable newRoutingTable = new IndexShardRoutingTable.Builder(routingTable).removeShard(replica.routingEntry())
-            .addShard(routingEntry)
-            .build();
+        final IndexShardRoutingTable newRoutingTable = new IndexShardRoutingTable.Builder(routingTable).removeShard(
+            routingTable.primaryShard()
+        ).removeShard(replica.routingEntry()).addShard(routingEntry).build();
         replica.updateShardState(
             routingEntry,
             replica.getPendingPrimaryTerm() + 1,
@@ -1009,7 +1057,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                     null,
                     snapshotStatus,
                     Version.CURRENT,
-                    Collections.emptyMap(),
+                    randomMillisUpToYear9999(),
                     future
                 )
             );

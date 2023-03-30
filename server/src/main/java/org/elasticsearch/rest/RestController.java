@@ -11,24 +11,26 @@ package org.elasticsearch.rest;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.core.internal.io.Streams;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tracing.Tracer;
+import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -36,19 +38,21 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.indices.SystemIndices.EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.elasticsearch.indices.SystemIndices.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
-import static org.elasticsearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
+import static org.elasticsearch.rest.RestResponse.TEXT_CONTENT_TYPE;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
 import static org.elasticsearch.rest.RestStatus.METHOD_NOT_ALLOWED;
@@ -66,8 +70,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
     static final Set<String> SAFELISTED_MEDIA_TYPES = Set.of("application/x-www-form-urlencoded", "multipart/form-data", "text/plain");
 
     static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
+    static final String ELASTIC_INTERNAL_ORIGIN_HTTP_HEADER = "X-elastic-internal-origin";
     static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
-
+    static final Set<String> RESERVED_PATHS = Set.of("/__elb_health__", "/__elb_health__/zk", "/_health", "/_health/zk");
     private static final BytesReference FAVICON_RESPONSE;
 
     static {
@@ -91,28 +96,30 @@ public class RestController implements HttpServerTransport.Dispatcher {
     /** Rest headers that are copied to internal requests made during a rest request. */
     private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
+    private final Tracer tracer;
+    // If true, the ServerlessScope annotations will be enforced
+    private final boolean serverlessEnabled;
 
     public RestController(
         Set<RestHeaderDefinition> headersToCopy,
         UnaryOperator<RestHandler> handlerWrapper,
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
-        UsageService usageService
+        UsageService usageService,
+        Tracer tracer,
+        boolean serverlessEnabled
     ) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
+        this.tracer = tracer;
         if (handlerWrapper == null) {
             handlerWrapper = h -> h; // passthrough if no wrapper set
         }
         this.handlerWrapper = handlerWrapper;
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
-        registerHandlerNoWrap(
-            RestRequest.Method.GET,
-            "/favicon.ico",
-            RestApiVersion.current(),
-            (request, channel, clnt) -> channel.sendResponse(new BytesRestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE))
-        );
+        registerHandlerNoWrap(RestRequest.Method.GET, "/favicon.ico", RestApiVersion.current(), new RestFavIconHandler());
+        this.serverlessEnabled = serverlessEnabled;
     }
 
     /**
@@ -257,6 +264,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
         assert RestApiVersion.minimumSupported() == version || RestApiVersion.current() == version
             : "REST API compatibility is only supported for version " + RestApiVersion.minimumSupported().major;
 
+        if (RESERVED_PATHS.contains(path)) {
+            throw new IllegalArgumentException("path [" + path + "] is a reserved path and may not be registered");
+        }
         handlers.insertOrUpdate(
             path,
             new MethodHandlers(path).addMethod(method, version, handler),
@@ -306,10 +316,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
             tryAllHandlers(request, channel, threadContext);
         } catch (Exception e) {
             try {
-                channel.sendResponse(new BytesRestResponse(channel, e));
+                channel.sendResponse(new RestResponse(channel, e));
             } catch (Exception inner) {
                 inner.addSuppressed(e);
-                logger.error(() -> new ParameterizedMessage("failed to send failure response for uri [{}]", request.uri()), inner);
+                logger.error(() -> "failed to send failure response for uri [" + request.uri() + "]", inner);
             }
         }
     }
@@ -326,13 +336,13 @@ public class RestController implements HttpServerTransport.Dispatcher {
             } else {
                 e = new ElasticsearchException(cause);
             }
-            channel.sendResponse(new BytesRestResponse(channel, BAD_REQUEST, e));
+            channel.sendResponse(new RestResponse(channel, BAD_REQUEST, e));
         } catch (final IOException e) {
             if (cause != null) {
                 e.addSuppressed(cause);
             }
             logger.warn("failed to send bad request response", e);
-            channel.sendResponse(new BytesRestResponse(INTERNAL_SERVER_ERROR, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            channel.sendResponse(new RestResponse(INTERNAL_SERVER_ERROR, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
         }
     }
 
@@ -350,7 +360,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 && XContentType.JSON != xContentType.canonical()
                 && XContentType.SMILE != xContentType.canonical()) {
                 channel.sendResponse(
-                    BytesRestResponse.createSimpleErrorResponse(
+                    RestResponse.createSimpleErrorResponse(
                         channel,
                         RestStatus.NOT_ACCEPTABLE,
                         "Content-Type [" + xContentType + "] does not support stream parsing. Use JSON or SMILE instead"
@@ -360,6 +370,20 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
         }
         RestChannel responseChannel = channel;
+        if (serverlessEnabled) {
+            Scope scope = handler.getServerlessScope();
+            if (Scope.INTERNAL.equals(scope)) {
+                final String internalOrigin = request.header(ELASTIC_INTERNAL_ORIGIN_HTTP_HEADER);
+                boolean internalRequest = internalOrigin != null;
+                if (internalRequest == false) {
+                    handleServerlessRequestToProtectedResource(request.uri(), request.method(), responseChannel);
+                    return;
+                }
+            } else if (Scope.PUBLIC.equals(scope) == false) {
+                handleServerlessRequestToProtectedResource(request.uri(), request.method(), responseChannel);
+                return;
+            }
+        }
         try {
             if (handler.canTripCircuitBreaker()) {
                 inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
@@ -390,7 +414,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
             handler.handleRequest(request, responseChannel, client);
         } catch (Exception e) {
-            responseChannel.sendResponse(new BytesRestResponse(responseChannel, e));
+            responseChannel.sendResponse(new RestResponse(responseChannel, e));
         }
     }
 
@@ -400,16 +424,23 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * see https://www.elastic.co/blog/strict-content-type-checking-for-elasticsearch-rest-requests
      * @param request
      */
-    private boolean isContentTypeDisallowed(RestRequest request) {
+    private static boolean isContentTypeDisallowed(RestRequest request) {
         return request.getParsedContentType() != null
             && SAFELISTED_MEDIA_TYPES.contains(request.getParsedContentType().mediaTypeWithoutParameters());
     }
 
-    private boolean handleNoHandlerFound(String rawPath, RestRequest.Method method, String uri, RestChannel channel) {
+    private boolean handleNoHandlerFound(
+        ThreadContext threadContext,
+        String rawPath,
+        RestRequest.Method method,
+        String uri,
+        RestChannel channel
+    ) {
         // Get the map of matching handlers for a request, for the full set of HTTP methods.
         final Set<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(rawPath);
         if (validMethodSet.contains(method) == false) {
             if (method == RestRequest.Method.OPTIONS) {
+                startTrace(threadContext, channel);
                 handleOptionsRequest(channel, validMethodSet);
                 return true;
             }
@@ -417,6 +448,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 // If an alternative handler for an explicit path is registered to a
                 // different HTTP method than the one supplied - return a 405 Method
                 // Not Allowed error.
+                startTrace(threadContext, channel);
                 handleUnsupportedHttpMethod(uri, method, channel, validMethodSet, null);
                 return true;
             }
@@ -424,7 +456,48 @@ public class RestController implements HttpServerTransport.Dispatcher {
         return false;
     }
 
-    private void sendContentTypeErrorMessage(@Nullable List<String> contentTypeHeader, RestChannel channel) throws IOException {
+    private void startTrace(ThreadContext threadContext, RestChannel channel) {
+        startTrace(threadContext, channel, null);
+    }
+
+    private void startTrace(ThreadContext threadContext, RestChannel channel, String restPath) {
+        final RestRequest req = channel.request();
+        if (restPath == null) {
+            restPath = req.path();
+        }
+        String method = null;
+        try {
+            method = req.method().name();
+        } catch (IllegalArgumentException e) {
+            // Invalid methods throw an exception
+        }
+        String name;
+        if (method != null) {
+            name = method + " " + restPath;
+        } else {
+            name = restPath;
+        }
+
+        final Map<String, Object> attributes = Maps.newMapWithExpectedSize(req.getHeaders().size() + 3);
+        req.getHeaders().forEach((key, values) -> {
+            final String lowerKey = key.toLowerCase(Locale.ROOT).replace('-', '_');
+            attributes.put("http.request.headers." + lowerKey, values.size() == 1 ? values.get(0) : String.join("; ", values));
+        });
+        attributes.put("http.method", method);
+        attributes.put("http.url", req.uri());
+        switch (req.getHttpRequest().protocolVersion()) {
+            case HTTP_1_0 -> attributes.put("http.flavour", "1.0");
+            case HTTP_1_1 -> attributes.put("http.flavour", "1.1");
+        }
+
+        tracer.startTrace(threadContext, channel.request(), name, attributes);
+    }
+
+    private void traceException(RestChannel channel, Throwable e) {
+        this.tracer.addError(channel.request(), e);
+    }
+
+    private static void sendContentTypeErrorMessage(@Nullable List<String> contentTypeHeader, RestChannel channel) throws IOException {
         final String errorMessage;
         if (contentTypeHeader == null) {
             errorMessage = "Content-Type header is missing";
@@ -432,7 +505,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             errorMessage = "Content-Type header [" + Strings.collectionToCommaDelimitedString(contentTypeHeader) + "] is not supported";
         }
 
-        channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(channel, NOT_ACCEPTABLE, errorMessage));
+        channel.sendResponse(RestResponse.createSimpleErrorResponse(channel, NOT_ACCEPTABLE, errorMessage));
     }
 
     private void tryAllHandlers(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) throws Exception {
@@ -440,7 +513,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
             copyRestHeaders(request, threadContext);
             validateErrorTrace(request, channel);
         } catch (IllegalArgumentException e) {
-            channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, e.getMessage()));
+            startTrace(threadContext, channel);
+            channel.sendResponse(RestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, e.getMessage()));
             return;
         }
 
@@ -463,23 +537,27 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     handler = handlers.getHandler(requestMethod, restApiVersion);
                 }
                 if (handler == null) {
-                    if (handleNoHandlerFound(rawPath, requestMethod, uri, channel)) {
+                    if (handleNoHandlerFound(threadContext, rawPath, requestMethod, uri, channel)) {
                         return;
                     }
                 } else {
+                    startTrace(threadContext, channel, handlers.getPath());
                     dispatchRequest(request, channel, handler, threadContext);
                     return;
                 }
             }
         } catch (final IllegalArgumentException e) {
+            startTrace(threadContext, channel);
+            traceException(channel, e);
             handleUnsupportedHttpMethod(uri, null, channel, getValidHandlerMethodSet(rawPath), e);
             return;
         }
         // If request has not been handled, fallback to a bad request error.
+        startTrace(threadContext, channel);
         handleBadRequest(uri, requestMethod, channel);
     }
 
-    private void validateErrorTrace(RestRequest request, RestChannel channel) {
+    private static void validateErrorTrace(RestRequest request, RestChannel channel) {
         // error_trace cannot be used when we disable detailed errors
         // we consume the error_trace parameter first to ensure that it is always consumed
         if (request.paramAsBoolean("error_trace", false) && channel.detailedErrorsEnabled() == false) {
@@ -487,19 +565,23 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    private void copyRestHeaders(RestRequest request, ThreadContext threadContext) throws IOException {
+    private void copyRestHeaders(RestRequest request, ThreadContext threadContext) {
         for (final RestHeaderDefinition restHeader : headersToCopy) {
             final String name = restHeader.getName();
             final List<String> headerValues = request.getAllHeaderValues(name);
             if (headerValues != null && headerValues.isEmpty() == false) {
-                final List<String> distinctHeaderValues = headerValues.stream().distinct().collect(Collectors.toList());
+                final List<String> distinctHeaderValues = headerValues.stream().distinct().toList();
                 if (restHeader.isMultiValueAllowed() == false && distinctHeaderValues.size() > 1) {
                     throw new IllegalArgumentException("multiple values for single-valued header [" + name + "].");
                 } else if (name.equals(Task.TRACE_PARENT_HTTP_HEADER)) {
                     String traceparent = distinctHeaderValues.get(0);
-                    if (traceparent.length() >= 55) {
-                        threadContext.putHeader(Task.TRACE_ID, traceparent.substring(3, 35));
+                    Optional<String> traceId = RestUtils.extractTraceId(traceparent);
+                    if (traceId.isPresent()) {
+                        threadContext.putHeader(Task.TRACE_ID, traceId.get());
+                        threadContext.putTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER, traceparent);
                     }
+                } else if (name.equals(Task.TRACE_STATE)) {
+                    threadContext.putTransient("parent_" + Task.TRACE_STATE, distinctHeaderValues.get(0));
                 } else {
                     threadContext.putHeader(name, String.join(",", distinctHeaderValues));
                 }
@@ -529,13 +611,22 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     /**
+     * Returns the holder for search usage statistics, to be used to track search usage when parsing
+     * incoming search requests from the relevant REST endpoints. This is exposed for plugins that
+     * expose search functionalities which need to contribute to the search usage statistics.
+     */
+    public SearchUsageHolder getSearchUsageHolder() {
+        return usageService.getSearchUsageHolder();
+    }
+
+    /**
      * Handle requests to a valid REST endpoint using an unsupported HTTP
      * method. A 405 HTTP response code is returned, and the response 'Allow'
      * header includes a list of valid HTTP methods for the endpoint (see
      * <a href="https://tools.ietf.org/html/rfc2616#section-10.4.6">HTTP/1.1 -
      * 10.4.6 - 405 Method Not Allowed</a>).
      */
-    private void handleUnsupportedHttpMethod(
+    private static void handleUnsupportedHttpMethod(
         String uri,
         @Nullable RestRequest.Method method,
         final RestChannel channel,
@@ -553,14 +644,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
             if (validMethodSet.isEmpty() == false) {
                 msg.append(", allowed: ").append(validMethodSet);
             }
-            BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(channel, METHOD_NOT_ALLOWED, msg.toString());
+            RestResponse restResponse = RestResponse.createSimpleErrorResponse(channel, METHOD_NOT_ALLOWED, msg.toString());
             if (validMethodSet.isEmpty() == false) {
-                bytesRestResponse.addHeader("Allow", Strings.collectionToDelimitedString(validMethodSet, ","));
+                restResponse.addHeader("Allow", Strings.collectionToDelimitedString(validMethodSet, ","));
             }
-            channel.sendResponse(bytesRestResponse);
+            channel.sendResponse(restResponse);
         } catch (final IOException e) {
             logger.warn("failed to send bad request response", e);
-            channel.sendResponse(new BytesRestResponse(INTERNAL_SERVER_ERROR, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            channel.sendResponse(new RestResponse(INTERNAL_SERVER_ERROR, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
         }
     }
 
@@ -571,28 +662,43 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * <a href="https://tools.ietf.org/html/rfc2616#section-9.2">HTTP/1.1 - 9.2
      * - Options</a>).
      */
-    private void handleOptionsRequest(RestChannel channel, Set<RestRequest.Method> validMethodSet) {
-        BytesRestResponse bytesRestResponse = new BytesRestResponse(OK, TEXT_CONTENT_TYPE, BytesArray.EMPTY);
+    private static void handleOptionsRequest(RestChannel channel, Set<RestRequest.Method> validMethodSet) {
+        RestResponse restResponse = new RestResponse(OK, TEXT_CONTENT_TYPE, BytesArray.EMPTY);
         // When we have an OPTIONS HTTP request and no valid handlers, simply send OK by default (with the Access Control Origin header
         // which gets automatically added).
         if (validMethodSet.isEmpty() == false) {
-            bytesRestResponse.addHeader("Allow", Strings.collectionToDelimitedString(validMethodSet, ","));
+            restResponse.addHeader("Allow", Strings.collectionToDelimitedString(validMethodSet, ","));
         }
-        channel.sendResponse(bytesRestResponse);
+        channel.sendResponse(restResponse);
     }
 
     /**
      * Handle a requests with no candidate handlers (return a 400 Bad Request
      * error).
      */
-    private void handleBadRequest(String uri, RestRequest.Method method, RestChannel channel) throws IOException {
+    public static void handleBadRequest(String uri, RestRequest.Method method, RestChannel channel) throws IOException {
         try (XContentBuilder builder = channel.newErrorBuilder()) {
             builder.startObject();
             {
                 builder.field("error", "no handler found for uri [" + uri + "] and method [" + method + "]");
             }
             builder.endObject();
-            channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder));
+            channel.sendResponse(new RestResponse(BAD_REQUEST, builder));
+        }
+    }
+
+    public static void handleServerlessRequestToProtectedResource(String uri, RestRequest.Method method, RestChannel channel)
+        throws IOException {
+        try (XContentBuilder builder = channel.newErrorBuilder()) {
+            builder.startObject();
+            {
+                builder.field(
+                    "error",
+                    "uri [" + uri + "] with method [" + method + "] exists but is not available when running in " + "serverless mode"
+                );
+            }
+            builder.endObject();
+            channel.sendResponse(new RestResponse(BAD_REQUEST, builder));
         }
     }
 
@@ -645,8 +751,23 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         @Override
-        public BytesStreamOutput bytesOutput() {
+        public XContentBuilder newBuilder(
+            XContentType xContentType,
+            XContentType responseContentType,
+            boolean useFiltering,
+            OutputStream out
+        ) throws IOException {
+            return delegate.newBuilder(xContentType, responseContentType, useFiltering, out);
+        }
+
+        @Override
+        public BytesStream bytesOutput() {
             return delegate.bytesOutput();
+        }
+
+        @Override
+        public void releaseOutputBuffer() {
+            delegate.releaseOutputBuffer();
         }
 
         @Override
@@ -661,8 +782,16 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         @Override
         public void sendResponse(RestResponse response) {
-            close();
-            delegate.sendResponse(response);
+            boolean success = false;
+            try {
+                close();
+                delegate.sendResponse(response);
+                success = true;
+            } finally {
+                if (success == false) {
+                    releaseOutputBuffer();
+                }
+            }
         }
 
         private void close() {
@@ -672,11 +801,18 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
             inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
         }
-
     }
 
     private static CircuitBreaker inFlightRequestsBreaker(CircuitBreakerService circuitBreakerService) {
         // We always obtain a fresh breaker to reflect changes to the breaker configuration.
         return circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+    }
+
+    @ServerlessScope(Scope.PUBLIC)
+    private static final class RestFavIconHandler implements RestHandler {
+        @Override
+        public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+            channel.sendResponse(new RestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE));
+        }
     }
 }

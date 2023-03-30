@@ -1,5 +1,0 @@
-pr: 83326
-summary: Disable ANSI formatting for security autoconfiguration on Windows cmd line
-area: Security
-type: bug
-issues: []

@@ -15,30 +15,36 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.BasicSessionCredentials;
 import com.amazonaws.services.ec2.AbstractAmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
+import com.sun.net.httpserver.HttpServer;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Arrays;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
+@SuppressForbidden(reason = "Uses an HttpServer to emulate the Instance Metadata Service")
 public class Ec2DiscoveryPluginTests extends ESTestCase {
 
-    private Settings getNodeAttributes(Settings settings, String url) {
+    private Settings getNodeAttributes(Settings settings, String url, String tokenUrl) {
         final Settings realSettings = Settings.builder().put(AwsEc2Service.AUTO_ATTRIBUTE_SETTING.getKey(), true).put(settings).build();
-        return Ec2DiscoveryPlugin.getAvailabilityZoneNodeAttributes(realSettings, url);
+        return Ec2DiscoveryPlugin.getAvailabilityZoneNodeAttributes(realSettings, url, tokenUrl);
     }
 
-    private void assertNodeAttributes(Settings settings, String url, String expected) {
-        final Settings additional = getNodeAttributes(settings, url);
+    private void assertNodeAttributes(Settings settings, String url, String tokenUrl, String expected) {
+        final Settings additional = getNodeAttributes(settings, url, tokenUrl);
         if (expected == null) {
             assertTrue(additional.isEmpty());
         } else {
@@ -48,34 +54,82 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
 
     public void testNodeAttributesDisabled() {
         final Settings settings = Settings.builder().put(AwsEc2Service.AUTO_ATTRIBUTE_SETTING.getKey(), false).build();
-        assertNodeAttributes(settings, "bogus", null);
+        assertNodeAttributes(settings, "bogus", "", null);
     }
 
     public void testNodeAttributes() throws Exception {
-        final Path zoneUrl = createTempFile();
-        Files.write(zoneUrl, Arrays.asList("us-east-1c"));
-        assertNodeAttributes(Settings.EMPTY, zoneUrl.toUri().toURL().toString(), "us-east-1c");
+        try (var metadataServer = metadataServerWithoutToken()) {
+            assertNodeAttributes(Settings.EMPTY, metadataServer.metadataUri(), "", "us-east-1c");
+        }
     }
 
     public void testNodeAttributesBogusUrl() {
-        final UncheckedIOException e = expectThrows(UncheckedIOException.class, () -> getNodeAttributes(Settings.EMPTY, "bogus"));
+        final UncheckedIOException e = expectThrows(UncheckedIOException.class, () -> getNodeAttributes(Settings.EMPTY, "bogus", ""));
         assertNotNull(e.getCause());
         final String msg = e.getCause().getMessage();
         assertTrue(msg, msg.contains("no protocol: bogus"));
     }
 
     public void testNodeAttributesEmpty() throws Exception {
-        final Path zoneUrl = createTempFile();
-        final IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> getNodeAttributes(Settings.EMPTY, zoneUrl.toUri().toURL().toString())
-        );
-        assertTrue(e.getMessage(), e.getMessage().contains("no ec2 metadata returned"));
+        try (MetadataServer metadataServer = new MetadataServer("/metadata", exchange -> {
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        })) {
+            final IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> getNodeAttributes(Settings.EMPTY, metadataServer.metadataUri(), "")
+            );
+            assertTrue(e.getMessage(), e.getMessage().contains("no ec2 metadata returned"));
+        }
     }
 
     public void testNodeAttributesErrorLenient() throws Exception {
-        final Path dne = createTempDir().resolve("dne");
-        assertNodeAttributes(Settings.EMPTY, dne.toUri().toURL().toString(), null);
+        try (var metadataServer = new MetadataServer("/metadata", exchange -> {
+            exchange.sendResponseHeaders(404, -1);
+            exchange.close();
+        })) {
+            assertNodeAttributes(Settings.EMPTY, metadataServer.metadataUri(), "", null);
+        }
+    }
+
+    public void testNodeAttributesWithToken() throws Exception {
+        try (var metadataServer = new MetadataServer("/metadata", exchange -> {
+            assertEquals("imdsv2-token", exchange.getRequestHeaders().getFirst("X-aws-ec2-metadata-token"));
+            exchange.sendResponseHeaders(200, 0);
+            exchange.getResponseBody().write("us-east-1c".getBytes(StandardCharsets.UTF_8));
+            exchange.close();
+        }, "/latest/api/token", exchange -> {
+            assertEquals("PUT", exchange.getRequestMethod());
+            assertEquals("10", exchange.getRequestHeaders().getFirst("X-aws-ec2-metadata-token-ttl-seconds"));
+            exchange.sendResponseHeaders(200, 0);
+            exchange.getResponseBody().write("imdsv2-token".getBytes(StandardCharsets.UTF_8));
+            exchange.close();
+        })) {
+            assertNodeAttributes(Settings.EMPTY, metadataServer.metadataUri(), metadataServer.tokenUri(), "us-east-1c");
+        }
+    }
+
+    public void testTokenMetadataApiIsMisbehaving() throws Exception {
+        try (var metadataServer = new MetadataServer("/metadata", exchange -> {
+            assertNull(exchange.getRequestHeaders().getFirst("X-aws-ec2-metadata-token"));
+            exchange.sendResponseHeaders(200, 0);
+            exchange.getResponseBody().write("us-east-1c".getBytes(StandardCharsets.UTF_8));
+            exchange.close();
+        }, "/latest/api/token", HttpExchange::close)) {
+            assertNodeAttributes(Settings.EMPTY, metadataServer.metadataUri(), metadataServer.tokenUri(), "us-east-1c");
+        }
+    }
+
+    public void testTokenMetadataApiIsNotAvailable() throws Exception {
+        try (var metadataServer = metadataServerWithoutToken()) {
+            assertNodeAttributes(Settings.EMPTY, metadataServer.metadataUri(), metadataServer.tokenUri(), "us-east-1c");
+        }
+    }
+
+    public void testBogusTokenMetadataUrl() throws Exception {
+        try (var metadataServer = metadataServerWithoutToken();) {
+            assertNodeAttributes(Settings.EMPTY, metadataServer.metadataUri(), "bogus", "us-east-1c");
+        }
     }
 
     public void testDefaultEndpoint() throws IOException {
@@ -205,5 +259,48 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
 
         @Override
         public void shutdown() {}
+    }
+
+    @SuppressForbidden(reason = "Uses an HttpServer to emulate the Instance Metadata Service")
+    private static MetadataServer metadataServerWithoutToken() throws IOException {
+        return new MetadataServer("/metadata", exchange -> {
+            assertNull(exchange.getRequestHeaders().getFirst("X-aws-ec2-metadata-token"));
+            exchange.sendResponseHeaders(200, 0);
+            exchange.getResponseBody().write("us-east-1c".getBytes(StandardCharsets.UTF_8));
+            exchange.close();
+        });
+    }
+
+    @SuppressForbidden(reason = "Uses an HttpServer to emulate the Instance Metadata Service")
+    private static class MetadataServer implements AutoCloseable {
+
+        private final HttpServer httpServer;
+
+        private MetadataServer(String metadataPath, HttpHandler metadataHandler) throws IOException {
+            this(metadataPath, metadataHandler, null, null);
+        }
+
+        private MetadataServer(String metadataPath, HttpHandler metadataHandler, String tokenPath, HttpHandler tokenHandler)
+            throws IOException {
+            httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+            httpServer.createContext(metadataPath, metadataHandler);
+            if (tokenPath != null && tokenHandler != null) {
+                httpServer.createContext(tokenPath, tokenHandler);
+            }
+            httpServer.start();
+        }
+
+        @Override
+        public void close() throws Exception {
+            httpServer.stop(0);
+        }
+
+        private String metadataUri() {
+            return "http://" + httpServer.getAddress().getHostString() + ":" + httpServer.getAddress().getPort() + "/metadata";
+        }
+
+        private String tokenUri() {
+            return "http://" + httpServer.getAddress().getHostString() + ":" + httpServer.getAddress().getPort() + "/latest/api/token";
+        }
     }
 }

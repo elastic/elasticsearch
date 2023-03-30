@@ -9,20 +9,21 @@ package org.elasticsearch.xpack.ml.inference.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -37,8 +38,10 @@ import java.io.InputStream;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.ml.MachineLearning.NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 
 /**
  * Searches for and emits {@link TrainedModelDefinitionDoc}s in
@@ -70,7 +73,7 @@ public class ChunkedTrainedModelRestorer {
         ExecutorService executorService,
         NamedXContentRegistry xContentRegistry
     ) {
-        this.client = client;
+        this.client = new OriginSettingClient(client, ML_ORIGIN);
         this.executorService = executorService;
         this.xContentRegistry = xContentRegistry;
         this.modelId = modelId;
@@ -120,8 +123,7 @@ public class ChunkedTrainedModelRestorer {
     ) {
 
         logger.debug("[{}] restoring model", modelId);
-        SearchRequest searchRequest = buildSearch(client, modelId, index, searchSize);
-
+        SearchRequest searchRequest = buildSearch(client, modelId, index, searchSize, null);
         executorService.execute(() -> doSearch(searchRequest, modelConsumer, successConsumer, errorConsumer));
     }
 
@@ -131,8 +133,16 @@ public class ChunkedTrainedModelRestorer {
         Consumer<Boolean> successConsumer,
         Consumer<Exception> errorConsumer
     ) {
-
-        executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(searchResponse -> {
+        try {
+            assert Thread.currentThread().getName().contains(NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME)
+                || Thread.currentThread().getName().contains(UTILITY_THREAD_POOL_NAME)
+                : format(
+                    "Must execute from [%s] or [%s] but thread is [%s]",
+                    NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME,
+                    UTILITY_THREAD_POOL_NAME,
+                    Thread.currentThread().getName()
+                );
+            SearchResponse searchResponse = client.search(searchRequest).actionGet();
             if (searchResponse.getHits().getHits().length == 0) {
                 errorConsumer.accept(new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
                 return;
@@ -145,6 +155,7 @@ public class ChunkedTrainedModelRestorer {
             // this many docs so far.
             int lastNum = numDocsWritten - 1;
             for (SearchHit hit : searchResponse.getHits().getHits()) {
+                logger.debug(() -> format("[%s] Restoring model definition doc with id [%s]", modelId, hit.getId()));
                 try {
                     TrainedModelDefinitionDoc doc = parseModelDefinitionDocLenientlyFromSource(
                         hit.getSourceRef(),
@@ -161,7 +172,7 @@ public class ChunkedTrainedModelRestorer {
                     }
 
                 } catch (IOException e) {
-                    logger.error(new ParameterizedMessage("[{}] error writing model definition", modelId), e);
+                    logger.error(() -> "[" + modelId + "] error writing model definition", e);
                     errorConsumer.accept(e);
                     return;
                 }
@@ -181,13 +192,13 @@ public class ChunkedTrainedModelRestorer {
                 searchRequestBuilder.searchAfter(new Object[] { lastHit.getIndex(), lastNum });
                 executorService.execute(() -> doSearch(searchRequestBuilder.request(), modelConsumer, successConsumer, errorConsumer));
             }
-        }, e -> {
+        } catch (Exception e) {
             if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                 errorConsumer.accept(new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
             } else {
                 errorConsumer.accept(e);
             }
-        }));
+        }
     }
 
     private static SearchRequestBuilder buildSearchBuilder(Client client, String modelId, String index, int searchSize) {
@@ -211,8 +222,12 @@ public class ChunkedTrainedModelRestorer {
             );
     }
 
-    public static SearchRequest buildSearch(Client client, String modelId, String index, int searchSize) {
-        return buildSearchBuilder(client, modelId, index, searchSize).request();
+    public static SearchRequest buildSearch(Client client, String modelId, String index, int searchSize, @Nullable TaskId parentTaskId) {
+        SearchRequest searchRequest = buildSearchBuilder(client, modelId, index, searchSize).request();
+        if (parentTaskId != null) {
+            searchRequest.setParentTask(parentTaskId);
+        }
+        return searchRequest;
     }
 
     public static TrainedModelDefinitionDoc parseModelDefinitionDocLenientlyFromSource(
@@ -228,7 +243,7 @@ public class ChunkedTrainedModelRestorer {
         ) {
             return TrainedModelDefinitionDoc.fromXContent(parser, true).build();
         } catch (IOException e) {
-            logger.error(new ParameterizedMessage("[{}] failed to parse model definition", modelId), e);
+            logger.error(() -> "[" + modelId + "] failed to parse model definition", e);
             throw e;
         }
     }

@@ -64,10 +64,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(pipelines.size());
-        for (PipelineConfiguration pipeline : pipelines) {
-            pipeline.writeTo(out);
-        }
+        out.writeCollection(pipelines);
         out.writeBoolean(summary);
     }
 
@@ -138,6 +135,10 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
                     if (pipeline.equals(otherPipeline) == false) {
                         return false;
                     }
+                    otherPipelineMap.remove(pipeline.getId());
+                }
+                if (otherPipelineMap.isEmpty() == false) {
+                    return false;
                 }
                 return true;
             }

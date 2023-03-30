@@ -9,30 +9,40 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.Token;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.hamcrest.Matchers;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -50,10 +60,37 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         return "value";
     }
 
-    public final void testExists() throws IOException {
-        MapperService mapperService = createMapperService(fieldMapping(b -> { minimalMapping(b); }));
-        assertExistsQuery(mapperService);
-        assertParseMinimalWarnings();
+    public void testExistsStandardSource() throws IOException {
+        assertExistsQuery(createMapperService(testMapping(false)));
+    }
+
+    public void testExistsSyntheticSource() throws IOException {
+        assertExistsQuery(createMapperService(testMapping(true)));
+    }
+
+    public void testPhraseQueryStandardSource() throws IOException {
+        assertPhraseQuery(createMapperService(testMapping(false)));
+    }
+
+    public void testPhraseQuerySyntheticSource() throws IOException {
+        assertPhraseQuery(createMapperService(testMapping(true)));
+    }
+
+    private void assertPhraseQuery(MapperService mapperService) throws IOException {
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+            LuceneDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", "the quick brown fox"))).rootDoc();
+            iw.addDocument(doc);
+            iw.close();
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(reader));
+                MatchPhraseQueryBuilder queryBuilder = new MatchPhraseQueryBuilder("field", "brown fox");
+                TopDocs docs = context.searcher().search(queryBuilder.toQuery(context), 1);
+                assertThat(docs.totalHits.value, equalTo(1L));
+                assertThat(docs.totalHits.relation, equalTo(TotalHits.Relation.EQUAL_TO));
+                assertThat(docs.scoreDocs[0].doc, equalTo(0));
+            }
+        }
     }
 
     @Override
@@ -62,6 +99,13 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
             b -> { b.field("meta", Collections.singletonMap("format", "mysql.access")); },
             m -> assertEquals(Collections.singletonMap("format", "mysql.access"), m.fieldType().meta())
         );
+    }
+
+    private XContentBuilder testMapping(boolean syntheticSource) throws IOException {
+        if (syntheticSource) {
+            return syntheticSourceMapping(b -> b.startObject("field").field("type", "match_only_text").endObject());
+        }
+        return fieldMapping(b -> b.field("type", "match_only_text"));
     }
 
     @Override
@@ -80,10 +124,10 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertEquals("1234", fields[0].stringValue());
-        IndexableFieldType fieldType = fields[0].fieldType();
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertEquals("1234", fields.get(0).stringValue());
+        IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.omitNorms(), equalTo(true));
         assertTrue(fieldType.tokenized());
         assertFalse(fieldType.stored());
@@ -161,5 +205,60 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     @Override
     protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
         assumeFalse("We don't have a way to assert things here", true);
+    }
+
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        assertFalse("match_only_text doesn't support ignoreMalformed", ignoreMalformed);
+        return new MatchOnlyTextSyntheticSourceSupport();
+    }
+
+    static class MatchOnlyTextSyntheticSourceSupport implements SyntheticSourceSupport {
+        @Override
+        public SyntheticSourceExample example(int maxValues) {
+            if (randomBoolean()) {
+                Tuple<String, String> v = generateValue();
+                return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
+            }
+            List<Tuple<String, String>> values = randomList(1, maxValues, this::generateValue);
+            List<String> in = values.stream().map(Tuple::v1).toList();
+            List<String> outList = values.stream().map(Tuple::v2).toList();
+            Object out = outList.size() == 1 ? outList.get(0) : outList;
+            return new SyntheticSourceExample(in, out, this::mapping);
+        }
+
+        private Tuple<String, String> generateValue() {
+            String v = randomList(1, 10, () -> randomAlphaOfLength(5)).stream().collect(Collectors.joining(" "));
+            return Tuple.tuple(v, v);
+        }
+
+        private void mapping(XContentBuilder b) throws IOException {
+            b.field("type", "match_only_text");
+        }
+
+        @Override
+        public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+            return List.of();
+        }
+    }
+
+    public void testDocValues() throws IOException {
+        MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "match_only_text")));
+        assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
+    }
+
+    public void testDocValuesLoadedFromSynthetic() throws IOException {
+        MapperService mapper = createMapperService(syntheticSourceFieldMapping(b -> b.field("type", "match_only_text")));
+        assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

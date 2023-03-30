@@ -8,9 +8,9 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -18,11 +18,11 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalMasterServiceTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
@@ -32,6 +32,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.node.NodeClosedException;
@@ -67,7 +69,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
             ClusterHealthRequest::new,
             indexNameExpressionResolver,
             ClusterHealthResponse::new,
-            ThreadPool.Names.SAME
+            ThreadPool.Names.MANAGEMENT // fork to management since the health computation can become expensive for large cluster states
         );
         this.allocationService = allocationService;
     }
@@ -127,13 +129,13 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+                    logger.error(() -> "unexpected failure during [" + source + "]", e);
                     listener.onFailure(e);
                 }
             }.submit(clusterService.getMasterService(), source);
         } else {
             final TimeValue taskTimeout = TimeValue.timeValueMillis(Math.max(0, endTimeRelativeMillis - threadPool.relativeTimeInMillis()));
-            clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask(request.waitForEvents(), taskTimeout) {
+            submitUnbatchedTask(source, new ClusterStateUpdateTask(request.waitForEvents(), taskTimeout) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return currentState;
@@ -159,23 +161,31 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                 }
 
                 @Override
-                public void onNoLongerMaster() {
-                    logger.trace("stopped being master while waiting for events with priority [{}]. retrying.", request.waitForEvents());
-                    // TransportMasterNodeAction implements the retry logic, which is triggered by passing a NotMasterException
-                    listener.onFailure(new NotMasterException("no longer master. source: [" + source + "]"));
-                }
-
-                @Override
                 public void onFailure(Exception e) {
                     if (e instanceof ProcessClusterEventTimeoutException) {
                         listener.onResponse(getResponse(request, clusterService.state(), waitCount, TimeoutState.TIMED_OUT));
                     } else {
-                        logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+                        final Level level = isExpectedFailure(e) ? Level.TRACE : Level.ERROR;
+                        logger.log(level, () -> "unexpected failure during [" + source + "]", e);
+                        assert isExpectedFailure(e) : e; // task cannot fail, nor will it trigger a publication which fails
+                        // TransportMasterNodeAction implements the retry logic, which is triggered by passing a NotMasterException
                         listener.onFailure(e);
                     }
                 }
-            }, ClusterStateTaskExecutor.unbatched());
+
+                static boolean isExpectedFailure(Exception e) {
+                    return e instanceof NotMasterException
+                        || e instanceof FailedToCommitClusterStateException
+                            && e.getCause()instanceof EsRejectedExecutionException esre
+                            && esre.isExecutorShutdown();
+                }
+            });
         }
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     private void executeHealth(

@@ -9,13 +9,13 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.document.StringField;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
-import java.util.List;
+import java.util.Map;
 
 public class RoutingFieldMapper extends MetadataFieldMapper {
 
@@ -28,16 +28,6 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     }
 
     public static class Defaults {
-
-        public static final FieldType FIELD_TYPE = new FieldType();
-        static {
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setStored(true);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.freeze();
-        }
-
         public static final boolean REQUIRED = false;
     }
 
@@ -54,8 +44,8 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(required);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { required };
         }
 
         @Override
@@ -66,9 +56,9 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(c -> RoutingFieldMapper.get(Defaults.REQUIRED), c -> new Builder());
 
-    static final class RoutingFieldType extends StringFieldType {
+    public static final MappedFieldType FIELD_TYPE = new RoutingFieldType();
 
-        static RoutingFieldType INSTANCE = new RoutingFieldType();
+    static final class RoutingFieldType extends StringFieldType {
 
         private RoutingFieldType() {
             super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
@@ -93,13 +83,20 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     private static final RoutingFieldMapper REQUIRED = new RoutingFieldMapper(true);
     private static final RoutingFieldMapper NOT_REQUIRED = new RoutingFieldMapper(false);
 
+    private static final Map<String, NamedAnalyzer> ANALYZERS = Map.of(NAME, Lucene.KEYWORD_ANALYZER);
+
     public static RoutingFieldMapper get(boolean required) {
         return required ? REQUIRED : NOT_REQUIRED;
     }
 
     private RoutingFieldMapper(boolean required) {
-        super(RoutingFieldType.INSTANCE, Lucene.KEYWORD_ANALYZER);
+        super(FIELD_TYPE);
         this.required = required;
+    }
+
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return ANALYZERS;
     }
 
     /**
@@ -113,7 +110,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     public void preParse(DocumentParserContext context) {
         String routing = context.sourceToParse().routing();
         if (routing != null) {
-            context.doc().add(new Field(fieldType().name(), routing, Defaults.FIELD_TYPE));
+            context.doc().add(new StringField(fieldType().name(), routing, Field.Store.YES));
             context.addToFieldNames(fieldType().name());
         }
     }
@@ -123,4 +120,8 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return SourceLoader.SyntheticFieldLoader.NOTHING;
+    }
 }

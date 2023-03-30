@@ -10,6 +10,9 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
+import org.elasticsearch.script.LongFieldScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -17,8 +20,9 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.util.List;
 
-import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
 
@@ -87,16 +91,16 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
         ParsedDocument doc = mapper.parse(
             source(b -> b.rawField("field", new BytesArray("9223372036854775808").streamInput(), XContentType.JSON))
         );
-        assertEquals(0, doc.rootDoc().getFields("field").length);
+        assertThat(doc.rootDoc().getFields("field"), empty());
     }
 
     public void testLongIndexingCoercesIntoRange() throws Exception {
         // the following two strings are in-range for a long after coercion
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "9223372036854775807.9")));
-        assertThat(doc.rootDoc().getFields("field"), arrayWithSize(2));
+        assertThat(doc.rootDoc().getFields("field"), hasSize(1));
         doc = mapper.parse(source(b -> b.field("field", "-9223372036854775808.9")));
-        assertThat(doc.rootDoc().getFields("field"), arrayWithSize(2));
+        assertThat(doc.rootDoc().getFields("field"), hasSize(1));
     }
 
     @Override
@@ -114,5 +118,48 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70585")
     public void testFetchCoerced() throws IOException {
         assertFetch(randomFetchTestMapper(), "field", 3.783147882954537E18, randomFetchTestFormat());
+    }
+
+    protected IngestScriptSupport ingestScriptSupport() {
+        return new IngestScriptSupport() {
+            @Override
+            @SuppressWarnings("unchecked")
+            protected <T> T compileOtherScript(Script script, ScriptContext<T> context) {
+                if (context == LongFieldScript.CONTEXT) {
+                    return (T) LongFieldScript.PARSE_FROM_SOURCE;
+                }
+                throw new UnsupportedOperationException("Unknown script " + script.getIdOrCode());
+            }
+
+            @Override
+            protected LongFieldScript.Factory emptyFieldScript() {
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new LongFieldScript(
+                    fieldName,
+                    params,
+                    searchLookup,
+                    OnScriptError.FAIL,
+                    ctx
+                ) {
+                    @Override
+                    public void execute() {}
+                };
+            }
+
+            @Override
+            protected LongFieldScript.Factory nonEmptyFieldScript() {
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new LongFieldScript(
+                    fieldName,
+                    params,
+                    searchLookup,
+                    OnScriptError.FAIL,
+                    ctx
+                ) {
+                    @Override
+                    public void execute() {
+                        emit(1);
+                    }
+                };
+            }
+        };
     }
 }

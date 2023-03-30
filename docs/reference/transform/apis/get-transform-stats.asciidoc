@@ -142,6 +142,53 @@ that the {transform} is failing to keep up.
 ====
 //End checkpointing
 
+//Begin health
+`health`::
+(object) Health indicator for this {transform}.
++
+.Properties of `health`
+[%collapsible%open]
+====
+`status`::
+    (string) Health status of this transform. Statuses are:
+
+   * `green`:
+      The transform is healthy.
+
+    * `unknown`:
+      The health of the transform could not be determined.
+
+    * `yellow`:
+      The functionality of the transform is in a degraded state and may need 
+      remediation to avoid the health becoming `red`.
+
+    * `red`:
+      The transform is experiencing an outage or is unavailable for use.
+
+`issues`::
+    (Optional, array) If a non-healthy status is returned, contains a list of issues
+    of the transform.
++
+.Properties of `issues`
+[%collapsible%open]
+========
+`issue`::
+    (string) A description of the issue.
+
+`details`::
+    (Optional, string) Details about the issue.
+
+`count`::
+    (integer) Number of times the issue has occured since it started.
+
+`first_occurrence`::
+    (Optional, date) The timestamp this issue occured for the first time.
+========
+//End issues
+
+====
+//End health
+
 `id`::
 (string)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
@@ -328,6 +375,9 @@ The API returns the following results:
           "time_upper_bound_millis" : 1585344498220
         },
         "changes_last_detected_at" : 1585344558219
+      },
+      "health": {
+        "status": "green"
       }
     }
   ]

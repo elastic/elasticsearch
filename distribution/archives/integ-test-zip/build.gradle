@@ -8,15 +8,14 @@
 
 import org.apache.tools.ant.filters.ReplaceTokens
 
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 // The integ-test-distribution is published to maven
 apply plugin: 'elasticsearch.publish'
 
 group = "org.elasticsearch.distribution.integ-test-zip"
 
-tasks.named("processTestResources").configure {
+tasks.named("processJavaRestTestResources").configure {
   inputs.properties(project(':distribution').restTestExpansions)
   filter("tokens" : project(':distribution').restTestExpansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
 }
@@ -34,7 +33,7 @@ publishing {
   }
 }
 
-tasks.named("integTest").configure {
+tasks.named("javaRestTest").configure {
   dependsOn "assemble"
   /*
    * There are two unique things going on here:
@@ -44,7 +43,7 @@ tasks.named("integTest").configure {
    *    when running against an external cluster.
    */
   if (project.providers.systemProperty("tests.rest.cluster").isPresent()) {
-    nonInputProperties.systemProperty 'tests.logfile', testClusters.named('integTest').map(c -> c.singleNode().serverLog)
+    nonInputProperties.systemProperty 'tests.logfile', testClusters.named('javaRestTest').map(c -> c.singleNode().serverLog)
   } else {
     systemProperty 'tests.logfile', '--external--'
   }

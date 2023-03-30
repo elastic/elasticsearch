@@ -112,7 +112,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         String indexName = "unfollow-test-index";
         if ("leader".equals(targetCluster)) {
             Settings indexSettings = Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build();
-            createIndex(indexName, indexSettings);
+            createIndex(adminClient(), indexName, indexSettings);
             ensureGreen(indexName);
         } else if ("follow".equals(targetCluster)) {
             createNewSingletonPolicy("unfollow-only", "hot", UnfollowAction.INSTANCE, TimeValue.ZERO);
@@ -212,7 +212,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             try (RestClient leaderClient = buildLeaderClient()) {
                 // Create an index on the leader using the template set up above
                 Request createIndexRequest = new Request("PUT", "/" + indexName);
-                createIndexRequest.setJsonEntity("""
+                createIndexRequest.setJsonEntity(Strings.format("""
                     {
                       "mappings": {
                         "properties": {
@@ -226,7 +226,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                           "is_write_index": true
                         }
                       }
-                    }""".formatted(alias));
+                    }""", alias));
                 assertOK(leaderClient.performRequest(createIndexRequest));
                 // Check that the new index is created
                 Request checkIndexRequest = new Request("GET", "/_cluster/health/" + indexName);
@@ -558,7 +558,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             "{\"persistent\": {\"cluster.remote."
                 + name
                 + ".seeds\": "
-                + (leaderRemoteClusterSeed != null ? String.format(Locale.ROOT, "\"%s\"", leaderRemoteClusterSeed) : null)
+                + (leaderRemoteClusterSeed != null ? Strings.format("\"%s\"", leaderRemoteClusterSeed) : null)
                 + "}}"
         );
         assertThat(client().performRequest(request).getStatusLine().getStatusCode(), equalTo(200));

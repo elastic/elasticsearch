@@ -38,6 +38,7 @@ import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.FileTime;
 import java.security.GeneralSecurityException;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -281,7 +282,6 @@ public class LdapSessionFactoryTests extends LdapTestCase {
      * If the realm's CA path is monitored for changes and the underlying SSL context is reloaded, then we will get two different outcomes
      * (one failure, one success) depending on which file content is in place.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83560")
     public void testSslTrustIsReloaded() throws Exception {
         assumeFalse(
             "NPE thrown in BCFIPS JSSE - addressed in https://github.com/bcgit/bc-java/commit/"
@@ -321,7 +321,14 @@ public class LdapSessionFactoryTests extends LdapTestCase {
 
         try (ResourceWatcherService resourceWatcher = new ResourceWatcherService(settings, threadPool)) {
             new SSLConfigurationReloader(resourceWatcher, SSLService.getSSLConfigurations(environment).values()).setSSLService(sslService);
+
+            final FileTime oldModifiedTime = Files.getLastModifiedTime(ldapCaPath);
             Files.copy(fakeCa, ldapCaPath, StandardCopyOption.REPLACE_EXISTING);
+
+            // Force the modified file to have a different modified time
+            // Depending on the granularity of the filesystem it could otherwise be possible the newly copied file looks identical to the
+            // old file (certificates commonly have the same file size)
+            Files.setLastModifiedTime(ldapCaPath, FileTime.fromMillis(oldModifiedTime.toMillis() + 5_000));
             resourceWatcher.notifyNow(ResourceWatcherService.Frequency.HIGH);
 
             UncategorizedExecutionException e = expectThrows(

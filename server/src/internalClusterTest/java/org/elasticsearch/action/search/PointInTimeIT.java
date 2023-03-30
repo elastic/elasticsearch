@@ -11,7 +11,9 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -21,6 +23,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
@@ -28,6 +31,7 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.HashSet;
@@ -41,6 +45,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFail
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
@@ -155,16 +160,12 @@ public class PointInTimeIT extends ESIntegTestCase {
             final Set<String> dataNodes = clusterService().state()
                 .nodes()
                 .getDataNodes()
+                .values()
                 .stream()
-                .map(e -> e.getValue().getId())
+                .map(DiscoveryNode::getId)
                 .collect(Collectors.toSet());
             final List<String> excludedNodes = randomSubsetOf(2, dataNodes);
-            assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareUpdateSettings("test")
-                    .setSettings(Settings.builder().put("index.routing.allocation.exclude._id", String.join(",", excludedNodes)).build())
-            );
+            updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._id", String.join(",", excludedNodes)), "test");
             if (randomBoolean()) {
                 int moreDocs = randomIntBetween(10, 50);
                 for (int i = 0; i < moreDocs; i++) {
@@ -180,7 +181,6 @@ public class PointInTimeIT extends ESIntegTestCase {
                 final Set<String> assignedNodes = clusterService().state()
                     .routingTable()
                     .allShards()
-                    .stream()
                     .filter(shr -> shr.index().getName().equals("test") && shr.assignedToNode())
                     .map(ShardRouting::currentNodeId)
                     .collect(Collectors.toSet());
@@ -275,6 +275,14 @@ public class PointInTimeIT extends ESIntegTestCase {
         }
     }
 
+    public void testAllowNoIndex() {
+        var request = new OpenPointInTimeRequest("my_index").indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
+            .keepAlive(TimeValue.timeValueMinutes(between(1, 10)));
+        String pit = client().execute(OpenPointInTimeAction.INSTANCE, request).actionGet().getPointInTimeId();
+        var closeResp = client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pit)).actionGet();
+        assertThat(closeResp.status(), equalTo(RestStatus.OK));
+    }
+
     public void testCanMatch() throws Exception {
         final Settings.Builder settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(5, 10))
@@ -321,9 +329,10 @@ public class PointInTimeIT extends ESIntegTestCase {
             .state()
             .nodes()
             .getDataNodes()
+            .values()
             .stream()
-            .map(e -> e.getValue().getName())
-            .collect(Collectors.toList());
+            .map(DiscoveryNode::getName)
+            .toList();
         final String assignedNodeForIndex1 = randomFrom(dataNodes);
 
         createIndex(
@@ -413,6 +422,12 @@ public class PointInTimeIT extends ESIntegTestCase {
         } finally {
             closePointInTime(pit);
         }
+    }
+
+    public void testCloseInvalidPointInTime() {
+        expectThrows(Exception.class, () -> client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest("")).actionGet());
+        List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().setActions(ClosePointInTimeAction.NAME).get().getTasks();
+        assertThat(tasks, empty());
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })

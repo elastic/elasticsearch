@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -49,15 +49,18 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
     }
 
     private int seed = Randomness.get().nextInt();
-    private double p = 0.1;
+    private double p;
 
-    RandomSamplerAggregationBuilder(String name) {
+    public RandomSamplerAggregationBuilder(String name) {
         super(name);
     }
 
     public RandomSamplerAggregationBuilder setProbability(double probability) {
-        if (probability <= 0 || probability >= 1) {
-            throw new IllegalArgumentException("[probability] must be between 0 and 1, exclusive, was [" + probability + "]");
+        if (probability <= 0) {
+            throw new IllegalArgumentException("[probability] must be greater than 0.0, was [" + probability + "]");
+        }
+        if (probability > 0.5 && probability != 1.0) {
+            throw new IllegalArgumentException("[probability] must be between 0.0 and 0.5 or exactly 1.0, was [" + probability + "]");
         }
         this.p = probability;
         return this;
@@ -94,7 +97,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         out.writeInt(seed);
     }
 
-    void recursivelyCheckSubAggs(Collection<AggregationBuilder> builders, Consumer<AggregationBuilder> aggregationCheck) {
+    static void recursivelyCheckSubAggs(Collection<AggregationBuilder> builders, Consumer<AggregationBuilder> aggregationCheck) {
         if (builders == null || builders.isEmpty()) {
             return;
         }
@@ -115,6 +118,9 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         }
         if (subfactoriesBuilder.getAggregatorFactories().isEmpty()) {
             throw new IllegalArgumentException("[random_sampler] aggregation [" + getName() + "] must have sub-aggregations");
+        }
+        if (p == 0.0) {
+            throw new IllegalArgumentException("[random_sampler] aggregation [" + getName() + "] must have [probability] set");
         }
         recursivelyCheckSubAggs(subfactoriesBuilder.getAggregatorFactories(), builder -> {
             // TODO add a method or interface to aggregation builder that defaults to false
@@ -162,8 +168,8 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_1_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_8_2_0;
     }
 
     @Override

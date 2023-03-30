@@ -6,18 +6,15 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
 import static org.elasticsearch.xpack.ml.action.TransportGetJobsStatsAction.determineJobIdsWithoutLiveStats;
 
@@ -144,11 +141,4 @@ public class TransportGetJobsStatsActionTests extends ESTestCase {
         assertEquals(0, result.size());
     }
 
-    public void testDurationToTimeValue() {
-        assertNull(TransportGetJobsStatsAction.durationToTimeValue(Optional.empty()));
-
-        Duration duration = Duration.ofSeconds(10L);
-        TimeValue timeValue = TransportGetJobsStatsAction.durationToTimeValue(Optional.of(duration));
-        assertEquals(10L, timeValue.getSeconds());
-    }
 }

@@ -31,9 +31,9 @@ import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -102,8 +102,8 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         final RecoveryTarget recoveryTarget = new RecoveryTarget(targetShard, null, null, null, null);
         final PlainActionFuture<Void> receiveFileInfoFuture = new PlainActionFuture<>();
         recoveryTarget.receiveFileInfo(
-            mdFiles.stream().map(StoreFileMetadata::name).collect(Collectors.toList()),
-            mdFiles.stream().map(StoreFileMetadata::length).collect(Collectors.toList()),
+            mdFiles.stream().map(StoreFileMetadata::name).toList(),
+            mdFiles.stream().map(StoreFileMetadata::length).toList(),
             emptyList(),
             emptyList(),
             0,
@@ -168,7 +168,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         PlainActionFuture<Void> cleanFilesFuture = new PlainActionFuture<>();
         recoveryTarget.cleanFiles(
             0,
-            Long.parseLong(sourceSnapshot.getCommitUserData().get(SequenceNumbers.MAX_SEQ_NO)),
+            Long.parseLong(sourceSnapshot.commitUserData().get(SequenceNumbers.MAX_SEQ_NO)),
             sourceSnapshot,
             cleanFilesFuture
         );
@@ -181,7 +181,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     }
 
     private SeqNoStats populateRandomData(IndexShard shard) throws IOException {
-        List<Long> seqNos = LongStream.range(0, 100).boxed().collect(Collectors.toList());
+        List<Long> seqNos = LongStream.range(0, 100).boxed().collect(Collectors.toCollection(ArrayList::new));
         Randomness.shuffle(seqNos);
         for (long seqNo : seqNos) {
             shard.applyIndexOperationOnReplica(

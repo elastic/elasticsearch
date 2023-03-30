@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 public class TransportMonitoringBulkAction extends HandledTransportAction<MonitoringBulkRequest, MonitoringBulkResponse> {
 
@@ -122,7 +121,7 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
             return bulkDocs.stream()
                 .filter(bulkDoc -> bulkDoc.getSystem() != MonitoredSystem.UNKNOWN)
                 .map(this::createMonitoringDoc)
-                .collect(Collectors.toList());
+                .toList();
         }
 
         /**

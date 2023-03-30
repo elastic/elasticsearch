@@ -8,17 +8,21 @@
 
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.Assertions;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
+import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -29,10 +33,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
  * Tracks shard operation permits. Each operation on the shard obtains a permit. When we need to block operations (e.g., to transition
@@ -41,6 +43,8 @@ import java.util.stream.Collectors;
  * completed.
  */
 final class IndexShardOperationPermits implements Closeable {
+
+    private static final Logger logger = LogManager.getLogger(IndexShardOperationPermits.class);
 
     private final ShardId shardId;
     private final ThreadPool threadPool;
@@ -82,13 +86,17 @@ final class IndexShardOperationPermits implements Closeable {
      * started. Delayed operations are run once the {@link Releasable} is released or if a failure occurs while acquiring all permits; in
      * this case the {@code onFailure} handler will be invoked after delayed operations are released.
      *
-     * @param onAcquired {@link ActionListener} that is invoked once acquisition is successful or failed
+     * @param onAcquired {@link ActionListener} that is invoked once acquisition is successful or failed. This listener should not throw.
      * @param timeout    the maximum time to wait for the in-flight operations block
      * @param timeUnit   the time unit of the {@code timeout} argument
      * @param executor   executor on which to wait for in-flight operations to finish and acquire all permits
      */
     public void blockOperations(final ActionListener<Releasable> onAcquired, final long timeout, final TimeUnit timeUnit, String executor) {
         delayOperations();
+        waitUntilBlocked(ActionListener.assertOnce(onAcquired), timeout, timeUnit, executor);
+    }
+
+    private void waitUntilBlocked(ActionListener<Releasable> onAcquired, long timeout, TimeUnit timeUnit, String executor) {
         threadPool.executor(executor).execute(new AbstractRunnable() {
 
             final Releasable released = Releasables.releaseOnce(() -> releaseDelayedOperations());
@@ -103,9 +111,23 @@ final class IndexShardOperationPermits implements Closeable {
             }
 
             @Override
-            protected void doRun() throws Exception {
-                final Releasable releasable = acquireAll(timeout, timeUnit);
-                onAcquired.onResponse(() -> Releasables.close(releasable, released));
+            protected void doRun() {
+                final Releasable releasable;
+                try {
+                    releasable = acquireAll(timeout, timeUnit);
+                } catch (Exception e) {
+                    onFailure(e);
+                    return;
+                }
+
+                final Releasable combined = Releasables.wrap(releasable, released);
+                try {
+                    onAcquired.onResponse(combined);
+                } catch (Exception e) {
+                    logger.error("onAcquired#onResponse should not throw", e);
+                    assert false : e; // should not throw, we cannot do anything with this exception
+                    combined.close();
+                }
             }
         });
     }
@@ -120,7 +142,7 @@ final class IndexShardOperationPermits implements Closeable {
         }
     }
 
-    private Releasable acquireAll(final long timeout, final TimeUnit timeUnit) throws InterruptedException, TimeoutException {
+    private Releasable acquireAll(final long timeout, final TimeUnit timeUnit) throws InterruptedException {
         if (Assertions.ENABLED) {
             // since delayed is not volatile, we have to synchronize even here for visibility
             synchronized (this) {
@@ -134,7 +156,7 @@ final class IndexShardOperationPermits implements Closeable {
             });
             return release;
         } else {
-            throw new TimeoutException("timeout while blocking operations");
+            throw new ElasticsearchTimeoutException("timeout while blocking operations after [" + new TimeValue(timeout, timeUnit) + "]");
         }
     }
 
@@ -196,7 +218,7 @@ final class IndexShardOperationPermits implements Closeable {
         } else {
             stackTrace = null;
         }
-        acquire(onAcquired, executorOnDelay, forceExecution, debugInfo, stackTrace);
+        acquire(ActionListener.assertOnce(onAcquired), executorOnDelay, forceExecution, debugInfo, stackTrace);
     }
 
     private void acquire(
@@ -299,10 +321,7 @@ final class IndexShardOperationPermits implements Closeable {
      *         when the permit was acquired plus a stack traces that was captured when the permit was request.
      */
     List<String> getActiveOperations() {
-        return issuedPermits.values()
-            .stream()
-            .map(t -> t.v1() + "\n" + ExceptionsHelper.formatStackTrace(t.v2()))
-            .collect(Collectors.toList());
+        return issuedPermits.values().stream().map(t -> t.v1() + "\n" + ExceptionsHelper.formatStackTrace(t.v2())).toList();
     }
 
     private static class DelayedOperation {

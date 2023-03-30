@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -132,6 +132,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     private final String repositoryName;
     private final String snapshotName;
     private final String shrinkIndexName;
+
+    Supplier<Long> nowSupplier = System::currentTimeMillis; // Can be changed for testing
 
     public static IndexLifecycleExplainResponse newManagedIndexResponse(
         String index,
@@ -303,7 +305,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             repositoryName = in.readOptionalString();
             snapshotName = in.readOptionalString();
             shrinkIndexName = in.readOptionalString();
-            if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
                 indexCreationDate = in.readOptionalLong();
             } else {
                 indexCreationDate = null;
@@ -350,7 +352,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             out.writeOptionalString(repositoryName);
             out.writeOptionalString(snapshotName);
             out.writeOptionalString(shrinkIndexName);
-            if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
                 out.writeOptionalLong(indexCreationDate);
             }
         }
@@ -463,12 +465,12 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                 );
                 builder.field(
                     TIME_SINCE_INDEX_CREATION_FIELD.getPreferredName(),
-                    getTimeSinceIndexCreation(System::currentTimeMillis).toHumanReadableString(2)
+                    getTimeSinceIndexCreation(nowSupplier).toHumanReadableString(2)
                 );
             }
             if (lifecycleDate != null) {
                 builder.timeField(LIFECYCLE_DATE_MILLIS_FIELD.getPreferredName(), LIFECYCLE_DATE_FIELD.getPreferredName(), lifecycleDate);
-                builder.field(AGE_FIELD.getPreferredName(), getAge(System::currentTimeMillis).toHumanReadableString(2));
+                builder.field(AGE_FIELD.getPreferredName(), getAge(nowSupplier).toHumanReadableString(2));
             }
             if (phase != null) {
                 builder.field(PHASE_FIELD.getPreferredName(), phase);

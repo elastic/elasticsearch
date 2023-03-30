@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.search.stats;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -23,7 +23,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public class FieldUsageStats implements ToXContentObject, Writeable {
     public static final String ANY = "any";
@@ -73,7 +72,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             final List<Map.Entry<String, PerFieldUsageStats>> sortedEntries = stats.entrySet()
                 .stream()
                 .sorted(Map.Entry.comparingByKey())
-                .collect(Collectors.toList());
+                .toList();
             for (Map.Entry<String, PerFieldUsageStats> entry : sortedEntries) {
                 builder.startObject(entry.getKey());
                 entry.getValue().toXContent(builder, params);
@@ -211,7 +210,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             payloads = in.readVLong();
             termVectors = in.readVLong();
             points = in.readVLong();
-            if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
                 knnVectors = in.readVLong();
             } else {
                 knnVectors = 0;
@@ -233,7 +232,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             out.writeVLong(payloads);
             out.writeVLong(termVectors);
             out.writeVLong(points);
-            if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
                 out.writeVLong(knnVectors);
             }
         }

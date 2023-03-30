@@ -7,13 +7,12 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.search.aggregations.bucket.adjacency.InternalAdjacencyMatrix;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoGrid;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalVariableWidthHistogram;
@@ -28,15 +27,13 @@ import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.UnmappedSignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.UnmappedTerms;
 import org.elasticsearch.search.aggregations.metrics.InternalAvg;
+import org.elasticsearch.search.aggregations.metrics.InternalBounds;
 import org.elasticsearch.search.aggregations.metrics.InternalCardinality;
+import org.elasticsearch.search.aggregations.metrics.InternalCentroid;
 import org.elasticsearch.search.aggregations.metrics.InternalExtendedStats;
-import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
-import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentiles;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviation;
-import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.InternalScriptedMetric;
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentileRanks;
@@ -44,7 +41,9 @@ import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.InternalValueCount;
 import org.elasticsearch.search.aggregations.metrics.InternalWeightedAvg;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MetricInspectionHelper;
+import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.pipeline.InternalBucketMetricValue;
 import org.elasticsearch.search.aggregations.pipeline.InternalPercentilesBucket;
@@ -82,7 +81,7 @@ public class AggregationInspectionHelper {
         return false;
     }
 
-    public static boolean hasValue(InternalAdjacencyMatrix agg) {
+    public static boolean hasValue(MultiBucketsAggregation agg) {
         return agg.getBuckets().stream().anyMatch(bucket -> bucket.getDocCount() > 0);
     }
 
@@ -107,10 +106,6 @@ public class AggregationInspectionHelper {
     }
 
     public static boolean hasValue(InternalDateHistogram agg) {
-        return agg.getBuckets().stream().anyMatch(bucket -> bucket.getDocCount() > 0);
-    }
-
-    public static boolean hasValue(InternalAutoDateHistogram agg) {
         return agg.getBuckets().stream().anyMatch(bucket -> bucket.getDocCount() > 0);
     }
 
@@ -163,11 +158,11 @@ public class AggregationInspectionHelper {
         return agg.getCount() > 0;
     }
 
-    public static boolean hasValue(InternalGeoBounds agg) {
+    public static boolean hasValue(InternalBounds<?> agg) {
         return (agg.topLeft() == null && agg.bottomRight() == null) == false;
     }
 
-    public static boolean hasValue(InternalGeoCentroid agg) {
+    public static boolean hasValue(InternalCentroid agg) {
         return agg.centroid() != null && agg.count() > 0;
     }
 
@@ -179,16 +174,16 @@ public class AggregationInspectionHelper {
         return MetricInspectionHelper.hasValue(agg);
     }
 
-    public static boolean hasValue(InternalMax agg) {
-        return agg.getValue() != Double.NEGATIVE_INFINITY;
+    public static boolean hasValue(Max agg) {
+        return agg.value() != Double.NEGATIVE_INFINITY;
     }
 
     public static boolean hasValue(InternalMedianAbsoluteDeviation agg) {
         return MetricInspectionHelper.hasValue(agg);
     }
 
-    public static boolean hasValue(InternalMin agg) {
-        return agg.getValue() != Double.POSITIVE_INFINITY;
+    public static boolean hasValue(Min agg) {
+        return agg.value() != Double.POSITIVE_INFINITY;
     }
 
     public static boolean hasValue(InternalScriptedMetric agg) {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -75,6 +76,13 @@ public class FillMaskConfig implements NlpConfig {
         this.tokenization = tokenization == null ? Tokenization.createDefault() : tokenization;
         this.numTopClasses = numTopClasses == null ? DEFAULT_NUM_RESULTS : numTopClasses;
         this.resultsField = resultsField;
+        if (this.tokenization.span != -1) {
+            throw ExceptionsHelper.badRequestException(
+                "[{}] does not support windowing long text sequences; configured span [{}]",
+                NAME,
+                this.tokenization.span
+            );
+        }
     }
 
     public FillMaskConfig(StreamInput in) throws IOException {
@@ -116,8 +124,13 @@ public class FillMaskConfig implements NlpConfig {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
+    public Version getMinimalSupportedNodeVersion() {
         return Version.V_8_0_0;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedTransportVersion() {
+        return TransportVersion.V_8_0_0;
     }
 
     @Override

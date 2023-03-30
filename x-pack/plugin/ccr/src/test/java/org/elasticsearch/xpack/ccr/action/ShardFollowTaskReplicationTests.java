@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import com.carrotsearch.hppc.LongHashSet;
-import com.carrotsearch.hppc.LongSet;
-
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -18,6 +15,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.support.replication.TransportWriteActionTestHelper;
@@ -27,6 +25,8 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -54,6 +54,7 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.CcrRetentionLeases;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsRequest;
@@ -68,6 +69,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -86,6 +88,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTestCase {
 
@@ -340,7 +343,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                             Arrays.asList(ops),
                             leadingPrimary.getMaxSeqNoOfUpdatesOrDeletes(),
                             followingPrimary,
-                            logger
+                            logger,
+                            new PostWriteRefresh(mock(TransportService.class))
                         );
                     for (IndexShard replica : randomSubsetOf(followerGroup.getReplicas())) {
                         final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
@@ -385,7 +389,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
     }
 
     public void testAddNewFollowingReplica() throws Exception {
-        final byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
+        final BytesReference source = new BytesArray("{}".getBytes(StandardCharsets.UTF_8));
         final int numDocs = between(1, 100);
         final List<Translog.Operation> operations = new ArrayList<>(numDocs);
         for (int i = 0; i < numDocs; i++) {
@@ -574,7 +578,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
         BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> threadPool.schedule(task, delay, ThreadPool.Names.GENERIC);
         AtomicBoolean stopped = new AtomicBoolean(false);
-        LongSet fetchOperations = new LongHashSet();
+        Set<Long> fetchOperations = new HashSet<>();
         return new ShardFollowNodeTask(
             1L,
             "type",
@@ -802,13 +806,14 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     request.getOperations(),
                     request.getMaxSeqNoOfUpdatesOrDeletes(),
                     primary,
-                    logger
+                    logger,
+                    new PostWriteRefresh(mock(TransportService.class))
                 );
                 TransportWriteActionTestHelper.performPostWriteActions(primary, request, ccrResult.location, logger);
             } catch (InterruptedException | ExecutionException | IOException e) {
                 throw new RuntimeException(e);
             }
-            listener.onResponse(new PrimaryResult(ccrResult.replicaRequest(), ccrResult.finalResponseIfSuccessful));
+            listener.onResponse(new PrimaryResult(ccrResult.replicaRequest(), ccrResult.replicationResponse));
         }
 
         @Override

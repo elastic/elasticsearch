@@ -36,8 +36,8 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
@@ -51,6 +51,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.TestTranslog;
@@ -253,7 +254,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
         ClusterInfoServiceUtils.refresh(clusterInfoService);
         ClusterState state = getInstanceFromNode(ClusterService.class).state();
-        ShardRouting shardRouting = state.getRoutingTable().index("test").getShards().get(0).primaryShard();
+        ShardRouting shardRouting = state.getRoutingTable().index("test").shard(0).primaryShard();
         Long test = clusterInfoService.getClusterInfo().getShardSize(shardRouting);
         assertNotNull(test);
         assertTrue(test > 0);
@@ -624,7 +625,10 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
         recoverFromStore(newShard);
-        IndexShardTestCase.updateRoutingEntry(newShard, newShard.routingEntry().moveToStarted());
+        IndexShardTestCase.updateRoutingEntry(
+            newShard,
+            newShard.routingEntry().moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)
+        );
         return newShard;
     }
 
@@ -656,7 +660,10 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             () -> {},
             RetentionLeaseSyncer.EMPTY,
             cbs,
-            IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER
+            IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
+            System::nanoTime,
+            null,
+            ReplicationTracker.DEFAULT_FACTORY
         );
     }
 

@@ -561,11 +561,11 @@ public class ChunkedDataExtractorTests extends ESTestCase {
 
         List<Aggregation> aggs = new ArrayList<>();
         Min min = mock(Min.class);
-        when(min.getValue()).thenReturn((double) earliestTime);
+        when(min.value()).thenReturn((double) earliestTime);
         when(min.getName()).thenReturn("earliest_time");
         aggs.add(min);
         Max max = mock(Max.class);
-        when(max.getValue()).thenReturn((double) latestTime);
+        when(max.value()).thenReturn((double) latestTime);
         when(max.getName()).thenReturn("latest_time");
         aggs.add(max);
         Aggregations aggregations = new Aggregations(aggs) {
@@ -583,11 +583,11 @@ public class ChunkedDataExtractorTests extends ESTestCase {
 
         List<Aggregation> aggs = new ArrayList<>();
         Min min = mock(Min.class);
-        when(min.getValue()).thenReturn(Double.POSITIVE_INFINITY);
+        when(min.value()).thenReturn(Double.POSITIVE_INFINITY);
         when(min.getName()).thenReturn("earliest_time");
         aggs.add(min);
         Max max = mock(Max.class);
-        when(max.getValue()).thenReturn(Double.POSITIVE_INFINITY);
+        when(max.value()).thenReturn(Double.POSITIVE_INFINITY);
         when(max.getName()).thenReturn("latest_time");
         aggs.add(max);
         Aggregations aggregations = new Aggregations(aggs) {

@@ -19,6 +19,8 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -30,6 +32,7 @@ import java.util.Map;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestCreateIndexAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestCreateIndexAction.class);
@@ -58,7 +61,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
     }
 
     // default scope for testing types in mapping
-    CreateIndexRequest prepareRequestV7(RestRequest request) {
+    static CreateIndexRequest prepareRequestV7(RestRequest request) {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
         if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
             request.param(INCLUDE_TYPE_NAME_PARAMETER);// just consume, it is always replaced with _doc
@@ -103,7 +106,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
         }
     }
 
-    CreateIndexRequest prepareRequest(RestRequest request) {
+    static CreateIndexRequest prepareRequest(RestRequest request) {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
 
         if (request.hasContent()) {

@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptyMap;
@@ -82,8 +81,8 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
 
     @Override
     protected void assertSampled(InternalStats sampled, InternalStats reduced, SamplingContext samplingContext) {
-        assertEquals(sampled.getCount(), samplingContext.inverseScale(reduced.getCount()));
-        assertEquals(sampled.getSum(), samplingContext.inverseScale(reduced.getSum()), 1e-7);
+        assertEquals(sampled.getCount(), samplingContext.scaleUp(reduced.getCount()));
+        assertEquals(sampled.getSum(), samplingContext.scaleUp(reduced.getSum()), 1e-7);
         assertEquals(sampled.getMin(), reduced.getMin(), 0d);
         assertEquals(sampled.getMax(), reduced.getMax(), 0d);
     }
@@ -228,7 +227,28 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
         internalStats.doXContentBody(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
-        String expected = """
+        Object[] args = new Object[] {
+            count,
+            min,
+            max,
+            internalStats.getAvg(),
+            sum,
+            format != DocValueFormat.RAW
+                ? Strings.format(
+                    """
+                        ,
+                        "min_as_string" : "%s",
+                        "max_as_string" : "%s",
+                        "avg_as_string" : "%s",
+                        "sum_as_string" : "%s"
+                        """,
+                    format.format(internalStats.getMin()),
+                    format.format(internalStats.getMax()),
+                    format.format(internalStats.getAvg()),
+                    format.format(internalStats.getSum())
+                )
+                : "" };
+        String expected = Strings.format("""
             {
               "count" : %s,
               "min" : %s,
@@ -236,27 +256,7 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
               "avg" : %s,
               "sum" : %s
               %s
-            }""".formatted(
-            count,
-            min,
-            max,
-            internalStats.getAvg(),
-            sum,
-            format != DocValueFormat.RAW
-                ? """
-                    ,
-                    "min_as_string" : "%s",
-                    "max_as_string" : "%s",
-                    "avg_as_string" : "%s",
-                    "sum_as_string" : "%s"
-                    """.formatted(
-                    format.format(internalStats.getMin()),
-                    format.format(internalStats.getMax()),
-                    format.format(internalStats.getAvg()),
-                    format.format(internalStats.getSum())
-                )
-                : ""
-        );
+            }""", args);
         assertEquals(XContentHelper.stripWhitespace(expected), Strings.toString(builder));
 
         // count is zero
@@ -283,7 +283,7 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
 
     public void testIterator() {
         InternalStats aggregation = createTestInstance("test", emptyMap());
-        List<String> names = StreamSupport.stream(aggregation.valueNames().spliterator(), false).collect(Collectors.toList());
+        List<String> names = StreamSupport.stream(aggregation.valueNames().spliterator(), false).toList();
 
         assertEquals(5, names.size());
         assertTrue(names.contains("min"));

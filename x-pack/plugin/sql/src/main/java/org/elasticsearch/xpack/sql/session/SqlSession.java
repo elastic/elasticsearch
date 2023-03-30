@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
+import org.elasticsearch.xpack.sql.analysis.analyzer.AnalyzerContext;
 import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer.PreAnalysis;
 import org.elasticsearch.xpack.sql.analysis.analyzer.TableInfo;
@@ -116,12 +117,12 @@ public class SqlSession implements Session {
         }
 
         preAnalyze(parsed, r -> {
-            Analyzer analyzer = new Analyzer(
+            AnalyzerContext context = new AnalyzerContext(
                 configuration,
                 functionRegistry,
-                IndexCompatibility.compatible(r, Version.fromId(configuration.version().id)),
-                verifier
+                IndexCompatibility.compatible(r, Version.fromId(configuration.version().id))
             );
+            Analyzer analyzer = new Analyzer(context, verifier);
             return analyzer.analyze(parsed, verify);
         }, listener);
     }
@@ -133,7 +134,8 @@ public class SqlSession implements Session {
         }
 
         preAnalyze(parsed, r -> {
-            Analyzer analyzer = new Analyzer(configuration, functionRegistry, r, verifier);
+            AnalyzerContext context = new AnalyzerContext(configuration, functionRegistry, r);
+            Analyzer analyzer = new Analyzer(context, verifier);
             return analyzer.debugAnalyze(parsed);
         }, listener);
     }

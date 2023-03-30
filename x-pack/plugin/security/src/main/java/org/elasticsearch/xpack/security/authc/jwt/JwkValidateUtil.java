@@ -30,6 +30,7 @@ import java.security.PublicKey;
 import java.security.interfaces.RSAPublicKey;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -39,7 +40,7 @@ public class JwkValidateUtil {
     private static final Logger LOGGER = LogManager.getLogger(JwkValidateUtil.class);
 
     // Static method for unit testing. No need to construct a complete RealmConfig with all settings.
-    static JwtRealm.JwksAlgs filterJwksAndAlgorithms(final List<JWK> jwks, final List<String> algs) throws SettingsException {
+    static JwkSetLoader.JwksAlgs filterJwksAndAlgorithms(final List<JWK> jwks, final List<String> algs) throws SettingsException {
         LOGGER.trace("JWKs [" + jwks.size() + "] and Algorithms [" + String.join(",", algs) + "] before filters.");
 
         final Predicate<JWK> keyUsePredicate = j -> ((j.getKeyUse() == null) || (KeyUse.SIGNATURE.equals(j.getKeyUse())));
@@ -56,7 +57,7 @@ public class JwkValidateUtil {
         final List<String> algsFiltered = algs.stream().filter(a -> (jwksFiltered.stream().anyMatch(j -> isMatch(j, a)))).toList();
         LOGGER.trace("Algorithms [" + String.join(",", algsFiltered) + "] after remaining JWKs [" + jwksFiltered.size() + "] filter.");
 
-        return new JwtRealm.JwksAlgs(jwksFiltered, algsFiltered);
+        return new JwkSetLoader.JwksAlgs(jwksFiltered, algsFiltered);
     }
 
     /**
@@ -70,11 +71,29 @@ public class JwkValidateUtil {
     static boolean isMatch(final JWK jwk, final String algorithm) {
         try {
             if ((JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(algorithm)) && (jwk instanceof OctetSequenceKey jwkHmac)) {
-                return jwkHmac.size() >= MACSigner.getMinRequiredSecretLength(JWSAlgorithm.parse(algorithm));
+                final int bits = jwkHmac.size();
+                final int min = MACSigner.getMinRequiredSecretLength(JWSAlgorithm.parse(algorithm));
+                final boolean isMatch = bits >= min;
+                if (isMatch == false) {
+                    LOGGER.trace("HMAC JWK [" + bits + "] bits too small for algorithm [" + algorithm + "] minimum [" + min + "].");
+                }
+                return isMatch;
             } else if ((JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_RSA.contains(algorithm)) && (jwk instanceof RSAKey jwkRsa)) {
-                return JwkValidateUtil.computeBitLengthRsa(jwkRsa.toPublicKey()) >= RSAKeyGenerator.MIN_KEY_SIZE_BITS;
+                final int bits = JwkValidateUtil.computeBitLengthRsa(jwkRsa.toPublicKey());
+                final int min = RSAKeyGenerator.MIN_KEY_SIZE_BITS;
+                final boolean isMatch = bits >= min;
+                if (isMatch == false) {
+                    LOGGER.trace("RSA JWK [" + bits + "] bits too small for algorithm [" + algorithm + "] minimum [" + min + "].");
+                }
+                return isMatch;
             } else if ((JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_EC.contains(algorithm)) && (jwk instanceof ECKey jwkEc)) {
-                return Curve.forJWSAlgorithm(JWSAlgorithm.parse(algorithm)).contains(jwkEc.getCurve());
+                final Curve curve = jwkEc.getCurve();
+                final Set<Curve> allowed = Curve.forJWSAlgorithm(JWSAlgorithm.parse(algorithm));
+                final boolean isMatch = allowed.contains(curve);
+                if (isMatch == false) {
+                    LOGGER.trace("EC JWK [" + curve + "] curve not allowed for algorithm [" + algorithm + "] allowed " + allowed + ".");
+                }
+                return isMatch;
             }
         } catch (Exception e) {
             LOGGER.trace("Unexpected exception", e);
@@ -106,13 +125,18 @@ public class JwkValidateUtil {
     static OctetSequenceKey loadHmacJwkFromJwkString(final String jwkSetConfigKey, final CharSequence hmacKeyContents) {
         if (Strings.hasText(hmacKeyContents)) {
             try {
-                final String hmacKeyString = hmacKeyContents.toString();
-                final byte[] utf8Bytes = hmacKeyString.getBytes(StandardCharsets.UTF_8); // OIDC spec: UTF8 encoding of HMAC keys
-                return new OctetSequenceKey.Builder(utf8Bytes).build(); // Note: JWK has no attributes (kid, alg, use, ops)
+                return buildHmacKeyFromString(hmacKeyContents);
             } catch (Exception e) {
                 throw new SettingsException("HMAC Key parse failed for setting [" + jwkSetConfigKey + "]", e);
             }
         }
         return null;
+    }
+
+    static OctetSequenceKey buildHmacKeyFromString(CharSequence hmacKeyContents) {
+        final String hmacKeyString = hmacKeyContents.toString();
+        final byte[] utf8Bytes = hmacKeyString.getBytes(StandardCharsets.UTF_8); // OIDC spec: UTF8 encoding of HMAC keys
+        // Note: JWK has no attributes (kid, alg, use, ops)
+        return new OctetSequenceKey.Builder(utf8Bytes).build();
     }
 }

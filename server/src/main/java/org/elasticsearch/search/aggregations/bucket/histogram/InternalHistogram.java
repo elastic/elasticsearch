@@ -22,6 +22,7 @@ import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -139,6 +140,16 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
 
         public boolean getKeyed() {
             return keyed;
+        }
+
+        Bucket finalizeSampling(SamplingContext samplingContext) {
+            return new Bucket(
+                key,
+                samplingContext.scaleUp(docCount),
+                keyed,
+                format,
+                InternalAggregations.finalizeSampling(aggregations, samplingContext)
+            );
         }
     }
 
@@ -389,7 +400,19 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
             reduceContext
         );
         ListIterator<Bucket> iter = list.listIterator();
-        iterateEmptyBuckets(list, iter, key -> iter.add(new Bucket(key, 0, keyed, format, reducedEmptySubAggs)));
+        iterateEmptyBuckets(list, iter, new DoubleConsumer() {
+            private int size;
+
+            @Override
+            public void accept(double key) {
+                size++;
+                if (size >= REPORT_EMPTY_EVERY) {
+                    reduceContext.consumeBucketsAndMaybeBreak(size);
+                    size = 0;
+                }
+                iter.add(new Bucket(key, 0, keyed, format, reducedEmptySubAggs));
+            }
+        });
     }
 
     private void iterateEmptyBuckets(List<Bucket> list, ListIterator<Bucket> iter, DoubleConsumer onBucket) {
@@ -458,6 +481,20 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
     }
 
     @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalHistogram(
+            getName(),
+            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
+            order,
+            minDocCount,
+            emptyBucketInfo,
+            format,
+            keyed,
+            getMetadata()
+        );
+    }
+
+    @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (keyed) {
             builder.startObject(CommonFields.BUCKETS.getPreferredName());
@@ -480,11 +517,6 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
     @Override
     public Number getKey(MultiBucketsAggregation.Bucket bucket) {
         return ((Bucket) bucket).key;
-    }
-
-    @Override
-    public Number nextKey(Number key) {
-        return nextKey(key.doubleValue());
     }
 
     @Override

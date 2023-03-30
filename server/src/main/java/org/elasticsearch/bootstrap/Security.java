@@ -9,17 +9,17 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cli.Command;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.jdk.JarHell;
-import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.PluginsUtils;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.transport.TcpTransport;
 
+import java.io.FilePermission;
 import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -33,12 +33,12 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.NotDirectoryException;
 import java.nio.file.Path;
-import java.security.NoSuchAlgorithmException;
 import java.security.Permissions;
 import java.security.Policy;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -46,6 +46,8 @@ import java.util.function.Consumer;
 import static java.lang.invoke.MethodType.methodType;
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addSingleFilePath;
+import static org.elasticsearch.reservedstate.service.FileSettingsService.OPERATOR_DIRECTORY;
+import static org.elasticsearch.reservedstate.service.FileSettingsService.SETTINGS_FILE_NAME;
 
 /**
  * Initializes SecurityManager with necessary permissions.
@@ -95,6 +97,11 @@ import static org.elasticsearch.bootstrap.FilePermissionUtils.addSingleFilePath;
  * Troubleshooting Security</a> for information.
  */
 final class Security {
+
+    static {
+        prepopulateSecurityCaller();
+    }
+
     /** no instantiation */
     private Security() {}
 
@@ -108,14 +115,14 @@ final class Security {
      * @param environment configuration for generating dynamic permissions
      * @param filterBadDefaults true if we should filter out bad java defaults in the system policy.
      */
-    static void configure(Environment environment, boolean filterBadDefaults) throws IOException, NoSuchAlgorithmException {
+    static void configure(Environment environment, boolean filterBadDefaults, Path pidFile) throws IOException {
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
-        Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseClassPath());
+        Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseModulesAndClassPath());
         Policy.setPolicy(
             new ESPolicy(
                 codebases,
-                createPermissions(environment),
+                createPermissions(environment, pidFile),
                 getPluginAndModulePermissions(environment),
                 filterBadDefaults,
                 createRecursiveDataPathPermission(environment)
@@ -126,7 +133,7 @@ final class Security {
         final String[] classesThatCanExit = new String[] {
             // SecureSM matches class names as regular expressions so we escape the $ that arises from the nested class name
             ElasticsearchUncaughtExceptionHandler.PrivilegedHaltAction.class.getName().replace("$", "\\$"),
-            Command.class.getName() };
+            Bootstrap.class.getName() };
         setSecurityManager(new SecureSM(classesThatCanExit));
 
         // do some basic tests
@@ -154,10 +161,10 @@ final class Security {
             }
         };
 
-        for (Path plugin : PluginsService.findPluginDirs(environment.pluginsFile())) {
+        for (Path plugin : PluginsUtils.findPluginDirs(environment.pluginsFile())) {
             addPolicy.accept(PolicyUtil.getPluginPolicyInfo(plugin, environment.tmpFile()));
         }
-        for (Path plugin : PluginsService.findPluginDirs(environment.modulesFile())) {
+        for (Path plugin : PluginsUtils.findPluginDirs(environment.modulesFile())) {
             addPolicy.accept(PolicyUtil.getModulePolicyInfo(plugin, environment.tmpFile()));
         }
 
@@ -165,20 +172,20 @@ final class Security {
     }
 
     /** returns dynamic Permissions to configured paths and bind ports */
-    static Permissions createPermissions(Environment environment) throws IOException {
+    static Permissions createPermissions(Environment environment, Path pidFile) throws IOException {
         Permissions policy = new Permissions();
         addClasspathPermissions(policy);
-        addFilePermissions(policy, environment);
+        addFilePermissions(policy, environment, pidFile);
         addBindPermissions(policy, environment.settings());
         return policy;
     }
 
-    private static Permissions createRecursiveDataPathPermission(Environment environment) throws IOException {
+    private static List<FilePermission> createRecursiveDataPathPermission(Environment environment) throws IOException {
         Permissions policy = new Permissions();
         for (Path path : environment.dataFiles()) {
             addDirectoryPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete", true);
         }
-        return policy;
+        return toFilePermissions(policy);
     }
 
     /** Adds access to classpath jars/classes for jar hell scan, etc */
@@ -205,13 +212,13 @@ final class Security {
     /**
      * Adds access to all configurable paths.
      */
-    static void addFilePermissions(Permissions policy, Environment environment) throws IOException {
+    static void addFilePermissions(Permissions policy, Environment environment, Path pidFile) throws IOException {
         // read-only dirs
         addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.binFile(), "read,readlink", false);
         addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.libFile(), "read,readlink", false);
         addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.modulesFile(), "read,readlink", false);
         addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.pluginsFile(), "read,readlink", false);
-        addDirectoryPath(policy, "path.conf'", environment.configFile(), "read,readlink", false);
+        addDirectoryPath(policy, "path.conf", environment.configFile(), "read,readlink", false);
         // read-write dirs
         addDirectoryPath(policy, "java.io.tmpdir", environment.tmpFile(), "read,readlink,write,delete", false);
         addDirectoryPath(policy, Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile(), "read,readlink,write,delete", false);
@@ -244,10 +251,12 @@ final class Security {
         for (Path path : environment.repoFiles()) {
             addDirectoryPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete", false);
         }
-        if (environment.pidFile() != null) {
+        if (pidFile != null) {
             // we just need permission to remove the file if its elsewhere.
-            addSingleFilePath(policy, environment.pidFile(), "delete");
+            addSingleFilePath(policy, pidFile, "delete");
         }
+        // we need to touch the operator/settings.json file when restoring from snapshots, on some OSs it needs file write permission
+        addSingleFilePath(policy, environment.configFile().resolve(OPERATOR_DIRECTORY).resolve(SETTINGS_FILE_NAME), "read,readlink,write");
     }
 
     /**
@@ -385,5 +394,21 @@ final class Security {
     @SuppressForbidden(reason = "access violation required")
     private static Field getDeclaredField(Class<?> c, String name) throws NoSuchFieldException {
         return c.getDeclaredField(name);
+    }
+
+    /**
+     * Assumes the given {@link Permissions} only contains {@link FilePermission} elements and returns them as
+     * a list.
+     *
+     * @param permissions permissions to unwrap
+     * @return list of file permissions found
+     */
+    static List<FilePermission> toFilePermissions(Permissions permissions) {
+        return permissions.elementsAsStream().map(p -> {
+            if (p instanceof FilePermission == false) {
+                throw new AssertionError("[" + p + "] was not a file permission");
+            }
+            return (FilePermission) p;
+        }).toList();
     }
 }

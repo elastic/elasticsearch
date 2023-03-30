@@ -27,6 +27,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.MockKeywordPlugin;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,12 +40,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -1013,7 +1014,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
 
         // Get search shards
         ClusterSearchShardsResponse searchShardsResponse = client().admin().cluster().prepareSearchShards("test").get();
-        List<Integer> shardIds = Arrays.stream(searchShardsResponse.getGroups()).map(s -> s.getShardId().id()).collect(Collectors.toList());
+        List<Integer> shardIds = Arrays.stream(searchShardsResponse.getGroups()).map(s -> s.getShardId().id()).toList();
 
         // request termvectors of artificial document from each shard
         int sumTotalTermFreq = 0;
@@ -1037,6 +1038,19 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         }
         assertEquals("expected to find term statistics in exactly one shard!", 2, sumTotalTermFreq);
         assertEquals("expected to find term statistics in exactly one shard!", 2, sumDocFreq);
+    }
+
+    public void testTermVectorsWithIgnoredField() throws IOException, InterruptedException {
+        // setup indices
+        assertAcked(prepareCreate("index").setMapping("field", "type=long,ignore_malformed=true"));
+        ensureGreen();
+
+        // add a doc with a bad long field
+        indexRandom(true, client().prepareIndex("index").setId("1").setSource("{\"field\":\"foo\"}", XContentType.JSON));
+
+        // do a tv request for all fields, _ignored should be returned
+        TermVectorsResponse resp = client().prepareTermVectors("index", "1").setSelectedFields("*").get();
+        assertThat(resp.getFields().terms("_ignored").size(), greaterThan(0L));
     }
 
     public void testWithKeywordAndNormalizer() throws IOException, ExecutionException, InterruptedException {

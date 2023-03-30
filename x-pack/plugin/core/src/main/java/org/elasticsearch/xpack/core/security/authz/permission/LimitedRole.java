@@ -7,20 +7,29 @@
 
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.IsResourceAuthorizedPredicate;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Predicate;
 
 /**
  * A {@link Role} limited by another role.<br>
@@ -28,6 +37,8 @@ import java.util.function.Predicate;
  * provided role.
  */
 public final class LimitedRole implements Role {
+
+    private static final Logger logger = LogManager.getLogger(LimitedRole.class);
     private final Role baseRole;
     private final Role limitedByRole;
 
@@ -56,6 +67,11 @@ public final class LimitedRole implements Role {
     @Override
     public IndicesPermission indices() {
         throw new UnsupportedOperationException("cannot retrieve indices permission on limited role");
+    }
+
+    @Override
+    public RemoteIndicesPermission remoteIndices() {
+        throw new UnsupportedOperationException("cannot retrieve remote indices permission on limited role");
     }
 
     @Override
@@ -112,15 +128,48 @@ public final class LimitedRole implements Role {
         return indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
     }
 
+    @Override
+    public RoleDescriptorsIntersection getRoleDescriptorsIntersectionForRemoteCluster(final String remoteClusterAlias) {
+        final RoleDescriptorsIntersection baseIntersection = baseRole.getRoleDescriptorsIntersectionForRemoteCluster(remoteClusterAlias);
+        // Intersecting with empty descriptors list should result in an empty intersection.
+        if (baseIntersection.roleDescriptorsList().isEmpty()) {
+            logger.trace(
+                () -> "Base role ["
+                    + Strings.arrayToCommaDelimitedString(baseRole.names())
+                    + "] does not define any role descriptors for remote cluster alias ["
+                    + remoteClusterAlias
+                    + "]"
+            );
+            return RoleDescriptorsIntersection.EMPTY;
+        }
+        final RoleDescriptorsIntersection limitedByIntersection = limitedByRole.getRoleDescriptorsIntersectionForRemoteCluster(
+            remoteClusterAlias
+        );
+        if (limitedByIntersection.roleDescriptorsList().isEmpty()) {
+            logger.trace(
+                () -> "Limited-by role ["
+                    + Strings.arrayToCommaDelimitedString(limitedByRole.names())
+                    + "] does not define any role descriptors for remote cluster alias ["
+                    + remoteClusterAlias
+                    + "]"
+            );
+            return RoleDescriptorsIntersection.EMPTY;
+        }
+        final List<Set<RoleDescriptor>> mergedIntersection = new ArrayList<>(
+            baseIntersection.roleDescriptorsList().size() + limitedByIntersection.roleDescriptorsList().size()
+        );
+        mergedIntersection.addAll(baseIntersection.roleDescriptorsList());
+        mergedIntersection.addAll(limitedByIntersection.roleDescriptorsList());
+        return new RoleDescriptorsIntersection(Collections.unmodifiableList(mergedIntersection));
+    }
+
     /**
      * @return A predicate that will match all the indices that this role and the limited by role has the privilege for executing the given
      * action on.
      */
     @Override
-    public Predicate<IndexAbstraction> allowedIndicesMatcher(String action) {
-        Predicate<IndexAbstraction> predicate = baseRole.indices().allowedIndicesMatcher(action);
-        predicate = predicate.and(limitedByRole.indices().allowedIndicesMatcher(action));
-        return predicate;
+    public IsResourceAuthorizedPredicate allowedIndicesMatcher(String action) {
+        return baseRole.allowedIndicesMatcher(action).and(limitedByRole.allowedIndicesMatcher(action));
     }
 
     @Override
@@ -150,19 +199,27 @@ public final class LimitedRole implements Role {
      * @param checkForIndexPatterns check permission grants for the set of index patterns
      * @param allowRestrictedIndices if {@code true} then checks permission grants even for restricted indices by index matching
      * @param checkForPrivileges check permission grants for the set of index privileges
-     * @return an instance of {@link ResourcePrivilegesMap}
+     * @param resourcePrivilegesMapBuilder out-parameter for returning the details on which privilege over which resource is granted or not.
+     *                                     Can be {@code null} when no such details are needed so the method can return early, after
+     *                                     encountering the first privilege that is not granted over some resource.
+     * @return {@code true} when all the privileges are granted over all the resources, or {@code false} otherwise
      */
     @Override
-    public ResourcePrivilegesMap checkIndicesPrivileges(
+    public boolean checkIndicesPrivileges(
         Set<String> checkForIndexPatterns,
         boolean allowRestrictedIndices,
-        Set<String> checkForPrivileges
+        Set<String> checkForPrivileges,
+        @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
     ) {
-        ResourcePrivilegesMap resourcePrivilegesMap = baseRole.indices()
-            .checkResourcePrivileges(checkForIndexPatterns, allowRestrictedIndices, checkForPrivileges);
-        ResourcePrivilegesMap resourcePrivilegesMapForLimitedRole = limitedByRole.indices()
-            .checkResourcePrivileges(checkForIndexPatterns, allowRestrictedIndices, checkForPrivileges);
-        return ResourcePrivilegesMap.intersection(resourcePrivilegesMap, resourcePrivilegesMapForLimitedRole);
+        boolean baseRoleCheck = baseRole.indices()
+            .checkResourcePrivileges(checkForIndexPatterns, allowRestrictedIndices, checkForPrivileges, resourcePrivilegesMapBuilder);
+        if (false == baseRoleCheck && null == resourcePrivilegesMapBuilder) {
+            // short-circuit only if not interested in the detailed individual check results
+            return false;
+        }
+        boolean limitedByRoleCheck = limitedByRole.indices()
+            .checkResourcePrivileges(checkForIndexPatterns, allowRestrictedIndices, checkForPrivileges, resourcePrivilegesMapBuilder);
+        return baseRoleCheck && limitedByRoleCheck;
     }
 
     /**
@@ -204,20 +261,40 @@ public final class LimitedRole implements Role {
      * @param checkForPrivilegeNames check permission grants for the set of privilege names
      * @param storedPrivileges stored {@link ApplicationPrivilegeDescriptor} for an application against which the access checks are
      * performed
-     * @return an instance of {@link ResourcePrivilegesMap}
+     * @param resourcePrivilegesMapBuilder out-parameter for returning the details on which privilege over which resource is granted or not.
+     *                                     Can be {@code null} when no such details are needed so the method can return early, after
+     *                                     encountering the first privilege that is not granted over some resource.
+     * @return {@code true} when all the privileges are granted over all the resources, or {@code false} otherwise
      */
     @Override
-    public ResourcePrivilegesMap checkApplicationResourcePrivileges(
-        final String applicationName,
+    public boolean checkApplicationResourcePrivileges(
+        String applicationName,
         Set<String> checkForResources,
         Set<String> checkForPrivilegeNames,
-        Collection<ApplicationPrivilegeDescriptor> storedPrivileges
+        Collection<ApplicationPrivilegeDescriptor> storedPrivileges,
+        @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
     ) {
-        ResourcePrivilegesMap resourcePrivilegesMap = baseRole.application()
-            .checkResourcePrivileges(applicationName, checkForResources, checkForPrivilegeNames, storedPrivileges);
-        ResourcePrivilegesMap resourcePrivilegesMapForLimitedRole = limitedByRole.application()
-            .checkResourcePrivileges(applicationName, checkForResources, checkForPrivilegeNames, storedPrivileges);
-        return ResourcePrivilegesMap.intersection(resourcePrivilegesMap, resourcePrivilegesMapForLimitedRole);
+        boolean baseRoleCheck = baseRole.application()
+            .checkResourcePrivileges(
+                applicationName,
+                checkForResources,
+                checkForPrivilegeNames,
+                storedPrivileges,
+                resourcePrivilegesMapBuilder
+            );
+        if (false == baseRoleCheck && null == resourcePrivilegesMapBuilder) {
+            // short-circuit only if not interested in the detailed individual check results
+            return false;
+        }
+        boolean limitedByRoleCheck = limitedByRole.application()
+            .checkResourcePrivileges(
+                applicationName,
+                checkForResources,
+                checkForPrivilegeNames,
+                storedPrivileges,
+                resourcePrivilegesMapBuilder
+            );
+        return baseRoleCheck && limitedByRoleCheck;
     }
 
     @Override

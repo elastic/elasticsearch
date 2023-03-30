@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authc.support.mapper;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -97,7 +97,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         this.name = in.readString();
         this.enabled = in.readBoolean();
         this.roles = in.readStringList();
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
             this.roleTemplates = in.readList(TemplateRoleName::new);
         } else {
             this.roleTemplates = Collections.emptyList();
@@ -111,11 +111,11 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         out.writeString(name);
         out.writeBoolean(enabled);
         out.writeStringCollection(roles);
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
             out.writeList(roleTemplates);
         }
         ExpressionParser.writeExpression(expression, out);
-        out.writeMap(metadata);
+        out.writeGenericMap(metadata);
     }
 
     /**
@@ -311,7 +311,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
             return new ExpressionRoleMapping(name, rules, roles, roleTemplates, metadata, enabled);
         }
 
-        private IllegalStateException missingField(String id, ParseField field) {
+        private static IllegalStateException missingField(String id, ParseField field) {
             return new IllegalStateException("failed to parse role-mapping [" + id + "]. missing field [" + field + "]");
         }
     }

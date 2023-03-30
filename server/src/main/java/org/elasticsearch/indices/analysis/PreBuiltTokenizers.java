@@ -26,7 +26,7 @@ public enum PreBuiltTokenizers {
 
     protected abstract Tokenizer create(Version version);
 
-    protected TokenFilterFactory getMultiTermComponent(Version version) {
+    protected static TokenFilterFactory getMultiTermComponent(Version version) {
         return null;
     }
 

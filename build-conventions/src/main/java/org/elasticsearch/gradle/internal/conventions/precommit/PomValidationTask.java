@@ -13,6 +13,7 @@ import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.TaskAction;
 
@@ -21,11 +22,18 @@ import java.util.Collection;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
+import javax.inject.Inject;
+
 public class PomValidationTask extends PrecommitTask {
 
-    private final RegularFileProperty pomFile = getProject().getObjects().fileProperty();
+    private final RegularFileProperty pomFile;
 
     private boolean foundError;
+
+    @Inject
+    public PomValidationTask(ObjectFactory objects) {
+        pomFile = objects.fileProperty();
+    }
 
     @InputFile
     public RegularFileProperty getPomFile() {

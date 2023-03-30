@@ -30,7 +30,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
@@ -45,9 +44,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             List<SearchHits> collapsedHits = new ArrayList<>(numInnerHits);
             for (int innerHitNum = 0; innerHitNum < numInnerHits; innerHitNum++) {
                 SearchHits hits = new SearchHits(
-                    new SearchHit[] {
-                        new SearchHit(innerHitNum, "ID", Collections.emptyMap(), Collections.emptyMap()),
-                        new SearchHit(innerHitNum + 1, "ID", Collections.emptyMap(), Collections.emptyMap()) },
+                    new SearchHit[] { new SearchHit(innerHitNum, "ID"), new SearchHit(innerHitNum + 1, "ID") },
                     new TotalHits(2, TotalHits.Relation.EQUAL_TO),
                     1.0F
                 );
@@ -65,9 +62,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 .source(
                     new SearchSourceBuilder().collapse(
                         new CollapseBuilder("someField").setInnerHits(
-                            IntStream.range(0, numInnerHits)
-                                .mapToObj(hitNum -> new InnerHitBuilder().setName("innerHit" + hitNum))
-                                .collect(Collectors.toList())
+                            IntStream.range(0, numInnerHits).mapToObj(hitNum -> new InnerHitBuilder().setName("innerHit" + hitNum)).toList()
                         )
                     )
                 );
@@ -113,19 +108,16 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 }
             };
 
-            SearchHits hits = new SearchHits(
-                new SearchHit[] {
-                    new SearchHit(
-                        1,
-                        "ID",
-                        Collections.singletonMap("someField", new DocumentField("someField", Collections.singletonList(collapseValue))),
-                        Collections.emptyMap()
-                    ) },
-                new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                1.0F
-            );
+            SearchHit hit = new SearchHit(1, "ID");
+            hit.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(collapseValue)));
+            SearchHits hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
             InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
-            ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, null);
+            ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, () -> new SearchPhase("test") {
+                @Override
+                public void run() {
+                    mockSearchPhaseContext.sendSearchResponse(internalSearchResponse, null);
+                }
+            });
 
             phase.run();
             mockSearchPhaseContext.assertNoFailure();
@@ -145,9 +137,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
         AtomicBoolean executedMultiSearch = new AtomicBoolean(false);
 
         SearchHits collapsedHits = new SearchHits(
-            new SearchHit[] {
-                new SearchHit(2, "ID", Collections.emptyMap(), Collections.emptyMap()),
-                new SearchHit(3, "ID", Collections.emptyMap(), Collections.emptyMap()) },
+            new SearchHit[] { new SearchHit(2, "ID"), new SearchHit(3, "ID") },
             new TotalHits(1, TotalHits.Relation.EQUAL_TO),
             1.0F
         );
@@ -185,25 +175,18 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             }
         };
 
-        SearchHits hits = new SearchHits(
-            new SearchHit[] {
-                new SearchHit(
-                    1,
-                    "ID",
-                    Collections.singletonMap("someField", new DocumentField("someField", Collections.singletonList(collapseValue))),
-                    Collections.emptyMap()
-                ),
-                new SearchHit(
-                    2,
-                    "ID2",
-                    Collections.singletonMap("someField", new DocumentField("someField", Collections.singletonList(collapseValue))),
-                    Collections.emptyMap()
-                ) },
-            new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-            1.0F
-        );
+        SearchHit hit1 = new SearchHit(1, "ID");
+        hit1.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(collapseValue)));
+        SearchHit hit2 = new SearchHit(2, "ID2");
+        hit2.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(collapseValue)));
+        SearchHits hits = new SearchHits(new SearchHit[] { hit1, hit2 }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
-        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, null);
+        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, () -> new SearchPhase("test") {
+            @Override
+            public void run() {
+                mockSearchPhaseContext.sendSearchResponse(internalSearchResponse, null);
+            }
+        });
         phase.run();
         assertThat(mockSearchPhaseContext.phaseFailure.get(), Matchers.instanceOf(RuntimeException.class));
         assertEquals("boom", mockSearchPhaseContext.phaseFailure.get().getMessage());
@@ -220,25 +203,18 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             }
         };
 
-        SearchHits hits = new SearchHits(
-            new SearchHit[] {
-                new SearchHit(
-                    1,
-                    "ID",
-                    Collections.singletonMap("someField", new DocumentField("someField", Collections.singletonList(null))),
-                    Collections.emptyMap()
-                ),
-                new SearchHit(
-                    2,
-                    "ID2",
-                    Collections.singletonMap("someField", new DocumentField("someField", Collections.singletonList(null))),
-                    Collections.emptyMap()
-                ) },
-            new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-            1.0F
-        );
+        SearchHit hit1 = new SearchHit(1, "ID");
+        hit1.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(null)));
+        SearchHit hit2 = new SearchHit(2, "ID2");
+        hit2.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(null)));
+        SearchHits hits = new SearchHits(new SearchHit[] { hit1, hit2 }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
-        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, null);
+        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, () -> new SearchPhase("test") {
+            @Override
+            public void run() {
+                mockSearchPhaseContext.sendSearchResponse(internalSearchResponse, null);
+            }
+        });
         phase.run();
         mockSearchPhaseContext.assertNoFailure();
         assertNotNull(mockSearchPhaseContext.searchResponse.get());
@@ -261,7 +237,12 @@ public class ExpandSearchPhaseTests extends ESTestCase {
 
         SearchHits hits = new SearchHits(new SearchHit[0], new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
-        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, null);
+        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, () -> new SearchPhase("test") {
+            @Override
+            public void run() {
+                mockSearchPhaseContext.sendSearchResponse(internalSearchResponse, null);
+            }
+        });
         phase.run();
         mockSearchPhaseContext.assertNoFailure();
         assertNotNull(mockSearchPhaseContext.searchResponse.get());
@@ -299,7 +280,12 @@ public class ExpandSearchPhaseTests extends ESTestCase {
 
         SearchHits hits = new SearchHits(new SearchHit[0], new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
-        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, null);
+        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, () -> new SearchPhase("test") {
+            @Override
+            public void run() throws IOException {
+                mockSearchPhaseContext.sendSearchResponse(internalSearchResponse, null);
+            }
+        });
         phase.run();
         mockSearchPhaseContext.assertNoFailure();
         assertNotNull(mockSearchPhaseContext.searchResponse.get());

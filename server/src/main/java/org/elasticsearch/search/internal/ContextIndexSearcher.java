@@ -57,11 +57,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * The interval at which we check for search cancellation when we cannot use
      * a {@link CancellableBulkScorer}. See {@link #intersectScorerAndBitSet}.
      */
-    private static int CHECK_CANCELLED_SCORER_INTERVAL = 1 << 11;
+    private static final int CHECK_CANCELLED_SCORER_INTERVAL = 1 << 11;
 
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
-    private MutableQueryTimeout cancellable;
+    private final MutableQueryTimeout cancellable;
 
     public ContextIndexSearcher(
         IndexReader reader,
@@ -162,7 +162,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
     }
 
+    @Override
     public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+        weight = wrapWeight(weight);
+        collector.setWeight(weight);
         for (LeafReaderContext ctx : leaves) { // search each subreader
             searchLeaf(ctx, weight, collector);
         }
@@ -176,7 +179,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
         cancellable.checkCancelled();
-        weight = wrapWeight(weight);
         final LeafCollector leafCollector;
         try {
             leafCollector = collector.getLeafCollector(ctx);
@@ -242,6 +244,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                     } else {
                         return null;
                     }
+                }
+
+                @Override
+                public int count(LeafReaderContext context) throws IOException {
+                    return weight.count(context);
                 }
             };
         } else {

@@ -40,14 +40,13 @@ public interface Scope {
      * {@link Object#toString} in the returned provider and include the backing
      * provider's {@code toString()} output.
      *
-     * @param key      binding key
      * @param unscoped locates an instance when one doesn't already exist in this
      *                 scope.
      * @return a new provider which only delegates to the given unscoped provider
      *         when an instance of the requested object doesn't already exist in this
      *         scope
      */
-    <T> Provider<T> scope(Key<T> key, Provider<T> unscoped);
+    <T> Provider<T> scope(Provider<T> unscoped);
 
     /**
      * A short but useful description of this scope.  For comparison, the standard

@@ -48,8 +48,8 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.DocumentParser;
-import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -57,6 +57,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.painless.spi.PainlessTestScript;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -167,7 +168,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 }, DOCUMENT_FIELD);
                 PARSER.declareObject(
                     ConstructingObjectParser.optionalConstructorArg(),
-                    (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p),
+                    (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p),
                     QUERY_FIELD
                 );
             }
@@ -434,32 +435,6 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
         }
     }
 
-    public abstract static class PainlessTestScript {
-
-        private final Map<String, Object> params;
-
-        public PainlessTestScript(Map<String, Object> params) {
-            this.params = params;
-        }
-
-        /** Return the parameters for this script. */
-        public Map<String, Object> getParams() {
-            return params;
-        }
-
-        public abstract Object execute();
-
-        public interface Factory {
-
-            PainlessTestScript newInstance(Map<String, Object> params);
-
-        }
-
-        public static final String[] PARAMETERS = {};
-        public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("painless_test", Factory.class);
-
-    }
-
     public static class TransportAction extends TransportSingleShardAction<Request, Response> {
 
         private final ScriptService scriptService;
@@ -583,7 +558,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     BooleanFieldScript.LeafFactory leafFactory = factory.newFactory(
                         BooleanFieldScript.CONTEXT.name,
                         request.getScript().getParams(),
-                        context.lookup()
+                        context.lookup(),
+                        OnScriptError.FAIL
                     );
                     BooleanFieldScript booleanFieldScript = leafFactory.newInstance(leafReaderContext);
                     List<Boolean> booleans = new ArrayList<>();
@@ -597,7 +573,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                         DateFieldScript.CONTEXT.name,
                         request.getScript().getParams(),
                         context.lookup(),
-                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER
+                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+                        OnScriptError.FAIL
                     );
                     DateFieldScript dateFieldScript = leafFactory.newInstance(leafReaderContext);
                     List<String> dates = new ArrayList<>();
@@ -610,7 +587,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     DoubleFieldScript.LeafFactory leafFactory = factory.newFactory(
                         DoubleFieldScript.CONTEXT.name,
                         request.getScript().getParams(),
-                        context.lookup()
+                        context.lookup(),
+                        OnScriptError.FAIL
                     );
                     DoubleFieldScript doubleFieldScript = leafFactory.newInstance(leafReaderContext);
                     List<Double> doubles = new ArrayList<>();
@@ -623,11 +601,12 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     GeoPointFieldScript.LeafFactory leafFactory = factory.newFactory(
                         GeoPointFieldScript.CONTEXT.name,
                         request.getScript().getParams(),
-                        context.lookup()
+                        context.lookup(),
+                        OnScriptError.FAIL
                     );
                     GeoPointFieldScript geoPointFieldScript = leafFactory.newInstance(leafReaderContext);
                     List<GeoPoint> points = new ArrayList<>();
-                    geoPointFieldScript.runGeoPointForDoc(0, gp -> points.add(new GeoPoint(gp)));
+                    geoPointFieldScript.runForDoc(0, gp -> points.add(new GeoPoint(gp)));
                     // convert geo points to the standard format of the fields api
                     Function<List<GeoPoint>, List<Object>> format = GeometryFormatterFactory.getFormatter(
                         GeometryFormatterFactory.GEOJSON,
@@ -641,7 +620,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     IpFieldScript.LeafFactory leafFactory = factory.newFactory(
                         IpFieldScript.CONTEXT.name,
                         request.getScript().getParams(),
-                        context.lookup()
+                        context.lookup(),
+                        OnScriptError.FAIL
                     );
                     IpFieldScript ipFieldScript = leafFactory.newInstance(leafReaderContext);
                     List<String> ips = new ArrayList<>();
@@ -660,7 +640,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     LongFieldScript.LeafFactory leafFactory = factory.newFactory(
                         LongFieldScript.CONTEXT.name,
                         request.getScript().getParams(),
-                        context.lookup()
+                        context.lookup(),
+                        OnScriptError.FAIL
                     );
                     LongFieldScript longFieldScript = leafFactory.newInstance(leafReaderContext);
                     List<Long> longs = new ArrayList<>();
@@ -673,7 +654,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     StringFieldScript.LeafFactory leafFactory = factory.newFactory(
                         StringFieldScript.CONTEXT.name,
                         request.getScript().getParams(),
-                        context.lookup()
+                        context.lookup(),
+                        OnScriptError.FAIL
                     );
                     StringFieldScript stringFieldScript = leafFactory.newInstance(leafReaderContext);
                     List<String> keywords = new ArrayList<>();
@@ -686,10 +668,12 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     CompositeFieldScript.LeafFactory leafFactory = factory.newFactory(
                         CompositeFieldScript.CONTEXT.name,
                         request.getScript().getParams(),
-                        context.lookup()
+                        context.lookup(),
+                        OnScriptError.FAIL
                     );
                     CompositeFieldScript compositeFieldScript = leafFactory.newInstance(leafReaderContext);
-                    return new Response(compositeFieldScript.runForDoc(0));
+                    compositeFieldScript.runForDoc(0);
+                    return new Response(compositeFieldScript.getFieldValues());
                 }, indexService);
             } else {
                 throw new UnsupportedOperationException("unsupported context [" + scriptContext.name + "]");
@@ -701,22 +685,22 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             CheckedBiFunction<SearchExecutionContext, LeafReaderContext, Response, IOException> handler,
             IndexService indexService
         ) throws IOException {
-
             Analyzer defaultAnalyzer = indexService.getIndexAnalyzers().getDefaultIndexAnalyzer();
 
             try (Directory directory = new ByteBuffersDirectory()) {
                 try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig(defaultAnalyzer))) {
-                    String index = indexService.index().getName();
                     BytesReference document = request.contextSetup.document;
                     XContentType xContentType = request.contextSetup.xContentType;
                     SourceToParse sourceToParse = new SourceToParse("_id", document, xContentType);
-                    MappingLookup mappingLookup = indexService.mapperService().mappingLookup();
-                    DocumentParser documentParser = indexService.mapperService().documentParser();
+                    DocumentMapper documentMapper = indexService.mapperService().documentMapper();
+                    if (documentMapper == null) {
+                        documentMapper = DocumentMapper.createEmpty(indexService.mapperService());
+                    }
                     // Note that we are not doing anything with dynamic mapping updates, hence fields that are not mapped but are present
                     // in the sample doc are not accessible from the script through doc['field'].
                     // This is a problem especially for indices that have no mappings, as no fields will be accessible, neither through doc
                     // nor _source (if there are no mappings there are no metadata fields).
-                    ParsedDocument parsedDocument = documentParser.parseDocument(sourceToParse, mappingLookup);
+                    ParsedDocument parsedDocument = documentMapper.parse(sourceToParse);
                     indexWriter.addDocuments(parsedDocument.docs());
                     try (IndexReader indexReader = DirectoryReader.open(indexWriter)) {
                         final IndexSearcher searcher = new IndexSearcher(indexReader);

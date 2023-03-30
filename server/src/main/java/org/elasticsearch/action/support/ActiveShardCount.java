@@ -17,7 +17,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS;
 
@@ -153,8 +152,8 @@ public record ActiveShardCount(int value) implements Writeable {
             if (waitForActiveShards == ActiveShardCount.DEFAULT) {
                 waitForActiveShards = SETTING_WAIT_FOR_ACTIVE_SHARDS.get(indexMetadata.getSettings());
             }
-            for (final Map.Entry<Integer, IndexShardRoutingTable> shardRouting : indexRoutingTable.getShards().entrySet()) {
-                if (waitForActiveShards.enoughShardsActive(shardRouting.getValue()) == false) {
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                if (waitForActiveShards.enoughShardsActive(indexRoutingTable.shard(i)) == false) {
                     // not enough active shard copies yet
                     return false;
                 }
@@ -171,13 +170,13 @@ public record ActiveShardCount(int value) implements Writeable {
     public boolean enoughShardsActive(final IndexShardRoutingTable shardRoutingTable) {
         final int activeShardCount = shardRoutingTable.activeShards().size();
         if (this == ActiveShardCount.ALL) {
-            // adding 1 for the primary in addition to the total number of replicas,
-            // which gives us the total number of shard copies
-            return activeShardCount == shardRoutingTable.replicaShards().size() + 1;
-        } else if (this == ActiveShardCount.DEFAULT) {
-            return activeShardCount >= 1;
+            return activeShardCount == shardRoutingTable.size();
+        } else if (value == 0) {
+            return true;
+        } else if (value == 1) {
+            return shardRoutingTable.hasSearchShards() ? shardRoutingTable.getActiveSearchShardCount() >= 1 : activeShardCount >= 1;
         } else {
-            return activeShardCount >= value;
+            return shardRoutingTable.getActiveSearchShardCount() >= value;
         }
     }
 
@@ -189,5 +188,4 @@ public record ActiveShardCount(int value) implements Writeable {
             default -> Integer.toString(value);
         };
     }
-
 }

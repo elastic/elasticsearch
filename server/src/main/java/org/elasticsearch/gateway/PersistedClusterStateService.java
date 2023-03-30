@@ -9,7 +9,6 @@ package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -23,6 +22,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SerialMergeScheduler;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TieredMergePolicy;
@@ -42,10 +42,14 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.Loggers;
@@ -55,13 +59,15 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -80,6 +86,7 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -88,21 +95,25 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.function.IntPredicate;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Stores cluster metadata in a bare Lucene index (per data path) split across a number of documents. This is used by master-eligible nodes
  * to record the last-accepted cluster state during publication. The metadata is written incrementally where possible, leaving alone any
  * documents that have not changed. The index has the following fields:
  *
- * +------------------------------+-----------------------------+----------------------------------------------+--------+-------------+
- * | "type" (string field)        | "index_uuid" (string field) | "data" (stored binary field in SMILE format) | "page" | "last_page" |
- * +------------------------------+-----------------------------+----------------------------------------------+--------+-------------+
- * | GLOBAL_TYPE_NAME == "global" | (omitted)                   | Global metadata                              | large docs are       |
- * | INDEX_TYPE_NAME  == "index"  | Index UUID                  | Index metadata                               | split into pages     |
- * +------------------------------+-----------------------------+----------------------------------------------+--------+-------------+
+ * +--------------------------------+-------------------+----------------------------------------------+--------+-------------+
+ * | "type" (string field)          | ID (string) field | "data" (stored binary field in SMILE format) | "page" | "last_page" |
+ * +--------------------------------+-------------------+----------------------------------------------+--------+-------------+
+ * | GLOBAL_TYPE_NAME  == "global"  | (none)            | Global metadata                              | large docs are       |
+ * | INDEX_TYPE_NAME   == "index"   | "index_uuid"      | Index metadata                               | split into pages     |
+ * | MAPPING_TYPE_NAME == "mapping" | "mapping_hash"    | Mapping metadata                             |                      |
+ * +--------------------------------+-------------------+----------------------------------------------+--------+-------------+
  *
  * Additionally each commit has the following user data:
  *
@@ -122,13 +133,15 @@ public class PersistedClusterStateService {
     private static final String CURRENT_TERM_KEY = "current_term";
     private static final String LAST_ACCEPTED_VERSION_KEY = "last_accepted_version";
     private static final String NODE_ID_KEY = "node_id";
-    private static final String NODE_VERSION_KEY = "node_version";
+    static final String NODE_VERSION_KEY = "node_version";
     private static final String OLDEST_INDEX_VERSION_KEY = "oldest_index_version";
     public static final String TYPE_FIELD_NAME = "type";
     public static final String GLOBAL_TYPE_NAME = "global";
     public static final String INDEX_TYPE_NAME = "index";
+    public static final String MAPPING_TYPE_NAME = "mapping";
     private static final String DATA_FIELD_NAME = "data";
     private static final String INDEX_UUID_FIELD_NAME = "index_uuid";
+    private static final String MAPPING_HASH_FIELD_NAME = "mapping_hash";
     public static final String PAGE_FIELD_NAME = "page";
     public static final String LAST_PAGE_FIELD_NAME = "last_page";
     public static final int IS_LAST_PAGE = 1;
@@ -212,7 +225,7 @@ public class PersistedClusterStateService {
 
                 final IndexWriter indexWriter = createIndexWriter(directory, false);
                 closeables.add(indexWriter);
-                metadataIndexWriters.add(new MetadataIndexWriter(directory, indexWriter));
+                metadataIndexWriters.add(new MetadataIndexWriter(path, directory, indexWriter));
             }
             success = true;
         } finally {
@@ -220,7 +233,18 @@ public class PersistedClusterStateService {
                 IOUtils.closeWhileHandlingException(closeables);
             }
         }
-        return new Writer(metadataIndexWriters, nodeId, documentPageSize, relativeTimeMillisSupplier, () -> slowWriteLoggingThreshold);
+        return new Writer(
+            metadataIndexWriters,
+            nodeId,
+            documentPageSize,
+            relativeTimeMillisSupplier,
+            () -> slowWriteLoggingThreshold,
+            getAssertOnCommit()
+        );
+    }
+
+    CheckedBiConsumer<Path, DirectoryReader, IOException> getAssertOnCommit() {
+        return Assertions.ENABLED ? this::loadOnDiskState : null;
     }
 
     private static IndexWriter createIndexWriter(Directory directory, boolean openExisting) throws IOException {
@@ -250,8 +274,7 @@ public class PersistedClusterStateService {
         }
     }
 
-    // exposed for tests
-    Directory createDirectory(Path path) throws IOException {
+    protected Directory createDirectory(Path path) throws IOException {
         // it is possible to disable the use of MMapDirectory for indices, and it may be surprising to users that have done so if we still
         // use a MMapDirectory here, which might happen with FSDirectory.open(path), so we force an NIOFSDirectory to be on the safe side.
         return new NIOFSDirectory(path);
@@ -315,7 +338,7 @@ public class PersistedClusterStateService {
                         }
                     }
                 } catch (IndexNotFoundException e) {
-                    logger.debug(new ParameterizedMessage("no on-disk state at {}", indexPath), e);
+                    logger.debug(() -> format("no on-disk state at %s", indexPath), e);
                 }
             }
         }
@@ -343,7 +366,7 @@ public class PersistedClusterStateService {
                         indexWriter.commit();
                     }
                 } catch (IndexNotFoundException e) {
-                    logger.debug(new ParameterizedMessage("no on-disk state at {}", indexPath), e);
+                    logger.debug(() -> format("no on-disk state at %s", indexPath), e);
                 }
             }
         }
@@ -374,6 +397,9 @@ public class PersistedClusterStateService {
             if (Files.exists(indexPath)) {
                 try (Directory directory = createDirectory(indexPath)) {
                     if (checkClean) {
+
+                        logger.debug("checking cluster state integrity in [{}]", indexPath);
+
                         try (BytesStreamOutput outputStream = new BytesStreamOutput()) {
                             final boolean isClean;
                             try (
@@ -400,6 +426,41 @@ public class PersistedClusterStateService {
                     }
 
                     try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+
+                        if (logger.isDebugEnabled()) {
+                            final var indexCommit = directoryReader.getIndexCommit();
+                            final var segmentsFileName = indexCommit.getSegmentsFileName();
+                            try {
+                                final var attributes = Files.readAttributes(indexPath.resolve(segmentsFileName), BasicFileAttributes.class);
+                                logger.debug(
+                                    "loading cluster state from commit ["
+                                        + segmentsFileName
+                                        + "] in ["
+                                        + directory
+                                        + "]: creationTime="
+                                        + attributes.creationTime()
+                                        + ", lastModifiedTime="
+                                        + attributes.lastModifiedTime()
+                                        + ", lastAccessTime="
+                                        + attributes.lastAccessTime()
+                                );
+                            } catch (Exception e) {
+                                logger.debug(
+                                    "loading cluster state from commit ["
+                                        + segmentsFileName
+                                        + "] in ["
+                                        + directory
+                                        + "] but could not get file attributes",
+                                    e
+                                );
+                            }
+                            logger.debug("cluster state commit user data: {}", indexCommit.getUserData());
+
+                            for (final var segmentCommitInfo : SegmentInfos.readCommit(directory, segmentsFileName)) {
+                                logger.debug("loading cluster state from segment: {}", segmentCommitInfo);
+                            }
+                        }
+
                         final OnDiskState onDiskState = loadOnDiskState(dataPath, directoryReader);
 
                         if (nodeId.equals(onDiskState.nodeId) == false) {
@@ -449,7 +510,7 @@ public class PersistedClusterStateService {
                         }
                     }
                 } catch (IndexNotFoundException e) {
-                    logger.debug(new ParameterizedMessage("no on-disk state at {}", indexPath), e);
+                    logger.debug(() -> format("no on-disk state at %s", indexPath), e);
                 }
             }
         }
@@ -476,7 +537,7 @@ public class PersistedClusterStateService {
         searcher.setQueryCache(null);
 
         final SetOnce<Metadata.Builder> builderReference = new SetOnce<>();
-        consumeFromType(searcher, GLOBAL_TYPE_NAME, bytes -> {
+        consumeFromType(searcher, GLOBAL_TYPE_NAME, ignored -> GLOBAL_TYPE_NAME, bytes -> {
             final Metadata metadata = readXContent(bytes, Metadata.Builder::fromXContent);
             logger.trace("found global metadata with last-accepted term [{}]", metadata.coordinationMetadata().term());
             if (builderReference.get() != null) {
@@ -490,11 +551,50 @@ public class PersistedClusterStateService {
             throw new CorruptStateException("no global metadata found in [" + dataPath + "]");
         }
 
-        logger.trace("got global metadata, now reading index metadata");
+        logger.trace("got global metadata, now reading mapping metadata");
+
+        final Map<String, MappingMetadata> mappingsByHash = new HashMap<>();
+        consumeFromType(searcher, MAPPING_TYPE_NAME, document -> document.getField(MAPPING_HASH_FIELD_NAME).stringValue(), bytes -> {
+            final var mappingMetadata = readXContent(bytes, parser -> {
+                if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                    throw new CorruptStateException(
+                        "invalid mapping metadata: expected START_OBJECT but got [" + parser.currentToken() + "]"
+                    );
+                }
+                if (parser.nextToken() != XContentParser.Token.FIELD_NAME) {
+                    throw new CorruptStateException(
+                        "invalid mapping metadata: expected FIELD_NAME but got [" + parser.currentToken() + "]"
+                    );
+                }
+                final var fieldName = parser.currentName();
+                if ("content".equals(fieldName) == false) {
+                    throw new CorruptStateException("invalid mapping metadata: unknown field [" + fieldName + "]");
+                }
+                if (parser.nextToken() != XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+                    throw new CorruptStateException(
+                        "invalid mapping metadata: expected VALUE_EMBEDDED_OBJECT but got [" + parser.currentToken() + "]"
+                    );
+                }
+                return new MappingMetadata(new CompressedXContent(parser.binaryValue()));
+            });
+            final var hash = mappingMetadata.source().getSha256();
+            logger.trace("found mapping metadata with hash {}", hash);
+            if (mappingsByHash.put(hash, mappingMetadata) != null) {
+                throw new CorruptStateException("duplicate metadata found for mapping hash [" + hash + "]");
+            }
+        });
+
+        logger.trace("got metadata for [{}] mappings, now reading index metadata", mappingsByHash.size());
 
         final Set<String> indexUUIDs = new HashSet<>();
-        consumeFromType(searcher, INDEX_TYPE_NAME, bytes -> {
-            final IndexMetadata indexMetadata = readXContent(bytes, IndexMetadata::fromXContent);
+        consumeFromType(searcher, INDEX_TYPE_NAME, document -> document.getField(INDEX_UUID_FIELD_NAME).stringValue(), bytes -> {
+            final IndexMetadata indexMetadata = readXContent(bytes, parser -> {
+                try {
+                    return IndexMetadata.fromXContent(parser, mappingsByHash);
+                } catch (Exception e) {
+                    throw new CorruptStateException(e);
+                }
+            });
             logger.trace("found index metadata for {}", indexMetadata.getIndex());
             if (indexUUIDs.add(indexMetadata.getIndexUUID()) == false) {
                 throw new CorruptStateException("duplicate metadata found for " + indexMetadata.getIndex() + " in [" + dataPath + "]");
@@ -530,6 +630,7 @@ public class PersistedClusterStateService {
     private static void consumeFromType(
         IndexSearcher indexSearcher,
         String type,
+        Function<Document, String> keyFunction,
         CheckedConsumer<BytesReference, IOException> bytesReferenceConsumer
     ) throws IOException {
 
@@ -575,13 +676,7 @@ public class PersistedClusterStateService {
                         // startup, on the main thread and before most other services have started, and we will need space to serialize the
                         // whole cluster state in memory later on.
 
-                        final String key;
-                        if (type.equals(GLOBAL_TYPE_NAME)) {
-                            key = GLOBAL_TYPE_NAME;
-                        } else {
-                            key = document.getField(INDEX_UUID_FIELD_NAME).stringValue();
-                        }
-
+                        final var key = keyFunction.apply(document);
                         final PaginatedDocumentReader reader = documentReaders.computeIfAbsent(key, k -> new PaginatedDocumentReader());
                         final BytesReference bytesReference = reader.addPage(key, documentData, pageIndex, isLastPage);
                         if (bytesReference != null) {
@@ -615,6 +710,7 @@ public class PersistedClusterStateService {
         Map<String, String> params = Maps.newMapWithExpectedSize(2);
         params.put("binary", "true");
         params.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
+        params.put(Metadata.DEDUPLICATED_MAPPINGS_PARAM, Boolean.TRUE.toString());
         FORMAT_PARAMS = new ToXContent.MapParams(params);
     }
 
@@ -647,10 +743,12 @@ public class PersistedClusterStateService {
     private static class MetadataIndexWriter implements Closeable {
 
         private final Logger logger;
+        private final Path path;
         private final Directory directory;
         private final IndexWriter indexWriter;
 
-        MetadataIndexWriter(Directory directory, IndexWriter indexWriter) {
+        MetadataIndexWriter(Path path, Directory directory, IndexWriter indexWriter) {
+            this.path = path;
             this.directory = directory;
             this.indexWriter = indexWriter;
             this.logger = Loggers.getLogger(MetadataIndexWriter.class, directory.toString());
@@ -669,6 +767,11 @@ public class PersistedClusterStateService {
         void deleteIndexMetadata(String indexUUID) throws IOException {
             this.logger.trace("removing metadata for [{}]", indexUUID);
             indexWriter.deleteDocuments(new Term(INDEX_UUID_FIELD_NAME, indexUUID));
+        }
+
+        public void deleteMappingMetadata(String mappingHash) throws IOException {
+            this.logger.trace("removing mapping metadata for [{}]", mappingHash);
+            indexWriter.deleteDocuments(new Term(MAPPING_HASH_FIELD_NAME, mappingHash));
         }
 
         void flush() throws IOException {
@@ -715,19 +818,24 @@ public class PersistedClusterStateService {
         boolean fullStateWritten = false;
         private final AtomicBoolean closed = new AtomicBoolean();
         private final byte[] documentBuffer;
+        @Nullable // if assertions disabled or we explicitly don't want to assert on commit in a test
+        private final CheckedBiConsumer<Path, DirectoryReader, IOException> assertOnCommit;
 
         private Writer(
             List<MetadataIndexWriter> metadataIndexWriters,
             String nodeId,
             ByteSizeValue documentPageSize,
             LongSupplier relativeTimeMillisSupplier,
-            Supplier<TimeValue> slowWriteLoggingThresholdSupplier
+            Supplier<TimeValue> slowWriteLoggingThresholdSupplier,
+            @Nullable // if assertions disabled or we explicitly don't want to assert on commit in a test
+            CheckedBiConsumer<Path, DirectoryReader, IOException> assertOnCommit
         ) {
             this.metadataIndexWriters = metadataIndexWriters;
             this.nodeId = nodeId;
             this.relativeTimeMillisSupplier = relativeTimeMillisSupplier;
             this.slowWriteLoggingThresholdSupplier = slowWriteLoggingThresholdSupplier;
             this.documentBuffer = new byte[ByteSizeUnit.BYTES.toIntBytes(documentPageSize.getBytes())];
+            this.assertOnCommit = assertOnCommit;
         }
 
         private void ensureOpen() {
@@ -835,6 +943,10 @@ public class PersistedClusterStateService {
             assert previouslyWrittenMetadata.coordinationMetadata().term() == metadata.coordinationMetadata().term();
             logger.trace("currentTerm [{}] matches previous currentTerm, writing changes only", metadata.coordinationMetadata().term());
 
+            if (previouslyWrittenMetadata == metadata) {
+                // breakout early if nothing changed
+                return new WriterStats(false, false, metadata.getMappingsByHash().size(), 0, 0, metadata.size(), 0, 0, 0);
+            }
             final boolean updateGlobalMeta = Metadata.isGlobalStateEquals(previouslyWrittenMetadata, metadata) == false;
             if (updateGlobalMeta) {
                 for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
@@ -844,11 +956,32 @@ public class PersistedClusterStateService {
                 addGlobalMetadataDocuments(metadata);
             }
 
+            int numMappingsAdded = 0;
+            int numMappingsRemoved = 0;
+            int numMappingsUnchanged = 0;
+            final var previousMappingHashes = new HashSet<>(previouslyWrittenMetadata.getMappingsByHash().keySet());
+            for (final var entry : metadata.getMappingsByHash().entrySet()) {
+                if (previousMappingHashes.remove(entry.getKey()) == false) {
+                    addMappingDocuments(entry.getKey(), entry.getValue());
+                    numMappingsAdded++;
+                } else {
+                    logger.trace("no action required for mapping [{}]", entry.getKey());
+                    numMappingsUnchanged++;
+                }
+            }
+
+            for (final var unusedMappingHash : previousMappingHashes) {
+                for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
+                    metadataIndexWriter.deleteMappingMetadata(unusedMappingHash);
+                    numMappingsRemoved++;
+                }
+            }
+
             final Map<String, Long> indexMetadataVersionByUUID = Maps.newMapWithExpectedSize(previouslyWrittenMetadata.indices().size());
-            for (IndexMetadata indexMetadata : previouslyWrittenMetadata.indices().values()) {
+            previouslyWrittenMetadata.indices().forEach((name, indexMetadata) -> {
                 final Long previousValue = indexMetadataVersionByUUID.putIfAbsent(indexMetadata.getIndexUUID(), indexMetadata.getVersion());
                 assert previousValue == null : indexMetadata.getIndexUUID() + " already mapped to " + previousValue;
-            }
+            });
 
             int numIndicesAdded = 0;
             int numIndicesUpdated = 0;
@@ -876,7 +1009,7 @@ public class PersistedClusterStateService {
                     addIndexMetadataDocuments(indexMetadata);
                 } else {
                     numIndicesUnchanged++;
-                    logger.trace("no action required for [{}]", indexMetadata.getIndex());
+                    logger.trace("no action required for index [{}]", indexMetadata.getIndex());
                 }
                 indexMetadataVersionByUUID.remove(indexMetadata.getIndexUUID());
             }
@@ -894,11 +1027,39 @@ public class PersistedClusterStateService {
                 metadataIndexWriter.flush();
             }
 
-            return new WriterStats(false, updateGlobalMeta, numIndicesUnchanged, numIndicesAdded, numIndicesUpdated, numIndicesRemoved);
+            return new WriterStats(
+                false,
+                updateGlobalMeta,
+                numMappingsUnchanged,
+                numMappingsAdded,
+                numMappingsRemoved,
+                numIndicesUnchanged,
+                numIndicesAdded,
+                numIndicesUpdated,
+                numIndicesRemoved
+            );
         }
 
         private static int lastPageValue(boolean isLastPage) {
             return isLastPage ? IS_LAST_PAGE : IS_NOT_LAST_PAGE;
+        }
+
+        private void addMappingDocuments(String key, MappingMetadata mappingMetadata) throws IOException {
+            logger.trace("writing mapping metadata with hash [{}]", key);
+            writePages(
+                (builder, params) -> builder.field("content", mappingMetadata.source().compressed()),
+                (((bytesRef, pageIndex, isLastPage) -> {
+                    final Document document = new Document();
+                    document.add(new StringField(TYPE_FIELD_NAME, MAPPING_TYPE_NAME, Field.Store.NO));
+                    document.add(new StringField(MAPPING_HASH_FIELD_NAME, key, Field.Store.YES));
+                    document.add(new StoredField(PAGE_FIELD_NAME, pageIndex));
+                    document.add(new StoredField(LAST_PAGE_FIELD_NAME, lastPageValue(isLastPage)));
+                    document.add(new StoredField(DATA_FIELD_NAME, bytesRef));
+                    for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
+                        metadataIndexWriter.indexWriter.addDocument(document);
+                    }
+                }))
+            );
         }
 
         private void addIndexMetadataDocuments(IndexMetadata indexMetadata) throws IOException {
@@ -920,7 +1081,7 @@ public class PersistedClusterStateService {
 
         private void addGlobalMetadataDocuments(Metadata metadata) throws IOException {
             logger.trace("updating global metadata doc");
-            writePages(metadata, (bytesRef, pageIndex, isLastPage) -> {
+            writePages(ChunkedToXContent.wrapAsToXContent(metadata), (bytesRef, pageIndex, isLastPage) -> {
                 final Document document = new Document();
                 document.add(new StringField(TYPE_FIELD_NAME, GLOBAL_TYPE_NAME, Field.Store.NO));
                 document.add(new StoredField(PAGE_FIELD_NAME, pageIndex));
@@ -960,6 +1121,10 @@ public class PersistedClusterStateService {
         private WriterStats addMetadata(Metadata metadata) throws IOException {
             addGlobalMetadataDocuments(metadata);
 
+            for (final var entry : metadata.getMappingsByHash().entrySet()) {
+                addMappingDocuments(entry.getKey(), entry.getValue());
+            }
+
             for (IndexMetadata indexMetadata : metadata.indices().values()) {
                 addIndexMetadataDocuments(indexMetadata);
             }
@@ -970,7 +1135,7 @@ public class PersistedClusterStateService {
                 metadataIndexWriter.flush();
             }
 
-            return new WriterStats(true, true, 0, 0, metadata.indices().size(), 0);
+            return new WriterStats(true, true, 0, metadata.getMappingsByHash().size(), 0, 0, metadata.indices().size(), 0, 0);
         }
 
         public void writeIncrementalTermUpdateAndCommit(long currentTerm, long lastAcceptedVersion, Version oldestIndexVersion)
@@ -984,6 +1149,22 @@ public class PersistedClusterStateService {
             ensureOpen();
             prepareCommit(currentTerm, lastAcceptedVersion, oldestIndexVersion);
             completeCommit();
+            assert assertOnCommit();
+        }
+
+        private boolean assertOnCommit() {
+            if (assertOnCommit != null && Randomness.get().nextInt(100) == 0) {
+                // only rarely run this assertion since reloading the whole state can be quite expensive
+                for (final var metadataIndexWriter : metadataIndexWriters) {
+                    try (var directoryReader = DirectoryReader.open(metadataIndexWriter.indexWriter)) {
+                        assertOnCommit.accept(metadataIndexWriter.path, directoryReader);
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    }
+                }
+            }
+
+            return true;
         }
 
         private void prepareCommit(long currentTerm, long lastAcceptedVersion, Version oldestIndexVersion) throws IOException {
@@ -1052,6 +1233,9 @@ public class PersistedClusterStateService {
         private record WriterStats(
             boolean isFullWrite,
             boolean globalMetaUpdated,
+            int numMappingsUnchanged,
+            int numMappingsAdded,
+            int numMappingsRemoved,
             int numIndicesUnchanged,
             int numIndicesAdded,
             int numIndicesUpdated,
@@ -1060,14 +1244,24 @@ public class PersistedClusterStateService {
             @Override
             public String toString() {
                 if (isFullWrite) {
-                    return String.format(Locale.ROOT, "wrote global metadata and metadata for [%d] indices", numIndicesUpdated);
+                    return String.format(
+                        Locale.ROOT,
+                        "wrote global metadata, [%d] mappings, and metadata for [%d] indices",
+                        numMappingsAdded,
+                        numIndicesAdded
+                    );
                 } else {
                     return String.format(
                         Locale.ROOT,
                         """
-                            [%s] global metadata, wrote metadata for [%d] new indices and [%d] existing indices, \
+                            [%s] global metadata, \
+                            wrote [%d] new mappings, removed [%d] mappings and skipped [%d] unchanged mappings, \
+                            wrote metadata for [%d] new indices and [%d] existing indices, \
                             removed metadata for [%d] indices and skipped [%d] unchanged indices""",
                         globalMetaUpdated ? "wrote" : "skipped writing",
+                        numMappingsAdded,
+                        numMappingsRemoved,
+                        numMappingsUnchanged,
                         numIndicesAdded,
                         numIndicesUpdated,
                         numIndicesRemoved,

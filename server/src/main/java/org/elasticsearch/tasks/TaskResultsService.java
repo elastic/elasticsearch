@@ -9,7 +9,6 @@ package org.elasticsearch.tasks;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -102,7 +101,7 @@ public class TaskResultsService {
                     listener.onFailure(e);
                 } else {
                     TimeValue wait = backoff.next();
-                    logger.warn(() -> new ParameterizedMessage("failed to store task result, retrying in [{}]", wait), e);
+                    logger.warn(() -> "failed to store task result, retrying in [" + wait + "]", e);
                     threadPool.schedule(() -> doStoreResult(backoff, index, listener), wait, ThreadPool.Names.SAME);
                 }
             }

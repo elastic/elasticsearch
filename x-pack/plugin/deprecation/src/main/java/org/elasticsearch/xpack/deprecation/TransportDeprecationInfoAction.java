@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -121,20 +122,25 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                     settings,
                     new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN)
                 );
-                pluginSettingIssues(PLUGIN_CHECKERS, components, ActionListener.wrap(deprecationIssues -> {
-                    listener.onResponse(
-                        DeprecationInfoAction.Response.from(
-                            state,
-                            indexNameExpressionResolver,
-                            request,
-                            response,
-                            INDEX_SETTINGS_CHECKS,
-                            CLUSTER_SETTINGS_CHECKS,
-                            deprecationIssues,
-                            skipTheseDeprecations
+                pluginSettingIssues(
+                    PLUGIN_CHECKERS,
+                    components,
+                    new ThreadedActionListener<>(
+                        client.threadPool().generic(),
+                        listener.map(
+                            deprecationIssues -> DeprecationInfoAction.Response.from(
+                                state,
+                                indexNameExpressionResolver,
+                                request,
+                                response,
+                                INDEX_SETTINGS_CHECKS,
+                                CLUSTER_SETTINGS_CHECKS,
+                                deprecationIssues,
+                                skipTheseDeprecations
+                            )
                         )
-                    );
-                }, listener::onFailure));
+                    )
+                );
 
             }, listener::onFailure)
         );
@@ -153,6 +159,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             return;
         }
         GroupedActionListener<DeprecationChecker.CheckResult> groupedActionListener = new GroupedActionListener<>(
+            enabledCheckers.size(),
             ActionListener.wrap(
                 checkResults -> listener.onResponse(
                     checkResults.stream()
@@ -161,8 +168,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                         )
                 ),
                 listener::onFailure
-            ),
-            enabledCheckers.size()
+            )
         );
         for (DeprecationChecker checker : checkers) {
             checker.check(components, groupedActionListener);

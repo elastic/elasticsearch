@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequestBuilder;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -28,11 +27,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
@@ -102,19 +99,9 @@ public class SimpleBlocksIT extends ESIntegTestCase {
     public void testIndexReadWriteMetadataBlocks() {
         canCreateIndex("test1");
         canIndexDocument("test1");
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test1")
-            .setSettings(Settings.builder().put(SETTING_BLOCKS_WRITE, true))
-            .execute()
-            .actionGet();
+        updateIndexSettings(Settings.builder().put(SETTING_BLOCKS_WRITE, true), "test1");
         canNotIndexDocument("test1");
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test1")
-            .setSettings(Settings.builder().put(SETTING_BLOCKS_WRITE, false))
-            .execute()
-            .actionGet();
+        updateIndexSettings(Settings.builder().put(SETTING_BLOCKS_WRITE, false), "test1");
         canIndexDocument("test1");
     }
 
@@ -158,14 +145,8 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         }
     }
 
-    private void setIndexReadOnly(String index, Object value) {
-        HashMap<String, Object> newSettings = new HashMap<>();
-        newSettings.put(SETTING_READ_ONLY, value);
-
-        UpdateSettingsRequestBuilder settingsRequest = client().admin().indices().prepareUpdateSettings(index);
-        settingsRequest.setSettings(newSettings);
-        AcknowledgedResponse settingsResponse = settingsRequest.execute().actionGet();
-        assertThat(settingsResponse, notNullValue());
+    private void setIndexReadOnly(String index, String value) {
+        updateIndexSettings(Settings.builder().put(SETTING_READ_ONLY, value), index);
     }
 
     public void testAddBlocksWhileExistingBlocks() {
@@ -266,6 +247,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
     public void testAddIndexBlock() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
+        ensureGreen(indexName);
 
         final int nbDocs = randomIntBetween(0, 50);
         indexRandom(
@@ -279,7 +261,8 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
         final APIBlock block = randomAddableBlock();
         try {
-            assertAcked(client().admin().indices().prepareAddBlock(block, indexName));
+            AddIndexBlockResponse response = client().admin().indices().prepareAddBlock(block, indexName).get();
+            assertTrue("Add block [" + block + "] to index [" + indexName + "] not acknowledged: " + response, response.isAcknowledged());
             assertIndexHasBlock(block, indexName);
         } finally {
             disableIndexBlock(indexName, block);
@@ -324,7 +307,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
         final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         assertThat(clusterState.metadata().indices().get(indexName).getState(), is(IndexMetadata.State.OPEN));
-        assertThat(clusterState.routingTable().allShards().stream().allMatch(ShardRouting::unassigned), is(true));
+        assertThat(clusterState.routingTable().allShards().allMatch(ShardRouting::unassigned), is(true));
 
         final APIBlock block = randomAddableBlock();
         try {
@@ -384,13 +367,10 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         }
     }
 
-    @TestLogging(
-        reason = "https://github.com/elastic/elasticsearch/issues/74345",
-        value = "org.elasticsearch.action.admin.indices.readonly:DEBUG,org.elasticsearch.cluster.metadata:DEBUG"
-    )
     public void testAddBlockWhileIndexingDocuments() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
+        ensureGreen(indexName);
 
         final APIBlock block = randomAddableBlock();
         int nbDocs = 0;
@@ -406,7 +386,10 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
                 waitForDocs(randomIntBetween(10, 50), indexer);
                 final AddIndexBlockResponse response = client().admin().indices().prepareAddBlock(block, indexName).get();
-                assertTrue("Add Index Block request was not acknowledged: " + response, response.isAcknowledged());
+                assertTrue(
+                    "Add block [" + block + "] to index [" + indexName + "] not acknowledged: " + response,
+                    response.isAcknowledged()
+                );
                 indexer.stopAndAwaitStopped();
                 nbDocs += indexer.totalIndexedDocs();
             }

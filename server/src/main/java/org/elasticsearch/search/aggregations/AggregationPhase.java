@@ -11,7 +11,7 @@ import org.apache.lucene.search.Collector;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.aggregations.timeseries.TimeSeriesIndexSearcher;
+import org.elasticsearch.search.aggregations.support.TimeSeriesIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
@@ -29,7 +29,7 @@ public class AggregationPhase {
     @Inject
     public AggregationPhase() {}
 
-    public void preProcess(SearchContext context) {
+    public static void preProcess(SearchContext context) {
         if (context.aggregations() == null) {
             return;
         }
@@ -49,16 +49,16 @@ public class AggregationPhase {
             } catch (IOException e) {
                 throw new AggregationExecutionException("Could not perform time series aggregation", e);
             }
-            context.queryCollectors().put(AggregationPhase.class, BucketCollector.NO_OP_COLLECTOR);
+            context.registerAggsCollector(BucketCollector.NO_OP_COLLECTOR);
         } else {
             Collector collector = context.getProfilers() == null
-                ? bucketCollector
-                : new InternalProfileCollector(bucketCollector, CollectorResult.REASON_AGGREGATION, List.of());
-            context.queryCollectors().put(AggregationPhase.class, collector);
+                ? bucketCollector.asCollector()
+                : new InternalProfileCollector(bucketCollector.asCollector(), CollectorResult.REASON_AGGREGATION, List.of());
+            context.registerAggsCollector(collector);
         }
     }
 
-    private List<Runnable> getCancellationChecks(SearchContext context) {
+    private static List<Runnable> getCancellationChecks(SearchContext context) {
         List<Runnable> cancellationChecks = new ArrayList<>();
         if (context.lowLevelCancellation()) {
             // This searching doesn't live beyond this phase, so we don't need to remove query cancellation
@@ -88,7 +88,7 @@ public class AggregationPhase {
         return cancellationChecks;
     }
 
-    public void execute(SearchContext context) {
+    public static void execute(SearchContext context) {
         if (context.aggregations() == null) {
             context.queryResult().aggregations(null);
             return;
@@ -118,6 +118,6 @@ public class AggregationPhase {
 
         // disable aggregations so that they don't run on next pages in case of scrolling
         context.aggregations(null);
-        context.queryCollectors().remove(AggregationPhase.class);
+        context.registerAggsCollector(null);
     }
 }

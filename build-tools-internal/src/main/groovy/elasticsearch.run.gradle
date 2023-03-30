@@ -30,6 +30,7 @@ testClusters.register("runTask") {
       setting 'xpack.security.enabled', 'true'
       keystore 'bootstrap.password', 'password'
       user username: 'elastic-admin', password: 'elastic-password', role: '_es_test_root'
+      numberOfNodes = 1
     }
 }
 

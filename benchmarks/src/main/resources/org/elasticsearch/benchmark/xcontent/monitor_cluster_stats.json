@@ -262,7 +262,6 @@
             "vm_name" : "OpenJDK 64-Bit Server VM",
             "vm_version" : "11.0.7.7",
             "vm_vendor" : "OpenJDK",
-            "bundled_jdk" : false,
             "using_bundled_jdk" : null,
             "count" : 15
           }
@@ -296,16 +295,6 @@
           "java_version" : "1.8",
           "description" : "OSS snapshot plugin",
           "classname" : "org.elasticsearch.plugin.repository.oss.OssRepositoryPlugin",
-          "extended_plugins" : [ ],
-          "has_native_controller" : false
-        },
-        {
-          "name" : "ingest-attachment",
-          "version" : "7.10.0",
-          "elasticsearch_version" : "7.10.0",
-          "java_version" : "1.8",
-          "description" : "Ingest processor that uses Apache Tika to extract contents",
-          "classname" : "org.elasticsearch.ingest.attachment.IngestAttachmentPlugin",
           "extended_plugins" : [ ],
           "has_native_controller" : false
         },

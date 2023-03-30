@@ -26,7 +26,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestMultiGetAction extends BaseRestHandler {
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" + " Specifying types in multi get requests is deprecated.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in multi get requests is deprecated.";
 
     private final boolean allowExplicitIndex;
 
@@ -60,6 +60,10 @@ public class RestMultiGetAction extends BaseRestHandler {
         multiGetRequest.refresh(request.paramAsBoolean("refresh", multiGetRequest.refresh()));
         multiGetRequest.preference(request.param("preference"));
         multiGetRequest.realtime(request.paramAsBoolean("realtime", multiGetRequest.realtime()));
+        if (request.paramAsBoolean("force_synthetic_source", false)) {
+            multiGetRequest.setForceSyntheticSource(true);
+        }
+
         if (request.param("fields") != null) {
             throw new IllegalArgumentException(
                 "The parameter [fields] is no longer supported, "

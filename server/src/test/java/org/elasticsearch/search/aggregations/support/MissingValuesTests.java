@@ -15,10 +15,8 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.test.ESTestCase;
@@ -131,6 +129,11 @@ public class MissingValuesTests extends ESTestCase {
                     return NO_MORE_ORDS;
                 }
             }
+
+            @Override
+            public int docValueCount() {
+                return ords[doc].length;
+            }
         };
 
         final BytesRef existingMissing = RandomPicks.randomFrom(random(), values);
@@ -225,6 +228,11 @@ public class MissingValuesTests extends ESTestCase {
 
             @Override
             public long nextOrd() throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public int docValueCount() {
                 throw new UnsupportedOperationException();
             }
 
@@ -332,53 +340,6 @@ public class MissingValuesTests extends ESTestCase {
             } else {
                 assertEquals(1, withMissingReplaced.docValueCount());
                 assertEquals(missing, withMissingReplaced.nextValue(), 0);
-            }
-        }
-    }
-
-    public void testMissingGeoPoints() throws IOException {
-        final int numDocs = TestUtil.nextInt(random(), 1, 100);
-        final GeoPoint[][] values = new GeoPoint[numDocs][];
-        for (int i = 0; i < numDocs; ++i) {
-            values[i] = new GeoPoint[random().nextInt(4)];
-            for (int j = 0; j < values[i].length; ++j) {
-                values[i][j] = new GeoPoint(randomDouble() * 90, randomDouble() * 180);
-            }
-        }
-        MultiGeoPointValues asGeoValues = new MultiGeoPointValues() {
-
-            int doc = -1;
-            int i;
-
-            @Override
-            public GeoPoint nextValue() {
-                return values[doc][i++];
-            }
-
-            @Override
-            public boolean advanceExact(int docId) {
-                doc = docId;
-                i = 0;
-                return values[doc].length > 0;
-            }
-
-            @Override
-            public int docValueCount() {
-                return values[doc].length;
-            }
-        };
-        final GeoPoint missing = new GeoPoint(randomDouble() * 90, randomDouble() * 180);
-        MultiGeoPointValues withMissingReplaced = MissingValues.replaceMissing(asGeoValues, missing);
-        for (int i = 0; i < numDocs; ++i) {
-            assertTrue(withMissingReplaced.advanceExact(i));
-            if (values[i].length > 0) {
-                assertEquals(values[i].length, withMissingReplaced.docValueCount());
-                for (int j = 0; j < values[i].length; ++j) {
-                    assertEquals(values[i][j], withMissingReplaced.nextValue());
-                }
-            } else {
-                assertEquals(1, withMissingReplaced.docValueCount());
-                assertEquals(missing, withMissingReplaced.nextValue());
             }
         }
     }

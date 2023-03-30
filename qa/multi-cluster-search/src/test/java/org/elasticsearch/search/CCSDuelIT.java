@@ -15,9 +15,9 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -25,16 +25,16 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.indices.CreateIndexRequest;
-import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -56,7 +56,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.MaxBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -171,14 +170,12 @@ public class CCSDuelIT extends ESRestTestCase {
         IndexResponse indexResponse = restHighLevelClient.index(indexRequest, RequestOptions.DEFAULT);
         assertEquals(201, indexResponse.status().getStatus());
 
-        CreateIndexRequest createEmptyIndexRequest = new CreateIndexRequest(INDEX_NAME + "_empty");
-        CreateIndexResponse response = restHighLevelClient.indices().create(createEmptyIndexRequest, RequestOptions.DEFAULT);
+        CreateIndexResponse response = createIndex(INDEX_NAME + "_empty");
         assertTrue(response.isAcknowledged());
 
         int numShards = randomIntBetween(1, 5);
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest(INDEX_NAME);
-        createIndexRequest.settings(Settings.builder().put("index.number_of_shards", numShards).put("index.number_of_replicas", 0));
-        createIndexRequest.mapping("""
+        Settings settings = Settings.builder().put("index.number_of_shards", numShards).put("index.number_of_replicas", 0).build();
+        String mapping = """
             {
               "properties": {
                 "id": {
@@ -194,13 +191,13 @@ public class CCSDuelIT extends ESRestTestCase {
                   }
                 }
               }
-            }""", XContentType.JSON);
-        CreateIndexResponse createIndexResponse = restHighLevelClient.indices().create(createIndexRequest, RequestOptions.DEFAULT);
-        assertTrue(createIndexResponse.isAcknowledged());
+            }""";
+        response = createIndex(INDEX_NAME, settings, mapping);
+        assertTrue(response.isAcknowledged());
 
-        BulkProcessor bulkProcessor = BulkProcessor.builder(
+        BulkProcessor2 bulkProcessor = BulkProcessor2.builder(
             (r, l) -> restHighLevelClient.bulkAsync(r, RequestOptions.DEFAULT, l),
-            new BulkProcessor.Listener() {
+            new BulkProcessor2.Listener() {
                 @Override
                 public void beforeBulk(long executionId, BulkRequest request) {}
 
@@ -210,11 +207,11 @@ public class CCSDuelIT extends ESRestTestCase {
                 }
 
                 @Override
-                public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+                public void afterBulk(long executionId, BulkRequest request, Exception failure) {
                     throw new AssertionError("Failed to execute bulk", failure);
                 }
             },
-            "CCSDuelIT"
+            new DeterministicTaskQueue(random()).getThreadPool()
         ).build();
 
         int numQuestions = randomIntBetween(50, 100);
@@ -227,7 +224,7 @@ public class CCSDuelIT extends ESRestTestCase {
         }
         assertTrue(bulkProcessor.awaitClose(30, TimeUnit.SECONDS));
 
-        RefreshResponse refreshResponse = restHighLevelClient.indices().refresh(new RefreshRequest(INDEX_NAME), RequestOptions.DEFAULT);
+        RefreshResponse refreshResponse = refresh(INDEX_NAME);
         ElasticsearchAssertions.assertNoFailures(refreshResponse);
     }
 

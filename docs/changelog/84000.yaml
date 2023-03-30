@@ -1,5 +1,0 @@
-pr: 84000
-summary: Fix `GeoIpDownloader` startup during rolling upgrade
-area: Ingest
-type: bug
-issues: []

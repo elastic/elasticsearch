@@ -102,7 +102,7 @@ public class RecallAtKTests extends ESTestCase {
         int k = 5;
         SearchHit[] hits = new SearchHit[k];
         for (int i = 0; i < k; i++) {
-            hits[i] = new SearchHit(i, i + "", Collections.emptyMap(), Collections.emptyMap());
+            hits[i] = new SearchHit(i, i + "");
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null));
         }
 
@@ -216,7 +216,7 @@ public class RecallAtKTests extends ESTestCase {
     private static SearchHit[] toSearchHits(List<RatedDocument> rated, String index) {
         SearchHit[] hits = new SearchHit[rated.size()];
         for (int i = 0; i < rated.size(); i++) {
-            hits[i] = new SearchHit(i, i + "", Collections.emptyMap(), Collections.emptyMap());
+            hits[i] = new SearchHit(i, i + "");
             hits[i].shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null));
         }
         return hits;

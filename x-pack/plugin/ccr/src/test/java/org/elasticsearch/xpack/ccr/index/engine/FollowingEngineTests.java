@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -75,15 +76,19 @@ public class FollowingEngineTests extends ESTestCase {
     private ShardId shardId;
     private AtomicLong primaryTerm = new AtomicLong();
     private AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+    private IndexMode indexMode;
 
+    @Override
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool("following-engine-tests");
         index = new Index("index", "uuid");
         shardId = new ShardId(index, 0);
         primaryTerm.set(randomLongBetween(1, Long.MAX_VALUE));
+        indexMode = randomFrom(IndexMode.values());
     }
 
+    @Override
     public void tearDown() throws Exception {
         terminate(threadPool);
         super.tearDown();
@@ -248,7 +253,7 @@ public class FollowingEngineTests extends ESTestCase {
             newMergePolicy(),
             indexWriterConfig.getAnalyzer(),
             indexWriterConfig.getSimilarity(),
-            new CodecService(null),
+            new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE),
             new Engine.EventListener() {
                 @Override
                 public void onFailedEngine(String reason, Exception e) {
@@ -267,7 +272,10 @@ public class FollowingEngineTests extends ESTestCase {
             () -> RetentionLeases.EMPTY,
             () -> primaryTerm.get(),
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-            null
+            null,
+            System::nanoTime,
+            null,
+            true
         );
     }
 
@@ -717,12 +725,21 @@ public class FollowingEngineTests extends ESTestCase {
     }
 
     public void testProcessOnceOnPrimary() throws Exception {
-        final Settings settings = Settings.builder()
+        final Settings.Builder settingsBuilder = Settings.builder()
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
             .put("index.version.created", Version.CURRENT)
-            .put("index.xpack.ccr.following_index", true)
-            .build();
+            .put("index.xpack.ccr.following_index", true);
+        switch (indexMode) {
+            case STANDARD:
+                break;
+            case TIME_SERIES:
+                settingsBuilder.put("index.mode", "time_series").put("index.routing_path", "foo");
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown index mode [" + indexMode + "]");
+        }
+        final Settings settings = settingsBuilder.build();
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         final CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedDocFunc = EngineTestCase.nestedParsedDocFactory();

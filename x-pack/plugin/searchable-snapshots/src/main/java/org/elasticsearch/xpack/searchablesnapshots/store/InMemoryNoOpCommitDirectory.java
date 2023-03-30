@@ -13,7 +13,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.NoLockFactory;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.store.ImmutableDirectoryException;
 
 import java.io.FileNotFoundException;
@@ -28,7 +28,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
  * A {@link Directory} which wraps a read-only "real" directory with a wrapper that allows no-op (in-memory) commits, and peer recoveries
  * of the same, so that we can start a shard on a completely readonly data set.
  */
-public class InMemoryNoOpCommitDirectory extends FilterDirectory {
+class InMemoryNoOpCommitDirectory extends FilterDirectory {
 
     private final Directory realDirectory;
     private final Set<String> deletedFiles = new CopyOnWriteArraySet<>();

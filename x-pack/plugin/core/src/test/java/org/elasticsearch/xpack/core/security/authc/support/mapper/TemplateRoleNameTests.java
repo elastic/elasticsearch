@@ -27,9 +27,8 @@ import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName.Format;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
@@ -73,9 +72,9 @@ public class TemplateRoleNameTests extends ESTestCase {
     }
 
     public void testToXContent() throws Exception {
-        final String json = """
+        final String json = Strings.format("""
             {"template":"{\\"source\\":\\"%s\\"}","format":"%s"}\
-            """.formatted(randomAlphaOfLengthBetween(8, 24), randomFrom(Format.values()).formatName());
+            """, randomAlphaOfLengthBetween(8, 24), randomFrom(Format.values()).formatName());
         assertThat(Strings.toString(parse(json)), equalTo(json));
     }
 
@@ -112,8 +111,7 @@ public class TemplateRoleNameTests extends ESTestCase {
     }
 
     private TemplateRoleName parse(String json) throws IOException {
-        final XContentParser parser = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+        final XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json);
         final TemplateRoleName role = TemplateRoleName.parse(parser);
         assertThat(role, notNullValue());
         return role;

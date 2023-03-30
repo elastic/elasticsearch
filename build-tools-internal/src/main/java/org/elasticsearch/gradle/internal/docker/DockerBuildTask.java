@@ -7,10 +7,12 @@
  */
 package org.elasticsearch.gradle.internal.docker;
 
+import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.LoggedExec;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
@@ -53,15 +55,16 @@ public class DockerBuildTask extends DefaultTask {
     private boolean noCache = true;
     private String[] baseImages;
     private MapProperty<String, String> buildArgs;
+    private Property<String> platform;
 
     @Inject
-    public DockerBuildTask(WorkerExecutor workerExecutor, ObjectFactory objectFactory) {
+    public DockerBuildTask(WorkerExecutor workerExecutor, ObjectFactory objectFactory, ProjectLayout projectLayout) {
         this.workerExecutor = workerExecutor;
         this.markerFile = objectFactory.fileProperty();
         this.dockerContext = objectFactory.directoryProperty();
         this.buildArgs = objectFactory.mapProperty(String.class, String.class);
-
-        this.markerFile.set(getProject().getLayout().getBuildDirectory().file("markers/" + this.getName() + ".marker"));
+        this.platform = objectFactory.property(String.class).convention(Architecture.current().dockerPlatform);
+        this.markerFile.set(projectLayout.getBuildDirectory().file("markers/" + this.getName() + ".marker"));
     }
 
     @TaskAction
@@ -74,6 +77,7 @@ public class DockerBuildTask extends DefaultTask {
             params.getNoCache().set(noCache);
             params.getBaseImages().set(Arrays.asList(baseImages));
             params.getBuildArgs().set(buildArgs);
+            params.getPlatform().set(platform);
         });
     }
 
@@ -124,8 +128,9 @@ public class DockerBuildTask extends DefaultTask {
         return buildArgs;
     }
 
-    public void setBuildArgs(MapProperty<String, String> buildArgs) {
-        this.buildArgs = buildArgs;
+    @Input
+    public Property<String> getPlatform() {
+        return platform;
     }
 
     @OutputFile
@@ -176,11 +181,20 @@ public class DockerBuildTask extends DefaultTask {
             }
 
             final List<String> tags = parameters.getTags().get();
+            final boolean isCrossPlatform = parameters.getPlatform().get().equals(Architecture.current().dockerPlatform) == false;
 
             LoggedExec.exec(execOperations, spec -> {
                 spec.executable("docker");
 
+                if (isCrossPlatform) {
+                    spec.args("buildx");
+                }
+
                 spec.args("build", parameters.getDockerContext().get().getAsFile().getAbsolutePath());
+
+                if (isCrossPlatform) {
+                    spec.args("--platform", parameters.getPlatform().get());
+                }
 
                 if (parameters.getNoCache().get()) {
                     spec.args("--no-cache");
@@ -228,5 +242,7 @@ public class DockerBuildTask extends DefaultTask {
         ListProperty<String> getBaseImages();
 
         MapProperty<String, String> getBuildArgs();
+
+        Property<String> getPlatform();
     }
 }

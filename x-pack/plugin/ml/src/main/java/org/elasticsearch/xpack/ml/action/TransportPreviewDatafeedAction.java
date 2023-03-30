@@ -20,10 +20,14 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
@@ -49,6 +53,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeWithHeadersAsync;
+import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
 public class TransportPreviewDatafeedAction extends HandledTransportAction<PreviewDatafeedAction.Request, PreviewDatafeedAction.Response> {
@@ -87,14 +92,19 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
 
     @Override
     protected void doExecute(Task task, PreviewDatafeedAction.Request request, ActionListener<PreviewDatafeedAction.Response> listener) {
+        TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         ActionListener<DatafeedConfig> datafeedConfigActionListener = ActionListener.wrap(datafeedConfig -> {
             if (request.getJobConfig() != null) {
-                previewDatafeed(task, datafeedConfig, request.getJobConfig().build(new Date()), listener);
+                previewDatafeed(parentTaskId, datafeedConfig, request.getJobConfig().build(new Date()), request, listener);
                 return;
             }
             jobConfigProvider.getJob(
                 datafeedConfig.getJobId(),
-                ActionListener.wrap(jobBuilder -> previewDatafeed(task, datafeedConfig, jobBuilder.build(), listener), listener::onFailure)
+                parentTaskId,
+                ActionListener.wrap(
+                    jobBuilder -> previewDatafeed(parentTaskId, datafeedConfig, jobBuilder.build(), request, listener),
+                    listener::onFailure
+                )
             );
         }, listener::onFailure);
         if (request.getDatafeedConfig() != null) {
@@ -102,15 +112,17 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         } else {
             datafeedConfigProvider.getDatafeedConfig(
                 request.getDatafeedId(),
+                parentTaskId,
                 ActionListener.wrap(builder -> datafeedConfigActionListener.onResponse(builder.build()), listener::onFailure)
             );
         }
     }
 
     private void previewDatafeed(
-        Task task,
+        TaskId parentTaskId,
         DatafeedConfig datafeedConfig,
         Job job,
+        PreviewDatafeedAction.Request request,
         ActionListener<PreviewDatafeedAction.Response> listener
     ) {
         DatafeedConfig.Builder previewDatafeedBuilder = buildPreviewDatafeed(datafeedConfig);
@@ -123,25 +135,29 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             // requesting the preview doesn't have permission to search the relevant indices.
             DatafeedConfig previewDatafeedConfig = previewDatafeedBuilder.build();
             DataExtractorFactory.create(
-                new ParentTaskAssigningClient(client, clusterService.localNode(), task),
+                new ParentTaskAssigningClient(client, parentTaskId),
                 previewDatafeedConfig,
                 job,
                 xContentRegistry,
                 // Fake DatafeedTimingStatsReporter that does not have access to results index
-                new DatafeedTimingStatsReporter(new DatafeedTimingStats(datafeedConfig.getJobId()), (ts, refreshPolicy) -> {}),
-                listener.delegateFailure((l, dataExtractorFactory) -> {
-                    isDateNanos(
+                new DatafeedTimingStatsReporter(new DatafeedTimingStats(datafeedConfig.getJobId()), (ts, refreshPolicy, listener1) -> {}),
+                listener.delegateFailure(
+                    (l, dataExtractorFactory) -> isDateNanos(
                         previewDatafeedConfig,
                         job.getDataDescription().getTimeField(),
                         listener.delegateFailure((l2, isDateNanos) -> {
-                            DataExtractor dataExtractor = dataExtractorFactory.newExtractor(
-                                0,
-                                isDateNanos ? DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli() : Long.MAX_VALUE
-                            );
-                            threadPool.generic().execute(() -> previewDatafeed(dataExtractor, l));
+                            final QueryBuilder hotOnly = QueryBuilders.boolQuery()
+                                .mustNot(QueryBuilders.termsQuery(DataTierFieldMapper.NAME, "data_frozen", "data_cold"));
+                            final long start = request.getStartTime().orElse(0);
+                            final long end = request.getEndTime()
+                                .orElse(isDateNanos ? DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli() : Long.MAX_VALUE);
+                            DataExtractor dataExtractor = request.getStartTime().isPresent() || request.getEndTime().isPresent()
+                                ? dataExtractorFactory.newExtractor(start, end)
+                                : dataExtractorFactory.newExtractor(start, end, hotOnly);
+                            threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> previewDatafeed(dataExtractor, l));
                         })
-                    );
-                })
+                    )
+                )
             );
         });
     }
@@ -175,7 +191,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             fieldCapabilitiesRequest,
             ActionListener.wrap(fieldCapsResponse -> {
                 Map<String, FieldCapabilities> timeFieldCaps = fieldCapsResponse.getField(timeField);
-                listener.onResponse(timeFieldCaps.keySet().contains(DateFieldMapper.DATE_NANOS_CONTENT_TYPE));
+                listener.onResponse(timeFieldCaps.containsKey(DateFieldMapper.DATE_NANOS_CONTENT_TYPE));
             }, listener::onFailure)
         );
     }

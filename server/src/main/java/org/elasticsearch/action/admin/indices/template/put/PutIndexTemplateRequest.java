@@ -9,7 +9,7 @@ package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -40,11 +40,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 /**
  * A request to create an index template.
@@ -78,7 +76,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         order = in.readInt();
         create = in.readBoolean();
         settings = readSettingsFromStream(in);
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
                 in.readString();    // type - cannot assert on _doc because 7x allows arbitrary type names
@@ -304,7 +302,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                 if (entry.getValue() instanceof String) {
                     patterns(Collections.singletonList((String) entry.getValue()));
                 } else if (entry.getValue() instanceof List) {
-                    List<String> elements = ((List<?>) entry.getValue()).stream().map(Object::toString).collect(Collectors.toList());
+                    List<String> elements = ((List<?>) entry.getValue()).stream().map(Object::toString).toList();
                     patterns(elements);
                 } else {
                     throw new IllegalArgumentException("Malformed [index_patterns] value, should be a string or a list of strings");
@@ -447,8 +445,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         out.writeStringCollection(indexPatterns);
         out.writeInt(order);
         out.writeBoolean(create);
-        writeSettingsToStream(settings, out);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        settings.writeTo(out);
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             out.writeVInt(mappings == null ? 0 : 1);
             if (mappings != null) {
                 out.writeString(MapperService.SINGLE_MAPPING_NAME);
@@ -457,10 +455,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         } else {
             out.writeOptionalString(mappings);
         }
-        out.writeVInt(aliases.size());
-        for (Alias alias : aliases) {
-            alias.writeTo(out);
-        }
+        out.writeCollection(aliases);
         out.writeOptionalVInt(version);
     }
 }

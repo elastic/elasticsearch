@@ -25,10 +25,9 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
     private final long count;
 
     public InternalAvg(String name, double sum, long count, DocValueFormat format, Map<String, Object> metadata) {
-        super(name, metadata);
+        super(name, format, metadata);
         this.sum = sum;
         this.count = count;
-        this.format = format;
     }
 
     /**
@@ -36,7 +35,6 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
      */
     public InternalAvg(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         sum = in.readDouble();
         count = in.readVLong();
     }

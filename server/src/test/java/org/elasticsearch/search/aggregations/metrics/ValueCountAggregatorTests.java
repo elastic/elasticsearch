@@ -17,7 +17,7 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -152,7 +152,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSomeMatchesSortedNumericDocValues() throws IOException {
-        testAggregation(new DocValuesFieldExistsQuery(FIELD_NAME), ValueType.NUMERIC, iw -> {
+        testAggregation(new FieldExistsQuery(FIELD_NAME), ValueType.NUMERIC, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField(FIELD_NAME, 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField(FIELD_NAME, 1)));
@@ -163,7 +163,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSomeMatchesNumericDocValues() throws IOException {
-        testAggregation(new DocValuesFieldExistsQuery(FIELD_NAME), ValueType.NUMBER, iw -> {
+        testAggregation(new FieldExistsQuery(FIELD_NAME), ValueType.NUMBER, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 7)));
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 1)));
         }, count -> {
@@ -382,7 +382,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         Consumer<InternalValueCount> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldTypes);
+        testCase(buildIndex, verify, new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query));
     }
 
     private static MappedFieldType createMappedFieldType(String name, ValueType valueType) {

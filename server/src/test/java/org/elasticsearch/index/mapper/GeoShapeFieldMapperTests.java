@@ -13,6 +13,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -31,10 +32,6 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
         checker.registerUpdateCheck(b -> b.field("orientation", "right"), m -> {
             GeoShapeFieldMapper gsfm = (GeoShapeFieldMapper) m;
             assertEquals(Orientation.RIGHT, gsfm.orientation());
-        });
-        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> {
-            GeoShapeFieldMapper gpfm = (GeoShapeFieldMapper) m;
-            assertTrue(gpfm.ignoreMalformed());
         });
         checker.registerUpdateCheck(b -> b.field("ignore_z_value", false), m -> {
             GeoShapeFieldMapper gpfm = (GeoShapeFieldMapper) m;
@@ -137,22 +134,20 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
         assertThat(ignoreZValue, equalTo(false));
     }
 
-    /**
-     * Test that ignore_malformed parameter correctly parses
-     */
-    public void testIgnoreMalformedParsing() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("ignore_malformed", true)));
-        Mapper fieldMapper = mapper.mappers().getMapper("field");
-        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
-        boolean ignoreMalformed = ((GeoShapeFieldMapper) fieldMapper).ignoreMalformed();
-        assertThat(ignoreMalformed, equalTo(true));
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return true;
+    }
 
-        // explicit false ignore_malformed test
-        mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("ignore_malformed", false)));
-        fieldMapper = mapper.mappers().getMapper("field");
-        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
-        ignoreMalformed = ((GeoShapeFieldMapper) fieldMapper).ignoreMalformed();
-        assertThat(ignoreMalformed, equalTo(false));
+    @Override
+    protected List<ExampleMalformedValue> exampleMalformedValues() {
+        return List.of(
+            exampleMalformedValue("Bad shape").errorMatches("Unknown geometry type: bad"),
+            exampleMalformedValue(
+                "POLYGON ((18.9401790919516 -33.9681188869036, 18.9401790919516 -33.9681188869036, 18.9401790919517 "
+                    + "-33.9681188869036, 18.9401790919517 -33.9681188869036, 18.9401790919516 -33.9681188869036))"
+            ).errorMatches("at least three non-collinear points required")
+        );
     }
 
     public void testGeoShapeMapperMerge() throws Exception {
@@ -192,7 +187,7 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
             b.endArray();
         }));
         assertThat(document.docs(), hasSize(1));
-        assertThat(document.docs().get(0).getFields("field").length, equalTo(2));
+        assertThat(document.docs().get(0).getFields("field"), hasSize(2));
     }
 
     public void testMultiFieldsDeprecationWarning() throws Exception {
@@ -220,5 +215,15 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
     protected Object generateRandomInputValue(MappedFieldType ft) {
         assumeFalse("Test implemented in a follow up", true);
         return null;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

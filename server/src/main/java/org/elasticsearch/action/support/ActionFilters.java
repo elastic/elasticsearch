@@ -21,12 +21,7 @@ public class ActionFilters {
 
     public ActionFilters(Set<ActionFilter> actionFilters) {
         this.filters = actionFilters.toArray(new ActionFilter[actionFilters.size()]);
-        Arrays.sort(filters, new Comparator<ActionFilter>() {
-            @Override
-            public int compare(ActionFilter o1, ActionFilter o2) {
-                return Integer.compare(o1.order(), o2.order());
-            }
-        });
+        Arrays.sort(filters, Comparator.comparingInt(ActionFilter::order));
     }
 
     /**

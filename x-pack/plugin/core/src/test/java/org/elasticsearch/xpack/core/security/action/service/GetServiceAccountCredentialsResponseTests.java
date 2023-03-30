@@ -31,7 +31,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -53,7 +52,7 @@ public class GetServiceAccountCredentialsResponseTests extends ESTestCase {
         final String principal = randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8);
         final List<TokenInfo> indexTokenInfos = IntStream.range(0, randomIntBetween(0, 10))
             .mapToObj(i -> TokenInfo.indexToken(randomAlphaOfLengthBetween(3, 8)))
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
         final GetServiceAccountCredentialsNodesResponse fileTokensResponse = randomGetServiceAccountFileTokensResponse();
         return new GetServiceAccountCredentialsResponse(principal, indexTokenInfos, fileTokensResponse);
     }
@@ -130,7 +129,6 @@ public class GetServiceAccountCredentialsResponseTests extends ESTestCase {
     }
 
     private List<TokenInfo> getAllTokenInfos(GetServiceAccountCredentialsResponse response) {
-        return Stream.concat(response.getNodesResponse().getFileTokenInfos().stream(), response.getIndexTokenInfos().stream())
-            .collect(toUnmodifiableList());
+        return Stream.concat(response.getNodesResponse().getFileTokenInfos().stream(), response.getIndexTokenInfos().stream()).toList();
     }
 }

@@ -6,17 +6,15 @@
  */
 package org.elasticsearch.xpack.ml.extractor;
 
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
-import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 
 public class TimeField extends AbstractField {
 
-    static final Set<String> TYPES = Collections.unmodifiableSet(Sets.newHashSet("date", "date_nanos"));
+    static final Set<String> TYPES = Set.of("date", "date_nanos");
 
     private static final String EPOCH_MILLIS_FORMAT = "epoch_millis";
 

@@ -1,5 +1,5 @@
 [[analysis]]
-== Analysis Plugins
+== Analysis plugins
 
 Analysis plugins extend Elasticsearch by adding new analyzers, tokenizers,
 token filters, or character filters to Elasticsearch.

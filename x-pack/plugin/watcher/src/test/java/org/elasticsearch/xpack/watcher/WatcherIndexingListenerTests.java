@@ -28,9 +28,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
@@ -53,10 +52,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -331,14 +330,13 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         boolean emptyShards = randomBoolean();
 
         if (emptyShards) {
-            when(routingNode.shardsWithState(eq(newActiveWatchIndex), any())).thenReturn(Collections.emptyList());
+            when(routingNode.shardsWithState(eq(newActiveWatchIndex), any(ShardRoutingState[].class))).thenReturn(Stream.empty());
         } else {
             Index index = new Index(newActiveWatchIndex, "uuid");
             ShardId shardId = new ShardId(index, 0);
             ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, "node_1", true, STARTED);
-            List<ShardRouting> routing = Collections.singletonList(shardRouting);
-            when(routingNode.shardsWithState(eq(newActiveWatchIndex), eq(STARTED), eq(RELOCATING))).thenReturn(routing);
-            when(routingTable.allShards(eq(newActiveWatchIndex))).thenReturn(routing);
+            when(routingNode.shardsWithState(eq(newActiveWatchIndex), eq(STARTED), eq(RELOCATING))).thenReturn(Stream.of(shardRouting));
+            when(routingTable.allShards(eq(newActiveWatchIndex))).thenReturn(List.of(shardRouting));
             IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index).addShard(shardRouting).build();
             when(routingTable.index(newActiveWatchIndex)).thenReturn(indexRoutingTable);
         }
@@ -433,8 +431,8 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(localShards.get(0))
             .addShard(localShards.get(1))
-            .addShard(TestShardRouting.newShardRouting(firstShardId, "node2", true, STARTED))
-            .addShard(TestShardRouting.newShardRouting(secondShardId, "node2", true, STARTED))
+            .addShard(TestShardRouting.newShardRouting(firstShardId, "node2", false, STARTED))
+            .addShard(TestShardRouting.newShardRouting(secondShardId, "node2", false, STARTED))
             .build();
 
         Map<ShardId, ShardAllocationConfiguration> allocationIds = listener.getLocalShardAllocationIds(localShards, indexRoutingTable);
@@ -456,7 +454,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
                 boolean shouldBeTriggered = sac.shouldBeTriggered("watch_" + i);
                 boolean hasAlreadyBeenTriggered = bitSet.get(i);
                 if (shouldBeTriggered) {
-                    String message = String.format(Locale.ROOT, "Watch [%s] has already been " + "triggered", i);
+                    String message = Strings.format("Watch [%s] has already been " + "triggered", i);
                     assertThat(message, hasAlreadyBeenTriggered, is(false));
                     bitSet.set(i);
                 }
@@ -652,7 +650,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
         // index bar pointing to .watches
         Index barIndex = new Index("bar", "someuuid2");
-        ShardId barShardId = new ShardId(fooIndex, 0);
+        ShardId barShardId = new ShardId(barIndex, 0);
         IndexMetadata.Builder barIndexMetadata = createIndexBuilder("bar", 1, 0).putAlias(AliasMetadata.builder(Watch.INDEX));
         ShardRouting barShardRouting = TestShardRouting.newShardRouting(barShardId, node1.getId(), true, STARTED);
         IndexRoutingTable.Builder barIndexRoutingTable = IndexRoutingTable.builder(barIndex).addShard(barShardRouting);
@@ -721,9 +719,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
                 AliasMetadata aliasMetadata = mock(AliasMetadata.class);
                 when(aliasMetadata.writeIndex()).thenReturn(true);
                 when(aliasMetadata.getAlias()).thenReturn(Watch.INDEX);
-                ImmutableOpenMap.Builder<String, AliasMetadata> aliases = ImmutableOpenMap.builder();
-                aliases.put(Watch.INDEX, aliasMetadata);
-                when(indexMetadata.getAliases()).thenReturn(aliases.build());
+                when(indexMetadata.getAliases()).thenReturn(Map.of(Watch.INDEX, aliasMetadata));
                 indices.put(Watch.INDEX, new IndexAbstraction.Alias(aliasMetadata, List.of(indexMetadata)));
                 when(metadata.index(any(Index.class))).thenReturn(indexMetadata);
             }
@@ -742,13 +738,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     }
 
     private IndexMetadata.Builder createIndexBuilder(String name, int numberOfShards, int numberOfReplicas) {
-        return IndexMetadata.builder(name)
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            );
+        return IndexMetadata.builder(name).settings(indexSettings(Version.CURRENT, numberOfShards, numberOfReplicas));
     }
 
     private static DiscoveryNode newNode(String nodeId) {

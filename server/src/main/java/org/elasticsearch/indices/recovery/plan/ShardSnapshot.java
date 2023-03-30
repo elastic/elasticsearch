@@ -66,10 +66,6 @@ public class ShardSnapshot {
         return shardSnapshotInfo.getIndexId();
     }
 
-    public long getStartedAt() {
-        return shardSnapshotInfo.getStartedAt();
-    }
-
     public ShardSnapshotInfo getShardSnapshotInfo() {
         return shardSnapshotInfo;
     }
@@ -84,7 +80,7 @@ public class ShardSnapshot {
     }
 
     public List<BlobStoreIndexShardSnapshot.FileInfo> getSnapshotFilesMatching(List<StoreFileMetadata> segmentFiles) {
-        return segmentFiles.stream().map(storeFileMetadata -> snapshotFiles.get(storeFileMetadata.name())).collect(Collectors.toList());
+        return segmentFiles.stream().map(storeFileMetadata -> snapshotFiles.get(storeFileMetadata.name())).toList();
     }
 
     public List<BlobStoreIndexShardSnapshot.FileInfo> getSnapshotFiles() {

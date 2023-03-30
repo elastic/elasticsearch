@@ -9,14 +9,15 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.util.LazyMap;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
+import org.elasticsearch.script.CtxMap;
 import org.elasticsearch.script.TemplateScript;
 
 import java.time.ZoneOffset;
@@ -24,17 +25,17 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
-import java.util.EnumMap;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 /**
  * Represents a single document being captured before indexing and holds the source and metadata (like id, type and index).
@@ -42,69 +43,92 @@ import java.util.function.BiConsumer;
 public final class IngestDocument {
 
     public static final String INGEST_KEY = "_ingest";
-    public static final String PIPELINE_CYCLE_ERROR_MESSAGE = "Cycle detected for pipeline: ";
+    public static final String SOURCE_KEY = SourceFieldMapper.NAME; // "_source"
     private static final String INGEST_KEY_PREFIX = INGEST_KEY + ".";
-    private static final String SOURCE_PREFIX = SourceFieldMapper.NAME + ".";
+    private static final String SOURCE_PREFIX = SOURCE_KEY + ".";
 
+    public static final String PIPELINE_CYCLE_ERROR_MESSAGE = "Cycle detected for pipeline: ";
     static final String TIMESTAMP = "timestamp";
 
-    private final Map<String, Object> sourceAndMetadata;
+    private final IngestCtxMap ctxMap;
     private final Map<String, Object> ingestMetadata;
+
+    /**
+     * Shallowly read-only, very limited, map-like view of the ctxMap and ingestMetadata,
+     * for providing as a model to TemplateScript and ValueSource instances. This avoids the cost of
+     * constructing a purpose-built map on each template evaluation.
+     */
+    private final DelegatingMapView templateModel;
 
     // Contains all pipelines that have been executed for this document
     private final Set<String> executedPipelines = new LinkedHashSet<>();
+    private boolean doNoSelfReferencesCheck = false;
+    private boolean reroute = false;
 
-    public IngestDocument(String index, String id, String routing, Long version, VersionType versionType, Map<String, Object> source) {
-        // source + at max 5 extra fields
-        this.sourceAndMetadata = Maps.newMapWithExpectedSize(source.size() + 5);
-        this.sourceAndMetadata.putAll(source);
-        this.sourceAndMetadata.put(Metadata.INDEX.getFieldName(), index);
-        this.sourceAndMetadata.put(Metadata.ID.getFieldName(), id);
-        if (routing != null) {
-            this.sourceAndMetadata.put(Metadata.ROUTING.getFieldName(), routing);
-        }
-        if (version != null) {
-            sourceAndMetadata.put(Metadata.VERSION.getFieldName(), version);
-        }
-        if (versionType != null) {
-            sourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), VersionType.toString(versionType));
-        }
+    public IngestDocument(String index, String id, long version, String routing, VersionType versionType, Map<String, Object> source) {
+        this.ctxMap = new IngestCtxMap(index, id, version, routing, versionType, ZonedDateTime.now(ZoneOffset.UTC), source);
         this.ingestMetadata = new HashMap<>();
-        this.ingestMetadata.put(TIMESTAMP, ZonedDateTime.now(ZoneOffset.UTC));
+        this.ingestMetadata.put(TIMESTAMP, ctxMap.getMetadata().getNow());
+        this.templateModel = initializeTemplateModel();
     }
 
     /**
      * Copy constructor that creates a new {@link IngestDocument} which has exactly the same properties as the one provided as argument
      */
     public IngestDocument(IngestDocument other) {
-        this(deepCopyMap(other.sourceAndMetadata), deepCopyMap(other.ingestMetadata));
+        this(
+            new IngestCtxMap(deepCopyMap(other.ctxMap.getSource()), other.ctxMap.getMetadata().clone()),
+            deepCopyMap(other.ingestMetadata)
+        );
+        this.reroute = other.reroute;
     }
 
     /**
-     * Constructor needed for testing that allows to create a new {@link IngestDocument} given the provided elasticsearch metadata,
-     * source and ingest metadata. This is needed because the ingest metadata will be initialized with the current timestamp at
-     * init time, which makes equality comparisons impossible in tests.
+     * Constructor to create an IngestDocument from its constituent maps.  The maps are shallow copied.
      */
     public IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
-        this.sourceAndMetadata = sourceAndMetadata;
-        this.ingestMetadata = ingestMetadata;
+        Map<String, Object> source;
+        Map<String, Object> metadata;
+        if (sourceAndMetadata instanceof IngestCtxMap ingestCtxMap) {
+            source = new HashMap<>(ingestCtxMap.getSource());
+            metadata = new HashMap<>(ingestCtxMap.getMetadata().getMap());
+        } else {
+            metadata = Maps.newHashMapWithExpectedSize(Metadata.METADATA_NAMES.size());
+            source = new HashMap<>(sourceAndMetadata);
+            for (String key : Metadata.METADATA_NAMES) {
+                if (sourceAndMetadata.containsKey(key)) {
+                    metadata.put(key, source.remove(key));
+                }
+            }
+        }
+        this.ctxMap = new IngestCtxMap(source, new IngestDocMetadata(metadata, IngestCtxMap.getTimestamp(ingestMetadata)));
+        this.ingestMetadata = new HashMap<>(ingestMetadata);
+        this.templateModel = initializeTemplateModel();
+    }
+
+    /**
+     * Constructor to create an IngestDocument from its constituent maps
+     */
+    IngestDocument(IngestCtxMap ctxMap, Map<String, Object> ingestMetadata) {
+        this.ctxMap = Objects.requireNonNull(ctxMap);
+        this.ingestMetadata = Objects.requireNonNull(ingestMetadata);
+        this.templateModel = initializeTemplateModel();
+    }
+
+    private DelegatingMapView initializeTemplateModel() {
+        return new DelegatingMapView(ctxMap, Map.of(SOURCE_KEY, ctxMap, INGEST_KEY, ingestMetadata));
     }
 
     /**
      * Returns the value contained in the document for the provided path
      * @param path The path within the document in dot-notation
      * @param clazz The expected class of the field value
-     * @return the value for the provided path if existing, null otherwise
+     * @return the value for the provided path if existing
      * @throws IllegalArgumentException if the path is null, empty, invalid, if the field doesn't exist
      * or if the field that is found at the provided path is not of the expected type.
      */
     public <T> T getFieldValue(String path, Class<T> clazz) {
-        FieldPath fieldPath = new FieldPath(path);
-        Object context = fieldPath.initialContext;
-        for (String pathElement : fieldPath.pathElements) {
-            context = resolve(pathElement, path, context);
-        }
-        return cast(path, context, clazz);
+        return getFieldValue(path, clazz, false);
     }
 
     /**
@@ -118,22 +142,26 @@ public final class IngestDocument {
      * or if the field that is found at the provided path is not of the expected type.
      */
     public <T> T getFieldValue(String path, Class<T> clazz, boolean ignoreMissing) {
-        try {
-            return getFieldValue(path, clazz);
-        } catch (IllegalArgumentException e) {
-            if (ignoreMissing && hasField(path) != true) {
+        FieldPath fieldPath = new FieldPath(path);
+        Object context = fieldPath.initialContext;
+        for (String pathElement : fieldPath.pathElements) {
+            ResolveResult result = resolve(pathElement, path, context);
+            if (result.wasSuccessful) {
+                context = result.resolvedObject;
+            } else if (ignoreMissing && hasField(path) == false) {
                 return null;
             } else {
-                throw e;
+                throw new IllegalArgumentException(result.errorMessage);
             }
         }
+        return cast(path, context, clazz);
     }
 
     /**
      * Returns the value contained in the document with the provided templated path
      * @param pathTemplate The path within the document in dot-notation
      * @param clazz The expected class fo the field value
-     * @return the value fro the provided path if existing, null otherwise
+     * @return the value for the provided path if existing, null otherwise
      * @throws IllegalArgumentException if the pathTemplate is null, empty, invalid, if the field doesn't exist,
      * or if the field that is found at the provided path is not of the expected type.
      */
@@ -287,7 +315,12 @@ public final class IngestDocument {
         FieldPath fieldPath = new FieldPath(path);
         Object context = fieldPath.initialContext;
         for (int i = 0; i < fieldPath.pathElements.length - 1; i++) {
-            context = resolve(fieldPath.pathElements[i], path, context);
+            ResolveResult result = resolve(fieldPath.pathElements[i], path, context);
+            if (result.wasSuccessful) {
+                context = result.resolvedObject;
+            } else {
+                throw new IllegalArgumentException(result.errorMessage);
+            }
         }
 
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
@@ -325,34 +358,33 @@ public final class IngestDocument {
         );
     }
 
-    private static Object resolve(String pathElement, String fullPath, Object context) {
+    private static ResolveResult resolve(String pathElement, String fullPath, Object context) {
         if (context == null) {
-            throw new IllegalArgumentException("cannot resolve [" + pathElement + "] from null as part of path [" + fullPath + "]");
+            return ResolveResult.error("cannot resolve [" + pathElement + "] from null as part of path [" + fullPath + "]");
         }
         if (context instanceof Map<?, ?> map) {
             if (map.containsKey(pathElement)) {
-                return map.get(pathElement);
+                return ResolveResult.success(map.get(pathElement));
             }
-            throw new IllegalArgumentException("field [" + pathElement + "] not present as part of path [" + fullPath + "]");
+            return ResolveResult.error("field [" + pathElement + "] not present as part of path [" + fullPath + "]");
         }
         if (context instanceof List<?> list) {
             int index;
             try {
                 index = Integer.parseInt(pathElement);
             } catch (NumberFormatException e) {
-                throw new IllegalArgumentException(
-                    "[" + pathElement + "] is not an integer, cannot be used as an index as part of path [" + fullPath + "]",
-                    e
+                return ResolveResult.error(
+                    "[" + pathElement + "] is not an integer, cannot be used as an index as part of path [" + fullPath + "]"
                 );
             }
             if (index < 0 || index >= list.size()) {
-                throw new IllegalArgumentException(
+                return ResolveResult.error(
                     "[" + index + "] is out of bounds for array with length [" + list.size() + "] as part of path [" + fullPath + "]"
                 );
             }
-            return list.get(index);
+            return ResolveResult.success(list.get(index));
         }
-        throw new IllegalArgumentException(
+        return ResolveResult.error(
             "cannot resolve ["
                 + pathElement
                 + "] from object of type ["
@@ -409,8 +441,7 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public void appendFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource) {
-        Map<String, Object> model = createTemplateModel();
-        appendFieldValue(fieldPathTemplate.newInstance(model).execute(), valueSource.copyAndResolve(model));
+        appendFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), valueSource.copyAndResolve(templateModel));
     }
 
     /**
@@ -427,8 +458,11 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public void appendFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource, boolean allowDuplicates) {
-        Map<String, Object> model = createTemplateModel();
-        appendFieldValue(fieldPathTemplate.newInstance(model).execute(), valueSource.copyAndResolve(model), allowDuplicates);
+        appendFieldValue(
+            fieldPathTemplate.newInstance(templateModel).execute(),
+            valueSource.copyAndResolve(templateModel),
+            allowDuplicates
+        );
     }
 
     /**
@@ -455,8 +489,7 @@ public final class IngestDocument {
      * item identified by the provided path.
      */
     public void setFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource) {
-        Map<String, Object> model = createTemplateModel();
-        setFieldValue(fieldPathTemplate.newInstance(model).execute(), valueSource.copyAndResolve(model), false);
+        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), valueSource.copyAndResolve(templateModel), false);
     }
 
     /**
@@ -470,8 +503,7 @@ public final class IngestDocument {
      * item identified by the provided path.
      */
     public void setFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource, boolean ignoreEmptyValue) {
-        Map<String, Object> model = createTemplateModel();
-        Object value = valueSource.copyAndResolve(model);
+        Object value = valueSource.copyAndResolve(templateModel);
         if (ignoreEmptyValue && valueSource instanceof ValueSource.TemplatedValue) {
             if (value == null) {
                 return;
@@ -482,7 +514,7 @@ public final class IngestDocument {
             }
         }
 
-        setFieldValue(fieldPathTemplate.newInstance(model).execute(), value, false);
+        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), value, false);
     }
 
     /**
@@ -496,7 +528,6 @@ public final class IngestDocument {
      * item identified by the provided path.
      */
     public void setFieldValue(TemplateScript.Factory fieldPathTemplate, Object value, boolean ignoreEmptyValue) {
-        Map<String, Object> model = createTemplateModel();
         if (ignoreEmptyValue) {
             if (value == null) {
                 return;
@@ -508,7 +539,7 @@ public final class IngestDocument {
             }
         }
 
-        setFieldValue(fieldPathTemplate.newInstance(model).execute(), value, false);
+        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), value, false);
     }
 
     private void setFieldValue(String path, Object value, boolean append) {
@@ -682,41 +713,35 @@ public final class IngestDocument {
     }
 
     public String renderTemplate(TemplateScript.Factory template) {
-        return template.newInstance(createTemplateModel()).execute();
-    }
-
-    private Map<String, Object> createTemplateModel() {
-        return new LazyMap<>(() -> {
-            Map<String, Object> model = new HashMap<>(sourceAndMetadata);
-            model.put(SourceFieldMapper.NAME, sourceAndMetadata);
-            // If there is a field in the source with the name '_ingest' it gets overwritten here,
-            // if access to that field is required then it get accessed via '_source._ingest'
-            model.put(INGEST_KEY, ingestMetadata);
-            return model;
-        });
+        return template.newInstance(templateModel).execute();
     }
 
     /**
-     * one time operation that extracts the metadata fields from the ingest document and returns them.
-     * Metadata fields that used to be accessible as ordinary top level fields will be removed as part of this call.
+     * Get source and metadata map
      */
-    public Map<Metadata, Object> extractMetadata() {
-        Map<Metadata, Object> metadataMap = new EnumMap<>(Metadata.class);
-        for (Metadata metadata : Metadata.values()) {
-            metadataMap.put(metadata, sourceAndMetadata.remove(metadata.getFieldName()));
-        }
-        return metadataMap;
+    public Map<String, Object> getSourceAndMetadata() {
+        return ctxMap;
     }
 
     /**
-     * Does the same thing as {@link #extractMetadata} but does not mutate the map.
+     * Get the CtxMap
      */
-    public Map<Metadata, Object> getMetadata() {
-        Map<Metadata, Object> metadataMap = new EnumMap<>(Metadata.class);
-        for (Metadata metadata : Metadata.values()) {
-            metadataMap.put(metadata, sourceAndMetadata.get(metadata.getFieldName()));
-        }
-        return metadataMap;
+    public CtxMap<?> getCtxMap() {
+        return ctxMap;
+    }
+
+    /**
+     * Get the strongly typed metadata
+     */
+    public org.elasticsearch.script.Metadata getMetadata() {
+        return ctxMap.getMetadata();
+    }
+
+    /**
+     * Get all source values in a Map
+     */
+    public Map<String, Object> getSource() {
+        return ctxMap.getSource();
     }
 
     /**
@@ -725,15 +750,6 @@ public final class IngestDocument {
      */
     public Map<String, Object> getIngestMetadata() {
         return this.ingestMetadata;
-    }
-
-    /**
-     * Returns the document including its metadata fields, unless {@link #extractMetadata()} has been called, in which case the
-     * metadata fields will not be present anymore.
-     * Modify the document instead using {@link #setFieldValue(String, Object)} and {@link #removeField(String)}
-     */
-    public Map<String, Object> getSourceAndMetadata() {
-        return this.sourceAndMetadata;
     }
 
     @SuppressWarnings("unchecked")
@@ -747,6 +763,7 @@ public final class IngestDocument {
             for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
                 copy.put(entry.getKey(), deepCopy(entry.getValue()));
             }
+            // TODO(stu): should this check for IngestCtxMap in addition to Map?
             return copy;
         } else if (value instanceof List<?> listValue) {
             List<Object> copy = new ArrayList<>(listValue.size());
@@ -755,7 +772,7 @@ public final class IngestDocument {
             }
             return copy;
         } else if (value instanceof Set<?> setValue) {
-            Set<Object> copy = new HashSet<>(setValue.size());
+            Set<Object> copy = Sets.newHashSetWithExpectedSize(setValue.size());
             for (Object itemValue : setValue) {
                 copy.add(deepCopy(itemValue));
             }
@@ -786,6 +803,25 @@ public final class IngestDocument {
             }
     }
 
+    public static Set<String> getAllFields(Map<String, Object> input) {
+        return getAllFields(input, "");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Set<String> getAllFields(Map<String, Object> input, String prefix) {
+        Set<String> allFields = Sets.newHashSet();
+
+        input.forEach((k, v) -> {
+            allFields.add(prefix + k);
+
+            if (v instanceof Map<?, ?> mapValue) {
+                allFields.addAll(getAllFields((Map<String, Object>) mapValue, prefix + k + "."));
+            }
+        });
+
+        return allFields;
+    }
+
     /**
      * Executes the given pipeline with for this document unless the pipeline has already been executed
      * for this document.
@@ -794,6 +830,12 @@ public final class IngestDocument {
      * @param handler handles the result or failure
      */
     public void executePipeline(Pipeline pipeline, BiConsumer<IngestDocument, Exception> handler) {
+        // shortcut if the pipeline is empty
+        if (pipeline.getProcessors().isEmpty()) {
+            handler.accept(this, null);
+            return;
+        }
+
         if (executedPipelines.add(pipeline.getId())) {
             Object previousPipeline = ingestMetadata.put("pipeline", pipeline.getId());
             pipeline.execute(this, (result, e) -> {
@@ -819,6 +861,26 @@ public final class IngestDocument {
         return pipelineStack;
     }
 
+    /**
+     * @return Whether a self referencing check should be performed
+     */
+    public boolean doNoSelfReferencesCheck() {
+        return doNoSelfReferencesCheck;
+    }
+
+    /**
+     * Whether the ingest framework should perform a self referencing check after this ingest document
+     * has been processed by all pipelines. Doing this check adds an extra tax to ingest and should
+     * only be performed when really needed. Only if a processor is executed that could add self referencing
+     * maps or lists then this check must be performed. Most processors will not be able to do this, hence
+     * the default is <code>false</code>.
+     *
+     * @param doNoSelfReferencesCheck Whether a self referencing check should be performed
+     */
+    public void doNoSelfReferencesCheck(boolean doNoSelfReferencesCheck) {
+        this.doNoSelfReferencesCheck = doNoSelfReferencesCheck;
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (obj == this) {
@@ -829,17 +891,40 @@ public final class IngestDocument {
         }
 
         IngestDocument other = (IngestDocument) obj;
-        return Objects.equals(sourceAndMetadata, other.sourceAndMetadata) && Objects.equals(ingestMetadata, other.ingestMetadata);
+        return Objects.equals(ctxMap, other.ctxMap) && Objects.equals(ingestMetadata, other.ingestMetadata);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourceAndMetadata, ingestMetadata);
+        return Objects.hash(ctxMap, ingestMetadata);
     }
 
     @Override
     public String toString() {
-        return "IngestDocument{" + " sourceAndMetadata=" + sourceAndMetadata + ", ingestMetadata=" + ingestMetadata + '}';
+        return "IngestDocument{" + " sourceAndMetadata=" + ctxMap + ", ingestMetadata=" + ingestMetadata + '}';
+    }
+
+    public void reroute(String destIndex) {
+        getMetadata().setIndex(destIndex);
+        reroute = true;
+    }
+
+    /**
+     * The document is redirected to another target.
+     * This implies that we'll skip the current pipeline and invoke the default pipeline of the new target
+     *
+     * @return whether the document is redirected to another target
+     */
+    boolean isReroute() {
+        return reroute;
+    }
+
+    /**
+     * Set the {@link #reroute} flag to false so that subsequent calls to {@link #isReroute()} will return false until/unless
+     * {@link #reroute(String)} is called.
+     */
+    void resetReroute() {
+        reroute = false;
     }
 
     public enum Metadata {
@@ -853,10 +938,18 @@ public final class IngestDocument {
         IF_PRIMARY_TERM("_if_primary_term"),
         DYNAMIC_TEMPLATES("_dynamic_templates");
 
+        private static final Set<String> METADATA_NAMES = Arrays.stream(Metadata.values())
+            .map(metadata -> metadata.fieldName)
+            .collect(Collectors.toSet());
+
         private final String fieldName;
 
         Metadata(String fieldName) {
             this.fieldName = fieldName;
+        }
+
+        public static boolean isMetadata(String field) {
+            return METADATA_NAMES.contains(field);
         }
 
         public String getFieldName() {
@@ -878,7 +971,7 @@ public final class IngestDocument {
                 initialContext = ingestMetadata;
                 newPath = path.substring(INGEST_KEY_PREFIX.length(), path.length());
             } else {
-                initialContext = sourceAndMetadata;
+                initialContext = ctxMap;
                 if (path.startsWith(SOURCE_PREFIX)) {
                     newPath = path.substring(SOURCE_PREFIX.length(), path.length());
                 } else {
@@ -891,5 +984,104 @@ public final class IngestDocument {
             }
         }
 
+    }
+
+    private static class ResolveResult {
+        boolean wasSuccessful;
+        String errorMessage;
+        Object resolvedObject;
+
+        static ResolveResult success(Object resolvedObject) {
+            ResolveResult result = new ResolveResult();
+            result.wasSuccessful = true;
+            result.resolvedObject = resolvedObject;
+            return result;
+        }
+
+        static ResolveResult error(String errorMessage) {
+            ResolveResult result = new ResolveResult();
+            result.wasSuccessful = false;
+            result.errorMessage = errorMessage;
+            return result;
+
+        }
+    }
+
+    /**
+     * Provides a shallowly read-only, very limited, map-like view of two maps. The only methods that are implemented are
+     * {@link Map#get(Object)} and {@link Map#containsKey(Object)}, everything else throws UnsupportedOperationException.
+     *
+     * The overrides map has higher priority than the primary map -- values in that map under some key will take priority over values
+     * in the primary map under the same key.
+     *
+     * @param primary the primary map
+     * @param overrides the overrides map
+     */
+    private record DelegatingMapView(Map<String, Object> primary, Map<String, Object> overrides) implements Map<String, Object> {
+
+        @Override
+        public boolean containsKey(Object key) {
+            // most normal uses of this in practice will end up passing in keys that match the primary, rather than the overrides,
+            // in which case we can shortcut by checking the primary first
+            return primary.containsKey(key) || overrides.containsKey(key);
+        }
+
+        @Override
+        public Object get(Object key) {
+            // null values in the overrides map are treated as *key not present*, so we don't have to do a containsKey check here --
+            // if the overrides map returns null we can simply delegate to the primary
+            Object result = overrides.get(key);
+            return result != null ? result : primary.get(key);
+        }
+
+        @Override
+        public int size() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean isEmpty() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean containsValue(Object value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Object put(String key, Object value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Object remove(Object key) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void putAll(Map<? extends String, ?> m) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void clear() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Set<String> keySet() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Collection<Object> values() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Set<Entry<String, Object>> entrySet() {
+            throw new UnsupportedOperationException();
+        }
     }
 }

@@ -20,6 +20,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -58,6 +59,11 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("positive_score_impact", b -> b.field("positive_score_impact", false));
     }
@@ -73,9 +79,9 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc1 = mapper.parse(source(this::writeField));
 
-        IndexableField[] fields = doc1.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        assertThat(fields[0], Matchers.instanceOf(FeatureField.class));
+        List<IndexableField> fields = doc1.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertThat(fields.get(0), Matchers.instanceOf(FeatureField.class));
         FeatureField featureField1 = null;
         FeatureField featureField2 = null;
         for (IndexableField field : fields) {
@@ -100,9 +106,9 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc1 = mapper.parse(source(this::writeField));
 
-        IndexableField[] fields = doc1.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        assertThat(fields[0], Matchers.instanceOf(FeatureField.class));
+        List<IndexableField> fields = doc1.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertThat(fields.get(0), Matchers.instanceOf(FeatureField.class));
         FeatureField featureField1 = null;
         FeatureField featureField2 = null;
         for (IndexableField field : fields) {
@@ -118,6 +124,16 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
         int freq1 = RankFeatureFieldMapperTests.getFrequency(featureField1.tokenStream(null, null));
         int freq2 = RankFeatureFieldMapperTests.getFrequency(featureField2.tokenStream(null, null));
         assertTrue(freq1 > freq2);
+    }
+
+    public void testDotinFieldname() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", Map.of("politi.cs", 10, "sports", 20))))
+        );
+        assertThat(ex.getCause().getMessage(), containsString("do not support dots in feature names"));
+        assertThat(ex.getCause().getMessage(), containsString("politi.cs"));
     }
 
     public void testRejectMultiValuedFields() throws MapperParsingException, IOException {
@@ -175,5 +191,15 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean allowsNullValues() {
         return false;       // TODO should this allow null values?
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean syntheticSource) {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

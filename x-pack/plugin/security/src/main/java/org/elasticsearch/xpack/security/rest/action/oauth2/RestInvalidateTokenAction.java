@@ -11,7 +11,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
@@ -89,7 +88,7 @@ public final class RestInvalidateTokenAction extends TokenBaseRestHandler implem
                     @Override
                     public RestResponse buildResponse(InvalidateTokenResponse invalidateResp, XContentBuilder builder) throws Exception {
                         invalidateResp.toXContent(builder, channel.request());
-                        return new BytesRestResponse(invalidateResp.getResult().getRestStatus(), builder);
+                        return new RestResponse(invalidateResp.getResult().getRestStatus(), builder);
                     }
                 }
             );

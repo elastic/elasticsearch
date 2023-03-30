@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -22,12 +21,15 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 
 /**
  * The {@link DelayedAllocationService} listens to cluster state changes and checks
@@ -86,11 +88,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
                     if (cancelScheduling.get()) {
                         return;
                     }
-                    clusterService.submitStateUpdateTask(
-                        CLUSTER_UPDATE_TASK_SOURCE,
-                        DelayedRerouteTask.this,
-                        ClusterStateTaskExecutor.unbatched()
-                    );
+                    submitUnbatchedTask(CLUSTER_UPDATE_TASK_SOURCE, DelayedRerouteTask.this);
                 }
 
                 @Override
@@ -104,7 +102,8 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
         @Override
         public ClusterState execute(ClusterState currentState) throws Exception {
             removeIfSameTask(this);
-            return allocationService.reroute(currentState, "assign delayed unassigned shards");
+            // rerouteCompletionIsNotRequired() as this update is scheduled and is not triggered by user request
+            return allocationService.reroute(currentState, "assign delayed unassigned shards", rerouteCompletionIsNotRequired());
         }
 
         @Override
@@ -122,6 +121,11 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
             removeIfSameTask(this);
             logger.warn("failed to schedule/execute reroute post unassigned shard", e);
         }
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     @Inject

@@ -59,7 +59,7 @@ public class ArchiveUsageTransportAction extends XPackUsageFeatureTransportActio
     ) {
         int numArchiveIndices = 0;
         for (IndexMetadata indexMetadata : state.metadata()) {
-            if (OldLuceneVersions.isArchiveIndex(indexMetadata.getCreationVersion())) {
+            if (indexMetadata.getCreationVersion().isLegacyIndexVersion()) {
                 numArchiveIndices++;
             }
         }

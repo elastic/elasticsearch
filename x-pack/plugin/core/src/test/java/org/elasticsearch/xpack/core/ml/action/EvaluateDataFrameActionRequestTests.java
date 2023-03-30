@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction.Request;
@@ -28,7 +28,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class EvaluateDataFrameActionRequestTests extends AbstractSerializingTestCase<Request> {
+public class EvaluateDataFrameActionRequestTests extends AbstractXContentSerializingTestCase<Request> {
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
@@ -68,6 +68,11 @@ public class EvaluateDataFrameActionRequestTests extends AbstractSerializingTest
             RegressionTests.createRandom()
         );
         return new Request().setIndices(indices).setQueryProvider(queryProvider).setEvaluation(evaluation);
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

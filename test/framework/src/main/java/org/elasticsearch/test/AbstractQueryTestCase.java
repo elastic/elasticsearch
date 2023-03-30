@@ -8,14 +8,12 @@
 
 package org.elasticsearch.test;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -24,24 +22,26 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.QueryParsers;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -58,7 +58,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
+import static org.elasticsearch.search.SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
@@ -89,6 +90,46 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * Create the query that is being tested
      */
     protected abstract QB doCreateTestQueryBuilder();
+
+    /**
+     * Create the query that is being tested holding the provided inner query.
+     * To be overridden only for queries that support inner queries.
+     */
+    protected QB createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        throw new UnsupportedOperationException();
+    }
+
+    public void testMaxNestedDepth() throws IOException {
+        QB query = null;
+        try {
+            query = createQueryWithInnerQuery(new MatchAllQueryBuilder());
+        } catch (UnsupportedOperationException e) {
+            assumeNoException("Runs only for queries that support nesting", e);
+        }
+        int maxDepth = randomIntBetween(3, 5);
+        AbstractQueryBuilder.setMaxNestedDepth(maxDepth);
+        try {
+            for (int i = 1; i < maxDepth - 1; i++) {
+                query = createQueryWithInnerQuery(query);
+            }
+            // no errors, we reached the limit but we did not go beyond it
+            parseQuery(Strings.toString(query));
+            String expectedMessage = "The nested depth of the query exceeds the maximum nested depth for queries set in ["
+                + INDICES_MAX_NESTED_DEPTH_SETTING.getKey()
+                + "]";
+            QB q = query;
+            // one more level causes an exception
+            Exception exception = expectThrows(Exception.class, () -> parseQuery(Strings.toString(createQueryWithInnerQuery(q))));
+            // there may be nested XContentParseExceptions coming from ObjectParser, we just extract the root cause
+            while (exception.getCause() != null) {
+                assertThat(exception.getCause(), either(instanceOf(IllegalArgumentException.class)).or(instanceOf(ParsingException.class)));
+                exception = (Exception) exception.getCause();
+            }
+            assertEquals(expectedMessage, exception.getMessage());
+        } finally {
+            AbstractQueryBuilder.setMaxNestedDepth(INDICES_MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY));
+        }
+    }
 
     public void testNegativeBoosts() {
         QB testQuery = createTestQueryBuilder();
@@ -240,11 +281,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 BytesStreamOutput out = new BytesStreamOutput();
                 try (
                     XContentGenerator generator = XContentType.JSON.xContent().createGenerator(out);
-                    XContentParser parser = JsonXContent.jsonXContent.createParser(
-                        NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        query
-                    );
+                    XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, query);
                 ) {
                     int objectIndex = -1;
                     Deque<String> levels = new LinkedList<>();
@@ -396,7 +433,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     protected QueryBuilder parseQuery(XContentParser parser) throws IOException {
-        QueryBuilder parseInnerQueryBuilder = parseInnerQueryBuilder(parser);
+        QueryBuilder parseInnerQueryBuilder = parseTopLevelQuery(parser);
         assertNull(parser.nextToken());
         return parseInnerQueryBuilder;
     }
@@ -570,18 +607,18 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     protected QueryBuilder assertSerialization(QueryBuilder testQuery) throws IOException {
-        return assertSerialization(testQuery, Version.CURRENT);
+        return assertSerialization(testQuery, TransportVersion.CURRENT);
     }
 
     /**
      * Serialize the given query builder and asserts that both are equal
      */
-    protected QueryBuilder assertSerialization(QueryBuilder testQuery, Version version) throws IOException {
+    protected QueryBuilder assertSerialization(QueryBuilder testQuery, TransportVersion version) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(version);
+            output.setTransportVersion(version);
             output.writeNamedWriteable(testQuery);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry())) {
-                in.setVersion(version);
+                in.setTransportVersion(version);
                 QueryBuilder deserializedQuery = in.readNamedWriteable(QueryBuilder.class);
                 assertEquals(testQuery, deserializedQuery);
                 assertEquals(testQuery.hashCode(), deserializedQuery.hashCode());
@@ -705,8 +742,12 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     protected static String getRandomRewriteMethod() {
         String rewrite;
         if (randomBoolean()) {
-            rewrite = randomFrom(QueryParsers.CONSTANT_SCORE, QueryParsers.SCORING_BOOLEAN, QueryParsers.CONSTANT_SCORE_BOOLEAN)
-                .getPreferredName();
+            rewrite = randomFrom(
+                QueryParsers.CONSTANT_SCORE,
+                QueryParsers.SCORING_BOOLEAN,
+                QueryParsers.CONSTANT_SCORE_BOOLEAN,
+                QueryParsers.CONSTANT_SCORE_BLENDED
+            ).getPreferredName();
         } else {
             rewrite = randomFrom(QueryParsers.TOP_TERMS, QueryParsers.TOP_TERMS_BOOST, QueryParsers.TOP_TERMS_BLENDED_FREQS)
                 .getPreferredName() + "1";
@@ -843,5 +884,4 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         assertNotNull(rewriteQuery.toQuery(context));
         assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
-
 }

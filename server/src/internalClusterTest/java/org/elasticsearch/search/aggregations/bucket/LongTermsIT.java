@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -41,7 +42,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -511,7 +511,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
         assertThat(terms.getBuckets().size(), equalTo(5));
 
         for (int i = 0; i < 5; i++) {
-            String key = String.format(Locale.ROOT, "%04d", i);
+            String key = Strings.format("%04d", i);
             LongTerms.Bucket bucket = terms.getBucketByKey(key);
             assertThat(bucket, notNullValue());
             assertThat(bucket.getKeyAsString(), equalTo(key));
@@ -641,7 +641,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
         assertThat(filter2.getDocCount(), equalTo(asc ? 3L : 2L));
         Max max = filter2.getAggregations().get("max");
         assertThat(max, notNullValue());
-        assertThat(max.getValue(), equalTo(asc ? 2.0 : 4.0));
+        assertThat(max.value(), equalTo(asc ? 2.0 : 4.0));
 
         tag = iters.next();
         assertThat(tag, notNullValue());
@@ -655,7 +655,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
         assertThat(filter2.getDocCount(), equalTo(asc ? 2L : 3L));
         max = filter2.getAggregations().get("max");
         assertThat(max, notNullValue());
-        assertThat(max.getValue(), equalTo(asc ? 4.0 : 2.0));
+        assertThat(max.value(), equalTo(asc ? 4.0 : 2.0));
     }
 
     public void testSingleValuedFieldOrderedByMissingSubAggregation() throws Exception {

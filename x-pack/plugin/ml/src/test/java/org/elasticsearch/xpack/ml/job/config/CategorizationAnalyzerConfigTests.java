@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.job.config;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class CategorizationAnalyzerConfigTests extends AbstractSerializingTestCase<CategorizationAnalyzerConfig> {
+public class CategorizationAnalyzerConfigTests extends AbstractXContentSerializingTestCase<CategorizationAnalyzerConfig> {
 
     @Override
     protected CategorizationAnalyzerConfig createTestInstance() {

@@ -10,8 +10,7 @@ package org.elasticsearch.xpack.search;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -22,8 +21,8 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
-import org.elasticsearch.search.aggregations.metrics.InternalMin;
+import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase.SuiteScopeTestCase;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -42,7 +41,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.search.SearchService.MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -115,10 +113,10 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
                     assertNotNull(response.getSearchResponse().getAggregations());
                     assertNotNull(response.getSearchResponse().getAggregations().get("max"));
                     assertNotNull(response.getSearchResponse().getAggregations().get("min"));
-                    InternalMax max = response.getSearchResponse().getAggregations().get("max");
-                    InternalMin min = response.getSearchResponse().getAggregations().get("min");
-                    assertThat((float) min.getValue(), greaterThanOrEqualTo(minMetric));
-                    assertThat((float) max.getValue(), lessThanOrEqualTo(maxMetric));
+                    Max max = response.getSearchResponse().getAggregations().get("max");
+                    Min min = response.getSearchResponse().getAggregations().get("min");
+                    assertThat((float) min.value(), greaterThanOrEqualTo(minMetric));
+                    assertThat((float) max.value(), lessThanOrEqualTo(maxMetric));
                 }
             }
             if (numFailures == numShards) {
@@ -128,14 +126,14 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
                 assertNotNull(response.getSearchResponse().getAggregations());
                 assertNotNull(response.getSearchResponse().getAggregations().get("max"));
                 assertNotNull(response.getSearchResponse().getAggregations().get("min"));
-                InternalMax max = response.getSearchResponse().getAggregations().get("max");
-                InternalMin min = response.getSearchResponse().getAggregations().get("min");
+                Max max = response.getSearchResponse().getAggregations().get("max");
+                Min min = response.getSearchResponse().getAggregations().get("min");
                 if (numFailures == 0) {
-                    assertThat((float) min.getValue(), equalTo(minMetric));
-                    assertThat((float) max.getValue(), equalTo(maxMetric));
+                    assertThat((float) min.value(), equalTo(minMetric));
+                    assertThat((float) max.value(), equalTo(maxMetric));
                 } else {
-                    assertThat((float) min.getValue(), greaterThanOrEqualTo(minMetric));
-                    assertThat((float) max.getValue(), lessThanOrEqualTo(maxMetric));
+                    assertThat((float) min.value(), greaterThanOrEqualTo(minMetric));
+                    assertThat((float) max.value(), lessThanOrEqualTo(maxMetric));
                 }
             }
             deleteAsyncSearch(response.getId());
@@ -509,9 +507,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         ).setKeepOnCompletion(true);
 
         int limit = 1000; // is not big enough to store the response
-        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.persistentSettings(Settings.builder().put("search.max_async_search_response_size", limit + "b"));
-        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+        updateClusterSettings(Settings.builder().put("search.max_async_search_response_size", limit + "b"));
 
         ExecutionException e = expectThrows(ExecutionException.class, () -> submitAsyncSearch(request));
         assertNotNull(e.getCause());
@@ -527,16 +523,14 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
             )
         );
 
-        updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.persistentSettings(Settings.builder().put("search.max_async_search_response_size", (String) null));
-        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+        updateClusterSettings(Settings.builder().put("search.max_async_search_response_size", (String) null));
     }
 
     public void testCCSCheckCompatibility() throws Exception {
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(new SearchSourceBuilder().query(new DummyQueryBuilder() {
             @Override
-            public Version getMinimalSupportedVersion() {
-                return Version.CURRENT;
+            public TransportVersion getMinimalSupportedVersion() {
+                return TransportVersion.CURRENT;
             }
         }), indexName);
 

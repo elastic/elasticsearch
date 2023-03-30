@@ -143,6 +143,9 @@ public class DataTierTests extends ESTestCase {
     private static List<DiscoveryNode> randomNodes(final int numNodes) {
         Set<DiscoveryNodeRole> allRoles = new HashSet<>(DiscoveryNodeRole.roles());
         allRoles.remove(DiscoveryNodeRole.DATA_ROLE);
+        // indexing and searching node role are mutually exclusive with data tiers roles
+        allRoles.remove(DiscoveryNodeRole.INDEX_ROLE);
+        allRoles.remove(DiscoveryNodeRole.SEARCH_ROLE);
         List<DiscoveryNode> nodesList = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
             Map<String, String> attributes = new HashMap<>();

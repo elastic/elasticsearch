@@ -19,7 +19,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -32,9 +31,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 /**
- * Client that always response with {@code null} to every request. Override {@link #doExecute(ActionType, ActionRequest, ActionListener)},
- * {@link #executeLocally(ActionType, ActionRequest, ActionListener)}, or {@link #executeLocally(ActionType, ActionRequest, TaskListener)}
- * for testing.
+ * Client that always response with {@code null} to every request. Override {@link #doExecute(ActionType, ActionRequest, ActionListener)} or
+ * {@link #executeLocally(ActionType, ActionRequest, ActionListener)} for testing.
  *
  * See also {@link NoOpClient} if you do not specifically need a {@link NodeClient}.
  */
@@ -86,17 +84,6 @@ public class NoOpNodeClient extends NodeClient {
     ) {
         executionCount.incrementAndGet();
         listener.onResponse(null);
-        return null;
-    }
-
-    @Override
-    public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
-        ActionType<Response> action,
-        Request request,
-        TaskListener<Response> listener
-    ) {
-        executionCount.incrementAndGet();
-        listener.onResponse(null, null);
         return null;
     }
 

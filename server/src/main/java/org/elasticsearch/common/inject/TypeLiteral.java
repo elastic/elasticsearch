@@ -112,7 +112,7 @@ public class TypeLiteral<T> {
      * Gets type literal from super class's type parameter.
      */
     static TypeLiteral<?> fromSuperclassTypeParameter(Class<?> subclass) {
-        return new TypeLiteral<Object>(getSuperclassTypeParameter(subclass));
+        return new TypeLiteral<>(getSuperclassTypeParameter(subclass));
     }
 
     /**
@@ -129,16 +129,6 @@ public class TypeLiteral<T> {
      */
     public final Type getType() {
         return type;
-    }
-
-    /**
-     * Gets the type of this type's provider.
-     */
-    @SuppressWarnings("unchecked")
-    final TypeLiteral<Provider<T>> providerType() {
-        // This cast is safe and wouldn't generate a warning if Type had a type
-        // parameter.
-        return (TypeLiteral<Provider<T>>) get(Types.providerOf(getType()));
     }
 
     @Override
@@ -299,35 +289,6 @@ public class TypeLiteral<T> {
         }
 
         return resolveAll(genericParameterTypes);
-    }
-
-    /**
-     * Returns the resolved generic exception types thrown by {@code constructor}.
-     *
-     * @param methodOrConstructor a method or constructor defined by this or any supertype.
-     * @since 2.0
-     */
-    public List<TypeLiteral<?>> getExceptionTypes(Member methodOrConstructor) {
-        Type[] genericExceptionTypes;
-
-        if (methodOrConstructor instanceof Method method) {
-            if (method.getDeclaringClass().isAssignableFrom(rawType) == false) {
-                throw new IllegalArgumentException(method + " is not defined by a supertype of " + type);
-            }
-
-            genericExceptionTypes = method.getGenericExceptionTypes();
-
-        } else if (methodOrConstructor instanceof Constructor<?> constructor) {
-            if (constructor.getDeclaringClass().isAssignableFrom(rawType) == false) {
-                throw new IllegalArgumentException(constructor + " does not construct a supertype of " + type);
-            }
-            genericExceptionTypes = constructor.getGenericExceptionTypes();
-
-        } else {
-            throw new IllegalArgumentException("Not a method or a constructor: " + methodOrConstructor);
-        }
-
-        return resolveAll(genericExceptionTypes);
     }
 
     /**

@@ -11,7 +11,6 @@ package org.elasticsearch.common.ssl;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Path;
@@ -23,11 +22,11 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SslConfigurationLoaderTests extends ESTestCase {
@@ -223,16 +222,24 @@ public class SslConfigurationLoaderTests extends ESTestCase {
     }
 
     public void testChaCha20InCiphersOnJdk12Plus() {
-        assumeTrue("Test is only valid on JDK 12+ JVM", JavaVersion.current().compareTo(JavaVersion.parse("12")) > -1);
         assertThat(SslConfigurationLoader.DEFAULT_CIPHERS, hasItem("TLS_CHACHA20_POLY1305_SHA256"));
         assertThat(SslConfigurationLoader.DEFAULT_CIPHERS, hasItem("TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256"));
         assertThat(SslConfigurationLoader.DEFAULT_CIPHERS, hasItem("TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"));
     }
 
-    public void testChaCha20NotInCiphersOnPreJdk12() {
-        assumeTrue("Test is only valid on pre JDK 12 JVM", JavaVersion.current().compareTo(JavaVersion.parse("12")) < 0);
-        assertThat(SslConfigurationLoader.DEFAULT_CIPHERS, not(hasItem("TLS_CHACHA20_POLY1305_SHA256")));
-        assertThat(SslConfigurationLoader.DEFAULT_CIPHERS, not(hasItem("TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256")));
-        assertThat(SslConfigurationLoader.DEFAULT_CIPHERS, not(hasItem("TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256")));
+    public void testErrorMessageForUnpairedKeyAndCertificateSettings() {
+        final boolean withKey = randomBoolean();
+        if (withKey) {
+            settings = Settings.builder().put("test.ssl.key", "certs/cert1.key").build();
+        } else {
+            settings = Settings.builder().put("test.ssl.certificate", "certs/cert1.cert").build();
+        }
+
+        final SslConfigException e = expectThrows(SslConfigException.class, () -> loader.load(certRoot));
+        if (withKey) {
+            assertThat(e.getMessage(), containsString("cannot specify [test.ssl.key] without also setting [test.ssl.certificate]"));
+        } else {
+            assertThat(e.getMessage(), containsString("cannot specify [test.ssl.certificate] without also setting [test.ssl.key]"));
+        }
     }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
@@ -24,10 +25,11 @@ import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -64,7 +66,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -136,7 +137,7 @@ public class RefreshListenersTests extends ESTestCase {
             newMergePolicy(),
             iwc.getAnalyzer(),
             iwc.getSimilarity(),
-            new CodecService(null),
+            new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE),
             eventListener,
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
@@ -150,7 +151,10 @@ public class RefreshListenersTests extends ESTestCase {
             () -> RetentionLeases.EMPTY,
             () -> primaryTerm,
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-            null
+            null,
+            System::nanoTime,
+            null,
+            true
         );
         engine = new InternalEngine(config);
         engine.recoverFromTranslog((e, s) -> 0, Long.MAX_VALUE);
@@ -399,11 +403,11 @@ public class RefreshListenersTests extends ESTestCase {
         // These threads add and block until the refresh makes the change visible and then do a non-realtime get.
         Thread[] indexers = new Thread[threadCount];
         for (int thread = 0; thread < threadCount; thread++) {
-            final String threadId = String.format(Locale.ROOT, "%04d", thread);
+            final String threadId = Strings.format("%04d", thread);
             indexers[thread] = new Thread(() -> {
                 for (int iteration = 1; iteration <= 50; iteration++) {
                     try {
-                        String testFieldValue = String.format(Locale.ROOT, "%s%04d", threadId, iteration);
+                        String testFieldValue = Strings.format("%s%04d", threadId, iteration);
                         Engine.IndexResult index = index(threadId, testFieldValue);
                         assertEquals(iteration, index.getVersion());
 
@@ -537,14 +541,12 @@ public class RefreshListenersTests extends ESTestCase {
         final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
         LuceneDocument document = new LuceneDocument();
         document.add(new TextField("test", testFieldValue, Field.Store.YES));
-        Field idField = new Field(uid.field(), uid.bytes(), IdFieldMapper.Defaults.FIELD_TYPE);
+        Field idField = new StringField(uid.field(), uid.bytes(), Field.Store.YES);
         Field versionField = new NumericDocValuesField("_version", Versions.MATCH_ANY);
         SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         document.add(idField);
         document.add(versionField);
-        document.add(seqID.seqNo);
-        document.add(seqID.seqNoDocValue);
-        document.add(seqID.primaryTerm);
+        seqID.addFields(document);
         BytesReference source = new BytesArray(new byte[] { 1 });
         ParsedDocument doc = new ParsedDocument(versionField, seqID, id, null, Arrays.asList(document), source, XContentType.JSON, null);
         Engine.Index index = new Engine.Index(uid, engine.config().getPrimaryTermSupplier().getAsLong(), doc);

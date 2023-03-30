@@ -7,17 +7,12 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
-import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,7 +22,26 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceCo
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ZeroShotClassificationConfigUpdateTests extends InferenceConfigItemTestCase<ZeroShotClassificationConfigUpdate> {
+public class ZeroShotClassificationConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<ZeroShotClassificationConfigUpdate> {
+
+    public static ZeroShotClassificationConfigUpdate randomUpdate() {
+        return new ZeroShotClassificationConfigUpdate(
+            randomBoolean() ? null : randomList(1, 5, () -> randomAlphaOfLength(10)),
+            randomBoolean() ? null : randomBoolean(),
+            randomBoolean() ? null : randomAlphaOfLength(5),
+            randomBoolean() ? null : new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values()), null)
+        );
+    }
+
+    public static ZeroShotClassificationConfigUpdate mutateForVersion(
+        ZeroShotClassificationConfigUpdate instance,
+        TransportVersion version
+    ) {
+        if (version.before(TransportVersion.V_8_1_0)) {
+            return new ZeroShotClassificationConfigUpdate(instance.getLabels(), instance.getMultiLabel(), instance.getResultsField(), null);
+        }
+        return instance;
+    }
 
     @Override
     protected boolean supportsUnknownFields() {
@@ -50,42 +64,41 @@ public class ZeroShotClassificationConfigUpdateTests extends InferenceConfigItem
     }
 
     @Override
-    protected ZeroShotClassificationConfigUpdate mutateInstanceForVersion(ZeroShotClassificationConfigUpdate instance, Version version) {
-        if (version.before(Version.V_8_1_0)) {
-            return new ZeroShotClassificationConfigUpdate(instance.getLabels(), instance.getMultiLabel(), instance.getResultsField(), null);
-        }
-        return instance;
+    protected ZeroShotClassificationConfigUpdate mutateInstance(ZeroShotClassificationConfigUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
-    public void testFromMap() {
+    @Override
+    protected ZeroShotClassificationConfigUpdate mutateInstanceForVersion(
+        ZeroShotClassificationConfigUpdate instance,
+        TransportVersion version
+    ) {
+        return mutateForVersion(instance, version);
+    }
+
+    @Override
+    Tuple<Map<String, Object>, ZeroShotClassificationConfigUpdate> fromMapTestInstances(TokenizationUpdate expectedTokenization) {
+        boolean multiLabel = randomBoolean();
         ZeroShotClassificationConfigUpdate expected = new ZeroShotClassificationConfigUpdate(
             List.of("foo", "bar"),
-            false,
+            multiLabel,
             "ml-results",
-            new BertTokenizationUpdate(Tokenization.Truncate.FIRST)
+            expectedTokenization
         );
 
         Map<String, Object> config = new HashMap<>() {
             {
                 put(ZeroShotClassificationConfig.LABELS.getPreferredName(), List.of("foo", "bar"));
-                put(ZeroShotClassificationConfig.MULTI_LABEL.getPreferredName(), false);
+                put(ZeroShotClassificationConfig.MULTI_LABEL.getPreferredName(), multiLabel);
                 put(ZeroShotClassificationConfig.RESULTS_FIELD.getPreferredName(), "ml-results");
-                Map<String, Object> truncate = new HashMap<>();
-                truncate.put("truncate", "first");
-                Map<String, Object> bert = new HashMap<>();
-                bert.put("bert", truncate);
-                put("tokenization", bert);
             }
         };
-        assertThat(ZeroShotClassificationConfigUpdate.fromMap(config), equalTo(expected));
+        return Tuple.tuple(config, expected);
     }
 
-    public void testFromMapWithUnknownField() {
-        ElasticsearchException ex = expectThrows(
-            ElasticsearchException.class,
-            () -> ZeroShotClassificationConfigUpdate.fromMap(Collections.singletonMap("some_key", 1))
-        );
-        assertThat(ex.getMessage(), equalTo("Unrecognized fields [some_key]."));
+    @Override
+    ZeroShotClassificationConfigUpdate fromMap(Map<String, Object> map) {
+        return ZeroShotClassificationConfigUpdate.fromMap(map);
     }
 
     public void testApply() {
@@ -120,7 +133,7 @@ public class ZeroShotClassificationConfigUpdateTests extends InferenceConfigItem
                 originalConfig.getTokenization(),
                 originalConfig.getHypothesisTemplate(),
                 true,
-                originalConfig.getLabels(),
+                originalConfig.getLabels().orElse(null),
                 originalConfig.getResultsField()
             ),
             equalTo(new ZeroShotClassificationConfigUpdate.Builder().setMultiLabel(true).build().apply(originalConfig))
@@ -132,7 +145,7 @@ public class ZeroShotClassificationConfigUpdateTests extends InferenceConfigItem
                 originalConfig.getTokenization(),
                 originalConfig.getHypothesisTemplate(),
                 originalConfig.isMultiLabel(),
-                originalConfig.getLabels(),
+                originalConfig.getLabels().orElse(null),
                 "updated-field"
             ),
             equalTo(new ZeroShotClassificationConfigUpdate.Builder().setResultsField("updated-field").build().apply(originalConfig))
@@ -147,12 +160,12 @@ public class ZeroShotClassificationConfigUpdateTests extends InferenceConfigItem
                 tokenization,
                 originalConfig.getHypothesisTemplate(),
                 originalConfig.isMultiLabel(),
-                originalConfig.getLabels(),
+                originalConfig.getLabels().orElse(null),
                 originalConfig.getResultsField()
             ),
             equalTo(
                 new ZeroShotClassificationConfigUpdate.Builder().setTokenizationUpdate(
-                    createTokenizationUpdate(originalConfig.getTokenization(), truncate)
+                    createTokenizationUpdate(originalConfig.getTokenization(), truncate, null)
                 ).build().apply(originalConfig)
             )
         );
@@ -205,21 +218,6 @@ public class ZeroShotClassificationConfigUpdateTests extends InferenceConfigItem
     }
 
     public static ZeroShotClassificationConfigUpdate createRandom() {
-        return new ZeroShotClassificationConfigUpdate(
-            randomBoolean() ? null : randomList(1, 5, () -> randomAlphaOfLength(10)),
-            randomBoolean() ? null : randomBoolean(),
-            randomBoolean() ? null : randomAlphaOfLength(5),
-            randomBoolean() ? null : new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values()))
-        );
-    }
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
-    }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(new MlInferenceNamedXContentProvider().getNamedWriteables());
+        return randomUpdate();
     }
 }

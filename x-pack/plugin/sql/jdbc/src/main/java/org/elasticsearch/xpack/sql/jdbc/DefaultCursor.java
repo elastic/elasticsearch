@@ -18,15 +18,24 @@ class DefaultCursor implements Cursor {
 
     private final List<JdbcColumnInfo> columnInfos;
     private List<List<Object>> rows;
+    private final List<String> warnings;
     private int row = -1;
     private String cursor;
 
-    DefaultCursor(JdbcHttpClient client, String cursor, List<JdbcColumnInfo> columnInfos, List<List<Object>> rows, RequestMeta meta) {
+    DefaultCursor(
+        JdbcHttpClient client,
+        String cursor,
+        List<JdbcColumnInfo> columnInfos,
+        List<List<Object>> rows,
+        RequestMeta meta,
+        List<String> warnings
+    ) {
         this.client = client;
         this.meta = meta;
         this.cursor = cursor;
         this.columnInfos = columnInfos;
         this.rows = rows;
+        this.warnings = warnings;
     }
 
     @Override
@@ -66,5 +75,14 @@ class DefaultCursor implements Cursor {
         if (cursor.isEmpty() == false) {
             client.queryClose(cursor);
         }
+    }
+
+    public List<String> warnings() {
+        return warnings;
+    }
+
+    @Override
+    public void clearWarnings() {
+        warnings.clear();
     }
 }

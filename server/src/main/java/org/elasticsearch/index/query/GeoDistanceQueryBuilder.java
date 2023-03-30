@@ -10,7 +10,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -244,7 +244,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
 
         final GeoShapeQueryable geoShapeQueryable = (GeoShapeQueryable) fieldType;
         final Circle circle = new Circle(center.lon(), center.lat(), this.distance);
-        return geoShapeQueryable.geoShapeQuery(circle, fieldType.name(), SpatialStrategy.RECURSIVE, ShapeRelation.INTERSECTS, context);
+        return geoShapeQueryable.geoShapeQuery(context, fieldType.name(), SpatialStrategy.RECURSIVE, ShapeRelation.INTERSECTS, circle);
     }
 
     @Override
@@ -278,7 +278,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
                 fieldName = currentFieldName;
-                GeoUtils.parseGeoPoint(parser, point);
+                point = GeoUtils.parseGeoPoint(parser);
             } else if (token == XContentParser.Token.START_OBJECT) {
                 throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, currentFieldName);
                 // the json in the format of -> field : { lat : 30, lon : 12 }
@@ -401,7 +401,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 }

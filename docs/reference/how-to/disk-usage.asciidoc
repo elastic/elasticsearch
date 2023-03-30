@@ -77,7 +77,7 @@ Keep in mind that large shard sizes come with drawbacks, such as long full recov
 [[disable-source]]
 === Disable `_source`
 
-The <<mapping-source-field,`_source`>> field stores the original JSON body of the document. If you don’t need access to it you can disable it. However, APIs that needs access to `_source` such as update and reindex won’t work.
+The <<mapping-source-field,`_source`>> field stores the original JSON body of the document. If you don’t need access to it you can disable it. However, APIs that needs access to `_source` such as update, highlight and reindex won’t work.
 
 [discrete]
 [[best-compression]]
@@ -136,6 +136,6 @@ if fields always occur in the same order.
 [[roll-up-historical-data]]
 === Roll up historical data
 
-Keeping older data can useful for later analysis but is often avoided due to
+Keeping older data can be useful for later analysis but is often avoided due to
 storage costs. You can use data rollups to summarize and store historical data
 at a fraction of the raw data's storage cost. See <<xpack-rollup>>.

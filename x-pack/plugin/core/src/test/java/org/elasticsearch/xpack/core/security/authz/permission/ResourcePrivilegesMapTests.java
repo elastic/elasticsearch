@@ -20,7 +20,6 @@ public class ResourcePrivilegesMapTests extends ESTestCase {
         ResourcePrivilegesMap instance = ResourcePrivilegesMap.builder()
             .addResourcePrivilege("*", mapBuilder().put("read", true).put("write", true).map())
             .build();
-        assertThat(instance.allAllowed(), is(true));
         assertThat(instance.getResourceToResourcePrivileges().size(), is(1));
         assertThat(instance.getResourceToResourcePrivileges().get("*").isAllowed("read"), is(true));
         assertThat(instance.getResourceToResourcePrivileges().get("*").isAllowed("write"), is(true));
@@ -28,7 +27,6 @@ public class ResourcePrivilegesMapTests extends ESTestCase {
         instance = ResourcePrivilegesMap.builder()
             .addResourcePrivilege("*", mapBuilder().put("read", true).put("write", false).map())
             .build();
-        assertThat(instance.allAllowed(), is(false));
         assertThat(instance.getResourceToResourcePrivileges().size(), is(1));
         assertThat(instance.getResourceToResourcePrivileges().get("*").isAllowed("read"), is(true));
         assertThat(instance.getResourceToResourcePrivileges().get("*").isAllowed("write"), is(false));
@@ -37,7 +35,6 @@ public class ResourcePrivilegesMapTests extends ESTestCase {
             .addResourcePrivilege("some-other", mapBuilder().put("index", true).put("write", true).map())
             .addResourcePrivilegesMap(instance)
             .build();
-        assertThat(instance.allAllowed(), is(false));
         assertThat(instance.getResourceToResourcePrivileges().size(), is(2));
         assertThat(instance.getResourceToResourcePrivileges().get("*").isAllowed("read"), is(true));
         assertThat(instance.getResourceToResourcePrivileges().get("*").isAllowed("write"), is(false));
@@ -46,6 +43,7 @@ public class ResourcePrivilegesMapTests extends ESTestCase {
     }
 
     public void testIntersection() {
+        ResourcePrivilegesMap.Builder builder = ResourcePrivilegesMap.builder();
         ResourcePrivilegesMap instance = ResourcePrivilegesMap.builder()
             .addResourcePrivilege("*", mapBuilder().put("read", true).put("write", true).map())
             .addResourcePrivilege("index-*", mapBuilder().put("read", true).put("write", true).map())
@@ -53,10 +51,8 @@ public class ResourcePrivilegesMapTests extends ESTestCase {
         ResourcePrivilegesMap otherInstance = ResourcePrivilegesMap.builder()
             .addResourcePrivilege("*", mapBuilder().put("read", true).put("write", false).map())
             .addResourcePrivilege("index-*", mapBuilder().put("read", false).put("write", true).map())
-            .addResourcePrivilege("index-uncommon", mapBuilder().put("read", false).put("write", true).map())
             .build();
-        ResourcePrivilegesMap result = ResourcePrivilegesMap.intersection(instance, otherInstance);
-        assertThat(result.allAllowed(), is(false));
+        ResourcePrivilegesMap result = builder.addResourcePrivilegesMap(instance).addResourcePrivilegesMap(otherInstance).build();
         assertThat(result.getResourceToResourcePrivileges().size(), is(2));
         assertThat(result.getResourceToResourcePrivileges().get("*").isAllowed("read"), is(true));
         assertThat(result.getResourceToResourcePrivileges().get("*").isAllowed("write"), is(false));

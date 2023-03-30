@@ -129,7 +129,8 @@ public class SqlMediaTypeParserTests extends ESTestCase {
             randomBoolean(),
             TimeValue.parseTimeValue(randomTimeValue(), null, "test"),
             randomBoolean(),
-            TimeValue.parseTimeValue(randomTimeValue(), null, "test")
+            TimeValue.parseTimeValue(randomTimeValue(), null, "test"),
+            randomBoolean()
         ).binaryCommunication(binaryCommunication);
     }
 }

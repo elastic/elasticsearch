@@ -99,7 +99,7 @@ The API returns the following response:
     {
       "name": "foo_closed",
       "attributes": [
-        "closed"
+        "closed"                               <2>
       ]
     },
     {
@@ -118,7 +118,7 @@ The API returns the following response:
       ]
     }
   ],
-  "aliases": [                                 <2>
+  "aliases": [                                 <3>
     {
       "name": "f-alias",
       "indices": [
@@ -127,7 +127,7 @@ The API returns the following response:
       ]
     }
   ],
-  "data_streams": [                            <3>
+  "data_streams": [                            <4>
     {
       "name": "foo",
       "backing_indices": [
@@ -142,5 +142,6 @@ The API returns the following response:
 // TESTRESPONSE[s/.ds-foo-2099.03.07-000001/$body.data_streams.0.backing_indices.0/]
 
 <1> All indices matching the supplied names or expressions
-<2> All aliases matching the supplied names or expressions
-<3> All data streams matching the supplied names or expressions
+<2> Possible index attributes are `open`, `closed`, `hidden`, `system`, and `frozen`
+<3> All aliases matching the supplied names or expressions
+<4> All data streams matching the supplied names or expressions

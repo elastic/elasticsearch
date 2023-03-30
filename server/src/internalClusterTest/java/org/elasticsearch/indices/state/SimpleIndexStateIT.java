@@ -42,7 +42,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
 
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
         assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
-        assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(numShards.numPrimaries));
+        assertThat(stateResponse.getState().routingTable().index("test").size(), equalTo(numShards.numPrimaries));
         assertEquals(
             stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(),
             numShards.totalNumShards
@@ -76,7 +76,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         stateResponse = client().admin().cluster().prepareState().get();
         assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
 
-        assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(numShards.numPrimaries));
+        assertThat(stateResponse.getState().routingTable().index("test").size(), equalTo(numShards.numPrimaries));
         assertEquals(
             stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(),
             numShards.totalNumShards
@@ -102,11 +102,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareClose("test").setWaitForActiveShards(ActiveShardCount.NONE));
 
         logger.info("--> updating test index settings to allow allocation");
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test")
-            .setSettings(Settings.builder().put("index.routing.allocation.include.tag", "").build())
-            .get();
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.include.tag", ""), "test");
 
         client().admin().indices().prepareOpen("test").get();
 
@@ -117,7 +113,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
 
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
         assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
-        assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(numShards.numPrimaries));
+        assertThat(stateResponse.getState().routingTable().index("test").size(), equalTo(numShards.numPrimaries));
         assertEquals(
             stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(),
             numShards.totalNumShards

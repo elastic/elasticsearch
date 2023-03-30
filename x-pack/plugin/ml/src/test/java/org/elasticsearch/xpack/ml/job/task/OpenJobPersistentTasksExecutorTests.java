@@ -107,7 +107,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
                 )
             )
         );
-        clusterService = new ClusterService(settings, clusterSettings, tp);
+        clusterService = new ClusterService(settings, clusterSettings, tp, null);
         autodetectProcessManager = mock(AutodetectProcessManager.class);
         datafeedConfigProvider = mock(DatafeedConfigProvider.class);
         client = mock(Client.class);
@@ -259,12 +259,13 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
                 shardId,
                 true,
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
+                ShardRouting.Role.DEFAULT
             );
             shardRouting = shardRouting.initialize("node_id", null, 0L);
-            shardRouting = shardRouting.moveToStarted();
+            shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
             routingTable.add(
-                IndexRoutingTable.builder(index).addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build())
+                IndexRoutingTable.builder(index).addIndexShard(IndexShardRoutingTable.builder(shardId).addShard(shardRouting))
             );
         }
     }
@@ -293,7 +294,8 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
             mlMemoryTracker,
             client,
             TestIndexNameExpressionResolver.newInstance(),
-            licenseState
+            licenseState,
+            true
         );
     }
 }

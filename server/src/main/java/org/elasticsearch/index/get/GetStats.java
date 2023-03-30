@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class GetStats implements Writeable, ToXContentFragment {
 
@@ -137,5 +138,22 @@ public class GetStats implements Writeable, ToXContentFragment {
         out.writeVLong(missingCount);
         out.writeVLong(missingTimeInMillis);
         out.writeVLong(current);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        GetStats that = (GetStats) o;
+        return existsCount == that.existsCount
+            && existsTimeInMillis == that.existsTimeInMillis
+            && missingCount == that.missingCount
+            && missingTimeInMillis == that.missingTimeInMillis
+            && current == that.current;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(existsCount, existsTimeInMillis, missingCount, missingTimeInMillis, current);
     }
 }

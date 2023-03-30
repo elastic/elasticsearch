@@ -1,4 +1,4 @@
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'

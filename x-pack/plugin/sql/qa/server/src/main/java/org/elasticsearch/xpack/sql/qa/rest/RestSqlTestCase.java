@@ -6,8 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.qa.rest;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
+import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -16,6 +15,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -25,6 +25,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.proto.CoreProtocol;
 import org.elasticsearch.xpack.sql.proto.Mode;
@@ -77,6 +78,7 @@ import static org.elasticsearch.xpack.sql.proto.CoreProtocol.URL_PARAM_FORMAT;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Integration test for the rest sql action. The one that speaks json directly to a
@@ -278,7 +280,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
         assertNull(cursor);
 
-        deleteIndex("test_date_timezone");
+        deleteIndexWithProvisioningClient("test_date_timezone");
     }
 
     @AwaitsFix(bugUrl = "Unclear status, https://github.com/elastic/x-pack-elasticsearch/issues/2074")
@@ -478,7 +480,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
 
         String cursor = (String) response.remove("cursor");
-        assertNotNull(cursor);
+        assertNull(cursor);
         assertResponse(expected, response);
     }
 
@@ -992,7 +994,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             test          \s
             test          \s
             """;
-        Tuple<String, String> response = runSqlAsText("SELECT * FROM " + indexPattern("test"), "text/plain");
+        Tuple<String, String> response = runSqlAsText(query("SELECT * FROM " + indexPattern("test")), "text/plain");
         assertEquals(expected, response.v1());
     }
 
@@ -1021,7 +1023,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             """;
 
         String query = "SELECT * FROM " + indexPattern("test") + " ORDER BY number";
-        Tuple<String, String> response = runSqlAsText(query, "text/csv");
+        Tuple<String, String> response = runSqlAsText(query(query), "text/csv");
         assertEquals(expected, response.v1());
 
         response = runSqlAsTextWithFormat(query, "csv");
@@ -1042,7 +1044,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             """;
 
         String query = "SELECT * FROM " + indexPattern("test") + " ORDER BY number";
-        Tuple<String, String> response = runSqlAsText(query, "text/csv; header=absent");
+        Tuple<String, String> response = runSqlAsText(query(query), "text/csv; header=absent");
         assertEquals(expected, response.v1());
     }
 
@@ -1094,7 +1096,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             """;
 
         String query = "SELECT * FROM " + indexPattern("test") + " ORDER BY number";
-        Tuple<String, String> response = runSqlAsText(query, "text/tab-separated-values");
+        Tuple<String, String> response = runSqlAsText(query(query), "text/tab-separated-values");
         assertEquals(expected, response.v1());
         response = runSqlAsTextWithFormat(query, "tsv");
         assertEquals(expected, response.v1());
@@ -1152,7 +1154,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         expected.put("rows", singletonList(singletonList(nullId)));
         assertResponse(expected, runSql(mode, "SELECT id FROM " + indexPattern("test_binary") + " WHERE binary IS NULL", false));
 
-        deleteIndex("test_binary");
+        deleteIndexWithProvisioningClient("test_binary");
     }
 
     public void testPreventedUnsignedLongMaskedAccess() throws IOException {
@@ -1169,32 +1171,31 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         int size = 20;
         String[] docs = new String[size];
         for (int i = 0; i < size; i++) {
-            docs[i] = """
+            docs[i] = org.elasticsearch.core.Strings.format("""
                 {"text":"text%s", "number":%s}
-                """.formatted(i, i);
+                """, i, i);
         }
         index(docs);
 
-        String request = query("SELECT text, number, number + 5 AS sum FROM " + indexPattern("test") + " ORDER BY number").fetchSize(2)
-            .toString();
+        String optionalGroupBy = randomFrom("", " GROUP BY text, number, sum");
+
+        RequestObjectBuilder request = query(
+            "SELECT text, number, number + 5 AS sum FROM " + indexPattern("test") + optionalGroupBy + " ORDER BY number"
+        ).fetchSize(2);
 
         String cursor = null;
-        for (int i = 0; i <= 20; i += 2) {
+        for (int i = 0; i <= size; i += 2) {
             Tuple<String, String> response;
             if (i == 0) {
-                response = runSqlAsText(StringUtils.EMPTY, new StringEntity(request, ContentType.APPLICATION_JSON), format);
+                response = runSqlAsText(request, format);
             } else {
-                response = runSqlAsText(
-                    StringUtils.EMPTY,
-                    new StringEntity(cursor(cursor).toString(), ContentType.APPLICATION_JSON),
-                    format
-                );
+                response = runSqlAsText(cursor(cursor), format);
             }
 
             StringBuilder expected = new StringBuilder();
             if (i == 0) {
                 expected.append(expectedHeader);
-                if (format == "text/plain") {
+                if (format.equals("text/plain")) {
                     expected.append("---------------+---------------+---------------\n");
                 }
             }
@@ -1218,10 +1219,10 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < count; i++) {
-            bulk.append("""
+            bulk.append(org.elasticsearch.core.Strings.format("""
                 {"index":{"_id":"%s"}}
                 {"text":"text%s", "number":%s}
-                """.formatted(i, i, i));
+                """, i, i, i));
         }
         request.setJsonEntity(bulk.toString());
         provisioningClient().performRequest(request);
@@ -1241,25 +1242,6 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             }""");
         provisioningClient().performRequest(request);
         index("{\"unsigned_long\": 18446744073709551615}");
-    }
-
-    protected static Tuple<String, String> runSqlAsText(String sql, String accept) throws IOException {
-        return runSqlAsText(StringUtils.EMPTY, new StringEntity(query(sql).toString(), ContentType.APPLICATION_JSON), accept);
-    }
-
-    /**
-     * Run SQL as text using the {@code Accept} header to specify the format
-     * rather than the {@code format} parameter.
-     */
-    private static Tuple<String, String> runSqlAsText(String suffix, HttpEntity entity, String accept) throws IOException {
-        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT + suffix);
-        request.addParameter("error_trace", "true");
-        request.setEntity(entity);
-        RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.addHeader("Accept", accept);
-        request.setOptions(options);
-        Response response = client().performRequest(request);
-        return new Tuple<>(responseBody(response), response.getHeader("Cursor"));
     }
 
     private static String responseBody(Response response) throws IOException {
@@ -1436,6 +1418,261 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
         // without compression, the cursor is at least <avg. fieldname length> * 1000 bytes (in fact it is ~35kb)
         assertThat(resp.get("cursor").toString().length(), lessThan(5000));
+    }
+
+    public void testFetchAllPagesSearchHitCursorTxt() throws IOException {
+        testFetchAllPagesSearchHitCursor("text/plain");
+    }
+
+    public void testFetchAllPagesSearchHitCursorCsv() throws IOException {
+        testFetchAllPagesSearchHitCursor("text/csv");
+    }
+
+    public void testFetchAllPagesSearchHitCursorTsv() throws IOException {
+        testFetchAllPagesSearchHitCursor("text/tab-separated-values");
+    }
+
+    public void testFetchAllPagesSearchHitCursor(String format) throws IOException {
+        int size = randomIntBetween(4, 20);
+        int pageSize = randomIntBetween(1, size + 1);
+
+        List<String> texts = IntStream.range(0, size).mapToObj(i -> String.format(Locale.ROOT, "text%02d", i)).toList();
+        index(texts.stream().map(t -> "{\"field\": \"" + t + "\"}").toArray(String[]::new));
+
+        testFetchAllPages(format, "SELECT field FROM " + indexPattern("test") + " ORDER BY field", texts, pageSize, size % pageSize == 0);
+    }
+
+    /**
+     * Special case of `testFetchAllPagesSearchHitCursorTxt` covering https://github.com/elastic/elasticsearch/issues/83788.
+     */
+    public void testFetchAllPagesSearchHitCursorWithNonFullLastPageTxt() throws IOException {
+        int size = randomIntBetween(4, 20);
+        int pageSize = size / 2 + 1;
+
+        List<String> texts = IntStream.range(0, size).mapToObj(i -> String.format(Locale.ROOT, "text%02d", i)).toList();
+        index(texts.stream().map(t -> "{\"field\": \"" + t + "\"}").toArray(String[]::new));
+
+        testFetchAllPages("text/plain", "SELECT field FROM " + indexPattern("test") + " ORDER BY field", texts, pageSize, false);
+    }
+
+    public void testFetchAllPagesCompositeAggCursorTxt() throws IOException {
+        testFetchAllPagesCompositeAggCursor("text/plain");
+    }
+
+    public void testFetchAllPagesCompositeAggCursorCsv() throws IOException {
+        testFetchAllPagesCompositeAggCursor("text/csv");
+    }
+
+    public void testFetchAllPagesCompositeAggCursorTsv() throws IOException {
+        testFetchAllPagesCompositeAggCursor("text/tab-separated-values");
+    }
+
+    public void testFetchAllPagesCompositeAggCursor(String format) throws IOException {
+        int size = randomIntBetween(4, 20);
+        int pageSize = randomIntBetween(1, size + 1);
+
+        List<String> texts = IntStream.range(0, size).mapToObj(i -> String.format(Locale.ROOT, "text%02d", i)).toList();
+        index(texts.stream().map(t -> "{\"field\": \"" + t + "\"}").toArray(String[]::new));
+
+        testFetchAllPages(
+            format,
+            "SELECT field FROM " + indexPattern("test") + " GROUP BY field ORDER BY field",
+            texts,
+            pageSize,
+            size % pageSize == 0
+        );
+    }
+
+    public void testFetchAllPagesCompositeAggCursorWithFilterOnAggregateTxt() throws IOException {
+        testFetchAllPagesCompositeAggCursorWithFilterOnAggregate("text/plain");
+    }
+
+    public void testFetchAllPagesCompositeAggCursorWithFilterOnAggregateCsv() throws IOException {
+        testFetchAllPagesCompositeAggCursorWithFilterOnAggregate("text/csv");
+    }
+
+    public void testFetchAllPagesCompositeAggCursorWithFilterOnAggregateTsv() throws IOException {
+        testFetchAllPagesCompositeAggCursorWithFilterOnAggregate("text/tab-separated-values");
+    }
+
+    public void testFetchAllPagesCompositeAggCursorWithFilterOnAggregate(String format) throws IOException {
+        int size = randomIntBetween(4, 20);
+        int pageSize = randomIntBetween(1, size + 1);
+
+        List<String> texts = IntStream.range(0, size).mapToObj(i -> String.format(Locale.ROOT, "text%02d", i)).toList();
+        index(texts.stream().map(t -> "{\"field\": \"" + t + "\"}").toArray(String[]::new));
+
+        testFetchAllPages(
+            format,
+            "SELECT field, COUNT(*) c FROM " + indexPattern("test") + " GROUP BY field HAVING c = 1 ORDER BY field",
+            texts,
+            pageSize,
+            true
+        );
+    }
+
+    public void testFetchAllPagesListCursorTxt() throws IOException {
+        testFetchAllPagesListCursor("text/plain");
+    }
+
+    public void testFetchAllPagesListCursorCsv() throws IOException {
+        testFetchAllPagesListCursor("text/csv");
+    }
+
+    public void testFetchAllPagesListCursorTsv() throws IOException {
+        testFetchAllPagesListCursor("text/tab-separated-values");
+    }
+
+    public void testFetchAllPagesListCursor(String format) throws IOException {
+        int size = randomIntBetween(4, 20);
+        int pageSize = randomIntBetween(1, size + 1);
+
+        List<String> fields = IntStream.range(0, size).mapToObj(i -> String.format(Locale.ROOT, "text%02d", i)).toList();
+        index(fields.stream().map(f -> "{\"" + f + "\": 1}").toArray(String[]::new));
+
+        testFetchAllPages(format, "SHOW COLUMNS FROM " + indexPattern("test"), fields, pageSize, false);
+    }
+
+    /**
+     * Generic paging test that ensures that
+     * 1. All expected documents are fetched when scrolling through all pages
+     * 2. There are at most `expectedValues.size() / pageSize + 1` pages (the last one might or might not be empty)
+     * 3. Optionally: That the last page is not empty.
+     */
+    private void testFetchAllPages(String format, String query, List<String> expectedValues, int pageSize, boolean emptyLastPage)
+        throws IOException {
+        int remainingPages = expectedValues.size() / pageSize + 1;
+
+        Tuple<String, String> response = runSqlAsText(query(query).fetchSize(pageSize), format);
+        StringBuilder allResults = new StringBuilder(response.v1());
+
+        while (response.v2() != null && remainingPages > 0) {
+            response = runSqlAsText(cursor(response.v2()), format);
+            allResults.append("\n").append(response.v1());
+
+            assertThat(response.v1().split("\n").length, lessThanOrEqualTo(pageSize));
+
+            remainingPages--;
+        }
+
+        if (emptyLastPage) {
+            assertTrue("Expected empty last page but got " + response.v1(), Strings.isNullOrEmpty(response.v1()));
+        } else {
+            assertFalse("Expected non-empty last page but got " + response.v1(), Strings.isNullOrEmpty(response.v1()));
+        }
+
+        assertNull(response.v2());
+
+        String results = allResults.toString();
+        for (String v : expectedValues) {
+            assertThat(results, containsString(v));
+        }
+    }
+
+    public void testDataStreamInShowTables() throws IOException {
+        // TODO: list aliases and data streams in CCS setups
+        assumeTrue("Data streams in remote clusters are not available", provisioningClient().equals(client()));
+        expectDataStreamInShowTables("test-datastream", "SHOW TABLES");
+    }
+
+    public void testDataStreamInShowTablesFiltered() throws IOException {
+        assumeTrue("Data streams in remote clusters are not available", provisioningClient().equals(client()));
+        String dataStreamName = "test-datastream";
+        expectDataStreamInShowTables(dataStreamName, "SHOW TABLES \\\"" + dataStreamName + "*\\\"");
+    }
+
+    private void expectDataStreamInShowTables(String dataStreamName, String sql) throws IOException {
+        try {
+            createDataStream(dataStreamName);
+
+            String mode = randomMode();
+            Map<String, Object> answer = toMap(runSql(query(sql).mode(mode)), mode);
+            List<String> expected = Arrays.asList("javaRestTest", dataStreamName, "VIEW", "ALIAS");
+            @SuppressWarnings("unchecked")
+            List<List<String>> rows = (List<List<String>>) (answer.get("rows"));
+            assertTrue(rows.contains(expected));
+        } finally {
+            deleteDataStream(dataStreamName);
+        }
+    }
+
+    public void testQueryDataStream() throws IOException {
+        assumeTrue("Data streams in remote clusters are not available", provisioningClient().equals(client()));
+        String dataStreamName = "test-datastream";
+        try {
+            createDataStream(dataStreamName);
+            indexWithIndexName(dataStreamName, "{\"@timestamp\": \"2001-01-01T01:01:01Z\", \"foo\":\"bar\"}");
+
+            String mode = randomMode();
+            Map<String, Object> expected = new HashMap<>();
+            expected.put("columns", singletonList(columnInfo(mode, "foo", "text", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+            expected.put("rows", singletonList(singletonList("bar")));
+            assertResponse(expected, runSql(mode, "SELECT foo FROM \\\"" + dataStreamName + "\\\"", false));
+        } finally {
+            deleteDataStream(dataStreamName);
+        }
+
+    }
+
+    public void testAllowPartialSearchResults() throws IOException {
+        final String mappingTemplate = """
+            {
+              "mappings": {
+                "properties": {
+                  "bool": {
+                    "type": "boolean",
+                      "index": %s,
+                      "doc_values": %s
+                  }
+                }
+              }
+            }""";
+
+        // must match org.elasticsearch.xpack.sql.execution.search.Querier.BaseActionListener.MAX_WARNING_HEADERS
+        final int maxWarningHeaders = 20;
+        final int extraBadShards = randomIntBetween(1, 5);
+        final int okShards = randomIntBetween(1, 5);
+
+        final String suppressMessage = " remaining shard failure" + (extraBadShards > 1 ? "s" : "") + " suppressed";
+        final String reason = "Cannot search on field [bool] since it is not indexed nor has doc values";
+        final String warnMessage = "org.elasticsearch.index.query.QueryShardException: failed to create query: " + reason;
+
+        for (int i = 0; i < maxWarningHeaders - 1 + okShards + extraBadShards; i++) {
+            Request request = new Request("PUT", "/test" + i);
+            boolean indexWithDocVals = i < okShards;
+            request.setJsonEntity(String.format(Locale.ROOT, mappingTemplate, indexWithDocVals, indexWithDocVals));
+            assertOK(provisioningClient().performRequest(request));
+            indexWithIndexName("test" + i, "{\"bool\": " + randomBoolean() + "}");
+        }
+
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+        RequestObjectBuilder builder = query("SELECT * FROM " + indexPattern("\\\"test*\\\"") + " WHERE bool=" + randomBoolean());
+
+        // first, the negative test: allowPartialSearchResults=false leads to an error
+        request.setEntity(new StringEntity(builder.toString(), ContentType.APPLICATION_JSON));
+        ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertTrue(exception.getMessage().contains(reason));
+
+        // then, allowPartialSearchResults=true will generate a response with shard failures warnings
+        request.setEntity(new StringEntity(builder.allowPartialSearchResults(true).toString(), ContentType.APPLICATION_JSON));
+        Response response = client().performRequest(request);
+        assertOK(response);
+
+        int failedShards = 0;
+        boolean hasSupressMessage = false;
+        for (Header header : response.getHeaders()) {
+            if (header.getName().toLowerCase(Locale.ROOT).equals("warning")) {
+                String headerVal = header.getValue();
+                if (headerVal.contains(warnMessage)) {
+                    failedShards++;
+                } else if (headerVal.contains(extraBadShards + suppressMessage)) {
+                    hasSupressMessage = true;
+                }
+            }
+        }
+        assertEquals(maxWarningHeaders - 1, failedShards);
+        assertTrue(hasSupressMessage);
     }
 
     static Map<String, Object> runSql(RequestObjectBuilder builder, String mode) throws IOException {

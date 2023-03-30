@@ -34,7 +34,7 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
     private final boolean preserveOriginal;
 
     public MultiplexerTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) throws IOException {
-        super(indexSettings, name, settings);
+        super(name, settings);
         this.filterNames = settings.getAsList("filters");
         this.preserveOriginal = settings.getAsBoolean("preserve_original", true);
     }
@@ -111,7 +111,7 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
         };
     }
 
-    private TokenFilterFactory chainFilters(String name, List<TokenFilterFactory> filters) {
+    private static TokenFilterFactory chainFilters(String name, List<TokenFilterFactory> filters) {
         return new TokenFilterFactory() {
             @Override
             public String name() {
@@ -137,7 +137,7 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
         }
     }
 
-    private final class MultiplexTokenFilter extends TokenFilter {
+    private static final class MultiplexTokenFilter extends TokenFilter {
 
         private final TokenStream source;
         private final int filterCount;

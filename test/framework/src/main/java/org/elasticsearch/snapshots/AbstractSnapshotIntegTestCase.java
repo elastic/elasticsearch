@@ -21,7 +21,6 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -37,7 +36,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -55,10 +53,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
 
@@ -77,6 +74,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -99,11 +97,18 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     public static final String OLD_VERSION_SNAPSHOT_PREFIX = "old-version-snapshot-";
 
+    protected static final int LARGE_POOL_SIZE = 10;
+
     // Large snapshot pool settings to set up nodes for tests involving multiple repositories that need to have enough
     // threads so that blocking some threads on one repository doesn't block other repositories from doing work
     protected static final Settings LARGE_SNAPSHOT_POOL_SETTINGS = Settings.builder()
-        .put("thread_pool.snapshot.core", 5)
-        .put("thread_pool.snapshot.max", 5)
+        .put("thread_pool.snapshot.core", LARGE_POOL_SIZE)
+        .put("thread_pool.snapshot.max", LARGE_POOL_SIZE)
+        .build();
+
+    protected static final Settings SMALL_SNAPSHOT_POOL_SETTINGS = Settings.builder()
+        .put("thread_pool.snapshot.core", 1)
+        .put("thread_pool.snapshot.max", 1)
         .build();
 
     @Override
@@ -199,7 +204,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected void stopNode(final String node) throws IOException {
         logger.info("--> stopping node {}", node);
-        internalCluster().stopRandomNode(settings -> settings.get("node.name").equals(node));
+        internalCluster().stopNode(node);
     }
 
     protected static String startDataNodeWithLargeSnapshotPool() {
@@ -383,8 +388,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         repositoryData.snapshotsToXContent(jsonBuilder, version);
         final RepositoryData downgradedRepoData = RepositoryData.snapshotsFromXContent(
             JsonXContent.jsonXContent.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                XContentParserConfiguration.EMPTY,
                 Strings.toString(jsonBuilder).replace(Version.CURRENT.toString(), version.toString())
             ),
             repositoryData.getGenId(),
@@ -398,8 +402,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final SnapshotInfo downgradedSnapshotInfo = SnapshotInfo.fromXContentInternal(
             repoName,
             JsonXContent.jsonXContent.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                XContentParserConfiguration.EMPTY,
                 Strings.toString(snapshotInfo, ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS)
                     .replace(String.valueOf(Version.CURRENT.id), String.valueOf(version.id))
             )
@@ -532,7 +535,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             SnapshotState.FAILED,
             Collections.emptyMap()
         );
-        PlainActionFuture.<Tuple<RepositoryData, SnapshotInfo>, Exception>get(
+        PlainActionFuture.<RepositoryData, Exception>get(
             f -> repo.finalizeSnapshot(
                 new FinalizeSnapshotContext(
                     ShardGenerations.EMPTY,
@@ -540,7 +543,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                     state.metadata(),
                     snapshotInfo,
                     SnapshotsService.OLD_SNAPSHOT_FORMAT,
-                    f
+                    f,
+                    info -> {}
                 )
             )
         );
@@ -652,7 +656,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     protected static void updateClusterState(final Function<ClusterState, ClusterState> updater) throws Exception {
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
-        clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+        clusterService.submitUnbatchedStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return updater.apply(currentState);
@@ -667,7 +671,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 future.onResponse(null);
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
         future.get();
     }
 
@@ -696,7 +700,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     public static List<String> createNSnapshots(Logger logger, String repoName, int count) throws Exception {
         final PlainActionFuture<Collection<CreateSnapshotResponse>> allSnapshotsDone = PlainActionFuture.newFuture();
-        final ActionListener<CreateSnapshotResponse> snapshotsListener = new GroupedActionListener<>(allSnapshotsDone, count);
+        final ActionListener<CreateSnapshotResponse> snapshotsListener = new GroupedActionListener<>(count, allSnapshotsDone);
         final List<String> snapshotNames = new ArrayList<>(count);
         final String prefix = RANDOM_SNAPSHOT_NAME_PREFIX + UUIDs.randomBase64UUID(random()).toLowerCase(Locale.ROOT) + "-";
         for (int i = 0; i < count; i++) {
@@ -799,5 +803,17 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     public static String[] matchAllPattern() {
         return randomBoolean() ? new String[] { "*" } : new String[] { TransportGetRepositoriesAction.ALL_PATTERN };
+    }
+
+    public RepositoryMetadata getRepositoryMetadata(String repo) {
+        RepositoriesMetadata repositories = clusterService().state()
+            .metadata()
+            .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+        Optional<RepositoryMetadata> repositoryMetadata = repositories.repositories()
+            .stream()
+            .filter(x -> x.name().equals(repo))
+            .findFirst();
+        assertTrue(repositoryMetadata.isPresent());
+        return repositoryMetadata.get();
     }
 }

@@ -110,7 +110,7 @@ public class TypeParsers {
                 }
             }
 
-            parserContext = parserContext.createMultiFieldContext(parserContext);
+            parserContext = parserContext.createMultiFieldContext();
 
             final Map<String, Object> multiFieldsPropNodes;
             if (propNode instanceof List && ((List<?>) propNode).isEmpty()) {
@@ -133,7 +133,7 @@ public class TypeParsers {
                 String multiFieldName = multiFieldEntry.getKey();
                 if (multiFieldName.contains(".")) {
                     throw new MapperParsingException(
-                        "Field name [" + multiFieldName + "] which is a multi field of [" + name + "] cannot" + " contain '.'"
+                        "Field name [" + multiFieldName + "] which is a multi field of [" + name + "] cannot contain '.'"
                     );
                 }
                 if ((multiFieldEntry.getValue() instanceof Map) == false) {

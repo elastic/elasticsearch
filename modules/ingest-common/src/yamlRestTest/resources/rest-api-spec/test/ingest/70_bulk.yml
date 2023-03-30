@@ -144,3 +144,79 @@ teardown:
 
   - is_false: _source.field1
   - match: {_source.field2: value2}
+
+---
+"Test bulk request with _none request pipeline and default pipeline":
+
+  - do:
+      bulk:
+        pipeline: pipeline1
+        body:
+          - index:
+              _index: test_index
+              _id:    test_id1
+          - f1: v1
+          - index:
+              _index: test_index
+              _id:    test_id2
+              pipeline: _none
+          - f1: v2
+  - gte: { ingest_took: 0 }
+
+  - do:
+      cluster.state: {}
+  # Get master node id
+  - set: { master_node: master }
+
+  - do:
+      get:
+        index: test_index
+        id: test_id1
+
+  - match: {_source.field1: value1}
+  - is_false: _source.field2
+
+  - do:
+      get:
+        index: test_index
+        id: test_id2
+
+  - is_false: _source.field1
+  - is_false: _source.field2
+
+---
+"Update with pipeline":
+  - skip:
+      version: " - 7.17.4"
+      reason: "fixed in 7.17.5"
+
+  - do:
+      ingest.put_pipeline:
+        id: "lowercase-pipeline"
+        body: >
+          {
+            "processors": [
+              {
+                "lowercase" : {
+                  "field" : "my_field"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"update":{"_id":"1","_index":"test_index","pipeline":"lowercase-pipeline"}}'
+          - '{"upsert":{"my_field":"UPPER"},"script":{"source":"ctx._source.my_field = ctx._source.my_field.toLowercase()"}}'
+
+  - match: { errors: false }
+  - match: { items.0.update.result: created }
+
+  - do:
+      get:
+        index: test_index
+        id: 1
+  - match: { _source:  { my_field: "upper" } }

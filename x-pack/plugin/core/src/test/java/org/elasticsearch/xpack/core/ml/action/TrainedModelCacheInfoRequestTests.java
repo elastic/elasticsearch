@@ -35,4 +35,9 @@ public class TrainedModelCacheInfoRequestTests extends AbstractWireSerializingTe
         }
         return new TrainedModelCacheInfoAction.Request(nodes);
     }
+
+    @Override
+    protected TrainedModelCacheInfoAction.Request mutateInstance(TrainedModelCacheInfoAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

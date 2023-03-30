@@ -1,28 +1,19 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 apply plugin: 'elasticsearch.internal-es-plugin'
 esplugin {
   name 'x-pack-rollup'
   description 'Elasticsearch Expanded Pack Plugin - Rollup'
   classname 'org.elasticsearch.xpack.rollup.Rollup'
-  extendedPlugins = ['x-pack-core']
+  extendedPlugins = ['x-pack-aggregate-metric']
 }
 
 archivesBaseName = 'x-pack-rollup'
 
 dependencies {
-  compileOnly project(":server")
   compileOnly project(path: xpackModule('core'))
-  compileOnly project(path: xpackModule('analytics'))
+  testImplementation project(':modules:data-streams')
+  testImplementation project(path: xpackModule('ilm'))
   compileOnly project(path: xpackModule('mapper-aggregate-metric'))
-  compileOnly project(':modules:data-streams')
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-addQaCheckDependencies()
-
-tasks.named("test").configure {
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
-  }
-}
+addQaCheckDependencies(project)

@@ -41,10 +41,10 @@ public class InternalDistributionDownloadPluginTests extends AbstractDistributio
         for (ElasticsearchDistributionType packageType : types) {
             // note: no non bundled jdk for bwc
             String configName = projectName(packageType.toString(), true);
-            checkBwc("minor", configName, BWC_MINOR_VERSION.elasticsearch(), packageType, null, BWC_MINOR);
-            checkBwc("staged", configName, BWC_STAGED_VERSION.elasticsearch(), packageType, null, BWC_STAGED);
-            checkBwc("bugfix", configName, BWC_BUGFIX_VERSION.elasticsearch(), packageType, null, BWC_BUGFIX);
-            checkBwc("maintenance", configName, BWC_MAINTENANCE_VERSION.elasticsearch(), packageType, null, BWC_MAINTENANCE);
+            checkBwc("minor", configName, BWC_MINOR_VERSION, packageType, null, BWC_MINOR);
+            checkBwc("staged", configName, BWC_STAGED_VERSION, packageType, null, BWC_STAGED);
+            checkBwc("bugfix", configName, BWC_BUGFIX_VERSION, packageType, null, BWC_BUGFIX);
+            checkBwc("maintenance", configName, BWC_MAINTENANCE_VERSION, packageType, null, BWC_MAINTENANCE);
         }
     }
 }

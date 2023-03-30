@@ -13,9 +13,9 @@ read_remote_shared_metrics:
 ccr_user_role:
   cluster: [ 'manage_ccr' ]
   indices:
-    - names: [ 'follower*' ]
+    - names: [ 'follower*', 'metrics-*' ]
       privileges: [ 'monitor', 'read', 'write', 'manage_follow_index' ]
   remote_indices:
-    - names: [ 'leader-index' ]
-      privileges: [ 'manage', 'read' ]
+    - names: [ 'leader-index', 'metrics-*' ]
+      privileges: [ 'monitor', 'read' ]
       clusters: [ "*" ]

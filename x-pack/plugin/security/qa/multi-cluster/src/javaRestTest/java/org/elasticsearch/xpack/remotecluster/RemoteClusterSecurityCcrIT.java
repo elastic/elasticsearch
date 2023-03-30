@@ -12,6 +12,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.junit.ClassRule;
@@ -19,8 +20,11 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -54,7 +58,7 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
                         [
                           {
-                             "names": ["leader-index"],
+                             "names": ["leader-index", "metrics-*"],
                              "privileges": ["manage", "read"]
                           }
                         ]""");
@@ -73,7 +77,7 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
     public void testFollow() throws Exception {
         configureRemoteClusters();
 
-        // Fulfilling cluster
+        // fulfilling cluster
         {
             final Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
             bulkRequest.setJsonEntity(Strings.format("""
@@ -88,7 +92,7 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
             assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
         }
 
-        // Query cluster
+        // query cluster
         {
             final Request putCcrRequest = new Request("PUT", "/follower-index/_ccr/follow?wait_for_active_shards=1");
             putCcrRequest.setJsonEntity("""
@@ -110,6 +114,63 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
                 assertOK(response);
                 final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
                 assertThat(searchResponse.getHits().getTotalHits().value, equalTo(4L));
+            });
+        }
+    }
+
+    public void testAutoFollow() throws Exception {
+        configureRemoteClusters();
+
+        // follow cluster
+        {
+            final var putAllowFollowRequest = new Request("PUT", "/_ccr/auto_follow/my_auto_follow_pattern");
+            putAllowFollowRequest.setJsonEntity("""
+                {
+                  "remote_cluster" : "my_remote_cluster",
+                  "leader_index_patterns" : [ "metrics-*" ],
+                  "leader_index_exclusion_patterns": [ "metrics-001" ]
+                }""");
+
+            final Response putAutoFollowResponse = performRequestWithCcrUser(putAllowFollowRequest);
+            assertOK(putAutoFollowResponse);
+        }
+
+        // leader cluster
+        {
+            final Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
+            bulkRequest.setJsonEntity(Strings.format("""
+                { "index": { "_index": "metrics-000" } }
+                { "name": "doc-1" }
+                { "index": { "_index": "metrics-000" } }
+                { "name": "doc-2" }
+                { "index": { "_index": "metrics-001" } }
+                { "name": "doc-3" }
+                { "index": { "_index": "metrics-002" } }
+                { "name": "doc-4" }\n"""));
+            assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
+        }
+
+        // follow cluster
+        {
+            final Request searchRequest = new Request("GET", "/metrics-*/_search");
+            assertBusy(() -> {
+                ensureHealth("", request -> {
+                    request.addParameter("wait_for_status", "yellow");
+                    request.addParameter("wait_for_active_shards", "1");
+                    request.addParameter("wait_for_no_relocating_shards", "true");
+                    request.addParameter("wait_for_no_initializing_shards", "true");
+                    request.addParameter("timeout", "5s");
+                    request.addParameter("level", "shards");
+                });
+
+                final Response response = performRequestWithCcrUser(searchRequest);
+                assertOK(response);
+                final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
+                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+                assertThat(
+                    Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toUnmodifiableSet()),
+                    equalTo(Set.of("metrics-000", "metrics-002"))
+                );
             });
         }
     }

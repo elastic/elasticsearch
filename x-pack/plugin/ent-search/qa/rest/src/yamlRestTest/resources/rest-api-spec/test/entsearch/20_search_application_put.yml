@@ -147,3 +147,34 @@ teardown:
       catch: missing
       search_application.get:
         name: another-test-search-application
+
+---
+"Update Search Application - Insufficient privilege":
+  - do:
+      search_application.put:
+        name: test-search-application
+        create: true
+        body:
+          indices: [ "test-index1", "test-index2" ]
+
+  - do:
+      catch: forbidden
+      search_application.put:
+        name: test-search-application
+        body:
+          indices: [ "another-index" ]
+
+  - match: { error.type: "security_exception" }
+
+  # Check aliases and previous Search Application still exist
+  - do:
+      indices.exists_alias:
+        name: test-search-application
+
+  - is_true: ''
+
+  - do:
+      search_application.get:
+        name: test-search-application
+
+  - match: { indices: [ "test-index1", "test-index2" ] }

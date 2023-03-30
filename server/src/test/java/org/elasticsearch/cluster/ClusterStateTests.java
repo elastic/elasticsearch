@@ -214,7 +214,7 @@ public class ClusterStateTests extends ESTestCase {
                   "transport_versions" : [
                     {
                       "node_id" : "nodeId1",
-                      "transport_version" : "8000099"
+                      "transport_version" : "%s"
                     }
                   ],
                   "metadata": {
@@ -364,7 +364,7 @@ public class ClusterStateTests extends ESTestCase {
                       "nodeId1": []
                     }
                   }
-                }""", ephemeralId, Version.CURRENT, Version.CURRENT.id, Version.CURRENT.id, allocationId, allocationId)),
+                }""", ephemeralId, Version.CURRENT, TransportVersion.CURRENT, Version.CURRENT.id, Version.CURRENT.id, allocationId, allocationId)),
             Strings.toString(builder)
         );
 
@@ -455,7 +455,7 @@ public class ClusterStateTests extends ESTestCase {
                   "transport_versions" : [
                     {
                       "node_id" : "nodeId1",
-                      "transport_version" : "8000099"
+                      "transport_version" : "%s"
                     }
                   ],
                   "metadata" : {
@@ -601,7 +601,7 @@ public class ClusterStateTests extends ESTestCase {
                       "nodeId1" : [ ]
                     }
                   }
-                }""", ephemeralId, Version.CURRENT, Version.CURRENT.id, Version.CURRENT.id, allocationId, allocationId),
+                }""", ephemeralId, Version.CURRENT, TransportVersion.CURRENT, Version.CURRENT.id, Version.CURRENT.id, allocationId, allocationId),
             Strings.toString(builder)
         );
 
@@ -693,7 +693,7 @@ public class ClusterStateTests extends ESTestCase {
                   "transport_versions" : [
                     {
                       "node_id" : "nodeId1",
-                      "transport_version" : "8000099"
+                      "transport_version" : "%s"
                     }
                   ],
                   "metadata" : {
@@ -845,7 +845,7 @@ public class ClusterStateTests extends ESTestCase {
                       "nodeId1" : [ ]
                     }
                   }
-                }""", ephemeralId, Version.CURRENT, Version.CURRENT.id, Version.CURRENT.id, allocationId, allocationId),
+                }""", ephemeralId, Version.CURRENT, TransportVersion.CURRENT, Version.CURRENT.id, Version.CURRENT.id, allocationId, allocationId),
             Strings.toString(builder)
         );
 

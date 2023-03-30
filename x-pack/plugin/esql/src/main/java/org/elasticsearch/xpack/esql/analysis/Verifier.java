@@ -32,6 +32,7 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -168,7 +169,7 @@ public class Verifier {
             t -> allowed.contains(t),
             bc.sourceText(),
             FIRST,
-            allowed.stream().map(a -> a.typeName()).toArray(String[]::new)
+            Stream.concat(Stream.of("numeric"), allowed.stream().map(a -> a.typeName())).toArray(String[]::new)
         );
         if (false == r.resolved()) {
             return fail(bc, r.message());

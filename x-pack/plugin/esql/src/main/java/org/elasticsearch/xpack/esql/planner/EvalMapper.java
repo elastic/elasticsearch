@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.NotProcessor;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.ReflectionUtils;
 
@@ -41,7 +40,11 @@ public final class EvalMapper {
     }
 
     private static final List<ExpressionMapper<?>> MAPPERS = List.of(
-        new Arithmetics(),
+        ArithmeticMapper.ADD,
+        ArithmeticMapper.DIV,
+        ArithmeticMapper.MOD,
+        ArithmeticMapper.MUL,
+        ArithmeticMapper.SUB,
         ComparisonMapper.EQUALS,
         ComparisonMapper.NOT_EQUALS,
         ComparisonMapper.GREATER_THAN,
@@ -67,25 +70,6 @@ public final class EvalMapper {
             }
         }
         throw new QlIllegalArgumentException("Unsupported expression [{}]", exp);
-    }
-
-    static class Arithmetics extends ExpressionMapper<ArithmeticOperation> {
-
-        @Override
-        protected Supplier<ExpressionEvaluator> map(ArithmeticOperation ao, Layout layout) {
-            Supplier<ExpressionEvaluator> leftEval = toEvaluator(ao.left(), layout);
-            Supplier<ExpressionEvaluator> rightEval = toEvaluator(ao.right(), layout);
-            record ArithmeticExpressionEvaluator(ArithmeticOperation ao, ExpressionEvaluator leftEval, ExpressionEvaluator rightEval)
-                implements
-                    ExpressionEvaluator {
-                @Override
-                public Object computeRow(Page page, int pos) {
-                    return ao.function().apply(leftEval.computeRow(page, pos), rightEval.computeRow(page, pos));
-                }
-            }
-            return () -> new ArithmeticExpressionEvaluator(ao, leftEval.get(), rightEval.get());
-        }
-
     }
 
     static class BooleanLogic extends ExpressionMapper<BinaryLogic> {

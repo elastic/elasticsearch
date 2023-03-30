@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.application.search;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
@@ -53,6 +51,8 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;

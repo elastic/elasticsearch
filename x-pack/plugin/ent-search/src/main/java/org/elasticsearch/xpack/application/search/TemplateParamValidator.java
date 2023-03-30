@@ -117,11 +117,11 @@ public class TemplateParamValidator implements ToXContentObject, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TemplateParamValidator that = (TemplateParamValidator) o;
-        return jsonSchema.equals(that.jsonSchema);
+        return Objects.equals(getSchemaAsString(), that.getSchemaAsString());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jsonSchema);
+        return Objects.hash(getSchemaAsString());
     }
 }

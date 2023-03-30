@@ -31,8 +31,10 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public class SearchApplicationTemplate implements ToXContentObject, Writeable {
     private final Script script;
-    public static final ParseField TEMPLATE_SCRIPT_FIELD = new ParseField("script");
-    public static final ParseField TEMPLATE_PARAM_VALIDATOR_FIELD = new ParseField("param_validation");
+
+    private static final ParseField TEMPLATE_SCRIPT_FIELD = new ParseField("script");
+    private static final ParseField TEMPLATE_PARAM_VALIDATOR_FIELD = new ParseField("param_validation");
+
     private static final ConstructingObjectParser<SearchApplicationTemplate, Void> PARSER = new ConstructingObjectParser<>(
         "search_template",
         p -> new SearchApplicationTemplate((Script) p[0], (TemplateParamValidator) p[1])

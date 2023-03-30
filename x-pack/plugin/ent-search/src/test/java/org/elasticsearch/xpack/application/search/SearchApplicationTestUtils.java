@@ -60,16 +60,13 @@ public final class SearchApplicationTestUtils {
         final Script script = new Script(ScriptType.INLINE, "mustache", query, Collections.singletonMap(paramName, paramValue));
         String paramValidationSource = String.format(Locale.ROOT, """
             {
-              "definitions": {},
-              "$schema": "http://json-schema.org/draft-07/schema",
-              "$id": "http://yourdomain.com/schemas/myschema.json",
-              "description": "schema definition for param validation",
               "additionalProperties": false,
-              "title": "Root",
               "type": "object",
               "properties": {
-                "%s": "string"
-               }
+                "%s": {
+                    "type": "string"
+                }
+              }
             }
             """, paramName);
         final TemplateParamValidator templateParamValidator = new TemplateParamValidator(paramValidationSource);

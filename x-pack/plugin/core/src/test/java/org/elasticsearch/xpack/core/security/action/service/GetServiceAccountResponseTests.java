@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
@@ -77,7 +78,7 @@ public class GetServiceAccountResponseTests extends AbstractWireSerializingTestC
     }
 
     private RoleDescriptor getRoleDescriptorFor(String name) {
-        return new RoleDescriptor(
+        return new DefaultRoleDescriptor(
             name,
             new String[] { "monitor", "manage_own_api_key" },
             new RoleDescriptor.IndicesPrivileges[] {

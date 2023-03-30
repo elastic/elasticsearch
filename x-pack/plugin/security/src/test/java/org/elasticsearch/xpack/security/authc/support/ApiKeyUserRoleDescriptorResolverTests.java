@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -45,7 +46,7 @@ public class ApiKeyUserRoleDescriptorResolverTests extends ESTestCase {
             .realmRef(new Authentication.RealmRef("realm-name", "realm-type", "node-name"))
             .build(false);
         final Set<RoleDescriptor> roleDescriptors = randomSubsetOf(userRoleNames).stream()
-            .map(name -> new RoleDescriptor(name, generateRandomStringArray(3, 6, false), null, null))
+            .map(name -> new DefaultRoleDescriptor(name, generateRandomStringArray(3, 6, false), null, null))
             .collect(Collectors.toUnmodifiableSet());
 
         doAnswer(inv -> {

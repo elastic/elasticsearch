@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.action.role;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
@@ -25,7 +26,7 @@ public class GetRolesResponse extends ActionResponse {
         int size = in.readVInt();
         roles = new RoleDescriptor[size];
         for (int i = 0; i < size; i++) {
-            roles[i] = new RoleDescriptor(in);
+            roles[i] = new DefaultRoleDescriptor(in);
         }
     }
 

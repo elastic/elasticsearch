@@ -18,6 +18,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.BeforeClass;
@@ -112,7 +113,7 @@ public abstract class SecurityRealmSmokeTestCase extends ESRestTestCase {
     }
 
     protected void createRole(String name, Collection<String> clusterPrivileges) throws IOException {
-        final RoleDescriptor role = new RoleDescriptor(
+        final RoleDescriptor role = new DefaultRoleDescriptor(
             name,
             clusterPrivileges.toArray(String[]::new),
             new RoleDescriptor.IndicesPrivileges[0],

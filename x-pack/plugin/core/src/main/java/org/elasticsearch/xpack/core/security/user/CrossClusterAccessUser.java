@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 
@@ -20,7 +21,7 @@ import java.io.UncheckedIOException;
 public class CrossClusterAccessUser extends User {
     public static final String NAME = UsernamesField.CROSS_CLUSTER_ACCESS_NAME;
 
-    private static final RoleDescriptor ROLE_DESCRIPTOR = new RoleDescriptor(
+    private static final RoleDescriptor ROLE_DESCRIPTOR = new DefaultRoleDescriptor(
         UsernamesField.CROSS_CLUSTER_ACCESS_ROLE,
         new String[] { "cross_cluster_access" },
         null,

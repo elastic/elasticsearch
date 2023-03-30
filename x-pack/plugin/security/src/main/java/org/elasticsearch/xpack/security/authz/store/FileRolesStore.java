@@ -30,6 +30,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -302,7 +303,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                     }
 
                     if (resolvePermissions == false) {
-                        return new RoleDescriptor(roleName, null, null, null);
+                        return new DefaultRoleDescriptor(roleName, null, null, null);
                     }
 
                     token = parser.nextToken();

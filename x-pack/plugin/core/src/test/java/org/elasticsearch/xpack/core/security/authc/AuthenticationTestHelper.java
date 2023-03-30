@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettin
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -303,7 +304,7 @@ public class AuthenticationTestHelper {
         for (int i = 0; i < numberOfRoleDescriptors; i++) {
             roleDescriptors.add(
                 Set.of(
-                    new RoleDescriptor(
+                    new DefaultRoleDescriptor(
                         "_remote_user",
                         null,
                         new RoleDescriptor.IndicesPrivileges[] {

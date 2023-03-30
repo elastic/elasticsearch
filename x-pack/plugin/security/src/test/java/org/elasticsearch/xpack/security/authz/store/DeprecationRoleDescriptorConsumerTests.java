@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -54,13 +55,13 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
         final DeprecationLogger deprecationLogger = mock(DeprecationLogger.class);
         final Metadata.Builder metadataBuilder = Metadata.builder();
         addIndex(metadataBuilder, "index", "alias");
-        final RoleDescriptor roleOverAlias = new RoleDescriptor(
+        final RoleDescriptor roleOverAlias = new DefaultRoleDescriptor(
             "roleOverAlias",
             new String[] { "read" },
             new RoleDescriptor.IndicesPrivileges[] { indexPrivileges(randomFrom("read", "write", "delete", "index"), "alias") },
             null
         );
-        final RoleDescriptor roleOverIndex = new RoleDescriptor(
+        final RoleDescriptor roleOverIndex = new DefaultRoleDescriptor(
             "roleOverIndex",
             new String[] { "manage" },
             new RoleDescriptor.IndicesPrivileges[] { indexPrivileges(randomFrom("read", "write", "delete", "index"), "index") },
@@ -81,7 +82,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
         final Metadata.Builder metadataBuilder = Metadata.builder();
         addIndex(metadataBuilder, "index", "alias");
         addIndex(metadataBuilder, "index1", "alias2");
-        final RoleDescriptor roleOverIndexAndAlias = new RoleDescriptor(
+        final RoleDescriptor roleOverIndexAndAlias = new DefaultRoleDescriptor(
             "roleOverIndexAndAlias",
             new String[] { "manage_watcher" },
             new RoleDescriptor.IndicesPrivileges[] { indexPrivileges(randomFrom("read", "write", "delete", "index"), "index", "alias") },
@@ -101,7 +102,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
         final Metadata.Builder metadataBuilder = Metadata.builder();
         addIndex(metadataBuilder, "index", "alias");
         addIndex(metadataBuilder, "index2", "alias2");
-        final RoleDescriptor roleOverAlias = new RoleDescriptor(
+        final RoleDescriptor roleOverAlias = new DefaultRoleDescriptor(
             "roleOverAlias",
             new String[] { "manage_watcher" },
             new RoleDescriptor.IndicesPrivileges[] { indexPrivileges("write", "alias"), indexPrivileges("manage_ilm", "alias") },
@@ -125,7 +126,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
         addIndex(metadataBuilder, "index3", "alias3", "alias");
         addIndex(metadataBuilder, "index4", "alias4", "alias");
         addIndex(metadataBuilder, "foo", "bar");
-        final RoleDescriptor roleMultiplePrivileges = new RoleDescriptor(
+        final RoleDescriptor roleMultiplePrivileges = new DefaultRoleDescriptor(
             "roleMultiplePrivileges",
             new String[] { "manage_watcher" },
             new RoleDescriptor.IndicesPrivileges[] {
@@ -152,7 +153,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
         addIndex(metadataBuilder, "index1", "alias1", "bar");
         addIndex(metadataBuilder, "index2", "alias2", "baz");
         addIndex(metadataBuilder, "foo", "bar");
-        final RoleDescriptor roleOverAliasAndIndex = new RoleDescriptor(
+        final RoleDescriptor roleOverAliasAndIndex = new DefaultRoleDescriptor(
             "roleOverAliasAndIndex",
             new String[] { "read_ilm" },
             new RoleDescriptor.IndicesPrivileges[] {
@@ -175,19 +176,19 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
         addIndex(metadataBuilder, "index1", "alias1", "bar");
         addIndex(metadataBuilder, "index2", "alias2", "baz");
         addIndex(metadataBuilder, "foo", "bar");
-        final RoleDescriptor role1 = new RoleDescriptor(
+        final RoleDescriptor role1 = new DefaultRoleDescriptor(
             "role1",
             new String[] { "monitor_watcher" },
             new RoleDescriptor.IndicesPrivileges[] { indexPrivileges("monitor", "index2", "alias1") },
             null
         );
-        final RoleDescriptor role2 = new RoleDescriptor(
+        final RoleDescriptor role2 = new DefaultRoleDescriptor(
             "role2",
             new String[] { "read_ccr" },
             new RoleDescriptor.IndicesPrivileges[] { indexPrivileges("monitor", "index1", "alias2") },
             null
         );
-        final RoleDescriptor role3 = new RoleDescriptor(
+        final RoleDescriptor role3 = new DefaultRoleDescriptor(
             "role3",
             new String[] { "monitor_ml" },
             new RoleDescriptor.IndicesPrivileges[] { indexPrivileges("index", "bar") },
@@ -212,7 +213,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
         addIndex(metadataBuilder, "index2", "alias2", "baz");
         addIndex(metadataBuilder, "foo", "bar");
         final Metadata metadata = metadataBuilder.build();
-        RoleDescriptor someRole = new RoleDescriptor(
+        RoleDescriptor someRole = new DefaultRoleDescriptor(
             "someRole",
             new String[] { "monitor_rollup" },
             new RoleDescriptor.IndicesPrivileges[] { indexPrivileges("monitor", "i*", "bar") },
@@ -234,7 +235,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
             return;
         }
         verifyNoMoreInteractions(deprecationLogger);
-        RoleDescriptor differentRoleSameName = new RoleDescriptor(
+        RoleDescriptor differentRoleSameName = new DefaultRoleDescriptor(
             "someRole",
             new String[] { "manage_pipeline" },
             new RoleDescriptor.IndicesPrivileges[] { indexPrivileges("write", "i*", "baz") },
@@ -258,7 +259,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
         addIndex(metadataBuilder, "index4", "alias", "alias4");
         addIndex(metadataBuilder, "foo", "bar", "baz");
         Metadata metadata = metadataBuilder.build();
-        final RoleDescriptor roleGlobalWildcard = new RoleDescriptor(
+        final RoleDescriptor roleGlobalWildcard = new DefaultRoleDescriptor(
             "roleGlobalWildcard",
             new String[] { "manage_token" },
             new RoleDescriptor.IndicesPrivileges[] { indexPrivileges(randomFrom("write", "delete_index", "read_cross_cluster"), "*") },
@@ -268,7 +269,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
             Arrays.asList(roleGlobalWildcard)
         );
         verifyNoMoreInteractions(deprecationLogger);
-        final RoleDescriptor roleGlobalWildcard2 = new RoleDescriptor(
+        final RoleDescriptor roleGlobalWildcard2 = new DefaultRoleDescriptor(
             "roleGlobalWildcard2",
             new String[] { "manage_index_templates" },
             new RoleDescriptor.IndicesPrivileges[] {
@@ -279,7 +280,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
             Arrays.asList(roleGlobalWildcard2)
         );
         verifyNoMoreInteractions(deprecationLogger);
-        final RoleDescriptor roleWildcardOnIndices = new RoleDescriptor(
+        final RoleDescriptor roleWildcardOnIndices = new DefaultRoleDescriptor(
             "roleWildcardOnIndices",
             new String[] { "manage_watcher" },
             new RoleDescriptor.IndicesPrivileges[] {
@@ -291,7 +292,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
             Arrays.asList(roleWildcardOnIndices)
         );
         verifyNoMoreInteractions(deprecationLogger);
-        final RoleDescriptor roleWildcardOnAliases = new RoleDescriptor(
+        final RoleDescriptor roleWildcardOnAliases = new DefaultRoleDescriptor(
             "roleWildcardOnAliases",
             new String[] { "manage_watcher" },
             new RoleDescriptor.IndicesPrivileges[] {
@@ -314,7 +315,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
         addIndex(metadataBuilder, "index1", "alias1");
         addIndex(metadataBuilder, "index2", "alias1", "alias2");
         addIndex(metadataBuilder, "index3", "alias2");
-        final RoleDescriptor roleOverAliasAndIndex = new RoleDescriptor(
+        final RoleDescriptor roleOverAliasAndIndex = new DefaultRoleDescriptor(
             "roleOverAliasAndIndex",
             new String[] { "manage_ml" },
             new RoleDescriptor.IndicesPrivileges[] { indexPrivileges("delete_index", "alias1", "index1") },
@@ -328,7 +329,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
         deprecationConsumer.accept(Arrays.asList(roleOverAliasAndIndex));
         verifyLogger(deprecationLogger, "roleOverAliasAndIndex", "alias1", "index2");
         verifyNoMoreInteractions(deprecationLogger);
-        final RoleDescriptor roleOverAliases = new RoleDescriptor(
+        final RoleDescriptor roleOverAliases = new DefaultRoleDescriptor(
             "roleOverAliases",
             new String[] { "manage_security" },
             new RoleDescriptor.IndicesPrivileges[] { indexPrivileges("monitor", "alias1", "alias2") },

@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
@@ -39,7 +40,7 @@ public class SimpleRoleTests extends ESTestCase {
 
     public void testHasPrivilegesCache() throws ExecutionException {
         final SimpleRole role = Role.buildFromRoleDescriptor(
-            new RoleDescriptor(randomAlphaOfLengthBetween(3, 8), new String[] { "monitor" }, null, null),
+            new DefaultRoleDescriptor(randomAlphaOfLengthBetween(3, 8), new String[] { "monitor" }, null, null),
             new FieldPermissionsCache(Settings.EMPTY),
             RESTRICTED_INDICES
         );
@@ -79,7 +80,7 @@ public class SimpleRoleTests extends ESTestCase {
 
         final String allowedApplicationActionPattern = randomAlphaOfLengthBetween(5, 12);
         final SimpleRole role = Role.buildFromRoleDescriptor(
-            new RoleDescriptor(
+            new DefaultRoleDescriptor(
                 "r1",
                 null,
                 null,
@@ -189,7 +190,7 @@ public class SimpleRoleTests extends ESTestCase {
             intersection,
             equalTo(
                 new RoleDescriptorsIntersection(
-                    new RoleDescriptor(
+                    new DefaultRoleDescriptor(
                         Role.REMOTE_USER_ROLE_NAME,
                         null,
                         new RoleDescriptor.IndicesPrivileges[] {
@@ -225,7 +226,7 @@ public class SimpleRoleTests extends ESTestCase {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
         final SimpleRole role = Role.buildFromRoleDescriptor(
-            new RoleDescriptor(
+            new DefaultRoleDescriptor(
                 randomAlphaOfLengthBetween(3, 8),
                 new String[] { randomFrom(ClusterPrivilegeResolver.names()) },
                 new RoleDescriptor.IndicesPrivileges[] {

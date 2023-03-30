@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheResponse;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
@@ -471,7 +472,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                 Map<String, Object> transientMap = Maps.newMapWithExpectedSize(2);
                 transientMap.put("unlicensed_features", unlicensedFeatures);
                 transientMap.put("enabled", false);
-                return new RoleDescriptor(
+                return new DefaultRoleDescriptor(
                     roleDescriptor.getName(),
                     roleDescriptor.getClusterPrivileges(),
                     roleDescriptor.getIndicesPrivileges(),

@@ -15,6 +15,7 @@ import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
@@ -204,7 +205,7 @@ public class HasApplicationPrivilegesIT extends SecurityInBasicRestTestCase {
             resources
         );
         securityClient.putRole(
-            new RoleDescriptor(
+            new DefaultRoleDescriptor(
                 roleName,
                 new String[0], // cluster
                 new RoleDescriptor.IndicesPrivileges[0],

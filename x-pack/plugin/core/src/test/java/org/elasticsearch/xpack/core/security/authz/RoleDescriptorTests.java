@@ -93,7 +93,7 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testEqualsOnEmptyRoles() {
-        RoleDescriptor nullRoleDescriptor = new RoleDescriptor(
+        RoleDescriptor nullRoleDescriptor = new DefaultRoleDescriptor(
             "null_role",
             randomFrom((String[]) null, new String[0]),
             randomFrom((RoleDescriptor.IndicesPrivileges[]) null, new RoleDescriptor.IndicesPrivileges[0]),
@@ -103,7 +103,7 @@ public class RoleDescriptorTests extends ESTestCase {
             randomFrom((Map<String, Object>) null, Map.of()),
             Map.of("transient", "meta", "is", "ignored")
         );
-        assertTrue(nullRoleDescriptor.equals(new RoleDescriptor("null_role", null, null, null, null, null, null, null)));
+        assertTrue(nullRoleDescriptor.equals(new DefaultRoleDescriptor("null_role", null, null, null, null, null, null, null)));
     }
 
     public void testToString() {
@@ -121,7 +121,7 @@ public class RoleDescriptorTests extends ESTestCase {
             new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(new LinkedHashSet<>(Arrays.asList("app*"))),
             new ConfigurableClusterPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))) };
 
-        RoleDescriptor descriptor = new RoleDescriptor(
+        RoleDescriptor descriptor = new DefaultRoleDescriptor(
             "test",
             new String[] { "all", "none" },
             groups,
@@ -409,7 +409,7 @@ public class RoleDescriptorTests extends ESTestCase {
             registry
         );
         streamInput.setTransportVersion(version);
-        final RoleDescriptor serialized = new RoleDescriptor(streamInput);
+        final RoleDescriptor serialized = new DefaultRoleDescriptor(streamInput);
 
         assertThat(serialized, equalTo(descriptor));
     }
@@ -430,12 +430,12 @@ public class RoleDescriptorTests extends ESTestCase {
             registry
         );
         streamInput.setTransportVersion(version);
-        final RoleDescriptor serialized = new RoleDescriptor(streamInput);
+        final RoleDescriptor serialized = new DefaultRoleDescriptor(streamInput);
         if (descriptor.hasRemoteIndicesPrivileges()) {
             assertThat(
                 serialized,
                 equalTo(
-                    new RoleDescriptor(
+                    new DefaultRoleDescriptor(
                         descriptor.getName(),
                         descriptor.getClusterPrivileges(),
                         descriptor.getIndicesPrivileges(),
@@ -520,7 +520,7 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testParseIgnoresTransientMetadata() throws Exception {
-        final RoleDescriptor descriptor = new RoleDescriptor(
+        final RoleDescriptor descriptor = new DefaultRoleDescriptor(
             "test",
             new String[] { "all" },
             null,
@@ -742,7 +742,7 @@ public class RoleDescriptorTests extends ESTestCase {
         ConfigurableClusterPrivilege[] configurableClusterPrivileges = new ConfigurableClusterPrivilege[] {
             new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(Sets.newHashSet(profileNames)),
             new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Sets.newHashSet(applicationNames)) };
-        RoleDescriptor role1 = new RoleDescriptor(
+        RoleDescriptor role1 = new DefaultRoleDescriptor(
             roleName,
             new String[0],
             new RoleDescriptor.IndicesPrivileges[0],
@@ -756,7 +756,7 @@ public class RoleDescriptorTests extends ESTestCase {
         var temp = configurableClusterPrivileges[0];
         configurableClusterPrivileges[0] = configurableClusterPrivileges[1];
         configurableClusterPrivileges[1] = temp;
-        RoleDescriptor role2 = new RoleDescriptor(
+        RoleDescriptor role2 = new DefaultRoleDescriptor(
             roleName,
             new String[0],
             new RoleDescriptor.IndicesPrivileges[0],
@@ -818,10 +818,10 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testIsEmpty() {
-        assertTrue(new RoleDescriptor(randomAlphaOfLengthBetween(1, 10), null, null, null, null, null, null, null).isEmpty());
+        assertTrue(new DefaultRoleDescriptor(randomAlphaOfLengthBetween(1, 10), null, null, null, null, null, null, null).isEmpty());
 
         assertTrue(
-            new RoleDescriptor(
+            new DefaultRoleDescriptor(
                 randomAlphaOfLengthBetween(1, 10),
                 new String[0],
                 new RoleDescriptor.IndicesPrivileges[0],
@@ -844,7 +844,7 @@ public class RoleDescriptorTests extends ESTestCase {
             randomBoolean()
         );
 
-        final RoleDescriptor roleDescriptor = new RoleDescriptor(
+        final RoleDescriptor roleDescriptor = new DefaultRoleDescriptor(
             randomAlphaOfLengthBetween(1, 10),
             booleans.get(0) ? new String[0] : new String[] { "foo" },
             booleans.get(1)
@@ -900,7 +900,7 @@ public class RoleDescriptorTests extends ESTestCase {
             remoteIndexPrivileges = randomRemoteIndicesPrivileges(0, 3);
         }
 
-        return new RoleDescriptor(
+        return new DefaultRoleDescriptor(
             randomAlphaOfLengthBetween(3, 90),
             randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
             randomIndicesPrivileges(0, 3),

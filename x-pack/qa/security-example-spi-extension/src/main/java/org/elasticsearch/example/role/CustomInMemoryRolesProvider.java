@@ -7,6 +7,7 @@
 package org.elasticsearch.example.role;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 
@@ -37,7 +38,7 @@ public class CustomInMemoryRolesProvider implements BiConsumer<Set<String>, Acti
         for (String role : roles) {
             if (rolePermissionSettings.containsKey(role)) {
                 roleDescriptors.add(
-                    new RoleDescriptor(
+                    new DefaultRoleDescriptor(
                         role,
                         new String[] { "all" },
                         new RoleDescriptor.IndicesPrivileges[] {

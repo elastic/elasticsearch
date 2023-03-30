@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.junit.Before;
 
@@ -453,7 +454,7 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(
             randomAlphaOfLengthBetween(3, 8),
             List.of(
-                new RoleDescriptor(
+                new DefaultRoleDescriptor(
                     randomAlphaOfLengthBetween(3, 8),
                     null,
                     new RoleDescriptor.IndicesPrivileges[] {

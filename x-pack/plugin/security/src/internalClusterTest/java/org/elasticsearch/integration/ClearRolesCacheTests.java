@@ -10,6 +10,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.TestSecurityClient;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
@@ -52,7 +53,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
         final TestSecurityClient securityClient = new TestSecurityClient(getRestClient(), SECURITY_REQUEST_OPTIONS);
         // create roles
         for (String role : roles) {
-            final RoleDescriptor descriptor = new RoleDescriptor(
+            final RoleDescriptor descriptor = new DefaultRoleDescriptor(
                 role,
                 new String[0],
                 new RoleDescriptor.IndicesPrivileges[] {
@@ -90,7 +91,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
         List<String> toModify = randomSubsetOf(modifiedRolesCount, roles);
         logger.debug("--> modifying roles {} to have run_as", toModify);
         for (String roleName : toModify) {
-            RoleDescriptor descriptor = new RoleDescriptor(
+            RoleDescriptor descriptor = new DefaultRoleDescriptor(
                 roleName,
                 new String[0],
                 new RoleDescriptor.IndicesPrivileges[] {

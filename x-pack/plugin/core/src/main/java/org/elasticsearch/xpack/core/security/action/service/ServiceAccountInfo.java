@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
@@ -29,7 +30,7 @@ public class ServiceAccountInfo implements Writeable, ToXContent {
 
     public ServiceAccountInfo(StreamInput in) throws IOException {
         this.principal = in.readString();
-        this.roleDescriptor = new RoleDescriptor(in);
+        this.roleDescriptor = new DefaultRoleDescriptor(in);
     }
 
     public String getPrincipal() {

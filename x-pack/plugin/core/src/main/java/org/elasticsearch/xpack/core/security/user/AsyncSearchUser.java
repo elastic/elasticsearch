@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.user;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
@@ -15,7 +16,7 @@ public class AsyncSearchUser extends User {
 
     public static final String NAME = UsernamesField.ASYNC_SEARCH_NAME;
     public static final AsyncSearchUser INSTANCE = new AsyncSearchUser();
-    public static final RoleDescriptor ROLE_DESCRIPTOR = new RoleDescriptor(
+    public static final RoleDescriptor ROLE_DESCRIPTOR = new DefaultRoleDescriptor(
         UsernamesField.ASYNC_SEARCH_ROLE,
         new String[] { "cancel_task" },
         new RoleDescriptor.IndicesPrivileges[] {

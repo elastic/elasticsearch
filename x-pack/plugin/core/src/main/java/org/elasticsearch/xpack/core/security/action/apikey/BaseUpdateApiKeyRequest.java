@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.action.role.RoleDescriptorRequestValidator;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
@@ -36,7 +37,7 @@ public abstract class BaseUpdateApiKeyRequest extends ActionRequest {
 
     public BaseUpdateApiKeyRequest(StreamInput in) throws IOException {
         super(in);
-        this.roleDescriptors = in.readOptionalList(RoleDescriptor::new);
+        this.roleDescriptors = in.readOptionalList(DefaultRoleDescriptor::new);
         this.metadata = in.readMap();
     }
 

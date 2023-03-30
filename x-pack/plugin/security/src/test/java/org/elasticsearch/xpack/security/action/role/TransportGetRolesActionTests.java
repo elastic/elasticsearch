@@ -18,6 +18,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesRequest;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesResponse;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
@@ -120,12 +121,12 @@ public class TransportGetRolesActionTests extends ESTestCase {
                     UsernamesField.ASYNC_SEARCH_ROLE,
                     UsernamesField.XPACK_SECURITY_ROLE,
                     UsernamesField.SECURITY_PROFILE_ROLE
-                ).map(r -> new RoleDescriptor(r, null, null, null)).toList()
+                ).map(r -> new DefaultRoleDescriptor(r, null, null, null)).toList()
             )
         );
     }
 
-    private void testStoreRoles(List<RoleDescriptor> storeRoleDescriptors) {
+    private void testStoreRoles(List<? extends RoleDescriptor> storeRoleDescriptors) {
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportService transportService = new TransportService(
             Settings.EMPTY,
@@ -323,7 +324,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
         int size = scaledRandomIntBetween(1, 10);
         List<RoleDescriptor> list = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            list.add(new RoleDescriptor("role_" + i, null, null, null));
+            list.add(new DefaultRoleDescriptor("role_" + i, null, null, null));
         }
         return list;
     }

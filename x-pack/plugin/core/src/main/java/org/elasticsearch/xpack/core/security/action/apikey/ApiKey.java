@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 
@@ -122,7 +123,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
             this.metadata = Map.of();
         }
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
-            final List<RoleDescriptor> roleDescriptors = in.readOptionalList(RoleDescriptor::new);
+            final List<RoleDescriptor> roleDescriptors = in.readOptionalList(DefaultRoleDescriptor::new);
             this.roleDescriptors = roleDescriptors != null ? List.copyOf(roleDescriptors) : null;
             this.limitedBy = in.readOptionalWriteable(RoleDescriptorsIntersection::new);
         } else {

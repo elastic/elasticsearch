@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -93,7 +94,7 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
         Collection<RoleDescriptor.IndicesPrivileges> indicesPrivileges,
         Collection<RoleDescriptor.ApplicationResourcePrivileges> applicationPrivileges
     ) throws IOException {
-        final RoleDescriptor descriptor = new RoleDescriptor(
+        final RoleDescriptor descriptor = new DefaultRoleDescriptor(
             name,
             clusterPrivileges.toArray(String[]::new),
             indicesPrivileges.toArray(RoleDescriptor.IndicesPrivileges[]::new),

@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentAct
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -1658,7 +1659,7 @@ public class RBACEngineTests extends ESTestCase {
                 new RoleDescriptorsIntersection(
                     List.of(
                         Set.of(
-                            new RoleDescriptor(
+                            new DefaultRoleDescriptor(
                                 Role.REMOTE_USER_ROLE_NAME,
                                 null,
                                 expectedIndicesPrivileges.stream().sorted().toArray(RoleDescriptor.IndicesPrivileges[]::new),
@@ -1802,7 +1803,7 @@ public class RBACEngineTests extends ESTestCase {
                 future.actionGet(),
                 equalTo(
                     new RoleDescriptorsIntersection(
-                        new RoleDescriptor(
+                        new DefaultRoleDescriptor(
                             Role.REMOTE_USER_ROLE_NAME,
                             null,
                             new IndicesPrivileges[] {
@@ -1838,7 +1839,7 @@ public class RBACEngineTests extends ESTestCase {
                 future.actionGet(),
                 equalTo(
                     new RoleDescriptorsIntersection(
-                        new RoleDescriptor(
+                        new DefaultRoleDescriptor(
                             Role.REMOTE_USER_ROLE_NAME,
                             null,
                             new IndicesPrivileges[] {
@@ -1874,7 +1875,7 @@ public class RBACEngineTests extends ESTestCase {
                 future.actionGet(),
                 equalTo(
                     new RoleDescriptorsIntersection(
-                        new RoleDescriptor(
+                        new DefaultRoleDescriptor(
                             Role.REMOTE_USER_ROLE_NAME,
                             null,
                             new IndicesPrivileges[] {

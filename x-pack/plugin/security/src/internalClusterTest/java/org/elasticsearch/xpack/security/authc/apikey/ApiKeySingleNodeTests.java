@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
@@ -138,7 +139,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         grantApiKeyRequest.getApiKeyRequest()
             .setRoleDescriptors(
                 List.of(
-                    new RoleDescriptor(
+                    new DefaultRoleDescriptor(
                         "x",
                         new String[] { "all" },
                         new RoleDescriptor.IndicesPrivileges[] {
@@ -226,7 +227,18 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             CreateApiKeyAction.INSTANCE,
             new CreateApiKeyRequest(
                 apiKeyName,
-                List.of(new RoleDescriptor("x", new String[] { "manage_own_api_key", "manage_token" }, null, null, null, null, null, null)),
+                List.of(
+                    new DefaultRoleDescriptor(
+                        "x",
+                        new String[] { "manage_own_api_key", "manage_token" },
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                    )
+                ),
                 null,
                 null
             )
@@ -266,8 +278,10 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
 
     public void testGrantApiKeyForUserWithRunAs() throws IOException {
         final TestSecurityClient securityClient = getSecurityClient();
-        securityClient.putRole(new RoleDescriptor("user1_role", new String[] { "manage_token" }, null, new String[] { "user2", "user4" }));
-        securityClient.putRole(new RoleDescriptor("user2_role", new String[] { "monitor", "read_pipeline" }, null, null));
+        securityClient.putRole(
+            new DefaultRoleDescriptor("user1_role", new String[] { "manage_token" }, null, new String[] { "user2", "user4" })
+        );
+        securityClient.putRole(new DefaultRoleDescriptor("user2_role", new String[] { "monitor", "read_pipeline" }, null, null));
         final SecureString user1Password = new SecureString("user1-strong-password".toCharArray());
         securityClient.putUser(new User("user1", "user1_role"), user1Password);
         securityClient.putUser(new User("user2", "user2_role"), new SecureString("user2-strong-password".toCharArray()));
@@ -355,7 +369,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
 
         // Failure 4: user1 run-as user4 and creates a token. The token is used for GrantApiKey. But the token loses the run-as
         // privileges when it is used.
-        securityClient.putRole(new RoleDescriptor("user4_role", new String[] { "manage_token" }, null, null));
+        securityClient.putRole(new DefaultRoleDescriptor("user4_role", new String[] { "manage_token" }, null, null));
         securityClient.putUser(new User("user4", "user4_role"), new SecureString("user4-strong-password".toCharArray()));
         final TestSecurityClient.OAuth2Token oAuth2Token4 = getSecurityClient(
             RequestOptions.DEFAULT.toBuilder()
@@ -364,7 +378,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
                 .build()
         ).createTokenWithClientCredentialsGrant();
         // drop user1's run-as privilege for user4
-        securityClient.putRole(new RoleDescriptor("user1_role", new String[] { "manage_token" }, null, new String[] { "user2" }));
+        securityClient.putRole(new DefaultRoleDescriptor("user1_role", new String[] { "manage_token" }, null, new String[] { "user2" }));
         final GrantApiKeyRequest grantApiKeyRequest4 = new GrantApiKeyRequest();
         grantApiKeyRequest4.getApiKeyRequest().setName("granted-api-key-will-check-token-run-as-privilege");
         grantApiKeyRequest4.getGrant().setType("access_token");
@@ -417,7 +431,9 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         grantApiKeyRequest.getApiKeyRequest().setName("granted-api-key-for-" + username + "-runas-" + runAsUsername);
         if (randomBoolean()) {
             grantApiKeyRequest.getApiKeyRequest()
-                .setRoleDescriptors(List.of(new RoleDescriptor(randomAlphaOfLengthBetween(3, 8), new String[] { "monitor" }, null, null)));
+                .setRoleDescriptors(
+                    List.of(new DefaultRoleDescriptor(randomAlphaOfLengthBetween(3, 8), new String[] { "monitor" }, null, null))
+                );
         }
         final Grant grant = grantApiKeyRequest.getGrant();
         grant.setRunAsUsername(runAsUsername);

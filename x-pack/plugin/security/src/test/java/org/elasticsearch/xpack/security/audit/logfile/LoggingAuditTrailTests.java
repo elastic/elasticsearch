@@ -99,6 +99,7 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleNa
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
@@ -462,7 +463,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             }
         }
 
-        RoleDescriptor nullRoleDescriptor = new RoleDescriptor(
+        RoleDescriptor nullRoleDescriptor = new DefaultRoleDescriptor(
             "null_role",
             randomFrom((String[]) null, new String[0]),
             randomFrom((RoleDescriptor.IndicesPrivileges[]) null, new RoleDescriptor.IndicesPrivileges[0]),
@@ -472,7 +473,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             randomFrom((Map<String, Object>) null, Map.of()),
             Map.of("transient", "meta", "is", "ignored")
         );
-        RoleDescriptor roleDescriptor1 = new RoleDescriptor(
+        RoleDescriptor roleDescriptor1 = new DefaultRoleDescriptor(
             "role_descriptor1",
             new String[] { "monitor" },
             new RoleDescriptor.IndicesPrivileges[] {
@@ -489,7 +490,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             randomFrom((Map<String, Object>) null, Map.of()),
             Map.of()
         );
-        RoleDescriptor roleDescriptor2 = new RoleDescriptor(
+        RoleDescriptor roleDescriptor2 = new DefaultRoleDescriptor(
             "role_descriptor2",
             randomFrom((String[]) null, new String[0]),
             new RoleDescriptor.IndicesPrivileges[] {
@@ -514,7 +515,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             randomFrom((Map<String, Object>) null, Map.of()),
             Map.of()
         );
-        RoleDescriptor roleDescriptor3 = new RoleDescriptor(
+        RoleDescriptor roleDescriptor3 = new DefaultRoleDescriptor(
             "role_descriptor3",
             randomFrom((String[]) null, new String[0]),
             randomFrom((RoleDescriptor.IndicesPrivileges[]) null, new RoleDescriptor.IndicesPrivileges[0]),
@@ -537,7 +538,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         Map<String, Object> metaMap = new TreeMap<>();
         metaMap.put("?list", List.of("e1", "e2", "*"));
         metaMap.put("some other meta", Map.of("r", "t"));
-        RoleDescriptor roleDescriptor4 = new RoleDescriptor(
+        RoleDescriptor roleDescriptor4 = new DefaultRoleDescriptor(
             "role_descriptor4",
             new String[] { "manage_ml", "grant_api_key", "manage_rollup" },
             new RoleDescriptor.IndicesPrivileges[] {
@@ -553,7 +554,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             metaMap,
             Map.of("ignored", 2)
         );
-        RoleDescriptor roleDescriptor5 = new RoleDescriptor(
+        RoleDescriptor roleDescriptor5 = new DefaultRoleDescriptor(
             "role_descriptor5",
             new String[] { "all" },
             new RoleDescriptor.IndicesPrivileges[0],

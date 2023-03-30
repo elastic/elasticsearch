@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizedIndices;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
@@ -58,13 +59,13 @@ public class AuthorizedIndicesTests extends ESTestCase {
     }
 
     public void testAuthorizedIndicesUserWithSomeRoles() {
-        RoleDescriptor aStarRole = new RoleDescriptor(
+        RoleDescriptor aStarRole = new DefaultRoleDescriptor(
             "a_star",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a*").privileges("all").build() },
             null
         );
-        RoleDescriptor bRole = new RoleDescriptor(
+        RoleDescriptor bRole = new DefaultRoleDescriptor(
             "b",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("b").privileges("READ").build() },
@@ -232,13 +233,13 @@ public class AuthorizedIndicesTests extends ESTestCase {
     }
 
     public void testDataStreamsAreNotIncludedInAuthorizedIndices() {
-        RoleDescriptor aStarRole = new RoleDescriptor(
+        RoleDescriptor aStarRole = new DefaultRoleDescriptor(
             "a_star",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a*").privileges("all").build() },
             null
         );
-        RoleDescriptor bRole = new RoleDescriptor(
+        RoleDescriptor bRole = new DefaultRoleDescriptor(
             "b",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("b").privileges("READ").build() },
@@ -315,13 +316,13 @@ public class AuthorizedIndicesTests extends ESTestCase {
     }
 
     public void testDataStreamsAreIncludedInAuthorizedIndices() {
-        RoleDescriptor aStarRole = new RoleDescriptor(
+        RoleDescriptor aStarRole = new DefaultRoleDescriptor(
             "a_star",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a*").privileges("all").build() },
             null
         );
-        RoleDescriptor bRole = new RoleDescriptor(
+        RoleDescriptor bRole = new DefaultRoleDescriptor(
             "b",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("b").privileges("READ").build() },

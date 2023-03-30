@@ -42,6 +42,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
@@ -106,7 +107,7 @@ public class NativeRolesStoreTests extends ESTestCase {
     public void testRoleDescriptorWithFlsDlsLicensing() throws IOException {
         MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(false);
-        RoleDescriptor flsRole = new RoleDescriptor(
+        RoleDescriptor flsRole = new DefaultRoleDescriptor(
             "fls",
             randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
             new IndicesPrivileges[] {
@@ -122,7 +123,7 @@ public class NativeRolesStoreTests extends ESTestCase {
 
         BytesReference matchAllBytes = XContentHelper.toXContent(QueryBuilders.matchAllQuery(), XContentType.JSON, false);
 
-        RoleDescriptor dlsRole = new RoleDescriptor(
+        RoleDescriptor dlsRole = new DefaultRoleDescriptor(
             "dls",
             randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("*").privileges("READ").query(matchAllBytes).build() },
@@ -135,7 +136,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         );
         assertFalse(dlsRole.getTransientMetadata().containsKey("unlicensed_features"));
 
-        RoleDescriptor flsDlsRole = new RoleDescriptor(
+        RoleDescriptor flsDlsRole = new DefaultRoleDescriptor(
             "fls_dls",
             randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
             new IndicesPrivileges[] {
@@ -155,7 +156,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         );
         assertFalse(flsDlsRole.getTransientMetadata().containsKey("unlicensed_features"));
 
-        RoleDescriptor noFlsDlsRole = new RoleDescriptor(
+        RoleDescriptor noFlsDlsRole = new DefaultRoleDescriptor(
             "no_fls_dls",
             randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("*").privileges("READ").build() },
@@ -258,7 +259,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         );
 
         PutRoleRequest putRoleRequest = new PutRoleRequest();
-        RoleDescriptor flsRole = new RoleDescriptor(
+        RoleDescriptor flsRole = new DefaultRoleDescriptor(
             "fls",
             null,
             new IndicesPrivileges[] {
@@ -271,7 +272,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("field and document level security"));
         BytesReference matchAllBytes = XContentHelper.toXContent(QueryBuilders.matchAllQuery(), XContentType.JSON, false);
 
-        RoleDescriptor dlsRole = new RoleDescriptor(
+        RoleDescriptor dlsRole = new DefaultRoleDescriptor(
             "dls",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("*").privileges("READ").query(matchAllBytes).build() },
@@ -282,7 +283,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("field and document level security"));
 
-        RoleDescriptor flsDlsRole = new RoleDescriptor(
+        RoleDescriptor flsDlsRole = new DefaultRoleDescriptor(
             "fls_ dls",
             null,
             new IndicesPrivileges[] {
@@ -300,7 +301,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("field and document level security"));
 
-        RoleDescriptor noFlsDlsRole = new RoleDescriptor(
+        RoleDescriptor noFlsDlsRole = new DefaultRoleDescriptor(
             "no_fls_dls",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("*").privileges("READ").build() },
@@ -342,7 +343,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         securityIndex.clusterChanged(new ClusterChangedEvent("source", getClusterStateWithSecurityIndex(), getEmptyClusterState()));
 
         PutRoleRequest putRoleRequest = new PutRoleRequest();
-        RoleDescriptor remoteIndicesRole = new RoleDescriptor(
+        RoleDescriptor remoteIndicesRole = new DefaultRoleDescriptor(
             "remote",
             null,
             null,

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
 import org.junit.After;
@@ -202,7 +203,10 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                     assertThat(
                         roleDescriptors,
                         equalTo(
-                            Map.of("x", XContentTestUtils.convertToMap(new RoleDescriptor("x", new String[] { "monitor" }, null, null)))
+                            Map.of(
+                                "x",
+                                XContentTestUtils.convertToMap(new DefaultRoleDescriptor("x", new String[] { "monitor" }, null, null))
+                            )
                         )
                     );
                 }
@@ -212,10 +216,10 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                         equalTo(
                             Map.of(
                                 "x",
-                                XContentTestUtils.convertToMap(new RoleDescriptor("x", new String[] { "monitor" }, null, null)),
+                                XContentTestUtils.convertToMap(new DefaultRoleDescriptor("x", new String[] { "monitor" }, null, null)),
                                 "y",
                                 XContentTestUtils.convertToMap(
-                                    new RoleDescriptor(
+                                    new DefaultRoleDescriptor(
                                         "y",
                                         null,
                                         new RoleDescriptor.IndicesPrivileges[] {
@@ -820,7 +824,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     private record EncodedApiKey(String id, String encoded, String name) {}
 
     private void createRole(String name, Collection<String> clusterPrivileges, String... remoteIndicesClusterAliases) throws IOException {
-        final RoleDescriptor role = new RoleDescriptor(
+        final RoleDescriptor role = new DefaultRoleDescriptor(
             name,
             clusterPrivileges.toArray(String[]::new),
             new RoleDescriptor.IndicesPrivileges[0],

@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.action.role.RoleDescriptorRequestValidator;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
@@ -85,7 +86,7 @@ public final class CreateApiKeyRequest extends ActionRequest {
             this.name = in.readString();
         }
         this.expiration = in.readOptionalTimeValue();
-        this.roleDescriptors = in.readImmutableList(RoleDescriptor::new);
+        this.roleDescriptors = in.readImmutableList(DefaultRoleDescriptor::new);
         this.refreshPolicy = WriteRequest.RefreshPolicy.readFrom(in);
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             this.metadata = in.readMap();

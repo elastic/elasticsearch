@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.security.user;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
@@ -16,7 +17,7 @@ import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 public class XPackUser extends User {
 
     public static final String NAME = UsernamesField.XPACK_NAME;
-    public static final RoleDescriptor ROLE_DESCRIPTOR = new RoleDescriptor(
+    public static final RoleDescriptor ROLE_DESCRIPTOR = new DefaultRoleDescriptor(
         UsernamesField.XPACK_ROLE,
         new String[] { "all" },
         new RoleDescriptor.IndicesPrivileges[] {

@@ -64,8 +64,8 @@ public class RoleDescriptorsIntersectionTests extends ESTestCase {
     public void testXContent() throws IOException {
         final RoleDescriptorsIntersection roleDescriptorsIntersection = new RoleDescriptorsIntersection(
             List.of(
-                Set.of(new RoleDescriptor("role_0", new String[] { "monitor" }, null, null)),
-                Set.of(new RoleDescriptor("role_1", new String[] { "all" }, null, null))
+                Set.of(new DefaultRoleDescriptor("role_0", new String[] { "monitor" }, null, null)),
+                Set.of(new DefaultRoleDescriptor("role_1", new String[] { "all" }, null, null))
             )
         );
 

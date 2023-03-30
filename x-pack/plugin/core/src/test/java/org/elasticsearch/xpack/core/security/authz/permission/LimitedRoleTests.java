@@ -28,6 +28,7 @@ import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
@@ -147,7 +148,7 @@ public class LimitedRoleTests extends ESTestCase {
         RoleDescriptorsIntersection expected = new RoleDescriptorsIntersection(
             List.of(
                 Set.of(
-                    new RoleDescriptor(
+                    new DefaultRoleDescriptor(
                         Role.REMOTE_USER_ROLE_NAME,
                         null,
                         new IndicesPrivileges[] {
@@ -166,7 +167,7 @@ public class LimitedRoleTests extends ESTestCase {
                     )
                 ),
                 Set.of(
-                    new RoleDescriptor(
+                    new DefaultRoleDescriptor(
                         Role.REMOTE_USER_ROLE_NAME,
                         null,
                         new IndicesPrivileges[] {

@@ -31,7 +31,7 @@ public record RoleDescriptorsIntersection(Collection<Set<RoleDescriptor>> roleDe
     }
 
     public RoleDescriptorsIntersection(StreamInput in) throws IOException {
-        this(in.readImmutableList(inner -> inner.readSet(RoleDescriptor::new)));
+        this(in.readImmutableList(inner -> inner.readSet(DefaultRoleDescriptor::new)));
     }
 
     @Override

@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
@@ -90,7 +91,7 @@ public class CreateApiKeyRequestTests extends ESTestCase {
         final CreateApiKeyRequest request1 = new CreateApiKeyRequest(
             randomAlphaOfLength(5),
             List.of(
-                new RoleDescriptor(
+                new DefaultRoleDescriptor(
                     randomAlphaOfLength(5),
                     new String[] { "manage_index_template" },
                     new RoleDescriptor.IndicesPrivileges[] {
@@ -132,7 +133,7 @@ public class CreateApiKeyRequestTests extends ESTestCase {
             final int numDescriptors = randomIntBetween(1, 4);
             descriptorList = new ArrayList<>();
             for (int i = 0; i < numDescriptors; i++) {
-                descriptorList.add(new RoleDescriptor("role_" + i, new String[] { "all" }, null, null));
+                descriptorList.add(new DefaultRoleDescriptor("role_" + i, new String[] { "all" }, null, null));
             }
         }
 

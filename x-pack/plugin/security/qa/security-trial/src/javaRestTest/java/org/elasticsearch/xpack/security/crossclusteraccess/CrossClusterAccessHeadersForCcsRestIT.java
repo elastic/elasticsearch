@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
@@ -179,7 +180,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 CLUSTER_A_CREDENTIALS,
                 this::assertCrossClusterAccessSubjectInfoMatchesNativeUser,
                 new RoleDescriptorsIntersection(
-                    new RoleDescriptor(
+                    new DefaultRoleDescriptor(
                         Role.REMOTE_USER_ROLE_NAME,
                         null,
                         new RoleDescriptor.IndicesPrivileges[] {
@@ -246,7 +247,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 CLUSTER_A_CREDENTIALS,
                 this::assertCrossClusterAccessSubjectInfoMatchesNativeUser,
                 new RoleDescriptorsIntersection(
-                    new RoleDescriptor(
+                    new DefaultRoleDescriptor(
                         Role.REMOTE_USER_ROLE_NAME,
                         null,
                         new RoleDescriptor.IndicesPrivileges[] {
@@ -272,7 +273,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 new RoleDescriptorsIntersection(
                     List.of(
                         Set.of(
-                            new RoleDescriptor(
+                            new DefaultRoleDescriptor(
                                 Role.REMOTE_USER_ROLE_NAME,
                                 null,
                                 new RoleDescriptor.IndicesPrivileges[] {
@@ -384,7 +385,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     List.of(
                         // Base API key role
                         Set.of(
-                            new RoleDescriptor(
+                            new DefaultRoleDescriptor(
                                 Role.REMOTE_USER_ROLE_NAME,
                                 null,
                                 new RoleDescriptor.IndicesPrivileges[] {
@@ -399,7 +400,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                         ),
                         // Limited by API key role
                         Set.of(
-                            new RoleDescriptor(
+                            new DefaultRoleDescriptor(
                                 Role.REMOTE_USER_ROLE_NAME,
                                 null,
                                 new RoleDescriptor.IndicesPrivileges[] {
@@ -427,7 +428,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 new RoleDescriptorsIntersection(
                     List.of(
                         Set.of(
-                            new RoleDescriptor(
+                            new DefaultRoleDescriptor(
                                 Role.REMOTE_USER_ROLE_NAME,
                                 null,
                                 new RoleDescriptor.IndicesPrivileges[] {
@@ -442,7 +443,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                             )
                         ),
                         Set.of(
-                            new RoleDescriptor(
+                            new DefaultRoleDescriptor(
                                 Role.REMOTE_USER_ROLE_NAME,
                                 null,
                                 new RoleDescriptor.IndicesPrivileges[] {
@@ -527,7 +528,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     List.of(
                         // Base API key role
                         Set.of(
-                            new RoleDescriptor(
+                            new DefaultRoleDescriptor(
                                 Role.REMOTE_USER_ROLE_NAME,
                                 null,
                                 new RoleDescriptor.IndicesPrivileges[] {
@@ -542,7 +543,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                         ),
                         // Limited by API key role
                         Set.of(
-                            new RoleDescriptor(
+                            new DefaultRoleDescriptor(
                                 Role.REMOTE_USER_ROLE_NAME,
                                 null,
                                 new RoleDescriptor.IndicesPrivileges[] {
@@ -564,7 +565,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 expectedRoleDescriptorsIntersection = new RoleDescriptorsIntersection(
                     List.of(
                         Set.of(
-                            new RoleDescriptor(
+                            new DefaultRoleDescriptor(
                                 Role.REMOTE_USER_ROLE_NAME,
                                 null,
                                 new RoleDescriptor.IndicesPrivileges[] {
@@ -641,7 +642,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     List.of(
                         // Base API key role
                         Set.of(
-                            new RoleDescriptor(
+                            new DefaultRoleDescriptor(
                                 Role.REMOTE_USER_ROLE_NAME,
                                 null,
                                 new RoleDescriptor.IndicesPrivileges[] {
@@ -656,7 +657,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                         ),
                         // Limited by API key role
                         Set.of(
-                            new RoleDescriptor(
+                            new DefaultRoleDescriptor(
                                 Role.REMOTE_USER_ROLE_NAME,
                                 null,
                                 new RoleDescriptor.IndicesPrivileges[] {
@@ -678,7 +679,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 expectedRoleDescriptorsIntersection = new RoleDescriptorsIntersection(
                     List.of(
                         Set.of(
-                            new RoleDescriptor(
+                            new DefaultRoleDescriptor(
                                 Role.REMOTE_USER_ROLE_NAME,
                                 null,
                                 new RoleDescriptor.IndicesPrivileges[] {

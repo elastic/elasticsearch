@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.junit.Before;
@@ -161,7 +161,7 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
             new CrossClusterAccessSubjectInfo(
                 Authentication.newRealmAuthentication(AuthenticationTestHelper.randomUser(), AuthenticationTestHelper.randomRealmRef()),
                 new RoleDescriptorsIntersection(
-                    new RoleDescriptor(
+                    new DefaultRoleDescriptor(
                         "invalid_role",
                         new String[] { "all" }, // invalid privileges
                         null,

@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
 import org.junit.After;
@@ -79,7 +80,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
         assertOK(getRoleResponse);
         expectRoleDescriptorInResponse(
             getRoleResponse,
-            new RoleDescriptor(
+            new DefaultRoleDescriptor(
                 REMOTE_SEARCH_ROLE,
                 null,
                 null,
@@ -150,7 +151,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
         assertOK(getRoleResponse2);
         expectRoleDescriptorInResponse(
             getRoleResponse2,
-            new RoleDescriptor(
+            new DefaultRoleDescriptor(
                 REMOTE_SEARCH_ROLE,
                 new String[] { "all" },
                 new RoleDescriptor.IndicesPrivileges[] {

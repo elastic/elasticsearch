@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.authc.service;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -24,7 +25,7 @@ final class ElasticServiceAccounts {
 
     private static final ServiceAccount ENTERPRISE_SEARCH_ACCOUNT = new ElasticServiceAccount(
         "enterprise-search-server",
-        new RoleDescriptor(
+        new DefaultRoleDescriptor(
             NAMESPACE + "/enterprise-search-server",
             new String[] { "manage", "manage_security" },
             new RoleDescriptor.IndicesPrivileges[] {
@@ -59,7 +60,7 @@ final class ElasticServiceAccounts {
 
     private static final ServiceAccount FLEET_ACCOUNT = new ElasticServiceAccount(
         "fleet-server",
-        new RoleDescriptor(
+        new DefaultRoleDescriptor(
             NAMESPACE + "/fleet-server",
             new String[] { "monitor", "manage_own_api_key" },
             new RoleDescriptor.IndicesPrivileges[] {

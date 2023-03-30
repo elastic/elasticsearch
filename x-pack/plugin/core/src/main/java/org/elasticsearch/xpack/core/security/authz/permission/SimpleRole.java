@@ -18,6 +18,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -189,7 +190,7 @@ public class SimpleRole implements Role {
         }
 
         return new RoleDescriptorsIntersection(
-            new RoleDescriptor(
+            new DefaultRoleDescriptor(
                 REMOTE_USER_ROLE_NAME,
                 null,
                 // The role descriptors constructed here may be cached in raw byte form, using a hash of their content as a

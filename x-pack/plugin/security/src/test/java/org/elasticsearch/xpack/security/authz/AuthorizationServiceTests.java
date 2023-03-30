@@ -134,6 +134,7 @@ import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -491,7 +492,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final IndexRequest request = mock(IndexRequest.class);
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
-        RoleDescriptor role = new RoleDescriptor(SystemUser.ROLE_NAME, new String[] {}, null, null, null, null, null, null);
+        RoleDescriptor role = new DefaultRoleDescriptor(SystemUser.ROLE_NAME, new String[] {}, null, null, null, null, null, null);
         roleMap.put(SystemUser.ROLE_NAME, role);
         final String[] actions = {
             "indices:monitor/whatever",
@@ -529,7 +530,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final Authentication authentication = createAuthentication(SystemUser.INSTANCE);
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
-        RoleDescriptor role = new RoleDescriptor(
+        RoleDescriptor role = new DefaultRoleDescriptor(
             SystemUser.ROLE_NAME,
             new String[] { ClusterPrivilegeResolver.ALL.name() },
             null,
@@ -562,7 +563,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     public void testAuthorizationForSecurityChange() {
         final Authentication authentication = createAuthentication(new User("user", "manage_security_role"));
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
-        RoleDescriptor role = new RoleDescriptor(
+        RoleDescriptor role = new DefaultRoleDescriptor(
             "manage_security_role",
             new String[] { ClusterPrivilegeResolver.MANAGE_SECURITY.name() },
             null,
@@ -663,7 +664,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final ConfigurableClusterPrivilege[] configurableClusterPrivileges = new ConfigurableClusterPrivilege[] {
             configurableClusterPrivilege };
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
-        RoleDescriptor role = new RoleDescriptor("role1", null, null, null, configurableClusterPrivileges, null, null, null);
+        RoleDescriptor role = new DefaultRoleDescriptor("role1", null, null, null, configurableClusterPrivileges, null, null, null);
         roleMap.put("role1", role);
 
         authorize(authentication, DeletePrivilegesAction.NAME, request);
@@ -696,7 +697,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final ConfigurableClusterPrivilege[] configurableClusterPrivileges = new ConfigurableClusterPrivilege[] {
             configurableClusterPrivilege };
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
-        RoleDescriptor role = new RoleDescriptor("role1", null, null, null, configurableClusterPrivileges, null, null, null);
+        RoleDescriptor role = new DefaultRoleDescriptor("role1", null, null, null, configurableClusterPrivileges, null, null, null);
         roleMap.put("role1", role);
 
         assertThrowsAuthorizationException(
@@ -1006,7 +1007,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         final Authentication authentication = createAuthentication(new User("test user", "a_all"));
-        final RoleDescriptor role = new RoleDescriptor(
+        final RoleDescriptor role = new DefaultRoleDescriptor(
             "a_all",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("all").build() },
@@ -1034,7 +1035,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         TransportRequest request = tuple.v2();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         final Authentication authentication = createAuthentication(new User("test user", "no_indices"));
-        RoleDescriptor role = new RoleDescriptor("no_indices", null, null, null);
+        RoleDescriptor role = new DefaultRoleDescriptor("no_indices", null, null, null);
         roleMap.put("no_indices", role);
         mockEmptyMetadata();
 
@@ -1076,7 +1077,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testSearchAgainstEmptyCluster() throws Exception {
-        RoleDescriptor role = new RoleDescriptor(
+        RoleDescriptor role = new DefaultRoleDescriptor(
             "a_all",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("all").build() },
@@ -1138,7 +1139,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testSearchAgainstIndex() {
-        RoleDescriptor role = new RoleDescriptor(
+        RoleDescriptor role = new DefaultRoleDescriptor(
             "search_index",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("index-*").privileges("read").build() },
@@ -1201,7 +1202,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testScrollRelatedRequestsAllowed() {
-        RoleDescriptor role = new RoleDescriptor(
+        RoleDescriptor role = new DefaultRoleDescriptor(
             "a_all",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("all").build() },
@@ -1287,7 +1288,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     public void testAuthorizeIndicesFailures() {
         TransportRequest request = new GetIndexRequest().indices("b");
         ClusterState state = mockEmptyMetadata();
-        RoleDescriptor role = new RoleDescriptor(
+        RoleDescriptor role = new DefaultRoleDescriptor(
             "a_all",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("all").build() },
@@ -1314,7 +1315,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         CreateIndexRequest request = new CreateIndexRequest("a");
         request.alias(new Alias("a2"));
         ClusterState state = mockEmptyMetadata();
-        RoleDescriptor role = new RoleDescriptor(
+        RoleDescriptor role = new DefaultRoleDescriptor(
             "a_all",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("all").build() },
@@ -1352,7 +1353,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         CreateIndexRequest request = new CreateIndexRequest("a");
         request.alias(new Alias("a2"));
         ClusterState state = mockEmptyMetadata();
-        RoleDescriptor role = new RoleDescriptor(
+        RoleDescriptor role = new DefaultRoleDescriptor(
             "a_all",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a", "a2").privileges("all").build() },
@@ -1384,7 +1385,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testDenialErrorMessagesForSearchAction() {
-        RoleDescriptor indexRole = new RoleDescriptor(
+        RoleDescriptor indexRole = new DefaultRoleDescriptor(
             "some_indices_" + randomAlphaOfLengthBetween(3, 6),
             null,
             new IndicesPrivileges[] {
@@ -1393,7 +1394,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 IndicesPrivileges.builder().indices("write*").privileges("write").build() },
             null
         );
-        RoleDescriptor emptyRole = new RoleDescriptor("empty_role_" + randomAlphaOfLengthBetween(1, 4), null, null, null);
+        RoleDescriptor emptyRole = new DefaultRoleDescriptor("empty_role_" + randomAlphaOfLengthBetween(1, 4), null, null, null);
         User user = new User(randomAlphaOfLengthBetween(6, 8), indexRole.getName(), emptyRole.getName());
         final Authentication authentication = createAuthentication(user);
         roleMap.put(indexRole.getName(), indexRole);
@@ -1435,7 +1436,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testDenialErrorMessagesForBulkIngest() throws Exception {
         final String index = randomAlphaOfLengthBetween(5, 12);
-        RoleDescriptor role = new RoleDescriptor(
+        RoleDescriptor role = new DefaultRoleDescriptor(
             "some_indices_" + randomAlphaOfLengthBetween(3, 6),
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices(index).privileges(BulkAction.NAME).build() },
@@ -1494,7 +1495,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testDenialErrorMessagesForClusterHealthAction() {
-        RoleDescriptor role = new RoleDescriptor(
+        RoleDescriptor role = new DefaultRoleDescriptor(
             "role_" + randomAlphaOfLengthBetween(3, 6),
             new String[0], // no cluster privileges
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("index-*").privileges("all").build() },
@@ -1528,7 +1529,7 @@ public class AuthorizationServiceTests extends ESTestCase {
      * This test case checks that the error message for these actions handles this edge-case.
      */
     public void testDenialErrorMessagesForIndexTemplateAction() {
-        RoleDescriptor role = new RoleDescriptor(
+        RoleDescriptor role = new DefaultRoleDescriptor(
             "role_" + randomAlphaOfLengthBetween(3, 6),
             new String[0], // no cluster privileges
             new IndicesPrivileges[0], // no index privileges
@@ -1559,7 +1560,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testDenialErrorMessagesForInvalidateApiKeyAction() {
-        RoleDescriptor role = new RoleDescriptor(
+        RoleDescriptor role = new DefaultRoleDescriptor(
             "role_" + randomAlphaOfLengthBetween(3, 6),
             new String[0], // no cluster privileges
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("index-*").privileges("all").build() },
@@ -1639,7 +1640,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             RESTRICTED_INDICES
         );
 
-        RoleDescriptor role = new RoleDescriptor(
+        RoleDescriptor role = new DefaultRoleDescriptor(
             "a_all",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("all").build() },
@@ -1686,7 +1687,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             RESTRICTED_INDICES
         );
 
-        RoleDescriptor role = new RoleDescriptor(
+        RoleDescriptor role = new DefaultRoleDescriptor(
             "a_all",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("all").build() },
@@ -1716,7 +1717,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         IndicesOptions options = IndicesOptions.fromOptions(false, false, true, true);
         TransportRequest request = new GetIndexRequest().indices("not-an-index-*").indicesOptions(options);
         ClusterState state = mockEmptyMetadata();
-        RoleDescriptor role = new RoleDescriptor(
+        RoleDescriptor role = new DefaultRoleDescriptor(
             "a_all",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("all").build() },
@@ -1792,7 +1793,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         TransportRequest request = mock(TransportRequest.class);
         final User authenticatingUser = new User("test user", "can run as");
         final Authentication authentication = createAuthentication(new User("run as me", "doesn't exist"), authenticatingUser);
-        final RoleDescriptor role = new RoleDescriptor(
+        final RoleDescriptor role = new DefaultRoleDescriptor(
             "can run as",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("all").build() },
@@ -1821,7 +1822,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         TransportRequest request = new GetIndexRequest().indices("a");
         User authenticatedUser = new User("test user", "can run as");
         final Authentication authentication = createAuthentication(new User("run as me", "b"), authenticatedUser);
-        final RoleDescriptor runAsRole = new RoleDescriptor(
+        final RoleDescriptor runAsRole = new DefaultRoleDescriptor(
             "can run as",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("all").build() },
@@ -1829,7 +1830,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         roleMap.put("can run as", runAsRole);
 
-        RoleDescriptor bRole = new RoleDescriptor(
+        RoleDescriptor bRole = new DefaultRoleDescriptor(
             "b",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("b").privileges("all").build() },
@@ -1881,7 +1882,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         TransportRequest request = new GetIndexRequest().indices("b");
         User authenticatedUser = new User("test user", "can run as");
         final Authentication authentication = createAuthentication(new User("run as me", "b"), authenticatedUser);
-        final RoleDescriptor runAsRole = new RoleDescriptor(
+        final RoleDescriptor runAsRole = new DefaultRoleDescriptor(
             "can run as",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("all").build() },
@@ -1889,7 +1890,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         roleMap.put("can run as", runAsRole);
         mockMetadataWithIndex("b");
-        RoleDescriptor bRole = new RoleDescriptor(
+        RoleDescriptor bRole = new DefaultRoleDescriptor(
             "b",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("b").privileges("all").build() },
@@ -1917,7 +1918,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testGrantAllRestrictedUserCannotExecuteOperationAgainstSecurityIndices() {
-        RoleDescriptor role = new RoleDescriptor(
+        RoleDescriptor role = new DefaultRoleDescriptor(
             "all access",
             new String[] { "all" },
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("*").privileges("all").build() },
@@ -2044,13 +2045,13 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testMonitoringOperationsAgainstSecurityIndexRequireAllowRestricted() {
-        final RoleDescriptor restrictedMonitorRole = new RoleDescriptor(
+        final RoleDescriptor restrictedMonitorRole = new DefaultRoleDescriptor(
             "restricted_monitor",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("*").privileges("monitor").build() },
             null
         );
-        final RoleDescriptor unrestrictedMonitorRole = new RoleDescriptor(
+        final RoleDescriptor unrestrictedMonitorRole = new DefaultRoleDescriptor(
             "unrestricted_monitor",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("*").privileges("monitor").allowRestrictedIndices(true).build() },
@@ -2275,7 +2276,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final String action = compositeRequest.v1();
         final TransportRequest request = compositeRequest.v2();
         final Authentication authentication = createAuthentication(new User("test user", "no_indices"));
-        final RoleDescriptor role = new RoleDescriptor("no_indices", null, null, null);
+        final RoleDescriptor role = new DefaultRoleDescriptor("no_indices", null, null, null);
         roleMap.put("no_indices", role);
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
@@ -2296,7 +2297,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final String action = compositeRequest.v1();
         final TransportRequest request = compositeRequest.v2();
         final Authentication authentication = createAuthentication(new User("test user", "role"));
-        final RoleDescriptor role = new RoleDescriptor(
+        final RoleDescriptor role = new DefaultRoleDescriptor(
             "role",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices(randomBoolean() ? "a" : "index").privileges("all").build() },
@@ -2323,7 +2324,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         User user = new User("test user", "role");
         roleMap.put(
             "role",
-            new RoleDescriptor(
+            new DefaultRoleDescriptor(
                 "role",
                 null,
                 new IndicesPrivileges[] { IndicesPrivileges.builder().indices(randomBoolean() ? "a" : "index").privileges("all").build() },
@@ -2370,7 +2371,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         User userAllowed = new User("userAllowed", "roleAllowed");
         roleMap.put(
             "roleAllowed",
-            new RoleDescriptor(
+            new DefaultRoleDescriptor(
                 "roleAllowed",
                 null,
                 new IndicesPrivileges[] { IndicesPrivileges.builder().indices("index").privileges("all").build() },
@@ -2380,7 +2381,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         User userDenied = new User("userDenied", "roleDenied");
         roleMap.put(
             "roleDenied",
-            new RoleDescriptor(
+            new DefaultRoleDescriptor(
                 "roleDenied",
                 null,
                 new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("all").build() },
@@ -2408,7 +2409,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final TransportRequest request = new BulkShardRequest(shardId, WriteRequest.RefreshPolicy.IMMEDIATE, items);
 
         final Authentication authentication = createAuthentication(new User("user", "my-role"));
-        RoleDescriptor role = new RoleDescriptor(
+        RoleDescriptor role = new DefaultRoleDescriptor(
             "my-role",
             null,
             new IndicesPrivileges[] {
@@ -2505,7 +2506,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final TransportRequest request = new BulkShardRequest(shardId, WriteRequest.RefreshPolicy.IMMEDIATE, items);
 
         final Authentication authentication = createAuthentication(new User("user", "my-role"));
-        final RoleDescriptor role = new RoleDescriptor(
+        final RoleDescriptor role = new DefaultRoleDescriptor(
             "my-role",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("datemath-*").privileges("index").build() },
@@ -2667,7 +2668,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final TransportRequest transportRequest = TransportActionProxy.wrapRequest(node, proxiedRequest);
         final String action = TransportActionProxy.getProxyAction(SearchTransportService.QUERY_ACTION_NAME);
         final Authentication authentication = createAuthentication(new User("test user", "no_indices"));
-        final RoleDescriptor role = new RoleDescriptor("no_indices", null, null, null);
+        final RoleDescriptor role = new DefaultRoleDescriptor("no_indices", null, null, null);
         roleMap.put("no_indices", role);
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
@@ -2683,7 +2684,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testProxyRequestAuthenticationGrantedWithAllPrivileges() {
-        RoleDescriptor role = new RoleDescriptor(
+        RoleDescriptor role = new DefaultRoleDescriptor(
             "a_all",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("all").build() },
@@ -2710,7 +2711,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testProxyRequestAuthenticationGranted() {
-        RoleDescriptor role = new RoleDescriptor(
+        RoleDescriptor role = new DefaultRoleDescriptor(
             "a_all",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("read_cross_cluster").build() },
@@ -2737,7 +2738,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testProxyRequestAuthenticationDeniedWithReadPrivileges() {
         final Authentication authentication = createAuthentication(new User("test user", "a_all"));
-        final RoleDescriptor role = new RoleDescriptor(
+        final RoleDescriptor role = new DefaultRoleDescriptor(
             "a_all",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("read").build() },

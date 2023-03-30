@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentAction;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.util.ArrayList;
@@ -189,7 +189,7 @@ public class InternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
         }
         final CreateApiKeyRequest apiKeyRequest = new CreateApiKeyRequest(
             "enrollment_token_API_key_" + UUIDs.base64UUID(),
-            List.of(new RoleDescriptor("create_enrollment_token", new String[] { enrollTokenType.toString() }, null, null)),
+            List.of(new DefaultRoleDescriptor("create_enrollment_token", new String[] { enrollTokenType.toString() }, null, null)),
             TimeValue.timeValueMinutes(ENROLL_API_KEY_EXPIRATION_MINUTES)
         );
         client.execute(CreateApiKeyAction.INSTANCE, apiKeyRequest, ActionListener.wrap(createApiKeyResponse -> {

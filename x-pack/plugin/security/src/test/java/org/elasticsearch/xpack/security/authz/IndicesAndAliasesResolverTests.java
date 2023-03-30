@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizedIndices;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -235,7 +236,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         roleMap = new HashMap<>();
         roleMap.put(
             "role",
-            new RoleDescriptor(
+            new DefaultRoleDescriptor(
                 "role",
                 null,
                 new IndicesPrivileges[] { IndicesPrivileges.builder().indices(authorizedIndices).privileges("all").build() },
@@ -244,17 +245,17 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
         roleMap.put(
             "dash",
-            new RoleDescriptor(
+            new DefaultRoleDescriptor(
                 "dash",
                 null,
                 new IndicesPrivileges[] { IndicesPrivileges.builder().indices(dashIndices).privileges("all").build() },
                 null
             )
         );
-        roleMap.put("test", new RoleDescriptor("test", new String[] { "monitor" }, null, null));
+        roleMap.put("test", new DefaultRoleDescriptor("test", new String[] { "monitor" }, null, null));
         roleMap.put(
             "alias_read_write",
-            new RoleDescriptor(
+            new DefaultRoleDescriptor(
                 "alias_read_write",
                 null,
                 new IndicesPrivileges[] { IndicesPrivileges.builder().indices("barbaz", "foofoobar").privileges("read", "write").build() },
@@ -263,7 +264,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
         roleMap.put(
             "hidden_alias_test",
-            new RoleDescriptor(
+            new DefaultRoleDescriptor(
                 "hidden_alias_test",
                 null,
                 new IndicesPrivileges[] {
@@ -277,7 +278,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
         roleMap.put(
             "data_stream_test1",
-            new RoleDescriptor(
+            new DefaultRoleDescriptor(
                 "data_stream_test1",
                 null,
                 new IndicesPrivileges[] { IndicesPrivileges.builder().indices(dataStreamName + "*").privileges("all").build() },
@@ -286,7 +287,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
         roleMap.put(
             "data_stream_test2",
-            new RoleDescriptor(
+            new DefaultRoleDescriptor(
                 "data_stream_test2",
                 null,
                 new IndicesPrivileges[] { IndicesPrivileges.builder().indices(otherDataStreamName + "*").privileges("all").build() },
@@ -295,7 +296,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
         roleMap.put(
             "data_stream_test3",
-            new RoleDescriptor(
+            new DefaultRoleDescriptor(
                 "data_stream_test3",
                 null,
                 new IndicesPrivileges[] { IndicesPrivileges.builder().indices("logs*").privileges("all").build() },
@@ -304,7 +305,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
         roleMap.put(
             "backing_index_test_wildcards",
-            new RoleDescriptor(
+            new DefaultRoleDescriptor(
                 "backing_index_test_wildcards",
                 null,
                 new IndicesPrivileges[] { IndicesPrivileges.builder().indices(".ds-logs*").privileges("all").build() },
@@ -313,7 +314,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
         roleMap.put(
             "backing_index_test_name",
-            new RoleDescriptor(
+            new DefaultRoleDescriptor(
                 "backing_index_test_name",
                 null,
                 new IndicesPrivileges[] {
@@ -1584,7 +1585,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         User allAccessUser = new User("all_access", "all_access");
         roleMap.put(
             "all_access",
-            new RoleDescriptor(
+            new DefaultRoleDescriptor(
                 "all_access",
                 new String[] { "all" },
                 new IndicesPrivileges[] { IndicesPrivileges.builder().indices("*").privileges("all").build() },
@@ -1640,7 +1641,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         String[] authorizedIndices = new String[] { "bar", "bar-closed", "foofoobar", "foofoo", "missing", "foofoo-closed", dateTimeIndex };
         roleMap.put(
             "role",
-            new RoleDescriptor(
+            new DefaultRoleDescriptor(
                 "role",
                 null,
                 new IndicesPrivileges[] { IndicesPrivileges.builder().indices(authorizedIndices).privileges("all").build() },
@@ -1695,7 +1696,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             IndexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>") };
         roleMap.put(
             "role",
-            new RoleDescriptor(
+            new DefaultRoleDescriptor(
                 "role",
                 null,
                 new IndicesPrivileges[] { IndicesPrivileges.builder().indices(authorizedIndices).privileges("all").build() },

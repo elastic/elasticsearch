@@ -107,6 +107,7 @@ import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
@@ -295,7 +296,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
     public void testElasticServiceAccount() {
         final String serviceName = randomAlphaOfLengthBetween(3, 8);
         final String principal = ElasticServiceAccounts.NAMESPACE + "/" + serviceName;
-        final RoleDescriptor roleDescriptor1 = new RoleDescriptor(principal, null, null, null);
+        final RoleDescriptor roleDescriptor1 = new DefaultRoleDescriptor(principal, null, null, null);
         final ElasticServiceAccount serviceAccount = new ElasticServiceAccount(serviceName, roleDescriptor1);
         assertThat(serviceAccount.id(), equalTo(new ServiceAccount.ServiceAccountId(ElasticServiceAccounts.NAMESPACE, serviceName)));
         assertThat(serviceAccount.roleDescriptor(), equalTo(roleDescriptor1));
@@ -316,7 +317,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         final NullPointerException e1 = expectThrows(NullPointerException.class, () -> new ElasticServiceAccount(serviceName, null));
         assertThat(e1.getMessage(), containsString("Role descriptor cannot be null"));
 
-        final RoleDescriptor roleDescriptor2 = new RoleDescriptor(randomAlphaOfLengthBetween(6, 16), null, null, null);
+        final RoleDescriptor roleDescriptor2 = new DefaultRoleDescriptor(randomAlphaOfLengthBetween(6, 16), null, null, null);
         final IllegalArgumentException e2 = expectThrows(
             IllegalArgumentException.class,
             () -> new ElasticServiceAccount(serviceName, roleDescriptor2)

@@ -19,7 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.TestSecurityClient;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -106,7 +106,7 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
 
         ResponseException e = expectThrows(
             ResponseException.class,
-            () -> securityClient.putRole(new RoleDescriptor("snapshot_user", new String[] { "all" }, null, new String[] { "*" }))
+            () -> securityClient.putRole(new DefaultRoleDescriptor("snapshot_user", new String[] { "all" }, null, new String[] { "*" }))
         );
         assertThat(e.getMessage(), containsString("Role [snapshot_user] is reserved and may not be used"));
 

@@ -17,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
@@ -76,7 +77,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
         final List<RoleDescriptor> roleDescriptors = List.of(
-            new RoleDescriptor(
+            new DefaultRoleDescriptor(
                 "rd_42",
                 new String[] { "monitor" },
                 new RoleDescriptor.IndicesPrivileges[] {
@@ -85,7 +86,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
             )
         );
         final List<RoleDescriptor> limitedByRoleDescriptors = List.of(
-            new RoleDescriptor(
+            new DefaultRoleDescriptor(
                 "rd_0",
                 new String[] { "all" },
                 new RoleDescriptor.IndicesPrivileges[] {

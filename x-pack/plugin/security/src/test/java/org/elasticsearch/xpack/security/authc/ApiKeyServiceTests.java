@@ -96,6 +96,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
@@ -854,7 +855,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(service.parseRoleDescriptors(apiKeyId, null, randomApiKeyRoleType()), nullValue());
         assertThat(service.parseRoleDescriptors(apiKeyId, Collections.emptyMap(), randomApiKeyRoleType()), emptyIterable());
 
-        final RoleDescriptor roleARoleDescriptor = new RoleDescriptor(
+        final RoleDescriptor roleARoleDescriptor = new DefaultRoleDescriptor(
             "a role",
             new String[] { "monitor" },
             new RoleDescriptor.IndicesPrivileges[] {
@@ -2108,7 +2109,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     }
 
     private static RoleDescriptor randomRoleDescriptorWithRemoteIndexPrivileges() {
-        return new RoleDescriptor(
+        return new DefaultRoleDescriptor(
             randomAlphaOfLengthBetween(3, 90),
             randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
             RoleDescriptorTests.randomIndicesPrivileges(0, 3),
@@ -2197,7 +2198,9 @@ public class ApiKeyServiceTests extends ESTestCase {
             return createApiKeyAuthentication(
                 apiKeyService,
                 authentication,
-                Collections.singleton(new RoleDescriptor("user_role_" + randomAlphaOfLength(4), new String[] { "manage" }, null, null)),
+                Collections.singleton(
+                    new DefaultRoleDescriptor("user_role_" + randomAlphaOfLength(4), new String[] { "manage" }, null, null)
+                ),
                 null,
                 TransportVersion.CURRENT
             );

@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
@@ -33,7 +34,7 @@ public class BulkUpdateApiKeyRequestTests extends ESTestCase {
             final int numDescriptors = randomIntBetween(0, 4);
             descriptorList = new ArrayList<>();
             for (int i = 0; i < numDescriptors; i++) {
-                descriptorList.add(new RoleDescriptor("role_" + i, new String[] { "all" }, null, null));
+                descriptorList.add(new DefaultRoleDescriptor("role_" + i, new String[] { "all" }, null, null));
             }
         }
 
@@ -83,7 +84,7 @@ public class BulkUpdateApiKeyRequestTests extends ESTestCase {
         final var request = new BulkUpdateApiKeyRequest(
             randomList(1, 5, () -> randomAlphaOfLength(10)),
             List.of(
-                new RoleDescriptor(
+                new DefaultRoleDescriptor(
                     randomAlphaOfLength(5),
                     new String[] { "manage_index_template" },
                     new RoleDescriptor.IndicesPrivileges[] {

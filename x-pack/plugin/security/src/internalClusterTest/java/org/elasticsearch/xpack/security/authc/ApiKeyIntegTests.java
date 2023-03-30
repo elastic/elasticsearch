@@ -88,6 +88,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
@@ -158,7 +159,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     private static final long DELETE_INTERVAL_MILLIS = 100L;
     private static final int CRYPTO_THREAD_POOL_QUEUE_SIZE = 10;
 
-    private static final RoleDescriptor DEFAULT_API_KEY_ROLE_DESCRIPTOR = new RoleDescriptor(
+    private static final RoleDescriptor DEFAULT_API_KEY_ROLE_DESCRIPTOR = new DefaultRoleDescriptor(
         "role",
         new String[] { "monitor" },
         null,
@@ -256,7 +257,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     public void testCreateApiKey() throws Exception {
         // Get an instant without nanoseconds as the expiration has millisecond precision
         final Instant start = Instant.ofEpochMilli(Instant.now().toEpochMilli());
-        final RoleDescriptor descriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
+        final RoleDescriptor descriptor = new DefaultRoleDescriptor("role", new String[] { "monitor" }, null, null);
         Client client = client().filterWithHeader(
             Collections.singletonMap("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
         );
@@ -309,7 +310,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         int noOfApiKeys = randomIntBetween(2, 5);
         List<CreateApiKeyResponse> responses = new ArrayList<>();
         for (int i = 0; i < noOfApiKeys; i++) {
-            final RoleDescriptor descriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
+            final RoleDescriptor descriptor = new DefaultRoleDescriptor("role", new String[] { "monitor" }, null, null);
             Client client = client().filterWithHeader(
                 Collections.singletonMap("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
             );
@@ -1062,11 +1063,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         if (withLimitedBy) {
             if (userWithManageApiKeyRole.equals("user_with_manage_api_key_role")) {
                 expectedLimitedByRoleDescriptors = List.of(
-                    new RoleDescriptor("manage_api_key_role", new String[] { "manage_api_key" }, null, null)
+                    new DefaultRoleDescriptor("manage_api_key_role", new String[] { "manage_api_key" }, null, null)
                 );
             } else {
                 expectedLimitedByRoleDescriptors = List.of(
-                    new RoleDescriptor("manage_own_api_key_role", new String[] { "manage_own_api_key" }, null, null)
+                    new DefaultRoleDescriptor("manage_own_api_key_role", new String[] { "manage_own_api_key" }, null, null)
                 );
             }
         } else {
@@ -1121,7 +1122,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             tuple.v2(),
             List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR),
             withLimitedBy
-                ? List.of(new RoleDescriptor("manage_own_api_key_role", new String[] { "manage_own_api_key" }, null, null))
+                ? List.of(new DefaultRoleDescriptor("manage_own_api_key_role", new String[] { "manage_own_api_key" }, null, null))
                 : null,
             response.getApiKeyInfos(),
             userWithManageOwnApiKeyRoleApiKeys.stream().map(o -> o.getId()).collect(Collectors.toSet()),
@@ -1157,7 +1158,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             tuple.v2(),
             List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR),
             withLimitedBy
-                ? List.of(new RoleDescriptor("manage_own_api_key_role", new String[] { "manage_own_api_key" }, null, null))
+                ? List.of(new DefaultRoleDescriptor("manage_own_api_key_role", new String[] { "manage_own_api_key" }, null, null))
                 : null,
             response.getApiKeyInfos(),
             userWithManageOwnApiKeyRoleApiKeys.stream().map(o -> o.getId()).collect(Collectors.toSet()),
@@ -1239,10 +1240,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 return switch (username) {
                     case ES_TEST_ROOT_USER -> List.of(ES_TEST_ROOT_ROLE_DESCRIPTOR);
                     case "user_with_manage_api_key_role" -> List.of(
-                        new RoleDescriptor("manage_api_key_role", new String[] { "manage_api_key" }, null, null)
+                        new DefaultRoleDescriptor("manage_api_key_role", new String[] { "manage_api_key" }, null, null)
                     );
                     case "user_with_manage_own_api_key_role" -> List.of(
-                        new RoleDescriptor("manage_own_api_key_role", new String[] { "manage_own_api_key" }, null, null)
+                        new DefaultRoleDescriptor("manage_own_api_key_role", new String[] { "manage_own_api_key" }, null, null)
                     );
                     default -> throw new IllegalStateException("unknown username: " + username);
                 };
@@ -1407,7 +1408,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             1,
             responses,
             tuple.v2(),
-            List.of(new RoleDescriptor(DEFAULT_API_KEY_ROLE_DESCRIPTOR.getName(), Strings.EMPTY_ARRAY, null, null)),
+            List.of(new DefaultRoleDescriptor(DEFAULT_API_KEY_ROLE_DESCRIPTOR.getName(), Strings.EMPTY_ARRAY, null, null)),
             null,
             response.getApiKeyInfos(),
             Collections.singleton(responses.get(0).getId()),
@@ -1464,7 +1465,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             1,
             responses1,
             tuple1.v2(),
-            List.of(new RoleDescriptor(DEFAULT_API_KEY_ROLE_DESCRIPTOR.getName(), new String[] { "manage_own_api_key" }, null, null)),
+            List.of(
+                new DefaultRoleDescriptor(DEFAULT_API_KEY_ROLE_DESCRIPTOR.getName(), new String[] { "manage_own_api_key" }, null, null)
+            ),
             null,
             new ApiKey[] { getApiKeyInfo(client1, apiKeyId1, false, randomBoolean()) },
             Collections.singleton(apiKeyId1),
@@ -1499,7 +1502,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             1,
             responses3,
             tuple3.v2(),
-            List.of(new RoleDescriptor(DEFAULT_API_KEY_ROLE_DESCRIPTOR.getName(), new String[] { "manage_api_key" }, null, null)),
+            List.of(new DefaultRoleDescriptor(DEFAULT_API_KEY_ROLE_DESCRIPTOR.getName(), new String[] { "manage_api_key" }, null, null)),
             List.of(ES_TEST_ROOT_ROLE_DESCRIPTOR),
             new ApiKey[] { getApiKeyInfo(client3, apiKeyId3, true, randomBoolean()) },
             Collections.singleton(apiKeyId3),
@@ -1511,7 +1514,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             1,
             responses1,
             tuple1.v2(),
-            List.of(new RoleDescriptor(DEFAULT_API_KEY_ROLE_DESCRIPTOR.getName(), new String[] { "manage_own_api_key" }, null, null)),
+            List.of(
+                new DefaultRoleDescriptor(DEFAULT_API_KEY_ROLE_DESCRIPTOR.getName(), new String[] { "manage_own_api_key" }, null, null)
+            ),
             List.of(ES_TEST_ROOT_ROLE_DESCRIPTOR),
             new ApiKey[] { getApiKeyInfo(client3, apiKeyId1, true, randomBoolean()) },
             Collections.singleton(apiKeyId1),
@@ -1593,7 +1598,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
         final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client).setName("key-1")
             .setRoleDescriptors(
-                Collections.singletonList(new RoleDescriptor("role", new String[] { "manage_api_key", "manage_token" }, null, null))
+                Collections.singletonList(new DefaultRoleDescriptor("role", new String[] { "manage_api_key", "manage_token" }, null, null))
             )
             .setMetadata(ApiKeyTests.randomMetadata())
             .get();
@@ -1636,16 +1641,16 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             () -> new CreateApiKeyRequestBuilder(clientKey1).setName("key-4")
                 .setMetadata(ApiKeyTests.randomMetadata())
                 .setRoleDescriptors(
-                    Collections.singletonList(new RoleDescriptor("role", new String[] { "manage_own_api_key" }, null, null))
+                    Collections.singletonList(new DefaultRoleDescriptor("role", new String[] { "manage_own_api_key" }, null, null))
                 )
                 .get()
         );
         assertThat(e3.getMessage(), containsString(expectedMessage));
 
-        final List<RoleDescriptor> roleDescriptors = randomList(2, 10, () -> new RoleDescriptor("role", null, null, null));
+        final List<RoleDescriptor> roleDescriptors = randomList(2, 10, () -> new DefaultRoleDescriptor("role", null, null, null));
         roleDescriptors.set(
             randomInt(roleDescriptors.size() - 1),
-            new RoleDescriptor("role", new String[] { "manage_own_api_key" }, null, null)
+            new DefaultRoleDescriptor("role", new String[] { "manage_own_api_key" }, null, null)
         );
 
         final IllegalArgumentException e4 = expectThrows(
@@ -1659,7 +1664,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         final CreateApiKeyResponse key100Response = new CreateApiKeyRequestBuilder(clientKey1).setName("key-100")
             .setMetadata(ApiKeyTests.randomMetadata())
-            .setRoleDescriptors(Collections.singletonList(new RoleDescriptor("role", null, null, null)))
+            .setRoleDescriptors(Collections.singletonList(new DefaultRoleDescriptor("role", null, null, null)))
             .get();
         assertEquals("key-100", key100Response.getName());
         assertNotNull(key100Response.getId());
@@ -1686,7 +1691,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     public void testApiKeyRunAsAnotherUserCanCreateApiKey() {
-        final RoleDescriptor descriptor = new RoleDescriptor("role", Strings.EMPTY_ARRAY, null, new String[] { ES_TEST_ROOT_USER });
+        final RoleDescriptor descriptor = new DefaultRoleDescriptor("role", Strings.EMPTY_ARRAY, null, new String[] { ES_TEST_ROOT_USER });
         Client client = client().filterWithHeader(
             Map.of("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
         );
@@ -1702,7 +1707,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             client().filterWithHeader(
                 Map.of("Authorization", "ApiKey " + base64ApiKeyKeyValue, "es-security-runas-user", ES_TEST_ROOT_USER)
             )
-        ).setName("create-by run-as user").setRoleDescriptors(List.of(new RoleDescriptor("a", new String[] { "all" }, null, null))).get();
+        ).setName("create-by run-as user")
+            .setRoleDescriptors(List.of(new DefaultRoleDescriptor("a", new String[] { "all" }, null, null)))
+            .get();
 
         final GetApiKeyResponse getApiKeyResponse = client.execute(
             GetApiKeyAction.INSTANCE,
@@ -1722,7 +1729,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
         final ApiKeyService apiKeyService = internalCluster().getInstance(ApiKeyService.class, nodeName);
 
-        final RoleDescriptor descriptor = new RoleDescriptor("auth_only", new String[] {}, null, null);
+        final RoleDescriptor descriptor = new DefaultRoleDescriptor("auth_only", new String[] {}, null, null);
         final Client client = client().filterWithHeader(
             Collections.singletonMap("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
         );
@@ -1904,7 +1911,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final boolean nullRoleDescriptors = newRoleDescriptors == null;
         // Role descriptor corresponding to SecuritySettingsSource.TEST_ROLE_YML
         final var expectedLimitedByRoleDescriptors = Set.of(
-            new RoleDescriptor(
+            new DefaultRoleDescriptor(
                 TEST_ROLE,
                 new String[] { "ALL" },
                 new RoleDescriptor.IndicesPrivileges[] {
@@ -1992,7 +1999,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(allIds, containsInAnyOrder(apiKeyIds.toArray()));
         // Role descriptor corresponding to SecuritySettingsSource.TEST_ROLE_YML
         final var expectedLimitedByRoleDescriptors = Set.of(
-            new RoleDescriptor(
+            new DefaultRoleDescriptor(
                 TEST_ROLE,
                 new String[] { "ALL" },
                 new RoleDescriptor.IndicesPrivileges[] {
@@ -2269,7 +2276,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     public void testUpdateApiKeysNotFoundScenarios() throws Exception {
         final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(TEST_USER_NAME, null);
         final var apiKeyId = createdApiKey.v1().getId();
-        final var expectedRoleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null);
+        final var expectedRoleDescriptor = new DefaultRoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null);
         final var request = new UpdateApiKeyRequest(apiKeyId, List.of(expectedRoleDescriptor), ApiKeyTests.randomMetadata());
 
         // Validate can update own API key
@@ -2316,7 +2323,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             .get(0);
         final var apiKeyId = createdApiKey.getId();
 
-        final var roleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "manage_own_api_key" }, null, null);
+        final var roleDescriptor = new DefaultRoleDescriptor(randomAlphaOfLength(10), new String[] { "manage_own_api_key" }, null, null);
         final var request = new UpdateApiKeyRequest(apiKeyId, List.of(roleDescriptor), ApiKeyTests.randomMetadata());
         final PlainActionFuture<UpdateApiKeyResponse> updateListener = new PlainActionFuture<>();
         client().filterWithHeader(
@@ -2415,7 +2422,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         final var initialRequest = new UpdateApiKeyRequest(
             apiKeyId,
-            List.of(new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null)),
+            List.of(new DefaultRoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null)),
             // Ensure not `null` to set metadata since we use the initialRequest further down in the test to ensure that
             // metadata updates are non-noops
             randomValueOtherThanMany(Objects::isNull, ApiKeyTests::randomMetadata)
@@ -2484,7 +2491,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final ServiceWithNodeName serviceWithNodeName = getServiceWithNodeName();
         // Role descriptor corresponding to SecuritySettingsSource.TEST_ROLE_YML, i.e., should not result in update
         final Set<RoleDescriptor> oldUserRoleDescriptors = Set.of(
-            new RoleDescriptor(
+            new DefaultRoleDescriptor(
                 TEST_ROLE,
                 new String[] { "ALL" },
                 new RoleDescriptor.IndicesPrivileges[] {
@@ -2656,9 +2663,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         boolean allowRemoteIndices = TcpTransport.isUntrustedRemoteClusterEnabled();
         int caseNo = randomIntBetween(0, 3);
         return switch (caseNo) {
-            case 0 -> List.of(new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null));
+            case 0 -> List.of(new DefaultRoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null));
             case 1 -> List.of(
-                new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null),
+                new DefaultRoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null),
                 randomValueOtherThanMany(
                     rd -> RoleDescriptorRequestValidator.validate(rd) != null,
                     () -> RoleDescriptorTests.randomRoleDescriptor(false, allowRemoteIndices)
@@ -2667,7 +2674,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             case 2 -> null;
             // vary default role descriptor assigned to created API keys by name only
             case 3 -> List.of(
-                new RoleDescriptor(
+                new DefaultRoleDescriptor(
                     randomValueOtherThan(DEFAULT_API_KEY_ROLE_DESCRIPTOR.getName(), () -> randomAlphaOfLength(10)),
                     DEFAULT_API_KEY_ROLE_DESCRIPTOR.getClusterPrivileges(),
                     DEFAULT_API_KEY_ROLE_DESCRIPTOR.getIndicesPrivileges(),
@@ -3076,7 +3083,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         List<Map<String, Object>> metadatas = new ArrayList<>(noOfApiKeys);
         List<CreateApiKeyResponse> responses = new ArrayList<>();
         for (int i = 0; i < noOfApiKeys; i++) {
-            final RoleDescriptor descriptor = new RoleDescriptor(DEFAULT_API_KEY_ROLE_DESCRIPTOR.getName(), clusterPrivileges, null, null);
+            final RoleDescriptor descriptor = new DefaultRoleDescriptor(
+                DEFAULT_API_KEY_ROLE_DESCRIPTOR.getName(),
+                clusterPrivileges,
+                null,
+                null
+            );
             Client client = client().filterWithHeader(headers);
             final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
             metadatas.add(metadata);

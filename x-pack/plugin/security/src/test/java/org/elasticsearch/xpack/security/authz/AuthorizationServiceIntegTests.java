@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
@@ -48,7 +49,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
         final String concreteClusterAlias = randomAlphaOfLength(10);
         final String roleName = randomAlphaOfLength(5);
         getSecurityClient().putRole(
-            new RoleDescriptor(
+            new DefaultRoleDescriptor(
                 roleName,
                 randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
                 randomBoolean()
@@ -100,7 +101,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                 new RoleDescriptorsIntersection(
                     List.of(
                         Set.of(
-                            new RoleDescriptor(
+                            new DefaultRoleDescriptor(
                                 generatedRoleName,
                                 null,
                                 new RoleDescriptor.IndicesPrivileges[] {

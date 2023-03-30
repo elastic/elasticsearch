@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileActio
 import org.elasticsearch.xpack.core.security.action.profile.GetProfilesAction;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
@@ -67,7 +68,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     /** "Security Solutions" only lists index for value list items for detections */
     public static final String LISTS_ITEMS_INDEX = ".items-*";
 
-    public static final RoleDescriptor SUPERUSER_ROLE_DESCRIPTOR = new RoleDescriptor(
+    public static final RoleDescriptor SUPERUSER_ROLE_DESCRIPTOR = new DefaultRoleDescriptor(
         "superuser",
         new String[] { "all" },
         new RoleDescriptor.IndicesPrivileges[] {
@@ -117,7 +118,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             .put("superuser", SUPERUSER_ROLE_DESCRIPTOR)
             .put(
                 "transport_client",
-                new RoleDescriptor(
+                new DefaultRoleDescriptor(
                     "transport_client",
                     new String[] { "transport_client" },
                     null,
@@ -132,7 +133,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             )
             .put(
                 "monitoring_user",
-                new RoleDescriptor(
+                new DefaultRoleDescriptor(
                     "monitoring_user",
                     new String[] { "cluster:monitor/main", "cluster:monitor/xpack/info", RemoteInfoAction.NAME },
                     new RoleDescriptor.IndicesPrivileges[] {
@@ -163,7 +164,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             )
             .put(
                 "remote_monitoring_agent",
-                new RoleDescriptor(
+                new DefaultRoleDescriptor(
                     "remote_monitoring_agent",
                     new String[] {
                         "manage_index_templates",
@@ -186,7 +187,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             )
             .put(
                 "remote_monitoring_collector",
-                new RoleDescriptor(
+                new DefaultRoleDescriptor(
                     "remote_monitoring_collector",
                     new String[] { "monitor" },
                     new RoleDescriptor.IndicesPrivileges[] {
@@ -205,7 +206,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             )
             .put(
                 "ingest_admin",
-                new RoleDescriptor(
+                new DefaultRoleDescriptor(
                     "ingest_admin",
                     new String[] { "manage_index_templates", "manage_pipeline" },
                     null,
@@ -216,7 +217,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             // reporting_user doesn't have any privileges in Elasticsearch, and Kibana authorizes privileges based on this role
             .put(
                 "reporting_user",
-                new RoleDescriptor(
+                new DefaultRoleDescriptor(
                     "reporting_user",
                     null,
                     null,
@@ -230,7 +231,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             .put(KibanaSystemUser.ROLE_NAME, kibanaSystemRoleDescriptor(KibanaSystemUser.ROLE_NAME))
             .put(
                 "logstash_system",
-                new RoleDescriptor(
+                new DefaultRoleDescriptor(
                     "logstash_system",
                     new String[] { "monitor", MonitoringBulkAction.NAME },
                     null,
@@ -240,7 +241,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             )
             .put(
                 "beats_admin",
-                new RoleDescriptor(
+                new DefaultRoleDescriptor(
                     "beats_admin",
                     null,
                     new RoleDescriptor.IndicesPrivileges[] {
@@ -251,7 +252,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             )
             .put(
                 UsernamesField.BEATS_ROLE,
-                new RoleDescriptor(
+                new DefaultRoleDescriptor(
                     UsernamesField.BEATS_ROLE,
                     new String[] { "monitor", MonitoringBulkAction.NAME },
                     new RoleDescriptor.IndicesPrivileges[] {
@@ -265,7 +266,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             )
             .put(
                 UsernamesField.APM_ROLE,
-                new RoleDescriptor(
+                new DefaultRoleDescriptor(
                     UsernamesField.APM_ROLE,
                     new String[] { "monitor", MonitoringBulkAction.NAME },
                     new RoleDescriptor.IndicesPrivileges[] {
@@ -279,7 +280,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             )
             .put(
                 "apm_user",
-                new RoleDescriptor(
+                new DefaultRoleDescriptor(
                     "apm_user",
                     null,
                     new RoleDescriptor.IndicesPrivileges[] {
@@ -333,7 +334,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             )
             .put(
                 "machine_learning_user",
-                new RoleDescriptor(
+                new DefaultRoleDescriptor(
                     "machine_learning_user",
                     new String[] { "monitor_ml" },
                     new RoleDescriptor.IndicesPrivileges[] {
@@ -366,7 +367,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             )
             .put(
                 "machine_learning_admin",
-                new RoleDescriptor(
+                new DefaultRoleDescriptor(
                     "machine_learning_admin",
                     new String[] { "manage_ml" },
                     new RoleDescriptor.IndicesPrivileges[] {
@@ -401,7 +402,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             // DEPRECATED: to be removed in 9.0.0
             .put(
                 "data_frame_transforms_admin",
-                new RoleDescriptor(
+                new DefaultRoleDescriptor(
                     "data_frame_transforms_admin",
                     new String[] { "manage_data_frame_transforms" },
                     new RoleDescriptor.IndicesPrivileges[] {
@@ -428,7 +429,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             // DEPRECATED: to be removed in 9.0.0
             .put(
                 "data_frame_transforms_user",
-                new RoleDescriptor(
+                new DefaultRoleDescriptor(
                     "data_frame_transforms_user",
                     new String[] { "monitor_data_frame_transforms" },
                     new RoleDescriptor.IndicesPrivileges[] {
@@ -454,7 +455,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             )
             .put(
                 "transform_admin",
-                new RoleDescriptor(
+                new DefaultRoleDescriptor(
                     "transform_admin",
                     new String[] { "manage_transform" },
                     new RoleDescriptor.IndicesPrivileges[] {
@@ -475,7 +476,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             )
             .put(
                 "transform_user",
-                new RoleDescriptor(
+                new DefaultRoleDescriptor(
                     "transform_user",
                     new String[] { "monitor_transform" },
                     new RoleDescriptor.IndicesPrivileges[] {
@@ -496,7 +497,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             )
             .put(
                 "watcher_admin",
-                new RoleDescriptor(
+                new DefaultRoleDescriptor(
                     "watcher_admin",
                     new String[] { "manage_watcher" },
                     new RoleDescriptor.IndicesPrivileges[] {
@@ -511,7 +512,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             )
             .put(
                 "watcher_user",
-                new RoleDescriptor(
+                new DefaultRoleDescriptor(
                     "watcher_user",
                     new String[] { "monitor_watcher" },
                     new RoleDescriptor.IndicesPrivileges[] {
@@ -530,7 +531,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             )
             .put(
                 "logstash_admin",
-                new RoleDescriptor(
+                new DefaultRoleDescriptor(
                     "logstash_admin",
                     new String[] { "manage_logstash_pipelines" },
                     new RoleDescriptor.IndicesPrivileges[] {
@@ -545,15 +546,27 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             )
             .put(
                 "rollup_user",
-                new RoleDescriptor("rollup_user", new String[] { "monitor_rollup" }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA)
+                new DefaultRoleDescriptor(
+                    "rollup_user",
+                    new String[] { "monitor_rollup" },
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA
+                )
             )
             .put(
                 "rollup_admin",
-                new RoleDescriptor("rollup_admin", new String[] { "manage_rollup" }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA)
+                new DefaultRoleDescriptor(
+                    "rollup_admin",
+                    new String[] { "manage_rollup" },
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA
+                )
             )
             .put(
                 "snapshot_user",
-                new RoleDescriptor(
+                new DefaultRoleDescriptor(
                     "snapshot_user",
                     new String[] { "create_snapshot", GetRepositoriesAction.NAME },
                     new RoleDescriptor.IndicesPrivileges[] {
@@ -571,7 +584,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             )
             .put(
                 "enrich_user",
-                new RoleDescriptor(
+                new DefaultRoleDescriptor(
                     "enrich_user",
                     new String[] { "manage_enrich", "manage_ingest_pipelines", "monitor" },
                     new RoleDescriptor.IndicesPrivileges[] {
@@ -586,7 +599,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     }
 
     private static RoleDescriptor buildViewerRoleDescriptor() {
-        return new RoleDescriptor(
+        return new DefaultRoleDescriptor(
             "viewer",
             new String[] {},
             new RoleDescriptor.IndicesPrivileges[] {
@@ -619,7 +632,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     }
 
     private static RoleDescriptor buildEditorRoleDescriptor() {
-        return new RoleDescriptor(
+        return new DefaultRoleDescriptor(
             "editor",
             new String[] {},
             new RoleDescriptor.IndicesPrivileges[] {
@@ -662,7 +675,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     }
 
     private static RoleDescriptor kibanaAdminUser(String name, Map<String, Object> metadata) {
-        return new RoleDescriptor(
+        return new DefaultRoleDescriptor(
             name,
             null,
             null,
@@ -680,7 +693,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     }
 
     public static RoleDescriptor kibanaSystemRoleDescriptor(String name) {
-        return new RoleDescriptor(
+        return new DefaultRoleDescriptor(
             name,
             new String[] {
                 "monitor",

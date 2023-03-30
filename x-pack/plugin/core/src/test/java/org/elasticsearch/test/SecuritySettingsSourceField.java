@@ -7,6 +7,7 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.util.Map;
@@ -31,7 +32,7 @@ public final class SecuritySettingsSourceField {
               resources: [ "*" ]
         """;
 
-    public static final RoleDescriptor ES_TEST_ROOT_ROLE_DESCRIPTOR = new RoleDescriptor(
+    public static final RoleDescriptor ES_TEST_ROOT_ROLE_DESCRIPTOR = new DefaultRoleDescriptor(
         "_es_test_root",
         new String[] { "ALL" },
         new RoleDescriptor.IndicesPrivileges[] {

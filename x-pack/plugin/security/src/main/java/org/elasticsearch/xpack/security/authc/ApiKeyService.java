@@ -97,6 +97,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
@@ -527,7 +528,7 @@ public class ApiKeyService {
             final Set<RoleDescriptor> result = userRoleDescriptors.stream().map(roleDescriptor -> {
                 if (roleDescriptor.hasRemoteIndicesPrivileges()) {
                     affectedRoles.add(roleDescriptor.getName());
-                    return new RoleDescriptor(
+                    return new DefaultRoleDescriptor(
                         roleDescriptor.getName(),
                         roleDescriptor.getClusterPrivileges(),
                         roleDescriptor.getIndicesPrivileges(),
@@ -919,7 +920,7 @@ public class ApiKeyService {
     }
 
     // package private for tests
-    static final RoleDescriptor LEGACY_SUPERUSER_ROLE_DESCRIPTOR = new RoleDescriptor(
+    static final RoleDescriptor LEGACY_SUPERUSER_ROLE_DESCRIPTOR = new DefaultRoleDescriptor(
         "superuser",
         new String[] { "all" },
         new RoleDescriptor.IndicesPrivileges[] {

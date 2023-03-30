@@ -170,7 +170,7 @@ public class XPackPlugin extends XPackClientPlugin
         // We should only depend on the settings from the Environment object passed to createComponents
         this.settings = settings;
         mutableLicenseState.set(new MutableXPackLicenseState(() -> getEpochMillisSupplier().getAsLong()));
-        setLicenseState(mutableLicenseState.get());
+        setLicenseState(mutableLicenseState.get()); // up casts to non-mutable interface
 
         this.licensing = new Licensing(settings);
     }
@@ -332,7 +332,7 @@ public class XPackPlugin extends XPackClientPlugin
         components.add(sslService);
         components.add(new PluginComponentBinding<>(MutableLicenseService.class, licenseService));
         components.add(new PluginComponentBinding<>(LicenseService.class, licenseService));
-        components.add(getLicenseState());
+        components.add(new PluginComponentBinding<>(XPackLicenseState.class, getLicenseState()));
 
         return components;
     }

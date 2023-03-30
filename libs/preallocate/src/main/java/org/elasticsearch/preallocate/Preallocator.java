@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.blobcache.preallocate;
+package org.elasticsearch.preallocate;
 
 /**
  * Represents platform native methods for pre-allocating files.

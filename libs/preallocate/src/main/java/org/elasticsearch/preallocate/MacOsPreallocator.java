@@ -4,8 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-
-package org.elasticsearch.blobcache.preallocate;
+package org.elasticsearch.preallocate;
 
 import com.sun.jna.Native;
 import com.sun.jna.NativeLong;

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -21,18 +22,15 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
+import static org.elasticsearch.ingest.common.RerouteProcessor.DataStreamValueSource.DATASET_VALUE_SOURCE;
+import static org.elasticsearch.ingest.common.RerouteProcessor.DataStreamValueSource.NAMESPACE_VALUE_SOURCE;
 
 public final class RerouteProcessor extends AbstractProcessor {
     public static final String TYPE = "reroute";
-
-    private static final char[] DISALLOWED_IN_DATASET = new char[] { '\\', '/', '*', '?', '\"', '<', '>', '|', ' ', ',', '#', ':', '-' };
-    private static final char[] DISALLOWED_IN_NAMESPACE = new char[] { '\\', '/', '*', '?', '\"', '<', '>', '|', ' ', ',', '#', ':' };
     private static final String DATA_STREAM_PREFIX = "data_stream.";
     private static final String DATA_STREAM_TYPE = DATA_STREAM_PREFIX + "type";
     private static final String DATA_STREAM_DATASET = DATA_STREAM_PREFIX + "dataset";
-    private static final DataStreamValueSource DATASET_VALUE_SOURCE = DataStreamValueSource.dataset("{{" + DATA_STREAM_DATASET + "}}");
     private static final String DATA_STREAM_NAMESPACE = DATA_STREAM_PREFIX + "namespace";
-    private static final DataStreamValueSource NAMESPACE_VALUE_SOURCE = DataStreamValueSource.namespace("{{" + DATA_STREAM_NAMESPACE + "}}");
     private static final String EVENT_DATASET = "event.dataset";
     private static final int MAX_LENGTH = 100;
     private static final char REPLACEMENT_CHAR = '_';
@@ -53,18 +51,6 @@ public final class RerouteProcessor extends AbstractProcessor {
         this.destination = destination;
     }
 
-    private static String sanitizeDataStreamField(String s, char[] disallowedInDataset) {
-        if (s == null) {
-            return null;
-        }
-        s = s.toLowerCase(Locale.ROOT);
-        s = s.substring(0, Math.min(s.length(), MAX_LENGTH));
-        for (char c : disallowedInDataset) {
-            s = s.replace(c, REPLACEMENT_CHAR);
-        }
-        return s;
-    }
-
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         if (destination != null) {
@@ -75,6 +61,8 @@ public final class RerouteProcessor extends AbstractProcessor {
         final String type;
         final String currentDataset;
         final String currentNamespace;
+
+        // parse out the <type>-<dataset>-<namespace> components from _index
         int indexOfFirstDash = indexName.indexOf('-');
         if (indexOfFirstDash < 0) {
             throw createInvalidDataStreamNameException(indexName);
@@ -129,16 +117,21 @@ public final class RerouteProcessor extends AbstractProcessor {
         DataStreamValueSource dataStreamFieldReference,
         String fromCurrentTarget
     ) {
+        // first try to get value from the configured dataset/namespace field references
+        // if the user has configured a static value rather than a field reference, this is guaranteed to return
         for (DataStreamValueSource value : valueSources) {
             String result = value.resolve(ingestDocument);
             if (result != null) {
                 return result;
             }
         }
+        // if all field references have evaluated to null or missing,
+        // try to get the value from the data_stream.<dataset|namespace> value from the doc
         String fromDataStreamField = dataStreamFieldReference.resolve(ingestDocument);
         if (fromDataStreamField != null) {
             return fromDataStreamField;
         }
+        // as a last resort, use the dataset/namespace value we parsed out from _index
         return fromCurrentTarget;
     }
 
@@ -159,7 +152,53 @@ public final class RerouteProcessor extends AbstractProcessor {
         return destination;
     }
 
-    public static final class DataStreamValueSource {
+    public static final class Factory implements Processor.Factory {
+
+        @Override
+        public RerouteProcessor create(
+            Map<String, Processor.Factory> processorFactories,
+            String tag,
+            String description,
+            Map<String, Object> config
+        ) throws Exception {
+            List<DataStreamValueSource> dataset;
+            try {
+                dataset = ConfigurationUtils.readOptionalListOrString(TYPE, tag, config, "dataset")
+                    .stream()
+                    .map(DataStreamValueSource::dataset)
+                    .collect(Collectors.toList());
+            } catch (IllegalArgumentException e) {
+                throw newConfigurationException(TYPE, tag, "dataset", e.getMessage());
+            }
+            List<DataStreamValueSource> namespace;
+            try {
+                namespace = ConfigurationUtils.readOptionalListOrString(TYPE, tag, config, "namespace")
+                    .stream()
+                    .map(DataStreamValueSource::namespace)
+                    .collect(Collectors.toList());
+            } catch (IllegalArgumentException e) {
+                throw newConfigurationException(TYPE, tag, "namespace", e.getMessage());
+            }
+
+            String destination = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "destination");
+            if (destination != null && (dataset.isEmpty() == false || namespace.isEmpty() == false)) {
+                throw newConfigurationException(TYPE, tag, "destination", "can only be set if dataset and namespace are not set");
+            }
+
+            return new RerouteProcessor(tag, description, dataset, namespace, destination);
+        }
+    }
+
+    /**
+     * Contains either a {{field reference}} or a static value for a dataset or a namespace field
+     */
+    static final class DataStreamValueSource {
+
+        private static final char[] DISALLOWED_IN_DATASET = new char[] { '\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',', '#', ':', '-' };
+        private static final char[] DISALLOWED_IN_NAMESPACE = new char[] { '\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',', '#', ':' };
+        static final DataStreamValueSource DATASET_VALUE_SOURCE = dataset("{{" + DATA_STREAM_DATASET + "}}");
+        static final DataStreamValueSource NAMESPACE_VALUE_SOURCE = namespace("{{" + DATA_STREAM_NAMESPACE + "}}");
+
         private final String value;
         private final String fieldReference;
         private final Function<String, String> sanitizer;
@@ -170,6 +209,18 @@ public final class RerouteProcessor extends AbstractProcessor {
 
         public static DataStreamValueSource namespace(String namespace) {
             return new DataStreamValueSource(namespace, nsp -> sanitizeDataStreamField(nsp, DISALLOWED_IN_NAMESPACE));
+        }
+
+        private static String sanitizeDataStreamField(String s, char[] disallowedInDataset) {
+            if (s == null) {
+                return null;
+            }
+            s = s.toLowerCase(Locale.ROOT);
+            s = s.substring(0, Math.min(s.length(), MAX_LENGTH));
+            for (char c : disallowedInDataset) {
+                s = s.replace(c, REPLACEMENT_CHAR);
+            }
+            return s;
         }
 
         private DataStreamValueSource(String value, Function<String, String> sanitizer) {
@@ -198,6 +249,13 @@ public final class RerouteProcessor extends AbstractProcessor {
             }
         }
 
+        /**
+         * Resolves the field reference from the provided ingest document or returns the static value if this value source doesn't represent
+         * a field reference.
+         * @param ingestDocument
+         * @return the resolved field reference or static value
+         */
+        @Nullable
         public String resolve(IngestDocument ingestDocument) {
             if (fieldReference != null) {
                 try {
@@ -213,43 +271,6 @@ public final class RerouteProcessor extends AbstractProcessor {
         @Override
         public String toString() {
             return value;
-        }
-    }
-
-    public static final class Factory implements Processor.Factory {
-
-        @Override
-        public RerouteProcessor create(
-            Map<String, Processor.Factory> processorFactories,
-            String tag,
-            String description,
-            Map<String, Object> config
-        ) throws Exception {
-            List<DataStreamValueSource> dataset;
-            try {
-                dataset = ConfigurationUtils.readOptionalListOrString(TYPE, tag, config, "dataset")
-                    .stream()
-                    .map(ds -> DataStreamValueSource.dataset(ds))
-                    .collect(Collectors.toList());
-            } catch (IllegalArgumentException e) {
-                throw newConfigurationException(TYPE, tag, "dataset", e.getMessage());
-            }
-            List<DataStreamValueSource> namespace;
-            try {
-                namespace = ConfigurationUtils.readOptionalListOrString(TYPE, tag, config, "namespace")
-                    .stream()
-                    .map(ds -> DataStreamValueSource.namespace(ds))
-                    .collect(Collectors.toList());
-            } catch (IllegalArgumentException e) {
-                throw newConfigurationException(TYPE, tag, "namespace", e.getMessage());
-            }
-
-            String destination = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "destination");
-            if (destination != null && (dataset.isEmpty() == false || namespace.isEmpty() == false)) {
-                throw newConfigurationException(TYPE, tag, "destination", "can only be set if dataset and namespace are not set");
-            }
-
-            return new RerouteProcessor(tag, description, dataset, namespace, destination);
         }
     }
 }

@@ -24,7 +24,7 @@ the request fails and returns an error.
 
 `<data-stream>`::
 (Required, string) Comma-separated list of data streams used to limit the request. Supports wildcards (`*`).
-To target all data streams omit this parameter or use `*` or `_all`.
+To target all data streams use `*` or `_all`.
 
 [role="child_attributes"]
 [[put-data-lifecycle-api-query-parms]]

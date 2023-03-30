@@ -29,6 +29,9 @@ setup:
                 query:
                   query_string:
                     query: "{{query_string}}"
+            dictionary:
+              query_string:
+                type: string
 
   - do:
       search_application.put:
@@ -57,23 +60,20 @@ teardown:
   - match: { name: "test-search-application-1" }
   - match: { indices: [ "test-index1", "test-index2" ] }
   - match: { analytics_collection_name: "test-analytics" }
-  - match: {
-      template: {
-        script: {
-          source: {
-            query: {
-              query_string: {
+  - match:
+      template:
+        script:
+          source:
+            query:
+              query_string:
                 query: "{{query_string}}"
-              }
-            }
-          },
-          lang: "mustache",
-          options: {
+          lang: "mustache"
+          options:
             content_type: "application/json;charset=utf-8"
-          }
-        }
-      }
-    }
+        dictionary:
+          query_string:
+            type: string
+
   - gte: { updated_at_millis: 0 }
 
 ---

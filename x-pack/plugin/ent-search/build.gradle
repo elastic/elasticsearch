@@ -33,4 +33,15 @@ dependencies {
   javaRestTestImplementation(project(':modules:lang-mustache'))
 }
 
+tasks.named("dependencyLicenses").configure {
+  mapping from: /jackson.*/, to: 'jackson'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    // [missing classes] SLF4j includes an optional class that depends on an extension class (!)
+    'org.slf4j.ext.EventData'
+  )
+}
+
 addQaCheckDependencies(project)

@@ -45,7 +45,7 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
 
         IndexableField field = doc.rootDoc().getField(DOC_COUNT_FIELD);
         assertEquals(DOC_COUNT_FIELD, field.stringValue());
-        assertEquals(1, doc.rootDoc().getFields(DOC_COUNT_FIELD).length);
+        assertEquals(1, doc.rootDoc().getFields(DOC_COUNT_FIELD).size());
     }
 
     public void testInvalidDocument_NegativeDocCount() throws Exception {

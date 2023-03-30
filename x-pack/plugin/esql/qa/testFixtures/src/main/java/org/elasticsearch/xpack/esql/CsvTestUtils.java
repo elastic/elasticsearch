@@ -63,7 +63,7 @@ public final class CsvTestUtils {
                     for (String value : arrayOfValues) {
                         if (value.length() == 0) {// this means there shouldn't be any null value in a multi-value field ie [a,,b,c]
                             throw new IllegalArgumentException(
-                                format(null, "Unexpected missing value in a multi-value column; found value [{}]", stringValue)
+                                format("Unexpected missing value in a multi-value column; found value [{}]", stringValue)
                             );
                         }
                         convertedValues.add(type.convert(value));
@@ -89,10 +89,7 @@ public final class CsvTestUtils {
                 line = line.trim();
                 // ignore comments
                 if (shouldSkipLine(line) == false) {
-                    var entries = delimitedListToStringArray(line, ",");
-                    for (int i = 0; i < entries.length; i++) {
-                        entries[i] = entries[i].trim();
-                    }
+                    String[] entries = multiValuesAwareCsvToStringArray(line, lineNumber);
                     // the schema row
                     if (columns == null) {
                         columns = new CsvColumn[entries.length];
@@ -125,25 +122,23 @@ public final class CsvTestUtils {
                     }
                     // data rows
                     else {
-                        String[] mvCompressedEntries = compressCommaSeparatedMVs(lineNumber, entries);
-                        if (mvCompressedEntries.length != columns.length) {
+                        if (entries.length != columns.length) {
                             throw new IllegalArgumentException(
                                 format(
-                                    null,
                                     "Error line [{}]: Incorrect number of entries; expected [{}] but found [{}]",
                                     lineNumber,
                                     columns.length,
-                                    mvCompressedEntries.length
+                                    entries.length
                                 )
                             );
                         }
-                        for (int i = 0; i < mvCompressedEntries.length; i++) {
-                            var entry = mvCompressedEntries[i];
+                        for (int i = 0; i < entries.length; i++) {
+                            var entry = entries[i];
                             try {
                                 columns[i].append(entry);
                             } catch (Exception e) {
                                 throw new IllegalArgumentException(
-                                    format(null, "Error line [{}]: Cannot parse entry [{}] with value [{}]", lineNumber, i + 1, entry),
+                                    format("Error line [{}]: Cannot parse entry [{}] with value [{}]", lineNumber, i + 1, entry),
                                     e
                                 );
                             }
@@ -162,21 +157,25 @@ public final class CsvTestUtils {
     }
 
     /**
-     * Takes an array of strings and for each pair of an opening bracket "[" in one string and a closing "]" in another string
-     * it creates a single concatenated comma-separated String of all the values between the opening bracket entry and the closing bracket
-     * entry.
+     * Takes a csv String and converts it to a String array. Also, it recognizes an opening bracket "[" in one string and a closing "]"
+     * in another string and it creates a single concatenated comma-separated String of all the values between the opening bracket entry
+     * and the closing bracket entry. In other words, entries enclosed by "[]" are returned as a single element.
      */
-    static String[] compressCommaSeparatedMVs(int lineNumber, String[] entries) {
+    static String[] multiValuesAwareCsvToStringArray(String csvLine, int lineNumber) {
         var mvCompressedEntries = new ArrayList<String>();
-        String previousMvValue = null;
+        String previousMvValue = null; // just helping out with error messaging
         StringBuilder mvValue = null;
-        for (int i = 0; i < entries.length; i++) {
-            var entry = entries[i];
+
+        int pos = 0;          // current position in the csv String
+        int commaPos;         // current "," character position
+        while ((commaPos = csvLine.indexOf(",", pos)) != -1 || pos < csvLine.length()) {
+            boolean isLastElement = commaPos == -1;
+            String entry = csvLine.substring(pos, isLastElement ? csvLine.length() : commaPos).trim();
+            pos = isLastElement ? csvLine.length() : commaPos + 1;// break out of the loop if it reached its last element
             if (entry.startsWith("[")) {
                 if (previousMvValue != null) {
                     throw new IllegalArgumentException(
                         format(
-                            null,
                             "Error line [{}]: Unexpected start of a multi-value field value; current token [{}], previous token [{}]",
                             lineNumber,
                             entry,
@@ -199,7 +198,6 @@ public final class CsvTestUtils {
                 if (previousMvValue == null) {
                     throw new IllegalArgumentException(
                         format(
-                            null,
                             "Error line [{}]: Unexpected end of a multi-value field value (no previous starting point); found [{}]",
                             lineNumber,
                             entry
@@ -214,7 +212,7 @@ public final class CsvTestUtils {
                 if (mvValue != null) {// mid-MV value
                     mvValue.append("," + entry);
                 } else {
-                    mvCompressedEntries.add(entry);
+                    mvCompressedEntries.add(entry);// regular comma separated value
                 }
             }
         }

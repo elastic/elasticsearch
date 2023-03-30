@@ -43,7 +43,7 @@ import java.util.Map;
 
 import static org.elasticsearch.common.Strings.delimitedListToStringArray;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.CsvTestUtils.compressCommaSeparatedMVs;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStringArray;
 
 public class CsvTestsDataLoader {
     public static final String TEST_INDEX_SIMPLE = "test";
@@ -164,10 +164,7 @@ public class CsvTestsDataLoader {
                 line = line.trim();
                 // ignore comments
                 if (line.isEmpty() == false && line.startsWith("//") == false) {
-                    var entries = delimitedListToStringArray(line, ",");
-                    for (int i = 0; i < entries.length; i++) {
-                        entries[i] = entries[i].trim();
-                    }
+                    String[] entries = multiValuesAwareCsvToStringArray(line, lineNumber);
                     // the schema row
                     if (columns == null) {
                         columns = new String[entries.length];
@@ -198,41 +195,40 @@ public class CsvTestsDataLoader {
                     }
                     // data rows
                     else {
-                        String[] mvCompressedEntries = compressCommaSeparatedMVs(lineNumber, entries);
-                        if (mvCompressedEntries.length != columns.length) {
+                        if (entries.length != columns.length) {
                             throw new IllegalArgumentException(
                                 format(
                                     null,
                                     "Error line [{}]: Incorrect number of entries; expected [{}] but found [{}]",
                                     lineNumber,
                                     columns.length,
-                                    mvCompressedEntries.length
+                                    entries.length
                                 )
                             );
                         }
                         StringBuilder row = new StringBuilder();
-                        for (int i = 0; i < mvCompressedEntries.length; i++) {
+                        for (int i = 0; i < entries.length; i++) {
                             // ignore values that belong to subfields and don't add them to the bulk request
                             if (subFieldsIndices.contains(i) == false) {
-                                boolean isValueNull = "".equals(mvCompressedEntries[i]);
+                                boolean isValueNull = "".equals(entries[i]);
                                 try {
                                     if (isValueNull == false) {
                                         // add a comma after the previous value, only when there was actually a value before
                                         if (i > 0 && row.length() > 0) {
                                             row.append(",");
                                         }
-                                        if (mvCompressedEntries[i].contains(",")) {// multi-value
+                                        if (entries[i].contains(",")) {// multi-value
                                             StringBuilder rowStringValue = new StringBuilder("[");
-                                            for (String s : delimitedListToStringArray(mvCompressedEntries[i], ",")) {
+                                            for (String s : delimitedListToStringArray(entries[i], ",")) {
                                                 rowStringValue.append("\"" + s + "\",");
                                             }
                                             // remove the last comma and put a closing bracket instead
                                             rowStringValue.replace(rowStringValue.length() - 1, rowStringValue.length(), "]");
-                                            mvCompressedEntries[i] = rowStringValue.toString();
+                                            entries[i] = rowStringValue.toString();
                                         } else {
-                                            mvCompressedEntries[i] = "\"" + mvCompressedEntries[i] + "\"";
+                                            entries[i] = "\"" + entries[i] + "\"";
                                         }
-                                        row.append("\"" + columns[i] + "\":" + mvCompressedEntries[i]);
+                                        row.append("\"" + columns[i] + "\":" + entries[i]);
                                     }
                                 } catch (Exception e) {
                                     throw new IllegalArgumentException(
@@ -241,7 +237,7 @@ public class CsvTestsDataLoader {
                                             "Error line [{}]: Cannot parse entry [{}] with value [{}]",
                                             lineNumber,
                                             i + 1,
-                                            mvCompressedEntries[i]
+                                            entries[i]
                                         ),
                                         e
                                     );

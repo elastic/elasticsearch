@@ -60,13 +60,9 @@ public final class SearchApplicationTestUtils {
         final Script script = new Script(ScriptType.INLINE, "mustache", query, Collections.singletonMap(paramName, paramValue));
         String paramValidationSource = String.format(Locale.ROOT, """
             {
-              "additionalProperties": false,
-              "type": "object",
-              "properties": {
                 "%s": {
                     "type": "string"
                 }
-              }
             }
             """, paramName);
         final TemplateParamValidator templateParamValidator = new TemplateParamValidator(paramValidationSource);

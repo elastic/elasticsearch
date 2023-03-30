@@ -60,14 +60,9 @@ public final class GroupedActionListener<T> extends DelegatingActionListener<T, 
 
     @Override
     public void onFailure(Exception e) {
-        if (failure.compareAndSet(null, e) == false) {
-            failure.accumulateAndGet(e, (current, update) -> {
-                // we have to avoid self-suppression!
-                if (update != current) {
-                    current.addSuppressed(update);
-                }
-                return current;
-            });
+        final var firstException = failure.compareAndExchange(null, e);
+        if (firstException != null && firstException != e) {
+            firstException.addSuppressed(e);
         }
         if (countDown.countDown()) {
             super.onFailure(failure.get());

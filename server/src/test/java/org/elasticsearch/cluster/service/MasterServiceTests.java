@@ -176,7 +176,8 @@ public class MasterServiceTests extends ESTestCase {
         masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
             clusterStateRef.set(clusterStatePublicationEvent.getNewState());
             ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);
-            publishListener.onResponse(null);
+            threadPool.executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC))
+                .execute(() -> publishListener.onResponse(null));
         });
         masterService.setClusterStateSupplier(clusterStateRef::get);
         masterService.start();
@@ -644,7 +645,7 @@ public class MasterServiceTests extends ESTestCase {
         }
     }
 
-    public void testClusterStateBatchedUpdates() throws BrokenBarrierException, InterruptedException {
+    public void testClusterStateBatchedUpdates() throws InterruptedException {
 
         AtomicInteger executedTasks = new AtomicInteger();
         AtomicInteger submittedTasks = new AtomicInteger();
@@ -796,30 +797,26 @@ public class MasterServiceTests extends ESTestCase {
                 final int index = i;
                 Thread thread = new Thread(() -> {
                     final String threadName = Thread.currentThread().getName();
-                    try {
-                        barrier.await();
-                        for (int j = 0; j < taskSubmissionsPerThread; j++) {
-                            var assignment = assignments.get(index * taskSubmissionsPerThread + j);
-                            var task = assignment.v2();
-                            var executor = assignment.v1();
-                            submittedTasks.incrementAndGet();
-                            executor.submitTask(threadName, task, null);
-                        }
-                        barrier.await();
-                    } catch (BrokenBarrierException | InterruptedException e) {
-                        throw new AssertionError(e);
+                    safeAwait(barrier);
+                    for (int j = 0; j < taskSubmissionsPerThread; j++) {
+                        var assignment = assignments.get(index * taskSubmissionsPerThread + j);
+                        var task = assignment.v2();
+                        var executor = assignment.v1();
+                        submittedTasks.incrementAndGet();
+                        executor.submitTask(threadName, task, null);
                     }
+                    safeAwait(barrier);
                 });
                 thread.start();
             }
 
             // wait for all threads to be ready
-            barrier.await();
+            safeAwait(barrier);
             // wait for all threads to finish
-            barrier.await();
+            safeAwait(barrier);
 
             // wait until all the cluster state updates have been processed
-            assertTrue(processedStatesLatch.get().await(10, TimeUnit.SECONDS));
+            safeAwait(processedStatesLatch.get());
             // and until all the publication callbacks have completed
             assertTrue(semaphore.tryAcquire(10, TimeUnit.SECONDS));
 
@@ -2369,7 +2366,7 @@ public class MasterServiceTests extends ESTestCase {
                     public ClusterState execute(ClusterState currentState) {
                         assertEquals(priority, prioritiesQueue.poll());
                         assertEquals(priority, priority());
-                        return currentState;
+                        return randomBoolean() ? currentState : ClusterState.builder(currentState).build();
                     }
 
                     @Override

@@ -898,10 +898,6 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             );
         }
 
-        private VotingConfiguration getInitialConfigurationForNode(DiscoveryNode localNode, VotingConfiguration initialConfiguration) {
-            return coordinatorStrategy.getInitialConfigurationForNode(localNode, initialConfiguration);
-        }
-
         CoordinationState.PersistedState createFreshPersistedState(DiscoveryNode localNode) {
             return coordinatorStrategy.createFreshPersistedState(localNode, () -> disruptStorage);
         }
@@ -1107,7 +1103,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     nodeHealthService,
                     new NoneCircuitBreakerService(),
                     coordinationServices.getReconfigurator(),
-                    coordinationServices.getLeaderHeartbeatService()
+                    coordinationServices.getLeaderHeartbeatService(),
+                    coordinationServices.getPreVoteCollectorFactory()
                 );
                 coordinationDiagnosticsService = new CoordinationDiagnosticsService(
                     clusterService,
@@ -1417,10 +1414,19 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
             void applyInitialConfiguration() {
                 onNode(() -> {
-                    final VotingConfiguration configurationWithPlaceholders = getInitialConfigurationForNode(
-                        localNode,
-                        initialConfiguration
+                    final Set<String> nodeIdsWithPlaceholders = new HashSet<>(initialConfiguration.getNodeIds());
+                    Stream.generate(() -> BOOTSTRAP_PLACEHOLDER_PREFIX + UUIDs.randomBase64UUID(random()))
+                        .limit((Math.max(initialConfiguration.getNodeIds().size(), 2) - 1) / 2)
+                        .forEach(nodeIdsWithPlaceholders::add);
+                    final Set<String> nodeIds = new HashSet<>(
+                        randomSubsetOf(initialConfiguration.getNodeIds().size(), nodeIdsWithPlaceholders)
                     );
+                    // initial configuration should not have a place holder for local node
+                    if (initialConfiguration.getNodeIds().contains(localNode.getId()) && nodeIds.contains(localNode.getId()) == false) {
+                        nodeIds.remove(nodeIds.iterator().next());
+                        nodeIds.add(localNode.getId());
+                    }
+                    final VotingConfiguration configurationWithPlaceholders = new VotingConfiguration(nodeIds);
                     try {
                         coordinator.setInitialConfiguration(configurationWithPlaceholders);
                         logger.info("successfully set initial configuration to {}", configurationWithPlaceholders);
@@ -1478,8 +1484,6 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             NamedWriteableRegistry namedWriteableRegistry,
             BooleanSupplier disruptStorage
         );
-
-        VotingConfiguration getInitialConfigurationForNode(DiscoveryNode localNode, VotingConfiguration initialConfiguration);
     }
 
     protected interface CoordinationServices {
@@ -1488,6 +1492,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         Reconfigurator getReconfigurator();
 
         LeaderHeartbeatService getLeaderHeartbeatService();
+
+        PreVoteCollector.Factory getPreVoteCollectorFactory();
     }
 
     public class DefaultCoordinatorStrategy implements CoordinatorStrategy {
@@ -1523,6 +1529,11 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 public LeaderHeartbeatService getLeaderHeartbeatService() {
                     return LeaderHeartbeatService.NO_OP;
                 }
+
+                @Override
+                public PreVoteCollector.Factory getPreVoteCollectorFactory() {
+                    return StatefulPreVoteCollector::new;
+                }
             };
         }
 
@@ -1551,21 +1562,6 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 namedWriteableRegistry,
                 disruptStorage
             );
-        }
-
-        @Override
-        public VotingConfiguration getInitialConfigurationForNode(DiscoveryNode localNode, VotingConfiguration initialConfiguration) {
-            final Set<String> nodeIdsWithPlaceholders = new HashSet<>(initialConfiguration.getNodeIds());
-            Stream.generate(() -> BOOTSTRAP_PLACEHOLDER_PREFIX + UUIDs.randomBase64UUID(random()))
-                .limit((Math.max(initialConfiguration.getNodeIds().size(), 2) - 1) / 2)
-                .forEach(nodeIdsWithPlaceholders::add);
-            final Set<String> nodeIds = new HashSet<>(randomSubsetOf(initialConfiguration.getNodeIds().size(), nodeIdsWithPlaceholders));
-            // initial configuration should not have a place holder for local node
-            if (initialConfiguration.getNodeIds().contains(localNode.getId()) && nodeIds.contains(localNode.getId()) == false) {
-                nodeIds.remove(nodeIds.iterator().next());
-                nodeIds.add(localNode.getId());
-            }
-            return new VotingConfiguration(nodeIds);
         }
     }
 

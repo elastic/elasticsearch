@@ -28,11 +28,9 @@ import com.azure.core.http.HttpResponse;
 import com.azure.core.http.ProxyOptions;
 import com.azure.core.http.netty.NettyAsyncHttpClientBuilder;
 import com.azure.core.http.policy.HttpPipelinePolicy;
-import com.azure.core.util.logging.ClientLogger;
 import com.azure.storage.blob.BlobServiceAsyncClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
-import com.azure.storage.common.implementation.connectionstring.StorageConnectionString;
 import com.azure.storage.common.policy.RequestRetryOptions;
 
 import org.apache.logging.log4j.LogManager;
@@ -95,7 +93,6 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     private final EventLoopGroup eventLoopGroup;
     private final ConnectionProvider connectionProvider;
     private final ByteBufAllocator byteBufAllocator;
-    private final ClientLogger clientLogger = new ClientLogger(AzureClientProvider.class);
     private final LoopResources nioLoopResources;
     private volatile boolean closed = false;
 
@@ -176,12 +173,10 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         }
 
         if (locationMode.isSecondary()) {
-            // TODO: maybe extract this logic so we don't need to have a client logger around?
-            StorageConnectionString storageConnectionString = StorageConnectionString.create(connectionString, clientLogger);
-            String secondaryUri = storageConnectionString.getBlobEndpoint().getSecondaryUri();
+            String secondaryUri = settings.getStorageEndpoint().secondaryURI();
             if (secondaryUri == null) {
                 throw new IllegalArgumentException(
-                    "Unable to configure an AzureClient using a secondary location without a secondary " + "endpoint"
+                    "Unable to configure an AzureClient using a secondary location without a secondary endpoint"
                 );
             }
 

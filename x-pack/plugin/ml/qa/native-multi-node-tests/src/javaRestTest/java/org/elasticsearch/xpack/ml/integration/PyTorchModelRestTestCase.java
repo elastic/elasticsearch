@@ -57,7 +57,7 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
         Request loggingSettings = new Request("PUT", "_cluster/settings");
         loggingSettings.setJsonEntity("""
             {"persistent" : {
-                    "logger.org.elasticsearch.xpack.ml.inference.assignment" : "TRACE",
+                    "logger.org.elasticsearch.xpack.ml.inference.assignment" : "DEBUG",
                     "logger.org.elasticsearch.xpack.ml.inference.deployment" : "DEBUG",
                     "logger.org.elasticsearch.xpack.ml.inference.pytorch" : "DEBUG",
                     "logger.org.elasticsearch.xpack.ml.process.logging" : "DEBUG"
@@ -69,16 +69,17 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
     public void cleanup() throws Exception {
         terminate(executorService);
 
-        Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity("""
+        Request clusterSettings = new Request("PUT", "_cluster/settings");
+        clusterSettings.setJsonEntity("""
             {"persistent" : {
                 "logger.org.elasticsearch.xpack.ml.inference.assignment": null,
                 "logger.org.elasticsearch.xpack.ml.inference.deployment" : null,
                 "logger.org.elasticsearch.xpack.ml.inference.pytorch" : null,
                 "logger.org.elasticsearch.xpack.ml.process.logging" : null,
+                "cluster.routing.allocation.awareness.attributes": null,
                 "xpack.ml.max_lazy_ml_nodes": null
             }}""");
-        client().performRequest(loggingSettings);
+        client().performRequest(clusterSettings);
 
         new MlRestTestStateCleaner(logger, adminClient()).resetFeatures();
         waitForPendingTasks(adminClient());

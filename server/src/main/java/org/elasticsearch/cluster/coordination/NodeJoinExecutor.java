@@ -9,6 +9,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,10 +29,13 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
@@ -42,10 +46,20 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
 
     private final AllocationService allocationService;
     private final RerouteService rerouteService;
+    private final Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection;
 
     public NodeJoinExecutor(AllocationService allocationService, RerouteService rerouteService) {
+        this(allocationService, rerouteService, Function.identity());
+    }
+
+    public NodeJoinExecutor(
+        AllocationService allocationService,
+        RerouteService rerouteService,
+        Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection
+    ) {
         this.allocationService = allocationService;
         this.rerouteService = rerouteService;
+        this.maybeReconfigureAfterMasterElection = maybeReconfigureAfterMasterElection;
     }
 
     @Override
@@ -98,6 +112,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         }
 
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(newState.nodes());
+        Map<String, TransportVersion> transportVersions = new HashMap<>(newState.transportVersions());
 
         assert nodesBuilder.isLocalNodeElectedMaster();
 
@@ -116,14 +131,17 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     logger.debug("received a join request for an existing node [{}]", node);
                 } else {
                     try {
+                        TransportVersion transportVersion = nodeJoinTask.transportVersion();
                         if (enforceVersionBarrier) {
                             ensureVersionBarrier(node.getVersion(), minClusterNodeVersion);
+                            ensureTransportVersionBarrier(transportVersion, transportVersions.values());
                         }
                         ensureNodesCompatibility(node.getVersion(), minClusterNodeVersion, maxClusterNodeVersion);
                         // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
                         // we have to reject nodes that don't support all indices we have in this cluster
                         ensureIndexCompatibility(node.getVersion(), initialState.getMetadata());
                         nodesBuilder.add(node);
+                        transportVersions.put(node.getId(), transportVersion);
                         nodesChanged = true;
                         minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
                         maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
@@ -214,9 +232,21 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
 
     protected ClusterState.Builder becomeMasterAndTrimConflictingNodes(
         ClusterState currentState,
-        List<TaskContext<JoinTask>> taskContexts,
+        List<? extends TaskContext<JoinTask>> taskContexts,
         long term
     ) {
+        final ClusterState initialState = currentState;
+        currentState = taskContexts.stream()
+            .map(TaskContext::getTask)
+            .map(JoinTask::initialState)
+            .filter(Objects::nonNull)
+            .max(Comparator.comparingLong(ClusterState::term).thenComparingLong(ClusterState::version))
+            .filter(
+                clusterState -> clusterState.term() > initialState.term()
+                    || (clusterState.term() == initialState.term() && clusterState.version() > initialState.version())
+            )
+            .orElse(currentState);
+
         assert currentState.nodes().getMasterNodeId() == null : currentState;
         assert currentState.term() < term : term + " vs " + currentState;
         DiscoveryNodes currentNodes = currentState.nodes();
@@ -256,6 +286,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         logger.trace("becomeMasterAndTrimConflictingNodes: {}", tmpState.nodes());
         allocationService.cleanCaches();
         tmpState = PersistentTasksCustomMetadata.disassociateDeadNodes(tmpState);
+        tmpState = maybeReconfigureAfterMasterElection.apply(tmpState);
         return ClusterState.builder(allocationService.disassociateDeadNodes(tmpState, false, "removed dead nodes on election"));
     }
 
@@ -328,6 +359,28 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     + "The cluster contains nodes with version ["
                     + minClusterNodeVersion
                     + "], which is incompatible."
+            );
+        }
+    }
+
+    /**
+     * ensures that the joining node's transport version is equal or higher to the minClusterTransportVersion. This is needed
+     * to ensure that the minimum transport version of the cluster doesn't go backwards.
+     **/
+    static void ensureTransportVersionBarrier(
+        TransportVersion joiningTransportVersion,
+        Collection<TransportVersion> existingTransportVersions
+    ) {
+        TransportVersion minClusterTransportVersion = existingTransportVersions.stream()
+            .min(Comparator.naturalOrder())
+            .orElse(TransportVersion.CURRENT);
+        if (joiningTransportVersion.before(minClusterTransportVersion)) {
+            throw new IllegalStateException(
+                "node with transport version ["
+                    + joiningTransportVersion
+                    + "] may not join a cluster with minimum transport version ["
+                    + minClusterTransportVersion
+                    + "]"
             );
         }
     }

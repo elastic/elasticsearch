@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.action.admin.cluster.allocation;
 
+import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterInfoTests;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.allocator.ClusterBalanceStats;
@@ -39,13 +41,19 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
 
     @Override
     protected DesiredBalanceResponse createTestInstance() {
-        return new DesiredBalanceResponse(randomDesiredBalanceStats(), randomClusterBalanceStats(), randomRoutingTable());
+        return new DesiredBalanceResponse(
+            randomDesiredBalanceStats(),
+            randomClusterBalanceStats(),
+            randomRoutingTable(),
+            randomClusterInfo()
+        );
     }
 
     private DesiredBalanceStats randomDesiredBalanceStats() {
         return new DesiredBalanceStats(
             randomNonNegativeLong(),
             randomBoolean(),
+            randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
@@ -83,11 +91,16 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
     private ClusterBalanceStats.NodeBalanceStats randomNodeBalanceStats() {
         return new ClusterBalanceStats.NodeBalanceStats(
             randomAlphaOfLength(10),
+            List.of(randomFrom("data_content", "data_hot", "data_warm", "data_cold")),
             randomIntBetween(0, Integer.MAX_VALUE),
             randomDouble(),
             randomLongBetween(0, Long.MAX_VALUE),
             randomLongBetween(0, Long.MAX_VALUE)
         );
+    }
+
+    private ClusterInfo randomClusterInfo() {
+        return ClusterInfoTests.randomClusterInfo();
     }
 
     private Map<String, Map<Integer, DesiredBalanceResponse.DesiredShards>> randomRoutingTable() {
@@ -112,7 +125,8 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
                                     shardId,
                                     indexName,
                                     randomBoolean() ? randomDouble() : null,
-                                    randomBoolean() ? randomLong() : null
+                                    randomBoolean() ? randomLong() : null,
+                                    randomList(0, 1, () -> randomFrom("hot", "warm", "cold", "frozen"))
                                 )
                             )
                             .toList(),
@@ -132,21 +146,30 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
 
     @Override
     protected DesiredBalanceResponse mutateInstance(DesiredBalanceResponse instance) {
-        return switch (randomInt(3)) {
+        return switch (randomInt(4)) {
             case 0 -> new DesiredBalanceResponse(
                 randomValueOtherThan(instance.getStats(), this::randomDesiredBalanceStats),
                 instance.getClusterBalanceStats(),
-                instance.getRoutingTable()
+                instance.getRoutingTable(),
+                instance.getClusterInfo()
             );
             case 1 -> new DesiredBalanceResponse(
                 instance.getStats(),
                 randomValueOtherThan(instance.getClusterBalanceStats(), this::randomClusterBalanceStats),
-                instance.getRoutingTable()
+                instance.getRoutingTable(),
+                instance.getClusterInfo()
             );
             case 2 -> new DesiredBalanceResponse(
                 instance.getStats(),
                 instance.getClusterBalanceStats(),
-                randomValueOtherThan(instance.getRoutingTable(), this::randomRoutingTable)
+                randomValueOtherThan(instance.getRoutingTable(), this::randomRoutingTable),
+                instance.getClusterInfo()
+            );
+            case 3 -> new DesiredBalanceResponse(
+                instance.getStats(),
+                instance.getClusterBalanceStats(),
+                instance.getRoutingTable(),
+                randomValueOtherThan(instance.getClusterInfo(), this::randomClusterInfo)
             );
             default -> randomValueOtherThan(instance, this::createTestInstance);
         };
@@ -157,22 +180,24 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
         DesiredBalanceResponse response = new DesiredBalanceResponse(
             randomDesiredBalanceStats(),
             randomClusterBalanceStats(),
-            randomRoutingTable()
+            randomRoutingTable(),
+            randomClusterInfo()
         );
 
         Map<String, Object> json = createParser(
             ChunkedToXContent.wrapAsToXContent(response).toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
         ).map();
-        assertThat(json.keySet(), containsInAnyOrder("stats", "cluster_balance_stats", "routing_table"));
+        assertThat(json.keySet(), containsInAnyOrder("stats", "cluster_balance_stats", "routing_table", "cluster_info"));
 
         // stats
         Map<String, Object> stats = (Map<String, Object>) json.get("stats");
+        assertEquals(stats.get("computation_converged_index"), response.getStats().lastConvergedIndex());
         assertEquals(stats.get("computation_active"), response.getStats().computationActive());
         assertEquals(stats.get("computation_submitted"), response.getStats().computationSubmitted());
         assertEquals(stats.get("computation_executed"), response.getStats().computationExecuted());
         assertEquals(stats.get("computation_converged"), response.getStats().computationConverged());
         assertEquals(stats.get("computation_iterations"), response.getStats().computationIterations());
-        assertEquals(stats.get("computation_converged_index"), response.getStats().lastConvergedIndex());
+        assertEquals(stats.get("computed_shard_movements"), response.getStats().computedShardMovements());
         assertEquals(stats.get("computation_time_in_millis"), response.getStats().cumulativeComputationTime());
         assertEquals(stats.get("reconciliation_time_in_millis"), response.getStats().cumulativeReconciliationTime());
 
@@ -229,9 +254,17 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
             Map<String, Object> nodesStats = (Map<String, Object>) nodes.get(entry.getKey());
             assertThat(
                 nodesStats.keySet(),
-                containsInAnyOrder("node_id", "shard_count", "forecast_write_load", "forecast_disk_usage_bytes", "actual_disk_usage_bytes")
+                containsInAnyOrder(
+                    "node_id",
+                    "roles",
+                    "shard_count",
+                    "forecast_write_load",
+                    "forecast_disk_usage_bytes",
+                    "actual_disk_usage_bytes"
+                )
             );
-
+            assertEquals(nodesStats.get("node_id"), entry.getValue().nodeId());
+            assertEquals(nodesStats.get("roles"), entry.getValue().roles());
             assertEquals(nodesStats.get("shard_count"), entry.getValue().shards());
             assertEquals(nodesStats.get("forecast_write_load"), entry.getValue().forecastWriteLoad());
             assertEquals(nodesStats.get("forecast_disk_usage_bytes"), entry.getValue().forecastShardSize());
@@ -265,6 +298,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
                     assertEquals(jsonShard.get("index"), shardView.index());
                     assertEquals(jsonShard.get("forecast_write_load"), shardView.forecastWriteLoad());
                     assertEquals(jsonShard.get("forecast_shard_size_in_bytes"), shardView.forecastShardSizeInBytes());
+                    assertEquals(jsonShard.get("tier_preference"), shardView.tierPreference());
                 }
 
                 Map<String, Object> jsonDesired = (Map<String, Object>) jsonDesiredShard.get("desired");
@@ -275,11 +309,17 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
                 assertEquals(jsonDesired.get("ignored"), desiredShards.desired().ignored());
             }
         }
+
+        Map<String, Object> clusterInfo = (Map<String, Object>) json.get("cluster_info");
+        assertThat(
+            clusterInfo.keySet(),
+            containsInAnyOrder("nodes", "shard_paths", "shard_sizes", "shard_data_set_sizes", "reserved_sizes")
+        );
     }
 
     public void testChunking() {
         AbstractChunkedSerializingTestCase.assertChunkCount(
-            new DesiredBalanceResponse(randomDesiredBalanceStats(), randomClusterBalanceStats(), randomRoutingTable()),
+            new DesiredBalanceResponse(randomDesiredBalanceStats(), randomClusterBalanceStats(), randomRoutingTable(), randomClusterInfo()),
             response -> response.getRoutingTable().size() + 2
         );
     }

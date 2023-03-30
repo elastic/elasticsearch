@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -29,14 +30,18 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -273,7 +278,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         }
     }
 
-    private static final class ShardAndBytesUsed implements Comparable<ShardAndBytesUsed> {
+    private static final class ShardAndBytesUsed {
         final long bytesUsed;
         final IndexShard shard;
 
@@ -282,11 +287,6 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
             this.shard = shard;
         }
 
-        @Override
-        public int compareTo(ShardAndBytesUsed other) {
-            // Sort larger shards first:
-            return Long.compare(other.bytesUsed, bytesUsed);
-        }
     }
 
     /** not static because we need access to many fields/methods from our containing class (IMC): */
@@ -294,6 +294,8 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
 
         final AtomicLong bytesWrittenSinceCheck = new AtomicLong();
         final ReentrantLock runLock = new ReentrantLock();
+        // Last shard ID whose indexing buffer was written. We keep track of it to be able to go over shards in a round-robin fashion.
+        private ShardId lastShardId = null;
 
         /** Shard calls this on each indexing/delete op */
         public void bytesWritten(int bytes) {
@@ -353,6 +355,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         }
 
         private void runUnlocked() {
+            assert runLock.isHeldByCurrentThread();
             // NOTE: even if we hit an errant exc here, our ThreadPool.scheduledWithFixedDelay will log the exception and re-invoke us
             // again, on schedule
 
@@ -399,7 +402,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
 
             if (totalBytesUsed > indexingBuffer.getBytes()) {
                 // OK we are now over-budget; fill the priority queue and ask largest shard(s) to refresh:
-                PriorityQueue<ShardAndBytesUsed> queue = new PriorityQueue<>();
+                List<ShardAndBytesUsed> queue = new ArrayList<>();
 
                 for (IndexShard shard : availableShards()) {
                     // How many bytes this shard is currently (async'd) moving from heap to disk:
@@ -444,22 +447,47 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
                     queue.size()
                 );
 
-                // In theory, we could need to write the indexing buffer for multiple shards. However, in practice, we check the total
-                // amount of memory used by active shards so frequently (every indexing_buffer_size/128 bytes written to the translog) that
-                // this almost always returns a single shard that needs to flush some of its RAM buffer to disk.
-                while (totalBytesUsed > indexingBuffer.getBytes() && queue.isEmpty() == false) {
-                    ShardAndBytesUsed largest = queue.poll();
+                // What is the best order to go over shards and reclaim memory usage? Interestingly, picking random shards performs _much_
+                // better than picking the largest shard when trying to optimize for the elastic/logs Rally track. One explanation for this
+                // is that Lucene's IndexWriter creates new pending segments in memory in order to satisfy indexing concurrency. E.g. if N
+                // indexing threads suddenly index into the same IndexWriter, then the IndexWriter will have N pending segments in memory.
+                // However, it's likely that indexing concurrency is not constant on a per-shard basis, especially when indexing into many
+                // shards concurrently. So there are chances that if we flush a single segment now, then it won't be re-created shortly
+                // because the peak indexing concurrency is rarely observed, and we end up indexing into fewer pending segments globally on
+                // average, which in-turn reduces the total number of segments that get produced, and also reduces merging.
+
+                // We want to go over shards in a round-robin fashion across calls to #runUnlocked. First sort shards by something stable
+                // like the shard ID.
+                queue.sort(Comparator.comparing(shardAndBytes -> shardAndBytes.shard.shardId()));
+                if (lastShardId != null) {
+                    // Then rotate the list so that the first shard that is greater than the ID of the last shard whose indexing buffer was
+                    // written comes first.
+                    int nextShardIdIndex = 0;
+                    for (ShardAndBytesUsed shardAndBytes : queue) {
+                        if (shardAndBytes.shard.shardId().compareTo(lastShardId) > 0) {
+                            break;
+                        }
+                        nextShardIdIndex++;
+                    }
+                    Collections.rotate(queue, -nextShardIdIndex);
+                }
+
+                for (ShardAndBytesUsed shardAndBytesUsed : queue) {
                     logger.debug(
                         "write indexing buffer to disk for shard [{}] to free up its [{}] indexing buffer",
-                        largest.shard.shardId(),
-                        ByteSizeValue.ofBytes(largest.bytesUsed)
+                        shardAndBytesUsed.shard.shardId(),
+                        ByteSizeValue.ofBytes(shardAndBytesUsed.bytesUsed)
                     );
-                    enqueueWriteIndexingBuffer(largest.shard);
-                    totalBytesUsed -= largest.bytesUsed;
-                    if (doThrottle && throttled.contains(largest.shard) == false) {
-                        logger.info("now throttling indexing for shard [{}]: segment writing can't keep up", largest.shard.shardId());
-                        throttled.add(largest.shard);
-                        activateThrottling(largest.shard);
+                    enqueueWriteIndexingBuffer(shardAndBytesUsed.shard);
+                    totalBytesUsed -= shardAndBytesUsed.bytesUsed;
+                    lastShardId = shardAndBytesUsed.shard.shardId();
+                    if (doThrottle && throttled.contains(shardAndBytesUsed.shard) == false) {
+                        logger.debug("now throttling indexing for shard [{}]: segment writing can't keep up", shardAndBytesUsed.shard.shardId());
+                        throttled.add(shardAndBytesUsed.shard);
+                        activateThrottling(shardAndBytesUsed.shard);
+                    }
+                    if (totalBytesUsed <= indexingBuffer.getBytes()) {
+                        break;
                     }
                 }
 

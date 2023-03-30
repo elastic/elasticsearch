@@ -2044,6 +2044,12 @@
                 "read_exceptions": {
                   "type": "nested",
                   "properties": {
+                    "from_seq_no": {
+                      "type": "long"
+                    },
+                    "retries": {
+                      "type": "integer"
+                    },
                     "exception": {
                       "type": "object",
                       "properties": {

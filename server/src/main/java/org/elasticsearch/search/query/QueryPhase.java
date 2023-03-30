@@ -79,9 +79,7 @@ public class QueryPhase {
         AggregationPhase.preProcess(searchContext);
         executeInternal(searchContext);
 
-        if (searchContext.rescore().isEmpty() == false) { // only if we do a regular search
-            RescorePhase.execute(searchContext);
-        }
+        RescorePhase.execute(searchContext);
         SuggestPhase.execute(searchContext);
         AggregationPhase.execute(searchContext);
 

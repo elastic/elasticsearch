@@ -134,7 +134,7 @@ All operations related to managing {transforms}.
 All operations related to managing autoscaling policies.
 
 `manage_data_frame_transforms`::
-Enable you to manage transforms (Need to be reviewed).
+All operations related to managing {transforms}.
 
 `manage_enrich`::
 Enable you to manage transforms (Need to be reviewed).

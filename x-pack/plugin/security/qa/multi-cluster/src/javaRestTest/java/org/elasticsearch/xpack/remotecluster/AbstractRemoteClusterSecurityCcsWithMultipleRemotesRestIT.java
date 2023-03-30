@@ -123,8 +123,8 @@ public abstract class AbstractRemoteClusterSecurityCcsWithMultipleRemotesRestIT 
             );
 
             // Search single remote
-            boolean searchFirstCluster = randomBoolean();
-            String expectedIndex = searchFirstCluster ? "cluster1_index1" : "cluster2_index1";
+            final boolean searchFirstCluster = randomBoolean();
+            final String expectedIndex = searchFirstCluster ? "cluster1_index1" : "cluster2_index1";
             searchAndAssertIndicesFound(
                 String.format(
                     Locale.ROOT,
@@ -137,7 +137,12 @@ public abstract class AbstractRemoteClusterSecurityCcsWithMultipleRemotesRestIT 
             );
 
             // Unauthorized access on either of the remotes fails the whole request
-            final ResponseException exception = expectThrows(
+            // No permissions for this index name, so searching for it on either remote will result in 403
+            final String missingIndex = "index1";
+            final boolean missingIndexOnFirstCluster = randomBoolean();
+            // Make sure we search for missing index on at least one remote, possibly both
+            final boolean missingIndexOnSecondCluster = false == missingIndexOnFirstCluster || randomBoolean();
+            final ResponseException exception1 = expectThrows(
                 ResponseException.class,
                 () -> performRequestWithRemoteSearchUser(
                     new Request(
@@ -145,15 +150,26 @@ public abstract class AbstractRemoteClusterSecurityCcsWithMultipleRemotesRestIT 
                         String.format(
                             Locale.ROOT,
                             "/my_remote_cluster:%s,my_remote_cluster_2:%s/_search?ccs_minimize_roundtrips=%s",
-                            // no permissions for this index
-                            "index1",
-                            randomFrom("cluster2_index1", "*_index1", "*"),
+                            missingIndexOnFirstCluster ? missingIndex : randomFrom("cluster1_index1", "*_index1", "*"),
+                            missingIndexOnSecondCluster ? missingIndex : randomFrom("cluster2_index1", "*_index1", "*"),
                             randomBoolean()
                         )
                     )
                 )
             );
-            assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(exception1.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+
+            // Same as above but with wildcard cluster alias
+            final ResponseException exception2 = expectThrows(
+                ResponseException.class,
+                () -> performRequestWithRemoteSearchUser(
+                    new Request(
+                        "GET",
+                        String.format(Locale.ROOT, "/*:%s/_search?ccs_minimize_roundtrips=%s", missingIndex, randomBoolean())
+                    )
+                )
+            );
+            assertThat(exception2.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         }
     }
 

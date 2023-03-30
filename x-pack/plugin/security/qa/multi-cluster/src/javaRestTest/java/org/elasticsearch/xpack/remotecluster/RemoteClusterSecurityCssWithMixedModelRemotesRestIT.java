@@ -70,7 +70,7 @@ public class RemoteClusterSecurityCssWithMixedModelRemotesRestIT extends Abstrac
                 {
                   "indices": [
                     {
-                      "names": ["cluster1_index1"],
+                      "names": ["cluster2_index1"],
                       "privileges": ["read", "read_cross_cluster"]
                     }
                   ]

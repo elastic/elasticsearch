@@ -15,16 +15,20 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
@@ -132,7 +136,7 @@ public class GetDataLifecycleAction extends ActionType<GetDataLifecycleAction.Re
         }
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
+    public static class Response extends ActionResponse implements ChunkedToXContentObject {
         public static final ParseField DATA_STREAMS_FIELD = new ParseField("data_streams");
 
         public record DataStreamLifecycle(String dataStreamName, DataLifecycle lifecycle) implements Writeable, ToXContentObject {
@@ -202,15 +206,26 @@ public class GetDataLifecycleAction extends ActionType<GetDataLifecycleAction.Re
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.startArray(DATA_STREAMS_FIELD.getPreferredName());
-            for (DataStreamLifecycle dataStreamLifecycle : dataStreamLifecycles) {
-                dataStreamLifecycle.toXContent(builder, params, rolloverConditions);
-            }
-            builder.endArray();
-            builder.endObject();
-            return builder;
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+            final Iterator<? extends ToXContent> lifecyclesIterator = dataStreamLifecycles.stream()
+                .map(
+                    dataStreamLifecycle -> (ToXContent) (builder, params) -> dataStreamLifecycle.toXContent(
+                        builder,
+                        params,
+                        rolloverConditions
+                    )
+                )
+                .iterator();
+
+            return Iterators.concat(Iterators.single((builder, params) -> {
+                builder.startObject();
+                builder.startArray(DATA_STREAMS_FIELD.getPreferredName());
+                return builder;
+            }), lifecyclesIterator, Iterators.single((ToXContent) (builder, params) -> {
+                builder.endArray();
+                builder.endObject();
+                return builder;
+            }));
         }
 
         @Override

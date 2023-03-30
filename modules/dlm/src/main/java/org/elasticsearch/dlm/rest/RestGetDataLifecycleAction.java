@@ -15,7 +15,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 
 import java.util.List;
 
@@ -41,7 +41,11 @@ public class RestGetDataLifecycleAction extends BaseRestHandler {
         );
         getDataLifecycleRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         getDataLifecycleRequest.indicesOptions(IndicesOptions.fromRequest(request, getDataLifecycleRequest.indicesOptions()));
-        return channel -> client.execute(GetDataLifecycleAction.INSTANCE, getDataLifecycleRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(
+            GetDataLifecycleAction.INSTANCE,
+            getDataLifecycleRequest,
+            new RestChunkedToXContentListener<>(channel)
+        );
     }
 
     @Override

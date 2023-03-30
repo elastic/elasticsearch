@@ -170,6 +170,23 @@ public abstract class AbstractRemoteClusterSecurityCcsWithMultipleRemotesRestIT 
                 )
             );
             assertThat(exception2.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+
+            // Unauthorized with cluster alias wildcard matching both remotes, where index is authorized on one but not the other
+            final ResponseException exception3 = expectThrows(
+                ResponseException.class,
+                () -> performRequestWithRemoteSearchUser(
+                    new Request(
+                        "GET",
+                        String.format(
+                            Locale.ROOT,
+                            "/my_remote_cluster*:%s/_search?ccs_minimize_roundtrips=%s",
+                            randomFrom("cluster1_index1", "cluster2_index1"),
+                            randomBoolean()
+                        )
+                    )
+                )
+            );
+            assertThat(exception3.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         }
     }
 

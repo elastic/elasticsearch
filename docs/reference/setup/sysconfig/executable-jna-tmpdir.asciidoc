@@ -34,6 +34,9 @@ instance:
 export ES_TMPDIR=/usr/share/elasticsearch/tmp
 --------------------------------------------
 
+* For installs done through RPM or DEB packages, the environment variable needs
+to be set through the <<sysconfig,system configuration file>>.
+
 * If you are using `systemd` to run {es} as a service, add the following
 line to the `[Service]` section in a <<systemd,service override file>>:
 +

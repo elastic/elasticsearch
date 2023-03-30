@@ -26,7 +26,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -34,6 +33,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesPattern;
@@ -108,11 +108,11 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", 123)));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
         // One field indexes points
-        assertEquals(1, Arrays.stream(fields).filter(f -> f.fieldType().pointIndexDimensionCount() != 0).count());
+        assertEquals(1, fields.stream().filter(f -> f.fieldType().pointIndexDimensionCount() != 0).count());
         // One field indexes doc values
-        assertEquals(1, Arrays.stream(fields).filter(f -> f.fieldType().docValuesType() != DocValuesType.NONE).count());
+        assertEquals(1, fields.stream().filter(f -> f.fieldType().docValuesType() != DocValuesType.NONE).count());
     }
 
     public void testNotIndexed() throws Exception {
@@ -122,9 +122,9 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         }));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", 123)));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        IndexableField dvField = fields[0];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        IndexableField dvField = fields.get(0);
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
     }
 
@@ -135,9 +135,9 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         }));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", 123)));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        IndexableField pointField = fields[0];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        IndexableField pointField = fields.get(0);
         assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
         assertEquals(123, pointField.numericValue().doubleValue(), 0d);
     }
@@ -149,25 +149,25 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         }));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", 123)));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
 
         // One field indexes points
-        assertEquals(1, Arrays.stream(fields).filter(f -> f.fieldType().pointIndexDimensionCount() != 0).count());
+        assertEquals(1, fields.stream().filter(f -> f.fieldType().pointIndexDimensionCount() != 0).count());
         // One field indexes doc values
-        assertEquals(1, Arrays.stream(fields).filter(f -> f.fieldType().docValuesType() != DocValuesType.NONE).count());
+        assertEquals(1, fields.stream().filter(f -> f.fieldType().docValuesType() != DocValuesType.NONE).count());
         // One field is stored
-        assertEquals(1, Arrays.stream(fields).filter(f -> f.fieldType().stored()).count());
+        assertEquals(1, fields.stream().filter(f -> f.fieldType().stored()).count());
     }
 
     public void testCoerce() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "123")));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
         // One field indexes points
-        assertEquals(1, Arrays.stream(fields).filter(f -> f.fieldType().pointIndexDimensionCount() != 0).count());
+        assertEquals(1, fields.stream().filter(f -> f.fieldType().pointIndexDimensionCount() != 0).count());
         // One field indexes doc values
-        assertEquals(1, Arrays.stream(fields).filter(f -> f.fieldType().docValuesType() != DocValuesType.NONE).count());
+        assertEquals(1, fields.stream().filter(f -> f.fieldType().docValuesType() != DocValuesType.NONE).count());
 
         DocumentMapper mapper2 = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
@@ -211,7 +211,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         SourceToParse source = source(b -> b.nullField("field"));
         ParsedDocument doc = mapper.parse(source);
-        assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
+        assertThat(doc.rootDoc().getFields("field"), empty());
 
         Number missing = missingValue();
         mapper = createDocumentMapper(fieldMapping(b -> {
@@ -219,13 +219,13 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             b.field("null_value", missing);
         }));
         doc = mapper.parse(source);
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField pointField = fields[0];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        IndexableField pointField = fields.get(0);
         assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
         assertFalse(pointField.fieldType().stored());
         assertEquals(123, pointField.numericValue().doubleValue(), 0d);
-        IndexableField dvField = fields[1];
+        IndexableField dvField = fields.get(1);
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
         assertFalse(dvField.fieldType().stored());
     }

@@ -16,8 +16,8 @@ Gets the lifecycle of a set of data streams.
 [[dlm-get-lifecycle-desc]]
 ==== {api-description-title}
 
-Gets the lifecycle of the specified data streams. If a data stream does not have a lifecycle defined then it will
-be ommited from the list.
+Gets the lifecycle of the specified data streams. If multiple data streams are requested but at least one of them
+does not exist, then the API will respond with `404` since at least one of the requested resources could not be retrieved.
 
 [[dlm-get-lifecycle-path-params]]
 ==== {api-path-parms-title}

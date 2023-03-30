@@ -16,8 +16,8 @@ Deletes the lifecycle from a set of data streams.
 [[dlm-delete-lifecycle-desc]]
 ==== {api-description-title}
 
-Deletes the lifecycle from the specified data streams. If a data stream does not exist,
-the request fails and returns an error.
+Deletes the lifecycle from the specified data streams. If multiple data streams are provided but at least one of them
+does not exist, then the deletion of the lifecycle will fail for all of them and the API will respond with `404`.
 
 [[dlm-delete-lifecycle-path-params]]
 ==== {api-path-parms-title}

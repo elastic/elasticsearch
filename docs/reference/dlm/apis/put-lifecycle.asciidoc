@@ -16,8 +16,8 @@ Sets the lifecycle of the targeted data streams.
 [[dlm-put-lifecycle-desc]]
 ==== {api-description-title}
 
-Sets the lifecycle of the specified data streams. If a data stream does not exist,
-the request fails and returns an error.
+Sets the lifecycle of the specified data streams. If multiple data streams are provided but at least one of them
+does not exist, then the update of the lifecycle will fail for all of them and the API will respond with `404`.
 
 [[dlm-put-lifecycle-path-params]]
 ==== {api-path-parms-title}

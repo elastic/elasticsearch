@@ -66,6 +66,11 @@ public abstract class GeometrySimplifier<T extends Geometry> {
         }
     }
 
+    /**
+     * Produce the simplified geometry from the consumed points
+     */
+    public abstract T produce();
+
     private void removeAndAdd(int toRemove, PointError pointError) {
         assert toRemove > 0;  // priority queue can never include first point as that always has zero error by definition
         // Shift all points to the right of the removed point over it in the array
@@ -100,10 +105,11 @@ public abstract class GeometrySimplifier<T extends Geometry> {
     }
 
     /**
-     * Produce the simplified geometry from the consumed points
+     * Each point on the geometry has an error estimate, which is a measure of how much error would be introduced
+     * to the geometry should this point be removed from the geometry. This is a measure of how far from the
+     * line connecting the previous and next points, this geometry lies. If it is on that line, the error would
+     * be zero, since removing the point does not change the geometry.
      */
-    public abstract T produce();
-
     public static class PointError implements SimplificationErrorCalculator.PointLike, Comparable<PointError> {
         private int index;
         final double x;
@@ -205,6 +211,10 @@ public abstract class GeometrySimplifier<T extends Geometry> {
      * It also uses its own simplifier capabilities for the outer ring simplification.
      * The outer ring is simplified to the specified maxPoints, while the holes are simplified
      * to a maxPoints value that is a fraction of the holes size compared to the outer ring size.
+     *
+     * Note that while the polygon simplifier can work in both streaming and non-streaming modes,
+     * the streaming mode will assume all points consumed belong to the outer shell. If you want
+     * to simplify polygons with holes, use the <code>simplify(polygon)</code> method instead.
      */
     public static class Polygons extends GeometrySimplifier<Polygon> {
         ArrayList<GeometrySimplifier<LinearRing>> holeSimplifiers = new ArrayList<>();
@@ -256,9 +266,16 @@ public abstract class GeometrySimplifier<T extends Geometry> {
      * It does not make use of its own simplifier capabilities.
      * The largest inner polygon is simplified to the specified maxPoints, while the rest are simplified
      * to a maxPoints value that is a fraction of their size compared to the largest size.
+     *
+     * Note that this simplifier cannot work in streaming mode.
+     * Since a MultiPolygon can contain more than one polygon,
+     * the <code>consume(Point)</code> method would not know which polygon to add to.
+     * If you need to use the streaming mode, separate the multi-polygon into individual polygons and use
+     * the <code>Polygon</code> simplifier on each individually.
      */
     public static class MultiPolygons extends GeometrySimplifier<MultiPolygon> {
         ArrayList<GeometrySimplifier<Polygon>> polygonSimplifiers = new ArrayList<>();
+        ArrayList<Integer> indexes = new ArrayList<>();
 
         public MultiPolygons(int maxPoints, SimplificationErrorCalculator calculator) {
             super(maxPoints, calculator);
@@ -268,6 +285,7 @@ public abstract class GeometrySimplifier<T extends Geometry> {
         public void reset() {
             super.reset();
             polygonSimplifiers.clear();
+            indexes.clear();
         }
 
         @Override
@@ -286,22 +304,28 @@ public abstract class GeometrySimplifier<T extends Geometry> {
                 if (simplifier.length > 0) {
                     // Invalid polygons (all points co-located) will not be simplified
                     polygonSimplifiers.add(simplifier);
+                    indexes.add(i);
                 }
             }
             return produce();
         }
 
         @Override
+        public void consume(double x, double y) {
+            throw new IllegalArgumentException("MultiPolygon geometry simplifier cannot work in streaming mode");
+        }
+
+        @Override
         public MultiPolygon produce() {
-            int i = 0;
-            for (GeometrySimplifier<Polygon> simplifier : polygonSimplifiers) {
-                if (simplifier.length == 0) {
-                    System.out.println(i + "\t" + simplifier.length);
-                }
-                i++;
-            }
             List<Polygon> polygons = polygonSimplifiers.stream().map(GeometrySimplifier::produce).collect(Collectors.toList());
             return new MultiPolygon(polygons);
+        }
+
+        /**
+         * Provide the index of the original un-simplified polygon given the index of the simplified polygon.
+         */
+        public int indexOf(int simplified) {
+            return indexes.get(simplified);
         }
     }
 
@@ -310,7 +334,7 @@ public abstract class GeometrySimplifier<T extends Geometry> {
             throw new IllegalArgumentException("No points have been consumed");
         }
         if (simplifier.length < 4) {
-            throw new IllegalArgumentException("Polygon cannot have less than 4 points");
+            throw new IllegalArgumentException("LinearRing cannot have less than 4 points");
         }
         double[] x = new double[simplifier.length];
         double[] y = new double[simplifier.length];

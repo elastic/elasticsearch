@@ -26,6 +26,7 @@ import java.util.PriorityQueue;
 import java.util.zip.GZIPInputStream;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -154,7 +155,7 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         GeometrySimplifier<Polygon> simplifier = new GeometrySimplifier.Polygons(maxPoints, calculator());
         // Test full geometry simplification
         Polygon simplified = simplifier.simplify(polygon);
-        assertPolygonEnds(maxPoints, simplified, polygon);
+        assertPolygonEnds("Polygon", maxPoints, simplified, polygon);
         assertPointsOnCircle(centerX, centerY, radius, simplified);
 
         // Test streaming simplification
@@ -164,7 +165,7 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
             simplifier.consume(ring.getX(i), ring.getY(i));
         }
         Polygon streamSimplified = simplifier.produce();
-        assertPolygonEnds(maxPoints, simplified, polygon);
+        assertPolygonEnds("Polygon", maxPoints, simplified, polygon);
         assertPointsOnCircle(centerX, centerY, radius, streamSimplified);
         assertThat("Same line", streamSimplified, equalTo(simplified));
         StringBuilder sb = new StringBuilder("GEOMETRYCOLLECTION(");
@@ -179,14 +180,17 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         int maxPoints2 = 100;
         StringBuilder sb = new StringBuilder();
         Polygon[] polygons = makePolygonsFromGeoJsonFile("us.json.gz");
+        int maxPolyLength = Arrays.stream(polygons).reduce(0, (v, p) -> Math.max(v, p.getPolygon().length()), Math::max);
         MultiPolygon multiPolygon = new MultiPolygon(Arrays.asList(polygons));
         for (int maxPoints : new int[] { maxPoints1, maxPoints2 }) {
-            GeometrySimplifier<MultiPolygon> simplifier = new GeometrySimplifier.MultiPolygons(maxPoints, calculator());
+            var simplifier = new GeometrySimplifier.MultiPolygons(maxPoints, calculator());
             MultiPolygon simplifiedMultiPolygon = simplifier.simplify(multiPolygon);
             for (int i = 0; i < simplifiedMultiPolygon.size(); i++) {
-                Polygon polygon = multiPolygon.get(i);
                 Polygon simplified = simplifiedMultiPolygon.get(i);
-                // assertPolygonEnds(-1, simplified, polygon); // TODO: make an assertion that makes sense
+                Polygon polygon = multiPolygon.get(simplifier.indexOf(i));
+                double simplificationFactor = (double) maxPoints / maxPolyLength;
+                int maxPolyPoints = Math.max(4, (int) (simplificationFactor * polygon.getPolygon().length()));
+                assertPolygonEnds("Polygon[" + i + "]", maxPolyPoints, simplified, polygon);
                 if (sb.length() == 0) {
                     sb.append("GEOMETRYCOLLECTION(");
                 } else {
@@ -196,6 +200,60 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
             }
         }
         // System.out.println(sb.append(")"));
+    }
+
+    public void testErrorOnEmptySimplifier() {
+        for (GeometrySimplifier<?> simplifier : new GeometrySimplifier<?>[] {
+            new GeometrySimplifier.LineStrings(10, calculator()),
+            new GeometrySimplifier.LinearRings(10, calculator()),
+            new GeometrySimplifier.Polygons(10, calculator()),
+            new GeometrySimplifier.MultiPolygons(10, calculator()) }) {
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, simplifier::produce);
+            String name = simplifier.getClass().getSimpleName();
+            String expected = name.startsWith("MultiPolygon")
+                ? "the list of shapes cannot be null or empty"
+                : "No points have been consumed";
+            assertThat(simplifier.getClass().getSimpleName(), ex.getMessage(), containsString(expected));
+        }
+    }
+
+    public void testShortValidLinearRing() {
+        double[] x = new double[] { 0, 1, 1, 0, 0 };
+        double[] y = new double[] { 0, 0, 1, 1, 0 };
+        var simplifier = new GeometrySimplifier.LinearRings(10, calculator());
+        for (int i = 0; i < x.length; i++) {
+            simplifier.consume(x[i], y[i]);
+        }
+        var result = simplifier.produce();
+        assertThat(result.length(), equalTo(x.length));
+    }
+
+    public void testShortInvalidLinearRing() {
+        double[] x = new double[] { 0, 1, 1 };
+        double[] y = new double[] { 0, 0, 1 };
+        var simplifier = new GeometrySimplifier.LinearRings(10, calculator());
+        for (int i = 0; i < x.length; i++) {
+            simplifier.consume(x[i], y[i]);
+        }
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, simplifier::produce);
+        assertThat(ex.getMessage(), containsString("cannot have less than 4 points"));
+    }
+
+    public void testInvalidLinearRing() {
+        double[] x = new double[] { 0, 1, 1, 0 };
+        double[] y = new double[] { 0, 0, 1, 1 };
+        var simplifier = new GeometrySimplifier.LinearRings(10, calculator());
+        for (int i = 0; i < x.length; i++) {
+            simplifier.consume(x[i], y[i]);
+        }
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, simplifier::produce);
+        assertThat(ex.getMessage(), containsString("first and last points of the linear ring must be the same"));
+    }
+
+    public void testMultiPolygonDisallowsStreaming() {
+        var simplifier = new GeometrySimplifier.MultiPolygons(10, calculator());
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> simplifier.consume(0, 0));
+        assertThat(ex.getMessage(), containsString("simplifier cannot work in streaming mode"));
     }
 
     private String debugPolygon(Polygon polygon) {
@@ -357,16 +415,16 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         assertThat("Last point Y", simplified.getY(simplified.length() - 1), equalTo(line.getY(line.length() - 1)));
     }
 
-    private void assertPolygonEnds(int maxPoints, Polygon simplified, Polygon original) {
+    private void assertPolygonEnds(String prefix, int maxPoints, Polygon simplified, Polygon original) {
         LinearRing ring = simplified.getPolygon();
         LinearRing originalRing = original.getPolygon();
         if (maxPoints > 0) {
-            assertThat("Polygon shortened", ring.length(), equalTo(Math.min(maxPoints, original.getPolygon().length())));
+            assertThat(prefix + " shortened", ring.length(), equalTo(Math.min(maxPoints, original.getPolygon().length())));
         }
-        assertThat("First point X", ring.getX(0), equalTo(originalRing.getX(0)));
-        assertThat("First point Y", ring.getY(0), equalTo(originalRing.getY(0)));
-        assertThat("Last point X", ring.getX(ring.length() - 1), equalTo(originalRing.getX(originalRing.length() - 1)));
-        assertThat("Last point Y", ring.getY(ring.length() - 1), equalTo(originalRing.getY(originalRing.length() - 1)));
+        assertThat(prefix + " first point X", ring.getX(0), equalTo(originalRing.getX(0)));
+        assertThat(prefix + " first point Y", ring.getY(0), equalTo(originalRing.getY(0)));
+        assertThat(prefix + " last point X", ring.getX(ring.length() - 1), equalTo(originalRing.getX(originalRing.length() - 1)));
+        assertThat(prefix + " last point Y", ring.getY(ring.length() - 1), equalTo(originalRing.getY(originalRing.length() - 1)));
     }
 
     private void assertLinePointNeverHave(Line line, double y) {

@@ -99,9 +99,7 @@ public class BwcVersions {
         return versionLines.stream()
             .map(LINE_PATTERN::matcher)
             .filter(Matcher::matches)
-            .map(
-                match -> new Version(Integer.parseInt(match.group(1)), Integer.parseInt(match.group(2)), Integer.parseInt(match.group(3)))
-            )
+            .map(match -> new Version(Integer.parseInt(match.group(1)), Integer.parseInt(match.group(2)), Integer.parseInt(match.group(3))))
             .sorted()
             .toList();
     }
@@ -239,9 +237,7 @@ public class BwcVersions {
      * Return all versions of Elasticsearch which are index compatible with the current version.
      */
     public List<Version> getAllIndexCompatible() {
-        return versions.stream()
-            .filter(v -> v.getMajor() >= (currentVersion.getMajor() - 1))
-            .toList();
+        return versions.stream().filter(v -> v.getMajor() >= (currentVersion.getMajor() - 1)).toList();
     }
 
     public void withIndexCompatible(BiConsumer<Version, String> versionAction) {
@@ -253,9 +249,7 @@ public class BwcVersions {
     }
 
     public List<Version> getWireCompatible() {
-        return filterSupportedVersions(
-            versions.stream().filter(v -> v.compareTo(MINIMUM_WIRE_COMPATIBLE_VERSION) >= 0).toList()
-        );
+        return filterSupportedVersions(versions.stream().filter(v -> v.compareTo(MINIMUM_WIRE_COMPATIBLE_VERSION) >= 0).toList());
     }
 
     public void withWireCompatible(BiConsumer<Version, String> versionAction) {

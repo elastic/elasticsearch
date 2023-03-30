@@ -9,6 +9,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -111,6 +112,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         }
 
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(newState.nodes());
+        Map<String, TransportVersion> transportVersions = new HashMap<>(newState.transportVersions());
 
         assert nodesBuilder.isLocalNodeElectedMaster();
 
@@ -129,14 +131,17 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     logger.debug("received a join request for an existing node [{}]", node);
                 } else {
                     try {
+                        TransportVersion transportVersion = nodeJoinTask.transportVersion();
                         if (enforceVersionBarrier) {
                             ensureVersionBarrier(node.getVersion(), minClusterNodeVersion);
+                            ensureTransportVersionBarrier(transportVersion, transportVersions.values());
                         }
                         ensureNodesCompatibility(node.getVersion(), minClusterNodeVersion, maxClusterNodeVersion);
                         // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
                         // we have to reject nodes that don't support all indices we have in this cluster
                         ensureIndexCompatibility(node.getVersion(), initialState.getMetadata());
                         nodesBuilder.add(node);
+                        transportVersions.put(node.getId(), transportVersion);
                         nodesChanged = true;
                         minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
                         maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
@@ -354,6 +359,28 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     + "The cluster contains nodes with version ["
                     + minClusterNodeVersion
                     + "], which is incompatible."
+            );
+        }
+    }
+
+    /**
+     * ensures that the joining node's transport version is equal or higher to the minClusterTransportVersion. This is needed
+     * to ensure that the minimum transport version of the cluster doesn't go backwards.
+     **/
+    static void ensureTransportVersionBarrier(
+        TransportVersion joiningTransportVersion,
+        Collection<TransportVersion> existingTransportVersions
+    ) {
+        TransportVersion minClusterTransportVersion = existingTransportVersions.stream()
+            .min(Comparator.naturalOrder())
+            .orElse(TransportVersion.CURRENT);
+        if (joiningTransportVersion.before(minClusterTransportVersion)) {
+            throw new IllegalStateException(
+                "node with transport version ["
+                    + joiningTransportVersion
+                    + "] may not join a cluster with minimum transport version ["
+                    + minClusterTransportVersion
+                    + "]"
             );
         }
     }

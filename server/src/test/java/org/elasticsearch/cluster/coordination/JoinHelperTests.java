@@ -82,7 +82,7 @@ public class JoinHelperTests extends ESTestCase {
             new JoinReasonService(() -> 0L),
             new NoneCircuitBreakerService(),
             Function.identity(),
-            (listener) -> listener.onResponse(null)
+            (listener, term) -> listener.onResponse(null)
         );
         transportService.start();
 
@@ -246,7 +246,7 @@ public class JoinHelperTests extends ESTestCase {
             new JoinReasonService(() -> 0L),
             new NoneCircuitBreakerService(),
             Function.identity(),
-            (listener) -> listener.onResponse(null)
+            (listener, term) -> listener.onResponse(null)
         );
         transportService.start();
 

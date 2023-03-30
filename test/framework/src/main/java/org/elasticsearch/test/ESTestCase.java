@@ -32,7 +32,6 @@ import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.tests.util.TestRuleMarkFailure;
@@ -58,6 +57,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.HeaderWarningAppender;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
@@ -82,10 +82,8 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.IndicesModule;
@@ -1677,11 +1675,12 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Creates an IndexAnalyzers with a single default analyzer
      */
     protected IndexAnalyzers createDefaultIndexAnalyzers() {
-        return new IndexAnalyzers(
-            Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
-            Map.of(),
-            Map.of()
-        );
+        return (type, name) -> {
+            if (type == IndexAnalyzers.AnalyzerType.ANALYZER && "default".equals(name)) {
+                return Lucene.STANDARD_ANALYZER;
+            }
+            return null;
+        };
     }
 
     /**

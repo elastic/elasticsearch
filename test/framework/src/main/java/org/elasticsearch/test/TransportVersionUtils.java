@@ -117,8 +117,4 @@ public class TransportVersionUtils {
     public static TransportVersion randomCompatibleVersion(Random random) {
         return randomVersionBetween(random, TransportVersion.MINIMUM_COMPATIBLE, TransportVersion.CURRENT);
     }
-
-    public static TransportVersion randomPreviousCompatibleVersion(Random random, TransportVersion version) {
-        return randomVersionBetween(random, minimumCompatibilityVersion(version), getPreviousVersion(version));
-    }
 }

@@ -53,10 +53,10 @@ public class IgnoredFieldMapperTests extends MetadataMapperTestCase {
             mapping(b -> b.startObject("field").field("type", "keyword").field("ignore_above", 3).endObject())
         );
         ParsedDocument document = mapper.parse(source(b -> b.field("field", "value")));
-        IndexableField[] fields = document.rootDoc().getFields(IgnoredFieldMapper.NAME);
-        assertEquals(1, fields.length);
-        assertEquals(IndexOptions.DOCS, fields[0].fieldType().indexOptions());
-        assertTrue(fields[0].fieldType().stored());
+        List<IndexableField> fields = document.rootDoc().getFields(IgnoredFieldMapper.NAME);
+        assertEquals(1, fields.size());
+        assertEquals(IndexOptions.DOCS, fields.get(0).fieldType().indexOptions());
+        assertTrue(fields.get(0).fieldType().stored());
     }
 
     public void testFetchIgnoredFieldValue() throws IOException {

@@ -23,7 +23,13 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * A response that indicates that a request has been acknowledged
+ * A response to an action which updated the cluster state, but needs to report whether any relevant nodes failed to apply the update. For
+ * instance, a {@link org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest} may update a mapping in the index metadata, but
+ * one or more data nodes may fail to acknowledge the new mapping within the ack timeout. If this happens then clients must accept that
+ * subsequent requests that rely on the mapping update may return errors from the lagging data nodes.
+ * <p>
+ * Actions which return a payload-free acknowledgement of success should generally prefer to use {@link ActionResponse.Empty} instead of
+ * {@link AcknowledgedResponse}, and other listeners should generally prefer {@link Void}.
  */
 public class AcknowledgedResponse extends ActionResponse implements IsAcknowledgedSupplier, ToXContentObject {
 
@@ -63,8 +69,7 @@ public class AcknowledgedResponse extends ActionResponse implements IsAcknowledg
     }
 
     /**
-     * Returns whether the response is acknowledged or not
-     * @return true if the response is acknowledged, false otherwise
+     * @return whether the update was acknowledged by all the relevant nodes in the cluster.
      */
     @Override
     public final boolean isAcknowledged() {
@@ -85,9 +90,7 @@ public class AcknowledgedResponse extends ActionResponse implements IsAcknowledg
         return builder;
     }
 
-    protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
-
-    }
+    protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {}
 
     /**
      * A generic parser that simply parses the acknowledged flag

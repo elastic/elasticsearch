@@ -11,7 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -24,28 +24,26 @@ public class TextExpansionResults extends NlpInferenceResults {
 
     public static final String NAME = "text_expansion_result";
 
-    public record WeightedToken(int token, float weight) implements Writeable, ToXContentObject {
+    public record WeightedToken(String token, float weight) implements Writeable, ToXContentFragment {
 
         public WeightedToken(StreamInput in) throws IOException {
-            this(in.readVInt(), in.readFloat());
+            this(in.readString(), in.readFloat());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(token);
+            out.writeString(token);
             out.writeFloat(weight);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(Integer.toString(token), weight);
-            builder.endObject();
+            builder.field(token, weight);
             return builder;
         }
 
         public Map<String, Object> asMap() {
-            return Map.of(Integer.toString(token), weight);
+            return Map.of(token, weight);
         }
 
         @Override
@@ -90,11 +88,11 @@ public class TextExpansionResults extends NlpInferenceResults {
 
     @Override
     void doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray(resultsField);
+        builder.startObject(resultsField);
         for (var weightedToken : weightedTokens) {
             weightedToken.toXContent(builder, params);
         }
-        builder.endArray();
+        builder.endObject();
     }
 
     @Override
@@ -119,6 +117,6 @@ public class TextExpansionResults extends NlpInferenceResults {
 
     @Override
     void addMapFields(Map<String, Object> map) {
-        map.put(resultsField, weightedTokens.stream().map(WeightedToken::asMap).collect(Collectors.toList()));
+        map.put(resultsField, weightedTokens.stream().collect(Collectors.toMap(WeightedToken::token, WeightedToken::weight)));
     }
 }

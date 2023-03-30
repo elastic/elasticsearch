@@ -10,15 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
-import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.action.search.SearchTransportService;
-import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
@@ -27,7 +19,8 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.seqno.RetentionLeaseActions;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterActionProxy;
@@ -35,7 +28,6 @@ import org.elasticsearch.transport.RemoteConnectionManager;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -46,17 +38,16 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportService.ContextRestoreResponseHandler;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
-import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
@@ -67,67 +58,16 @@ import org.elasticsearch.xpack.security.authz.PreAuthorizationUtils;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
-import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_CROSS_CLUSTER_ACCESS_REALM;
 import static org.elasticsearch.xpack.security.transport.RemoteClusterCredentialsResolver.RemoteClusterCredentials;
 
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
     private static final Logger logger = LogManager.getLogger(SecurityServerTransportInterceptor.class);
-    // package private for testing
-    static final Set<String> CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST;
-    static {
-        final Stream<String> actions = Stream.of(
-            REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
-            RemoteClusterNodesAction.NAME,
-            TransportService.HANDSHAKE_ACTION_NAME,
-            SearchAction.NAME,
-            ClusterStateAction.NAME,
-            ClusterSearchShardsAction.NAME,
-            SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME,
-            SearchTransportService.FREE_CONTEXT_ACTION_NAME,
-            SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
-            SearchTransportService.DFS_ACTION_NAME,
-            SearchTransportService.QUERY_ACTION_NAME,
-            SearchTransportService.QUERY_ID_ACTION_NAME,
-            SearchTransportService.QUERY_SCROLL_ACTION_NAME,
-            SearchTransportService.QUERY_FETCH_SCROLL_ACTION_NAME,
-            SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME,
-            SearchTransportService.FETCH_ID_ACTION_NAME,
-            SearchTransportService.QUERY_CAN_MATCH_NAME,
-            SearchTransportService.QUERY_CAN_MATCH_NODE_NAME,
-            TransportOpenPointInTimeAction.OPEN_SHARD_READER_CONTEXT_NAME,
-            ResolveIndexAction.NAME,
-            FieldCapabilitiesAction.NAME,
-            FieldCapabilitiesAction.NAME + "[n]",
-            "indices:data/read/eql",
-            // CCR actions
-            XPackInfoAction.NAME,
-            HasPrivilegesAction.NAME,
-            RetentionLeaseActions.Add.ACTION_NAME,
-            RetentionLeaseActions.Remove.ACTION_NAME,
-            RetentionLeaseActions.Renew.ACTION_NAME,
-            "indices:data/read/xpack/ccr/shard_changes",
-            IndicesStatsAction.NAME,
-            "internal:admin/ccr/restore/file_chunk/get",
-            "internal:admin/ccr/restore/session/clear",
-            "internal:admin/ccr/restore/session/put",
-            "cluster:internal/remote_cluster/proxy/internal:admin/ccr/restore/file_chunk/get",
-            "cluster:internal/remote_cluster/proxy/internal:admin/ccr/restore/session/clear",
-            "cluster:internal/remote_cluster/proxy/internal:admin/ccr/restore/session/put"
-        );
-        CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST = actions
-            // Include action, and proxy equivalent (i.e., with proxy action prefix)
-            .flatMap(name -> Stream.of(name, TransportActionProxy.getProxyAction(name)))
-            .collect(Collectors.toUnmodifiableSet());
-    }
 
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
@@ -139,6 +79,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService;
     private final RemoteClusterCredentialsResolver remoteClusterCredentialsResolver;
     private final Function<Transport.Connection, Optional<String>> remoteClusterAliasResolver;
+    private final XPackLicenseState licenseState;
 
     public SecurityServerTransportInterceptor(
         Settings settings,
@@ -149,7 +90,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
         CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
-        RemoteClusterCredentialsResolver remoteClusterCredentialsResolver
+        RemoteClusterCredentialsResolver remoteClusterCredentialsResolver,
+        XPackLicenseState licenseState
     ) {
         this(
             settings,
@@ -161,6 +103,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             destructiveOperations,
             crossClusterAccessAuthcService,
             remoteClusterCredentialsResolver,
+            licenseState,
             RemoteConnectionManager::resolveRemoteClusterAlias
         );
     }
@@ -175,6 +118,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         DestructiveOperations destructiveOperations,
         CrossClusterAccessAuthenticationService crossClusterAccessAuthcService,
         RemoteClusterCredentialsResolver remoteClusterCredentialsResolver,
+        XPackLicenseState licenseState,
         // Inject for simplified testing
         Function<Transport.Connection, Optional<String>> remoteClusterAliasResolver
     ) {
@@ -185,9 +129,10 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.sslService = sslService;
         this.securityContext = securityContext;
         this.crossClusterAccessAuthcService = crossClusterAccessAuthcService;
-        this.profileFilters = initializeProfileFilters(destructiveOperations);
+        this.licenseState = licenseState;
         this.remoteClusterCredentialsResolver = remoteClusterCredentialsResolver;
         this.remoteClusterAliasResolver = remoteClusterAliasResolver;
+        this.profileFilters = initializeProfileFilters(destructiveOperations);
     }
 
     @Override
@@ -326,8 +271,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             }
 
             /**
-             * Returns cluster credentials if the connection is remote, cluster credentials are set up for the target cluster, and access
-             * via cross cluster access headers is supported for the request type and authenticated subject.
+             * Returns cluster credentials if the connection is remote, and cluster credentials are set up for the target cluster.
              */
             private Optional<RemoteClusterCredentials> getRemoteClusterCredentials(Transport.Connection connection) {
                 final Optional<String> optionalRemoteClusterAlias = remoteClusterAliasResolver.apply(connection);
@@ -345,20 +289,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     return Optional.empty();
                 }
 
-                final Authentication authentication = securityContext.getAuthentication();
-                assert authentication != null : "authentication must be present in security context";
-                final Subject effectiveSubject = authentication.getEffectiveSubject();
-                if (false == effectiveSubject.getType().equals(Subject.Type.USER)
-                    && false == effectiveSubject.getType().equals(Subject.Type.API_KEY)
-                    && false == effectiveSubject.getType().equals(Subject.Type.SERVICE_ACCOUNT)) {
-                    logger.trace(
-                        "Effective subject of request to remote cluster [{}] has an unsupported type [{}]",
-                        remoteClusterAlias,
-                        effectiveSubject.getType()
-                    );
-                    return Optional.empty();
-                }
-
                 return remoteClusterCredentials;
             }
 
@@ -370,16 +300,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final TransportRequestOptions options,
                 final TransportResponseHandler<T> handler
             ) {
-                final String remoteClusterAlias = remoteClusterCredentials.clusterAlias();
-                if (false == CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST.contains(action)) {
-                    throw new IllegalArgumentException(
-                        "action ["
-                            + action
-                            + "] towards remote cluster ["
-                            + remoteClusterAlias
-                            + "] cannot be executed because it is not allowed as a cross cluster operation"
-                    );
+                if (false == Security.CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE.check(licenseState)) {
+                    throw LicenseUtils.newComplianceException(Security.CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE.getName());
                 }
+                final String remoteClusterAlias = remoteClusterCredentials.clusterAlias();
+
                 if (connection.getTransportVersion().before(VERSION_CROSS_CLUSTER_ACCESS_REALM)) {
                     throw new IllegalArgumentException(
                         "Settings for remote cluster ["
@@ -477,7 +402,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             ) {
                 final ThreadContext threadContext = securityContext.getThreadContext();
                 final var contextRestoreHandler = new ContextRestoreResponseHandler<>(threadContext.newRestorableContext(true), handler);
-                try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                try (ThreadContext.StoredContext ignored = threadContext.stashContextPreservingRequestHeaders(AuditUtil.AUDIT_REQUEST_ID)) {
                     crossClusterAccessHeaders.writeToContext(threadContext);
                     sender.sendRequest(connection, action, request, options, contextRestoreHandler);
                 } catch (Exception e) {
@@ -549,7 +474,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         threadPool.getThreadContext(),
                         remoteClusterServerSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration),
                         destructiveOperations,
-                        securityContext
+                        securityContext,
+                        licenseState
                     )
                 );
             } else {

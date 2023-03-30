@@ -38,7 +38,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Collections;
+import java.time.Instant;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -52,6 +52,7 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.VERIF
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
@@ -122,7 +123,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 System.currentTimeMillis(),
                 false,
                 AllocationStatus.NO_ATTEMPT,
-                Collections.emptySet(),
+                Set.of(),
                 lastAssignedNodeId
             );
         } else {
@@ -586,7 +587,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         ShardRouting shardToFail = shardsWithState(clusterState.getRoutingNodes(), STARTED).get(0);
         clusterState = allocation.applyFailedShards(
             clusterState,
-            Collections.singletonList(new FailedShard(shardToFail, "test fail", null, randomBoolean())),
+            List.of(new FailedShard(shardToFail, "test fail", null, randomBoolean())),
             List.of()
         );
         // verify the reason and details
@@ -615,13 +616,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
      * Verifies that delayed allocation calculation are correct when there are no registered node shutdowns.
      */
     public void testRemainingDelayCalculationWithNoShutdowns() throws Exception {
-        checkRemainingDelayCalculation(
-            "bogusNodeId",
-            TimeValue.timeValueNanos(10),
-            Collections.emptyMap(),
-            TimeValue.timeValueNanos(10),
-            false
-        );
+        checkRemainingDelayCalculation("bogusNodeId", TimeValue.timeValueNanos(10), Map.of(), TimeValue.timeValueNanos(10), false);
     }
 
     /**
@@ -756,7 +751,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             System.currentTimeMillis(),
             randomBoolean(),
             AllocationStatus.NO_ATTEMPT,
-            Collections.emptySet(),
+            Set.of(),
             lastNodeId
         );
         final long totalDelayNanos = expectedTotalDelay.nanos();
@@ -889,20 +884,45 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             if (randomBoolean() && delayed == null) {
                 delayedFlag = true;
             }
-            lastAllocatedNodeId = randomAlphaOfLength(10);
+            lastAllocatedNodeId = randomIdentifier();
         }
-        int failedAllocations = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? 1 : 0;
         return new UnassignedInfo(
             reason,
             message,
             null,
-            failedAllocations,
+            reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? 1 : 0,
             System.nanoTime(),
             System.currentTimeMillis(),
             delayedFlag,
             UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-            Collections.emptySet(),
+            reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? Set.of(randomIdentifier()) : Set.of(),
             lastAllocatedNodeId
         );
+    }
+
+    public void testSummaryContainsImportantFields() {
+        var info = randomUnassignedInfo(randomBoolean() ? randomIdentifier() : null);
+        var summary = info.shortSummary();
+
+        assertThat("reason", summary, containsString("[reason=" + info.getReason() + ']'));
+        assertThat(
+            "delay",
+            summary,
+            containsString("at[" + UnassignedInfo.DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(info.getUnassignedTimeInMillis())) + ']')
+        );
+        if (info.getNumFailedAllocations() > 0) {
+            assertThat("failed_allocations", summary, containsString("failed_attempts[" + info.getNumFailedAllocations() + ']'));
+        }
+        if (info.getFailedNodeIds().isEmpty() == false) {
+            assertThat("failed_nodes", summary, containsString("failed_nodes[" + info.getFailedNodeIds() + ']'));
+        }
+        assertThat("delayed", summary, containsString("delayed=" + info.isDelayed()));
+        if (info.getLastAllocatedNodeId() != null) {
+            assertThat("last_node", summary, containsString("last_node[" + info.getLastAllocatedNodeId() + ']'));
+        }
+        if (info.getMessage() != null) {
+            assertThat("details", summary, containsString("details[" + info.getMessage() + ']'));
+        }
+        assertThat("allocation_status", summary, containsString("allocation_status[" + info.getLastAllocationStatus().value() + ']'));
     }
 }

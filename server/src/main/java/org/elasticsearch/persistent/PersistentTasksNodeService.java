@@ -287,7 +287,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
     }
 
     /**
-     * Unregisters and then cancels the locally running task using the task manager. No notification to master will be send upon
+     * Unregisters and then cancels the locally running task using the task manager. No notification to master will be sent upon
      * cancellation.
      */
     private void cancelTask(Long allocationId) {

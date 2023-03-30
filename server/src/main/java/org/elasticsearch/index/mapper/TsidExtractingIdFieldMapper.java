@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -27,6 +26,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -34,7 +34,6 @@ import java.util.Locale;
  * {@code _tsid} and {@code @timestamp}.
  */
 public class TsidExtractingIdFieldMapper extends IdFieldMapper {
-    public static final FieldType FIELD_TYPE = StringField.TYPE_STORED;
     /**
      * Maximum length of the {@code _tsid} in the {@link #documentDescription}.
      */
@@ -101,13 +100,13 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
     private static final long SEED = 0;
 
     public static void createField(DocumentParserContext context, IndexRouting.ExtractFromSource.Builder routingBuilder, BytesRef tsid) {
-        IndexableField[] timestampFields = context.rootDoc().getFields(DataStreamTimestampFieldMapper.DEFAULT_PATH);
-        if (timestampFields.length == 0) {
+        List<IndexableField> timestampFields = context.rootDoc().getFields(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        if (timestampFields.isEmpty()) {
             throw new IllegalArgumentException(
                 "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] is missing"
             );
         }
-        long timestamp = timestampFields[0].numericValue().longValue();
+        long timestamp = timestampFields.get(0).numericValue().longValue();
         byte[] suffix = new byte[16];
         String id = createId(context.getDynamicMappers().isEmpty(), routingBuilder, tsid, timestamp, suffix);
         /*

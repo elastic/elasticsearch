@@ -46,8 +46,16 @@ public final class RerouteProcessor extends AbstractProcessor {
         String destination
     ) {
         super(tag, description);
-        this.dataset = dataset;
-        this.namespace = namespace;
+        if (dataset.isEmpty()) {
+            this.dataset = List.of(DATASET_VALUE_SOURCE);
+        } else {
+            this.dataset = dataset;
+        }
+        if (namespace.isEmpty()) {
+            this.namespace = List.of(NAMESPACE_VALUE_SOURCE);
+        } else {
+            this.namespace = namespace;
+        }
         this.destination = destination;
     }
 
@@ -75,11 +83,8 @@ public final class RerouteProcessor extends AbstractProcessor {
         currentDataset = parseDataStreamDataset(indexName, indexOfFirstDash, indexOfSecondDash);
         currentNamespace = parseDataStreamNamespace(indexName, indexOfSecondDash);
 
-        String dataset = determineDataStreamField(ingestDocument, this.dataset, DATASET_VALUE_SOURCE, currentDataset);
-        String namespace = determineDataStreamField(ingestDocument, this.namespace, NAMESPACE_VALUE_SOURCE, currentNamespace);
-        if (dataset == null || namespace == null) {
-            return ingestDocument;
-        }
+        String dataset = determineDataStreamField(ingestDocument, this.dataset, currentDataset);
+        String namespace = determineDataStreamField(ingestDocument, this.namespace, currentNamespace);
         String newTarget = type + "-" + dataset + "-" + namespace;
         ingestDocument.reroute(newTarget);
         ingestDocument.setFieldValue(DATA_STREAM_TYPE, type);
@@ -114,25 +119,18 @@ public final class RerouteProcessor extends AbstractProcessor {
     private String determineDataStreamField(
         IngestDocument ingestDocument,
         List<DataStreamValueSource> valueSources,
-        DataStreamValueSource dataStreamFieldReference,
-        String fromCurrentTarget
+        String fallbackFromCurrentTarget
     ) {
         // first try to get value from the configured dataset/namespace field references
-        // if the user has configured a static value rather than a field reference, this is guaranteed to return
+        // if this contains a static value rather than a field reference, this is guaranteed to return
         for (DataStreamValueSource value : valueSources) {
             String result = value.resolve(ingestDocument);
             if (result != null) {
                 return result;
             }
         }
-        // if all field references have evaluated to null or missing,
-        // try to get the value from the data_stream.<dataset|namespace> value from the doc
-        String fromDataStreamField = dataStreamFieldReference.resolve(ingestDocument);
-        if (fromDataStreamField != null) {
-            return fromDataStreamField;
-        }
-        // as a last resort, use the dataset/namespace value we parsed out from _index
-        return fromCurrentTarget;
+        // use the dataset/namespace value we parsed out from the current target (_index) as a fallback
+        return fallbackFromCurrentTarget;
     }
 
     @Override

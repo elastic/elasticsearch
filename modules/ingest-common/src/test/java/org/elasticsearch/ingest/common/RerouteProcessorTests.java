@@ -171,7 +171,20 @@ public class RerouteProcessorTests extends ESTestCase {
             List.of("{{{data_stream.namespace}}}", "fallback")
         );
         processor.execute(ingestDocument);
-        assertDataSetFields(ingestDocument, "logs", "fallback", "fallback");
+        assertDataSetFields(ingestDocument, "logs", "generic", "default");
+    }
+
+    public void testFallbackToValuesFrom_index() throws Exception {
+        IngestDocument ingestDocument = createIngestDocument("logs-generic-default");
+        ingestDocument.setFieldValue("data_stream.dataset", "foo");
+        ingestDocument.setFieldValue("data_stream.namespace", "bar");
+
+        RerouteProcessor processor = createRerouteProcessor(
+            List.of("{{foo}}"),
+            List.of("{{bar}}")
+        );
+        processor.execute(ingestDocument);
+        assertDataSetFields(ingestDocument, "logs", "generic", "default");
     }
 
     private RerouteProcessor createRerouteProcessor(List<String> dataset, List<String> namespace) {
@@ -188,8 +201,8 @@ public class RerouteProcessorTests extends ESTestCase {
         return new RerouteProcessor(
             null,
             null,
-            null,
-            null,
+            List.of(),
+            List.of(),
             destination
         );
     }

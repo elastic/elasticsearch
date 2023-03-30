@@ -15,15 +15,22 @@ import org.hamcrest.Matchers;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class RerouteProcessorFactoryTests extends ESTestCase {
 
-    public void testSuccess() throws Exception {
+    public void testDefaults() throws Exception {
         RerouteProcessor processor = create(null, null);
-        assertThat(processor.getDataStreamDataset(), equalTo(List.of()));
-        assertThat(processor.getDataStreamNamespace(), equalTo(List.of()));
+        assertThat(
+            processor.getDataStreamDataset().stream().map(RerouteProcessor.DataStreamValueSource::toString).collect(Collectors.toList()),
+            equalTo(List.of("{{data_stream.dataset}}"))
+        );
+        assertThat(
+            processor.getDataStreamNamespace().stream().map(RerouteProcessor.DataStreamValueSource::toString).collect(Collectors.toList()),
+            equalTo(List.of("{{data_stream.namespace}}"))
+        );
     }
 
     public void testInvalidDataset() throws Exception {
@@ -38,8 +45,6 @@ public class RerouteProcessorFactoryTests extends ESTestCase {
 
     public void testDestinationSuccess() throws Exception {
         RerouteProcessor processor = create(Map.of("destination", "foo"));
-        assertThat(processor.getDataStreamDataset(), equalTo(List.of()));
-        assertThat(processor.getDataStreamNamespace(), equalTo(List.of()));
         assertThat(processor.getDestination(), equalTo("foo"));
     }
 

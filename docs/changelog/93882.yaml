@@ -1,6 +1,0 @@
-pr: 93882
-summary: Ensure ordering of plugin initialization
-area: Infra/Plugins
-type: bug
-issues:
- - 93851

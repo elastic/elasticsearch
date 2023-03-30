@@ -1,5 +1,0 @@
-pr: 92102
-summary: Short-circuit painless def equality
-area: Infra/Scripting
-type: enhancement
-issues: []

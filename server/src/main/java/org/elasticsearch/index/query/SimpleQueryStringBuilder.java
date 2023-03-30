@@ -106,9 +106,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     private final String queryText;
     /**
      * Fields to query against. If left empty will query default field,
-     * currently _ALL. Uses a TreeMap to hold the fields so boolean clauses are
-     * always sorted in same order for generated Lucene query for easier
-     * testing.
+     * currently _ALL.
      */
     private Map<String, Float> fieldsAndWeights = new HashMap<>();
     /** If specified, analyzer to use to parse the query text, defaults to registered default in toQuery. */

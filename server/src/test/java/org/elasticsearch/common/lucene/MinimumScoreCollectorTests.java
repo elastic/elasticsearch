@@ -66,7 +66,8 @@ public class MinimumScoreCollectorTests extends ESTestCase {
         float maxScore;
         float thresholdScore;
         BooleanQuery booleanQuery = new BooleanQuery.Builder().add(new TermQuery(new Term("field1", "value")), BooleanClause.Occur.MUST)
-            .add(new BoostQuery(new TermQuery(new Term("field2", "value")), 200f), BooleanClause.Occur.SHOULD).build();
+            .add(new BoostQuery(new TermQuery(new Term("field2", "value")), 200f), BooleanClause.Occur.SHOULD)
+            .build();
         {
             TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(2, 100);
             searcher.search(booleanQuery, topScoreDocCollector);

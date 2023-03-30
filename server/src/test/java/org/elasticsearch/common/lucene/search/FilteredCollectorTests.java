@@ -17,13 +17,11 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 
@@ -83,7 +81,7 @@ public class FilteredCollectorTests extends ESTestCase {
             assertEquals(numDocs, topScoreDocCollector.topDocs().totalHits.value);
         }
     }
-    
+
     public void testWeightIsNotPropagated() throws IOException {
         {
             TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();

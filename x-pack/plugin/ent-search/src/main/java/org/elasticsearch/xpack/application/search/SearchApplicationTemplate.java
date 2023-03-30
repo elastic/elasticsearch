@@ -72,8 +72,12 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(TEMPLATE_SCRIPT_FIELD.getPreferredName(), script);
-        builder.field(TEMPLATE_PARAM_VALIDATOR_FIELD.getPreferredName(), templateParamValidator);
+        if (script != null) {
+            builder.field(TEMPLATE_SCRIPT_FIELD.getPreferredName(), script);
+        }
+        if (templateParamValidator != null) {
+            builder.field(TEMPLATE_PARAM_VALIDATOR_FIELD.getPreferredName(), templateParamValidator);
+        }
         builder.endObject();
         return builder;
     }
@@ -86,7 +90,7 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(script);
+        return Objects.hash(script, templateParamValidator);
     }
 
     @Override
@@ -94,8 +98,7 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SearchApplicationTemplate template = (SearchApplicationTemplate) o;
-        if (script == null) return template.script == null;
-        return script.equals(template.script);
+        return Objects.equals(script, template.script) && Objects.equals(templateParamValidator, template.templateParamValidator);
     }
 
     public Script script() {

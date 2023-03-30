@@ -27,6 +27,8 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -87,5 +89,18 @@ public class TemplateParamValidator implements ToXContentObject, Writeable {
 
     private String getSchemaAsString() {
         return jsonSchema.getSchemaNode().toString();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        TemplateParamValidator that = (TemplateParamValidator) o;
+        return jsonSchema.equals(that.jsonSchema);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(jsonSchema);
     }
 }

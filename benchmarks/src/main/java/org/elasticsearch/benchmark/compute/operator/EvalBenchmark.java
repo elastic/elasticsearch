@@ -87,7 +87,7 @@ public class EvalBenchmark {
             case "add" -> {
                 FieldAttribute longField = longField();
                 yield EvalMapper.toEvaluator(
-                    new Add(Source.EMPTY, longField, new Literal(Source.EMPTY, 1, DataTypes.LONG)),
+                    new Add(Source.EMPTY, longField, new Literal(Source.EMPTY, 1L, DataTypes.LONG)),
                     layout(longField)
                 ).get();
             }

@@ -50,6 +50,10 @@ public interface Transport extends LifecycleComponent {
         return false;
     }
 
+    default TransportVersion getVersion() {
+        return TransportVersion.CURRENT;
+    }
+
     /**
      * The address the transport is bound on.
      */

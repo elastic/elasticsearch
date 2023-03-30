@@ -17,7 +17,7 @@ import java.time.ZoneOffset;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class LessThanTests extends AbstractComparisonTestCase {
+public class LessThanTests extends AbstractBinaryComparisonTestCase {
     @Override
     protected <T extends Comparable<T>> Matcher<Boolean> resultMatcher(T lhs, T rhs) {
         return equalTo(lhs.compareTo(rhs) < 0);

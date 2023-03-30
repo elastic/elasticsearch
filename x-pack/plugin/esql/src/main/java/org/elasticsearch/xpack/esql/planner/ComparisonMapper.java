@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
+import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
@@ -135,21 +136,21 @@ abstract class ComparisonMapper<T extends BinaryComparison> extends EvalMapper.E
         throw new AssertionError("resolved type for [" + bc + "] but didn't implement mapping");
     }
 
-    private Supplier<EvalOperator.ExpressionEvaluator> castToEvaluator(
-        BinaryComparison bc,
+    static Supplier<EvalOperator.ExpressionEvaluator> castToEvaluator(
+        BinaryOperator<?, ?, ?, ?> op,
         Layout layout,
         DataType required,
         BiFunction<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> buildEvaluator
     ) {
         Supplier<EvalOperator.ExpressionEvaluator> lhs = Cast.cast(
-            bc.left().dataType(),
+            op.left().dataType(),
             required,
-            EvalMapper.toEvaluator(bc.left(), layout)
+            EvalMapper.toEvaluator(op.left(), layout)
         );
         Supplier<EvalOperator.ExpressionEvaluator> rhs = Cast.cast(
-            bc.right().dataType(),
+            op.right().dataType(),
             required,
-            EvalMapper.toEvaluator(bc.right(), layout)
+            EvalMapper.toEvaluator(op.right(), layout)
         );
         return () -> buildEvaluator.apply(lhs.get(), rhs.get());
     }

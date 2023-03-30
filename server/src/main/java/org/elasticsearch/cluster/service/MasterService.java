@@ -1179,7 +1179,7 @@ public class MasterService extends AbstractLifecycleComponent {
         return e instanceof NotMasterException || e instanceof FailedToCommitClusterStateException;
     }
 
-    private final Runnable queuesProcessor = new AbstractRunnable() {
+    private final AbstractRunnable queuesProcessor = new AbstractRunnable() {
         @Override
         public void doRun() {
             assert threadPool.getThreadContext().isSystemContext();
@@ -1264,13 +1264,14 @@ public class MasterService extends AbstractLifecycleComponent {
         final var threadContext = threadPool.getThreadContext();
         try (var ignored = threadContext.stashContext()) {
             threadContext.markAsSystemContext();
-            threadPoolExecutor.execute(queuesProcessor);
+            final var threadPoolExecutor = this.threadPoolExecutor;
+            if (threadPoolExecutor == null) {
+                assert false : "master service must be started before submitting any tasks";
+                queuesProcessor.onRejection(new EsRejectedExecutionException("master service is not started", true));
+            } else {
+                threadPoolExecutor.execute(queuesProcessor);
+            }
         }
-    }
-
-    private EsRejectedExecutionException getRejectionException() {
-        assert lifecycle.started() == false;
-        return new EsRejectedExecutionException("master service is in state [" + lifecycleState() + "]", true);
     }
 
     private void drainQueueOnRejection(FailedToCommitClusterStateException e) {

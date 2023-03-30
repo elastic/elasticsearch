@@ -15,13 +15,13 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   api project(':modules:lang-mustache')
 
-  // JSON Schema dependencies
-  api "com.networknt:json-schema-validator:${versions.networknt_json_schema_validator}"
   implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  implementation "com.networknt:json-schema-validator:${versions.networknt_json_schema_validator}"
   implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  implementation "org.apache.commons:commons-lang3:${versions.commons_lang3}"
-  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  implementation "org.apache.commons:commons-compress:1.21"
+
+  // JSON Schema dependencies
+  runtimeOnly "org.apache.commons:commons-lang3:${versions.commons_lang3}"
+  runtimeOnly "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   runtimeOnly("org.slf4j:slf4j-api:${versions.slf4j}")
   runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}")
 
@@ -34,4 +34,3 @@ dependencies {
 }
 
 addQaCheckDependencies(project)
-

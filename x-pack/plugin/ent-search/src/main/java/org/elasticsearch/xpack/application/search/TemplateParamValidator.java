@@ -22,25 +22,18 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-
 public class TemplateParamValidator implements ToXContentObject, Writeable {
 
     private static final SpecVersion.VersionFlag SCHEMA_VERSION = SpecVersion.VersionFlag.V7;
     private static final JsonSchemaFactory SCHEMA_FACTORY = JsonSchemaFactory.getInstance(SCHEMA_VERSION);
-    private static final ParseField VALIDATOR_SOURCE = new ParseField("source");
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final JsonSchema META_SCHEMA = SCHEMA_FACTORY.getSchema(
         TemplateParamValidator.class.getResourceAsStream("json-schema-draft-07.json")
@@ -50,13 +43,6 @@ public class TemplateParamValidator implements ToXContentObject, Writeable {
         "param_validation",
         p -> new TemplateParamValidator((String) p[0])
     );
-
-    static {
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            return Strings.toString(builder.copyCurrentStructure(p));
-        }, VALIDATOR_SOURCE);
-    }
 
     private final JsonSchema jsonSchema;
 
@@ -84,21 +70,15 @@ public class TemplateParamValidator implements ToXContentObject, Writeable {
         }
     }
 
-    public static TemplateParamValidator parse(XContentParser parser) throws IOException {
-        return PARSER.apply(parser, null);
+    public TemplateParamValidator(XContentBuilder xContentBuilder) {
+        this(Strings.toString(xContentBuilder));
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (XContentType.JSON.equals(builder.contentType())) {
-            try (InputStream stream = new BytesArray(getSchemaAsString()).streamInput()) {
-                builder.rawField(VALIDATOR_SOURCE.getPreferredName(), stream);
-            }
-        } else {
-            builder.field(VALIDATOR_SOURCE.getPreferredName(), getSchemaAsString());
+        try (InputStream stream = new BytesArray(getSchemaAsString()).streamInput()) {
+            builder.rawValue(stream, builder.contentType());
         }
-        builder.endObject();
 
         return builder;
     }

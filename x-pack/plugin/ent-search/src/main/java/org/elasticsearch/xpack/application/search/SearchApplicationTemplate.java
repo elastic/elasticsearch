@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.search.action.QuerySearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.QuerySearchApplicationAction.Request;
@@ -33,7 +34,7 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
     private final Script script;
 
     private static final ParseField TEMPLATE_SCRIPT_FIELD = new ParseField("script");
-    private static final ParseField TEMPLATE_PARAM_VALIDATOR_FIELD = new ParseField("param_validation");
+    public static final ParseField DICTIONARY_FIELD = new ParseField("dictionary");
 
     private static final ConstructingObjectParser<SearchApplicationTemplate, Void> PARSER = new ConstructingObjectParser<>(
         "search_template",
@@ -42,7 +43,10 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
 
     static {
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> Script.parse(p, Script.DEFAULT_TEMPLATE_LANG), TEMPLATE_SCRIPT_FIELD);
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> TemplateParamValidator.parse(p), TEMPLATE_PARAM_VALIDATOR_FIELD);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> {
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            return new TemplateParamValidator(builder.copyCurrentStructure(p));
+        }, DICTIONARY_FIELD);
     }
 
     private final TemplateParamValidator templateParamValidator;
@@ -74,7 +78,7 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
             builder.field(TEMPLATE_SCRIPT_FIELD.getPreferredName(), script);
         }
         if (templateParamValidator != null) {
-            builder.field(TEMPLATE_PARAM_VALIDATOR_FIELD.getPreferredName(), templateParamValidator);
+            builder.field(DICTIONARY_FIELD.getPreferredName(), templateParamValidator);
         }
         builder.endObject();
         return builder;

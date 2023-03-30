@@ -57,6 +57,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_CROSS_CLUSTER_ACCESS_REALM;
@@ -303,7 +304,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 final String remoteClusterAlias = remoteClusterCredentials.clusterAlias();
 
                 if (connection.getTransportVersion().before(VERSION_CROSS_CLUSTER_ACCESS_REALM)) {
-                    throw new IllegalArgumentException(
+                    throw illegalArgumentExceptionWithDebugLog(
                         "Settings for remote cluster ["
                             + remoteClusterAlias
                             + "] indicate cross cluster access headers should be sent but target cluster version ["
@@ -312,11 +313,13 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     );
                 }
 
-                logger.debug(
-                    "Sending [{}] request to [{}] with cross cluster access headers for [{}] action",
-                    request.getClass(),
-                    remoteClusterAlias,
-                    action
+                logger.trace(
+                    () -> format(
+                        "Sending [%s] request for [%s] action to [%s] with cross cluster access headers",
+                        request.getClass(),
+                        action,
+                        remoteClusterAlias
+                    )
                 );
 
                 final Authentication authentication = securityContext.getAuthentication();
@@ -324,6 +327,13 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
                 final User user = authentication.getEffectiveSubject().getUser();
                 if (SystemUser.is(user)) {
+                    logger.trace(
+                        "Request [{}] for action [{}] towards [{}] initiated by the system user. "
+                            + "Sending request with internal cross cluster access user headers",
+                        request.getClass(),
+                        action,
+                        remoteClusterAlias
+                    );
                     final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
                         remoteClusterCredentials.credentials(),
                         CrossClusterAccessUser.subjectInfoWithEmptyRoleDescriptors(
@@ -333,14 +343,23 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     );
                     sendWithCrossClusterAccessHeaders(crossClusterAccessHeaders, connection, action, request, options, handler);
                 } else if (User.isInternal(user)) {
-                    final String message = "internal user [" + user.principal() + "] should not be used for cross cluster requests";
+                    final String message = "Internal user [" + user.principal() + "] should not be used for cross cluster requests";
                     assert false : message;
-                    throw new IllegalArgumentException(message);
+                    throw illegalArgumentExceptionWithDebugLog(message);
                 } else {
                     authzService.getRoleDescriptorsIntersectionForRemoteCluster(
                         remoteClusterAlias,
                         authentication.getEffectiveSubject(),
                         ActionListener.wrap(roleDescriptorsIntersection -> {
+                            logger.trace(
+                                () -> format(
+                                    "Subject [%s] has role descriptors intersection [%s] for action [%s] towards remote cluster [%s]",
+                                    authentication.getEffectiveSubject(),
+                                    roleDescriptorsIntersection,
+                                    action,
+                                    remoteClusterAlias
+                                )
+                            );
                             if (roleDescriptorsIntersection.isEmpty()) {
                                 throw authzService.remoteActionDenied(authentication, action, remoteClusterAlias);
                             }
@@ -374,6 +393,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 } catch (Exception e) {
                     contextRestoreHandler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
                 }
+            }
+
+            private static IllegalArgumentException illegalArgumentExceptionWithDebugLog(String message) {
+                logger.debug(message);
+                return new IllegalArgumentException(message);
             }
         };
     }
@@ -541,18 +565,17 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         public void messageReceived(T request, TransportChannel channel, Task task) {
             try (ThreadContext.StoredContext ctx = threadContext.newStoredContextPreservingResponseHeaders()) {
                 String profile = channel.getProfileName();
-                ServerTransportFilter filter = profileFilters.get(profile);
-
-                if (filter == null) {
-                    if (TransportService.DIRECT_RESPONSE_PROFILE.equals(profile)) {
-                        // apply the default filter to local requests. We never know what the request is or who sent it...
-                        filter = profileFilters.get("default");
-                    } else {
-                        String msg = "transport profile [" + profile + "] is not associated with a transport filter";
-                        throw new IllegalStateException(msg);
-                    }
-                }
+                ServerTransportFilter filter = getServerTransportFilter(profile);
                 assert filter != null;
+                assert request != null;
+                logger.trace(
+                    () -> format(
+                        "Applying transport filter [%s] for transport profile [%s] on request [%s]",
+                        filter.getClass(),
+                        profile,
+                        request.getClass()
+                    )
+                );
 
                 final AbstractRunnable receiveMessage = getReceiveRunnable(request, channel, task);
                 final ActionListener<Void> filterListener;
@@ -589,6 +612,20 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 }
                 filter.inbound(action, request, channel, filterListener);
 
+            }
+        }
+
+        private ServerTransportFilter getServerTransportFilter(String profile) {
+            final ServerTransportFilter filter = profileFilters.get(profile);
+            if (filter != null) {
+                return filter;
+            }
+            if (TransportService.DIRECT_RESPONSE_PROFILE.equals(profile)) {
+                // apply the default filter to local requests. We never know what the request is or who sent it...
+                return profileFilters.get("default");
+            } else {
+                String msg = "transport profile [" + profile + "] is not associated with a transport filter";
+                throw new IllegalStateException(msg);
             }
         }
     }

@@ -503,7 +503,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
                     equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO)
                 );
             } else {
-                assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long)countDocUpTo.applyAsInt(7)));
+                assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) countDocUpTo.applyAsInt(7)));
                 assertThat(context.queryResult().topDocs().topDocs.totalHits.relation, equalTo(TotalHits.Relation.EQUAL_TO));
             }
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(7));

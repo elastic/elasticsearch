@@ -324,7 +324,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 assert authentication != null : "authentication must be present in security context";
 
                 final User user = authentication.getEffectiveSubject().getUser();
-                if (SystemUser.is(user)) {
+                if (SystemUser.is(user) || action.equals(ClusterStateAction.NAME)) {
+                    // Use system user for cluster state requests (CCR has many calls of cluster state with end-user context)
                     final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
                         remoteClusterCredentials.credentials(),
                         CrossClusterAccessUser.subjectInfoWithEmptyRoleDescriptors(
@@ -337,16 +338,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     final String message = "internal user [" + user.principal() + "] should not be used for cross cluster requests";
                     assert false : message;
                     throw new IllegalArgumentException(message);
-                } else if (action.equals(ClusterStateAction.NAME)) {
-                    final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
-                        remoteClusterCredentials.credentials(),
-                        CrossClusterAccessUser.subjectInfoWithEmptyRoleDescriptors(
-                            authentication.getEffectiveSubject().getTransportVersion(),
-                            authentication.getEffectiveSubject().getRealm().getNodeName()
-                        )
-                    );
-                    // Use system user for cluster state requests (CCR has many calls of cluster state with end-user context)
-                    sendWithCrossClusterAccessHeaders(crossClusterAccessHeaders, connection, action, request, options, handler);
                 } else {
                     authzService.getRoleDescriptorsIntersectionForRemoteCluster(
                         remoteClusterAlias,

@@ -1,6 +1,0 @@
-pr: 93340
-summary: Nested path info shouldn't be added during `copy_to`
-area: Search
-type: bug
-issues:
- - 93117

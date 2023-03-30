@@ -112,7 +112,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
     public interface Custom extends NamedDiffable<Custom>, ChunkedToXContent {
 
         /**
-         * Returns <code>true</code> iff this {@link Custom} is private to the cluster and should never be send to a client.
+         * Returns <code>true</code> iff this {@link Custom} is private to the cluster and should never be sent to a client.
          * The default is <code>false</code>;
          */
         default boolean isPrivate() {

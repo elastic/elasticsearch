@@ -21,7 +21,7 @@ and prevent them from operating normally.
 Before upgrading to 8.7, review these changes and take the described steps
 to mitigate the impact.
 
-
+// tag::notable-breaking-changes[]
 [discrete]
 [[breaking_87_ingest_changes]]
 ==== Ingest changes
@@ -42,4 +42,4 @@ were sending invalid JSON data to the `json` processor.
 Ensure your application only sends valid JSON data to the `json` processor, or modify the `json` processors in your pipelines to set
 the `strict_json_parsing` parameter to `false`.
 ====
-
+// end::notable-breaking-changes[]

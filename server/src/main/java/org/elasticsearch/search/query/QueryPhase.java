@@ -77,11 +77,9 @@ public class QueryPhase {
         // request, preProcess is called on the DFS phase, this is why we pre-process them
         // here to make sure it happens during the QUERY phase
         AggregationPhase.preProcess(searchContext);
-        boolean rescore = executeInternal(searchContext);
+        executeInternal(searchContext);
 
-        if (rescore) { // only if we do a regular search
-            RescorePhase.execute(searchContext);
-        }
+        RescorePhase.execute(searchContext);
         SuggestPhase.execute(searchContext);
         AggregationPhase.execute(searchContext);
 
@@ -93,9 +91,8 @@ public class QueryPhase {
     /**
      * In a package-private method so that it can be tested without having to
      * wire everything (mapperService, etc.)
-     * @return whether the rescoring phase should be executed
      */
-    static boolean executeInternal(SearchContext searchContext) throws QueryPhaseExecutionException {
+    static void executeInternal(SearchContext searchContext) throws QueryPhaseExecutionException {
         final ContextIndexSearcher searcher = searchContext.searcher();
         final IndexReader reader = searcher.getIndexReader();
         QuerySearchResult queryResult = searchContext.queryResult();
@@ -135,8 +132,6 @@ public class QueryPhase {
                 // add terminate_after before the filter collectors
                 // it will only be applied on documents accepted by these filter collectors
                 collectors.add(createEarlyTerminationCollectorContext(searchContext.terminateAfter()));
-                // this collector can filter documents during the collection
-                hasFilterCollector = true;
             }
             if (searchContext.parsedPostFilter() != null) {
                 // add post filters before aggregations
@@ -176,7 +171,7 @@ public class QueryPhase {
             }
 
             try {
-                boolean shouldRescore = searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, timeoutSet);
+                searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, timeoutSet);
                 ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
                 assert executor instanceof EWMATrackingEsThreadPoolExecutor
                     || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)
@@ -185,7 +180,6 @@ public class QueryPhase {
                     queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
                     queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
                 }
-                return shouldRescore;
             } finally {
                 // Search phase has finished, no longer need to check for timeout
                 // otherwise aggregation phase might get cancelled.
@@ -198,7 +192,7 @@ public class QueryPhase {
         }
     }
 
-    private static boolean searchWithCollector(
+    private static void searchWithCollector(
         SearchContext searchContext,
         ContextIndexSearcher searcher,
         Query query,
@@ -238,7 +232,6 @@ public class QueryPhase {
         for (QueryCollectorContext ctx : collectors) {
             ctx.postProcess(queryResult);
         }
-        return topDocsFactory.shouldRescore();
     }
 
     /**

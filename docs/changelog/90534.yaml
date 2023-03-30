@@ -1,6 +1,0 @@
-pr: 90534
-summary: Fix fransport handshake starting before tls handshake completes
-area: Network
-type: bug
-issues:
- - 77999

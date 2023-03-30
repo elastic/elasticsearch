@@ -102,6 +102,8 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         final boolean enabled = explicitlyDisabled == false;
         final boolean operatorPrivilegesAvailable = randomBoolean();
         when(licenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(operatorPrivilegesAvailable);
+        final boolean remoteClusterServerAvailable = randomBoolean();
+        when(licenseState.isAllowed(Security.CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE)).thenReturn(remoteClusterServerAvailable);
 
         Settings.Builder settings = Settings.builder().put(this.settings);
 
@@ -277,8 +279,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
                         assertThat(source.getValue("ssl.remote_cluster_server.enabled"), nullValue());
                     }
                     assertThat(source.getValue("ssl.remote_cluster_client.enabled"), is(remoteClusterClientSslEnabled));
-                    // TODO: replace with license check
-                    assertThat(source.getValue("remote_cluster_server.available"), is(true));
+                    assertThat(source.getValue("remote_cluster_server.available"), is(remoteClusterServerAvailable));
                     assertThat(source.getValue("remote_cluster_server.enabled"), is(remoteClusterServerEnabled));
                 }
             } else {

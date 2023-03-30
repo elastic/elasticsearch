@@ -1,6 +1,0 @@
-pr: 94141
-summary: Propagate timestamp format and convert nanoseconds to milliseconds
-area: Rollup
-type: bug
-issues:
- - 94085

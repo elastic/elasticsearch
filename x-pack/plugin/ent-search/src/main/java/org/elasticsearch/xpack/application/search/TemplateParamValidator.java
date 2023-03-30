@@ -7,11 +7,16 @@
 
 package org.elasticsearch.xpack.application.search;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.networknt.schema.JsonSchema;
 import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
+import com.networknt.schema.ValidationMessage;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,7 +31,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -34,8 +38,14 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class TemplateParamValidator implements ToXContentObject, Writeable {
 
-    public static final ParseField VALIDATOR_SOURCE = new ParseField("source");
     private static final SpecVersion.VersionFlag SCHEMA_VERSION = SpecVersion.VersionFlag.V7;
+    private static final JsonSchemaFactory SCHEMA_FACTORY = JsonSchemaFactory.getInstance(SCHEMA_VERSION);
+    private static final ParseField VALIDATOR_SOURCE = new ParseField("source");
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final JsonSchema META_SCHEMA = SCHEMA_FACTORY.getSchema(
+        TemplateParamValidator.class.getResourceAsStream("json-schema-draft-07.json")
+    );
+
     private static final ConstructingObjectParser<TemplateParamValidator, Void> PARSER = new ConstructingObjectParser<>(
         "param_validation",
         p -> new TemplateParamValidator((String) p[0])
@@ -54,17 +64,28 @@ public class TemplateParamValidator implements ToXContentObject, Writeable {
         this(in.readString());
     }
 
-    public TemplateParamValidator(String validationSource) {
-        JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SCHEMA_VERSION);
-        this.jsonSchema = factory.getSchema(validationSource);
+    public TemplateParamValidator(String validationSource) throws ValidationException {
+        try {
+            final JsonNode schemaJsonNode = OBJECT_MAPPER.readTree(validationSource);
+            final Set<ValidationMessage> validationMessages = META_SCHEMA.validate(schemaJsonNode);
+
+            if (validationMessages.isEmpty() == false) {
+                ValidationException validationException = new ValidationException();
+                for (ValidationMessage validationMessage : validationMessages) {
+                    validationException.addValidationError(validationMessage.getMessage());
+                }
+
+                throw validationException;
+            }
+
+            this.jsonSchema = SCHEMA_FACTORY.getSchema(schemaJsonNode);
+        } catch (JsonProcessingException e) {
+            throw new ValidationException().addValidationError(e.getMessage());
+        }
     }
 
     public static TemplateParamValidator parse(XContentParser parser) throws IOException {
         return PARSER.apply(parser, null);
-    }
-
-    public void validate(Map<String, Object> params) {
-
     }
 
     @Override

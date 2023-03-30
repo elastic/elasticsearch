@@ -30,6 +30,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
@@ -206,7 +207,7 @@ public interface RoleDescriptor extends ToXContentObject, Writeable {
         }
     }
 
-    static AuthorizationEngine.PrivilegesToCheck parsePrivilegesToCheck(String description, boolean runDetailedCheck, XContentParser parser)
+    static PrivilegesToCheck parsePrivilegesToCheck(String description, boolean runDetailedCheck, XContentParser parser)
         throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             throw new ElasticsearchParseException(
@@ -255,7 +256,7 @@ public interface RoleDescriptor extends ToXContentObject, Writeable {
                 throw new ElasticsearchParseException("Field [{}] is not supported in a has_privileges request", Fields.QUERY);
             }
         }
-        return new AuthorizationEngine.PrivilegesToCheck(
+        return new PrivilegesToCheck(
             clusterPrivileges != null ? clusterPrivileges : Strings.EMPTY_ARRAY,
             indexPrivileges != null ? indexPrivileges : IndicesPrivileges.NONE,
             applicationPrivileges != null ? applicationPrivileges : ApplicationResourcePrivileges.NONE,
@@ -266,7 +267,7 @@ public interface RoleDescriptor extends ToXContentObject, Writeable {
     /**
      * Parses the privileges to be checked, from the same syntax used for granting privileges in a {@code RoleDescriptor}.
      */
-    static AuthorizationEngine.PrivilegesToCheck parsePrivilegesToCheck(
+    static PrivilegesToCheck parsePrivilegesToCheck(
         String description,
         boolean runDetailedCheck,
         BytesReference source,
@@ -290,8 +291,7 @@ public interface RoleDescriptor extends ToXContentObject, Writeable {
         }
     }
 
-    private static RoleDescriptor.IndicesPrivileges[] parseIndices(String roleName, XContentParser parser, boolean allow2xFormat)
-        throws IOException {
+    private static IndicesPrivileges[] parseIndices(String roleName, XContentParser parser, boolean allow2xFormat) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
             throw new ElasticsearchParseException(
                 "failed to parse indices privileges for role [{}]. expected field [{}] value " + "to be an array, but found [{}] instead",
@@ -300,7 +300,7 @@ public interface RoleDescriptor extends ToXContentObject, Writeable {
                 parser.currentToken()
             );
         }
-        List<RoleDescriptor.IndicesPrivileges> privileges = new ArrayList<>();
+        List<IndicesPrivileges> privileges = new ArrayList<>();
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             privileges.add(parseIndex(roleName, parser, allow2xFormat));
         }
@@ -319,8 +319,7 @@ public interface RoleDescriptor extends ToXContentObject, Writeable {
         return parsed.indicesPrivileges();
     }
 
-    private static RoleDescriptor.RemoteIndicesPrivileges[] parseRemoteIndices(final String roleName, final XContentParser parser)
-        throws IOException {
+    private static RemoteIndicesPrivileges[] parseRemoteIndices(final String roleName, final XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
             throw new ElasticsearchParseException(
                 "failed to parse remote indices privileges for role [{}]. expected field [{}] value "
@@ -330,7 +329,7 @@ public interface RoleDescriptor extends ToXContentObject, Writeable {
                 parser.currentToken()
             );
         }
-        final List<RoleDescriptor.RemoteIndicesPrivileges> privileges = new ArrayList<>();
+        final List<RemoteIndicesPrivileges> privileges = new ArrayList<>();
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             privileges.add(parseRemoteIndex(roleName, parser));
         }
@@ -645,7 +644,7 @@ public interface RoleDescriptor extends ToXContentObject, Writeable {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             indicesPrivileges.innerToXContent(builder);
-            builder.array(RoleDescriptor.Fields.REMOTE_CLUSTERS.getPreferredName(), remoteClusters);
+            builder.array(Fields.REMOTE_CLUSTERS.getPreferredName(), remoteClusters);
             return builder.endObject();
         }
 
@@ -696,7 +695,7 @@ public interface RoleDescriptor extends ToXContentObject, Writeable {
         }
 
         public static class Builder {
-            private final RoleDescriptor.IndicesPrivileges.Builder indicesBuilder = new RoleDescriptor.IndicesPrivileges.Builder();
+            private final IndicesPrivileges.Builder indicesBuilder = new IndicesPrivileges.Builder();
             private final String[] remoteClusters;
 
             public Builder(String... remoteClusters) {
@@ -745,9 +744,9 @@ public interface RoleDescriptor extends ToXContentObject, Writeable {
                 if (remoteClusters == null || remoteClusters.length == 0) {
                     throw new IllegalArgumentException(
                         "the ["
-                            + RoleDescriptor.Fields.REMOTE_INDICES
+                            + Fields.REMOTE_INDICES
                             + "] sub-field ["
-                            + RoleDescriptor.Fields.REMOTE_CLUSTERS
+                            + Fields.REMOTE_CLUSTERS
                             + "] must refer to at least one cluster alias or cluster alias pattern"
                     );
                 }
@@ -760,7 +759,7 @@ public interface RoleDescriptor extends ToXContentObject, Writeable {
      * A class representing permissions for a group of indices mapped to
      * privileges, field permissions, and a query.
      */
-    class IndicesPrivileges implements ToXContentObject, Writeable, Comparable<RoleDescriptor.IndicesPrivileges> {
+    class IndicesPrivileges implements ToXContentObject, Writeable, Comparable<IndicesPrivileges> {
 
         static final IndicesPrivileges[] NONE = new IndicesPrivileges[0];
 
@@ -858,20 +857,17 @@ public interface RoleDescriptor extends ToXContentObject, Writeable {
             sb.append("], privileges=[").append(Strings.arrayToCommaDelimitedString(privileges));
             sb.append("], ");
             if (grantedFields != null || deniedFields != null) {
-                sb.append(RoleDescriptor.Fields.FIELD_PERMISSIONS).append("=[");
+                sb.append(Fields.FIELD_PERMISSIONS).append("=[");
                 if (grantedFields == null) {
-                    sb.append(RoleDescriptor.Fields.GRANT_FIELDS).append("=null");
+                    sb.append(Fields.GRANT_FIELDS).append("=null");
                 } else {
-                    sb.append(RoleDescriptor.Fields.GRANT_FIELDS).append("=[").append(Strings.arrayToCommaDelimitedString(grantedFields));
+                    sb.append(Fields.GRANT_FIELDS).append("=[").append(Strings.arrayToCommaDelimitedString(grantedFields));
                     sb.append("]");
                 }
                 if (deniedFields == null) {
-                    sb.append(", ").append(RoleDescriptor.Fields.EXCEPT_FIELDS).append("=null");
+                    sb.append(", ").append(Fields.EXCEPT_FIELDS).append("=null");
                 } else {
-                    sb.append(", ")
-                        .append(RoleDescriptor.Fields.EXCEPT_FIELDS)
-                        .append("=[")
-                        .append(Strings.arrayToCommaDelimitedString(deniedFields));
+                    sb.append(", ").append(Fields.EXCEPT_FIELDS).append("=[").append(Strings.arrayToCommaDelimitedString(deniedFields));
                     sb.append("]");
                 }
                 sb.append("]");
@@ -921,19 +917,19 @@ public interface RoleDescriptor extends ToXContentObject, Writeable {
             builder.array("names", indices);
             builder.array("privileges", privileges);
             if (grantedFields != null || deniedFields != null) {
-                builder.startObject(RoleDescriptor.Fields.FIELD_PERMISSIONS.getPreferredName());
+                builder.startObject(Fields.FIELD_PERMISSIONS.getPreferredName());
                 if (grantedFields != null) {
-                    builder.array(RoleDescriptor.Fields.GRANT_FIELDS.getPreferredName(), grantedFields);
+                    builder.array(Fields.GRANT_FIELDS.getPreferredName(), grantedFields);
                 }
                 if (deniedFields != null) {
-                    builder.array(RoleDescriptor.Fields.EXCEPT_FIELDS.getPreferredName(), deniedFields);
+                    builder.array(Fields.EXCEPT_FIELDS.getPreferredName(), deniedFields);
                 }
                 builder.endObject();
             }
             if (query != null) {
                 builder.field("query", query.utf8ToString());
             }
-            return builder.field(RoleDescriptor.Fields.ALLOW_RESTRICTED_INDICES.getPreferredName(), allowRestrictedIndices);
+            return builder.field(Fields.ALLOW_RESTRICTED_INDICES.getPreferredName(), allowRestrictedIndices);
         }
 
         public static void write(StreamOutput out, IndicesPrivileges privileges) throws IOException {
@@ -1042,9 +1038,9 @@ public interface RoleDescriptor extends ToXContentObject, Writeable {
         );
 
         static {
-            PARSER.declareString(Builder::application, RoleDescriptor.Fields.APPLICATION);
-            PARSER.declareStringArray(Builder::privileges, RoleDescriptor.Fields.PRIVILEGES);
-            PARSER.declareStringArray(Builder::resources, RoleDescriptor.Fields.RESOURCES);
+            PARSER.declareString(Builder::application, Fields.APPLICATION);
+            PARSER.declareStringArray(Builder::privileges, Fields.PRIVILEGES);
+            PARSER.declareStringArray(Builder::resources, Fields.RESOURCES);
         }
 
         private String application;
@@ -1120,9 +1116,9 @@ public interface RoleDescriptor extends ToXContentObject, Writeable {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(RoleDescriptor.Fields.APPLICATION.getPreferredName(), application);
-            builder.array(RoleDescriptor.Fields.PRIVILEGES.getPreferredName(), privileges);
-            builder.array(RoleDescriptor.Fields.RESOURCES.getPreferredName(), resources);
+            builder.field(Fields.APPLICATION.getPreferredName(), application);
+            builder.array(Fields.PRIVILEGES.getPreferredName(), privileges);
+            builder.array(Fields.RESOURCES.getPreferredName(), resources);
             return builder.endObject();
         }
 

@@ -38,7 +38,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
@@ -46,6 +45,7 @@ import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheResponse
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.authz.DefaultRoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.LazyRoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
@@ -456,36 +456,37 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         try {
             // we pass true as last parameter because we do not want to reject permissions if the field permissions
             // are given in 2.x syntax
-            RoleDescriptor roleDescriptor = RoleDescriptor.parse(name, sourceBytes, true, XContentType.JSON);
-            final boolean dlsEnabled = Arrays.stream(roleDescriptor.getIndicesPrivileges())
-                .anyMatch(IndicesPrivileges::isUsingDocumentLevelSecurity);
-            final boolean flsEnabled = Arrays.stream(roleDescriptor.getIndicesPrivileges())
-                .anyMatch(IndicesPrivileges::isUsingFieldLevelSecurity);
-            if ((dlsEnabled || flsEnabled) && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
-                List<String> unlicensedFeatures = new ArrayList<>(2);
-                if (flsEnabled) {
-                    unlicensedFeatures.add("fls");
+            RoleDescriptor roleDescriptor = new LazyRoleDescriptor(name, sourceBytes);
+            if (DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
+                final boolean dlsEnabled = Arrays.stream(roleDescriptor.getIndicesPrivileges())
+                    .anyMatch(IndicesPrivileges::isUsingDocumentLevelSecurity);
+                final boolean flsEnabled = Arrays.stream(roleDescriptor.getIndicesPrivileges())
+                    .anyMatch(IndicesPrivileges::isUsingFieldLevelSecurity);
+                if ((dlsEnabled || flsEnabled)) {
+                    List<String> unlicensedFeatures = new ArrayList<>(2);
+                    if (flsEnabled) {
+                        unlicensedFeatures.add("fls");
+                    }
+                    if (dlsEnabled) {
+                        unlicensedFeatures.add("dls");
+                    }
+                    Map<String, Object> transientMap = Maps.newMapWithExpectedSize(2);
+                    transientMap.put("unlicensed_features", unlicensedFeatures);
+                    transientMap.put("enabled", false);
+                    return new DefaultRoleDescriptor(
+                        roleDescriptor.getName(),
+                        roleDescriptor.getClusterPrivileges(),
+                        roleDescriptor.getIndicesPrivileges(),
+                        roleDescriptor.getApplicationPrivileges(),
+                        roleDescriptor.getConditionalClusterPrivileges(),
+                        roleDescriptor.getRunAs(),
+                        roleDescriptor.getMetadata(),
+                        transientMap,
+                        roleDescriptor.getRemoteIndicesPrivileges()
+                    );
                 }
-                if (dlsEnabled) {
-                    unlicensedFeatures.add("dls");
-                }
-                Map<String, Object> transientMap = Maps.newMapWithExpectedSize(2);
-                transientMap.put("unlicensed_features", unlicensedFeatures);
-                transientMap.put("enabled", false);
-                return new DefaultRoleDescriptor(
-                    roleDescriptor.getName(),
-                    roleDescriptor.getClusterPrivileges(),
-                    roleDescriptor.getIndicesPrivileges(),
-                    roleDescriptor.getApplicationPrivileges(),
-                    roleDescriptor.getConditionalClusterPrivileges(),
-                    roleDescriptor.getRunAs(),
-                    roleDescriptor.getMetadata(),
-                    transientMap,
-                    roleDescriptor.getRemoteIndicesPrivileges()
-                );
-            } else {
-                return roleDescriptor;
             }
+            return roleDescriptor;
         } catch (Exception e) {
             logger.error(() -> "error in the format of data for role [" + name + "]", e);
             return null;

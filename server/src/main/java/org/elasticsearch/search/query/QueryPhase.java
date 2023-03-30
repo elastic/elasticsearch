@@ -77,9 +77,9 @@ public class QueryPhase {
         // request, preProcess is called on the DFS phase, this is why we pre-process them
         // here to make sure it happens during the QUERY phase
         AggregationPhase.preProcess(searchContext);
-        boolean rescore = executeInternal(searchContext);
+        executeInternal(searchContext);
 
-        if (rescore) { // only if we do a regular search
+        if (searchContext.rescore().isEmpty() == false) { // only if we do a regular search
             RescorePhase.execute(searchContext);
         }
         SuggestPhase.execute(searchContext);
@@ -95,7 +95,7 @@ public class QueryPhase {
      * wire everything (mapperService, etc.)
      * @return whether the rescoring phase should be executed
      */
-    static boolean executeInternal(SearchContext searchContext) throws QueryPhaseExecutionException {
+    static void executeInternal(SearchContext searchContext) throws QueryPhaseExecutionException {
         final ContextIndexSearcher searcher = searchContext.searcher();
         final IndexReader reader = searcher.getIndexReader();
         QuerySearchResult queryResult = searchContext.queryResult();
@@ -176,7 +176,7 @@ public class QueryPhase {
             }
 
             try {
-                boolean shouldRescore = searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, timeoutSet);
+                searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, timeoutSet);
                 ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
                 assert executor instanceof EWMATrackingEsThreadPoolExecutor
                     || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)
@@ -185,7 +185,6 @@ public class QueryPhase {
                     queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
                     queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
                 }
-                return shouldRescore;
             } finally {
                 // Search phase has finished, no longer need to check for timeout
                 // otherwise aggregation phase might get cancelled.
@@ -198,7 +197,7 @@ public class QueryPhase {
         }
     }
 
-    private static boolean searchWithCollector(
+    private static void searchWithCollector(
         SearchContext searchContext,
         ContextIndexSearcher searcher,
         Query query,
@@ -238,7 +237,6 @@ public class QueryPhase {
         for (QueryCollectorContext ctx : collectors) {
             ctx.postProcess(queryResult);
         }
-        return topDocsFactory.shouldRescore();
     }
 
     /**

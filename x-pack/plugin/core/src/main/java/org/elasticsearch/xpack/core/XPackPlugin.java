@@ -42,10 +42,13 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.ClusterStateLicenseService;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.internal.MutableLicenseService;
+import org.elasticsearch.license.internal.Status;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
@@ -167,7 +170,9 @@ public class XPackPlugin extends XPackClientPlugin
         // We should only depend on the settings from the Environment object passed to createComponents
         this.settings = settings;
 
-        setLicenseState(new XPackLicenseState(() -> getEpochMillisSupplier().getAsLong()));
+        setLicenseState(
+            new XPackLicenseState(() -> getEpochMillisSupplier().getAsLong(), () -> new Status(License.OperationMode.TRIAL, true, null))
+        );
 
         this.licensing = new Licensing(settings);
     }
@@ -321,7 +326,7 @@ public class XPackPlugin extends XPackClientPlugin
 
         // It is useful to override these as they are what guice is injecting into actions
         components.add(sslService);
-        components.add(new PluginComponentBinding<>(LicenseService.MutableLicenseService.class, licenseService));
+        components.add(new PluginComponentBinding<>(MutableLicenseService.class, licenseService));
         components.add(new PluginComponentBinding<>(LicenseService.class, licenseService));
         components.add(getLicenseState());
 

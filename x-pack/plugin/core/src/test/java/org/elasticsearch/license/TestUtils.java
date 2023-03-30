@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.license.internal.MutableLicenseService;
 import org.elasticsearch.license.licensor.LicenseSigner;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
@@ -375,7 +376,7 @@ public class TestUtils {
     }
 
     public static void registerAndAckSignedLicenses(
-        final LicenseService.MutableLicenseService licenseService,
+        final MutableLicenseService licenseService,
         License license,
         final LicensesStatus expectedStatus
     ) {

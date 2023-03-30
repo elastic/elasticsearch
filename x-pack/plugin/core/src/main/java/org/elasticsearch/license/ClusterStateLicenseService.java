@@ -31,6 +31,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.license.internal.MutableLicenseService;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -56,7 +57,7 @@ import java.util.stream.Collectors;
  */
 public class ClusterStateLicenseService extends AbstractLifecycleComponent
     implements
-        LicenseService.MutableLicenseService,
+        MutableLicenseService,
         ClusterStateListener,
         SchedulerEngine.Listener {
     private static final Logger logger = LogManager.getLogger(ClusterStateLicenseService.class);

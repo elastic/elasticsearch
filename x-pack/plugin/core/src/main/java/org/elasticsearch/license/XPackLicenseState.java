@@ -12,6 +12,8 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License.OperationMode;
+import org.elasticsearch.license.internal.Status;
+import org.elasticsearch.license.internal.StatusSupplier;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.util.Collections;
@@ -289,25 +291,6 @@ public class XPackLicenseState {
         return mode == OperationMode.BASIC;
     }
 
-    /** A wrapper for the license mode, state, and expiration date, to allow atomically swapping. */
-    private static class Status {
-
-        /** The current "mode" of the license (ie license type). */
-        final OperationMode mode;
-
-        /** True if the license is active, or false if it is expired. */
-        final boolean active;
-
-        /** A warning to be emitted on license checks about the license expiring soon. */
-        final String expiryWarning;
-
-        Status(OperationMode mode, boolean active, String expiryWarning) {
-            this.mode = mode;
-            this.active = active;
-            this.expiryWarning = expiryWarning;
-        }
-    }
-
     private final List<LicenseStateListener> listeners;
 
     /**
@@ -323,22 +306,30 @@ public class XPackLicenseState {
     // XPackLicenseState. However, if status is read multiple times in a method, it can change in between
     // reads. Methods should use `executeAgainstStatus` and `checkAgainstStatus` to ensure that the status
     // is only read once.
-    private volatile Status status = new Status(OperationMode.TRIAL, true, null);
+    private volatile Status status;
+
+    public XPackLicenseState(LongSupplier epochMillisProvider, StatusSupplier statusSupplier) {
+        this.listeners = new CopyOnWriteArrayList<>();
+        this.usage = new ConcurrentHashMap<>();
+        this.epochMillisProvider = epochMillisProvider;
+        this.status = statusSupplier.get();
+    }
 
     public XPackLicenseState(LongSupplier epochMillisProvider) {
         this.listeners = new CopyOnWriteArrayList<>();
         this.usage = new ConcurrentHashMap<>();
         this.epochMillisProvider = epochMillisProvider;
+        this.status = new Status(OperationMode.TRIAL, true, null);
     }
 
     private XPackLicenseState(
         List<LicenseStateListener> listeners,
-        Status status,
+        StatusSupplier statusSupplier,
         Map<FeatureUsage, Long> usage,
         LongSupplier epochMillisProvider
     ) {
         this.listeners = listeners;
-        this.status = status;
+        this.status = statusSupplier.get();
         this.usage = usage;
         this.epochMillisProvider = epochMillisProvider;
     }
@@ -377,18 +368,18 @@ public class XPackLicenseState {
 
     /** Return the current license type. */
     public OperationMode getOperationMode() {
-        return executeAgainstStatus(statusToCheck -> statusToCheck.mode);
+        return executeAgainstStatus(statusToCheck -> statusToCheck.mode());
     }
 
     // Package private for tests
     /** Return true if the license is currently within its time boundaries, false otherwise. */
     public boolean isActive() {
-        return checkAgainstStatus(statusToCheck -> statusToCheck.active);
+        return checkAgainstStatus(statusToCheck -> statusToCheck.active());
     }
 
     public String statusDescription() {
         return executeAgainstStatus(
-            statusToCheck -> (statusToCheck.active ? "active" : "expired") + ' ' + statusToCheck.mode.description() + " license"
+            statusToCheck -> (statusToCheck.active() ? "active" : "expired") + ' ' + statusToCheck.mode().description() + " license"
         );
     }
 
@@ -425,7 +416,7 @@ public class XPackLicenseState {
     }
 
     void checkExpiry() {
-        String warning = status.expiryWarning;
+        String warning = status.expiryWarning();
         if (warning != null) {
             HeaderWarning.addWarning(warning);
         }
@@ -461,7 +452,7 @@ public class XPackLicenseState {
      * is needed for multiple interactions with the license state.
      */
     public XPackLicenseState copyCurrentLicenseState() {
-        return executeAgainstStatus(statusToCheck -> new XPackLicenseState(listeners, statusToCheck, usage, epochMillisProvider));
+        return executeAgainstStatus(statusToCheck -> new XPackLicenseState(listeners, () -> statusToCheck, usage, epochMillisProvider));
     }
 
     /**
@@ -475,10 +466,10 @@ public class XPackLicenseState {
     @Deprecated
     public boolean isAllowedByLicense(OperationMode minimumMode, boolean needActive) {
         return checkAgainstStatus(statusToCheck -> {
-            if (needActive && false == statusToCheck.active) {
+            if (needActive && false == statusToCheck.active()) {
                 return false;
             }
-            return isAllowedByOperationMode(statusToCheck.mode, minimumMode);
+            return isAllowedByOperationMode(statusToCheck.mode(), minimumMode);
         });
     }
 

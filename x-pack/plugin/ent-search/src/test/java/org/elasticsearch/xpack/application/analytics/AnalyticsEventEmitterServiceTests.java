@@ -7,19 +7,11 @@
 
 package org.elasticsearch.xpack.application.analytics;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.Appender;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.analytics.action.PostAnalyticsEventAction;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
@@ -37,10 +29,10 @@ import static org.mockito.Mockito.when;
 
 public class AnalyticsEventEmitterServiceTests extends ESTestCase {
     public void testEmitEventWhenCollectionExists() throws IOException {
-        // Preparing a randomRequest
+        // Preparing a randomRequest.
         PostAnalyticsEventAction.Request request = randomRequest();
 
-        // Stubbing emitted event
+        // Stubbing emitted event.
         AnalyticsEvent emittedEvent = mock(AnalyticsEvent.class);
         when(emittedEvent.eventCollectionName()).thenReturn(request.eventCollectionName());
         when(emittedEvent.eventType()).thenReturn(request.eventType());
@@ -50,35 +42,15 @@ public class AnalyticsEventEmitterServiceTests extends ESTestCase {
         AnalyticsEventFactory analyticsEventFactoryMock = mock(AnalyticsEventFactory.class);
         when(analyticsEventFactoryMock.fromRequest(request)).thenReturn(emittedEvent);
 
+        // Mocking event logger.
+        AnalyticsEventLogger eventLogger = mock(AnalyticsEventLogger.class);
+
         // Create the event emitter
         AnalyticsEventEmitterService eventEmitter = new AnalyticsEventEmitterService(
             analyticsEventFactoryMock,
             mock(AnalyticsCollectionResolver.class),
-            mock(ClusterService.class)
-        );
-
-        // Stubbing analytics event rendering.
-        when(emittedEvent.toXContent(any(), any())).thenAnswer(
-            i -> i.getArgument(0, XContentBuilder.class).startObject().field("hash", emittedEvent.hashCode()).endObject()
-        );
-
-        // Setting the logging expectation
-
-        // Instantiate a log appender mock to check event logging behavior.
-        MockLogAppender mockLogAppender = new MockLogAppender();
-        Logger eventEmitterServiceLogger = LogManager.getLogger(AnalyticsEventEmitterService.class);
-        Loggers.addAppender(eventEmitterServiceLogger, mockLogAppender);
-        mockLogAppender.start();
-
-        String expectedLogMessage = LoggerMessageFormat.format("""
-            {"hash":{}}""", emittedEvent.hashCode());
-        mockLogAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "event message",
-                AnalyticsEventEmitterService.class.getName(),
-                Level.INFO,
-                expectedLogMessage
-            )
+            mock(ClusterService.class),
+            eventLogger
         );
 
         @SuppressWarnings("unchecked")
@@ -99,17 +71,16 @@ public class AnalyticsEventEmitterServiceTests extends ESTestCase {
             return response.isAccepted();
         }));
 
-        // Check logging expectation has been met.
-        mockLogAppender.assertAllExpectationsMatched();
-
-        // Reset loggers state
-        mockLogAppender.stop();
-        Loggers.removeAppender(eventEmitterServiceLogger, mockLogAppender);
+        // Check event have been passed to the logger.
+        verify(eventLogger).logEvent(emittedEvent);
     }
 
-    public void testEmitEventWhenCollectionDoesNotExists() {
+    public void testEmitEventWhenCollectionDoesNotExists() throws IOException {
         // Preparing a randomRequest
         PostAnalyticsEventAction.Request request = randomRequest();
+
+        // Mocking event logger.
+        AnalyticsEventLogger eventLogger = mock(AnalyticsEventLogger.class);
 
         // Create the event emitter
         AnalyticsCollectionResolver analyticsCollectionResolver = mock(AnalyticsCollectionResolver.class);
@@ -117,14 +88,9 @@ public class AnalyticsEventEmitterServiceTests extends ESTestCase {
         AnalyticsEventEmitterService eventEmitter = new AnalyticsEventEmitterService(
             mock(AnalyticsEventFactory.class),
             analyticsCollectionResolver,
-            mock(ClusterService.class)
+            mock(ClusterService.class),
+            eventLogger
         );
-
-        // Instantiate a log appender mock to check event logging behavior.
-        Appender mockLogAppender = mock(Appender.class);
-        Logger eventEmitterServiceLogger = LogManager.getLogger(AnalyticsEventEmitterService.class);
-        when(mockLogAppender.getName()).thenReturn(randomIdentifier());
-        Loggers.addAppender(eventEmitterServiceLogger, mockLogAppender);
 
         @SuppressWarnings("unchecked")
         ActionListener<PostAnalyticsEventAction.Response> listener = mock(ActionListener.class);
@@ -137,15 +103,15 @@ public class AnalyticsEventEmitterServiceTests extends ESTestCase {
         verify(listener).onFailure(any(ResourceNotFoundException.class));
 
         // Verify no event is logged
-        verify(mockLogAppender, never()).append(any());
-
-        // Reset loggers state
-        Loggers.removeAppender(eventEmitterServiceLogger, mockLogAppender);
+        verify(eventLogger, never()).logEvent(any());
     }
 
     public void testEmitEventWhenParsingError() throws IOException {
         // Preparing a randomRequest
         PostAnalyticsEventAction.Request request = randomRequest();
+
+        // Mocking event logger.
+        AnalyticsEventLogger eventLogger = mock(AnalyticsEventLogger.class);
 
         // Create the event emitter
         AnalyticsEventFactory analyticsEventFactory = mock(AnalyticsEventFactory.class);
@@ -153,14 +119,9 @@ public class AnalyticsEventEmitterServiceTests extends ESTestCase {
         AnalyticsEventEmitterService eventEmitter = new AnalyticsEventEmitterService(
             analyticsEventFactory,
             mock(AnalyticsCollectionResolver.class),
-            mock(ClusterService.class)
+            mock(ClusterService.class),
+            eventLogger
         );
-
-        // Instantiate a log appender mock to check event logging behavior.
-        Appender mockLogAppender = mock(Appender.class);
-        Logger eventEmitterServiceLogger = LogManager.getLogger(AnalyticsEventEmitterService.class);
-        when(mockLogAppender.getName()).thenReturn(randomIdentifier());
-        Loggers.addAppender(eventEmitterServiceLogger, mockLogAppender);
 
         @SuppressWarnings("unchecked")
         ActionListener<PostAnalyticsEventAction.Response> listener = mock(ActionListener.class);
@@ -173,10 +134,7 @@ public class AnalyticsEventEmitterServiceTests extends ESTestCase {
         verify(listener).onFailure(any(IOException.class));
 
         // Verify no event is logged
-        verify(mockLogAppender, never()).append(any());
-
-        // Reset loggers state
-        Loggers.removeAppender(eventEmitterServiceLogger, mockLogAppender);
+        verify(eventLogger, never()).logEvent(any());
     }
 
     private PostAnalyticsEventAction.Request randomRequest() {

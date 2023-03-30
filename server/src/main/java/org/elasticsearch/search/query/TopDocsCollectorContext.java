@@ -214,7 +214,8 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             int numHits,
             boolean trackMaxScore,
             int trackTotalHitsUpTo,
-            boolean hasFilterCollector
+            boolean hasFilterCollector,
+            int terminateAfter
         ) throws IOException {
             super(REASON_SEARCH_TOP_HITS, numHits);
             this.sortAndFormats = sortAndFormats;
@@ -234,7 +235,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 totalHitsSupplier = () -> new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
             } else {
                 // implicit total hit counts are valid only when there is no filter collector in the chain
-                final int hitCount = hasFilterCollector ? -1 : shortcutTotalHitCount(reader, query);
+                final int hitCount = hasFilterCollector ? -1 : shortcutTotalHitCount(reader, query, terminateAfter);
                 if (hitCount == -1) {
                     topDocsCollector = createCollector(sortAndFormats, numHits, searchAfter, trackTotalHitsUpTo);
                     topDocsSupplier = new CachedSupplier<>(topDocsCollector::topDocs);
@@ -305,7 +306,8 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             boolean trackMaxScore,
             int numberOfShards,
             int trackTotalHitsUpTo,
-            boolean hasFilterCollector
+            boolean hasFilterCollector,
+            int terminateAfter
         ) throws IOException {
             super(
                 reader,
@@ -315,7 +317,8 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 numHits,
                 trackMaxScore,
                 trackTotalHitsUpTo,
-                hasFilterCollector
+                hasFilterCollector,
+                terminateAfter
             );
             this.scrollContext = Objects.requireNonNull(scrollContext);
             this.numberOfShards = numberOfShards;
@@ -350,7 +353,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
      * or a {@link TermQuery} and the <code>reader</code> has no deletions,
      * -1 otherwise.
      */
-    static int shortcutTotalHitCount(IndexReader reader, Query query) throws IOException {
+    static int shortcutTotalHitCount(IndexReader reader, Query query, int terminateAfter) throws IOException {
         while (true) {
             // remove wrappers that don't matter for counts
             // this is necessary so that we don't only optimize match_all
@@ -364,13 +367,27 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 break;
             }
         }
+        terminateAfter = terminateAfter == 0 ? Integer.MAX_VALUE : terminateAfter;
         if (query.getClass() == MatchAllDocsQuery.class) {
-            return reader.numDocs();
+            if (terminateAfter == Integer.MAX_VALUE) {
+                return reader.numDocs();
+            }
+            int count = 0;
+            for (LeafReaderContext context : reader.leaves()) {
+                count += context.reader().numDocs();
+                if (count >= terminateAfter) {
+                    break;
+                }
+            }
+            return count;
         } else if (query.getClass() == TermQuery.class && reader.hasDeletions() == false) {
             final Term term = ((TermQuery) query).getTerm();
             int count = 0;
             for (LeafReaderContext context : reader.leaves()) {
                 count += context.reader().docFreq(term);
+                if (count >= terminateAfter) {
+                    break;
+                }
             }
             return count;
         } else if (query.getClass() == FieldExistsQuery.class && reader.hasDeletions() == false) {
@@ -397,6 +414,9 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                     } else {
                         return -1; // no shortcut possible for fields that are not indexed
                     }
+                }
+                if (count >= terminateAfter) {
+                    break;
                 }
             }
             return count;
@@ -435,7 +455,8 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 searchContext.trackScores(),
                 searchContext.numberOfShards(),
                 trackTotalHitsUpTo,
-                hasFilterCollector
+                hasFilterCollector,
+                searchContext.terminateAfter()
             );
         } else if (searchContext.collapse() != null) {
             boolean trackScores = searchContext.sort() == null ? true : searchContext.trackScores();
@@ -464,7 +485,8 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 numDocs,
                 searchContext.trackScores(),
                 searchContext.trackTotalHitsUpTo(),
-                hasFilterCollector
+                hasFilterCollector,
+                searchContext.terminateAfter()
             );
         }
     }
